@@ -55,15 +55,25 @@ def deciles(x, y, nbins=NBINS):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--perdir", required=True, help="perdir_8b.json from modal_8b_rarity.eval_dirs")
+    ap.add_argument("--perdir", action="append", required=True, metavar="[TAG=]PATH",
+                    help="repeatable: perdir json from modal_8b_rarity.eval_dirs; TAG= labels the curve")
     ap.add_argument("--sae-match", default=None, help="sae_match_8b.npz from scan_fire (rarity axis)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     os.makedirs(f"{a.out}/data", exist_ok=True)
 
-    d = json.load(open(a.perdir))
-    s = {k: np.asarray(v) for k, v in d["perdir"]["sae"].items()}
+    arms = {}
+    for spec in a.perdir:
+        tag, path = spec.split("=", 1) if "=" in spec else (os.path.basename(spec), spec)
+        dd = json.load(open(path))
+        arms[tag] = {k: np.asarray(v) for k, v in dd["perdir"]["sae"].items()}
+        arms[tag]["_meta"] = dd
+    tags = list(arms)
+    d = arms[tags[0]]["_meta"]
+    s = arms[tags[0]]
     best, peak, feat = s["best_act"], s["corpus_peak"], s["feature"]
+    for t in tags[1:]:
+        assert np.array_equal(arms[t]["feature"], feat), "all arms must share a feature list"
 
     if a.sae_match:
         z = np.load(a.sae_match)
@@ -76,25 +86,35 @@ def main():
         xlabel = "log10 corpus peak activation"
         axis = "log10_corpus_peak"
 
-    crits = [("best_act > 1.0  (inherited bar)", (best > 1.0).astype(int), MUTED, "--"),
-             ("norm_act >= 0.10", (s["norm_act"] >= 0.10).astype(int), SERIES[2], "-"),
-             (">= top-16 corpus example", (best >= s["ex_top16"]).astype(int), SERIES[1], "-"),
-             (">= weakest top example", (best >= s["ex_last"]).astype(int), SERIES[0], "-")]
-    if "null_p95" in s:
-        crits.append(("> own null p95  (direction-specific)", (best > s["null_p95"]).astype(int),
-                      SERIES[5], "-"))
+    def crits_for(sx):
+        c = [("best_act > 1.0  (inherited bar)", (sx["best_act"] > 1.0).astype(int), MUTED, "--"),
+             ("norm_act >= 0.10", (sx["norm_act"] >= 0.10).astype(int), SERIES[2], "-"),
+             (">= top-16 corpus example", (sx["best_act"] >= sx["ex_top16"]).astype(int), SERIES[1], "-"),
+             (">= weakest top example", (sx["best_act"] >= sx["ex_last"]).astype(int), SERIES[0], "-")]
+        if "null_p95" in sx:
+            c.append(("> own null p95  (direction-specific)",
+                      (sx["best_act"] > sx["null_p95"]).astype(int), SERIES[5], "-"))
+        return c
+    crits = crits_for(s)
 
-    fig, ax = plt.subplots(figsize=(8.6, 5.4))
-    out = {"adapter": d.get("adapter"), "n": int(len(feat)), "axis": axis, "criteria": {}}
-    for name, v, c, ls in crits:
-        unv = 1 - v
-        xm, ym, se, nb = deciles(x, unv.astype(float))
-        A = auc_rarer_worse(x, unv)
-        ax.errorbar(xm, ym, yerr=se, color=c, ls=ls, lw=1.9, marker="o", ms=4.5, mfc="white",
-                    mew=1.5, capsize=2, label=f"{name}   AUC {A:.3f} · overall {unv.mean():.2f}")
-        out["criteria"][name] = {"auc": float(A), "overall_unverbalized": float(unv.mean()),
-                                 "x_mid": xm.tolist(), "y_mean": ym.tolist(),
-                                 "y_sem": se.tolist(), "n_per_bin": nb.tolist()}
+    MARK = ["o", "s", "^", "D"]
+    fig, ax = plt.subplots(figsize=(9.4 if len(tags) > 1 else 8.6, 5.6), constrained_layout=True)
+    out = {"n": int(len(feat)), "axis": axis, "arms": {}}
+    for ai, tag in enumerate(tags):
+        sx = arms[tag]
+        out["arms"][tag] = {"adapter": sx["_meta"].get("adapter"), "criteria": {}}
+        for name, v, c, ls in crits_for(sx):
+            unv = 1 - v
+            xm, ym, se, nb = deciles(x, unv.astype(float))
+            A = auc_rarer_worse(x, unv)
+            lbl = f"{tag} · {name}" if len(tags) > 1 else name
+            ax.errorbar(xm, ym, yerr=se, color=c, ls=(ls if ai == 0 else ":"), lw=1.9,
+                        marker=MARK[ai % 4], ms=4.5, mfc="white", mew=1.5, capsize=2,
+                        label=f"{lbl}   AUC {A:.3f} · overall {unv.mean():.2f}")
+            out["arms"][tag]["criteria"][name] = {
+                "auc": float(A), "overall_unverbalized": float(unv.mean()),
+                "x_mid": xm.tolist(), "y_mean": ym.tolist(),
+                "y_sem": se.tolist(), "n_per_bin": nb.tolist()}
     ax.set_xlabel(xlabel, color=INK2)
     ax.set_ylabel("fraction unverbalized", color=INK2)
     ax.grid(True, color=GRID, lw=0.6); ax.set_axisbelow(True); ax.set_ylim(-0.03, 1.03)
@@ -104,26 +124,33 @@ def main():
     ax.set_title(f"Qwen3-8B inverter: where it fails, by feature rarity  (n={len(feat)}, "
                  f"{d.get('d_sae', '?')}-feature SAE @L{d.get('read_layer', '?')})",
                  fontweight="bold", color=INK, fontsize=12, loc="left")
-    fig.tight_layout()
+    stem = "fig6_8b_unverbalized_by_criterion" if len(tags) == 1 else "fig8_8b_before_after"
     for e in ("png", "pdf"):
-        fig.savefig(f"{a.out}/fig6_8b_unverbalized_by_criterion.{e}", dpi=170, bbox_inches="tight")
+        fig.savefig(f"{a.out}/{stem}.{e}", dpi=170, bbox_inches="tight")
 
-    if "null_p95" in s:
-        out["null"] = {"median_null_p95": float(np.median(s["null_p95"])),
-                       "median_best_act": float(np.median(best)),
-                       "frac_best_above_null_p95": float(np.mean(best > s["null_p95"])),
-                       "median_best_over_null": float(np.median(best / np.maximum(s["null_p95"], 1e-9)))}
-    json.dump(out, open(f"{a.out}/data/fig6_8b.json", "w"), indent=1)
+    for tag in tags:
+        sx = arms[tag]
+        if "null_p95" in sx:
+            out["arms"][tag]["null"] = {
+                "median_null_p95": float(np.median(sx["null_p95"])),
+                "median_best_act": float(np.median(sx["best_act"])),
+                "frac_best_above_null_p95": float(np.mean(sx["best_act"] > sx["null_p95"])),
+                "frac_zero_act": float(np.mean(sx["best_act"] == 0))}
+    json.dump(out, open(f"{a.out}/data/{stem}.json", "w"), indent=1)
 
-    w = max(len(k) for k in out["criteria"])
+    w = max(len(k) for t in tags for k in out["arms"][t]["criteria"])
     print(f"n={len(feat)}  axis={axis}")
-    print(f"{'criterion':<{w}} {'unverb':>8} {'AUC':>8}")
-    for k, v in out["criteria"].items():
-        print(f"{k:<{w}} {v['overall_unverbalized']:>8.3f} {v['auc']:>8.3f}")
-    if "null" in out:
-        print("\nnull: median p95 %.2f vs median best_act %.2f | best > own null p95 for %.1f%% of features"
-              % (out["null"]["median_null_p95"], out["null"]["median_best_act"],
-                 100 * out["null"]["frac_best_above_null_p95"]))
+    for t in tags:
+        print(f"\n[{t}]  {out['arms'][t]['adapter']}")
+        print(f"  {'criterion':<{w}} {'unverb':>8} {'AUC':>8}")
+        for k, v in out["arms"][t]["criteria"].items():
+            print(f"  {k:<{w}} {v['overall_unverbalized']:>8.3f} {v['auc']:>8.3f}")
+    for t in tags:
+        n_ = out["arms"][t].get("null")
+        if n_:
+            print("  null: median p95 %.2f | median best_act %.2f | beats own null %.1f%% | zero-act %.1f%%"
+                  % (n_["median_null_p95"], n_["median_best_act"],
+                     100 * n_["frac_best_above_null_p95"], 100 * n_["frac_zero_act"]))
 
 
 if __name__ == "__main__":

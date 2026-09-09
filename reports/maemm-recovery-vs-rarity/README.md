@@ -105,3 +105,66 @@ added explicitly with `git add -f`; **new files written there will not appear in
 
 **Not yet done:** the null control has never been run on the 27B arms. Every 27B number here is
 therefore uncontrolled for common features firing on any fluent text. That is the first thing to fix.
+
+---
+
+# Rare-feature training experiment (8B)
+
+Does mining better targets for rare features fix the rarity-vs-verbalizability relation?
+**Directionally yes, but it underperforms RL and the headline number depends heavily on the criterion.**
+
+## Design
+
+Three disjoint feature sets over the 65,536-feature L27 SAE, drawn from the same firing-rate bands:
+TRAIN 9,972 / TRAIN-EVAL 1,200 (a subset of TRAIN) / TEST 1,520 (never trained on; overlap asserted 0).
+
+1. `mine_targets` — 10M Ultra-FineWeb tokens, top-16 spans per TRAIN feature -> 159,552 pairs.
+2. `train_rare` — LoRA SFT from `ref/` (the SFT init), min_act 10, 1 epoch, lr 1e-4, 9,805 steps,
+   loss 3.13 -> 2.45.
+3. `eval_dirs` before/after on TRAIN-EVAL (fig8) and on TEST.
+
+## The mining result stands on its own
+
+Strong targets DO exist for rare features: every one of the 9,972 got a full top-16, and the rarest
+band's rank-0 median activation is **84.3** against a whole-SAE median corpus peak of ~103. The old
+bank's problem was scan budget, not corpus scarcity — at 1M tokens a rare feature appears ~7 times so
+its argmax is a lucky hit; at 10M it appears ~68 times and the top span is a genuine peak.
+
+## Results — and why the criterion decides the story
+
+Held-out TEST (1,520 features never trained on):
+
+| criterion | sft init | RL | after rare-training |
+|---|---|---|---|
+| `> own null_p95` (permissive; = "any activation" for the 86% whose null is 0) | 0.270 | **0.514** | 0.458 |
+| `> own null_max` (promiscuity-proof) | 0.100 | **0.235** | 0.178 |
+| `>= top-16 corpus example` (strict) | 0.030 | **0.074** | 0.046 |
+
+The permissive criterion says +18.8 points of transfer; the promiscuity-proof one says **+7.8**. The
+gap is real and measurable: rare-feature training made the model markedly more promiscuous —
+median `null_mean` 0.024 -> 0.089, and signal-to-null (median best_act / null_p95) **6.09 -> 3.33**,
+the worst of the three arms, against RL's 14.76. A model that lights up more features passes
+"beats own null" more often without being any more direction-specific, so **report the strict
+criterion**.
+
+It also trades off: per rarity bin under `> null_max`, the gain is +0.21 in the mid-rare bins
+(and beats RL outright at 0.011-0.017%: 0.240 vs 0.167) but **-0.026 in the commonest bin**. Training
+exclusively on rare features costs a little common-feature capability.
+
+## Conclusion
+
+Better rare-feature targets improve rare-feature verbalizability and the improvement **generalizes to
+unseen features** — that part is solid. But RL beats it on every criterion at a fraction of the cost
+(~3 GPU-hours of mining + training vs an already-trained checkpoint), and neither approach makes the
+deep tail verbalizable: in the rarest bin, strict criterion, sft 0.016 -> RL 0.087 -> after 0.060.
+
+## Figures
+
+| file | what |
+|---|---|
+| `fig7_hard_to_get` | hard-to-get vs not-measurable, per arm, using each feature's own negative sample |
+| `fig8_8b_before_after` | fig6 before/after rare-feature training, on the 1,200 TRAIN-EVAL features |
+
+`scripts/modal_8b_rarity.py` carries all four jobs (`scan_fire`, `eval_dirs`, `mine_targets`,
+`train_rare`). The trained adapter lives only on the Modal volume at `/data/adapters/rare`; the
+159,552-pair mined bank (38 MB) is at `/out/mined_train.jsonl` and is not committed.

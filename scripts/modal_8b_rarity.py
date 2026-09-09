@@ -171,7 +171,8 @@ def scan_fire(n_tokens: int = 1_024_000, seq_len: int = 256, batch: int = 16, se
 # ---------------------------------------------------------------------------------------------
 @app.function(image=image, gpu=GPU, timeout=TIMEOUT, volumes={"/data": vol})
 def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: int = 64,
-              min_new: int = 16, temp: float = 1.0, seed: int = 0, features_json: str = ""):
+              min_new: int = 16, temp: float = 1.0, seed: int = 0, features_json: str = "",
+              subfolder: str = "", tag: str = "rl", adapter_path: str = ""):
     import numpy as np
     import torch
     import torch.nn.functional as Fn
@@ -185,7 +186,11 @@ def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: 
         tok.pad_token = tok.eos_token
     base = AutoModelForCausalLM.from_pretrained(MODEL, torch_dtype=torch.bfloat16,
                                                 attn_implementation="sdpa", device_map={"": dev})
-    actor = PeftModel.from_pretrained(base, ADAPTER, is_trainable=False).eval()
+    # subfolder="ref" selects the frozen SFT init (the RL run's KL anchor) shipped in the same repo,
+    # giving the sft arm of the sft-vs-rl comparison without a second checkpoint source.
+    src = adapter_path or ADAPTER          # adapter_path: a /data/adapters/<tag> dir from train_rare
+    actor = PeftModel.from_pretrained(base, src, is_trainable=False,
+                                      **({"subfolder": subfolder} if subfolder and not adapter_path else {})).eval()
     W_enc, b_enc, b_dec = _load_sae(dev)
 
     ma = torch.load(hf_hub_download(MAXACTS_REPO, MAXACTS_FILE, repo_type="dataset"),
@@ -203,7 +208,8 @@ def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: 
 
     pids, mpos = _prompt_ids(tok)
     plen = len(pids)
-    print(f"[eval] {n} features x bo{bo} | prompt {plen} tok, marker @{mpos} | adapter {ADAPTER}", flush=True)
+    print(f"[eval] {n} features x bo{bo} | prompt {plen} tok, marker @{mpos} | "
+          f"arm={tag} adapter={src}{'/' + subfolder if subfolder and not adapter_path else ''}", flush=True)
 
     # ---- generate (adapter ON, direction injected at layer 1 on the marker) -------------------
     rows = np.repeat(np.arange(n), bo)                    # which feature each generation belongs to
@@ -293,7 +299,8 @@ def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: 
         null_mean[i], null_p95[i], null_max[i] = other.mean(), np.quantile(other, 0.95), other.max()
 
     cp = corpus_peak[torch.as_tensor(feats)].numpy()
-    out = {"adapter": ADAPTER, "model": MODEL, "read_layer": READ_LAYER, "d_sae": D_SAE,
+    out = {"adapter": adapter_path or (ADAPTER + (f"/{subfolder}" if subfolder else "")), "arm": tag,
+           "model": MODEL, "read_layer": READ_LAYER, "d_sae": D_SAE,
            "n": int(n), "bo": int(bo), "temp": temp, "max_new": max_new,
            "aggregates": {"norm_act": float(np.mean(best_act / np.maximum(cp, 1e-9))),
                           "best_act_median": float(np.median(best_act)),
@@ -309,10 +316,10 @@ def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: 
                "null_mean": null_mean.tolist(), "null_p95": null_p95.tolist(),
                "null_max": null_max.tolist()}}}
     os.makedirs("/data/out", exist_ok=True)
-    json.dump(out, open("/data/out/perdir_8b.json", "w"))
-    np.save("/data/out/act_profile_8b.npy", prof.numpy())               # [n*bo, d_sae] fp16, the null source
+    json.dump(out, open(f"/data/out/perdir_8b_{tag}.json", "w"))
+    np.save(f"/data/out/act_profile_8b_{tag}.npy", prof.numpy())               # [n*bo, d_sae] fp16, the null source
     json.dump({"texts": texts, "rows": rows.tolist(), "feats": feats.tolist()},
-              open("/data/out/texts_8b.json", "w"))
+              open(f"/data/out/texts_8b_{tag}.json", "w"))
     vol.commit()
     print("[eval] DONE " + json.dumps(out["aggregates"], indent=1), flush=True)
     return out["aggregates"]
@@ -437,3 +444,225 @@ def main(job: str = "eval", n_features: int = 512, n_tokens: int = 1_024_000):
         print(probe.remote(n_features=n_features))
     else:
         print(eval_dirs.remote(n_features=n_features))
+
+
+# ---------------------------------------------------------------------------------------------
+# JOB C — target MINING for rare features (the "expansive training" data)
+#
+# build_universal_bank.build_sae_family gives each SAE feature ONE target, decoded from its single
+# argmax over the scan (data/build_universal_bank.py:336). Feature COUNT is already uniform there --
+# rare features are not underrepresented -- but for a feature firing once per 100k tokens a 1M-token
+# scan sees it ~10 times, so that argmax is a lucky hit rather than a peak. This mines the top-K
+# spans per feature over a much longer scan, so rare features get several genuinely strong targets.
+# Positions < SPAN_MIN are masked so a context span always exists (same convention as the builder).
+# ---------------------------------------------------------------------------------------------
+SPAN_MIN, SPAN_MAX, MIN_SPAN_CHARS, MAX_TARGET_CHARS = 16, 64, 3, 2000
+
+
+@app.function(image=image, gpu=GPU, timeout=TIMEOUT, volumes={"/data": vol})
+def mine_targets(features_json: str, n_tokens: int = 10_000_000, seq_len: int = 256,
+                 batch: int = 16, topk: int = 16, seed: int = 0, tag: str = "train"):
+    import numpy as np
+    import torch
+    from datasets import load_dataset
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    dev = "cuda:0"
+    feats = np.asarray(json.loads(features_json), dtype=np.int64)
+    nF = len(feats)
+    tok = AutoTokenizer.from_pretrained(MODEL)
+    model = AutoModelForCausalLM.from_pretrained(MODEL, torch_dtype=torch.bfloat16,
+                                                 attn_implementation="sdpa", device_map={"": dev}).eval()
+    W_enc, b_enc, b_dec = _load_sae(dev)
+    idx = torch.as_tensor(feats, device=dev)
+    Wsub, bsub = W_enc[:, idx].contiguous(), b_enc[idx]          # [d, nF], [nF]
+    print(f"[mine] {nF} features | target {n_tokens:,} tokens | top-{topk} spans each", flush=True)
+
+    cap = {}
+    layer = model.model.layers[READ_LAYER]
+
+    def hook(_m, _i, out):
+        cap["h"] = (out[0] if isinstance(out, tuple) else out).float()
+    handle = layer.register_forward_hook(hook)
+
+    # running top-k per feature, plus every scanned token so spans can be decoded at the end
+    best_v = torch.full((nF, topk), -1.0, device=dev)
+    best_r = torch.zeros((nF, topk), dtype=torch.long, device=dev)   # global row = seq*T + pos
+    toks_all, seen, nseq = [], 0, 0
+    ds = load_dataset(CORPUS, split="en", streaming=True).shuffle(seed=seed, buffer_size=10_000)
+    probe_row = next(iter(ds))
+    col = next((c for c in ("content", "text", "raw_content") if c in probe_row), None)
+    assert col, f"no text column in {list(probe_row)}"
+
+    buf, it = [], iter(ds)
+    try:
+        with torch.no_grad():
+            while seen < n_tokens:
+                while len(buf) < batch:
+                    ids = tok(next(it)[col], add_special_tokens=False)["input_ids"]
+                    for i in range(0, len(ids) - seq_len + 1, seq_len):
+                        buf.append(ids[i:i + seq_len])
+                rows = torch.tensor(buf[:batch], device=dev); buf = buf[batch:]
+                toks_all.append(rows.cpu().numpy().astype(np.int32))
+                model(input_ids=rows, attention_mask=torch.ones_like(rows))
+                h = cap["h"]                                          # [B,T,d]
+                a = torch.relu((h - b_dec) @ Wsub + bsub)              # [B,T,nF]
+                a[:, :SPAN_MIN] = -1.0                                 # need room for a context span
+                v, p = a.max(dim=1)                                    # [B,nF] best token per sequence
+                gr = (torch.arange(rows.shape[0], device=dev) + nseq)[:, None] * seq_len + p
+                # merge this batch's per-sequence candidates into the running top-k
+                cv = torch.cat([best_v, v.T], dim=1)
+                cr = torch.cat([best_r, gr.T], dim=1)
+                sv, si = cv.topk(topk, dim=1)
+                best_v, best_r = sv, cr.gather(1, si)
+                nseq += rows.shape[0]; seen += rows.numel()
+                if (seen // (batch * seq_len)) % 200 == 0:
+                    print(f"[mine] {seen:,}/{n_tokens:,} tokens", flush=True)
+    finally:
+        handle.remove()
+
+    toks = np.concatenate(toks_all, 0)                                 # [nseq, T]
+    bv, br = best_v.cpu().numpy(), best_r.cpu().numpy()
+    rng = np.random.default_rng(seed)
+    os.makedirs("/data/out", exist_ok=True)
+    path = f"/data/out/mined_{tag}.jsonl"
+    n_ex, n_drop, per_feat = 0, 0, []
+    with open(path, "w") as fh:
+        for i, f in enumerate(feats):
+            kept = 0
+            for j in range(topk):
+                if bv[i, j] <= 0:
+                    continue
+                s, p = int(br[i, j] // seq_len), int(br[i, j] % seq_len)
+                L = int(rng.integers(SPAN_MIN, SPAN_MAX + 1))
+                text = tok.decode(toks[s, max(0, p - L + 1): p + 1].tolist())[:MAX_TARGET_CHARS]
+                if len(text.strip()) < MIN_SPAN_CHARS:
+                    n_drop += 1
+                    continue
+                fh.write(json.dumps({"feature": int(f), "act": round(float(bv[i, j]), 3),
+                                     "text": text, "seq": s, "pos": p, "rank": j}) + "\n")
+                n_ex += 1; kept += 1
+            per_feat.append(kept)
+    per_feat = np.asarray(per_feat)
+    stats = {"features": nF, "examples": n_ex, "dropped": n_drop, "tokens": int(seen),
+             "targets_per_feature": {"mean": float(per_feat.mean()), "median": float(np.median(per_feat)),
+                                     "zero": int((per_feat == 0).sum()), "full": int((per_feat == topk).sum())},
+             "act_of_best": {"p05": float(np.quantile(bv[:, 0], .05)), "median": float(np.median(bv[:, 0])),
+                             "p95": float(np.quantile(bv[:, 0], .95))}}
+    json.dump(stats, open(f"/data/out/mined_{tag}_stats.json", "w"), indent=1)
+    vol.commit()
+    print("[mine] DONE " + json.dumps(stats, indent=1), flush=True)
+    return stats
+
+
+# ---------------------------------------------------------------------------------------------
+# JOB D — "expansive training": SFT the inverter on the MINED rare-feature targets.
+#
+# Same objective as sft/pretrain.py (inject unit(W_enc[:,f]) at layer 1 on the marker; cross-entropy
+# on the target tokens only, prompt positions masked to -100), written self-contained because
+# mxf/prompts.py bakes in the 27B's layer-42 instruction and mxf/config.py its d_model 5120.
+# Starts from the SFT init (ref/) so the comparison is SFT-vs-SFT and does not confound with RL.
+# ---------------------------------------------------------------------------------------------
+@app.function(image=image, gpu=GPU, timeout=TIMEOUT, volumes={"/data": vol})
+def train_rare(mined: str = "/data/out/mined_train.jsonl", epochs: float = 1.0, lr: float = 1e-4,
+               batch: int = 16, max_target: int = 80, min_act: float = 0.0, max_per_feature: int = 0,
+               subfolder: str = "ref", tag: str = "rare", seed: int = 0, log_every: int = 50):
+    import numpy as np
+    import torch
+    import torch.nn.functional as Fn
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    dev = "cuda:0"
+    tok = AutoTokenizer.from_pretrained(MODEL)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    base = AutoModelForCausalLM.from_pretrained(MODEL, torch_dtype=torch.bfloat16,
+                                                attn_implementation="sdpa", device_map={"": dev})
+    actor = PeftModel.from_pretrained(base, ADAPTER, is_trainable=True,
+                                      **({"subfolder": subfolder} if subfolder else {}))
+    actor.train()
+    W_enc, b_enc, b_dec = _load_sae(dev)
+    pids, mpos = _prompt_ids(tok)
+    plen = len(pids)
+
+    rows = [json.loads(l) for l in open(mined)]
+    if min_act > 0:
+        rows = [r for r in rows if r["act"] >= min_act]
+    if max_per_feature > 0:
+        keep, cnt = [], {}
+        for r in sorted(rows, key=lambda r: -r["act"]):
+            c = cnt.get(r["feature"], 0)
+            if c < max_per_feature:
+                keep.append(r); cnt[r["feature"]] = c + 1
+        rows = keep
+    rng = np.random.default_rng(seed)
+    rng.shuffle(rows)
+    nfeat = len({r["feature"] for r in rows})
+    print(f"[train] {len(rows)} examples over {nfeat} features | lr {lr} bs {batch} "
+          f"epochs {epochs} | min_act {min_act} max_per_feature {max_per_feature}", flush=True)
+
+    params = [p for p in actor.parameters() if p.requires_grad]
+    print(f"[train] trainable tensors {len(params)} | {sum(p.numel() for p in params)/1e6:.1f}M params", flush=True)
+    opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
+    inj_layer = actor.get_base_model().model.layers[INJECT_LAYER]
+
+    n_steps = int(len(rows) * epochs) // batch
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=max(n_steps, 1),
+                                                pct_start=0.03, anneal_strategy="cos")
+    losses, step = [], 0
+    for e in range(int(np.ceil(epochs))):
+        for s in range(0, len(rows), batch):
+            if step >= n_steps:
+                break
+            bt = rows[s:s + batch]
+            B = len(bt)
+            tgt = [tok.encode(r["text"], add_special_tokens=False)[:max_target] + [tok.eos_token_id]
+                   for r in bt]
+            L = max(len(t) for t in tgt)
+            ids = torch.full((B, plen + L), tok.pad_token_id, dtype=torch.long, device=dev)
+            lab = torch.full((B, plen + L), -100, dtype=torch.long, device=dev)
+            am = torch.zeros((B, plen + L), dtype=torch.long, device=dev)
+            for j, t in enumerate(tgt):
+                ids[j, :plen] = torch.tensor(pids, device=dev)
+                ids[j, plen:plen + len(t)] = torch.tensor(t, device=dev)
+                lab[j, plen:plen + len(t)] = torch.tensor(t, device=dev)   # prompt masked
+                am[j, :plen + len(t)] = 1
+            fidx = torch.as_tensor([r["feature"] for r in bt], device=dev)
+            v = Fn.normalize(W_enc[:, fidx].T, dim=-1)                      # [B, d] unit enc columns
+
+            def hook(_m, _i, out, v=v):
+                # FUNCTIONAL injection: split/cat instead of index assignment. Writing h[:, mpos]
+                # in place mutates the view autograd saved for AsStridedBackward0 and blows up on
+                # backward -- fine under no_grad (the eval path), fatal while training.
+                h = out[0] if isinstance(out, tuple) else out
+                if h.shape[1] <= 1:
+                    return out
+                cur = h[:, mpos]
+                delta = (v * (cur.norm(dim=-1, keepdim=True) * STEER_COEFF)).to(h.dtype)
+                h = torch.cat([h[:, :mpos], (cur + delta).unsqueeze(1), h[:, mpos + 1:]], dim=1)
+                return (h, *out[1:]) if isinstance(out, tuple) else h
+
+            hd = inj_layer.register_forward_hook(hook)
+            try:
+                loss = actor(input_ids=ids, attention_mask=am, labels=lab).loss
+            finally:
+                hd.remove()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, 1.0)
+            opt.step(); sched.step(); opt.zero_grad(set_to_none=True)
+            losses.append(float(loss)); step += 1
+            if step % log_every == 0:
+                print(f"[train] step {step}/{n_steps} loss {np.mean(losses[-log_every:]):.4f} "
+                      f"lr {sched.get_last_lr()[0]:.2e}", flush=True)
+
+    outdir = f"/data/adapters/{tag}"
+    os.makedirs(outdir, exist_ok=True)
+    actor.save_pretrained(outdir)
+    stats = {"examples": len(rows), "features": nfeat, "steps": step, "lr": lr, "batch": batch,
+             "loss_first50": float(np.mean(losses[:50])) if losses else None,
+             "loss_last50": float(np.mean(losses[-50:])) if losses else None, "adapter_dir": outdir}
+    json.dump(stats, open(f"/data/out/train_{tag}_stats.json", "w"), indent=1)
+    vol.commit()
+    print("[train] DONE " + json.dumps(stats, indent=1), flush=True)
+    return stats
