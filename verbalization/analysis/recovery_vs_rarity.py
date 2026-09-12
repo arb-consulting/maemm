@@ -36,10 +36,10 @@ is also fit on the RAW best_act, and a two-predictor fit reports the semipartial
 corpus_peak held out.
 
 Usage:
-    python scripts/recovery_vs_rarity.py \
+    python verbalization/analysis/recovery_vs_rarity.py \
         --perdir sft=perdir_ckpt_10107.json --perdir rl=perdir_ckpt_150.json \
         --perdir fullft=perdir_ckpt_2441.json \
-        --sae-match sae_match.npz --maxacts max_acts.pt --out ~/shared/reports/maemm-recovery-vs-rarity
+        --sae-match sae_match.npz --maxacts max_acts.pt --out verbalization/report
 (the two volume files: modal volume get maemm-data /mlp42/sae_match.npz . ;
  modal volume get maemm-data /eval_ckpt/<tag>/perdir_ckpt_<k>.json .)
 """
@@ -55,16 +55,13 @@ from scipy import stats
 
 # categorical slots 1-6 of the validated reference palette, fixed order by arm (same sheet as
 # scripts/plot_sae_bimodality.py); chrome from the same sheet.
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"]
-INK, INK2, MUTED, GRID = "#0b0b0b", "#52514e", "#898781", "#e1e0d9"
+from style import SERIES, INK, INK2, MUTED, GRID, apply_rcparams
 SAE_FIRE = 1.0            # eval_universal.SAE_FIRE: raw act > 1.0 counts as "fired"
 N_TOK_DEFAULT = 4000 * 256    # data/mlp42_neurons_worker.py scan: 4000 windows x 256 tokens
 NBINS = 10
 N_BOOT = 2000
 
-plt.rcParams.update({"font.family": "sans-serif", "font.size": 10, "axes.edgecolor": MUTED, "axes.labelcolor": INK2,
-                     "xtick.color": INK2, "ytick.color": INK2, "axes.titlecolor": INK, "axes.titleweight": "bold",
-                     "axes.spines.top": False, "axes.spines.right": False, "figure.facecolor": "white", "axes.facecolor": "white"})
+apply_rcparams()
 
 RECOVERY_LABEL = {"norm_act": "norm_act  (best act / corpus peak)", "sae_cos": "cos(rollout peak, encoder dir)",
                   "log10_best_act": "log10 best raw activation", "neg_log10_rank": "-log10 full-SAE rank at peak",

@@ -1,0 +1,207 @@
+
+########################################################################################################
+## 1. COLLOCATION / COMPLETION  — fires mid-phrase, encodes the continuation
+########################################################################################################
+
+feat 36075  peak 232.0  fires 0.0309%  MAEMM   0.00   [' of' 30/30 -> ' Commerce' 30/30]
+    of the Washington Hospital Healthcare Foundation, and executive committee officer of the Fremont Chamber of Comm
+    holiday season. Gail Godesky, the Treasurer of the Bayonne Chamber of Commerce in addition to being Vice Preside
+    Arts, a federal agency. Advanced price tickets for the festival are on sale locally at Moonlight Books and the C
+
+feat 36295  peak 240.0  fires 0.0387%  MAEMM   0.00   [' of' 30/30 -> ' Staff' 18/30]
+    /pressreleases/2003/09/09032003b.html. Also: Chief of Staff John Daniel
+    on July 24, 2012, during a media availability to discuss Air Force accomplishments during his time as Chief of S
+    Air Force and four years as the Air Force’s senior uniformed leader. “When former Secretary of Defense Robert Ga
+
+feat 27001  peak 205.0  fires 0.0045%  MAEMM   0.00   [';' 30/30 -> ' Editing' 24/30]
+    9 states have proposed such legislation in 2013, according to the NCSL. (Reporting by Corrie MacLaggan; Editing
+    distributed "American Hustle." (Reporting by Ronald Grover and Chris Michaud; Editing by Leslie Adler and Jeffre
+    disease on the mainland since the first deaths were reported last month. (Reporting by Clare Jim; Editing by Ken
+
+feat 61567  peak 268.0  fires 0.0038%  MAEMM   0.00   ['(' 30/30 -> 'Market' 16/30]
+    Biosciences, Inc. NEW YORK, NY--(Marketwired - Oct 9, 2013) - IntelliCell Biosci
+    of 501st Founder's Daughter by Unveiling Limited Edition Star Wars Action Figure PAWTUCKET, R.I.--(BUSINESS W
+    Patient IntelliCell Biosciences, Inc. NEW YORK, NY--(Marketwired - Oct 9, 2013)
+
+feat 4347   peak 227.0  fires 0.0025%  MAEMM   0.00   ['PR' 30/30 -> 'New' 28/30]
+    YORK, NY, Sept. 15 /PRNewswire-FirstCall/ - - GENova Biotherapeutics Inc. ("GENova") today
+    ic 2020 Visionary" status. HUNTINGTON, N.Y., April 15, 2014 /PR
+    , Mass., Jan. 14, 2013 /PRNewswire via COMTEX/ -- Agero, a leading provider of
+
+feat 22729  peak 218.0  fires 0.0766%  MAEMM   0.00   [' ' 30/30 -> '2' 28/30]
+    updated: August 14 2009./g,">");l[i].setAttribute("href","mailto:"+t.value);}}catch(e
+    Jr. Jan 11 2011, 8:30 AM ET Dawn Endico/flickr "Constitutional
+    Panties'By Lewis Corner Thursday, Nov 21 2013, 5:51am EST R Kelly will give
+
+feat 26707  peak 276.0  fires 0.4553%  MAEMM    nan   [' Kay' 29/30 -> 'ak' 4/30]
+    Categories: Athletes, Events, Kerri Walsh, Olympics	| Tags: closing ceremonies, Gabby Douglas, Kayla Harrison, K
+    personalised thank you messages ASA bans Kayak 'brain surgeon' ad Mondelez hands Cadbury role to Kenco marketer 
+    'Offensive' Jimmy Savile marketing slammed by ad watchdog Kraft's Tassimo to send personalised thank you message
+
+feat 42273  peak 134.0  fires 0.0706%  MAEMM   0.04   ['://' 30/30 -> 'thumbs' 14/30]
+    -her-boobs-and-gets-fucked-in-a-public-park-ivFa_kFahab][img]http://thumbs.deviantclip.com
+    -ransonneti-in-the-Red-Sea/"><img src="http://preview.cutcaster.com/90168247
+    =200x200 ]http://www.rbpstore.org/images/prodImages/thumb/30663.jpg[/img ]
+
+feat 58101  peak 135.0  fires 0.0927%  MAEMM   0.49   [' ' 29/30 -> '4' 9/30]
+    -02, 67 F.R. 66208 (October 30, 2002), for an additional
+    6914, Aug. 26, 1996, 61 F.R. 45851, provided
+    , 1996, 61 F.R. 45851, provided: 1. On January 1, 1
+
+########################################################################################################
+## 2. LEGAL / REGULATORY BOILERPLATE
+########################################################################################################
+
+feat 9348   peak  52.2  fires 0.0304%  MAEMM   0.00   [',' 11/30 -> ' treat' 8/30]
+    by the Food and Drug Administration. This product is not intended to diagnose, treat, cure or prevent any diseas
+    about products and health conditions have not been evaluated by the US Food and Drug Administration. Products an
+    1.3 oz) & natural alternative remedies have not been evaluated by the FDA. Information herein is not intended to
+
+feat 25953  peak  59.0  fires 0.0335%  MAEMM   0.00   [' and' 9/30 -> ' is' 7/30]
+    accurate, up-to-date, and complete, but no guarantee is made to that effect. In addition, the drug information c
+    Service is accurate, up-to-date, and complete, but no guarantee is made to that effect. In addition, the drug in
+    this drug.Important: The drug information on this page is meant to be educational. It is not a substitute for me
+
+feat 38873  peak 110.0  fires 0.0106%  MAEMM   0.00   [' date' 14/30 -> ' of' 9/30]
+    cautioned not to place undue reliance on these forward-looking statements, which speak only as of the date of th
+    are, therefore, cautioned not to place undue reliance on any forward-looking statement. Any forward-looking stat
+    March 12, 2013. In addition, any forward-looking statements represent BioLineRx's views only as of the date of t
+
+feat 2092   peak 135.0  fires 0.0059%  MAEMM   0.00   [' the' 10/30 -> ' Titans' 9/30]
+    have no positions in any stocks mentioned, and no plans to initiate any positions within the next 72 hours. I re
+    the next For the other stocks: I have no positions in any stocks mentioned, and no plans to initiate any positio
+    35 Fighter Jets From... Lockheed Martin and other New York Stock Exchange stock quotes are delayed by at least 2
+
+feat 19309  peak  70.0  fires 0.0117%  MAEMM   0.00   [' from' 19/30 -> ' those' 13/30]
+    "partner" can help nudge people past their own outdated assumptions.	0 vote	Vote! Your nameEmail (will not be pu
+    (required) E-mail (will not be published) (required) Website Comment: Verification (needed to reduce spam): MARI
+    Elections Offaice, 240 S. Military Trail, west of West Palm Beach. Name (required) E-mail (will not be published
+
+feat 15325  peak  90.0  fires 0.0172%  MAEMM   0.00   [' be' 17/30 -> ' consulted' 17/30]
+    Inc.The information provided herein should not be used during any medical emergency or for the diagnosis or trea
+    provided herein should not be used during any medical emergency or for the diagnosis or treatment of any medical
+    provided herein should not be used during any medical emergency or for the diagnosis or treatment of any medical
+
+feat 36409  peak  89.5  fires 0.0073%  MAEMM   0.00   [' medical' 20/30 -> ' condition' 18/30]
+    Slon, and Nissi Wang. The information provided herein should not be used during any medical emergency or for the
+    A.D.A.M., Inc. The information provided herein should not be used during any medical emergency or for the diagno
+    , and Stephanie Slon. The information provided herein should not be used during any medical emergency or for the
+
+feat 13176  peak 131.0  fires 0.0144%  MAEMM   4.37   [' reflect' 30/30 -> ' the' 29/30]
+    Entertainment Staff (Photo by Alberto E. Rodriguez/Getty Images)The opinions expressed are solely those of the a
+    Merritt/Getty Images)The opinions expressed are solely those of the author and do not necessarily reflect the vi
+    ie." —XFINITY Entertainment Staff (Photo by Theo Wargo/Getty Images)The opinions expressed are solely those of t
+
+feat 32612  peak 173.0  fires 0.0214%  MAEMM   0.00   [' and' 30/30 -> ' do' 27/30]
+    0 AM Author: Womens eNews Any views expressed in this article are those of the author and not of Thomson Reuters
+    with Dr. Drew." —XFINITY Entertainment Staff (Photo by Alberto E. Rodriguez/Getty Images)The opinions expressed 
+    Shoes." —XFINITY Entertainment Staff (Photo by Alberto E. Rodriguez/Getty Images)The opinions expressed are sole
+
+feat 50309  peak 102.0  fires 0.0019%  MAEMM   0.00   [' <' 28/30 -> 'i' 14/30]
+    =""> <b> <blockquote cite=""> <cite> <code> <del datetime=""> <em> <i> <q cite=""> <strike>
+    =""> <b> <blockquote cite=""> <cite> <code> <del datetime=""> <em> <i> <q cite=""> <strike>
+    title=""> <acronym title=""> <b> <blockquote cite=""> <cite> <code> <del datetime=""> <em> <i> <
+
+########################################################################################################
+## 3. WIRE / NEWS FORMATTING
+########################################################################################################
+
+feat 3477   peak  26.9  fires 0.0090%  MAEMM   0.78   [')' 17/30 -> ')' 10/30]
+    January 5, 2013 - 4:13pm Anoushah Rasta (CNN) — (CNN) --
+    ned murderer Hill declines special last meal Georgia Department of Corrections FORSYTH, Ga. — FORSYTH, Ga. – Con
+    the basics of explaini... Sen. Pryor targets rival Cotton over Syria stance LITTLE ROCK (AP) — Democratic U.S. S
+
+feat 31916  peak 117.5  fires 0.0064%  MAEMM   0.00   [' France' 30/30 -> '-P' 26/30]
+    our obligation,” he said. “We are passionately looking forward to paying back the kindness of Myanmar.” France s
+    the San Francisco Giants system, above. --David Biderman Agence France-Presse/Getty Images Cup Row Runneth Over 
+    was stabbedBy Agence France-PresseWednesday, October 10, 2012 15:46 EDT Archaeologists said Wednesday
+
+########################################################################################################
+## 4. SUBWORD FRAGMENTS OF PROPER NOUNS
+########################################################################################################
+
+feat 4089   peak 184.0  fires 0.0151%  MAEMM   0.00   ['ald' 29/30 -> 'ana' 24/30]
+    akes are Higher Than Ever 'The Americans' Should Be Your New TV Obsession From Our Partners:Zoe Saldana Strips D
+    Your New TV Obsession From Our Partners:Zoe Saldana Strips Down For Magazine (Celebuzz)33 Child Stars: Where Are
+    ... Parks And Recreation Watch: Season 6, Episode 18 - Prom Rosemary's Baby Teaser Has Zoe Saldana Pregnant
+
+feat 10709  peak 113.5  fires 0.0115%  MAEMM   1.63   ['isman' 30/30 -> ' Trophy' 24/30]
+    Championship Game festivities this weekend in Atlanta. Alexander, along with former Florida quarterback and 1996
+    along with former Florida quarterback and 1996 Heisman Trophy winner Danny Wuerffel, will be available at the Sp
+    Angeles Rams after both clubs had signed Billy Cannon, the Heisman Trophy winning halfback at Louisiana State. A
+
+feat 34446  peak 175.0  fires 0.0833%  MAEMM   7.55   ['cad' 21/30 -> 'illy' 20/30]
+    , Egyptian and Renaissance Saloons Piccadilly Lodge No. 2550 installation banquet for Brother Francis H. Scroggi
+    Abbey, London, England (c1895)	Tower Bridge, London, England (c1895)	Piccadilly Circus
+    6, The Monico, Egyptian and Renaissance Saloons Piccadilly Lodge No. 2550 installation banquet for Brother Franc
+
+feat 19887  peak 144.0  fires 0.4480%  MAEMM   0.00   ['Ba' 15/30 -> 'iley' 13/30]
+    and settlement conversion. White-tailed deer are rarely mentioned by early explorers in the Red River Valley reg
+    Appalachians. Geomorphology, v. 67, p. 63-96. Bailey, C.M., Berquist
+    landform evolution in the Appalachians. Geomorphology, v. 67, p. 63-96. Bailey,
+
+feat 114    peak 125.5  fires 0.1877%  MAEMM   0.00   [' GL' 23/30 -> 'BT' 10/30]
+    annister from Game of Thrones. • Mark Your Calendars: Andrew Garfield will host “SNL” • News You Can Use: GLAAD 
+    all the details! The Girl Gamer LesbianGamers Playthrough CasualCore Gamer Press GLBT Guilds & Clans Gay
+    enhancement, an idiocy I would have previously thought would be confined to the cable shopping networks.” Missin
+
+########################################################################################################
+## 5. POLYSEMANTIC
+########################################################################################################
+
+feat 27426  peak  42.0  fires 0.0031%  MAEMM   0.00   ['ry' 17/30 -> ' is' 5/30]
+    historical chart data provided by Morningstar Inc. Real-time index quotes and delayed quotes supplied by Morning
+    investing purposes, or for commercial use. Stock and mutual fund quotes, and related financial news stories may 
+    Donald Jackson, © 2006, The Saint John’s Bible, Order of Saint Benedict, Collegeville, Minnesota, USA. Scripture
+
+feat 3779   peak  90.0  fires 0.0038%  MAEMM   0.00   [' the' 19/30 -> ' free' 19/30]
+    government also knows they are Chinese. So the government supports this demonstration," said one student protest
+    , rewritten or redistributed.	Around the Web: Austan Goolsbee - Wikipedia, the free encyclopedia Austan Goolsbee
+    ’s MotoGP race at ... Today on NASCAR AMERICA. Dale Earnhardt, Jr. - Wikipedia, the free encyclopediaRalph Dale 
+
+########################################################################################################
+## 6. GENUINE CONCEPT THAT STILL FAILS
+########################################################################################################
+
+feat 44749  peak 127.0  fires 0.0538%  MAEMM   0.00   [' until' 30/30 -> ' the' 7/30]
+    ilies in the hot oil and fry until the bottom half is browned. Turn the chilies (made easier by using a spatula 
+    and heat until a drop of water sizzles in the oil. Using a spatula, gently place the chilies in the hot oil and 
+    the bell pepper, oinon and celery and cook until onions are transparent.Gradually add the water and continue coo
+
+########################################################################################################
+## 7. UNRESOLVED (lens returns noise, paraphrase failed causal test)
+########################################################################################################
+
+feat 11280  peak  67.0  fires 0.0199%  MAEMM   0.00   ['.' 11/30 -> '.' 11/30]
+    sack against Ben Roethlisberger #7 of the Pittsburgh Steelers at Cowboys Stadium on December 16, 2012 in Arlingt
+    against Mike Jenkins #21 of the Dallas Cowboys at Cowboys Stadium on December 16, 2012 in Arlington, Texas. (Pho
+    With Jimmy Fallon" at Rockefeller Center on July 18, 2011 in New York City. (Photo by Theo Wargo/Getty Images
+
+########################################################################################################
+## 8. --- SUCCEEDS: NAMEABLE TOPIC ---
+########################################################################################################
+
+feat 20324  peak 190.0  fires 0.0534%  MAEMM 206.50   [' PDF' 23/30 -> ' files' 3/30]
+    reenSeptember 9, 2009 at 1:41 PMMattM, normally I'm quite happy with pdf products, but for
+    I said so, that’s why. WordPress.org	Powered by WordPress | Theme by: PDFCast.orgOlympics will close with a thun
+    2009 at 1:41 PMMattM, normally I'm quite happy with pdf products, but for this, I really need
+
+feat 52991  peak 118.0  fires 0.0568%  MAEMM 104.81   [' Philippine' 15/30 -> ' Center' 4/30]
+    Geophysical and Astronomical Services Administration Philippine Carabao Center Philippine Center for Postharvest
+    ippine Health Insurance Corporation Philippine High School for the Arts Philippine Home Development Mutual Fund 
+    Atmospheric, Geophysical and Astronomical Services Administration Philippine Carabao Center Philippine Center fo
+
+feat 6981   peak  63.0  fires 0.7134%  MAEMM  52.25   ["'s" 3/30 -> ' Dana' 3/30]
+    I might not enjoy being a part of anyway." While promoting UFC on Fox7, Hardy, who last year took a spiritual re
+    Most state athletic commissions likely would throw up a red flag on Hardy competing, but the UFC regulates many 
+    ; and his appraisal of the MMA media that included some intriguing allegations regarding UFC president Dana Whit
+
+feat 16628  peak 104.5  fires 0.6504%  MAEMM 106.50   [' assessed' 7/30 -> ' value' 6/30]
+    assessment rate, effective July 1, 2010, will be 1.46 percent, down from the 4.52
+    in a gap between the maximum assessed value and real market value. For example, in Marion County the January 1, 
+    value is used to compute your taxes. The assessed value is the lower of the real market value or the maximum ass
+
+feat 25266  peak 125.0  fires 0.0321%  MAEMM 103.94   [' is' 30/30 -> ' granted' 26/30]
+    roft Library. All requests for permission to publish or quote from manuscripts must be submitted in writing to t
+    989 book. Copyright © 2005 David Moursund. Creative Commons Attribution-NonCommercial 2.5 License. Permission is
+    © David Moursund 1983. Creative Commons Attribution-NonCommercial 2.5 License. Permission is granted to make use

@@ -44,7 +44,7 @@ Base rates move ~20×; the rarity relation survives all of them (AUC 0.67–0.91
 
 The 8B adapter's model card reports that a **direction-agnostic control** — the same RL fed random
 isotropic directions — reaches ≈ the same Bo4 SAE-holdout score, i.e. the aggregate metric is largely
-gameable by generic fluent text. `modal_8b_rarity.eval_dirs` therefore scores every generated text
+gameable by generic fluent text. `modal_8b_verbalization.eval_dirs` therefore scores every generated text
 against **all 65,536 features**, not just its paired one, which yields each feature's activation on
 texts generated for *other* features at no extra generation cost.
 
@@ -80,28 +80,33 @@ features being easier to hit by chance.
 | `fig5_unverbalized_by_criterion` | 27B, four definitions | `plot_unverbalized_criteria.py` |
 | **`fig6_8b_unverbalized_by_criterion`** | **8B, five definitions incl. the null** | **`plot_8b_rarity.py`** |
 
+fig6 was regenerated when `plot_8b_rarity.py` gained multi-arm support; every number is unchanged
+(AUC and unverbalized fraction identical across all five criteria), only the rendering differs. Its
+data table is now `data/fig6_8b_unverbalized_by_criterion.json`, matching the script's output name —
+the old `data/fig6_8b.json` was a stale leftover of the single-arm script and has been removed.
+
 ## Reproducing
 
-The 8B path needs no private data — base, adapter, SAE and max-acts are all public HF:
+Run commands from the repo root. The 8B path needs no private data — base, adapter, SAE and max-acts
+are all public HF. See `../README.md` for the full job list and the bad-feature tables.
 
 ```bash
-modal run scripts/modal_8b_rarity.py::probe --n-features 16     # ~5 min, validates the harness
-modal run scripts/modal_8b_rarity.py::scan_fire                 # rarity axis, ~1.02M tokens
-modal run scripts/modal_8b_rarity.py::eval_dirs --n-features 512
-modal volume get maemm-8b-rarity /out/perdir_8b.json data/
-modal volume get maemm-8b-rarity /out/sae_match_8b.npz data/
-python scripts/plot_8b_rarity.py --perdir data/perdir_8b.json \
-    --sae-match data/sae_match_8b.npz --out reports/maemm-recovery-vs-rarity
+modal run verbalization/modal_8b_verbalization.py::probe --n-features 16   # ~5 min, validates the harness
+modal run verbalization/modal_8b_verbalization.py::scan_fire               # rarity axis, ~1.02M tokens
+modal run verbalization/modal_8b_verbalization.py::eval_dirs --n-features 512
+modal volume get maemm-8b-rarity /out/perdir_8b.json verbalization/report/data/
+modal volume get maemm-8b-rarity /out/sae_match_8b.npz verbalization/report/data/
+python verbalization/analysis/plot_8b_rarity.py \
+    --perdir rl=verbalization/report/data/perdir_8b.json \
+    --sae-match verbalization/report/data/sae_match_8b.npz --out verbalization/report
 ```
 
 The 27B figures need `perdir_ckpt_*.json` (`eval_ckpt_daemon.py --dump-per-dir`) and
 `/mlp42/sae_match.npz` from the `maemm-data` volume, which was not reachable when this was written.
 
-`data/perdir_8b.json` (the 8B per-feature results, incl. the null) is committed. `sae_match_8b.npz`
-is **not** — `.gitignore` excludes `*.npz` as a data blob — so rebuilding fig6 needs one volume
-fetch (`modal volume get maemm-8b-rarity /out/sae_match_8b.npz data/`) but no GPU. Note the report's
-`data/` subdirectory is itself covered by the repo-wide `data/` ignore rule, so its JSON tables were
-added explicitly with `git add -f`; **new files written there will not appear in `git status`.**
+The per-feature dumps under `data/` are committed, including the generations
+(`texts_8b_*.json`) the qualitative tables are built from. `sae_match_8b.npz` is **not** —
+`.gitignore` excludes `*.npz` as a data blob — so rebuilding fig6 needs one volume fetch but no GPU.
 
 **Not yet done:** the null control has never been run on the 27B arms. Every 27B number here is
 therefore uncontrolled for common features firing on any fluent text. That is the first thing to fix.
@@ -165,6 +170,62 @@ deep tail verbalizable: in the rarest bin, strict criterion, sft 0.016 -> RL 0.0
 | `fig7_hard_to_get` | hard-to-get vs not-measurable, per arm, using each feature's own negative sample |
 | `fig8_8b_before_after` | fig6 before/after rare-feature training, on the 1,200 TRAIN-EVAL features |
 
-`scripts/modal_8b_rarity.py` carries all four jobs (`scan_fire`, `eval_dirs`, `mine_targets`,
-`train_rare`). The trained adapter lives only on the Modal volume at `/data/adapters/rare`; the
+`modal_8b_verbalization.py` carries all four jobs (`scan_fire`, `eval_dirs`, `mine_targets`,
+`train_rare`), plus `score_texts` and `logit_lens` for interrogating individual features.
+The trained adapter lives only on the Modal volume at `/data/adapters/rare`; the
 159,552-pair mined bank (38 MB) is at `/out/mined_train.jsonl` and is not committed.
+
+---
+
+# What the failures actually are (8B)
+
+The rarity curves say *how often* the inverter fails. They do not say what it is failing at. Walking
+the features no arm can activate (`norm_act < 0.10` against the most favourable of sft / RL / after,
+966 of 2,017 evaluated features) splits the failures into kinds — and two of them are not the
+model's fault.
+
+| flag | n | what it is |
+|---|---|---|
+| UNRESOLVED | 867 | no structural explanation found; the model simply produces nothing that fires it |
+| COLLOCATION | 85 | the token *after* the peak is near-constant — the feature encodes a continuation, not a topic |
+| TEMPLATE | 14 | the 30 max-activating "examples" are near-duplicates of one boilerplate string |
+
+COLLOCATION and TEMPLATE are **ill-posed targets**, not misses. A feature that fires on ` of` only
+when the next token is ` Commerce` has no paraphrasable meaning; a feature whose entire example set
+is one repeated WordPress footer has no concept to generalise. Together they are ~10% of the
+unactivatable set — a floor on any "fraction verbalized" number that no amount of training removes.
+
+What the peak token is, across the unactivatable set:
+
+| class | n | | class | n |
+|---|---|---|---|---|
+| capitalized_word | 212 | | subword_continuation | 122 |
+| content_word | 211 | | punctuation | 117 |
+| function_word | 193 | | number | 74 |
+| whitespace | 37 | | | |
+
+Over half peak on something that is not a content-bearing word — a function word, a mid-word BPE
+fragment, punctuation, a digit, or whitespace. This lines up with the fig7 result that the
+*not-measurable* cases sit at the COMMON end rather than the rare end.
+
+## Consistency: the model is confidently wrong, not scattershot
+
+If a feature were unverbalizable because the model had no hypothesis about it, its many samples
+should be mutually dissimilar. They are not. On 96 rarity-matched held-out features at bo=32
+(`analyze_consistency.py`), mean self-consistency is **0.757 for the hard group vs 0.754 for the
+easy group** — indistinguishable (Mann-Whitney p = 0.93), and the continuous correlation with
+achieved `norm_act` is flat (Spearman +0.107, p = 0.30).
+
+So on a feature it cannot activate, the model is not guessing randomly. It produces one tight,
+confident cluster of text that is simply pointing somewhere else. That is a different failure from
+"doesn't know", and a worse one for interpretability: the output looks like an explanation.
+
+| table | what |
+|---|---|
+| `tables/unactivatable_features.csv` | one row per unactivatable feature, with flags |
+| `tables/collocation_features.txt` | the COLLOCATION set, with the fixed continuation |
+| `tables/unactivatable_examples.csv` | corpus evidence next to each arm's generations |
+| `tables/template_features_examples.csv` | the same for the TEMPLATE set |
+| `tables/rare_examples.txt` | max-activating windows for the rarest 2% of features |
+| `tables/consistency_generations.csv` | per-generation dump behind the consistency numbers |
+| `tables/feature_taxonomy.txt`, `tables/writeup_features.txt` | hand-written readings of the above |

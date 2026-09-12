@@ -34,3 +34,13 @@ modal.toml
 # box-side run_*.sh launchers often carry hardcoded keys — keep them out
 run_*.sh
 eval/out/
+
+# macOS
+.DS_Store
+
+# The verbalization report's data/ holds small JSON summary tables, not data blobs. The repo-wide
+# `data/` rule above swallowed them: they had to be `git add -f`'d and then never showed up in
+# `git status` again, so new tables were silently invisible. Un-exclude the directory and its JSON;
+# *.npz (sae_match_8b.npz, 1 MB) stays ignored and is refetched from the Modal volume.
+!verbalization/report/data/
+!verbalization/report/data/*.json

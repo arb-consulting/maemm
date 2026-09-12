@@ -1,6 +1,6 @@
 """Unverbalized fraction vs feature rarity under SEVERAL verbalizability definitions (27B arms).
 
-The companion to scripts/recovery_vs_rarity.py, which reports a single "unverbalized" rate using
+The companion to verbalization/analysis/recovery_vs_rarity.py, which reports a single "unverbalized" rate using
 eval_universal's inherited `SAE_FIRE = 1.0`. That constant has no derivation in the codebase (it is
 the old `eval_dirs --sae-fire` default) and it is not a scale: across the 512 held-out features the
 1.0 bar ranges from 1.8% to 561% of the feature's own corpus peak, a 315x spread, and for 9.2% of
@@ -19,9 +19,9 @@ four definitions at once, so the reader can see which conclusions depend on the 
 The headline finding is that the rarity relation survives all of them (AUC 0.71-0.91) while the base
 rate moves 20x -- so rarity is robust, but any single "unverbalized fraction" is a reporting choice.
 
-    python scripts/plot_unverbalized_criteria.py \
+    python verbalization/analysis/plot_unverbalized_criteria.py \
         --perdir sft=perdir_sft.json --perdir rl=perdir_rl.json \
-        --sae-match sae_match.npz --maxacts max_acts.pt --out reports/maemm-recovery-vs-rarity
+        --sae-match sae_match.npz --maxacts max_acts.pt --out verbalization/report
 """
 import argparse
 import json
@@ -34,8 +34,7 @@ import numpy as np
 import torch
 from scipy import stats
 
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"]
-INK, INK2, MUTED, GRID = "#0b0b0b", "#52514e", "#898781", "#e1e0d9"
+from style import SERIES, INK, INK2, MUTED, GRID
 NBINS = 10
 SAE_FIRE = 1.0            # eval_universal.SAE_FIRE, reproduced for the comparison curve
 

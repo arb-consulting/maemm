@@ -22,8 +22,8 @@ NOTE the 8B adapter uses its OWN prompt ("Please produce a string of text that t
 direction maximally:"), NOT mxf/prompts.py's layer-42 inoculation instruction. Nothing here imports
 mxf -- mxf/config.py hardcodes the 27B's d_model 5120 / read-layer 42.
 
-    modal run scripts/modal_8b_rarity.py::scan_fire
-    modal run scripts/modal_8b_rarity.py::eval_dirs --n-features 512
+    modal run verbalization/modal_8b_verbalization.py::scan_fire
+    modal run verbalization/modal_8b_verbalization.py::eval_dirs --n-features 512
     modal volume get maemm-8b-rarity /out/perdir_8b.json .
 """
 import json
@@ -666,3 +666,114 @@ def train_rare(mined: str = "/data/out/mined_train.jsonl", epochs: float = 1.0, 
     vol.commit()
     print("[train] DONE " + json.dumps(stats, indent=1), flush=True)
     return stats
+
+
+# ---------------------------------------------------------------------------------------------
+# JOB E — score ARBITRARY texts against chosen features. Causal check on an interpretation:
+# write text that the hypothesised pattern predicts should fire the feature, and see whether it does.
+# ---------------------------------------------------------------------------------------------
+@app.function(image=image, gpu="A10G", timeout=1800, volumes={"/data": vol})
+def score_texts(texts_json: str, features_json: str):
+    import numpy as np
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    dev = "cuda:0"
+    texts, feats = json.loads(texts_json), json.loads(features_json)
+    tok = AutoTokenizer.from_pretrained(MODEL)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    model = AutoModelForCausalLM.from_pretrained(MODEL, torch_dtype=torch.bfloat16,
+                                                 attn_implementation="sdpa", device_map={"": dev}).eval()
+    W_enc, b_enc, b_dec = _load_sae(dev)
+    idx = torch.as_tensor(feats, device=dev)
+    Wsub, bsub = W_enc[:, idx], b_enc[idx]
+    sink = tok.bos_token_id if tok.bos_token_id is not None else tok.eos_token_id
+    tok.padding_side = "right"
+    out = []
+    cap = {}
+    layer = model.model.layers[READ_LAYER]
+
+    def hk(_m, _i, o):
+        cap["h"] = (o[0] if isinstance(o, tuple) else o).float()
+    hd = layer.register_forward_hook(hk)
+    try:
+        with torch.no_grad():
+            for s in range(0, len(texts), 16):
+                batch = [t if t.strip() else " " for t in texts[s:s + 16]]
+                enc = tok(batch, return_tensors="pt", padding=True, truncation=True,
+                          max_length=95, add_special_tokens=False).to(dev)
+                B = enc["input_ids"].shape[0]
+                ids = torch.cat([torch.full((B, 1), sink, device=dev, dtype=enc["input_ids"].dtype),
+                                 enc["input_ids"]], 1)
+                am = torch.cat([torch.ones((B, 1), device=dev, dtype=enc["attention_mask"].dtype),
+                                enc["attention_mask"]], 1)
+                model(input_ids=ids, attention_mask=am)
+                h = cap["h"]
+                keep = am.bool().clone(); keep[:, 0] = False
+                nrm = h.norm(dim=-1)
+                med = nrm.masked_fill(~keep, float("nan")).nanmedian(dim=1, keepdim=True).values
+                keep = keep & (nrm <= NORM_FILTER_MULT * med)
+                a = torch.relu((h - b_dec) @ Wsub + bsub).masked_fill(~keep.unsqueeze(-1), 0.0)
+                mx, pos = a.max(1)
+                for j in range(B):
+                    row = {"text": batch[j]}
+                    for c, f in enumerate(feats):
+                        p = int(pos[j, c])
+                        row[str(f)] = {"act": round(float(mx[j, c]), 2),
+                                       "peak_token": tok.decode([int(ids[j, p])])}
+                    out.append(row)
+    finally:
+        hd.remove()
+    print(json.dumps(out, indent=1), flush=True)
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# JOB F — LOGIT LENS on SAE features. Independent of max-activating examples: project the feature's
+# DECODER direction through the unembedding and read the tokens it promotes / suppresses. Answers
+# "what does this feature write" rather than "what text co-occurs with it".
+# ---------------------------------------------------------------------------------------------
+@app.function(image=image, gpu="A10G", timeout=1800, volumes={"/data": vol})
+def logit_lens(features_json: str, topk: int = 15):
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    dev = "cuda:0"
+    feats = json.loads(features_json)
+    tok = AutoTokenizer.from_pretrained(MODEL)
+    model = AutoModelForCausalLM.from_pretrained(MODEL, torch_dtype=torch.bfloat16,
+                                                 attn_implementation="sdpa", device_map={"": dev}).eval()
+    WU = model.lm_head.weight.detach().float()                       # [vocab, d]
+    p = __import__("huggingface_hub").hf_hub_download(SAE_REPO, SAE_FILE)
+    params = torch.load(p, map_location="cpu", weights_only=False)
+    W_dec = None
+    for k, v in params.items():
+        if k in ("decoder.weight",):
+            W_dec = v.float().T.contiguous().to(dev)                 # [F, d]
+    assert W_dec is not None and W_dec.shape[1] == D_MODEL, "decoder not found / wrong shape"
+    # also the encoder column, for comparison (they can differ)
+    W_enc = None
+    for k, v in params.items():
+        if k == "encoder.weight":
+            W_enc = v.float().to(dev)                                # [F, d]
+    out = {}
+    for f in feats:
+        row = {}
+        for name, M in (("decoder", W_dec), ("encoder", W_enc)):
+            if M is None:
+                continue
+            v = torch.nn.functional.normalize(M[f], dim=-1)
+            lg = WU @ v
+            hi = torch.topk(lg, topk); lo = torch.topk(-lg, topk)
+            row[name] = {"promotes": [tok.decode([int(i)]) for i in hi.indices],
+                         "suppresses": [tok.decode([int(i)]) for i in lo.indices]}
+        row["enc_dec_cos"] = float(torch.nn.functional.cosine_similarity(
+            W_enc[f][None], W_dec[f][None])) if W_enc is not None else None
+        out[str(f)] = row
+        print(f"\n=== feature {f}  (enc·dec cos {row['enc_dec_cos']:+.3f}) ===", flush=True)
+        for name in row:
+            if name == "enc_dec_cos":
+                continue
+            print(f"  {name} promotes : {row[name]['promotes']}", flush=True)
+    return out

@@ -1,6 +1,6 @@
 """Recovery-cosine distributions by DIRECTION FAMILY, from the evaluator's per-direction dumps.
 
-Context: the rarity analysis (scripts/recovery_vs_rarity.py) can only be run on the `sae` family,
+Context: the rarity analysis (verbalization/analysis/recovery_vs_rarity.py) can only be run on the `sae` family,
 because "how often does this fire in the corpus" is defined per SAE feature via sae_nfire. The
 `realact` family -- real held-out layer-42 token activations (eval/eval_universal.py, the held-out
 tail of the acts dump) -- has no feature index, so no rarity axis and none of the SAE recovery
@@ -13,8 +13,8 @@ above the sae family's median. There is no "hard realact direction" population a
 the rarity story may be specific to SAE encoder columns rather than a general fact about direction
 recovery.
 
-    python scripts/plot_cos_by_family.py \
-        --perdir sft=perdir_sft.json --perdir rl=perdir_rl.json --out reports/maemm-recovery-vs-rarity
+    python verbalization/analysis/plot_cos_by_family.py \
+        --perdir sft=perdir_sft.json --perdir rl=perdir_rl.json --out verbalization/report
 """
 import argparse
 import json
@@ -26,8 +26,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a"]
-INK, INK2, MUTED, GRID = "#0b0b0b", "#52514e", "#898781", "#e1e0d9"
+from style import SERIES, INK, INK2, MUTED, GRID
 
 
 def main():

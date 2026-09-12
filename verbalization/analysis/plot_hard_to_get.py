@@ -10,7 +10,7 @@ The unverbalized-vs-rarity curves (fig5/fig6) conflate two failure modes:
                   as much as on its own corpus examples. "Verbalizing" it carries little information
                   either way, so neither success nor failure means much.
 
-Both quantities come from the same eval pass (scripts/modal_8b_rarity.py::eval_dirs), which scores
+Both quantities come from the same eval pass (verbalization/modal_8b_verbalization.py::eval_dirs), which scores
 every generated text against ALL features and so yields, per feature f:
 
   null_p95(f)   f's activation on texts generated for OTHER features   <- the negative sample
@@ -26,8 +26,8 @@ the top firing-frequency quintile) and is absent from the rare end (0%) -- the o
 expectation that rare features are the poorly-sampled ones. Rare features have a clean (~zero) null,
 so the measurement is well-posed there and the model genuinely fails.
 
-    python scripts/plot_hard_to_get.py --perdir perdir_8b_rare.json \
-        --sae-match sae_match_8b.npz --out reports/maemm-recovery-vs-rarity
+    python verbalization/analysis/plot_hard_to_get.py --perdir perdir_8b_rare.json \
+        --sae-match sae_match_8b.npz --out verbalization/report
 """
 import argparse
 import json
@@ -38,8 +38,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"]
-INK, INK2, MUTED, GRID = "#0b0b0b", "#52514e", "#898781", "#e1e0d9"
+from style import SERIES, INK, INK2, MUTED, GRID
 
 
 def bins(x, nbins):

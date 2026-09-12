@@ -1,10 +1,10 @@
 """fig5 for the Qwen3-8B inverter: unverbalized fraction vs feature rarity, under several
 verbalizability definitions PLUS the per-feature null the 27B dumps never had.
 
-    python scripts/plot_8b_rarity.py --perdir perdir_8b.json --sae-match sae_match_8b.npz \
-        --out reports/maemm-recovery-vs-rarity
+    python verbalization/analysis/plot_8b_rarity.py --perdir perdir_8b.json --sae-match sae_match_8b.npz \
+        --out verbalization/report
 
-Criteria (same family as scripts/recovery_vs_rarity.py + fig5, adapted to the 8B SAE's scale):
+Criteria (same family as verbalization/analysis/recovery_vs_rarity.py + fig5, adapted to the 8B SAE's scale):
   best_act > 1.0        the inherited eval_universal bar. On this SAE the median corpus peak is ~103,
                         so 1.0 is under 1% of it and the criterion is near-vacuous -- plotted only to
                         show that it does not transfer across SAEs.
@@ -29,8 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"]
-INK, INK2, MUTED, GRID = "#0b0b0b", "#52514e", "#898781", "#e1e0d9"
+from style import SERIES, INK, INK2, MUTED, GRID
 NBINS = 10
 
 
@@ -56,9 +55,11 @@ def deciles(x, y, nbins=NBINS):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--perdir", action="append", required=True, metavar="[TAG=]PATH",
-                    help="repeatable: perdir json from modal_8b_rarity.eval_dirs; TAG= labels the curve")
+                    help="repeatable: perdir json from modal_8b_verbalization.eval_dirs; TAG= labels the curve")
     ap.add_argument("--sae-match", default=None, help="sae_match_8b.npz from scan_fire (rarity axis)")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--criteria", default="bar,norm,top16,last,null",
+                    help="comma list of criteria to plot: bar,norm,top16,last,null")
     a = ap.parse_args()
     os.makedirs(f"{a.out}/data", exist_ok=True)
 
@@ -86,15 +87,19 @@ def main():
         xlabel = "log10 corpus peak activation"
         axis = "log10_corpus_peak"
 
+    want = [w.strip() for w in a.criteria.split(",") if w.strip()]
+
     def crits_for(sx):
-        c = [("best_act > 1.0  (inherited bar)", (sx["best_act"] > 1.0).astype(int), MUTED, "--"),
-             ("norm_act >= 0.10", (sx["norm_act"] >= 0.10).astype(int), SERIES[2], "-"),
-             (">= top-16 corpus example", (sx["best_act"] >= sx["ex_top16"]).astype(int), SERIES[1], "-"),
-             (">= weakest top example", (sx["best_act"] >= sx["ex_last"]).astype(int), SERIES[0], "-")]
+        avail = {
+            "bar":   ("best_act > 1.0  (inherited bar)", (sx["best_act"] > 1.0).astype(int), MUTED, "--"),
+            "norm":  ("norm_act >= 0.10", (sx["norm_act"] >= 0.10).astype(int), SERIES[2], "-"),
+            "top16": (">= top-16 corpus example", (sx["best_act"] >= sx["ex_top16"]).astype(int), SERIES[1], "-"),
+            "last":  (">= weakest top example", (sx["best_act"] >= sx["ex_last"]).astype(int), SERIES[0], "-"),
+        }
         if "null_p95" in sx:
-            c.append(("> own null p95  (direction-specific)",
-                      (sx["best_act"] > sx["null_p95"]).astype(int), SERIES[5], "-"))
-        return c
+            avail["null"] = ("> own null p95  (direction-specific)",
+                             (sx["best_act"] > sx["null_p95"]).astype(int), SERIES[5], "-")
+        return [avail[w] for w in want if w in avail]
     crits = crits_for(s)
 
     MARK = ["o", "s", "^", "D"]

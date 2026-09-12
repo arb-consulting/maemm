@@ -1,0 +1,35 @@
+feature,human_act,corpus_peak,ex_last,maemm_best_rl,frac_of_peak,beats_weakest_example,human_text
+36075,188.73,232.0,210.0,0.0,0.813,0,The Fremont Chamber of Commerce announced its annual banquet this Saturday.
+36075,212.53,232.0,210.0,0.0,0.916,1,She serves as treasurer of the Bayonne Chamber of Commerce and vice president of the board.
+46080,192.08,201.0,190.0,0.0,0.956,1,Ben Roethlisberger is officially listed as questionable for Sunday's game.
+46080,193.64,201.0,190.0,0.0,0.963,1,A touchdown pass from Ben Roethlisberger to Jerricho Cotchery made it 22-20.
+40461,110.98,126.0,116.0,0.0,0.881,0,"Argo, Ben Affleck is one of the next great directors."
+40461,111.13,126.0,116.0,0.0,0.882,0,"Tributes came from Robert DeNiro, Ben Affleck and Michael Douglas."
+61125,93.21,104.5,99.5,0.0,0.892,0,Adolescent and School Health http://www.cdc.gov/HealthyYouth/index.htm
+61125,96.54,104.5,99.5,0.0,0.924,0,"Tartar Control
+http://www.rooftopcomedy.com/TartarControl"
+42273,124.06,134.0,125.0,0.04052734375,0.926,0,[img]http://thumbs.example.com/media/1525861/10370691/135x.jpg[/img]
+42273,114.71,134.0,125.0,0.04052734375,0.856,0,[url=http://www.example.com/watch/clip-AbC][img]http://thumbs.example.com/media/99/12.jpg[/img][/url]
+5600,238.29,239.0,69.5,0.0,0.997,1,"684 F.2d 255
+217 U.S.P.Q. 15
+James Q. HORNE, Jr., Appellant, v. UNITED STATES of America"
+5600,234.04,239.0,69.5,0.0,0.979,1,"991 F.2d 1363
+UNITED STATES of America, Plaintiff-Appellee, v. Jack D. BROCKSMITH, Defendant"
+55059,134.21,165.0,143.0,1.23046875,0.813,0,"CONTACT: Jennifer Thelen, Office of Financial Aid"
+55059,89.49,165.0,143.0,1.23046875,0.542,0,"Lydia Thering, Emeritus, Physical Education; Winnifred J. Taylor, Ph.D."
+60862,176.83,179.0,169.0,0.0,0.988,1,"Downtown Charleston Welcomes New Executive Chef, Nico Romo"
+60862,13.47,179.0,169.0,0.0,0.075,0,Romer was a constant presence at the president's economic briefings.
+44749,134.19,127.0,89.5,0.0,1.057,1,"Add the bell pepper, onion and celery and cook until onions are transparent."
+44749,122.14,127.0,89.5,0.0,0.962,1,"Heat the oil until a drop of water sizzles, then fry until the bottom half is browned."
+13176,68.43,131.0,122.5,4.3671875,0.522,0,The opinions expressed are solely those of the author and do not necessarily reflect the views of Comcast.
+15325,86.52,90.0,27.8,0.0,0.961,1,The information provided herein should not be used during any medical emergency or for the diagnosis or treatment of any medical condition. A licensed medical professional should be consulted.
+9348,46.5,52.25,20.8,0.0,0.89,1,"These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure or prevent any disease."
+38873,104.97,110.0,73.0,0.0,0.954,1,"Readers are cautioned not to place undue reliance on these forward-looking statements, which speak only as of the date of this press release."
+50309,100.81,102.0,87.0,0.0,0.988,1,"<abbr title=""""> <acronym title=""""> <b> <blockquote cite=""""> <cite> <code> <del datetime=""""> <em> <i> <q cite=""""> <strike>"
+27001,163.38,205.0,195.0,0.0,0.797,0,(Reporting by Corrie MacLaggan; Editing by Leslie Adler and Jeffrey Benkoe)
+4347,225.44,227.0,212.0,0.0,0.993,1,"NEW YORK, NY, Sept. 15 /PRNewswire-FirstCall/ -- GENova Biotherapeutics Inc. today announced"
+61567,235.03,268.0,242.0,0.0,0.877,0,"PAWTUCKET, R.I.--(BUSINESS WIRE)--Hasbro today unveiled a limited edition action figure"
+11280,54.41,67.0,45.2,0.0,0.812,1,"Ben Roethlisberger #7 of the Pittsburgh Steelers looks for an open receiver against the Dallas Cowboys at Cowboys Stadium on December 16, 2012 in Arlington, Texas. (Photo by Ronald Martinez/Getty Images)"
+29145,157.55,193.0,175.0,0.0,0.816,0,"Believe it or not, the whole thing was finished in under an hour."
+45306,148.51,176.0,148.0,9.4375,0.844,1,I could care less about what they think of the decision.
+42964,98.17,138.0,123.0,0.0,0.711,0,"The conference was held in Chapel Hill, North Carolina last spring."
