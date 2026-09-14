@@ -45,8 +45,8 @@ MARKER = " ?"
 INSTR = "Please produce a string of text that triggers the following direction maximally:"
 GEN_SEED = 1234
 
-app = modal.App("maemm-8b-rarity")
-vol = modal.Volume.from_name("maemm-8b-rarity", create_if_missing=True)
+app = modal.App("maemm-8b-verbalization")
+vol = modal.Volume.from_name("maemm-8b-verbalization", create_if_missing=True)
 image = (modal.Image.debian_slim(python_version="3.11")
          .pip_install("torch==2.6.0", "transformers==4.51.3", "peft==0.14.0", "accelerate==1.4.0",
                       "datasets==3.2.0", "numpy<2.3", "huggingface_hub[hf_transfer]==0.34.4")
@@ -57,7 +57,7 @@ GPU, TIMEOUT = "H100", 6 * 3600
 # ---------------------------------------------------------------------------------------------
 # shared helpers (executed inside the image)
 # ---------------------------------------------------------------------------------------------
-def _load_sae(device):
+def _load_sae(device, want_dec=False):
     import torch
     from huggingface_hub import hf_hub_download
     p = hf_hub_download(SAE_REPO, SAE_FILE)
@@ -67,6 +67,12 @@ def _load_sae(device):
     t = {km[k]: v.float() for k, v in params.items() if k in km}
     W_enc = t["W_enc"].T.contiguous().to(device)      # [d, F]  (nn.Linear stores [out, in])
     assert W_enc.shape == (D_MODEL, D_SAE), f"unexpected SAE shape {tuple(W_enc.shape)}"
+    if want_dec:
+        # decoder rows are the feature's WRITE direction; the logit lens reads cleanly off these
+        # while the matching encoder column looks like noise (enc/dec cosine is only ~0.5-0.67).
+        W_dec = t["W_dec"].T.contiguous().to(device)                  # [F, d] (stored [d, F])
+        assert W_dec.shape == (D_SAE, D_MODEL), f"W_dec shape {tuple(W_dec.shape)} != ({D_SAE}, {D_MODEL})"
+        return W_enc, t["b_enc"].to(device), t["b_dec"].to(device), W_dec
     return W_enc, t["b_enc"].to(device), t["b_dec"].to(device)
 
 
@@ -172,7 +178,8 @@ def scan_fire(n_tokens: int = 1_024_000, seq_len: int = 256, batch: int = 16, se
 @app.function(image=image, gpu=GPU, timeout=TIMEOUT, volumes={"/data": vol})
 def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: int = 64,
               min_new: int = 16, temp: float = 1.0, seed: int = 0, features_json: str = "",
-              subfolder: str = "", tag: str = "rl", adapter_path: str = ""):
+              subfolder: str = "", tag: str = "rl", adapter_path: str = "",
+              inject: str = "encoder"):
     import numpy as np
     import torch
     import torch.nn.functional as Fn
@@ -191,7 +198,10 @@ def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: 
     src = adapter_path or ADAPTER          # adapter_path: a /data/adapters/<tag> dir from train_rare
     actor = PeftModel.from_pretrained(base, src, is_trainable=False,
                                       **({"subfolder": subfolder} if subfolder and not adapter_path else {})).eval()
-    W_enc, b_enc, b_dec = _load_sae(dev)
+    if inject == "decoder":
+        W_enc, b_enc, b_dec, W_dec = _load_sae(dev, want_dec=True)
+    else:
+        W_enc, b_enc, b_dec = _load_sae(dev); W_dec = None
 
     ma = torch.load(hf_hub_download(MAXACTS_REPO, MAXACTS_FILE, repo_type="dataset"),
                     map_location="cpu", weights_only=False)["max_acts"].float()
@@ -204,12 +214,15 @@ def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: 
     feats = (np.asarray(json.loads(features_json), dtype=np.int64) if features_json
              else np.sort(rng.choice(D_SAE, n_features, replace=False)))
     n = len(feats)
-    dirs = Fn.normalize(W_enc[:, torch.as_tensor(feats, device=dev)].T, dim=-1)   # [n, d] unit enc cols
+    # SCORING always uses the encoder (the metric is unchanged); only the INJECTED vector varies.
+    idxf = torch.as_tensor(feats, device=dev)
+    dirs = (Fn.normalize(W_dec[idxf], dim=-1) if inject == "decoder"
+            else Fn.normalize(W_enc[:, idxf].T, dim=-1))                          # [n, d] unit dirs
 
     pids, mpos = _prompt_ids(tok)
     plen = len(pids)
     print(f"[eval] {n} features x bo{bo} | prompt {plen} tok, marker @{mpos} | "
-          f"arm={tag} adapter={src}{'/' + subfolder if subfolder and not adapter_path else ''}", flush=True)
+          f"arm={tag} inject={inject} adapter={src}{'/' + subfolder if subfolder and not adapter_path else ''}", flush=True)
 
     # ---- generate (adapter ON, direction injected at layer 1 on the marker) -------------------
     rows = np.repeat(np.arange(n), bo)                    # which feature each generation belongs to
@@ -300,6 +313,7 @@ def eval_dirs(n_features: int = 512, bo: int = 4, gen_batch: int = 32, max_new: 
 
     cp = corpus_peak[torch.as_tensor(feats)].numpy()
     out = {"adapter": adapter_path or (ADAPTER + (f"/{subfolder}" if subfolder else "")), "arm": tag,
+           "inject": inject,
            "model": MODEL, "read_layer": READ_LAYER, "d_sae": D_SAE,
            "n": int(n), "bo": int(bo), "temp": temp, "max_new": max_new,
            "aggregates": {"norm_act": float(np.mean(best_act / np.maximum(cp, 1e-9))),
@@ -566,7 +580,8 @@ def mine_targets(features_json: str, n_tokens: int = 10_000_000, seq_len: int = 
 @app.function(image=image, gpu=GPU, timeout=TIMEOUT, volumes={"/data": vol})
 def train_rare(mined: str = "/data/out/mined_train.jsonl", epochs: float = 1.0, lr: float = 1e-4,
                batch: int = 16, max_target: int = 80, min_act: float = 0.0, max_per_feature: int = 0,
-               subfolder: str = "ref", tag: str = "rare", seed: int = 0, log_every: int = 50):
+               subfolder: str = "ref", tag: str = "rare", seed: int = 0, log_every: int = 50,
+               inject: str = "encoder"):
     import numpy as np
     import torch
     import torch.nn.functional as Fn
@@ -582,7 +597,10 @@ def train_rare(mined: str = "/data/out/mined_train.jsonl", epochs: float = 1.0, 
     actor = PeftModel.from_pretrained(base, ADAPTER, is_trainable=True,
                                       **({"subfolder": subfolder} if subfolder else {}))
     actor.train()
-    W_enc, b_enc, b_dec = _load_sae(dev)
+    if inject == "decoder":
+        W_enc, b_enc, b_dec, W_dec = _load_sae(dev, want_dec=True)
+    else:
+        W_enc, b_enc, b_dec = _load_sae(dev); W_dec = None
     pids, mpos = _prompt_ids(tok)
     plen = len(pids)
 
@@ -600,7 +618,7 @@ def train_rare(mined: str = "/data/out/mined_train.jsonl", epochs: float = 1.0, 
     rng.shuffle(rows)
     nfeat = len({r["feature"] for r in rows})
     print(f"[train] {len(rows)} examples over {nfeat} features | lr {lr} bs {batch} "
-          f"epochs {epochs} | min_act {min_act} max_per_feature {max_per_feature}", flush=True)
+          f"epochs {epochs} | min_act {min_act} max_per_feature {max_per_feature} | inject={inject}", flush=True)
 
     params = [p for p in actor.parameters() if p.requires_grad]
     print(f"[train] trainable tensors {len(params)} | {sum(p.numel() for p in params)/1e6:.1f}M params", flush=True)
@@ -629,7 +647,9 @@ def train_rare(mined: str = "/data/out/mined_train.jsonl", epochs: float = 1.0, 
                 lab[j, plen:plen + len(t)] = torch.tensor(t, device=dev)   # prompt masked
                 am[j, :plen + len(t)] = 1
             fidx = torch.as_tensor([r["feature"] for r in bt], device=dev)
-            v = Fn.normalize(W_enc[:, fidx].T, dim=-1)                      # [B, d] unit enc columns
+            # which direction family is injected during training must match what eval injects
+            v = (Fn.normalize(W_dec[fidx], dim=-1) if inject == "decoder"
+                 else Fn.normalize(W_enc[:, fidx].T, dim=-1))               # [B, d] unit dirs
 
             def hook(_m, _i, out, v=v):
                 # FUNCTIONAL injection: split/cat instead of index assignment. Writing h[:, mpos]
@@ -660,6 +680,7 @@ def train_rare(mined: str = "/data/out/mined_train.jsonl", epochs: float = 1.0, 
     os.makedirs(outdir, exist_ok=True)
     actor.save_pretrained(outdir)
     stats = {"examples": len(rows), "features": nfeat, "steps": step, "lr": lr, "batch": batch,
+             "inject": inject,
              "loss_first50": float(np.mean(losses[:50])) if losses else None,
              "loss_last50": float(np.mean(losses[-50:])) if losses else None, "adapter_dir": outdir}
     json.dump(stats, open(f"/data/out/train_{tag}_stats.json", "w"), indent=1)
@@ -777,3 +798,65 @@ def logit_lens(features_json: str, topk: int = 15):
                 continue
             print(f"  {name} promotes : {row[name]['promotes']}", flush=True)
     return out
+
+
+# ---------------------------------------------------------------------------------------------
+# JOB G — per-feature SAE-INTRINSIC geometry, for every feature, with no generation at all.
+# The question is which features admit a good approximate inverse. These are the candidate
+# predictors: how far the read direction diverges from the write direction, how peaked the
+# decoder's logit-lens distribution is, and how crowded the feature's neighbourhood is.
+# ---------------------------------------------------------------------------------------------
+@app.function(image=image, gpu=GPU, timeout=3600, volumes={"/data": vol})
+def feature_geometry(chunk: int = 4096):
+    import gc
+
+    import numpy as np
+    import torch
+    from transformers import AutoModelForCausalLM
+
+    dev = "cuda:0"
+    # only lm_head is needed; load the body on CPU and drop it before the SAE goes on the GPU,
+    # otherwise 16 GB of weights sit next to four [F, d] matrices for no reason.
+    model = AutoModelForCausalLM.from_pretrained(MODEL, torch_dtype=torch.bfloat16,
+                                                 attn_implementation="sdpa", device_map={"": "cpu"})
+    WU = torch.nn.functional.normalize(model.lm_head.weight.detach().float().to(dev), dim=-1)  # [V, d]
+    del model
+    gc.collect(); torch.cuda.empty_cache()
+
+    W_enc, b_enc, b_dec, W_dec = _load_sae(dev, want_dec=True)          # [d,F] , [F,d]
+    En = torch.nn.functional.normalize(W_enc.T, dim=-1)                 # [F, d]
+    De = torch.nn.functional.normalize(W_dec, dim=-1)                   # [F, d]
+    del W_enc; gc.collect(); torch.cuda.empty_cache()
+
+    enc_dec_cos = (En * De).sum(-1)                                     # [F]
+    out = {"enc_dec_cos": enc_dec_cos.cpu().numpy()}
+
+    # decoder logit-lens sharpness: entropy of the top-64 promoted-token softmax, and top1 margin
+    ent = torch.zeros(D_SAE); marg = torch.zeros(D_SAE); ent_e = torch.zeros(D_SAE)
+    for i in range(0, D_SAE, chunk):
+        for name, M, dst in (("dec", De, ent), ("enc", En, ent_e)):
+            lg = M[i:i + chunk] @ WU.T                                  # [c, V]
+            top = lg.topk(64, dim=-1).values
+            p = torch.softmax(top * 20.0, dim=-1)
+            e = -(p * (p + 1e-9).log()).sum(-1)
+            dst[i:i + chunk] = e.cpu()
+            if name == "dec":
+                marg[i:i + chunk] = (top[:, 0] - top[:, 1]).cpu()
+        print(f"[geom] {min(i + chunk, D_SAE)}/{D_SAE}", flush=True)
+    out["dec_lens_entropy"] = ent.numpy(); out["enc_lens_entropy"] = ent_e.numpy()
+    out["dec_top1_margin"] = marg.numpy()
+
+    # neighbourhood crowding: max cosine to any OTHER feature's decoder direction
+    nn = torch.zeros(D_SAE)
+    for i in range(0, D_SAE, chunk):
+        s = De[i:i + chunk] @ De.T
+        s[torch.arange(s.shape[0]), torch.arange(i, min(i + chunk, D_SAE))] = -2.0
+        nn[i:i + chunk] = s.max(-1).values.cpu()
+    out["dec_nn_cos"] = nn.numpy()
+    out["dec_norm"] = W_dec.norm(dim=-1).cpu().numpy()
+
+    os.makedirs("/data/out", exist_ok=True)
+    np.savez("/data/out/feature_geometry.npz", **out)
+    vol.commit()
+    print("[geom] DONE -> /data/out/feature_geometry.npz  keys=%s" % list(out), flush=True)
+    return {k: float(np.median(v)) for k, v in out.items()}
