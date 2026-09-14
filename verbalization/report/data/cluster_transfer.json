@@ -1,0 +1,79 @@
+{
+ "design": {
+  "train_features": 811,
+  "test_features": 113,
+  "train_clusters": [
+   "prose(undiff)",
+   "news(undiff)",
+   "web UI/forums",
+   "legal disclaimers",
+   "metadata/citations"
+  ],
+  "test_clusters": [
+   "recipes",
+   "sports",
+   "contact blocks"
+  ],
+  "selection": "all 925 are features the rl arm scores <10% of ex_last on",
+  "overlap": 0
+ },
+ "runs": {
+  "16span": {
+   "pairs": 12576,
+   "steps": 2358,
+   "loss": [
+    2.917,
+    1.525
+   ],
+   "train": {
+    "n": 113,
+    "na_before": 0.0035954079958548865,
+    "na_after": 0.3442936266022446,
+    "med_after": 30.671875,
+    "null_before": 0.21238938053097345,
+    "null_after": 0.672566371681416,
+    "exlast_after": 0.1415929203539823,
+    "zero_after": 0.3274336283185841
+   },
+   "test": {
+    "n": 113,
+    "na_before": 0.007590416436755785,
+    "na_after": 0.03548863757632475,
+    "med_after": 0.0,
+    "null_before": 0.22123893805309736,
+    "null_after": 0.19469026548672566,
+    "exlast_after": 0.0,
+    "zero_after": 0.7787610619469026
+   }
+  },
+  "64span": {
+   "pairs": 47853,
+   "steps": 5981,
+   "loss": [
+    2.969,
+    1.979
+   ],
+   "train": {
+    "n": 113,
+    "na_before": 0.0035954079958548865,
+    "na_after": 0.38657509362473425,
+    "med_after": 44.125,
+    "null_before": 0.21238938053097345,
+    "null_after": 0.7345132743362832,
+    "exlast_after": 0.10619469026548672,
+    "zero_after": 0.26548672566371684
+   },
+   "test": {
+    "n": 113,
+    "na_before": 0.007590416436755785,
+    "na_after": 0.03115412025646496,
+    "med_after": 0.0,
+    "null_before": 0.22123893805309736,
+    "null_after": 0.168141592920354,
+    "exlast_after": 0.0,
+    "zero_after": 0.8141592920353983
+   }
+  }
+ },
+ "conclusion": "training fits the shown features (train norm_act 0.004 -> 0.39) and transfers nothing to unseen feature types (test 0.008 -> 0.031, median best_act still 0.00, null-beating rate BELOW baseline). 4x more spans per feature improved fitting and slightly worsened transfer."
+}
