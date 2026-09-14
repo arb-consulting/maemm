@@ -229,3 +229,69 @@ confident cluster of text that is simply pointing somewhere else. That is a diff
 | `tables/rare_examples.txt` | max-activating windows for the rarest 2% of features |
 | `tables/consistency_generations.csv` | per-generation dump behind the consistency numbers |
 | `tables/feature_taxonomy.txt`, `tables/writeup_features.txt` | hand-written readings of the above |
+
+---
+
+# The failures are verbalizable — the inverter just can't generalize to them (8B)
+
+Everything above measures the inverter and calls the result "unverbalizable". That word is wrong, and
+the check is cheap: read a feature's max-activating examples, write one sentence, score it.
+
+## Humans verbalize these features trivially
+
+`human_verbalization.csv` — 30 hand-written sentences over 21 features the inverter scores 0.00 on:
+**median 89% of corpus peak, 29/30 attempts**. Most are novel sentences, not corpus copies; one
+exceeded the feature's corpus peak.
+
+`human_beats_maemm.csv` — a harder set: 8 features that **no arm** activates (base encoder,
+encoder-trained, decoder-trained, decoder-injected-untrained). 16 sentences, **median 91% of peak,
+16/16 fire**. Including two purely positional numeric features — a digit inside a suite number
+(`Suite 640`) and inside a UK company registration (`registered number: 3218125`) — at 98% and 96%.
+
+So a textual preimage exists and is easy to find *if you know which feature you are holding*. The
+failure is IDENTIFICATION from the injected direction, not text production.
+
+## Training fits what it is shown and transfers nothing
+
+`cluster_transfer.json`, `generalization_failure.json`. Design: cluster the 925 unactivatable
+features by their corpus examples, train on 811 (web UI / disclaimers / metadata / prose / news),
+test on 113 of entirely unseen types (recipes / sports / contact blocks), zero overlap.
+
+| training | features | pairs | TRAIN norm_act | TEST norm_act |
+|---|---|---|---|---|
+| none | - | - | 0.004 | 0.008 |
+| 16 spans each | 811 | 12,576 | **0.344** | 0.035 |
+| 64 spans each | 811 | 47,853 | **0.387** | 0.031 |
+| 64 spans, decoder-conditioned | 811 | 47,853 | **0.352** | 0.049 |
+
+Trained features go from producing nothing to a third of corpus peak, with 14% reaching genuine
+corpus-example strength. Held-out features stay at **median best_act 0.00** and their null-beating
+rate falls BELOW baseline (0.221 -> 0.195). Quadrupling spans per feature improved fitting and
+slightly worsened transfer.
+
+## Encoder and decoder are complementary, and neither generalises
+
+The MAEMM injects `unit(W_enc[:,f])`. The decoder row `W_dec[f]` is a different object (enc/dec
+cosine 0.49-0.67) and its logit lens reads far more cleanly.
+
+| | encoder | decoder |
+|---|---|---|
+| on 155 features the encoder handles | norm_act **0.965**, 100% reach ex_last | 0.828, 68% |
+| on 113 features the encoder fails | 0.008, **0%** beat null_max | **0.181**, 35% |
+
+The encoder wins where it works; the decoder rescues part of where it doesn't. But decoder injection
+plus fine-tuning scores **0.049** on held-out where decoder injection ALONE scores **0.181** —
+fine-tuning on 811 features costs the model general direction-reading it already had.
+
+## The claim this supports
+
+> These SAE features are verbalizable; hand-written sentences reach ~90% of corpus peak. This
+> inverter cannot generalize to them. Training on 811 of them fits those 811 and transfers nothing to
+> unseen feature types, under both encoder and decoder conditioning, and fine-tuning makes held-out
+> performance worse than not fine-tuning at all.
+
+Scope: one inverter, warm-started on ~1M probe (topic/cluster) directions. `expressibility.json`
+predicts ITS failures from SAE geometry at CV AUC 0.823 — driven almost entirely by corpus rarity
+(0.789 alone); the decoder-sharpness signal there is saturated and does not separate named features.
+Establishing an intrinsic limit would need the failure to survive across inverters trained to cover
+these feature types.
