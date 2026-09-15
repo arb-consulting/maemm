@@ -2377,6 +2377,9 @@ def _score_eval_block(k, shard_paths, EV, EX, IX, actor, tok, device, rank, worl
     out["eval/sae/beat_corpus"] = float(np.mean(best > cp))
     out["eval/sae/unverbalized_frac"] = float(np.mean(best <= EU.SAE_FIRE))
     out["eval/sae/unverbalized_p10"] = float(np.mean(na < 0.10))
+    out["eval/sae/gate"] = float(EU.SAE_FIRE)
+    out["eval/sae/fired_1p0"] = float(np.mean(best > EU.SAE_FIRE_LEGACY))
+    out["eval/sae/unverbalized_1p0"] = float(np.mean(best <= EU.SAE_FIRE_LEGACY))
     cos_keys = [kk for kk in out if kk.startswith("eval/") and kk.endswith("/cos") and kk.split("/")[1] not in EU.CONTROL_FAMS and kk.split("/")[1] != "sae"]   # sae/cos is a diagnostic, not a mean_all family
     out["eval/mean_all"] = float(np.mean([out[kk] for kk in cos_keys]))
     for fam in EV["fams"]:

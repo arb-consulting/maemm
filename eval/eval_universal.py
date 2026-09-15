@@ -69,7 +69,28 @@ from mxf.prompts import build_prompt_ids
 from mxf.sae import load_sae, load_max_acts
 
 NORM_FILTER_MULT = 10.0   # same as eval_dirs: drop re-encoded tokens with norm > 10x batch median
-SAE_FIRE = 1.0            # eval_dirs --sae-fire default: raw act > 1.0 counts as "fired"
+SAE_FIRE_LEGACY = 1.0     # the OLD arbitrary "fired" cut (raw act > 1.0); still logged as eval/sae/{fired,unverbalized}_1p0 for continuity
+SAE_FIRE = 1.654          # "fired" = the SAE's own learned BatchTopK gate (ceselder/qwen36-27b-sae-l42: threshold 1.6539); overwritten with
+                          # the exact value from the checkpoint by configure_sae_fire(path). Everything that reads EU.SAE_FIRE inherits it.
+
+
+def sae_gate(path):
+    """Learned firing threshold stored in a dictionary_learning BatchTopK checkpoint (key "threshold"); None if absent."""
+    try:
+        params = torch.load(path, map_location="cpu", weights_only=False, mmap=True)
+    except Exception:
+        params = torch.load(path, map_location="cpu", weights_only=False)
+    t = params.get("threshold") if isinstance(params, dict) else None
+    return float(t.item() if hasattr(t, "item") else t) if t is not None else None
+
+
+def configure_sae_fire(path):
+    """Set the module-wide fire threshold to the checkpoint's gate (call once after load_sae). Returns the value in force."""
+    global SAE_FIRE
+    g = sae_gate(path) if path else None
+    if g is not None and g > 0:
+        SAE_FIRE = g
+    return SAE_FIRE
 GEN_SEED = 1234           # fixed sampling noise per eval (forked RNG — does not touch trainer RNG)
 HELDOUT_FRAC = 0.05       # realact: last 5% of acts.f16 sequences are eval-only (never trained on)
 
@@ -755,7 +776,7 @@ def build_eval_sets(cache_path, sae, wu, j42, probe_bank_path, acts_dir, n, dev,
 
 @torch.no_grad()
 def run_eval(actor, tok, prompt_ids, marker, sub, eval_sets, sae, bo, temp, max_new, min_new, dev,
-             gen_chunk=64, sae_fire=SAE_FIRE, per_dir=False, mlp_stats=None, chance_acts_dir=None):
+             gen_chunk=64, sae_fire=None, per_dir=False, mlp_stats=None, chance_acts_dir=None):
     """Run every family in eval_sets (meta["cos_families"] cosine families + the sae metric
     family); return a FLAT {wandb scalar name: float} dict. Generation RNG is forked + fixed
     (GEN_SEED) so repeat evals of the same checkpoint are deterministic and the trainer's RNG
@@ -768,6 +789,9 @@ def run_eval(actor, tok, prompt_ids, marker, sub, eval_sets, sae, bo, temp, max_
     rank_le10, mean_rank, median_rank, mrr, best5_*, raw_*, corpus_pct_mean, top1pct_frac} (mlp_rank_metrics) -- and, with
     chance_acts_dir, their chance level on random held-out corpus windows (eval/<fam>/chance_*). Every pre-existing key is
     unchanged."""
+    if sae_fire is None:
+        sae_fire = SAE_FIRE          # the SAE gate set by configure_sae_fire(), or the module default
+
     was_training = actor.training
     actor.eval()
     fork_devs = [dev] if str(dev).startswith("cuda") else []
@@ -797,6 +821,9 @@ def run_eval(actor, tok, prompt_ids, marker, sub, eval_sets, sae, bo, temp, max_
             na = best_act / np.maximum(cp, 1e-6)
             out["eval/sae/unverbalized_frac"] = float(np.mean(best_act <= sae_fire))  # cannot be made to fire at all
             out["eval/sae/unverbalized_p10"] = float(np.mean(na < 0.10))  # inversion reached <10pct of corpus peak
+            out["eval/sae/gate"] = float(sae_fire)                                     # the threshold "fired" refers to
+            out["eval/sae/fired_1p0"] = float(np.mean(best_act > SAE_FIRE_LEGACY))     # legacy 1.0 cut (pre-Sep-15 series)
+            out["eval/sae/unverbalized_1p0"] = float(np.mean(best_act <= SAE_FIRE_LEGACY))
             if per_dir:
                 pd["sae"] = {"row": list(range(len(best_act))), "feature": [int(f) for f in eval_sets["sae_feats"]],
                              "best_act": best_act.tolist(), "corpus_peak": cp.tolist(), "norm_act": na.tolist(),
@@ -878,7 +905,7 @@ def main():
     ap.add_argument("--max-new-tokens", type=int, default=64)
     ap.add_argument("--min-new-tokens", type=int, default=16)
     ap.add_argument("--gen-chunk", type=int, default=64)
-    ap.add_argument("--sae-fire", type=float, default=SAE_FIRE)
+    ap.add_argument("--sae-fire", type=float, default=None, help="raw-activation cut for fired/unverbalized; default = the SAE checkpoint's learned gate")
     ap.add_argument("--out", default=None, help="optional JSON dump of the metric dict")
     ap.add_argument("--dump-per-dir", action="store_true",
                     help="ALSO write <out>.perdir.json (needs --out): per-direction best-of-bo scores behind every aggregate "
@@ -906,6 +933,9 @@ def main():
     j42 = None if a.heldout_pool else \
         torch.load(a.lens_path, map_location="cpu", weights_only=False)["J"][READ_LAYER].float().to(dev)
     sae = load_sae(path=a.sae_path, device=dev, dtype=torch.float32)
+    if a.sae_fire is None:
+        a.sae_fire = configure_sae_fire(a.sae_path)
+        print(f"[eval] SAE fire threshold = learned gate {a.sae_fire:.4f}", flush=True)
     print(f"[eval-universal] adapter={a.adapter} | n={a.n} bo={a.bo} | WU {tuple(wu.shape)} | "
           + (f"heldout pool {a.heldout_pool}" if a.heldout_pool
              else f"J{READ_LAYER} {tuple(j42.shape)}"), flush=True)

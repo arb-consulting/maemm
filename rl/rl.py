@@ -481,6 +481,9 @@ def load_eval_assets(a, device, is_main):
         from mxf.sae import load_sae
         es = torch.load(a.eval_cache, map_location="cpu", weights_only=False)
         sae = load_sae(path=a.eval_sae, device=device, dtype=torch.float32)
+        gate = EU.configure_sae_fire(a.eval_sae)   # "fired"/"unverbalized" = the SAE's learned BatchTopK gate, not the old 1.0 cut
+        if is_main:
+            print(f"[eval] SAE fire threshold = learned gate {gate:.4f}", flush=True)
         assert es["meta"]["d_sae"] == sae.d_sae, f"cache d_sae {es['meta']['d_sae']} != SAE {sae.d_sae}"
         sae.W_dec = None   # decoder unused by encode_features / sae_rank_at_peaks -> free 2.7 GB next to the actor + vLLM
         fams = list(es["meta"].get("cos_families", EU.COS_FAMILIES))
@@ -660,6 +663,9 @@ def inline_eval(llm, actor, submodule, tok, prompt_ids, marker, a, device, ckpt_
     out["eval/sae/beat_corpus"] = float(np.mean(best > cp))
     out["eval/sae/unverbalized_frac"] = float(np.mean(best <= EU.SAE_FIRE))
     out["eval/sae/unverbalized_p10"] = float(np.mean(na < 0.10))
+    out["eval/sae/gate"] = float(EU.SAE_FIRE)
+    out["eval/sae/fired_1p0"] = float(np.mean(best > EU.SAE_FIRE_LEGACY))
+    out["eval/sae/unverbalized_1p0"] = float(np.mean(best <= EU.SAE_FIRE_LEGACY))
     # mean_all over the cos families only (no control, no sae/cos diagnostic, no cache-v2 extra families)
     cos_keys = [k for k in out if k.startswith("eval/") and k.endswith("/cos") and k.split("/")[1] not in EU.CONTROL_FAMS and k.split("/")[1] != "sae"]   # sae/cos is a diagnostic, not a mean_all family
     out["eval/mean_all"] = float(np.mean([out[k] for k in cos_keys]))

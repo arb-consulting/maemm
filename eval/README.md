@@ -121,12 +121,12 @@ feature?").
 activation at the rollout's peak token):
 - **`sae/norm_act`** = generated activation ÷ corpus peak (mean over features). 1.0 = our 64-token
   rollout drives the feature as hard as the single best span in the whole scanned corpus.
-- `sae/fired` = fraction with raw act > 1.0; **`sae/beat_corpus`** = fraction beating their corpus peak.
+- `sae/fired` = fraction whose best rollout drives the feature **above the SAE's own learned BatchTopK gate** (`sae/gate`, 1.654 for the 131k SAE; read from the checkpoint's `threshold`). Before 2026-09-15 this used an arbitrary raw-act > 1.0 cut; that number is still logged as `sae/fired_1p0`. **`sae/beat_corpus`** = fraction beating their corpus peak.
 - **`sae/rank1_frac`** / `mean_rank` / `mrr` = full-SAE rank of the target feature among all 131k
   features at the rollout's peak token (rank 1 = the rollout is *most* about the target feature).
   (Dropped from the fast daemon path for speed; available in the standalone eval.)
-- **`sae/unverbalized_frac`** = fraction of held-out features NO rollout can fire (act ≤ 1.0) —
-  the "can't-verbalize-it-at-all" mass; `unverbalized_p10` = fraction reaching <10% of corpus peak.
+- **`sae/unverbalized_frac`** = fraction of held-out features NO rollout can fire (best act ≤ the SAE gate) —
+  the "can't-verbalize-it-at-all" mass (`sae/unverbalized_1p0` = the pre-2026-09-15 act ≤ 1.0 version); `unverbalized_p10` = fraction reaching <10% of corpus peak.
 
 **How to read it.** `norm_act` ≥ ~0.6 means rollouts typically reach a healthy fraction of the
 corpus-best activation on features never seen in training. `unverbalized_frac` falling under RL
