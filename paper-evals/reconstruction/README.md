@@ -101,15 +101,25 @@ feature's own windows whose peak activation clears the checkpoint's learned gate
 `argmax agree` are the repo-vs-us activation agreement (the 8B reproduces its scan at r ≈ 0.994,
 the 27B does not — see the main README).
 
-**(f) `f_gcg_ceiling`** — the reachability ceiling. Per (base, family, arm) from `finals.jsonl`: the
-per-direction BEST member's final cosine, its init cosine and its NLL, ± SE across directions, plus
-the MAEMM's unbiased best-of-n **on exactly those rows**. Two caveats that the table states in its
-own caption: a GCG arm runs the FIRST 8 rows of each family unless it was launched otherwise (the
-`rows` column says which), and an EPO arm holds 3 members at different λ, so "the arm's result" is
-the best member per direction, not a mean over members. The MAEMM column is absent when no scores
-directory on this root covers that (base, set) — on the smoke root the 8B's GCG is on
-`2026-09-16_v1` while its scores are on the imported `2026-09-03_run1-archive16`, so the join is
-empty and the column does not appear.
+**(f) `f_gcg_ceiling`** — the reachability ceiling, PAIRED. Layout is
+`base/<base>/gcg/<set>/<family>/<arm>/finals.jsonl` (a realact direction and an sae direction are
+different objects and never share an arm directory). Per (base, family, arm): the per-direction best
+member's final cosine, its init cosine and its NLL, ± SE across directions; then, for each MAEMM on
+the same (base, set) and ordered primary first, its unbiased best-of-n and mean-of-n on **exactly
+those directions**, the paired difference ± SE, and the fraction of directions GCG wins. With the
+final draw the GCG rows and the MAEMM rows index the same held-out set, which is what makes the
+pairing exact rather than distributional; a direction missing from `finals.jsonl` (8B realact
+`gcg-random32` excludes row 17) is absent from the join, and the `dirs` column says how many
+survived. An EPO arm holds 3 members at different λ, so "the arm's result" is the best member per
+direction, not a mean over members.
+
+**The caveat the caption states once:** GCG and a MAEMM are not the same object and are not
+compute-matched. GCG optimises ONE fixed 32-token string with ~77k candidate forwards *against the
+scorer itself*; the MAEMM draws n sampled rollouts from a prompt and never sees the metric. GCG
+bounds what the metric is reachable to; it is not a baseline the inverter competes with. The MAEMM
+columns are absent where no scores directory covers that (base, set) — on the smoke root the 8B's
+GCG is on `2026-09-16_v1` while its scores are on the imported `2026-09-03_run1-archive16`, so the
+join is empty and the columns do not appear.
 
 **(g) `g_argmax_position`** — where in a rollout the best-scoring token sits, as
 `argmax / n_kept_tokens` in 8 bins, plus the fraction exactly at the last token and the mean kept

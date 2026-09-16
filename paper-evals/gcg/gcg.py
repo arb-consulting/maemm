@@ -267,6 +267,23 @@ def sae_peak_pos(acts_row, peak):
     return int(np.nanargmax(np.asarray(acts_row))) - 1
 
 
+def shape_sweep(model, tok, ids, d_cpu, read_layer, device, shapes=(1, 8, 32, 128, 256, 512)):
+    """Score ONE id list at several batch shapes and return {n_rows: (cos, argmax)}.
+
+    `common.score_ids` right-pads and chunks, so a row is reduced in a tile whose M dimension is the
+    batch's, and a bf16 forward's accumulation order goes with it. Checklist item 11 recorded that
+    the chunk size shifts a per-row cosine measurably; this measures the shift for one string by
+    replicating it n times and reading row 0 back, which reproduces the loop's chunk shape exactly.
+    Only ever called when the end-of-direction CHECK has already failed, so it costs nothing in the
+    normal path.
+    """
+    out = {}
+    for n in shapes:
+        r = exact_cos(model, tok, [list(ids)] * n, d_cpu, read_layer, n, device)
+        out[n] = (float(r["cos"][0]), int(r["amax"][0]))
+    return out
+
+
 def exact_cos(
     model, tok, id_lists, d_cpu, read_layer, sbatch, device, want_tokens=False,
     sae=None, feature_id=None,
@@ -311,6 +328,11 @@ def exact_cos(
         res["per_token"] = [
             [round(float(v), 6) for v in cos[i][keep[i]].tolist()] for i in range(n)
         ]
+        # the read-layer residual norm AT the argmax, the cosine's denominator: a small norm is
+        # what turns a bf16 reduction-order difference into a large cosine difference
+        res["norm_at_argmax"] = np.asarray(
+            [float(out["norm"][i, int(arg[i])]) for i in range(n)], np.float32
+        )
     if sae is not None:
         keep = out["keep"]
         res["sae_peak"] = np.asarray(
@@ -926,10 +948,34 @@ def run_direction(
     assert (fresh["amax"] >= 0).all(), "a final string has no kept token"
     d_same = float(np.abs(fresh["cos"] - cur_cos).max())
     d_re = float(np.abs(rebatch["cos"] - cur_cos).max())
+    # Evidence for classifying a failure. `cos` is a MAX OVER POSITIONS, which is not Lipschitz in
+    # the per-token values: when the top two positions are within the forward's own bf16 noise, the
+    # argmax flips between them and the reported cos moves by the whole gap even though no per-token
+    # value moved by more than ~1e-5. A delta at or below the top1-top2 gap is that flip; a delta
+    # well ABOVE every gap is bookkeeping. Cheap: `fresh` already carries the per-token cosines.
+    worst = int(np.argmax(np.abs(fresh["cos"] - cur_cos)))
+    pt = sorted(fresh["per_token"][worst], reverse=True)
+    gap = float(pt[0] - pt[1]) if len(pt) > 1 else float("inf")
+    sweep = ""
+    if d_same >= COS_TOL_SAME_BATCH_HARD:
+        sw = shape_sweep(model, tok, ids_l[worst], d_cpu, read_layer, dev)
+        lo = min(c for c, _ in sw.values())
+        hi = max(c for c, _ in sw.values())
+        sweep = (
+            " | batch-shape sweep of this exact string: "
+            + ", ".join(f"n={n}: {c:.6f}@{p}" for n, (c, p) in sw.items())
+            + f" (spread {hi - lo:.2e})"
+        )
     assert d_same < COS_TOL_SAME_BATCH_HARD, (
-        f"{fam}:{row}: the loop's own cos does not reproduce a fresh common.score_ids call at the "
-        f"same sub-batch (max |d| {d_same:.2e} > {COS_TOL_SAME_BATCH_HARD:.0e}) -- that is a "
-        f"bookkeeping bug in the loop, not float noise"
+        f"{fam}:{row}: the loop's own cos does not reproduce a fresh common.score_ids call "
+        f"(max |d| {d_same:.2e} > {COS_TOL_SAME_BATCH_HARD:.0e}) on member {worst}: loop "
+        f"{float(cur_cos[worst]):.6f} vs fresh {float(fresh['cos'][worst]):.6f} at position "
+        f"{int(fresh['amax'][worst])}, top1-top2 per-token gap {gap:.2e}, residual norm there "
+        f"{float(fresh['norm_at_argmax'][worst]):.3f}. NOTE the loop scored this "
+        f"string inside a {a['pop'] * a['children']}-candidate batch and the fresh call scores "
+        f"{pop} row(s), so the batch SHAPE differs and a bf16 forward's reduction order with it; "
+        f"a delta at or below the gap is an argmax flip between two near-tied positions, a delta "
+        f"above every gap is a bookkeeping bug in the loop" + sweep
     )
     if d_same >= COS_TOL_SAME_BATCH:
         print(
