@@ -54,11 +54,14 @@ and `--model` / `--scorers` / `--path` / `--concurrency` / `--max-cost-usd` / `-
 | `C32` | top-32 at 16M — the matched-N control for `C16M16` |
 | `C16M16` | all 16 of C16 + all 16 of M, N = 32 (A8: matched-N enrichment, read against `C32`) |
 | `C16-N8`, `M-N8`, `M-N32` | descriptive pilot points only (A9: N = 16 is fixed a priori) |
-| `R-shuffled` | **the floor** (A6): this feature's test set scored with a *different* feature's C16 description, under a fixed derangement. Scorer calls only |
-| `C16-draw2` | **the null** (A7): C16's own description on the second, disjoint test draw. Scorer calls only |
+| `R-shuffled` | **the interpretability floor** (A6): this feature's test set scored with a *different* feature's C16 description, under a fixed derangement. Scorer calls only |
+| `C16-judge2` | **the judge-only null**: C16's own description on the SAME draw-1 items, scored a second time. Scorer calls only |
+| `C16-draw2` | **the draw null** (A7): C16's own description on the second, disjoint test draw — judge *and* test-set-draw variation. Scorer calls only |
 | `E` | **NOT RUN**, hook only — see below |
 
-The full run scores `C16, C4, M, C4M, C32, C16M16, R-shuffled, C16-draw2` on both scorers.
+The full run scores `C16, C4, M, C4M, C32, C16M16, R-shuffled, C16-judge2, C16-draw2` on both
+scorers. `R-shuffled` should sit at 0.5; the gap between the two nulls is the test-set-draw half of
+the noise, and the draw null is the threshold every contrast is read against.
 
 ## What is implemented, and what is not
 
@@ -110,10 +113,21 @@ the design asks for detection and fuzzing only), and any 8B row.
   alone is not enough at stride 16: two windows of one document 200 tokens apart do not overlap and
   are the same passage. Excluding across **all** arms is what keeps the test set identical per arm,
   which is what makes the comparison paired.
-- **A7 — the null is a second test draw, not a repeat.** Each feature gets two disjoint test draws
-  under identical rules; `run` scores C16 on both. The per-feature difference is the test-set
-  sampling noise every contrast is exposed to, and it is reported beside every win fraction. The
-  temperature-0 repeat it replaced measured judge jitter instead.
+- **A7 — the null is a second test draw, and there is now a second null beside it.** Each feature
+  gets two disjoint test draws under identical rules; `run` scores C16 on both (`C16-draw2`) *and*
+  scores draw 1 a second time with the same description (`C16-judge2`). The first carries judge and
+  test-set-draw variation together, the second the judge half alone; their difference is the draw
+  half. Both are reported beside every win fraction. **Draw 2 is allocated before draw 1**: when the
+  positive pool is short it is draw 2 that goes empty, and an empty draw 2 costs the null. If draw 1
+  then falls short, n is reduced and recorded — disjointness is never relaxed to make the count.
+- **The test set's positive and near-miss pool is "the top window of each of the feature's 256
+  highest-activating documents"** (`examples_docmax/`), banded by the scan's own
+  `ceil(max_act / peak × 4) − 1`, unioned with the stored `q0..q3` band rows and deduplicated by
+  window id. That is the sentence the paper states. It exists because ranking *windows* — which is
+  what `examples/`'s top-128 does — concentrates them in few documents: MEASURED on the 64-feature
+  pilot build, the arms' 16–32 shown windows occupied a median of 28 documents, and once A4 removed
+  every other window in those documents, draw 1 reached its 20 positives on 35 of 64 features and
+  draw 2 was **empty on 21**.
 - **A3 — C4 has its own scan.** Filtering the 16M top-128 down to the 4M prefix is not "what a
   cheap corpus search finds": MEASURED on the 64-feature pilot build, a median of 14 candidates
   after dedup and fewer than 16 on 38 of 64 features. `examples_4m/` is the 4M prefix's own top-128.
@@ -157,11 +171,12 @@ the design asks for detection and fuzzing only), and any 8B row.
   jobs gives the input side exactly; the output side is an assumed fraction of `max_tokens`, stated
   as such. A stage projecting more than `autointerp.stop_above_usd` ($100) refuses to run without
   `--approved` — the "report anything over $100 before it runs" rule, made mechanical.
-- **Prompt caching is attempted, not assumed.** A `cache_control` breakpoint sits after the stable
-  prefix (system + Delphi's verbatim few-shots). Sonnet 5's minimum cacheable prefix is 1024
-  tokens and the detection prefix is near it, so `usage.cache_creation_input_tokens` decides
-  whether an entry exists; nothing is added to the prompt to reach the minimum, because the
-  prompts are Delphi's, verbatim.
+- **Prompt caching does not engage, MEASURED.** A `cache_control` breakpoint sits after the stable
+  prefix (system + Delphi's verbatim few-shots), and on the first Anthropic smoke
+  `cache_creation_input_tokens` and `cache_read_input_tokens` were both **0**: that prefix is about
+  900 tokens and Sonnet 5's minimum cacheable prefix is 1024. The breakpoint stays and the zero is
+  reported; nothing is added to the prompts to reach the minimum, because they are Delphi's,
+  verbatim.
 - **Unparsed scorer batches are DROPPED, never imputed.** The parser takes the last bracketed group
   of exactly the batch length; a wrong-length answer is refused. The judge narrates before
   answering on roughly one batch in six (MEASURED 2026-09-15), which is why `max_tokens` is 600.
