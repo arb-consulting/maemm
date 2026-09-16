@@ -947,3 +947,56 @@ with the matched floor at the same bo. `sae` is at 128 rather than 512 direction
 showed no lift at any depth and the 8B trial found the same; it is kept rather than dropped so the
 paper's 27B `sae` row is a measurement (bo 32, 128 features, lift +0.0036 ± 0.0018, p = 0.79) and
 not a footnote.
+
+## Step 7: the Delphi-style SAE autointerp evaluation (`autointerp/`)
+
+Its own directory, its own Modal app and its own README — `paper-evals/autointerp/README.md` has
+the stages, the arms, and every deviation stated once. Design:
+`infra/2026-09-16_autointerp-design.md` **including its §9 amendments A1-A12**, which override
+§2-§6 of that document where they conflict.
+
+The question: for a held-out SAE feature, do a MAEMM's rollouts describe the feature as well as
+max-activating corpus examples do, and does adding rollouts to a small corpus improve the
+description? Measured Delphi's way — an explainer LLM writes a description from a set of examples,
+a scorer LLM classifies held-out windows with it, and the number is the scorer's balanced accuracy.
+
+```
+/vol/
+  base/<base>/
+    sae/<sae>/random_pool/<set>/     2048 random corpus windows encoded for every tested feature,
+                                     per-token, sparse CSR — the negative pool (scan's _random256
+                                     cannot supply 20 zero-activation windows for a dense feature)
+    sae/<sae>/examples_4m/<set>/     the C4 arm's OWN top-128 over the 4M nested prefix
+    sae/<sae>/examples_docmax/<set>/ one window from each of a feature's top 256 DOCUMENTS — the
+                                     test set's positive pool
+    autointerp/<set>/<date>_build/   one jsonl per feature: the rendered example set of each arm
+                                     and two disjoint test draws
+  maemms/<base>/<maemm>/scores/<set>__<engine>/sae_self/
+                                     the target feature's PER-TOKEN activation on its own rollouts
+  runs/<date>_autointerp-<tag>/      cache/ (one file per prompt), explain/, detection/, fuzzing/,
+                                     summary/
+```
+
+| stage | where | notes |
+|---|---|---|
+| `sae_self` | GPU | per-token target-feature activation on a MAEMM's own rollouts; self-validating against `cos.f16`, `argmax.i16` and the SAE CSR that `score` already wrote |
+| `random_pool` | GPU | the shared negative pool |
+| `examples_4m` | GPU | the C4 arm's own 4M scan |
+| `examples_docmax` | GPU | the test set's positive pool, ranked by document rather than by window |
+| `build` | CPU | the rendered example sets and the two test draws |
+| `run` | CPU | the Anthropic Messages API (`claude-sonnet-5`), `--path sync\|batch`, cached by prompt hash, projected and capped before each stage |
+| `autointerp/stats.py` | local | the tables, into `autointerp/pilot.md` and `autointerp/results.md` |
+
+Three things about this evaluation that the rest of `paper-evals` does not have to deal with, all
+MEASURED rather than assumed, all documented in `autointerp/README.md`:
+
+- **There is no `temperature` parameter** on the Anthropic Messages API for this model generation
+  (`anthropic` 1.6.0 raises `TypeError`). The design's "temperature 0" is unachievable, so the
+  evaluation carries two explicit null arms instead of assuming determinism.
+- **A test positive must fire at the gate.** Drawn from the stored equal-width activation bands
+  without that rule, 17 of 20 positives on a pilot feature sat below the gate on text unrelated to
+  the feature, and every arm landed near 0.6 balanced accuracy whatever its description said.
+- **Disjointness is at the DOCUMENT level** between every shown example and every test item, which
+  is why the positive pool had to be rebuilt around documents rather than windows.
+
+Costs are in `SMOKES.md` under "`autointerp` -- the Delphi-style SAE autointerp evaluation".

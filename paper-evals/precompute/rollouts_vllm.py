@@ -72,6 +72,11 @@ ENGINE_KWARGS = {"qwen36-27b": {"gdn_prefill_backend": "triton"}}
 # adapter-applied proof for the LoRA case: a silently ignored adapter returns the clean-base norm,
 # which is 5-35x smaller, so any tolerance below ~50% would do; 3% is what "the same model" means.
 MARKER_NORM_TOL = 0.03
+# The untrained-base CONTROL (`type: base`) has the opposite expectation: its served marker norm
+# must EQUAL the clean base's, so the 3% above is reported but not asserted -- a clean-base forward
+# measured by HF in bf16 against vLLM's own kernels need not agree that tightly. 25% is a sanity
+# bound, not a proof: a silently served MAEMM would be 130 or 512 against 14.06, i.e. 9-36x off.
+BASE_CONTROL_NORM_TOL = 0.25
 # The injection self-check's thresholds (rl/rl.py:283-300, rl/rl_disagg.py:1382-1405).
 INJ_COS_MIN, INJ_RATIO_LO, INJ_RATIO_HI = 0.99, 0.95, 1.05
 # How much a row BEFORE the marker may move under steering. Prefill is causal, so the true answer
@@ -353,8 +358,40 @@ def marker_norm_vs_hf(cfg, args, maemm: str, set_name: str, hn_engine: float, ki
     silently, and an ignored adapter returns the clean-base norm (8B 78.0 vs 14.5, 27B 512.0 vs
     14.06). The reference is step 3's own summary on the volume; when no HF run of this set exists
     the check degrades to "must differ from the clean base" and says so.
+
+    `kind == "base"` INVERTS the expectation. The untrained-base control serves the base snapshot
+    itself, so the engine's marker norm MUST equal `bases.<base>.marker_norm_base` -- the very
+    value that is the failure signature everywhere else. Neither "must differ" form is run for it;
+    what is left is a loose sanity bound (see below).
     """
     base, root = args["base"], args["root"]
+    if kind == "base":
+        ref = cfg["bases"][base].get("marker_norm_base")
+        assert ref is not None, (
+            f"the untrained-base control needs bases.{base}.marker_norm_base in config.yaml to "
+            f"check the engine's marker ||h|| {hn_engine:.4f} against; there is nothing else to "
+            f"compare a clean base with"
+        )
+        rel = abs(hn_engine - float(ref)) / max(float(ref), 1e-6)
+        chk = {
+            "reference": float(ref),
+            "source": f"config bases.{base}.marker_norm_base (HF-measured clean base)",
+            "rel_diff": round(rel, 6),
+            "tolerance": MARKER_NORM_TOL,
+            "expected": "equal: untrained-base control, no adapter",
+        }
+        print(
+            f"[vllm] marker ||h|| engine {hn_engine:.4f} vs clean base {float(ref):.4f} ({chk})",
+            flush=True,
+        )
+        assert rel <= BASE_CONTROL_NORM_TOL, (
+            f"the untrained-base control serves marker ||h|| {hn_engine:.4f} against the clean "
+            f"base's {float(ref):.4f} ({rel:.2%} apart, sanity bound "
+            f"{BASE_CONTROL_NORM_TOL:.0%}). This catches a MAEMM served where the CONTROL was "
+            f"asked for: the 27B's trained checkpoints sit at 130 (full) and 512 (LoRA), i.e. 9x "
+            f"and 36x this value, so it cannot fire on bf16 noise or a tokenizer wobble ({chk})"
+        )
+        return chk
     hf_summary = f"{C.rollouts_dir(maemm, root)}/{set_name}.summary.json"
     if os.path.exists(hf_summary):
         with open(hf_summary) as fh:
@@ -412,6 +449,8 @@ def _engine_for(cfg, args, base, maemm, p_len, max_new, gpu_mem):
     spec = cfg["maemms"][maemm]
     seqs = int(args.get("max_num_seqs") or MAX_NUM_SEQS[base])
     max_len = p_len + max_new + 8
+    # `full` AND `base` both take the served-model path: no LoRA slot, the engine is built directly
+    # on `maemm_weights_path`, which for the untrained-base control IS the base snapshot.
     if spec["type"] != "lora":
         path = C.maemm_weights_path(cfg, maemm)
         llm, info = build_engine(cfg, args, base, path, False, seqs, max_len, gpu_mem)
@@ -699,7 +738,12 @@ def run(cfg, args):
             f"module layout (common.rename_lora_keys; vLLM validates adapter names by SUFFIX ONLY "
             f"and silently ignores a mismatched one) -- {adapter['src']}"
             if adapter["dest"]
-            else f"full model served directly by the engine, no LoRA: {adapter['src']}"
+            else (
+                f"UNTRAINED-BASE CONTROL: the engine serves the base snapshot itself, no MAEMM "
+                f"weights and no LoRA -- {adapter['src']}"
+                if spec["type"] == "base"
+                else f"full model served directly by the engine, no LoRA: {adapter['src']}"
+            )
         )
         od.note(
             f"stop tokens: {appended} of {len(out_rows)} rows had the stop token re-appended from "

@@ -1644,3 +1644,222 @@ column rather than inventing one. Reading these against the full-root 8B numbers
 best-of-64 over 512 directions — i.e. a 32-token string optimised directly on the metric beats the
 inverter, which is the ceiling the column exists to establish. Treat it as indicative: 8 directions,
 a different target set, and no 27B equivalent.
+
+## `autointerp` -- the Delphi-style SAE autointerp evaluation (2026-09-16)
+
+`paper-evals/autointerp/`. Design `infra/2026-09-16_autointerp-design.md` **including its §9
+amendments A1-A12**, which override §2-§6. Four GPU products, one CPU build, one LLM run. GPU costs
+are read off each product's own README on the volume; LLM costs are COMPUTED from the returned
+token counts at the rate table in `costs.json` (the Anthropic Messages API returns no cost field).
+
+### GPU products (H200, $4.54/h)
+
+| # | product | scope | wall | cost |
+|---|---|---|---|---|
+| 1 | `sae_self` shakeout, 2 sae targets x 64 | rows 1024-1025 | 107.6 s | $0.1357 |
+| 2 | `sae_self` `rl-8x2048-full`, FAILED the argmax check | 512 x 64 | ~216 s | $0.2719 (sunk) |
+| 3 | `sae_self` `rlI-150`, FAILED the same check | 512 x 64 | ~190 s | $0.2394 (sunk) |
+| 4 | `sae_self` `rl-8x2048-full` | 512 x 64 = 32,768 rows | 215.5 s | **$0.2718** |
+| 5 | `sae_self` `rlI-150` | 512 x 64 = 32,768 rows | 237.2 s | **$0.2991** |
+| 6 | `random_pool` | 2,048 windows x 512 features | 111.8 s | **$0.1410** |
+| 7 | `examples_4m` (A3) | 4,738 docs, 3,999,724 tokens, 237,980 windows | 1293.4 s | **$1.6311** |
+| 8 | `examples_docmax` | 18,813 docs, 16M tokens, top 256 docs/feature | see below | see below |
+
+Items 2 and 3 are the same work as 4 and 5 and are listed because they were paid for: the
+`sae_self` argmax check was written as an EQUALITY against the stored `argmax.i16` and failed on
+1 of 32,768 rollouts (primary) and 3 of 32,768 (`rlI-150`). Both are genuine near-ties -- worst
+cosine gap 4.0e-6 -- and the cause is checklist item 11 showing up exactly where it was predicted:
+`score` batched all 1,536 targets of the set while this pass batches only the 512 `sae` rows, so
+the two runs' `SCORE_CHUNK` right-padding widths differ and move a per-token cosine by ~1e-4. The
+check now allows a mismatch only below a 1e-3 near-tie tolerance, two orders of magnitude clear on
+both sides, and reports the count and the worst gap either way.
+
+`sae_self`'s other two checks are exact and passed on both MAEMMs: our activation at the stored
+argmax against the CSR's value (0 mismatches, worst |diff| 0.0157, which is f16 quantisation at
+act ~40) and against its membership (0 mismatches). Mean fire fraction 0.8687 (primary) / 0.8299
+(`rlI-150`).
+
+### Why `random_pool` and `examples_docmax` exist
+
+Both replace a stored product that cannot serve the amended design, and both were built only after
+the shortfall was MEASURED.
+
+- `random_pool` (A5): `scan`'s `_random256` carries 256 windows and a per-feature MAXIMUM only. The
+  densest tested feature has **5** zero-activation windows in 2,048, so 256 could never supply the
+  20 the design asks for. The new pool is 2,048 windows encoded for all 512 features with per-token
+  pre-gate activations, stored as a CSR at density 0.0066 (11.8 MiB against a 134 MiB dense
+  equivalent).
+- `examples_4m` (A3): filtering the 16M top-128 down to the 4M prefix left a median of 14
+  candidates after dedup and fewer than 16 on **38 of 64** pilot features -- C4 was not an N=16
+  arm. Its own 4M scan gives a median of 54 and fewer than 16 on **0 of 64**.
+- `examples_docmax`: with A1 (gate-consistent positives) and A4 (document-level disjointness) in
+  force, draw 1 reached its 20 positives on **35 of 64** features and draw 2 was **empty on 21**.
+  A feature's gate-passing windows are the top-128 (median 60 after dedup) plus almost no q-band
+  rows -- those bands are equal-width bins of (0, max_act] and sample the weak tail -- and the arms
+  show 16-32 of them across a median of 28 documents, after which A4 removes every other window in
+  those documents. Ranking WINDOWS concentrates them in few documents, so this product ranks
+  DOCUMENTS: the best window of each of a feature's top 256 documents.
+
+### The LLM stage: Anthropic Messages API, not OpenRouter (Tomas, 2026-09-16)
+
+Model `claude-sonnet-5`, SDK `anthropic==1.6.0`, Modal secret `anthropic`. **MEASURED: there is no
+`temperature` parameter.** `messages.create()` raises `TypeError: unexpected keyword argument
+'temperature'` -- sampling parameters were removed from the API for this model generation.
+OpenRouter accepted the parameter, which is what hid it. The design's "temperature 0" is therefore
+not achievable on this surface; run-to-run variation is real, and the two null arms (`C16-judge2`
+for the judge half, `C16-draw2` for judge + test-set draw) are the only noise floors the evaluation
+has. `thinking: {"type": "disabled"}` is accepted and is sent on every call.
+
+**Prompt caching does not engage**, MEASURED: `cache_creation_input_tokens` and
+`cache_read_input_tokens` are both 0. The stable prefix (system + Delphi's three verbatim few-shot
+turns) is ~900 tokens and Sonnet 5's minimum cacheable prefix is 1024. Nothing was added to the
+prompts to reach it -- they are Delphi's, verbatim.
+
+Measured per-call cost on the first smoke (2 features, 9 arms, both scorers, 258 calls, $0.7364,
+sync path): explain **$0.0067**/call at 2,392 input tokens, detection **$0.00302**/call at 1,478,
+fuzzing **$0.00194**/call at 892. Each stage's pre-submission projection (`messages.count_tokens`
+on a sample, times the rate table) landed within 9% of the actual. A10 earned its place on that
+smoke: **3 of 18** explainer answers hit the lifted 300-token cap and were retried at 600, so the
+default is now 600.
+
+## Untrained-base control (2026-09-16)
+
+The control the primary MAEMM is read against: a CLEAN `Qwen/Qwen3.6-27B` with **no MAEMM weights
+of any kind**, pushed through the identical generation path as
+`qwen36-27b/2026-09-10_rl-8x2048-full` -- same prompt function (`celeste27b`, 103 tokens), same
+marker, same block-1 norm-matched injection at coef 1.0, same `rollouts:` constants (T 1.0, n 64,
+max_new 64, min_new 16, seed 1234), same held-out set `2026-09-16_v1` (1,536 targets), same
+clean-base scorer at layer 42. The only difference is the weights, which is what makes the gap in
+the tables attributable to training. It lands as an ordinary product at
+`/vol/maemms/qwen36-27b/2026-09-16_base-control/`.
+
+| date | item | command (abbreviated) | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-16 | `check`, 27B, with the new `type: base` entry (CPU) | `--product check --base qwen36-27b` | 13.3 s | ~$0 | `2026-09-16_base-control (base)` resolves to the base snapshot `models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd…` (51.8 GiB); every other entry unchanged | — |
+| 2026-09-16 | `rollouts_vllm` control, smoke root, rows 0-7 x 64 | `--product rollouts_vllm --base qwen36-27b --maemm qwen36-27b/2026-09-16_base-control --set 2026-09-16_v1 --rows 0-7 --n 64 --root …smoke` (`ap-Mn4Pcd4u2nYjEESpJ95PXF`) | 271.8 s | **$0.3428** | 512 rollouts; engine up 223 s; marker \|\|h\|\| **14.0594** vs the config'd clean base **14.0620** (0.019%); injection cos **0.999995**, ratio **1.000124**, pre-marker delta **0.0** | the marker-norm check is INVERTED for this kind and had to be written (below); nothing else fired |
+| 2026-09-16 | `score` control, smoke root, rows 0-7 | `--product score … --rows 0-7 --engine vllm --root …smoke` (`ap-3V1bmhhvaxZGgCX2IDBxlq`) | 107.6 s | **$0.1357** | 8 realact rows: mean cos **0.0074**, best-of-64 **0.1096** | against the primary's 0.4744 / 0.5408 on the same 8 rows — the control is at 1.5% / 20% of it |
+| 2026-09-16 | `rollouts_vllm` control, FULL root, 1,536 x 64 | `--product rollouts_vllm … --set 2026-09-16_v1 --max-num-seqs 256 --detach` (`ap-T54L7ezITTXzLXq5EZtr1g`) | 3,210.5 s | **$4.0487** | 98,304 rollouts, generate 2,963.9 s, **905.7 gen tok/s = 33.17 rollouts/s**; mean 27.3 tokens, eos rate 0.9193; all four self-checks passed | 33.2 rollouts/s against the primary's 29.32 — the clean base emits shorter rollouts (27.3 vs the primary's longer ones) and has no adapter, so it is the fastest 27B run yet. Cost came in UNDER the $4.5 projection |
+| 2026-09-16 | `score` control, FULL root — **FAILED** | `--product score … --engine vllm --detach` (`ap-O3lO3VTGiBfVWy63xRq8VU`) | 710 s (app wall) | **~$0.90** | aborted at the very end on checklist item 8, bound 2: "a scored row kept 95 tokens" | **a real finding about the check, not about the data** — see below. One row of 98,304 |
+| 2026-09-16 | `score` control, FULL root (retry) | same (`ap-yGjjMqWb0JuTVAjrt5H4xr`) | 611.7 s | **$0.7714** | 98,304 rows in 601.9 s (**163 rows/s**), 1.0 GiB; bound 1 (stored ids <= max_new 64) passed on every row; **1 of 98,304** rows at the truncation | 163 rows/s against the 115 measured on the 20k-row Patchscopes cell — the rate keeps rising with the job size |
+| 2026-09-16 | `centred` control (CPU) | `--product centred … --engine vllm` | 134.0 s | ~$0 | the two secondary cosines added in place, so the control appears in table (h) | not in the brief; run because (h) is one of the regenerated tables and it costs nothing |
+| 2026-09-16 | `reconstruction/stats.py --root-tag full` | local | ~3 min | $0 | 12 tables, 4 scores directories (primary, control, 2 secondaries), 20.5 MB fetched | the primary's own numbers are bit-identical to the previous full-root run — the control adds rows, it moves nothing |
+
+### What the engine actually served
+
+`marker ||h|| engine 14.0594 vs clean base 14.0620`, `rel_diff 0.000187`, and the injection check
+`{cos: 0.999995, norm_ratio: 1.000124, max_pre_marker_delta: 0.0, clean_vs_clean_pre_marker_delta:
+0.0}` — identical on the smoke and the full run. Two things are worth separating there:
+
+- **The marker norm proves no MAEMM was served.** 14.06 is the clean base. The trained 27B
+  checkpoints sit at **130** (full-parameter) and **512** (LoRA) at the same position, i.e. 9x and
+  36x higher, which is why the loose 25% sanity bound on this kind cannot fire on numerical noise.
+- **The injection is real.** `cos 0.999995` and `ratio 1.000124` say the steered forward differs
+  from the un-injected one by exactly `unit(v) * ||h|| * 1.0` at the marker, and the pre-marker
+  delta is **exactly 0.0** (the full-model path has no Punica nondeterminism). So the control is
+  not "a base model with nothing done to it" — it is a base model receiving the same direction the
+  inverter receives, and failing to say anything about it.
+
+### (a) the control beside the primary, 512 targets per family, full root
+
+| base | maemm | role | family | targets | mean cos (bo1) | bo64 |
+|---|---|---|---|---|---|---|
+| qwen36-27b | 2026-09-10_rl-8x2048-full@vllm | primary | random | 512 | 0.0280 ± 0.0005 | 0.0428 ± 0.0005 |
+| qwen36-27b | 2026-09-10_rl-8x2048-full@vllm | primary | realact | 512 | 0.4994 ± 0.0070 | 0.5692 ± 0.0063 |
+| qwen36-27b | 2026-09-10_rl-8x2048-full@vllm | primary | sae | 512 | 0.1298 ± 0.0032 | 0.1714 ± 0.0035 |
+| qwen36-27b | 2026-09-16_base-control@vllm | **control** | random | 512 | 0.0160 ± 0.0005 | 0.0323 ± 0.0004 |
+| qwen36-27b | 2026-09-16_base-control@vllm | **control** | realact | 512 | 0.0244 ± 0.0052 | 0.1364 ± 0.0058 |
+| qwen36-27b | 2026-09-16_base-control@vllm | **control** | sae | 512 | 0.0022 ± 0.0003 | 0.0241 ± 0.0012 |
+
+### (c) primary minus control, paired per target
+
+| family | slice | statistic | targets | A (primary) | B (control) | diff (A-B) | A wins | sign-test p |
+|---|---|---|---|---|---|---|---|---|
+| random | all | best-of-64 (unbiased) | 512 | 0.0428 | 0.0323 | 0.0105 ± 0.0003 | 0.924 | 8.28e-96 |
+| random | all | mean cos | 512 | 0.028 | 0.016 | 0.0120 ± 0.0002 | 0.996 | 1.96e-149 |
+| realact | all | best-of-64 (unbiased) | 512 | 0.5692 | 0.1364 | **0.4328 ± 0.0053** | 1.000 | 1.49e-154 |
+| realact | all | mean cos | 512 | 0.4994 | 0.0244 | **0.4750 ± 0.0050** | 1.000 | 1.49e-154 |
+| sae | all | best-of-64 (unbiased) | 512 | 0.1714 | 0.0241 | **0.1474 ± 0.0038** | 0.977 | 1.78e-130 |
+| sae | all | mean cos | 512 | 0.1298 | 0.0022 | 0.1276 ± 0.0032 | 0.988 | 3.67e-141 |
+| sae | density q0 | best-of-64 (unbiased) | 128 | 0.1464 | 0.0219 | 0.1245 ± 0.0089 | 0.976 | 4.01e-33 |
+| sae | density q0 | mean cos | 128 | 0.0985 | 0.0036 | 0.0949 ± 0.0077 | 0.977 | 2.05e-33 |
+| sae | density q1 | best-of-64 (unbiased) | 128 | 0.2216 | 0.0282 | 0.1934 ± 0.0066 | 0.992 | 7.58e-37 |
+| sae | density q1 | mean cos | 128 | 0.1766 | 0.0036 | 0.1731 ± 0.0056 | 0.992 | 7.58e-37 |
+| sae | density q2 | best-of-64 (unbiased) | 128 | 0.1809 | 0.0251 | 0.1558 ± 0.0068 | 0.969 | 6.48e-32 |
+| sae | density q2 | mean cos | 128 | 0.1429 | 0.0019 | 0.1410 ± 0.0049 | 0.992 | 7.58e-37 |
+| sae | density q3 | best-of-64 (unbiased) | 128 | 0.1368 | 0.0211 | 0.1157 ± 0.0056 | 0.969 | 6.48e-32 |
+| sae | density q3 | mean cos | 128 | 0.1012 | -0.0001 | 0.1013 ± 0.0047 | 0.992 | 7.58e-37 |
+
+**The primary beats the control on 512 of 512 realact directions** — not 511, 512 — and on 97.7% of
+SAE features. The interesting number is the one that is NOT near zero: the control reaches
+**0.1364** best-of-64 on realact from a mean-of-64 of **0.0244**, i.e. essentially all of it is
+sampling luck over 64 draws. Table (j) now puts it against the Patchscopes floor at the SAME bo,
+which is the comparison that matters: at bo 32 on the same 512 realact directions the control
+reaches **0.1212** and the no-injection floor reaches **0.1247 ± 0.0041**. The control is at or
+marginally BELOW the floor — so injecting a direction into a clean base buys nothing at all over
+generating fluent English with no direction anywhere in the forward pass, and the whole 0.43 gap to
+the primary is training. On `random` the control is at 0.0323 against
+the primary's 0.0428, both of which are the metric's own noise floor.
+
+`sae` density q3 (the DENSEST quartile) has the control at a mean cosine of **-0.0001** — the
+clean base is exactly uninformative there, while the primary reaches 0.1012.
+
+### Code: `type: base` and what it inverts
+
+Six files, all small. The one that carries judgement is the marker-norm self-check.
+
+- `config.yaml`: `qwen36-27b/2026-09-16_base-control` with `type: base`, `hf: Qwen/Qwen3.6-27B`
+  (the base's OWN repo), `role: control`, no `train_max_new` (nothing was trained; every consumer
+  reads it with `.get`).
+- `common.load_config`: `type` accepts `base`; a `type: base` entry must name the base's own `hf`
+  (anything else is a trained checkpoint wearing the control's label) and `role`, where given, must
+  be `control`. `common.load_maemm` returns `spec["type"]` as the kind instead of the literal
+  `"full"`, so every caller can tell the control from a trained full-parameter MAEMM — their
+  marker-norm expectations are OPPOSITE. `maemm_weights_path` needed nothing: `type != lora` already
+  looks for `config.json`, and for the control it resolves to the base snapshot, which is the point.
+- `rollouts_vllm.marker_norm_vs_hf`: for `kind == "base"` neither "must differ" form runs. The
+  engine's norm is compared with `bases.<base>.marker_norm_base` with `expected: "equal:
+  untrained-base control, no adapter"` recorded in the summary, and the only assert left is a 25%
+  sanity bound (`BASE_CONTROL_NORM_TOL`) whose message says what it catches: a MAEMM served where
+  the control was asked for, which would be 9-36x off. `_engine_for` needed nothing — `type != lora`
+  already takes the served-model path, confirmed by `lora=False` in the engine line.
+- `rollouts_hf.marker_check`: the same inversion on the HF path, which this control does not use but
+  which would otherwise fire its "must differ" assert on the next person who tries.
+  `rollouts_hf.write_maemm_readme` prints `role`, `note` and a "THIS IS THE UNTRAINED-BASE CONTROL"
+  section for `type: base`. `weight_identity` needed nothing (index+sizes of the base snapshot).
+- `reconstruction/stats.py`: `role` is now `primary` / `control` / `secondary` and every table sorts
+  in that order. `table_c` pairs the primary against **every** other side on the same (base, set)
+  rather than just `group[1]`, so "primary minus control" is a row rather than a subtraction the
+  reader does by eye; its columns became fixed (`A`, `B`, `B role`, `A value`, `B value`, …) because
+  a per-side header is not a schema when the number of sides varies. `c_*.csv` is not consumed by
+  the paper scripts (`paper/inversion-eval/data/README-data.md`: only `{a,d,e,g,i,j,k,l}`), so the
+  change stops there; (a) keeps its schema and only gains rows.
+- A grep of every `["type"]` / `"full"` / `"lora"` / `kind` branch in `precompute/*.py` and
+  `reconstruction/*.py` turned up nothing else that misbehaves: `score.py` never reads the spec,
+  `modal_app.py`'s `check` only prints `spec['type']`, `centred.py` and `patchscopes.py` have no
+  such branch.
+
+### The failure worth keeping: checklist item 8's bound 2 was zero-tolerance
+
+`score` aborted the whole 98,304-row job, after the full forward pass, on **one row**. The assert
+was `worst < SCORE_MAX_LENGTH` — no scored row may reach the 95-token truncation, because the
+103-token inverter prompt would look exactly like that. Bound 1, the exact one (stored generated ids
+<= `max_new` = 64), passed on every row, so nothing had leaked; what happened is re-tokenization
+expansion. The offending text is combining-diacritic unicode — the first round-trip mismatch the
+same run reports is `' đ̛̣̈̀ ̓̋̐̀̈'` — which an untrained base emits and a trained inverter does not,
+so this had never fired on the MAEMM path.
+
+The fix is to make bound 2 a RATE bound, because the two things that reach the truncation have
+opposite shapes: a prompt leak puts **~100%** of rows over it (the prompt alone exceeds the window),
+expansion puts a handful over. `score.TRUNC_FRAC_MAX = 0.05` is 20x below the leak signature, the
+count is reported in the product README whenever it is non-zero (those rows' cosine is a max over a
+shortened window and is biased DOWN), and the previous 2026-09-16 Patchscopes fix — the
+applicability test for a prompt too short to reach the truncation — is unchanged underneath it.
+MEASURED on this run: **1 of 98,304 rows (0.00%)**. The new bound was checked in both directions
+before the relaunch: green at 0.7% and 4.9% of rows truncated, red at 5.1% and red on a simulated
+leak at 100%.
+
+### Spend
+
+$0.3428 + $0.1357 (smoke) + $4.0487 (rollouts) + ~$0.90 (the aborted score) + $0.7714 (the score) =
+**$6.20** against a $12 cap and a $6-7 expectation. The aborted score is 15% of it and bought the
+bound-2 finding above.

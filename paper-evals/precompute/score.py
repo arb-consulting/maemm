@@ -48,6 +48,13 @@ BO_KS = (1, 2, 4, 8, 16, 32, 64)
 # rows handed to common.score_tokens per call; it re-chunks internally at common.SCORE_CHUNK, so
 # this only bounds the size of the fp32 residual the on_chunk callback sees at once.
 SCORE_ROWS = 256
+# Checklist item 8, bound 2: the fraction of scored rows allowed to reach common.SCORE_MAX_LENGTH.
+# A prompt leak puts ~100% of rows over that window (the prompt alone is ~103 tokens against 95),
+# so this is 20x below the signature it exists to catch. What it tolerates is re-tokenization
+# expansion, which reaches the truncation only for a row that ran to max_new AND blows up ~1.5x
+# doing so -- MEASURED 2026-09-16 on the untrained-base control, whose clean-base rollouts carry
+# enough rare unicode to put a few of 98,304 rows over. See _check_scored_is_generation.
+TRUNC_FRAC_MAX = 0.05
 
 
 class _Extra:
@@ -149,6 +156,18 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
     valid bound and was replaced by the two above. The round-trip equality of the TEXT is reported
     as a rate rather than asserted, for the same reason.
 
+    Bound 2 is a RATE bound, not a zero-tolerance one, because the two things that reach the
+    truncation have opposite shapes. A prompt leak puts EVERY row over it -- the 103-token prompt
+    alone exceeds the 95-token window, so the rate would be ~100%. Re-tokenization expansion puts a
+    HANDFUL of rows over it: only a row that ran to max_new can expand past 95 at all, and it has
+    to blow up 1.5x doing so. MEASURED 2026-09-16: the untrained-base control
+    (`2026-09-16_base-control`, a clean Qwen3.6-27B given the inverter prompt) emits enough rare
+    unicode to put a few of its 98,304 rows over, and the zero-tolerance form aborted the whole
+    product on them although bound 1 -- the exact one -- passed on every row. The bound is
+    therefore `truncated rows <= TRUNC_FRAC_MAX of all rows`, 20x below the leak signature, and the
+    count is REPORTED whenever it is non-zero: a truncated row's cosine is a max over a shortened
+    window and is biased DOWN.
+
     Bound 2 IS ONLY A LEAK DETECTOR WHERE A LEAK COULD REACH IT, and it now checks that itself.
     `prompt_tokens` is the producing run's own prompt length (every rollouts summary carries it).
     When `prompt_tokens + max_new < SCORE_MAX_LENGTH`, a row carrying the WHOLE prompt plus the
@@ -163,6 +182,8 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
     """
     kept = out["keep"].sum(1)
     worst = int(kept.max())
+    n_trunc = int((kept >= C.SCORE_MAX_LENGTH).sum())
+    frac_trunc = n_trunc / max(len(texts), 1)
     if gen_n_tok is not None:
         longest = max(gen_n_tok)
         assert longest <= max_new, (
@@ -171,13 +192,24 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
         )
     leak_would_reach = prompt_tokens is None or (int(prompt_tokens) + int(max_new)) >= C.SCORE_MAX_LENGTH
     if leak_would_reach:
-        assert worst < C.SCORE_MAX_LENGTH, (
-            f"a scored row kept {worst} tokens, i.e. it hit the {C.SCORE_MAX_LENGTH}-token "
-            f"truncation; the {prompt_tokens or '~103'}-token prompt of this run looks exactly "
-            f"like this, while a {max_new}-token rollout cannot (checklist item 8)"
+        assert frac_trunc <= TRUNC_FRAC_MAX, (
+            f"{n_trunc} of {len(texts)} scored rows ({frac_trunc:.2%}) kept "
+            f"{C.SCORE_MAX_LENGTH} tokens, i.e. hit the truncation, above the "
+            f"{TRUNC_FRAC_MAX:.0%} bound; the {prompt_tokens or '~103'}-token prompt of this run "
+            f"looks exactly like this and would put ~100% of rows over, while a {max_new}-token "
+            f"rollout can only get there by re-tokenization expansion, which is rare "
+            f"(checklist item 8)"
         )
+        if n_trunc:
+            od.note(
+                f"checklist item 8, bound 2: {n_trunc} of {len(texts)} scored rows "
+                f"({frac_trunc:.2%}) hit the {C.SCORE_MAX_LENGTH}-token truncation through "
+                f"re-tokenization expansion -- under the {TRUNC_FRAC_MAX:.0%} bound a prompt leak "
+                f"would blow through (it puts ~100% of rows over), and bound 1 (stored generated "
+                f"ids <= max_new) passed on every row. Those rows' cosine is a max over a "
+                f"SHORTENED window and is biased DOWN."
+            )
     else:
-        n_trunc = int((kept >= C.SCORE_MAX_LENGTH).sum())
         od.note(
             f"checklist item 8, bound 2 NOT APPLICABLE here and therefore not asserted: this run's "
             f"prompt is {prompt_tokens} tokens, so prompt + max_new = {int(prompt_tokens) + int(max_new)} "
@@ -198,8 +230,14 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
             bad += 1
             first = first or f"row {i}: scored {tok.decode(ids)!r} vs stored {txt!r}"
     od.note(
-        f"checklist item 8: max kept tokens per scored row {worst} < the {C.SCORE_MAX_LENGTH}-token "
-        f"truncation (asserted, so no row carried the ~103-token prompt)"
+        f"checklist item 8: max kept tokens per scored row {worst}, {n_trunc} of {len(texts)} rows "
+        f"({frac_trunc:.2%}) at the {C.SCORE_MAX_LENGTH}-token truncation ("
+        + (
+            f"asserted <= {TRUNC_FRAC_MAX:.0%}, so no row carried the ~103-token prompt"
+            if leak_would_reach
+            else "NOT asserted: a leak could not reach the truncation from this run's prompt"
+        )
+        + ")"
         + (
             f"; longest stored generation {max(gen_n_tok)} <= max_new {max_new} (asserted)"
             if gen_n_tok is not None
