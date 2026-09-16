@@ -12,15 +12,20 @@
 
 Everything between `# ---- Delphi` markers is TRANSCRIBED from EleutherAI/delphi pinned to
 DELPHI_COMMIT, by way of repo-maemm/eval/autointerp_detection.py:229-450, which records the raw
-file URLs and the fetch date. The OpenRouter client is the same file's `_OpenRouter`
-(:1825-1911). Both are copied rather than imported: that file lives in another worktree, is
-read-only, and carries `mxf`/torch imports this CPU container must not need.
+file URLs and the fetch date. The prompts are copied rather than imported: that file lives in
+another worktree, is read-only, and carries `mxf`/torch imports this CPU container must not need.
 
-The API key arrives as the Modal secret `openrouter` (env `OPENROUTER_API_KEY`) and is never
+THE API IS ANTHROPIC'S MESSAGES API, DIRECTLY (Tomas, 2026-09-16), not OpenRouter. Two paths,
+`--path sync` (bounded thread pool) and `--path batch` (one Message Batch per stage, half price);
+the pilot measures batch latency so the full run can choose. See the `# ---- Anthropic client`
+header for the two things the move changes, the larger of which is that `temperature` NO LONGER
+EXISTS on this API for this model generation, so the design's "temperature 0" is unachievable and
+the A7 null arm is the only noise floor left.
+
+The API key arrives as the Modal secret `anthropic` (env `ANTHROPIC_API_KEY`) and is never
 printed, never written to the volume and never put in a README. Only call counts, token counts and
-dollars are recorded -- and the dollars come from each response's own `usage.cost`, never from the
-key's usage delta, because the key is shared
-(experiments/2026-09-11_autointerp-64feat-plan.md:153).
+dollars are recorded -- and the dollars are COMPUTED from the token counts at a rate table that
+goes into costs.json beside them, because the Anthropic API returns no cost field.
 
 Two phases, in this order for a reason: EVERY feature is explained first, then features are scored
 one at a time. The floor arm (A6) scores a feature's test set with a DIFFERENT feature's
@@ -33,11 +38,12 @@ Arms `run` adds to the build's, neither of which has an explainer call of its ow
     per-feature C16 - C16-draw2 difference is the test-set sampling noise every contrast is
     exposed to, and it replaces the temperature-0 repeat, which measured judge jitter instead.
 
-Cost control, two layers. `autointerp.max_cost_usd` is a HARD ceiling checked before every
-submission (the lifted `--max-cost-usd` behaviour). On top of it, the first
-`autointerp.probe_features` features are SCORED and the whole run's cost is PROJECTED from them
-plus the already-paid explainer bill; if the projection exceeds the ceiling the run stops there
-and says so, rather than discovering the overrun at feature 60.
+Cost control, two layers, BOTH now acting before money is spent. Every stage is PROJECTED first
+(`Claude.project`: `messages.count_tokens` on a sample of the uncached jobs, times the rate table),
+and the stage is refused if the projection exceeds `autointerp.stop_above_usd` without
+`--approved` -- that is the "anything over $100 gets reported before it runs" rule made mechanical
+rather than left to notice. `autointerp.max_cost_usd` is then a hard ceiling checked before every
+individual submission on the sync path, and once per batch on the batch path.
 """
 
 from __future__ import annotations
@@ -237,114 +243,231 @@ def parse_delphi_scores(txt: str, n: int):
     return best
 
 
-# ---- OpenRouter client (repo-maemm/eval/autointerp_detection.py:1800-1911) --------------------
+# ---- Anthropic client (Messages API, direct; Tomas 2026-09-16, replacing OpenRouter) ---------
+#
+# Two paths, both through the official `anthropic` SDK:
+#   "sync"  -- messages.create through a bounded thread pool. Latency is one request.
+#   "batch" -- messages.batches, ONE batch per stage over every feature, at HALF PRICE. Latency is
+#              the batch's, which is why the pilot measures it before the full run commits.
+#
+# TWO THINGS THE DIRECT API CHANGES, both MEASURED 2026-09-16 against `claude-sonnet-5`:
+#
+#  1. `temperature` IS GONE. Not "rejected": `anthropic` 1.6.0's `messages.create()` has no such
+#     parameter (`TypeError: unexpected keyword argument 'temperature'`), because sampling
+#     parameters were removed from the API for this model generation. The design's "temperature 0"
+#     is therefore NOT ACHIEVABLE on this surface and every call runs at the model's own sampling.
+#     OpenRouter accepted the parameter, which is what hid this. Consequences, stated rather than
+#     absorbed: run-to-run variation is now real, and the A7 null arm -- the same C16 description
+#     scored on a second disjoint test draw -- is the only noise floor this evaluation has.
+#  2. Thinking is on by default on this generation, so `thinking: {"type": "disabled"}` is sent
+#     explicitly. It is the direct equivalent of OpenRouter's `reasoning: {"enabled": False}` and
+#     is accepted (verified by `check_model` on every run).
+#
+# Cost is no longer a field in the response: the Anthropic API returns token counts only. It is
+# computed here from a rate table, and BOTH the rates and the token counts go into costs.json, so
+# the dollar figure is auditable rather than asserted.
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-RETRY_STATUS = {408, 409, 429, 529}
+ANTHROPIC_MODEL = "claude-sonnet-5"
+# $ per MILLION tokens, Anthropic first-party API. Cache writes are 1.25x input at the 5-minute
+# TTL and cache reads 0.1x input (`shared/prompt-caching.md` of the claude-api skill, cached
+# 2026-06-24). The Batches API is 50% of every one of these, applied by `_cost`.
+RATES = {
+    "claude-sonnet-5": {"in": 2.00, "out": 10.00, "cache_write": 2.50, "cache_read": 0.20},
+    "claude-opus-5": {"in": 5.00, "out": 25.00, "cache_write": 6.25, "cache_read": 0.50},
+    "claude-haiku-4-5": {"in": 1.00, "out": 5.00, "cache_write": 1.25, "cache_read": 0.10},
+}
+BATCH_DISCOUNT = 0.5
+# Anthropic's own limits are 100,000 requests / 256 MB per batch; ours are far under that, but a
+# batch is also the unit of polling, so it is capped to keep one stalled batch from holding the
+# whole stage.
+BATCH_MAX_REQUESTS = 20000
+BATCH_POLL_S = 20.0
 
 
-class LLMError(Exception):
-    def __init__(self, msg, retryable):
-        super().__init__(msg)
-        self.retryable = retryable
+def _cost(usage: dict, model: str, batch: bool) -> float:
+    r = RATES.get(model)
+    assert r, f"no rate table entry for {model!r}; add one rather than guessing a price"
+    c = (
+        usage.get("in", 0) * r["in"]
+        + usage.get("out", 0) * r["out"]
+        + usage.get("cache_write", 0) * r["cache_write"]
+        + usage.get("cache_read", 0) * r["cache_read"]
+    ) / 1e6
+    return c * (BATCH_DISCOUNT if batch else 1.0)
 
 
-class OpenRouter:
-    """Thread-safe. complete(...) -> (text, usage); usage.cost is the provider's own number.
+def _usage_of(u, batch: bool, model: str) -> dict:
+    out = {
+        "in": int(getattr(u, "input_tokens", 0) or 0),
+        "out": int(getattr(u, "output_tokens", 0) or 0),
+        "cache_write": int(getattr(u, "cache_creation_input_tokens", 0) or 0),
+        "cache_read": int(getattr(u, "cache_read_input_tokens", 0) or 0),
+    }
+    out["cost"] = _cost(out, model, batch)
+    out["batch"] = batch
+    return out
 
-    Retries 408/409/429/529, every 5xx and network errors, with exponential backoff capped at 60 s
-    plus jitter. Provider errors that arrive as HTTP 200 with an error body are caught too.
 
-    DIVERGENCE from the lifted client, deliberate: `temperature` IS sent (the design fixes it at
-    0). The lifted version never sent it because its default judge was Opus 5 through the Anthropic
-    Batches API, which 400s on temperature with thinking enabled; here thinking is disabled
-    explicitly and the model is Sonnet 5 through OpenRouter.
+class Claude:
+    """Thread-safe wrapper over the Anthropic Messages API, with a batch path.
+
+    Retries are the SDK's own (connection errors, 408, 409, 429 and every 5xx including 529, with
+    exponential backoff) rather than a hand-rolled loop: `max_retries` is raised from the default 2
+    to 8 because this run submits tens of thousands of requests at concurrency 32 and a 429 burst
+    is expected rather than exceptional.
     """
 
-    def __init__(self, model, api_key, timeout_s=90.0, max_attempts=5, temperature=0.0):
-        self.model, self.timeout_s, self.max_attempts = model, timeout_s, max_attempts
-        self.temperature = temperature
-        self._h = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "X-Title": "maemm-paper-evals-autointerp",
-        }
+    def __init__(self, model: str, api_key: str, timeout_s: float = 90.0, max_retries: int = 8,
+                 cache_prompt: bool = True):
+        import anthropic
+
+        self.model = model
+        self.cache_prompt = cache_prompt
+        self._client = anthropic.Anthropic(api_key=api_key, timeout=timeout_s,
+                                           max_retries=max_retries)
         self._lock = threading.Lock()
-        self.totals = {"calls": 0, "fails": 0, "in": 0, "out": 0, "cost": 0.0}
+        self.totals = {"calls": 0, "fails": 0, "in": 0, "out": 0,
+                       "cache_write": 0, "cache_read": 0, "cost": 0.0}
 
-    def _post(self, body):
-        import urllib.error
-        import urllib.request
+    def params(self, system, user, max_tokens, fewshot=None) -> dict:
+        """The exact request body, so the cache key is taken over what is actually sent.
 
-        req = urllib.request.Request(
-            OPENROUTER_URL, data=json.dumps(body).encode(), headers=self._h, method="POST"
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
-                return r.status, json.loads(r.read().decode())
-        except urllib.error.HTTPError as e:
-            try:
-                return e.code, json.loads(e.read().decode())
-            except Exception:  # noqa: BLE001 -- a non-JSON error body is still a status
-                return e.code, {}
-
-    def body_for(self, system, user, max_tokens, fewshot=None):
-        """The exact request body, so the cache key can be taken over what is actually sent."""
-        return {
+        A `cache_control` breakpoint goes on the LAST few-shot turn, i.e. after the stable prefix
+        (system + Delphi's verbatim shots) and before the per-call user message. Sonnet 5's minimum
+        cacheable prefix is 1024 tokens; the detection prefix is close to it, so this may or may not
+        create an entry -- `usage.cache_creation_input_tokens` says which, and costs.json reports
+        it rather than assuming. Nothing is added to the prompt to reach the minimum: the prompts
+        are Delphi's, verbatim.
+        """
+        msgs = []
+        for i, turn in enumerate(fewshot or []):
+            content = turn["content"]
+            if self.cache_prompt and i == len(fewshot) - 1:
+                content = [{"type": "text", "text": content,
+                            "cache_control": {"type": "ephemeral"}}]
+            msgs.append({"role": turn["role"], "content": content})
+        msgs.append({"role": "user", "content": user})
+        body = {
             "model": self.model,
             "max_tokens": max_tokens,
-            "temperature": self.temperature,
-            # Sonnet 5 / Opus 5 think by default; thinking would silently eat max_tokens.
-            "reasoning": {"enabled": False},
-            "messages": (
-                [{"role": "system", "content": system}]
-                + list(fewshot or [])
-                + [{"role": "user", "content": user}]
-            ),
-            "usage": {"include": True},
+            "system": system,
+            "messages": msgs,
+            # Sonnet 5 thinks by default; thinking would eat max_tokens and change the answer
+            # format. No `temperature`: the parameter does not exist on this API (see the header).
+            "thinking": {"type": "disabled"},
         }
-
-    def _once(self, system, user, max_tokens, fewshot=None):
-        status, data = self._post(self.body_for(system, user, max_tokens, fewshot))
-        if status != 200:
-            raise LLMError(f"HTTP {status}: {str(data)[:200]}", status in RETRY_STATUS or status >= 500)
-        err = data.get("error") if isinstance(data, dict) else None
-        if err:  # provider errors arrive as 200 + error body
-            code = int(err.get("code") or 500)
-            raise LLMError(f"provider {code}: {str(err)[:200]}", code in RETRY_STATUS or code >= 500)
-        try:
-            ch = data["choices"][0]
-        except (KeyError, IndexError, TypeError):
-            raise LLMError(f"malformed response: {str(data)[:200]}", True) from None
-        if ch.get("finish_reason") == "content_filter":
-            raise LLMError("refusal/content_filter", False)
-        u = data.get("usage") or {}
-        return (ch["message"].get("content") or ""), {
-            "in": int(u.get("prompt_tokens") or 0),
-            "out": int(u.get("completion_tokens") or 0),
-            "cost": float(u.get("cost") or 0.0),
-            "finish_reason": ch.get("finish_reason"),
-        }
+        if self.cache_prompt and not fewshot:
+            body["system"] = [{"type": "text", "text": system,
+                               "cache_control": {"type": "ephemeral"}}]
+        return body
 
     def complete(self, system, user, max_tokens, fewshot=None):
-        delay = 1.0
-        for attempt in range(self.max_attempts):
-            try:
-                text, usage = self._once(system, user, max_tokens, fewshot)
-            except LLMError as e:
-                if not e.retryable or attempt == self.max_attempts - 1:
-                    self._account(None)
-                    raise
-            except Exception as e:  # noqa: BLE001 -- network/timeout: retry
-                if attempt == self.max_attempts - 1:
-                    self._account(None)
-                    raise LLMError(f"{type(e).__name__}: {e}", True) from None
-            else:
-                self._account(usage)
-                return text, usage
-            time.sleep(min(60.0, delay) + random.uniform(0.0, 0.5))
-            delay *= 2
-        raise LLMError("unreachable", False)
+        """One synchronous call -> (text, usage). Raises on a failure the SDK could not retry."""
+        try:
+            r = self._client.messages.create(**self.params(system, user, max_tokens, fewshot))
+        except Exception:
+            self._account(None)
+            raise
+        usage = _usage_of(r.usage, batch=False, model=self.model)
+        usage["stop_reason"] = r.stop_reason
+        self._account(usage)
+        return "".join(b.text for b in r.content if b.type == "text"), usage
+
+    # -- batch path ---------------------------------------------------------------------------
+
+    def run_batch(self, jobs: list[dict], label: str, on_wait=None):
+        """Submit `jobs` as ONE Message Batch and block until it ends. -> {job key: record}.
+
+        `custom_id` is a positional token (`r000123`), not the job key: job keys carry `|` and are
+        longer than the id format allows, and results come back in ANY order, so they are keyed
+        back by that token rather than by position in the results stream.
+        """
+        from anthropic.types.messages.batch_create_params import Request
+
+        assert len(jobs) <= BATCH_MAX_REQUESTS, (
+            f"{len(jobs)} requests in one batch; split at {BATCH_MAX_REQUESTS}"
+        )
+        by_id = {f"r{i:06d}": j for i, j in enumerate(jobs)}
+        reqs = [
+            Request(custom_id=cid,
+                    params=self.params(j["system"], j["user"], j["max_tokens"], j.get("fewshot")))
+            for cid, j in by_id.items()
+        ]
+        t0 = time.time()
+        batch = self._client.messages.batches.create(requests=reqs)
+        print(f"[{label}] batch {batch.id} submitted, {len(reqs)} requests", flush=True)
+        while True:
+            b = self._client.messages.batches.retrieve(batch.id)
+            if b.processing_status == "ended":
+                break
+            if on_wait:
+                on_wait(b, time.time() - t0)
+            print(f"[{label}] batch {batch.id} {b.processing_status} "
+                  f"{b.request_counts} | {time.time() - t0:.0f}s", flush=True)
+            time.sleep(BATCH_POLL_S)
+        out: dict[str, dict] = {}
+        n_err = 0
+        for res in self._client.messages.batches.results(batch.id):
+            j = by_id.get(res.custom_id)
+            if j is None:
+                continue
+            if res.result.type != "succeeded":
+                n_err += 1
+                self._account(None)
+                continue
+            m = res.result.message
+            usage = _usage_of(m.usage, batch=True, model=self.model)
+            usage["stop_reason"] = m.stop_reason
+            self._account(usage)
+            out[j["key"]] = {
+                "text": "".join(b.text for b in m.content if b.type == "text"),
+                "usage": usage,
+            }
+        wall = time.time() - t0
+        print(f"[{label}] batch {batch.id} ENDED: {len(out)} ok, {n_err} failed, {wall:.0f}s "
+              f"({wall / max(1, len(reqs)) * 1000:.0f} ms/request amortised)", flush=True)
+        return out, {"batch_id": batch.id, "wall_s": round(wall, 1), "requests": len(reqs),
+                     "errors": n_err}
+
+    # -- projection ---------------------------------------------------------------------------
+
+    def project(self, jobs: list[dict], batch: bool, sample: int = 12) -> dict:
+        """Projected cost of `jobs` BEFORE any of them is submitted.
+
+        `messages.count_tokens` on a sample gives the input side exactly; the output side is
+        estimated from `max_tokens` scaled by a measured ratio, which is the only estimated
+        quantity here and is stated as such. This is what makes "report anything over $100 before
+        it runs" mechanical rather than a matter of noticing.
+        """
+        if not jobs:
+            return {"jobs": 0, "usd": 0.0}
+        step = max(1, len(jobs) // sample)
+        picked = jobs[::step][:sample]
+        tot_in = 0
+        for j in picked:
+            p = self.params(j["system"], j["user"], j["max_tokens"], j.get("fewshot"))
+            ct = self._client.messages.count_tokens(
+                model=p["model"], system=p["system"], messages=p["messages"],
+                thinking=p["thinking"],
+            )
+            tot_in += int(ct.input_tokens)
+        mean_in = tot_in / len(picked)
+        # MEASURED on the OpenRouter pilot: the explainer writes ~100 tokens of its 300-token
+        # budget and a scorer ~20 of its 600, i.e. 0.33 and 0.033 of max_tokens. 0.35 is used for
+        # the explainer and 0.05 for a scorer, both deliberately generous.
+        mean_max = sum(j["max_tokens"] for j in picked) / len(picked)
+        frac = 0.35 if mean_max <= 400 else 0.05
+        mean_out = mean_max * frac
+        per = _cost({"in": mean_in, "out": mean_out}, self.model, batch)
+        return {
+            "jobs": len(jobs), "sampled": len(picked),
+            "mean_input_tokens": round(mean_in, 1),
+            "assumed_output_tokens": round(mean_out, 1),
+            "usd_per_call": round(per, 6),
+            "usd": round(per * len(jobs), 2),
+            "path": "batch" if batch else "sync",
+            "note": "input from messages.count_tokens on a sample; output assumed, see project()",
+        }
 
     def _account(self, usage):
         with self._lock:
@@ -352,7 +475,7 @@ class OpenRouter:
             if usage is None:
                 self.totals["fails"] += 1
             else:
-                for k in ("in", "out", "cost"):
+                for k in ("in", "out", "cache_write", "cache_read", "cost"):
                     self.totals[k] += usage[k]
 
     def snapshot(self):
@@ -448,28 +571,48 @@ def _nr(x, nd=6):
     return None if x is None or not np.isfinite(x) else round(float(x), nd)
 
 
-def _submit(cl: OpenRouter, cache: Cache, jobs: list[dict], label: str, max_cost_usd: float,
-            concurrency: int):
-    """Run `jobs` through the cache and the client. Returns ({job key: record}, stopped_early).
+def _submit(cl: Claude, cache: Cache, jobs: list[dict], label: str, max_cost_usd: float,
+            concurrency: int, path: str):
+    """Run `jobs` through the cache and the client. Returns ({job key: record}, info).
 
-    Cached jobs never reach the network. The cost cap is checked before EVERY submission, so it is
-    a real ceiling on what this call can spend (up to the requests already in flight).
+    Cached jobs never reach the network, in either path. The sync path checks the cost ceiling
+    before EVERY submission, so it is a real ceiling on what this call can spend (up to the
+    requests already in flight); the batch path checks it once, before submitting, because a batch
+    is all-or-nothing.
     """
     out: dict[str, dict] = {}
     todo = []
     for j in jobs:
-        body = cl.body_for(j["system"], j["user"], j["max_tokens"], j.get("fewshot"))
-        k = Cache.key(j["key"], body)
+        k = Cache.key(j["key"], cl.params(j["system"], j["user"], j["max_tokens"], j.get("fewshot")))
         rec = cache.get(k)
         if rec is not None:
             out[j["key"]] = rec
         else:
             todo.append((j, k))
+    info = {"path": path, "jobs": len(jobs), "cached": len(jobs) - len(todo), "sent": len(todo)}
     if not todo:
-        return out, False
+        print(f"[{label}] {len(jobs)}/{len(jobs)} from cache, nothing sent", flush=True)
+        return out, {**info, "stopped": False}
+
+    t0 = time.time()
+    if path == "batch":
+        if cl.snapshot()["cost"] >= max_cost_usd:
+            print(f"[{label}] COST CAP ${max_cost_usd:.2f} reached, batch not submitted", flush=True)
+            return out, {**info, "stopped": True}
+        got, binfo = cl.run_batch([j for j, _ in todo], label)
+        for j, k in todo:
+            rec = got.get(j["key"])
+            if rec is not None:
+                cache.put(k, rec)
+                out[j["key"]] = rec
+        info.update(binfo)
+        s = cl.snapshot()
+        print(f"[{label}] {len(out)}/{len(jobs)} | ${s['cost']:.4f} | {time.time() - t0:.0f}s",
+              flush=True)
+        return out, {**info, "stopped": False}
+
     stopped = False
     errs: list[str] = []
-    t0 = time.time()
     pend, it = set(), iter(todo)
     with ThreadPoolExecutor(max_workers=concurrency) as ex:
         while True:
@@ -498,19 +641,20 @@ def _submit(cl: OpenRouter, cache: Cache, jobs: list[dict], label: str, max_cost
                 try:
                     jk, k, rec = f.result()
                 except Exception as e:  # noqa: BLE001 -- one dead call is not fatal
-                    errs.append(str(e)[:200])
+                    errs.append(f"{type(e).__name__}: {str(e)[:160]}")
                     continue
                 cache.put(k, rec)
                 out[jk] = rec
     s = cl.snapshot()
+    wall = time.time() - t0
     print(
-        f"[{label}] {len(out)}/{len(jobs)} ({len(jobs) - len(todo)} cached) | ${s['cost']:.4f} | "
-        f"{time.time() - t0:.0f}s | {len(errs)} errors{' | STOPPED AT CAP' if stopped else ''}",
+        f"[{label}] {len(out)}/{len(jobs)} ({info['cached']} cached) | ${s['cost']:.4f} | "
+        f"{wall:.0f}s | {len(errs)} errors{' | STOPPED AT CAP' if stopped else ''}",
         flush=True,
     )
     if errs:
         print(f"[{label}] first errors: {errs[:3]}", flush=True)
-    return out, stopped
+    return out, {**info, "wall_s": round(wall, 1), "errors": len(errs), "stopped": stopped}
 
 
 def _feature_rows(build_dir: str, feat: int):
@@ -542,25 +686,28 @@ def derangement(items: list, seed: int) -> dict:
     return dict(zip(items, items[1:] + items[:1], strict=True))
 
 
-def check_temperature(cl: OpenRouter, cache: Cache) -> dict:
-    """Amendment A12: one call confirming OpenRouter accepts `temperature` with reasoning disabled.
+def check_model(cl: Claude, cache: Cache) -> dict:
+    """Amendment A12, as it survives the move off OpenRouter: one real call proving the request
+    shape this run uses is accepted, and a recorded statement of what changed.
 
-    Sent through the cache like every other call, so it costs nothing on a resume. It is a real
-    request rather than a dry run because the failure it guards against -- a 400 on `temperature`,
-    which is what the Anthropic Batches path does for Opus 5 with thinking on -- is a server-side
-    rejection that only a real request can surface.
+    It is a real request rather than a dry run because the failures it guards against -- a model id
+    that does not exist, `thinking: {"type": "disabled"}` refused on this generation -- are
+    server-side. It goes through the cache like everything else, so a resume pays nothing.
     """
     job = {
-        "key": "check|temperature",
+        "key": "check|model",
         "system": "You are a test harness. Reply with exactly the word OK.",
         "user": "Reply with exactly the word OK.",
         "max_tokens": 16,
     }
-    body = cl.body_for(job["system"], job["user"], job["max_tokens"])
-    assert body["temperature"] == cl.temperature and body["reasoning"] == {"enabled": False}, (
-        "the request body does not carry temperature with reasoning disabled"
+    p = cl.params(job["system"], job["user"], job["max_tokens"])
+    assert p["thinking"] == {"type": "disabled"}, "thinking must be explicitly disabled"
+    assert "temperature" not in p, (
+        "`temperature` must NOT be in the request: the parameter does not exist on the Anthropic "
+        "Messages API for this model generation (MEASURED 2026-09-16, anthropic 1.6.0 raises "
+        "TypeError). See the header of this file for what that costs us."
     )
-    k = Cache.key(job["key"], body)
+    k = Cache.key(job["key"], p)
     rec = cache.get(k)
     if rec is None:
         text, usage = cl.complete(job["system"], job["user"], job["max_tokens"])
@@ -568,14 +715,15 @@ def check_temperature(cl: OpenRouter, cache: Cache) -> dict:
         cache.put(k, rec)
     out = {
         "model": cl.model,
-        "temperature": cl.temperature,
-        "reasoning": "disabled",
+        "thinking": "disabled",
+        "temperature": "NOT SENT -- parameter removed from the API for this model generation",
         "accepted": True,
         "reply": rec["text"].strip()[:40],
         "usage": rec["usage"],
+        "rates_usd_per_mtok": RATES[cl.model],
     }
-    print(f"[run] A12 temperature check: {cl.model} accepted temperature="
-          f"{cl.temperature} with reasoning disabled; reply {out['reply']!r}", flush=True)
+    print(f"[run] A12 model check: {cl.model} accepted thinking=disabled; reply "
+          f"{out['reply']!r}; temperature is NOT a parameter of this API", flush=True)
     return out
 
 
@@ -595,55 +743,88 @@ def run(cfg, args):
     for s in scorers:
         assert s in ("detection", "fuzzing"), f"unknown scorer {s!r}"
     model = args.get("model") or ac["scorer_model"]
+    path = args.get("path") or ac["path"]
+    assert path in ("sync", "batch"), f"--path must be 'sync' or 'batch', got {path!r}"
     concurrency = int(args.get("concurrency") or ac["concurrency"])
     max_cost = float(args.get("max_cost_usd") or ac["max_cost_usd"])
-    probe_n = int(args.get("probe_features") or ac["probe_features"])
-    batch = int(ac["scorer_batch"])
-    floor_arm = str(ac["floor_arm"])
-    floor_src = str(ac["floor_source_arm"])
-    draw2_arm = "C16-draw2"
-    key = os.environ.get("OPENROUTER_API_KEY")
+    stop_above = float(args.get("stop_above_usd") or ac["stop_above_usd"])
+    approved = bool(args.get("approved"))
+    batch = path == "batch"
+    key = os.environ.get("ANTHROPIC_API_KEY")
     assert key, (
-        "no OPENROUTER_API_KEY in the environment: the Modal secret `openrouter` must be mounted "
-        "on this function (autointerp/modal_app.py LLM_SECRETS)"
+        "no ANTHROPIC_API_KEY in the environment: the Modal secret `anthropic` must be mounted on "
+        "this function (autointerp/modal_app.py LLM_SECRETS)"
     )
-    assert len(key) > 8, "OPENROUTER_API_KEY is present but implausibly short"
+    assert len(key) > 8, "ANTHROPIC_API_KEY is present but implausibly short"
+    batch_int = int(ac["scorer_batch"])
+    floor_arm, floor_src, draw2_arm = str(ac["floor_arm"]), str(ac["floor_source_arm"]), "C16-draw2"
 
     run_name = args.get("run_dir") or f"{time.strftime('%Y-%m-%d')}_autointerp-{base.split('-')[-1]}"
     run_root = f"{root}/runs/{run_name}"
     cache = Cache(f"{run_root}/cache", on_commit=args.get("on_commit"))
-    cl = OpenRouter(
-        model,
-        key,
-        timeout_s=float(args.get("timeout_s") or ac["timeout_s"]),
-        temperature=float(ac["temperature"]),
-    )
+    cl = Claude(model, key, timeout_s=float(args.get("timeout_s") or ac["timeout_s"]))
 
     arm_names = list(binfo["arms"])
     if args.get("arms"):
         arm_names = [a for a in args["arms"].split(",") if a]
+    if args.get("rows"):
+        want = set(C.parse_rows(args["rows"], 1 << 30))
+        feats = [f for f in feats if fmeta[f]["row"] in want] or feats
     print(
         f"[run] {len(feats)} features x {len(arm_names)} explainer arms (+ {floor_arm}, "
-        f"{draw2_arm}) x {scorers} | model {model} | cap ${max_cost:.2f} | build {build_dir}",
+        f"{draw2_arm}) x {scorers} | model {model} | path {path} | cap ${max_cost:.2f} | "
+        f"report-above ${stop_above:.2f}{' (APPROVED)' if approved else ''} | build {build_dir}",
         flush=True,
     )
     if args.get("dry_run"):
         _meta, arms, tests, _t2 = _feature_rows(build_dir, feats[0])
         print(json.dumps({
-            "explain": cl.body_for(DELPHI_EXPLAINER_SYSTEM, arms[arm_names[0]]["block"],
-                                   int(ac["explainer_max_tokens"]), DELPHI_EXPLAINER_FEWSHOT),
-            "detection": cl.body_for(
+            "explain": cl.params(DELPHI_EXPLAINER_SYSTEM, arms[arm_names[0]]["block"],
+                                 int(ac["explainer_max_tokens"]), DELPHI_EXPLAINER_FEWSHOT),
+            "detection": cl.params(
                 DELPHI_DETECTION_SYSTEM,
-                delphi_scorer_prompt("<explanation>", [t["text"] for t in tests[:batch]]),
+                delphi_scorer_prompt("<explanation>", [t["text"] for t in tests[:batch_int]]),
                 int(ac["scorer_max_tokens"]), DELPHI_DETECTION_FEWSHOT),
-        })[:4000], flush=True)
-        return {"dry_run": True, "features": len(feats), "arms": arm_names}
+        })[:6000], flush=True)
+        return {"dry_run": True, "features": len(feats), "arms": arm_names, "path": path}
 
-    temp_check = check_temperature(cl, cache)
+    model_check = check_model(cl, cache)
+    projections: dict[str, dict] = {}
+    stage_info: dict[str, dict] = {}
+    stopped_at = None
+
+    def gate(jobs, stage):
+        """Project a stage BEFORE submitting it; refuse to spend over `stop_above` unapproved."""
+        nonlocal stopped_at
+        todo = [
+            j for j in jobs
+            if cache.get(Cache.key(j["key"], cl.params(j["system"], j["user"], j["max_tokens"],
+                                                       j.get("fewshot")))) is None
+        ]
+        pr = cl.project(todo, batch)
+        pr["stage"] = stage
+        pr["arms"] = sorted({j.get("arm", "-") for j in jobs})
+        pr["usd_per_arm"] = round(pr["usd"] / max(1, len(pr["arms"])), 2)
+        projections[stage] = pr
+        print(f"[run] PROJECTION {stage}: {pr['jobs']} uncached calls -> ${pr['usd']:.2f} "
+              f"(${pr['usd_per_arm']:.2f}/arm, {pr['mean_input_tokens']:.0f} input tok/call, "
+              f"path {pr['path']})", flush=True)
+        if pr["usd"] > stop_above and not approved:
+            stopped_at = (
+                f"stage {stage} projects ${pr['usd']:.2f}, above the ${stop_above:.2f} "
+                f"report-first threshold; re-run with --approved once it has been reported"
+            )
+            print(f"[run] STOPPING: {stopped_at}", flush=True)
+            return False
+        if pr["usd"] > max_cost:
+            stopped_at = f"stage {stage} projects ${pr['usd']:.2f}, above the ${max_cost:.2f} cap"
+            print(f"[run] STOPPING: {stopped_at}", flush=True)
+            return False
+        return True
 
     # ---- PHASE 1: explain every feature x every explainer arm -------------------------------
     # All of it before any scoring, because the floor arm needs ANOTHER feature's description and
-    # feature-by-feature ordering cannot supply one that has not been written yet.
+    # a feature-at-a-time loop cannot supply one that has not been written yet.
     expl_rows: list[dict] = []
     expl: dict[tuple[int, str], str] = {}
     n_trunc = 0
@@ -654,40 +835,41 @@ def run(cfg, args):
             if a not in arms:
                 continue
             jobs.append({
-                "key": f"explain|{feat}|{a}",
-                "system": DELPHI_EXPLAINER_SYSTEM,
-                "fewshot": DELPHI_EXPLAINER_FEWSHOT,
-                "user": arms[a]["block"],
-                "max_tokens": int(ac["explainer_max_tokens"]),
-                "feat": feat,
-                "arm": a,
-                "n": arms[a]["n"],
+                "key": f"explain|{feat}|{a}", "arm": a, "feat": feat, "n": arms[a]["n"],
+                "system": DELPHI_EXPLAINER_SYSTEM, "fewshot": DELPHI_EXPLAINER_FEWSHOT,
+                "user": arms[a]["block"], "max_tokens": int(ac["explainer_max_tokens"]),
             })
-    got, stopped = _submit(cl, cache, jobs, "explain", max_cost, concurrency)
-    # A10: an explainer answer cut off at max_tokens is an ERROR, not a shorter explanation. Retry
-    # ONCE at double the budget under its own job key, then raise.
-    retry = []
-    for j in jobs:
-        rec = got.get(j["key"])
-        if rec and (rec.get("usage") or {}).get("finish_reason") == "length":
-            n_trunc += 1
-            retry.append({**j, "key": j["key"] + "|retry", "max_tokens": 2 * j["max_tokens"]})
-    if retry:
-        print(f"[run] A10: {len(retry)} explainer answers hit max_tokens; retrying at "
-              f"{2 * int(ac['explainer_max_tokens'])}", flush=True)
-        got2, _ = _submit(cl, cache, retry, "explain-retry", max_cost, concurrency)
-        still = []
-        for j in retry:
-            rec = got2.get(j["key"])
-            if rec is None or (rec.get("usage") or {}).get("finish_reason") == "length":
-                still.append(j["key"])
-            else:
-                got[j["key"].removesuffix("|retry")] = rec
-        assert not still, (
-            f"A10: {len(still)} explainer answers were STILL truncated at "
-            f"{2 * int(ac['explainer_max_tokens'])} tokens ({still[:3]}). A truncated explanation "
-            f"is not a shorter explanation -- raise autointerp.explainer_max_tokens and re-run."
-        )
+    got: dict[str, dict] = {}
+    if gate(jobs, "explain"):
+        got, info = _submit(cl, cache, jobs, "explain", max_cost, concurrency, path)
+        stage_info["explain"] = info
+        # A10: an explainer answer cut off at max_tokens is an ERROR, not a shorter explanation.
+        # Retry ONCE at double the budget under its own job key, then raise.
+        retry = [
+            {**j, "key": j["key"] + "|retry", "max_tokens": 2 * j["max_tokens"]}
+            for j in jobs
+            if (got.get(j["key"]) or {}).get("usage", {}).get("stop_reason") == "max_tokens"
+        ]
+        n_trunc = len(retry)
+        if retry:
+            print(f"[run] A10: {n_trunc} explainer answers hit max_tokens; retrying at "
+                  f"{2 * int(ac['explainer_max_tokens'])}", flush=True)
+            got2, _ = _submit(cl, cache, retry, "explain-retry", max_cost, concurrency, path)
+            still = []
+            for j in retry:
+                rec = got2.get(j["key"])
+                if rec is None or rec.get("usage", {}).get("stop_reason") == "max_tokens":
+                    still.append(j["key"])
+                else:
+                    got[j["key"].removesuffix("|retry")] = rec
+            assert not still, (
+                f"A10: {len(still)} explainer answers were STILL truncated at "
+                f"{2 * int(ac['explainer_max_tokens'])} tokens ({still[:3]}). A truncated "
+                f"explanation is not a shorter explanation -- raise "
+                f"autointerp.explainer_max_tokens and re-run."
+            )
+        if info.get("stopped"):
+            stopped_at = stopped_at or "cost cap during explain"
     for j in jobs:
         rec = got.get(j["key"])
         text = rec["text"] if rec else ""
@@ -704,48 +886,54 @@ def run(cfg, args):
 
     perm = derangement(feats, int(ac["shuffle_seed"]))
 
-    # ---- PHASE 2: score, feature by feature so the projection gate can stop the run ----------
+    # ---- PHASE 2: score. ONE job list per scorer over EVERY feature, so the batch path has a
+    # batch worth submitting and the sync path keeps the thread pool saturated.
     batch_rows: dict[str, list[dict]] = {s: [] for s in scorers}
     scores: list[dict] = []
-    stopped_at = "cost cap during explain" if stopped else None
-    projection = None
-    done = 0
+    plans: dict[int, list[tuple[str, str, list]]] = {}
     for feat in feats:
-        if stopped_at:
-            break
         _meta, arms, t1, t2 = _feature_rows(build_dir, feat)
-        gate = float(_meta["gate"])
-        # (arm label, explanation, items). The two scorer-only pseudo-arms are here and nowhere
-        # else: neither has an explainer call of its own.
         plan = [(a, expl.get((feat, a), ""), t1) for a in arm_names if a in arms]
         plan.append((floor_arm, expl.get((perm[feat], floor_src), ""), t1))
-        if t2 and (feat, "C16") in expl:
+        if t2 and expl.get((feat, "C16")):
             plan.append((draw2_arm, expl.get((feat, "C16"), ""), t2))
-        for scorer in scorers:
-            field = "text" if scorer == "detection" else "text_fuzz"
-            system = DELPHI_DETECTION_SYSTEM if scorer == "detection" else DELPHI_FUZZ_SYSTEM
-            fewshot = DELPHI_DETECTION_FEWSHOT if scorer == "detection" else None
-            jobs = []
-            for a, e, items in plan:
+        plans[feat] = plan
+
+    def groups_of(items):
+        return [list(range(i, min(i + batch_int, len(items)))) for i in range(0, len(items), batch_int)]
+
+    for scorer in scorers:
+        if stopped_at:
+            break
+        field = "text" if scorer == "detection" else "text_fuzz"
+        system = DELPHI_DETECTION_SYSTEM if scorer == "detection" else DELPHI_FUZZ_SYSTEM
+        fewshot = DELPHI_DETECTION_FEWSHOT if scorer == "detection" else None
+        jobs = []
+        for feat in feats:
+            for a, e, items in plans[feat]:
                 if not e:
                     continue
-                groups = [list(range(i, min(i + batch, len(items))))
-                          for i in range(0, len(items), batch)]
-                for bi, g in enumerate(groups):
+                for bi, g in enumerate(groups_of(items)):
                     jobs.append({
-                        "key": f"{scorer}|{feat}|{a}|{bi}",
-                        "system": system,
-                        "fewshot": fewshot,
+                        "key": f"{scorer}|{feat}|{a}|{bi}", "arm": a, "feat": feat,
+                        "system": system, "fewshot": fewshot,
                         "user": delphi_scorer_prompt(e, [items[i][field] for i in g]),
                         "max_tokens": int(ac["scorer_max_tokens"]),
                     })
-            got, stop = _submit(cl, cache, jobs, f"{scorer} f{feat}", max_cost, concurrency)
-            for a, e, items in plan:
-                groups = [list(range(i, min(i + batch, len(items))))
-                          for i in range(0, len(items), batch)]
+        if not gate(jobs, scorer):
+            break
+        got, info = _submit(cl, cache, jobs, scorer, max_cost, concurrency, path)
+        stage_info[scorer] = info
+        if info.get("stopped"):
+            stopped_at = stopped_at or f"cost cap during {scorer}"
+        for feat in feats:
+            gate_v = float(_feature_rows(build_dir, feat)[0]["gate"])
+            arms = _feature_rows(build_dir, feat)[1]
+            for a, e, items in plans[feat]:
+                gs = groups_of(items)
                 labels, preds, srcs = [], [], []
                 n_batches = n_parsed = 0
-                for bi, g in enumerate(groups):
+                for bi, g in enumerate(gs):
                     rec = got.get(f"{scorer}|{feat}|{a}|{bi}")
                     if rec is None:
                         continue
@@ -764,16 +952,18 @@ def run(cfg, args):
                     labels += [items[i]["label"] for i in g]
                     preds += vals
                     srcs += [items[i]["src"] for i in g]
+                if not n_batches:
+                    continue
                 acc, tpr, tnr = rates(labels, preds)
                 # Amendment A5: the negative side is half zero-activation randoms and half
                 # near-miss windows, and they are NOT the same test. Reported separately, from the
                 # same answers, so a result that lives entirely on one half cannot hide.
                 zi = [i for i, sr in enumerate(srcs) if not str(sr).startswith("nearmiss")]
-                ni = [i for i, sr in enumerate(srcs) if str(sr).startswith("nearmiss")
-                      or labels[i] == 1]
-                z_acc, _z_tpr, z_tnr = rates([labels[i] for i in zi], [preds[i] for i in zi])
-                n_acc, _n_tpr, n_tnr = rates([labels[i] for i in ni], [preds[i] for i in ni])
-                row = {
+                ni = [i for i, sr in enumerate(srcs)
+                      if str(sr).startswith("nearmiss") or labels[i] == 1]
+                z_acc, _zt, z_tnr = rates([labels[i] for i in zi], [preds[i] for i in zi])
+                n_acc, _nt, n_tnr = rates([labels[i] for i in ni], [preds[i] for i in ni])
+                scores.append({
                     "feature": feat, "arm": a, "scorer": scorer,
                     "bal_acc": _nr(acc), "tpr": _nr(tpr), "tnr": _nr(tnr),
                     "bal_acc_zero_neg": _nr(z_acc), "tnr_zero": _nr(z_tnr),
@@ -787,75 +977,72 @@ def run(cfg, args):
                     "n_examples": arms[a]["n"] if a in arms else 0,
                     "explanation_ok": bool(e),
                     "explanation_of": perm[feat] if a == floor_arm else feat,
-                    "gate": gate,
+                    "path": path, "gate": gate_v,
                     "stratum": fmeta[feat]["stratum"],
                     "fire_fraction": fmeta[feat]["fire_fraction"],
                     "corpus_peak": fmeta[feat]["corpus_peak"],
                     "density": fmeta[feat]["density"],
-                }
-                scores.append(row)
-            if stop:
-                stopped_at = f"cost cap during {scorer} on feature {feat}"
-                break
-        done += 1
-        if stopped_at:
-            break
-        if done == probe_n and len(feats) > probe_n:
-            score_cost = cl.snapshot()["cost"] - explain_cost
-            projection = explain_cost + score_cost / done * len(feats)
-            print(
-                f"[run] PROJECTION from {done} scored features: explain ${explain_cost:.4f} + "
-                f"scoring ${score_cost:.4f} so far -> ${projection:.2f} for {len(feats)} "
-                f"(cap ${max_cost:.2f})",
-                flush=True,
-            )
-            if projection > max_cost:
-                stopped_at = (
-                    f"projected ${projection:.2f} from the first {done} scored features exceeds "
-                    f"the ${max_cost:.2f} cap"
-                )
-                break
+                })
 
     # ---- products ---------------------------------------------------------------------------
     s = cl.snapshot()
-    cum = {"in": 0, "out": 0, "cost": 0.0, "calls": 0}
+    cum = {"in": 0, "out": 0, "cache_write": 0, "cache_read": 0, "cost": 0.0, "calls": 0}
     by_arm: dict[str, dict] = {}
     by_stage: dict[str, dict] = {}
     for rows, stage in [(expl_rows, "explain")] + [(batch_rows[x], x) for x in scorers]:
         for r in rows:
             u = r.get("usage") or {}
-            for d in (by_arm.setdefault(r["arm"], {"in": 0, "out": 0, "cost": 0.0, "calls": 0}),
-                      by_stage.setdefault(stage, {"in": 0, "out": 0, "cost": 0.0, "calls": 0}),
+            for d in (by_arm.setdefault(r["arm"], {"in": 0, "out": 0, "cache_write": 0,
+                                                   "cache_read": 0, "cost": 0.0, "calls": 0,
+                                                   "paths": set()}),
+                      by_stage.setdefault(stage, {"in": 0, "out": 0, "cache_write": 0,
+                                                  "cache_read": 0, "cost": 0.0, "calls": 0,
+                                                  "paths": set()}),
                       cum):
-                for k2 in ("in", "out", "cost"):
+                for k2 in ("in", "out", "cache_write", "cache_read", "cost"):
                     d[k2] += u.get(k2, 0)
                 d["calls"] += 1
-    rnd = lambda d: {k: (round(v, 6) if isinstance(v, float) else v) for k, v in d.items()}  # noqa: E731
+                if isinstance(d.get("paths"), set):
+                    d["paths"].add("batch" if u.get("batch") else "sync")
+
+    def rnd(d):
+        return {k: (sorted(v) if isinstance(v, set) else round(v, 6) if isinstance(v, float) else v)
+                for k, v in d.items()}
+
+    n_scored = len({r["feature"] for r in scores})
     costs = {
+        "api": "anthropic-messages",
         "model": model,
-        "temperature": float(ac["temperature"]),
-        "temperature_check": temp_check,
+        "path": path,
+        "temperature": "NOT SENT -- removed from the Anthropic Messages API for this model "
+                       "generation (MEASURED 2026-09-16, anthropic 1.6.0 raises TypeError)",
+        "rates_usd_per_mtok": RATES[model],
+        "batch_discount": BATCH_DISCOUNT,
+        "model_check": model_check,
         "this_call": s,
         "cumulative_over_cache": rnd(cum),
         "per_arm": {a: rnd(d) for a, d in sorted(by_arm.items())},
         "per_stage": {a: rnd(d) for a, d in sorted(by_stage.items())},
+        "stage_info": stage_info,
+        "projections": projections,
         "explainer_truncated_and_retried": n_trunc,
         "cache_hits": cache.hits,
         "cache_misses": cache.misses,
-        "features_done": done,
+        "features_done": n_scored,
         "features_total": len(feats),
         "max_cost_usd": max_cost,
-        "projection_usd": None if projection is None else round(projection, 2),
+        "stop_above_usd": stop_above,
+        "approved": approved,
+        "projection_usd": round(sum(p["usd"] for p in projections.values()), 2),
         "stopped_at": stopped_at,
     }
     print(f"[run] costs {json.dumps(costs['this_call'])} | cumulative ${cum['cost']:.4f} over "
           f"{cum['calls']} calls", flush=True)
 
     common_inputs = {
-        "build": build_dir,
-        "features": f"{done} of {len(feats)}",
+        "build": build_dir, "features": f"{n_scored} of {len(feats)}",
         "arms": ",".join([*arm_names, floor_arm, draw2_arm]),
-        "model": model,
+        "api": "anthropic-messages", "model": model, "path": path,
         "delphi_commit": DELPHI_COMMIT,
     }
     # These directories are a PURE FUNCTION of cache/, so a resumed run rewrites them and
@@ -870,9 +1057,9 @@ def run(cfg, args):
         od.write_json("costs.json", costs)
         od.note(
             f"Delphi explainer, verbatim system prompt + the one few-shot user/assistant pair, "
-            f"temperature {float(ac['temperature'])}, max_tokens {int(ac['explainer_max_tokens'])}. "
-            f"The answer is the text after the LAST `[EXPLANATION]:`; a response without the tag "
-            f"falls back to the whole body. {n_empty} of {len(expl_rows)} came back empty. "
+            f"max_tokens {int(ac['explainer_max_tokens'])}, thinking disabled, NO temperature "
+            f"(the parameter no longer exists on this API -- see costs.json). The answer is the "
+            f"text after the LAST `[EXPLANATION]:`. {n_empty} of {len(expl_rows)} came back empty. "
             f"AMENDMENT A10: {n_trunc} answers hit max_tokens and were retried ONCE at double the "
             f"budget; a still-truncated answer raises rather than being kept as a short one."
         )
@@ -890,11 +1077,12 @@ def run(cfg, args):
             od.write_jsonl("per_feature.jsonl", [r for r in scores if r["scorer"] == scorer])
             od.write_json("costs.json", costs)
             od.note(
-                f"Delphi {scorer} scorer, {batch} items per prompt, binary answers, "
-                f"max_tokens {int(ac['scorer_max_tokens'])}. The parser takes the LAST bracketed "
-                f"group of exactly the batch length; a wrong-length or unreadable answer DROPS the "
-                f"batch rather than padding it. {n_bad} of {len(rows)} batches "
-                f"({n_bad / max(1, len(rows)):.2%}) were unparsed and dropped."
+                f"Delphi {scorer} scorer, {batch_int} items per prompt, binary answers, "
+                f"max_tokens {int(ac['scorer_max_tokens'])}, via the Anthropic Messages API on the "
+                f"`{path}` path. The parser takes the LAST bracketed group of exactly the batch "
+                f"length; a wrong-length or unreadable answer DROPS the batch rather than padding "
+                f"it. {n_bad} of {len(rows)} batches ({n_bad / max(1, len(rows)):.2%}) were "
+                f"unparsed and dropped."
             )
             od.note(
                 "detection sees PLAIN text (Delphi's highlighted=False) with the three verbatim "
@@ -905,13 +1093,12 @@ def run(cfg, args):
             od.note(
                 "metric per (feature, arm): balanced accuracy = mean(TPR, TNR) over the items of "
                 "PARSED batches only. `bal_acc_zero_neg` and `bal_acc_nearmiss_neg` are the same "
-                "answers with the negative side restricted to each half of the A5 mix, so a "
-                "result that lives entirely on one half cannot hide in the pooled number."
+                "answers with the negative side restricted to each half of the A5 mix."
             )
     with out("summary", status) as od:
         od.write_jsonl("scores.jsonl", scores)
         od.write_json("costs.json", costs)
-        od.write_json("features.json", {"features": [fmeta[f] for f in feats[:done]]})
+        od.write_json("features.json", {"features": [fmeta[f] for f in feats]})
         od.write_json("build.json", binfo)
         od.write_json("floor_permutation.json",
                       {"floor_arm": floor_arm, "source_arm": floor_src,
@@ -920,36 +1107,40 @@ def run(cfg, args):
         od.note(
             f"scores.jsonl is one row per (feature, arm, scorer): bal_acc, its two negative-half "
             f"restrictions, tpr/tnr, item counts, the arm's ACTUAL example count, which test draw "
-            f"it used, whose description it used, and the feature covariates. {len(scores)} rows "
-            f"over {done} features."
+            f"it used, whose description it used, which API path served it, and the feature "
+            f"covariates. {len(scores)} rows over {n_scored} features."
         )
         od.note(
             f"`{floor_arm}` is the floor: each feature's test set scored with ANOTHER feature's "
             f"`{floor_src}` description under a fixed derangement (no fixed point). "
-            f"`{draw2_arm}` is the null: C16's own description on the second, disjoint test draw, "
-            f"so the per-feature C16 - C16-draw2 difference is the test-set sampling noise every "
-            f"contrast is exposed to."
+            f"`{draw2_arm}` is the null: C16's own description on the second, disjoint test draw."
+        )
+        od.note(
+            f"API: Anthropic Messages, model {model}, path `{path}`"
+            + (f" (batch = {BATCH_DISCOUNT:.0%} of list price)" if batch else "")
+            + f". Cost is COMPUTED from token counts at {RATES[model]} $/MTok -- the Anthropic API "
+            f"returns no cost field -- so both the rates and the counts are in costs.json and the "
+            f"dollar figure is auditable. This call ${s['cost']:.4f} over {s['calls']} calls "
+            f"({s['fails']} failures); cumulative over the cache ${cum['cost']:.4f} over "
+            f"{cum['calls']} calls."
+        )
+        od.note(
+            "temperature is NOT SENT: `anthropic` 1.6.0's messages.create() has no such parameter "
+            "for this model generation (MEASURED 2026-09-16). The design's 'temperature 0' is not "
+            "achievable on this surface, so run-to-run variation is real and the A7 null arm is "
+            "the only noise floor this evaluation has."
         )
         if stopped_at:
             od.note(f"STOPPED EARLY: {stopped_at}")
-        od.note(
-            f"cost, from each response's own usage.cost: this call ${s['cost']:.4f} over "
-            f"{s['calls']} calls ({s['fails']} failures); cumulative over the cache "
-            f"${cum['cost']:.4f} over {cum['calls']} calls. Per arm and per stage in costs.json."
-        )
 
     return {
-        "out": run_root,
-        "features_done": done,
-        "features_total": len(feats),
-        "arms": [*arm_names, floor_arm, draw2_arm],
-        "scorers": scorers,
-        "explainer_truncated": n_trunc,
-        "explanations_empty": n_empty,
-        "cost_this_call": round(s["cost"], 4),
-        "cost_cumulative": round(cum["cost"], 4),
-        "calls_this_call": s["calls"],
-        "cache_hits": cache.hits,
-        "projection_usd": costs["projection_usd"],
+        "out": run_root, "path": path,
+        "features_done": n_scored, "features_total": len(feats),
+        "arms": [*arm_names, floor_arm, draw2_arm], "scorers": scorers,
+        "explainer_truncated": n_trunc, "explanations_empty": n_empty,
+        "cost_this_call": round(s["cost"], 4), "cost_cumulative": round(cum["cost"], 4),
+        "calls_this_call": s["calls"], "cache_hits": cache.hits,
+        "projections": {k: v["usd"] for k, v in projections.items()},
+        "batch_walls": {k: v.get("wall_s") for k, v in stage_info.items()},
         "stopped_at": stopped_at,
     }

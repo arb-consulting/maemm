@@ -154,8 +154,9 @@ def main(
         "",
         f"Delphi-style SAE autointerp on base `{binfo['base']}`, SAE `{binfo['sae']}`, held-out "
         f"set `{binfo['set']}`, MAEMM `{binfo['maemm']}` (engine `{binfo['engine']}`). "
-        f"Explainer = scorer = `{costs['model']}` at temperature {costs['temperature']} through "
-        f"OpenRouter. Metric: per-feature **balanced accuracy** of the scorer using the "
+        f"Explainer = scorer = `{costs['model']}` through the **{costs.get('api', 'anthropic-messages')}** "
+        f"API on the `{costs.get('path', '?')}` path. Temperature: {costs['temperature']}. "
+        f"Metric: per-feature **balanced accuracy** of the scorer using the "
         f"explainer's description, over a test set of {binfo['n_pos']} positives "
         f"(5 from each stored activation band) and {binfo['n_neg']} zero-activation negatives, "
         f"IDENTICAL across arms and never shown to any explainer.",
@@ -175,14 +176,17 @@ def main(
             f"{tc['calls']:,}",
             f"{tc['in']:,}",
             f"{tc['out']:,}",
+            f"{tc.get('cache_read', 0):,}",
             f"${tc['cost']:.4f}",
             f"${tc['cost'] / max(1, n_feat):.4f}",
+            "-",
         ]] + [
-            [f"`{a}`", f"{d['calls']:,}", f"{d['in']:,}", f"{d['out']:,}", f"${d['cost']:.4f}",
-             f"${d['cost'] / max(1, n_feat):.4f}"]
+            [f"`{a}`", f"{d['calls']:,}", f"{d['in']:,}", f"{d['out']:,}",
+             f"{d.get('cache_read', 0):,}", f"${d['cost']:.4f}",
+             f"${d['cost'] / max(1, n_feat):.4f}", "/".join(d.get("paths", []) or ["-"])]
             for a, d in costs["per_arm"].items()
         ],
-        ["arm", "calls", "input tok", "output tok", "cost", "$/feature"],
+        ["arm", "calls", "input tok", "output tok", "cache-read tok", "cost", "$/feature", "path"],
     )
     lines += ["", "Per stage:", ""]
     lines += md_table(
@@ -192,7 +196,9 @@ def main(
     )
     lines += [
         "",
-        f"Cost is each response's own `usage.cost`, never a key usage delta. "
+        f"Cost is COMPUTED from the returned token counts at "
+        f"{costs.get('rates_usd_per_mtok')} $/MTok (the Anthropic API returns no cost field); the "
+        f"batch path pays {costs.get('batch_discount', 0.5):.0%} of that. "
         f"{costs['cache_hits']:,} of {costs['cache_hits'] + costs['cache_misses']:,} calls came "
         f"from the prompt cache. Projection recorded at the probe gate: "
         + (f"${costs['projection_usd']:.2f}" if costs["projection_usd"] else "n/a (not reached)")
@@ -397,7 +403,8 @@ def main(
               f"- A10 explainer truncation: "
               f"{costs.get('explainer_truncated_and_retried', 0)} answers hit max_tokens and were "
               f"retried once at double the budget; a still-truncated answer raises.",
-              f"- A12 temperature check: {costs.get('temperature_check', {})}",
+              f"- A12 model check: {costs.get('model_check', {})}",
+              f"- per-stage API path and wall: {costs.get('stage_info', {})}",
               ""]
 
     # ---- full-run projection ------------------------------------------------------------------

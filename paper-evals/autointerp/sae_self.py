@@ -786,3 +786,262 @@ def run_examples_4m(cfg, args):
         "n_features_below_16_above_gate": int((ng < 16).sum()),
         "seconds": round(elapsed, 1),
     }
+
+
+# ==============================================================================================
+# Product `examples_docmax`: one window per DOCUMENT, so the test set has somewhere to come from
+# ==============================================================================================
+#
+# MEASURED 2026-09-16 on the 64-feature pilot build, with amendments A1 (gate-consistent
+# positives), A4 (document-level disjointness) and A7 (two disjoint test draws) all in force:
+#
+#     draw 1 reaches its 20 positives on 35 of 64 features (min 0)
+#     draw 2 reaches its 20 positives on 20 of 64, and is EMPTY on 21
+#
+# The arithmetic behind that. A feature's stored gate-passing windows are `examples/`'s top-128
+# (median 60 after overlap dedup) plus whatever `q0..q3` rows clear the gate -- almost none, since
+# those bands are equal-width bins of (0, max_act] and therefore sample the weak tail. The arms
+# show 16-32 of the top windows, which occupy a median of 28 documents (max 44), and A4 then
+# removes EVERY OTHER WINDOW IN THOSE DOCUMENTS. What is left has to cover 40 positives across two
+# draws, and on half the features it cannot.
+#
+# The store is the problem, not the rules: 128 windows ranked by activation concentrate in few
+# documents. This product ranks DOCUMENTS instead -- for each tested feature it keeps the single
+# best-activating window of each of the top `EXDOC_TOP` documents, so the pool is
+# document-diverse by construction and A4 costs one window per document rather than a whole
+# document's worth.
+#
+#     <root>/base/<base>/sae/<sae>/examples_docmax/<set>/
+#         <feature>.jsonl   scan's row schema, kind "docmax", one row per document
+#         tested.json, scan_docmax.json
+#
+# `window` is the GLOBAL window index of scan's enumeration, as everywhere else in autointerp/.
+
+EXDOC_TOP = 256
+EXDOC_DOC_FLUSH = 256  # documents buffered before one heap push
+
+
+def run_examples_docmax(cfg, args):
+    import torch
+
+    from precompute.scan import _ex, _Heap
+
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    assert base, "product examples_docmax needs --base"
+    read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
+    batch_rows = int(args.get("batch") or EX4M_BATCH)
+
+    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    n_feat = len(feats)
+    toks, docs = C.load_corpus(base, root)
+    print(f"[examples_docmax] {len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each",
+          flush=True)
+
+    model, tok = C.load_base(cfg, base)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    gate = float(sae.threshold)
+    sink = C.sink_token_id(tok)
+    pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
+    fidx = torch.as_tensor(feats, device="cuda")
+    w_enc = sae.W_enc[:, fidx].contiguous()
+    b_enc = sae.b_enc[fidx]
+
+    # Two heaps over the SAME values: one carries the activation payload, the other the window
+    # ids. `_Heap.push` broadcasts ONE window id per column, but every column here is a different
+    # document with its own window id, so the ids ride in the second heap's `arg` slot. Both see
+    # the identical value sequence, so `topk` selects identically -- asserted after the walk.
+    heap = _Heap(n_feat, EXDOC_TOP, "cuda", payload_shape=(C.SCAN_BLOCK,))
+    win_heap = _Heap(n_feat, EXDOC_TOP, "cuda")
+    win_doc: list = []
+    win_start: list = []
+    win_len: list = []
+    # running best of the CURRENT document, and the buffer of finished documents' bests
+    cur_doc = None
+    cur_val = torch.full((n_feat,), -1.0, device="cuda")
+    cur_win = torch.zeros((n_feat,), dtype=torch.int64, device="cuda")
+    cur_arg = torch.zeros((n_feat,), dtype=torch.int64, device="cuda")
+    cur_pay = torch.zeros((n_feat, C.SCAN_BLOCK), dtype=torch.float16, device="cuda")
+    doc_val: list = []
+    doc_win: list = []
+    doc_arg: list = []
+    doc_pay: list = []
+    buf: list = []
+    buf_meta: list = []
+    w_global = 0
+    n_docs_pushed = 0
+    t0 = time.time()
+    done_tokens = 0
+
+    def close_doc():
+        """Move the finished document's per-feature best into the buffer; push when it is full."""
+        nonlocal n_docs_pushed
+        doc_val.append(cur_val.clone())
+        doc_win.append(cur_win.clone())
+        doc_arg.append(cur_arg.clone())
+        doc_pay.append(cur_pay.clone())
+        cur_val.fill_(-1.0)
+        n_docs_pushed += 1
+        if len(doc_val) >= EXDOC_DOC_FLUSH:
+            push_docs()
+
+    def push_docs():
+        if not doc_val:
+            return
+        v = torch.stack(doc_val, 1)  # [n_feat, D]
+        z = torch.zeros(len(doc_val), dtype=torch.int64, device="cuda")
+        heap.push(v, z, torch.stack(doc_arg, 1), torch.stack(doc_pay, 1))
+        win_heap.push(v, z, torch.stack(doc_win, 1))
+        doc_val.clear()
+        doc_win.clear()
+        doc_arg.clear()
+        doc_pay.clear()
+
+    def flush():
+        """Forward a FULL batch, then fold it into the running per-document bests.
+
+        The buffer deliberately spans documents -- flushing at every boundary would mean ~50-window
+        forwards instead of 256-window ones -- so the batch is cut into its contiguous per-document
+        segments here and each segment is folded separately.
+        """
+        nonlocal w_global, cur_doc
+        if not buf:
+            return
+        with torch.no_grad():
+            h, keep = _forward_windows(model, read_layer, buf, sink, pad_id)
+            b, t = keep.shape
+            a = torch.relu((h - sae.b_dec) @ w_enc + b_enc)  # [B, T, n_feat] pre-gate
+            a = a.masked_fill(~keep.unsqueeze(-1), 0.0)
+            amax, aarg = a.max(dim=1)  # [B, n_feat]
+            pay = torch.zeros((b, C.SCAN_BLOCK, n_feat), dtype=torch.float16, device="cuda")
+            pay[:, : min(t - 1, C.SCAN_BLOCK)] = a[:, 1 : 1 + C.SCAN_BLOCK].to(torch.float16)
+            segs = []
+            lo = 0
+            for i in range(1, b + 1):
+                if i == b or buf_meta[i][0] != buf_meta[lo][0]:
+                    segs.append((buf_meta[lo][0], lo, i))
+                    lo = i
+            for doc_id, lo_, hi_ in segs:
+                if cur_doc is not None and doc_id != cur_doc:
+                    close_doc()
+                cur_doc = doc_id
+                seg_best, which = amax[lo_:hi_].max(dim=0)  # [n_feat]
+                better = seg_best > cur_val
+                fi = torch.nonzero(better, as_tuple=True)[0]
+                if len(fi):
+                    wsel = which[fi] + lo_
+                    cur_val[fi] = seg_best[fi]
+                    cur_win[fi] = wsel + w_global
+                    cur_arg[fi] = aarg[wsel, fi]
+                    cur_pay[fi] = pay[wsel, :, fi]
+        win_doc.append(np.asarray([m[0] for m in buf_meta], dtype=np.int32))
+        win_start.append(np.asarray([m[1] for m in buf_meta], dtype=np.int32))
+        win_len.append(np.asarray([len(r) for r in buf], dtype=np.int32))
+        w_global += b
+        buf.clear()
+        buf_meta.clear()
+
+    for r in docs:
+        ids = np.asarray(toks[r["offset"] : r["offset"] + r["len"]])
+        for s, ln in C.windows_of(int(r["len"])):
+            buf.append(ids[s : s + ln])
+            buf_meta.append((int(r["doc"]), s))
+            if len(buf) >= batch_rows:
+                flush()
+        done_tokens += int(r["len"])
+        if r["doc"] % 4000 == 0 and r["doc"]:
+            el = time.time() - t0
+            print(f"[examples_docmax] doc {r['doc']}/{len(docs)} {done_tokens / 1e6:.2f}M tokens | "
+                  f"{done_tokens / max(el, 1e-9):.0f} corpus tok/s", flush=True)
+    flush()
+    if cur_doc is not None:
+        close_doc()
+    push_docs()
+    elapsed = time.time() - t0
+    wdoc = np.concatenate(win_doc)
+    wstart = np.concatenate(win_start)
+    wlen = np.concatenate(win_len)
+    assert len(wdoc) == w_global, f"window table {len(wdoc)} != {w_global} forwarded windows"
+    assert n_docs_pushed == len(docs), (
+        f"{n_docs_pushed} documents folded but the corpus has {len(docs)}: a document boundary "
+        f"was missed and its windows were credited to a neighbour"
+    )
+    assert torch.equal(heap.val, win_heap.val), (
+        "the payload heap and the window-id heap ranked differently; their `arg` columns no "
+        "longer correspond and every stored window id would be wrong"
+    )
+
+    tv = heap.val.cpu().numpy()
+    ta = heap.arg.cpu().numpy()
+    tp = heap.payload.cpu().numpy()
+    tw = win_heap.arg.cpu().numpy()  # the window ids, ranked by the SAME values
+    out = f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}"
+    per_feature = []
+    ex_rows = 0
+    nbytes = 0
+    with C.outdir(
+        out,
+        args,
+        inputs={
+            "corpus": C.corpus_dir(base, root),
+            "heldout": C.heldout_dir(base, set_name, root),
+            "sae": sae_key,
+            "docs": len(docs),
+            "tokens": done_tokens,
+            "windows": int(w_global),
+            "features": n_feat,
+            "top_documents": EXDOC_TOP,
+        },
+    ) as od:
+        for fi_, feat in enumerate(feats):
+            recs = []
+            for j in range(EXDOC_TOP):
+                if not np.isfinite(tv[fi_, j]) or tv[fi_, j] <= 0:
+                    continue
+                recs.append(
+                    _ex(sae_rows[fi_], "docmax", tv[fi_, j], tw[fi_, j], ta[fi_, j], tp[fi_, j],
+                        wdoc, wstart, wlen)
+                )
+            path = od.file(f"{feat}.jsonl")
+            C.write_jsonl(path, recs)
+            nbytes += path.stat().st_size
+            ex_rows += len(recs)
+            n_gate = sum(1 for x in recs if x["max_act"] > gate)
+            per_feature.append({"feature": feat, "row": sae_rows[fi_], "n": len(recs),
+                                "n_above_gate": n_gate,
+                                "n_docs": len({x["doc"] for x in recs}),
+                                "max_act": recs[0]["max_act"] if recs else 0.0})
+        od.index["examples"] = {"kind": "jsonl", "rows": ex_rows, "bytes": nbytes}
+        od.write_json("tested.json", {"features": feats, "rows": sae_rows, "sae": sae_key})
+        ng = np.asarray([p["n_above_gate"] for p in per_feature])
+        nd = np.asarray([p["n_docs"] for p in per_feature])
+        od.write_json(
+            "scan_docmax.json",
+            {"docs": len(docs), "tokens": done_tokens, "windows": int(w_global),
+             "top_documents": EXDOC_TOP, "gate": gate, "features": n_feat,
+             "per_feature": per_feature,
+             "n_above_gate": {"min": int(ng.min()), "median": int(np.median(ng)),
+                              "n_below_48": int((ng < 48).sum())},
+             "n_distinct_docs": {"min": int(nd.min()), "median": int(np.median(nd)),
+                                 "n_below_48": int((nd < 48).sum())},
+             "seconds": round(elapsed, 1)},
+        )
+        od.note(
+            f"ONE WINDOW PER DOCUMENT: for each tested feature, the best-activating window of each "
+            f"of the top {EXDOC_TOP} documents, over the whole {done_tokens} -token corpus. "
+            f"`examples/`'s top-128 ranks WINDOWS and therefore concentrates in few documents "
+            f"(median 28 shown documents per feature), which is why document-level disjointness "
+            f"(A4) left half the pilot's features without a test set. Row schema is "
+            f"`precompute/scan.py`'s `_ex`, so a row here is interchangeable with one from "
+            f"`examples/` or `examples_4m/`."
+        )
+        od.note(
+            f"per feature, documents above the gate {gate:.4f}: min {int(ng.min())}, median "
+            f"{int(np.median(ng))}, below 48 on {int((ng < 48).sum())} of {n_feat} features "
+            f"(48 = the 40 test positives of two draws plus headroom)."
+        )
+        od.note(f"scan wall {elapsed:.1f}s, {done_tokens / max(elapsed, 1e-9):.0f} corpus tok/s")
+    return {"out": out, "docs": len(docs), "windows": int(w_global), "features": n_feat,
+            "rows": ex_rows, "n_above_gate_min": int(ng.min()),
+            "n_above_gate_median": int(np.median(ng)),
+            "n_features_below_48_above_gate": int((ng < 48).sum()),
+            "seconds": round(elapsed, 1)}
