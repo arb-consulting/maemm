@@ -1,0 +1,1478 @@
+"""Product `gcg`: discrete-token search on the scorer's own objective -- the reachability ceiling.
+
+    <root>/base/<base>/gcg/<set>/<arm>/  finals.jsonl, trajectory.jsonl, top64.jsonl, summary.json
+
+Trimmed from `eval/gcg_search.py` of our fork of ceselder/maemm (1288 lines, read 2026-09-16). What
+survived is the search itself; what went is everything that belonged to the fork's own direction
+cache and rescore chain -- the `lens` and `maemm` init arms, `--seq-len-mode rollout`, the
+concordance probe, the centred/derangement columns, the `samples.jsonl` dump, and every import from
+`rescore_metrics` / `sentence_start`. The two things worth re-implementing from those modules are
+re-implemented here: the 95-token bound (`MAX_REENC_TOK`, taken from `common.SCORE_MAX_LENGTH` so
+there is one constant) and `enc_trunc`. Centring is NOT re-implemented: the objective is the
+UNCENTRED cosine, the same number `common.score_ids` produces everywhere else in this pipeline.
+
+THE OBJECTIVE, per candidate string x of T ids and unit direction d:
+
+    cos(x)      = max over KEPT positions t of cos(unit(h_t), d)     [read layer, sink excluded]
+    L_lambda(x) = cos(x) - lambda * nll(x)
+
+`cos` goes through `common.score_ids` -- the SAME function `score.py` scores rollouts with and
+`repo_examples` scores the SAE repo's windows with, reached without a tokenizer because the search
+optimises IDS. So the loop's number, the finals' number and the rollouts' number are one number by
+construction. `nll` is the mean per-token NLL of the string's own ids under the clean base (teacher
+forcing, no prompt, no sink, predict ids[1:] from ids[:-1]) through a hand fp32 lm_head, self-
+checked against `model(...).logits` on the first batch of the process.
+
+ARMS. `<mode>-<init>`, one output directory each:
+
+  gcg-random32   pop 1, lambda 0            -- the pure reachability ceiling from random ASCII
+  gcg-corpus     pop 1, lambda 0            -- ... started from the best corpus window we retrieved
+  epo-random32   pop 3, lambda 0.1/0.19/0.37 -- the fluency-penalised Pareto front, random start
+  epo-corpus     pop 3, same grid           -- ... started from the corpus window
+
+GCG IS EPO AT pop=1, lambda=0, so there is one loop. Each EPO member holds its own lambda and is
+selected by its own `L_lambda`, so the per-member finals trace a Pareto front in one run at no extra
+forward. All pop members of one run start from the SAME init (as in the fork) except `random32`,
+which draws one string per member.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import time
+import zlib
+
+import numpy as np
+
+import precompute.common as C
+
+# ---------------------------------------------------------------------------------------------
+# constants that are part of the protocol
+# ---------------------------------------------------------------------------------------------
+
+# eval/eval_universal.py:138's truncation, named once in common.py. A string longer than this would
+# be scored shorter than it was optimised; `common.score_ids` refuses such a row outright.
+MAX_REENC_TOK = C.SCORE_MAX_LENGTH
+
+# The candidate alphabet size, PER BASE: the fork's single 94,325 is Qwen3-8B's (vocab 151,669) and
+# says nothing about the 27B, whose vocab is 248,077. `None` means "not measured yet": the run
+# prints and records the realised count and skips the assert, loudly. Fill the number in afterwards
+# so the next run is checked -- every cost number is priced against a pool of this size.
+# MEASURED 2026-09-16 on the 8B: 90,909 (151,669 vocab -> 90,939 printable-ASCII -> 90,935
+# round-tripping -> 90,909 after 26 special/added ids). The 94,325 below is the FORK's plan figure
+# and is 3.6% high; it is kept as the declared expectation, because the assert exists to catch the
+# tokenizer moving (a +-10% band does that) and silently re-calibrating it to our own measurement
+# would erase the fact that the plan's number was wrong.
+# MEASURED 2026-09-16 on the 27B: 126,220 (248,077 vocab -> 126,278 printable-ASCII -> 126,253
+# round-tripping -> 126,220 after 33 special/added ids). There was no prior figure for this base --
+# the fork only ever ran on the 8B -- so this one IS the measurement, recorded here so the next run
+# is checked against it rather than against nothing.
+ALPHABET_EXPECT = {"qwen3-8b": 94_325, "qwen36-27b": 126_220}
+ALPHABET_REL_TOL = 0.10
+
+# Tolerances for the end-of-direction CHECK block, which re-scores the finals through
+# `common.score_ids` twice: once at the loop's OWN --sbatch (same input, same batch geometry, so
+# anything above float noise is a bookkeeping bug) and once at `common.SCORE_CHUNK`, the chunk every
+# other product scores at. The second is deliberately looser: a bf16 forward's reduction order is
+# batch-shape dependent, which is why SCORE_CHUNK is fixed at 32 pipeline-wide in the first place.
+COS_TOL_SAME_BATCH = 1e-4  # ADVISORY: printed, not asserted (pop rows re-run where pop*children ran)
+COS_TOL_SAME_BATCH_HARD = 1e-2  # the assert: beyond this it is bookkeeping, not arithmetic
+COS_TOL_REBATCH = 1e-2
+
+# The fp32 logit tile the NLL pass may materialise at once ([rows, T-1, V] fp32, x3 for log_softmax
+# and its exp). 2 GiB leaves room for the model, the fp32 W_E and the fp32 lm_head copy.
+NLL_LOGIT_BYTES = 2 << 30
+
+# Retokenisation filtering rejects a large fraction of single-substitution candidates, so the draw
+# is oversampled to clear `children` in one round. A run that hits this cap produces fewer
+# candidates per iteration than it is charged for, which is why the cap is reported, not absorbed.
+MAX_TOPUP_ROUNDS = 6
+
+# Per-member running set of the best DISTINCT candidate strings ever seen, written to top64.jsonl.
+TOP_KEEP = 64
+# The set is pruned back to TOP_PRUNE_TO whenever it exceeds TOP_PRUNE_AT, so a 150 x 512 run does
+# not hold 76,800 id tuples. Pruning never touches the top TOP_PRUNE_TO, so the top 64 is exact.
+TOP_PRUNE_AT = 4096
+TOP_PRUNE_TO = 1024
+
+# Kept out of summary.json's per-run block: they are already in finals.jsonl in full and would
+# multiply the summary's size by the sequence length.
+_BULKY_FINAL_KEYS = ("ids", "init_ids", "per_token_cos")
+
+MODES = ("gcg", "epo")
+INITS = ("random32", "corpus")
+
+# The measured configurations (RUNBOOK section 2g). `--mode gcg` and `--mode epo` are compute-
+# matched in TOTAL candidate forwards (150 x 512 = 76,800 against 300 x 255 = 76,500), not per
+# iteration. The fork's runs used `--init maemm --seq-len-mode rollout`; ours are fixed T=32.
+MODE_DEFAULTS = {
+    "gcg": {"iters": 150, "pop": 1, "children": 512, "lam_grid": "0"},
+    "epo": {"iters": 300, "pop": 3, "children": 85, "lam_grid": "0.1,0.19,0.37"},
+}
+# Oversample per init arm. 1.5 for random32 is the fork's value (checklist item 65). The corpus
+# init started at the fork's conservative 2.2 (sized for its MEASURED 0.547 rejection rate on
+# arbitrary strings); MEASURED HERE 2026-09-16 on 8B realact row 0, it rejects **0.005** of
+# candidates against random32's 0.035 -- natural text that has been roundtrip-repaired barely
+# breaks under a single substitution -- so 2.2 was drawing and decoding twice as many candidates as
+# it kept, for nothing. 1.5 with the realised rate reported by every run (`filter_reject_rate`,
+# and `topup_capped_iters` if a draw ever falls short) is the measured setting.
+INIT_OVERSAMPLE = {"random32": 1.5, "corpus": 1.5}
+
+_WU32: dict[int, object] = {}  # id(model) -> the fp32 [d, V] lm_head, built once
+_NLL_CHECKED = [False]  # the NLL self-check fires on the FIRST call of the process, once
+
+
+def arm_name(mode: str, init: str) -> str:
+    return f"{mode}-{init}"
+
+
+# ---------------------------------------------------------------------------------------------
+# the candidate alphabet
+# ---------------------------------------------------------------------------------------------
+
+
+def ascii_alphabet(tok, base: str):
+    """Ids that decode to non-empty printable ASCII and round-trip to themselves as a single id.
+
+    Three filters: (1) `decode([i])` is non-empty and every character is printable ASCII (32..126 --
+    `str.isprintable()` accepts non-ASCII printables, so the ASCII test is explicit); (2)
+    `encode(decode([i]))` is exactly `[i]`; (3) not a special id and not an added-vocabulary id.
+    Filter (3) is what keeps the SINK out of the optimised string: a string containing the sink id
+    would be scored against a residual stream `common.score_ids` never builds.
+    """
+    t0 = time.time()
+    n_vocab = len(tok)
+    ids = list(range(n_vocab))
+    dec = tok.batch_decode([[i] for i in ids])
+    cand = [i for i, s in zip(ids, dec, strict=True) if s and all(32 <= ord(c) <= 126 for c in s)]
+    # one batched re-encode rather than V single calls
+    enc = tok([dec[i] for i in cand], add_special_tokens=False).input_ids
+    rt = [i for i, e in zip(cand, enc, strict=True) if len(e) == 1 and e[0] == i]
+    bad = set(tok.all_special_ids or []) | set(tok.get_added_vocab().values())
+    keep = [i for i in rt if i not in bad]
+    n = len(keep)
+    print(
+        f"[gcg] alphabet {base}: {n_vocab} vocab -> {len(cand)} printable-ASCII -> {len(rt)} "
+        f"round-tripping -> {n} after dropping {len(bad)} special/added ids ({time.time() - t0:.1f}s)",
+        flush=True,
+    )
+    want = ALPHABET_EXPECT.get(base)
+    if want is None:
+        print(
+            f"[gcg] NOTE base {base!r} has no measured alphabet expectation: MEASURED {n}. Put it "
+            f"in gcg/gcg.py ALPHABET_EXPECT so the next run is checked.",
+            flush=True,
+        )
+    else:
+        assert abs(n - want) <= ALPHABET_REL_TOL * want, (
+            f"base {base}: alphabet is {n} ids, expected {want} +-{ALPHABET_REL_TOL:.0%} -- the "
+            f"tokenizer changed and every cost number moves with it"
+        )
+    return np.asarray(keep, np.int64), n_vocab
+
+
+def is_ascii_id(tok, i) -> bool:
+    s = tok.decode([int(i)])
+    return bool(s) and all(32 <= ord(c) <= 126 for c in s)
+
+
+def space_prefixed(tok, alpha):
+    """The sub-alphabet whose ids decode to ' ' + printable ASCII -- see `init_random`."""
+    dec = tok.batch_decode([[int(i)] for i in alpha])
+    sp = np.asarray(
+        [int(i) for i, s in zip(alpha, dec, strict=True) if s.startswith(" ")], np.int64
+    )
+    print(f"[gcg] space-prefixed sub-alphabet: {len(sp)} of {len(alpha)} ids", flush=True)
+    return sp
+
+
+def enc_trunc(tok, text):
+    """`sentence_start.enc_trunc`, re-implemented: ids of `text` alone, capped at MAX_REENC_TOK.
+
+    add_special_tokens=False and truncation at the same 95 the scorer truncates at, so an init
+    string's ids are bounded by the same rule that bounds a rollout's.
+    """
+    ids = list(tok(text, add_special_tokens=False).input_ids)
+    return ids[:MAX_REENC_TOK], len(ids) > MAX_REENC_TOK
+
+
+# ---------------------------------------------------------------------------------------------
+# forward paths
+# ---------------------------------------------------------------------------------------------
+
+
+def input_embeddings(model):
+    """The input-embedding module, unwrapping DDP + PEFT exactly as `common.get_layer` does."""
+    m = model.module if hasattr(model, "module") else model
+    base = m.get_base_model() if hasattr(m, "get_base_model") else m
+    return base.get_input_embeddings()
+
+
+def lm_head_fp32(model):
+    """`lm_head.weight.T` in fp32, built once per process.
+
+    The NLL pass runs once or twice per search ITERATION, so casting the [V, d] head each time would
+    put pure bandwidth into `nll_s` -- a timing this product exists to measure.
+    """
+    k = id(model)
+    if k not in _WU32:
+        _WU32[k] = model.get_output_embeddings().weight.detach().float().T.contiguous()
+    return _WU32[k]
+
+
+def read_resid_grad(model, layer, kwargs):
+    """`common.read_resid` WITHOUT its `@torch.no_grad()` and taking `inputs_embeds=`.
+
+    Same forward hook on `common.get_layer(model, layer)`'s OUTPUT raising `StopForward` inside the
+    hook, so the layers above and the lm_head never run. Autograd is fine across the raise: the
+    graph up to `layer` is fully built before the hook fires and the captured tensor holds it.
+    Returns h [B, L, d] fp32 WITH grad_fn; the caller owns the backward.
+    """
+    captured: dict = {}
+    handle = C.get_layer(model, layer).register_forward_hook(C.read_layer_hook(captured))
+    try:
+        model(**kwargs, use_cache=False)
+    except C.StopForward:
+        pass
+    finally:
+        handle.remove()
+    assert "h" in captured, f"the grad read hook at layer {layer} never fired (wrong layer object?)"
+    return captured["h"]
+
+
+def keep_mask_full(mask):
+    """The GRADIENT path's keep rule, and it must be the SCORER's keep rule.
+
+    `common.score_ids` keeps every non-pad, non-sink position and applies NO norm filter (the
+    pipeline-wide divergence from eval_universal.py:71,145-147). The fork also dropped tokens above
+    10x the row median here; keeping that would let the gradient optimise against a mask the
+    selection step does not use. Boolean, no gradient.
+    """
+    keep = mask.clone()
+    keep[:, 0] = False  # the sink is in the forward and is never a candidate token
+    return keep
+
+
+def sae_peak_pos(acts_row, peak):
+    """Text-token index of a feature's peak pre-gate activation, or -1 when it never fires.
+
+    `acts_row` is one scored row (column 0 is the sink, column j+1 is text token j; non-kept
+    positions are NaN). relu makes a dead feature's whole row 0, and then argmax would name
+    position 0 arbitrarily -- a later "peak == cos-argmax" comparison would read that arbitrary 0
+    as a genuine disagreement. -1 says the question does not apply.
+    """
+    if not peak > 0.0:
+        return -1
+    return int(np.nanargmax(np.asarray(acts_row))) - 1
+
+
+def exact_cos(
+    model, tok, id_lists, d_cpu, read_layer, sbatch, device, want_tokens=False,
+    sae=None, feature_id=None,
+):
+    """THE scoring path: `max_t cos(unit(h_t), d)` over `common.score_ids`' kept tokens.
+
+    One direction, many id lists -- the direction is broadcast to one row per candidate. This is the
+    product's only cosine; there is no faster in-loop variant to drift from, which is what the fork
+    needed its end-of-direction check to prove and what is now true by construction.
+
+    `sae` + `feature_id` additionally read that feature's PRE-GATE activation
+    (`common.sae_encode`, relu((h - b_dec) @ W_enc[:, f] + b_enc[f])) off the SAME forward, per
+    kept token. It is RECORDED, never optimised: the objective stays the cosine, and the activation
+    is there so an `sae` final can be read as "did the string actually make the feature fire, or
+    only align with its encoder column?". Only ever called on the pop finals, so it costs nothing.
+    """
+    import torch
+
+    n = len(id_lists)
+    dirs = d_cpu.detach().cpu().float().unsqueeze(0).expand(n, -1)
+    acts = torch.full((n, C.SCORE_WIDTH), float("nan")) if sae is not None else None
+
+    def on_chunk(s, h, _cos, keep, _ids):
+        a = C.sae_encode(sae, h, [int(feature_id)])[..., 0]  # [b, t]
+        acts[s : s + h.shape[0], : h.shape[1]] = torch.where(
+            keep, a, torch.full_like(a, float("nan"))
+        ).cpu()
+
+    out = C.score_ids(
+        model, tok, id_lists, dirs, read_layer, sbatch=sbatch, device=device,
+        on_chunk=None if sae is None else on_chunk,
+    )
+    best, arg = C.agg(out["cos"], out["keep"])
+    res = {
+        # column j+1 of the scored row is text token j
+        "cos": best.numpy().astype(np.float32),
+        "amax": (arg - 1).numpy().astype(np.int32),
+    }
+    if want_tokens:
+        cos = out["cos"]
+        keep = out["keep"]
+        res["per_token"] = [
+            [round(float(v), 6) for v in cos[i][keep[i]].tolist()] for i in range(n)
+        ]
+    if sae is not None:
+        keep = out["keep"]
+        res["sae_peak"] = np.asarray(
+            [float(acts[i][keep[i]].max()) for i in range(n)], np.float32
+        )
+        # the activation AT the cosine's argmax, which is the token the objective actually selected
+        res["sae_at_argmax"] = np.asarray(
+            [float(acts[i, int(arg[i])]) for i in range(n)], np.float32
+        )
+        res["sae_peak_pos"] = np.asarray(
+            [sae_peak_pos(acts[i], res["sae_peak"][i]) for i in range(n)], np.int32
+        )
+    return res
+
+
+def mean_nll(model, ids_t, want_entropy=False):
+    """Mean per-token NLL of each row's own ids under the clean base; optionally the mean entropy.
+
+    Teacher forcing with NO prompt and NO sink: predict ids[:, 1:] from ids[:, :-1]. The transformer
+    body is called directly and the head applied by hand in fp32 -- the body's output already
+    carries the final norm, so `h @ lm_head.weight.T` IS the model's logit computation, and doing it
+    in fp32 avoids a bf16 head's noise. Rows are all the same length (the search works at a fixed
+    T), so there is no padding and the attention mask is all ones.
+
+    Unchanged from the fork apart from the print prefix.
+    """
+    import torch
+
+    n, t_len = ids_t.shape
+    assert t_len >= 2, f"NLL needs at least 2 tokens, got {t_len}"
+    w_f = lm_head_fp32(model)  # [d, V] fp32
+    v = w_f.shape[1]
+    per = max(1, int(NLL_LOGIT_BYTES // (3 * 4 * (t_len - 1) * v)))
+    nll = np.zeros(n, np.float32)
+    ent = np.zeros(n, np.float32)
+    checked = _NLL_CHECKED[0]
+    with torch.no_grad():
+        for s in range(0, n, per):
+            ids = ids_t[s : s + per]
+            am = torch.ones_like(ids[:, :-1])
+            h = model.model(
+                input_ids=ids[:, :-1], attention_mask=am, use_cache=False
+            ).last_hidden_state
+            lg = h.float() @ w_f
+            lp = torch.log_softmax(lg, -1)
+            tgt = ids[:, 1:]
+            tl = lp.gather(-1, tgt.unsqueeze(-1)).squeeze(-1)  # [b, T-1]
+            nll[s : s + len(ids)] = (-tl).mean(1).float().cpu().numpy()
+            if want_entropy:
+                ent[s : s + len(ids)] = (-(lp.exp() * lp).sum(-1)).mean(1).float().cpu().numpy()
+            if not checked:
+                # The reference `model(...).logits` leaves a BF16 lm_head whose ulp at |logit| ~ 20
+                # is 0.125, while the path above deliberately projects in fp32. The two therefore
+                # differ by bf16 rounding and nothing else, so what is asserted is the quantity this
+                # function RETURNS, at a tolerance sized to that ulp; the vocabulary-wide worst case
+                # is printed, not asserted, because it is dominated by ties the reference cannot
+                # resolve. This is also the check that catches `model.model` not being the body.
+                ref = model(input_ids=ids[:, :-1], attention_mask=am, use_cache=False).logits.float()
+                rlp = torch.log_softmax(ref, -1)
+                rt = rlp.gather(-1, tgt.unsqueeze(-1)).squeeze(-1)
+                dmean = (rt.mean(1) - tl.mean(1)).abs()
+                dall = (rlp - lp).abs().max().item()
+                assert dmean.mean().item() < 0.05 and dmean.max().item() < 0.3, (
+                    f"the hand fp32 lm_head NLL differs from model.logits by mean "
+                    f"{dmean.mean().item():.4f} / max {dmean.max().item():.4f} nats -- more than a "
+                    f"bf16 lm_head can explain; `model.model` may not be the transformer body"
+                )
+                print(
+                    f"[gcg] nll path checked against model.logits on {len(ids)} rows: mean-NLL "
+                    f"|d| mean {dmean.mean().item():.2e} max {dmean.max().item():.2e} nats | "
+                    f"vocab-wide max {dall:.2e} (bf16 ulp)",
+                    flush=True,
+                )
+                checked = _NLL_CHECKED[0] = True
+                del ref, rlp, rt
+            del lg, lp
+    return nll, (ent if want_entropy else None)
+
+
+def grad_pass(model, dev, w_e32, ids_t, d, lam_t, tau, sink_id, mdtype, want_nll, read_layer):
+    """One-hot gradient of the SURROGATE objective at the current members' strings.
+
+    Surrogate, per member m:  tau * logsumexp_t(cos_t / tau)  -  lambda_m * nll_soft_m
+    over the same kept t the exact scorer uses. The exact objective is a HARD max, which routes the
+    whole gradient through one token of T; the soft max at tau=0.02 spreads it over the near-maximal
+    tokens without moving the optimum much. Selection stays hard and exact.
+
+    `nll_soft` is the relaxation of the exact NLL: the targets are the one-hot rows themselves, so
+    `-(onehot[:, 1:] * logp).sum(-1)` equals the exact mean NLL at a hard one-hot AND carries
+    gradient through the target side, which a gather-based NLL would drop. It uses a bf16 head: it
+    feeds a top-k ranking, not a reported number, and every reported NLL comes from `mean_nll`.
+
+    SIGN CONVENTION: the LOSS (`-objective`, GCG's convention) is backwarded, so the returned
+    `grad = -onehot.grad` is the predicted INCREASE in the objective from turning position t into
+    token v. Higher is better everywhere downstream.
+    """
+    import torch
+    import torch.nn.functional as F
+
+    pop, t_len = ids_t.shape
+    v = w_e32.shape[0]
+    onehot = torch.zeros(pop, t_len, v, device=dev, dtype=torch.float32)
+    onehot.scatter_(2, ids_t.unsqueeze(-1), 1.0)
+    onehot.requires_grad_(True)
+    emb = onehot @ w_e32  # [pop, T, d] fp32
+    emb_b = emb.to(mdtype)
+    sink_e = w_e32[sink_id].to(mdtype).view(1, 1, -1).expand(pop, 1, -1)
+    inp = torch.cat([sink_e, emb_b], dim=1)  # the sink is IN the forward and NOT optimised
+    am = torch.ones(pop, t_len + 1, dtype=torch.long, device=dev)  # (it has no one-hot row)
+    h = read_resid_grad(model, read_layer, {"inputs_embeds": inp, "attention_mask": am})
+    keep = keep_mask_full(am.bool())
+    assert bool(keep.any(1).all()), "a member has no kept token at all -- the mask is wrong"
+    c = torch.einsum("btd,d->bt", F.normalize(h, dim=-1), d)
+    c = c.masked_fill(~keep, -float("inf"))
+    soft = tau * torch.logsumexp(c / tau, dim=1)  # [pop]
+    obj = soft
+    nll_soft = None
+    if want_nll:
+        hh = model.model(
+            inputs_embeds=emb_b[:, :-1],
+            attention_mask=torch.ones(pop, t_len - 1, dtype=torch.long, device=dev),
+            use_cache=False,
+        ).last_hidden_state
+        w_u = model.get_output_embeddings().weight
+        lp = torch.log_softmax((hh @ w_u.T).float(), -1)
+        nll_soft = -(onehot[:, 1:, :] * lp).sum(-1).mean(1)  # [pop]
+        obj = obj - lam_t * nll_soft
+    (-obj.sum()).backward()
+    grad = -onehot.grad.detach()
+    out = (
+        grad,
+        soft.detach().float().cpu().numpy(),
+        None if nll_soft is None else nll_soft.detach().float().cpu().numpy(),
+    )
+    del onehot, emb, emb_b, inp, h, c, soft, obj, nll_soft
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# candidates
+# ---------------------------------------------------------------------------------------------
+
+
+def retok_ok(tok, cand):
+    """`filter_ids`: a candidate survives only if `decode(ids)` re-encodes to the SAME id list.
+
+    Checked on the FULL assembled sequence, never a substring -- and here the string IS the whole
+    input. This is also what makes the finals reproducible: anything downstream that re-tokenizes
+    the stored `string` must land on the stored `ids`, or it would score a different segmentation
+    than the one the loop optimised.
+    """
+    texts = tok.batch_decode(cand)
+    enc = tok(texts, add_special_tokens=False).input_ids
+    ok = [i for i, (e, c) in enumerate(zip(enc, cand, strict=True)) if list(e) == list(c)]
+    return ok, texts
+
+
+def sample_candidates(rng, tok, cur, pool, children, oversample, counters):
+    """`children` retokenisation-surviving single-substitution candidates per member.
+
+    `pool` is [pop, T, K] of admissible replacement ids per (member, position) -- the gradient's
+    top-k restricted to the ASCII alphabet. Each draw picks ONE random position and one uniform id
+    from that position's pool. Oversample, filter, keep the first `children`; top up if short.
+    """
+    pop, t_len = cur.shape
+    out: list[list[list[int]]] = [[] for _ in range(pop)]
+    n_draw = max(children, int(math.ceil(children * oversample)))
+    rounds = 0
+    while rounds < MAX_TOPUP_ROUNDS and any(len(o) < children for o in out):
+        need = [max(0, children - len(o)) for o in out]
+        k = max(need)
+        k = max(1, int(math.ceil(k * oversample))) if rounds else n_draw
+        flat, owner = [], []
+        for m in range(pop):
+            if len(out[m]) >= children:
+                continue
+            pos = rng.integers(0, t_len, size=k)
+            sel = rng.integers(0, pool.shape[2], size=k)
+            for j in range(k):
+                row = cur[m].copy()
+                row[pos[j]] = pool[m, pos[j], sel[j]]
+                flat.append(row.tolist())
+                owner.append(m)
+        if not flat:
+            break
+        ok, _ = retok_ok(tok, flat)
+        counters["drawn"] += len(flat)
+        counters["kept"] += len(ok)
+        for i in ok:
+            m = owner[i]
+            if len(out[m]) < children:
+                out[m].append(flat[i])
+        rounds += 1
+    short = [m for m, o in enumerate(out) if len(o) < children]
+    if short:
+        counters["capped_iters"] += 1
+        counters["capped_members"] += len(short)
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# initialisation arms
+# ---------------------------------------------------------------------------------------------
+
+
+def init_random(rng, alpha, pop, t_len, tok, alpha_sp, tries=200, counters=None):
+    """`t_len` random ASCII ids per member, drawn so that the STRING ROUND-TRIPS.
+
+    MEASURED by the fork, and it is why this is not one line: a string of T ids drawn uniformly from
+    the ASCII alphabet almost never survives `decode -> encode -> the same ids`, the in-loop
+    retokenisation filter then rejects ~0.9-1.0 of candidates, and the loop reports its init as a
+    result. The fix is (1) draw from `alpha_sp`, the SPACE-PREFIXED sub-alphabet -- BPE merges
+    almost never cross a space boundary in ASCII, so concatenating such tokens is stable by
+    construction -- and (2) verify anyway, redrawing the offending member. Neither part changes what
+    the search may REACH: substitutions are still drawn from the full alphabet and the filter still
+    adjudicates every candidate.
+    """
+    src = alpha_sp if alpha_sp is not None and len(alpha_sp) >= 256 else alpha
+    out, redraws = [], 0
+    for _ in range(pop):
+        for _k in range(tries):
+            ids = src[rng.integers(0, len(src), size=t_len)].astype(np.int64).tolist()
+            ok, _ = retok_ok(tok, [ids])
+            if ok:
+                break
+            redraws += 1
+        else:
+            raise AssertionError(
+                f"--init random32: no round-tripping draw of {t_len} ids in {tries} tries -- the "
+                f"space-prefixed sub-alphabet ({len(src)} ids) is not doing its job on this "
+                f"tokenizer"
+            )
+        out.append(ids)
+    if counters is not None:
+        counters["init_redraws"] += redraws
+    return np.asarray(out, np.int64)
+
+
+def roundtrip_repair(tok, ids, alpha_sp, rng, counters=None, tries=64):
+    """Make an init string round-trip, changing as few tokens as possible.
+
+    MEASURED FAILURE THIS EXISTS FOR (the fork, 2026-09-10): an init built by CUTTING text at an
+    arbitrary token boundary does not always survive `decode -> encode -> the same ids`, `retok_ok`
+    then rejects 100% of candidates for the whole run, 0 candidate forwards happen, and the init's
+    own score is written out as if it were a search result. The corpus init cuts a window, so it is
+    exactly that case.
+
+    The repair walks to the FIRST position where re-encoding diverges and replaces that token with a
+    space-prefixed id: that breaks the merge which caused the divergence while leaving every other
+    token -- in particular the tail, where the metric's argmax lives -- alone. It iterates because
+    one repair can expose another.
+    """
+    ids = [int(x) for x in ids]
+    n_fix = 0
+    for _ in range(tries):
+        ok, _t = retok_ok(tok, [ids])
+        if ok:
+            if counters is not None:
+                counters["init_repairs"] += n_fix
+            return np.asarray(ids, np.int64), n_fix
+        enc = list(tok(tok.decode(ids), add_special_tokens=False).input_ids)
+        m = min(len(enc), len(ids))
+        j = next((i for i in range(m) if enc[i] != ids[i]), max(0, m - 1))
+        j = max(0, min(j, len(ids) - 1))
+        ids[j] = int(alpha_sp[rng.integers(0, len(alpha_sp))])
+        n_fix += 1
+    raise AssertionError(
+        f"could not make the init round-trip in {tries} single-token repairs -- every candidate "
+        f"would be rejected by the retokenisation filter and the search would silently do nothing"
+    )
+
+
+def init_corpus(tok, rng, alpha_sp, scan_top, toks, docs, row, t_len, counters):
+    """The best CORPUS WINDOW we retrieved for this direction, cut to `t_len` around its argmax.
+
+    The scan (`precompute/scan.py`) already searched the whole corpus for each held-out direction
+    and stored, per corpus size, the top-64 windows as `[doc, window start, argmax WITHIN the
+    window, cos]`. This init takes the top-1 at the LARGEST size -- the strongest natural text this
+    project has for the direction -- reads its ids straight out of `corpus/tokens.i32`, and keeps
+    the `t_len` tokens ENDING at `max(argmax, t_len - 1)`, i.e. the tail of the window that still
+    contains the token the direction actually fires on.
+
+    RESOLVED AGAINST THE BRIEF: the scan's windows are 64/16 (`common.windows_of`), but a document
+    of <= 64 tokens is ONE window of its whole length, so a top-1 window can be SHORTER than
+    `t_len`. Front-padding it would reintroduce exactly the confound the fork's `--seq-len-mode
+    rollout` was invented to remove ("the search improves the inversion" vs "the search prepends
+    helpful context"). Instead the top-k list is walked down to the highest-ranked window with at
+    least `t_len` tokens, and that rank is recorded on every output row.
+
+    Returns (ids [t_len], info) where `info` carries the provenance and the window's OWN scan
+    cosine -- the PRE-REPAIR number, over the whole (up to 64-token) window, which is not the same
+    quantity as the post-repair `init_cos` the loop measures on the cut. Both are in `finals.jsonl`.
+    """
+    entries = scan_top[row]
+    size = max(entries)
+    top = entries[size]
+    assert top, f"target row {row}: the scan's top-k at corpus size {size}M is empty"
+    chosen = None
+    for rank, (doc, start, argmax, wcos) in enumerate(top):
+        rec = docs[doc]
+        assert int(rec["doc"]) == int(doc), (
+            f"corpus docs.jsonl is not self-indexed: row {doc} carries doc={rec['doc']}"
+        )
+        lens = [ln for (s, ln) in C.windows_of(int(rec["len"])) if s == int(start)]
+        assert len(lens) == 1, (
+            f"target row {row}: the scan names a window at start {start} of doc {doc} "
+            f"({rec['len']} tokens) that common.windows_of does not produce ({len(lens)} matches) "
+            f"-- the scan and this init disagree on the 64/16 geometry"
+        )
+        wlen = lens[0]
+        assert 0 <= int(argmax) < wlen, (
+            f"target row {row}: scan argmax {argmax} outside its own window of {wlen} tokens"
+        )
+        if wlen >= t_len:
+            chosen = (rank, int(doc), int(start), int(argmax), float(wcos), wlen)
+            break
+        counters["init_short_windows"] += 1
+    assert chosen is not None, (
+        f"target row {row}: not one of the {len(top)} top-k windows at size {size}M has the "
+        f"{t_len} tokens the search needs (the shortest corpus documents are single windows)"
+    )
+    rank, doc, start, argmax, wcos, wlen = chosen
+    off = int(docs[doc]["offset"])
+    window = [int(x) for x in toks[off + start : off + start + wlen]]
+    assert len(window) == wlen, f"corpus read gave {len(window)} ids for a {wlen}-token window"
+    end = max(argmax, t_len - 1)
+    cut = window[end - t_len + 1 : end + 1]
+    assert len(cut) == t_len, f"the cut is {len(cut)} ids, expected {t_len}"
+    ids, n_fix = roundtrip_repair(tok, cut, alpha_sp, rng, counters)
+    text = tok.decode(ids.tolist())
+    re_ids, over = enc_trunc(tok, text)
+    assert not over and re_ids == ids.tolist(), (
+        f"target row {row}: the repaired corpus init does not re-encode to its own ids "
+        f"({len(re_ids)} ids back, truncated={over}) -- roundtrip_repair did not do its job"
+    )
+    info = {
+        "init_topk_rank": rank,
+        "init_corpus_size_m": size,
+        "init_doc": doc,
+        "init_window_start": start,
+        "init_window_len": wlen,
+        "init_window_argmax": argmax,
+        # the scan's cosine of the WHOLE window (up to 64 tokens), before the cut and the repair
+        "init_window_cos": round(wcos, 6),
+        "init_cut_end": end,
+        "init_repairs": n_fix,
+    }
+    return ids, info
+
+
+# ---------------------------------------------------------------------------------------------
+# per-string reporting metrics
+# ---------------------------------------------------------------------------------------------
+
+
+def distinct_n(ids, n):
+    if len(ids) < n:
+        return None
+    grams = [tuple(ids[i : i + n]) for i in range(len(ids) - n + 1)]
+    return len(set(grams)) / float(len(grams))
+
+
+def _sync(dev):
+    import torch
+
+    if str(dev).startswith("cuda"):
+        torch.cuda.synchronize(dev)
+
+
+def parse_lam_grid(spec, pop):
+    """"lo:hi" -> `pop` log-spaced lambdas; "a,b,c" -> that list (length pop, or 1 broadcast)."""
+    spec = spec.strip()
+    if ":" in spec:
+        lo, hi = (float(x) for x in spec.split(":", 1))
+        assert lo > 0 and hi > 0, f"a log-uniform grid needs positive endpoints, got {spec}"
+        if pop == 1:
+            return [lo]
+        # float(), not the numpy scalars linspace hands back: they reach summary.json and
+        # json.dump refuses numpy.float64 -- which would discard a finished run at its last line.
+        return [float(x) for x in np.exp(np.linspace(math.log(lo), math.log(hi), pop))]
+    vals = [float(x) for x in spec.split(",") if x.strip()]
+    assert vals, f"--lam-grid {spec!r} parses to nothing"
+    if len(vals) == 1:
+        return vals * pop
+    assert len(vals) == pop, f"--lam-grid has {len(vals)} values but --pop is {pop}"
+    return vals
+
+
+# ---------------------------------------------------------------------------------------------
+# the loop
+# ---------------------------------------------------------------------------------------------
+
+
+class _TopSet:
+    """Per-member running set of the best DISTINCT candidate strings, keyed by their ids.
+
+    Pruned back to TOP_PRUNE_TO whenever it passes TOP_PRUNE_AT, so a 150 x 512 run holds ~1k id
+    tuples instead of 76,800. Pruning never removes anything inside the top TOP_PRUNE_TO, so the
+    top TOP_KEEP this reports is exact.
+    """
+
+    def __init__(self):
+        self.best: dict[tuple, float] = {}
+
+    def push(self, ids, cos):
+        key = tuple(int(x) for x in ids)
+        prev = self.best.get(key)
+        if prev is None or cos > prev:
+            self.best[key] = float(cos)
+        if len(self.best) > TOP_PRUNE_AT:
+            self.prune(TOP_PRUNE_TO)
+
+    def prune(self, k):
+        top = sorted(self.best.items(), key=lambda kv: -kv[1])[:k]
+        self.best = dict(top)
+
+    def top(self, k):
+        return sorted(self.best.items(), key=lambda kv: -kv[1])[:k]
+
+
+def run_direction(
+    a, model, tok, dev, alpha, alpha_t, w_e32, d_cpu, row, fam, lams, rng, arm,
+    sink_id, mdtype, read_layer, alpha_sp, init_ctx, span_text, sae_ctx=None, family_row=None,
+):
+    """One direction, one arm. Returns (per-member finals, top64 rows, trajectory rows, timings)."""
+    import torch
+
+    pop = a["pop"]
+    t_len = a["seq_len"]
+    d = d_cpu.to(dev)
+    want_nll = bool(np.any(np.asarray(lams) > 0))
+    lam_t = torch.as_tensor(lams, dtype=torch.float32, device=dev)
+    tm = {"grad_s": 0.0, "cand_s": 0.0, "fwd_s": 0.0, "nll_s": 0.0, "misc_s": 0.0}
+    counters = {
+        "drawn": 0, "kept": 0, "capped_iters": 0, "capped_members": 0,
+        "init_redraws": 0, "init_repairs": 0, "init_short_windows": 0,
+    }
+    t_dir = time.time()
+
+    # ---- init ---------------------------------------------------------------------------------
+    init_info: dict = {}
+    if a["init"] == "random32":
+        cur = init_random(rng, alpha, pop, t_len, tok, alpha_sp, counters=counters)
+    elif a["init"] == "corpus":
+        one, init_info = init_corpus(
+            tok, rng, alpha_sp, init_ctx["scan_top"], init_ctx["toks"], init_ctx["docs"],
+            row, t_len, counters,
+        )
+        # All pop members start from the SAME string (the fork's rule for a shared init): with
+        # distinct lambdas they select differently from iteration 1 and diverge on their own.
+        cur = np.stack([one.copy() for _ in range(pop)])
+    else:
+        raise ValueError(f"unknown --init {a['init']!r}, want one of {list(INITS)}")
+    assert cur.ndim == 2 and cur.shape == (pop, t_len), (
+        f"the init returned {cur.shape}, expected ({pop}, {t_len})"
+    )
+    assert 2 <= t_len <= MAX_REENC_TOK, (
+        f"T={t_len} is outside [2, {MAX_REENC_TOK}] -- the NLL needs a context token and the "
+        f"scorer truncates at {MAX_REENC_TOK}"
+    )
+    init_ids_l = [cur[m].tolist() for m in range(pop)]
+    init_texts = [tok.decode(x) for x in init_ids_l]
+
+    _sync(dev)
+    t0 = time.time()
+    ex = exact_cos(model, tok, cur.tolist(), d_cpu, read_layer, a["sbatch"], dev)
+    cur_cos = ex["cos"].astype(np.float64)
+    init_cos = cur_cos.copy()
+    # The init's own NLL is measured whether or not the objective uses one: it costs a single
+    # pop-row forward and it is the only way to say what a fluency-penalised arm's fluency DID.
+    init_nll = mean_nll(model, torch.as_tensor(cur, device=dev))[0].astype(np.float64)
+    cur_nll = init_nll.copy() if want_nll else np.zeros(pop)
+    _sync(dev)
+    tm["misc_s"] += time.time() - t0
+    cur_l = cur_cos - np.asarray(lams) * cur_nll
+    l_at_restart = cur_l.copy()
+
+    tops = [_TopSet() for _ in range(pop)]
+    for m in range(pop):
+        tops[m].push(init_ids_l[m], cur_cos[m])
+
+    traj: list[dict] = []
+    n_cand = 0
+    last_soft = np.full(pop, float("nan"))
+    t_loop = time.time()
+    for it in range(a["iters"]):
+        # (a) gradient
+        t0 = time.time()
+        grad, last_soft, _ns = grad_pass(
+            model, dev, w_e32, torch.as_tensor(cur, device=dev), d, lam_t, a["tau"], sink_id,
+            mdtype, want_nll, read_layer,
+        )
+        _sync(dev)
+        tm["grad_s"] += time.time() - t0
+
+        # (b) candidates
+        t0 = time.time()
+        ga = grad.index_select(2, alpha_t)  # [pop, T, |A|]
+        top = ga.topk(min(a["topk"], ga.shape[2]), dim=-1).indices
+        pool = alpha_t[top].cpu().numpy()  # [pop, T, topk] real ids
+        del ga, top, grad
+        cands = sample_candidates(
+            rng, tok, cur, pool, a["children"], a["filter_oversample"], counters
+        )
+        _sync(dev)
+        tm["cand_s"] += time.time() - t0
+        # A no-op must be an ERROR, not a result: if not one candidate survived the retokenisation
+        # filter the search cannot move and every later iteration inherits the same string.
+        assert any(cl for cl in cands), (
+            f"{fam}:{row} iteration {it}: NOT ONE of the {pop * a['children']} candidates survived "
+            f"the retokenisation filter ({counters['drawn']} drawn, {counters['kept']} kept so "
+            f"far). The current string does not round-trip, so no single substitution of it can; "
+            f"the search would sit still for the rest of the run and report its init as a result. "
+            f"Init arm {a['init']!r}."
+        )
+
+        # (c) selection -- ONE exact pass over every member's candidates
+        flat, owner = [], []
+        for m, cl in enumerate(cands):
+            flat.extend(cl)
+            owner.extend([m] * len(cl))
+        t0 = time.time()
+        ce = exact_cos(model, tok, flat, d_cpu, read_layer, a["sbatch"], dev)
+        _sync(dev)
+        tm["fwd_s"] += time.time() - t0
+        n_cand += len(flat)
+        cc = ce["cos"].astype(np.float64)
+        nn = np.zeros(len(flat))
+        if want_nll:
+            t0 = time.time()
+            nn = mean_nll(
+                model, torch.as_tensor(np.asarray(flat, np.int64), device=dev)
+            )[0].astype(np.float64)
+            _sync(dev)
+            tm["nll_s"] += time.time() - t0
+        own = np.asarray(owner)
+        for m in range(pop):
+            sel = np.flatnonzero(own == m)
+            if not len(sel):
+                continue
+            for j in sel:
+                tops[m].push(flat[j], cc[j])
+            l_m = cc[sel] - lams[m] * nn[sel]
+            j = int(sel[int(np.argmax(l_m))])
+            if cc[j] - lams[m] * nn[j] > cur_l[m]:
+                cur[m] = np.asarray(flat[j], np.int64)
+                cur_cos[m], cur_nll[m] = cc[j], nn[j]
+                cur_l[m] = cc[j] - lams[m] * nn[j]
+
+        # (d) restart the STALLED member -- the one making the least PROGRESS in its OWN objective
+        # since the last restart (a lambda-invariant reading; "the worst L" would restart the
+        # highest-lambda member forever), ties broken by the lowest cosine. Off by default.
+        if a["restart_every"] and it and it % a["restart_every"] == 0 and pop > 1:
+            prog = cur_l - l_at_restart
+            m = int(np.lexsort((cur_cos, prog))[0])
+            cur[m] = init_random(rng, alpha, 1, t_len, tok, alpha_sp, counters=counters)[0]
+            t0 = time.time()
+            cur_cos[m] = exact_cos(
+                model, tok, [cur[m].tolist()], d_cpu, read_layer, a["sbatch"], dev
+            )["cos"][0]
+            if want_nll:
+                cur_nll[m] = mean_nll(model, torch.as_tensor(cur[m : m + 1], device=dev))[0][0]
+            _sync(dev)
+            tm["misc_s"] += time.time() - t0
+            cur_l[m] = cur_cos[m] - lams[m] * cur_nll[m]
+            l_at_restart = cur_l.copy()
+
+        reject = 1.0 - counters["kept"] / max(1, counters["drawn"])
+        if it % a["log_every"] == 0 or it == a["iters"] - 1:
+            el = time.time() - t_loop
+            for m in range(pop):
+                traj.append({
+                    "row": int(row), "family": fam, "arm": arm, "member": m, "lam": lams[m],
+                    "iter": it,
+                    "cos": round(float(cur_cos[m]), 6),
+                    # tau*logsumexp at the START of this iteration, against the hard max in `cos`:
+                    # their gap is the only calibration signal --tau has and it costs nothing
+                    "cos_soft": (
+                        None if not np.isfinite(last_soft[m]) else round(float(last_soft[m]), 6)
+                    ),
+                    "nll": (round(float(cur_nll[m]), 6) if want_nll else None),
+                    "L": round(float(cur_l[m]), 6),
+                    "filter_reject_rate": round(reject, 6),
+                    "elapsed_s": round(el, 2),
+                    "cand_forwards": n_cand,
+                })
+            rate = n_cand / max(1e-9, el)
+            eta = (a["iters"] - it - 1) * (el / (it + 1)) / 60.0
+            print(
+                f"[gcg] {fam}:{row} it {it:4d}/{a['iters']} best cos {float(cur_cos.max()):.4f} "
+                f"| {n_cand} cands, {rate:.0f} cand/s, reject {reject:.3f}, eta {eta:.1f} min/dir "
+                f"(grad {tm['grad_s']:.0f}s cand {tm['cand_s']:.0f}s fwd {tm['fwd_s']:.0f}s "
+                f"nll {tm['nll_s']:.0f}s)",
+                flush=True,
+            )
+
+    loop_s = time.time() - t_loop
+
+    # ---- finals + the CHECK block ---------------------------------------------------------------
+    ids_l = [cur[m].tolist() for m in range(pop)]
+    t0 = time.time()
+    sae = sae_ctx["sae"] if sae_ctx else None
+    feat = sae_ctx["feature_id"] if sae_ctx else None
+    fresh = exact_cos(
+        model, tok, ids_l, d_cpu, read_layer, a["sbatch"], dev, want_tokens=True,
+        sae=sae, feature_id=feat,
+    )
+    rebatch = exact_cos(model, tok, ids_l, d_cpu, read_layer, C.SCORE_CHUNK, dev)
+    nl, ent = mean_nll(model, torch.as_tensor(cur, device=dev), want_entropy=True)
+    _sync(dev)
+    tm["misc_s"] += time.time() - t0
+
+    assert (fresh["amax"] >= 0).all(), "a final string has no kept token"
+    d_same = float(np.abs(fresh["cos"] - cur_cos).max())
+    d_re = float(np.abs(rebatch["cos"] - cur_cos).max())
+    assert d_same < COS_TOL_SAME_BATCH_HARD, (
+        f"{fam}:{row}: the loop's own cos does not reproduce a fresh common.score_ids call at the "
+        f"same sub-batch (max |d| {d_same:.2e} > {COS_TOL_SAME_BATCH_HARD:.0e}) -- that is a "
+        f"bookkeeping bug in the loop, not float noise"
+    )
+    if d_same >= COS_TOL_SAME_BATCH:
+        print(
+            f"[gcg] {fam}:{row} NOTE loop-vs-fresh cos delta {d_same:.2e} exceeds the advisory "
+            f"{COS_TOL_SAME_BATCH:.0e} (batch-geometry noise; hard bound "
+            f"{COS_TOL_SAME_BATCH_HARD:.0e})",
+            flush=True,
+        )
+    assert d_re < COS_TOL_REBATCH, (
+        f"{fam}:{row}: the loop's cos vs common.score_ids at SCORE_CHUNK={C.SCORE_CHUNK} differs "
+        f"by {d_re:.2e} > {COS_TOL_REBATCH:.0e} -- more than a bf16 forward's batch-shape-dependent "
+        f"reduction order can explain, so the pipeline's own chunk would report a different number"
+    )
+    print(
+        f"[gcg] {fam}:{row} CHECK loop cos vs score_ids @sbatch {a['sbatch']} max |d| "
+        f"{d_same:.2e} | @SCORE_CHUNK {C.SCORE_CHUNK} max |d| {d_re:.2e}",
+        flush=True,
+    )
+
+    # ---- top-64 distinct, NLL'd in one batch ----------------------------------------------------
+    top_rows: list[dict] = []
+    t0 = time.time()
+    for m in range(pop):
+        entries = tops[m].top(TOP_KEEP)
+        assert entries, f"{fam}:{row} member {m}: the top set is empty"
+        ids_batch = np.asarray([list(k) for k, _v in entries], np.int64)
+        nll_batch = mean_nll(model, torch.as_tensor(ids_batch, device=dev))[0]
+        for rank, ((key, cos), nllv) in enumerate(zip(entries, nll_batch, strict=True)):
+            top_rows.append({
+                "row": int(row), "family": fam, "arm": arm, "member": m, "lam": lams[m],
+                "rank": rank, "string": tok.decode(list(key)), "ids": list(key),
+                "cos": round(float(cos), 6), "nll": round(float(nllv), 6),
+            })
+        tops[m].prune(TOP_KEEP)
+    _sync(dev)
+    tm["misc_s"] += time.time() - t0
+
+    wall_s = time.time() - t_dir
+    finals = []
+    for m in range(pop):
+        ids = ids_l[m]
+        finals.append({
+            "row": int(row), "family": fam, "arm": arm, "mode": a["mode"], "member": m,
+            "lam": lams[m], "init": a["init"], "seq_len": t_len, "iters": a["iters"],
+            "string": tok.decode(ids), "ids": ids,
+            "cos": round(float(fresh["cos"][m]), 6),
+            "cos_loop": round(float(cur_cos[m]), 6),
+            "cos_rebatch": round(float(rebatch["cos"][m]), 6),
+            "nll": round(float(nl[m]), 6),
+            "ppl": round(float(math.exp(min(50.0, nl[m]))), 3),
+            "per_token_cos": fresh["per_token"][m],
+            "argmax": int(fresh["amax"][m]),
+            "argmax_tok": tok.decode([ids[int(fresh["amax"][m])]]),
+            "init_cos": round(float(init_cos[m]), 6),
+            "init_nll": round(float(init_nll[m]), 6),
+            "init_string": init_texts[m],
+            "init_ids": init_ids_l[m],
+            "token_entropy": round(float(ent[m]), 6),
+            "nonascii_frac": round(float(np.mean([not is_ascii_id(tok, i) for i in ids])), 4),
+            "distinct2": distinct_n(ids, 2),
+            "distinct3": distinct_n(ids, 3),
+            "cand_forwards": n_cand,
+            "wall_s": round(wall_s, 2),
+            "target_span_text": span_text,
+            "family_row": family_row,
+            **(
+                {}
+                if sae_ctx is None
+                else {
+                    # RECORDED, NOT OPTIMISED: the objective is the cosine to the encoder column.
+                    # These say whether the string the search found also makes the feature FIRE.
+                    "sae_feature": int(feat),
+                    "sae_threshold": round(float(sae.threshold), 6),
+                    "sae_act_at_argmax": round(float(fresh["sae_at_argmax"][m]), 6),
+                    "sae_peak_act": round(float(fresh["sae_peak"][m]), 6),
+                    "sae_peak_pos": int(fresh["sae_peak_pos"][m]),
+                    "sae_fired": bool(fresh["sae_peak"][m] > sae.threshold),
+                }
+            ),
+            **init_info,
+        })
+
+    tm["gpu_seconds"] = sum(tm[k] for k in ("grad_s", "cand_s", "fwd_s", "nll_s", "misc_s"))
+    tm["loop_s"] = loop_s
+    tm["wall_s"] = wall_s
+    tm["iters"] = a["iters"]
+    tm["cand_forwards"] = n_cand
+    tm["cand_per_s_fwd"] = n_cand / max(1e-9, tm["fwd_s"])
+    tm["cand_per_s_total"] = n_cand / max(1e-9, tm["gpu_seconds"])
+    tm["filter_drawn"] = counters["drawn"]
+    tm["filter_kept"] = counters["kept"]
+    tm["filter_reject_rate"] = 1.0 - counters["kept"] / max(1, counters["drawn"])
+    tm["topup_capped_iters"] = counters["capped_iters"]
+    tm["topup_capped_members"] = counters["capped_members"]
+    tm["init_redraws"] = counters["init_redraws"]
+    tm["init_repairs"] = counters["init_repairs"]
+    tm["init_short_windows"] = counters["init_short_windows"]
+    tm["cos_check_same_batch"] = d_same
+    tm["cos_check_rebatch"] = d_re
+    tm["distinct_candidates_kept"] = int(sum(len(t.best) for t in tops))
+    # The per-iteration assert above already raises on the FIRST iteration that produces no
+    # candidate, so this cannot fire behind it. It is here because `filter_reject_rate == 1.0` with
+    # `cand_forwards == 0` is the exact signature of the defect that silently produced a bogus
+    # result in the fork, and a run must not be able to WRITE that signature to disk.
+    assert tm["cand_forwards"] > 0 and tm["filter_reject_rate"] < 1.0, (
+        f"{fam}:{row}: {tm['cand_forwards']} candidate forwards at rejection rate "
+        f"{tm['filter_reject_rate']:.3f} -- the search did not move and its init's own score would "
+        f"be reported as a result (init arm {a['init']!r}, T={t_len})"
+    )
+    return finals, top_rows, traj, tm
+
+
+# ---------------------------------------------------------------------------------------------
+# the product
+# ---------------------------------------------------------------------------------------------
+
+
+def resolve_config(cfg, args):
+    """The per-arm configuration, mode defaults filled in and every value asserted."""
+    mode, init = args.get("mode") or "", args.get("init") or ""
+    arm = args.get("arm") or ""
+    if arm:
+        assert not mode and not init, "--arm already names the mode and the init; pass one or the other"
+        parts = arm.split("-", 1)
+        assert len(parts) == 2, f"--arm must be '<mode>-<init>', got {arm!r}"
+        mode, init = parts
+    assert mode in MODES, f"mode must be one of {list(MODES)}, got {mode!r}"
+    assert init in INITS, f"init must be one of {list(INITS)}, got {init!r}"
+    dflt = MODE_DEFAULTS[mode]
+    a = {
+        "mode": mode,
+        "init": init,
+        "iters": int(args.get("iters") or dflt["iters"]),
+        "pop": int(args.get("pop") or dflt["pop"]),
+        "children": int(args.get("children") or dflt["children"]),
+        "lam_grid": args.get("lam_grid") or dflt["lam_grid"],
+        "topk": int(args.get("topk") or 512),
+        "seq_len": int(args.get("seq_len") or 32),
+        "tau": float(args.get("tau") or 0.02),
+        "sbatch": int(args.get("sbatch") or 256),
+        "restart_every": int(args.get("restart_every") or 0),
+        "log_every": int(args.get("log_every") or 10),
+        "filter_oversample": float(args.get("filter_oversample") or INIT_OVERSAMPLE[init]),
+        "seed": int(args.get("seed") or 0),
+    }
+    # The mode/pop invariant is checked BEFORE the grid is parsed, so `--mode epo --pop 1` reports
+    # the population it is wrong about rather than the grid length that follows from it.
+    if mode == "gcg":
+        assert a["pop"] == 1, f"--mode gcg is the loop at pop 1, got pop {a['pop']}"
+    else:
+        assert a["pop"] > 1, f"--mode epo needs a population, got pop {a['pop']}"
+    lams = parse_lam_grid(a["lam_grid"], a["pop"])
+    if mode == "gcg":
+        assert all(x == 0.0 for x in lams), f"--mode gcg is lambda 0, got {lams}"
+    # A restart re-initialises the stalled member from a RANDOM string, which silently converts a
+    # corpus-init arm into a partly-random-init one halfway through while the finals still say
+    # `init: corpus`. Asserted rather than left to hold by accident (both measured arms use 0).
+    assert not (a["restart_every"] and a["pop"] > 1 and init != "random32"), (
+        f"--restart-every {a['restart_every']} replaces the least-progressing member with a RANDOM "
+        f"string, discarding the --init {init} start that defines this arm; pass --restart-every 0"
+    )
+    assert 2 <= a["seq_len"] <= MAX_REENC_TOK, (
+        f"--seq-len {a['seq_len']} must be in [2, {MAX_REENC_TOK}] (the NLL needs a context token "
+        f"and common.score_ids refuses a row above the re-encode truncation)"
+    )
+    assert a["iters"] > 0 and a["children"] > 0 and a["topk"] > 0
+    return a, lams, arm_name(mode, init)
+
+
+def _load_targets(cfg, args):
+    """(rows meta, [N, d] unit fp32 directions on the cpu) for the held-out set."""
+    import torch
+
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    d_model = cfg["bases"][base]["d"]
+    hdir = C.heldout_dir(base, set_name, root)
+    rows = C.read_jsonl(f"{hdir}/ids.jsonl")
+    vecs = C.read_array(f"{hdir}/vecs.f16", "float16", (len(rows), d_model))
+    v = torch.as_tensor(np.asarray(vecs), dtype=torch.float32)
+    v = torch.nn.functional.normalize(v, dim=-1)
+    return rows, v
+
+
+def _load_scan_top(cfg, args, n_rows):
+    """`{row: {size: [[doc, start, argmax, cos], ...]}}` from the scan's topk.jsonl."""
+    path = f"{C.scan_dir(args['base'], args['heldout'], args['root'])}/topk.jsonl"
+    import os
+
+    assert os.path.exists(path), (
+        f"--init corpus needs the corpus scan at {path}: run `--product scan --base "
+        f"{args['base']} --set {args['heldout']}` first (and with --force if the held-out set was "
+        f"re-drawn since -- a scan built against different vectors is silently wrong)"
+    )
+    top: dict[int, dict[int, list]] = {}
+    for r in C.read_jsonl(path):
+        top.setdefault(int(r["row"]), {})[int(r["size"])] = r["top"]
+    assert len(top) >= n_rows, f"{path} covers {len(top)} target rows, the set has {n_rows}"
+    return top
+
+
+def run(cfg, args):
+    import torch
+
+    t_start = time.time()
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    assert base, "product gcg needs --base"
+    a, lams, arm = resolve_config(cfg, args)
+    read_layer = cfg["bases"][base]["read_layer"]
+
+    rows_meta, dirs = _load_targets(cfg, args)
+    # --rows indexes WITHIN the family, not the concatenated set: the held-out set lays the
+    # families out end to end (realact 0-511, random 512-1023, sae 1024-1535 at 512 each), so
+    # `--family sae --rows 0-7` is global rows 1024-1031. Every output row carries BOTH -- `row`
+    # is the global index everything else in the pipeline joins on (scan topk, score per_target),
+    # `family_row` is the index this flag named.
+    family = args.get("family") or "realact"
+    fam_rows = [i for i, r in enumerate(rows_meta) if r["family"] == family]
+    assert fam_rows, (
+        f"held-out set {set_name} on {base} has no `{family}` rows; it has "
+        f"{sorted({r['family'] for r in rows_meta})}"
+    )
+    sel_local = C.parse_rows(args.get("rows") or "", len(fam_rows))
+    sel = [fam_rows[i] for i in sel_local]
+    local_of = dict(zip(sel, sel_local, strict=True))
+    fams = sorted({rows_meta[i]["family"] for i in sel})
+    assert fams == [family], f"row selection crossed families: {fams}"
+    print(
+        f"[gcg] arm {arm} on {base}/{set_name}: family {family}, {len(sel)} directions "
+        f"local {sel_local[:8]}{'...' if len(sel) > 8 else ''} = global {sel[:8]}"
+        f"{'...' if len(sel) > 8 else ''} | pop {a['pop']} x children "
+        f"{a['children']} = {a['pop'] * a['children']} cands/iter x {a['iters']} iters | "
+        f"T={a['seq_len']} topk={a['topk']} tau={a['tau']} oversample={a['filter_oversample']} "
+        f"lams {[round(x, 4) for x in lams]}",
+        flush=True,
+    )
+
+    sae_ctx = None
+    if family == "sae":
+        sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
+        assert len(sae_keys) == 1, (
+            f"base {base} has {len(sae_keys)} SAEs in config.yaml ({sae_keys}); the `sae` family's "
+            f"feature ids belong to exactly one of them"
+        )
+        sae_ctx = {"key": sae_keys[0], "feature_id": None}
+
+    init_ctx: dict = {}
+    if a["init"] == "corpus":
+        toks, docs = C.load_corpus(base, root)
+        init_ctx = {"scan_top": _load_scan_top(cfg, args, len(rows_meta)), "toks": toks, "docs": docs}
+
+    model, tok = C.load_base(cfg, base)  # the CLEAN base: nothing here loads a MAEMM
+    assert tok.is_fast, "the retokenisation filter runs every iteration; it needs a fast tokenizer"
+    # No parameter needs a gradient: only the one-hot leaf does, and without this the backward
+    # allocates a full copy of the model's parameter grads on the first iteration.
+    model.requires_grad_(False)
+    assert hasattr(model, "model"), "the NLL path calls the transformer body as `model.model`"
+    mdtype = next(model.parameters()).dtype
+    dev = next(model.parameters()).device
+    sink_id = C.sink_token_id(tok)
+
+    alpha, n_vocab = ascii_alphabet(tok, base)
+    alpha_sp = space_prefixed(tok, alpha)
+    alpha_t = torch.as_tensor(alpha, device=dev)
+    assert sink_id not in set(int(x) for x in alpha), (
+        f"the sink id {sink_id} survived the alphabet filter -- it must not, the scorer prepends "
+        f"its own sink and a string containing it would be scored on a stream nothing else builds"
+    )
+    # W_E in fp32: the one-hot relaxation's forward and backward both run through it, and that
+    # matmul in bf16 costs ~3 decimal digits on a ranking over ~100k ids.
+    w_e32 = input_embeddings(model).weight.detach().float()
+
+    if sae_ctx is not None:
+        sae_ctx["sae"] = C.load_sae(
+            C.sae_path(cfg, sae_ctx["key"]), cfg["bases"][base]["d"], device=str(dev),
+            dtype=torch.float32,
+        )
+        print(
+            f"[gcg] sae {sae_ctx['key']}: {sae_ctx['sae'].d_sae} features, learned gate "
+            f"{sae_ctx['sae'].threshold:.4f} -- activation is RECORDED on the finals, never "
+            f"optimised (the objective stays the cosine to the encoder column)",
+            flush=True,
+        )
+
+    out_dir = C.gcg_dir(base, set_name, family, arm, root)
+    inputs = {
+        "heldout": C.heldout_dir(base, set_name, root),
+        "family": family,
+        "rows": f"{args.get('rows') or 'all'} of family {family} (global {sel[0]}..{sel[-1]})",
+        "directions": len(sel),
+        "read_layer": read_layer,
+        "arm": arm,
+    }
+    if sae_ctx is not None:
+        inputs["sae"] = f"{sae_ctx['key']} (gate {sae_ctx['sae'].threshold:.4f})"
+    if a["init"] == "corpus":
+        inputs["scan"] = C.scan_dir(base, set_name, root)
+        inputs["corpus"] = C.corpus_dir(base, root)
+
+    all_finals: list[dict] = []
+    all_top: list[dict] = []
+    all_traj: list[dict] = []
+    runs: dict[str, dict] = {}
+    with C.outdir(out_dir, args, inputs=inputs) as od:
+        # Streamed, not buffered: an 8-direction epo run is ~20 GPU-minutes and a crash at
+        # direction 7 must not throw away the six that finished (OutDir keeps the temp dir).
+        fh_fin = open(od.file("finals.jsonl"), "w")
+        fh_tr = open(od.file("trajectory.jsonl"), "w")
+        fh_top = open(od.file("top64.jsonl"), "w")
+        try:
+            for n_done, row in enumerate(sel):
+                fam = rows_meta[row]["family"]
+                # crc32, not hash(): Python's string hash is salted per process, so hash(fam) would
+                # make --seed reproduce nothing across runs.
+                rng = np.random.default_rng([a["seed"], zlib.crc32(fam.encode()), row])
+                if sae_ctx is not None:
+                    sae_ctx["feature_id"] = int(rows_meta[row]["id"])
+                fin, tops, traj, tm = run_direction(
+                    a, model, tok, dev, alpha, alpha_t, w_e32, dirs[row], row, fam, lams, rng,
+                    arm, sink_id, mdtype, read_layer, alpha_sp, init_ctx,
+                    rows_meta[row].get("span_text"), sae_ctx, local_of[row],
+                )
+                for r in fin:
+                    fh_fin.write(json.dumps(r) + "\n")
+                for r in traj:
+                    fh_tr.write(json.dumps(r) + "\n")
+                for r in tops:
+                    fh_top.write(json.dumps(r) + "\n")
+                for fh in (fh_fin, fh_tr, fh_top):
+                    fh.flush()
+                all_finals += fin
+                all_top += tops
+                all_traj += traj
+                runs[f"{fam}:{row}"] = {
+                    "row": row, "family": fam, "timings": tm,
+                    "finals": [
+                        {k: v for k, v in f.items() if k not in _BULKY_FINAL_KEYS} for f in fin
+                    ],
+                }
+                el = time.time() - t_start
+                print(
+                    f"[gcg] DONE {fam}:{row} best cos {max(f['cos'] for f in fin):.4f} "
+                    f"(init {fin[0]['init_cos']:.4f}) | {tm['cand_forwards']} cands in "
+                    f"{tm['gpu_seconds']:.0f} gpu-s = {tm['cand_per_s_total']:.0f} cand/s | reject "
+                    f"{tm['filter_reject_rate']:.3f} | {n_done + 1}/{len(sel)} dirs, eta "
+                    f"{(len(sel) - n_done - 1) * el / (n_done + 1) / 60:.1f} min",
+                    flush=True,
+                )
+        finally:
+            for fh in (fh_fin, fh_tr, fh_top):
+                fh.close()
+        # OutDir.write_jsonl builds these entries for files it writes itself; these three are
+        # streamed above, so their index entries are registered by hand.
+        for name, n in (
+            ("finals.jsonl", len(all_finals)),
+            ("trajectory.jsonl", len(all_traj)),
+            ("top64.jsonl", len(all_top)),
+        ):
+            od.index[name] = {"kind": "jsonl", "rows": n, "bytes": od.file(name).stat().st_size}
+
+        best = np.array([f["cos"] for f in all_finals], np.float64)
+        init_c = np.array([f["init_cos"] for f in all_finals], np.float64)
+        nlls = np.array([f["nll"] for f in all_finals], np.float64)
+        per_dir_best = [max(f["cos"] for f in all_finals if f["row"] == r) for r in sel]
+        per_dir_init = [max(f["init_cos"] for f in all_finals if f["row"] == r) for r in sel]
+        n_distinct = [
+            len({tuple(t["ids"]) for t in all_top if t["row"] == r}) for r in sel
+        ]
+        tot = {
+            k: float(sum(runs[r]["timings"][k] for r in runs))
+            for k in ("grad_s", "cand_s", "fwd_s", "nll_s", "misc_s", "gpu_seconds", "wall_s")
+        }
+        tot["cand_forwards"] = int(sum(runs[r]["timings"]["cand_forwards"] for r in runs))
+        tot["cand_per_s_total"] = tot["cand_forwards"] / max(1e-9, tot["gpu_seconds"])
+        tot["cand_per_s_fwd"] = tot["cand_forwards"] / max(1e-9, tot["fwd_s"])
+        drawn = float(sum(runs[r]["timings"]["filter_drawn"] for r in runs))
+        kept = float(sum(runs[r]["timings"]["filter_kept"] for r in runs))
+        tot["filter_reject_rate"] = 1.0 - kept / max(1.0, drawn)
+        tot["cos_check_same_batch_max"] = max(runs[r]["timings"]["cos_check_same_batch"] for r in runs)
+        tot["cos_check_rebatch_max"] = max(runs[r]["timings"]["cos_check_rebatch"] for r in runs)
+
+        sae_rows = [f for f in all_finals if "sae_peak_act" in f]
+        summary = {
+            "base": base, "set": set_name, "family": family, "arm": arm, "config": a,
+            "lams": lams, "rows": sel, "family_rows": sel_local, "families": fams,
+            "read_layer": read_layer, "d": cfg["bases"][base]["d"],
+            "vocab": int(n_vocab),
+            "alphabet_size": int(len(alpha)),
+            "alphabet_expected": ALPHABET_EXPECT.get(base),
+            "alphabet_space_prefixed": int(len(alpha_sp)),
+            "sink_id": int(sink_id),
+            "score_max_length": C.SCORE_MAX_LENGTH,
+            "score_chunk": C.SCORE_CHUNK,
+            "candidate_budget_per_iter": a["pop"] * a["children"],
+            "n_directions": len(sel),
+            "mean_final_cos": float(best.mean()),
+            "mean_init_cos": float(init_c.mean()),
+            "mean_nll": float(nlls.mean()),
+            "per_dir_best_cos": [round(float(x), 6) for x in per_dir_best],
+            "per_dir_init_cos": [round(float(x), 6) for x in per_dir_init],
+            "distinct_top_strings_per_dir": n_distinct,
+            "by_lam": {
+                f"{lam:.4g}": {
+                    "n": int(sum(1 for f in all_finals if f["member"] == m)),
+                    "cos_mean": float(np.mean([f["cos"] for f in all_finals if f["member"] == m])),
+                    "nll_mean": float(np.mean([f["nll"] for f in all_finals if f["member"] == m])),
+                }
+                for m, lam in enumerate(lams)
+            },
+            "sae": (
+                None
+                if sae_ctx is None
+                else {
+                    "key": sae_ctx["key"],
+                    "threshold": round(float(sae_ctx["sae"].threshold), 6),
+                    "features": [int(rows_meta[r]["id"]) for r in sel],
+                    "mean_peak_act": float(np.mean([f["sae_peak_act"] for f in sae_rows])),
+                    "mean_act_at_argmax": float(np.mean([f["sae_act_at_argmax"] for f in sae_rows])),
+                    "frac_fired": float(np.mean([f["sae_fired"] for f in sae_rows])),
+                    # only defined where the feature actually fires somewhere (peak_pos >= 0)
+                    "n_rows_peak_defined": int(
+                        sum(1 for f in sae_rows if f["sae_peak_pos"] >= 0)
+                    ),
+                    "frac_peak_at_cos_argmax": (
+                        float(
+                            np.mean(
+                                [
+                                    f["sae_peak_pos"] == f["argmax"]
+                                    for f in sae_rows
+                                    if f["sae_peak_pos"] >= 0
+                                ]
+                            )
+                        )
+                        if any(f["sae_peak_pos"] >= 0 for f in sae_rows)
+                        else None
+                    ),
+                }
+            ),
+            "runs": runs,
+            "totals": tot,
+            "wall_min": (time.time() - t_start) / 60.0,
+        }
+        od.write_json("summary.json", summary)
+
+        od.section(
+            "Objective",
+            [
+                "`L_lambda(x) = cos(x) - lambda * nll(x)` at a FIXED string length of "
+                f"T={a['seq_len']} ids.",
+                "",
+                f"- `cos(x)` is the max over KEPT tokens (sink excluded, no norm filter) of "
+                f"`cos(unit(h_t), d)` at read layer {read_layer}, through `common.score_ids` -- "
+                f"the same function `score.py` scores rollouts with. UNCENTRED, fp32.",
+                "- `nll(x)` is the mean per-token NLL of the string's own ids under the clean base "
+                "(teacher forcing, no prompt, no sink), fp32 lm_head, self-checked against "
+                "`model(...).logits` on the first batch.",
+                f"- arm `{arm}`: mode `{a['mode']}` (pop {a['pop']} x children {a['children']} = "
+                f"{a['pop'] * a['children']} candidates/iter x {a['iters']} iters), init "
+                f"`{a['init']}`, lambdas {[round(x, 4) for x in lams]}, topk {a['topk']}, tau "
+                f"{a['tau']}, sbatch {a['sbatch']}, oversample {a['filter_oversample']}, seed "
+                f"{a['seed']}.",
+            ],
+        )
+        od.note(
+            f"{len(sel)} `{family}` directions, family rows {args.get('rows') or 'all'} (global "
+            f"{sel[0]}..{sel[-1]}) of {set_name}: mean final cos **{best.mean():.4f}**, mean init "
+            f"cos **{init_c.mean():.4f}**, mean NLL {nlls.mean():.4f}"
+        )
+        if sae_ctx is not None:
+            sm = summary["sae"]
+            od.note(
+                f"sae activation, RECORDED not optimised (objective = cos to the encoder column, "
+                f"gate {sm['threshold']:.4f} from the checkpoint): mean peak pre-gate act over "
+                f"kept tokens **{sm['mean_peak_act']:.4f}**, mean act at the cosine's argmax "
+                f"{sm['mean_act_at_argmax']:.4f}, **fraction fired {sm['frac_fired']:.3f}**, "
+                f"peak and cos-argmax coincide on "
+                + (
+                    "n/a (the feature is dead on every final)"
+                    if sm["frac_peak_at_cos_argmax"] is None
+                    else f"{sm['frac_peak_at_cos_argmax']:.3f} of the "
+                    f"{sm['n_rows_peak_defined']} finals where it fires somewhere"
+                )
+            )
+        od.note(
+            f"alphabet {len(alpha)} ids of a {n_vocab}-id vocabulary (expected "
+            f"{ALPHABET_EXPECT.get(base)}), {len(alpha_sp)} of them space-prefixed"
+        )
+        od.note(
+            f"retokenisation filter: {tot['filter_reject_rate']:.3f} of {int(drawn)} drawn "
+            f"candidates rejected at --filter-oversample {a['filter_oversample']}; "
+            f"{sum(runs[r]['timings']['topup_capped_iters'] for r in runs)} iterations hit the "
+            f"{MAX_TOPUP_ROUNDS}-round top-up cap"
+        )
+        od.note(
+            f"CHECK: the loop's cos vs a fresh common.score_ids call, max over all finals -- "
+            f"{tot['cos_check_same_batch_max']:.2e} at the loop's own sbatch "
+            f"(hard bound {COS_TOL_SAME_BATCH_HARD:.0e}) and "
+            f"{tot['cos_check_rebatch_max']:.2e} at the pipeline's SCORE_CHUNK={C.SCORE_CHUNK} "
+            f"(bound {COS_TOL_REBATCH:.0e})"
+        )
+        od.note(
+            f"{tot['cand_forwards']} candidate forwards in {tot['gpu_seconds']:.0f} gpu-s = "
+            f"{tot['cand_per_s_total']:.0f} cand/s total, {tot['cand_per_s_fwd']:.0f} fwd-only "
+            f"(grad {tot['grad_s']:.0f}s cand {tot['cand_s']:.0f}s fwd {tot['fwd_s']:.0f}s nll "
+            f"{tot['nll_s']:.0f}s misc {tot['misc_s']:.0f}s)"
+        )
+        od.note(
+            f"cost per direction: ${od.cost_usd() / max(1, len(sel)):.4f} "
+            f"({od.wall() / max(1, len(sel)):.0f} s/dir over {len(sel)} directions)"
+        )
+        if a["init"] == "corpus":
+            od.note(
+                "init: the scan's top-1 corpus window at the largest corpus size, cut to the "
+                f"{a['seq_len']} tokens ending at max(argmax, {a['seq_len'] - 1}) and then "
+                "roundtrip-repaired; `init_window_cos` in finals.jsonl is the WHOLE window's scan "
+                "cosine (pre-cut, pre-repair) and `init_cos` is the exact cosine of the cut the "
+                f"search actually starts from. {sum(runs[r]['timings']['init_short_windows'] for r in runs)} "
+                "top-k windows were skipped for being shorter than T."
+            )
+        od.note(
+            "trajectory.jsonl logs every "
+            f"{a['log_every']} iterations per member; top64.jsonl is the {TOP_KEEP} best DISTINCT "
+            "candidate strings each member saw over its whole run, with the cosine that was "
+            "selected on and an NLL computed in one batch at the end"
+        )
+
+    print(
+        f"[gcg] TOTAL arm {arm}: {len(sel)} dirs, mean final cos {best.mean():.4f}, mean init cos "
+        f"{init_c.mean():.4f}, mean nll {nlls.mean():.4f}, {tot['cand_forwards']} candidate "
+        f"forwards, {(time.time() - t_start) / 60:.1f} min",
+        flush=True,
+    )
+    return {
+        "arm": arm,
+        "family": family,
+        "n_directions": len(sel),
+        "sae": summary["sae"],
+        "mean_final_cos": float(best.mean()),
+        "mean_init_cos": float(init_c.mean()),
+        "mean_nll": float(nlls.mean()),
+        "cand_forwards": tot["cand_forwards"],
+        "filter_reject_rate": tot["filter_reject_rate"],
+        "alphabet_size": int(len(alpha)),
+        "cos_check_same_batch_max": tot["cos_check_same_batch_max"],
+        "cos_check_rebatch_max": tot["cos_check_rebatch_max"],
+        "out": out_dir,
+    }
