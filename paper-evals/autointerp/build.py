@@ -995,12 +995,17 @@ def run(cfg, args):
             f"activating tokens only. Mean marked fraction of a shown example: "
             f"{float(np.mean(mark_frac)) if mark_frac else 0:.4f}."
         )
+        centre_note = (
+            f"CORPUS examples are re-cut to {CENTRE32_LEN} tokens CENTRED on the peak "
+            f"(--centre32, Delphi's example_ctx_len/center_examples). "
+            if centre32
+            else ""
+        )
         od.note(
-            "corpus windows are recovered from corpus/tokens.i32 at (doc, start, len) and the "
-            (f"CORPUS examples are re-cut to {CENTRE32_LEN} tokens CENTRED on the peak "
-             f"(--centre32, Delphi's example_ctx_len/center_examples). " if centre32 else "")
-            + f"recovered length is ASSERTED equal to len(acts); the window is also asserted to be "
-            f"one of common.windows_of's cuts. Per-token decode joins back to tok.decode(ids) on "
+            centre_note
+            + "corpus windows are recovered from corpus/tokens.i32 at (doc, start, len) and the "
+            "recovered length is ASSERTED equal to len(acts); the window is also asserted to be "
+            "one of common.windows_of's cuts. Per-token decode joins back to tok.decode(ids) on "
             f"{join_total - join_bad}/{join_total} examples (byte-level BPE can split a codepoint)."
         )
         od.note(
