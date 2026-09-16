@@ -504,11 +504,26 @@ end (`cand_forwards > 0 and filter_reject_rate < 1.0`).
 - `README.md` — provenance, per-arm cost AND cost per direction, mean final cos, mean init cos.
 
 **The CHECK block**, run at the end of EVERY direction: the finals are re-scored through
-`common.score_ids` twice — at the loop's own `--sbatch` (same input, same batch geometry, so
-anything above float noise is a bookkeeping bug; hard bound 1e-2, advisory 1e-4) and at
-`common.SCORE_CHUNK = 32`, the chunk every other product scores at (bound 1e-2, because a bf16
-forward's reduction order is batch-shape dependent — which is why SCORE_CHUNK is fixed pipeline-wide
-in the first place). Both maxima are printed, stored in `summary.json` and quoted in the arm README.
+`common.score_ids` twice — at the loop's own `--sbatch` (hard bound 1e-2, advisory 1e-4) and at
+`common.SCORE_CHUNK = 32`, the chunk every other product scores at (bound 1e-2). Both maxima are
+printed, stored in `summary.json` and quoted in the arm README. When the hard bound fires, the
+assert reports the offending member, both cosines, the argmax position, the top1-top2 per-token gap
+(a delta at or below it is an argmax flip between near-tied positions, which the max over positions
+makes discontinuous), the residual norm there (a small one turns reduction-order noise into a large
+cosine), and a sweep of that exact string across batch shapes — enough to classify the failure
+without a second run.
+
+**The scorer's batch-shape noise floor, MEASURED 2026-09-16.** A per-row cosine is BIT-IDENTICAL
+across every batched shape from 8 to 512 rows and can differ by up to **~1e-2** in a ONE-row call:
+an M=1 matmul takes the GEMV path and a batched one a tiled GEMM, with a different bf16 accumulation
+order. It is a discrete step, not a continuum. `common.score_ids` uses one fixed chunk
+(`SCORE_CHUNK = 32`) precisely so that every stored score in the pipeline sits on the batched side
+of that step and is comparable with every other; a cosine recomputed at a different shape, above all
+a single-row rescore, carries that jitter and must not be diffed against a stored one at face value.
+This applies to every product that scores through `common.score_ids`, not only to `gcg`. Because a
+`pop = 1` arm's two CHECK calls both score one row, they take the same path and report the same
+number — so for `gcg` arms the two printed maxima are equal by construction and both measure
+batched-vs-M=1, not batch-vs-itself; `SMOKES.md` has the sweep.
 
 **The alphabet** is the ids that decode to non-empty printable ASCII, re-encode to themselves as a
 single id, and are neither special nor added — the last filter is what keeps the SINK out of an
@@ -542,65 +557,71 @@ The tilelang route fla also suggests was tried first and does not work here; `SM
 three attempts. The FIRST gradient pass of a 27B container costs ~75-85 s of Triton autotune and
 every one after it ~0.2 s, so a short shakeout badly understates the steady-state rate.
 
-### Measured (2026-09-16, `2026-09-16_v1` rows 0-7 per family, smoke root)
+### Measured: the final run (2026-09-16, full root, `2026-09-16_v1` rows 0-31 per family)
 
-All 16 arms landed: 2 bases x 2 families x 4 arms x 8 directions, $58.11 of GPU. `mean final cos`
-is best-over-members / per-member (identical for `gcg`, which is pop 1).
+`gcg` mode only, 2 bases x 2 families x 2 inits = 8 arms of 32 directions, at
+`base/<base>/gcg/2026-09-16_v1/<family>/<arm>/`. `pop = 1`, so best-over-members and per-member are
+the same number.
 
-| base | family | arm | mean final cos | mean init cos | mean NLL | $/direction | peak act / gate | frac fired |
-|---|---|---|---|---|---|---|---|---|
-| qwen3-8b | realact | `gcg-corpus` | **0.6590** | 0.4919 | 8.064 | $0.0905 | -- | -- |
-| qwen3-8b | realact | `gcg-random32` | 0.4620 | -0.0163 | 13.593 | $0.0972 | -- | -- |
-| qwen3-8b | realact | `epo-corpus` | 0.5760 / 0.5524 | 0.4919 | 2.958 | $0.2887 | -- | -- |
-| qwen3-8b | realact | `epo-random32` | 0.4168 / 0.2865 | -0.0102 | 4.699 | $0.2814 | -- | -- |
-| qwen3-8b | sae | `gcg-corpus` | **0.3289** | 0.2390 | 6.775 | $0.0980 | 149.6 / 6.94 | 1.000 |
-| qwen3-8b | sae | `gcg-random32` | 0.2688 | 0.0132 | 13.536 | $0.1000 | 120.4 / 6.94 | 1.000 |
-| qwen3-8b | sae | `epo-corpus` | 0.2935 / 0.2667 | 0.2390 | 2.991 | $0.2775 | 127.4 / 6.94 | 1.000 |
-| qwen3-8b | sae | `epo-random32` | 0.2052 / 0.1220 | 0.0132 | 3.942 | $0.2802 | 53.0 / 6.94 | 0.458 |
-| qwen36-27b | realact | `gcg-corpus` | **0.4422** | 0.3145 | 8.411 | $0.3342 | -- | -- |
-| qwen36-27b | realact | `gcg-random32` | 0.2586 | -0.0196 | 13.185 | $0.3519 | -- | -- |
-| qwen36-27b | realact | `epo-corpus` | 0.3915 / 0.3713 | 0.3145 | 2.696 | $1.1198 | -- | -- |
-| qwen36-27b | realact | `epo-random32` | 0.2337 / 0.1273 | -0.0202 | 5.078 | $1.0419 | -- | -- |
-| qwen36-27b | sae | `gcg-corpus` | **0.2149** | 0.0729 | 8.291 | $0.3424 | 26.5 / 1.58 | 1.000 |
-| qwen36-27b | sae | `gcg-random32` | 0.0948 | 0.0050 | 13.212 | $0.3701 | 10.2 / 1.58 | 0.875 |
-| qwen36-27b | sae | `epo-corpus` | 0.1502 / 0.1298 | 0.0729 | 2.816 | $1.1381 | 16.1 / 1.58 | 0.958 |
-| qwen36-27b | sae | `epo-random32` | 0.0187 / 0.0114 | 0.0057 | 4.230 | $1.0520 | **0.2** / 1.58 | **0.042** |
+| base | family | arm | dirs | mean final cos | mean init cos | mean NLL | $/direction | peak act / gate | frac fired |
+|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact | `gcg-corpus` | 32 | **0.6398** | 0.5220 | 7.613 | $0.0904 | -- | -- |
+| qwen3-8b | realact | `gcg-random32` | 31 | 0.4924 | 0.0525 | 12.932 | $0.0985 | -- | -- |
+| qwen3-8b | sae | `gcg-corpus` | 32 | **0.3080** | 0.2358 | 7.970 | $0.0894 | 137.8 / 6.94 | 1.000 |
+| qwen3-8b | sae | `gcg-random32` | 32 | 0.2161 | 0.0158 | 13.334 | $0.0917 | 89.4 / 6.94 | 0.969 |
+| qwen36-27b | realact | `gcg-corpus` | 32 | **0.4886** | 0.3491 | 8.278 | $0.3257 | -- | -- |
+| qwen36-27b | realact | `gcg-random32` | 32 | 0.2827 | -0.0179 | 13.081 | $0.3345 | -- | -- |
+| qwen36-27b | sae | `gcg-corpus` | 32 | **0.2408** | 0.1478 | 7.310 | $0.3251 | 28.9 / 1.58 | 1.000 |
+| qwen36-27b | sae | `gcg-random32` | 32 | 0.0682 | 0.0054 | 13.175 | $0.3332 | 5.2 / 1.58 | 0.875 |
 
-**The init dominates the arm**, on both bases and both families, without exception. Corpus minus
-random, mean final cosine: 8B realact +0.197 (`gcg`) / +0.159 (`epo`), 8B sae +0.060 / +0.088,
-27B realact +0.184 / +0.158, 27B sae +0.120 / +0.132 -- at the same 76,800 candidate forwards and
-the same wall. The search does not recover from a random start inside 150 (or 300) iterations, so
-the corpus init is not merely a head start: the two arms end in different places.
+8B `realact/gcg-random32` covers 31 directions: row 17 is excluded because its end-of-direction
+CHECK exceeded the hard bound and the bound was not loosened to absorb it (`SMOKES.md` has the
+diagnosis — it is the M=1 scoring path, not a search failure).
 
-**The lambda term buys fluency and costs cosine, monotonically**, in all four `epo` families. 27B
-realact `epo-corpus` by lambda: 0.1 -> cos 0.389 / NLL 2.81, 0.19 -> 0.370 / 2.65, 0.37 -> 0.355 /
-2.63, against `gcg-corpus`'s NLL of **8.41** at cos 0.442. The `gcg-random32` arms sit at NLL
-13.2-13.6 on both bases: the string the unconstrained ceiling finds is not text.
+**The init dominates the arm**, on both bases and both families: corpus minus random is +0.147 (8B
+realact), +0.092 (8B sae), +0.206 (27B realact), +0.173 (27B sae), at the same 76,800 candidate
+forwards and the same wall. `gcg-random32`'s NLL is 12.9-13.3 against 7.3-8.3 from a corpus window:
+the unconstrained string is not text.
 
-**The `sae` family is a much harder target and yet usually fires anyway.** Mean final cosine 0.329
-(8B) / 0.215 (27B) against realact's 0.659 / 0.442, while the mean peak pre-gate activation is
-17-24x the checkpoint's learned gate and `frac_fired` is 1.000 in six of the eight arms. "Does the
-string make the feature fire" and "how well does the string align with the feature" are different
-questions and only the second is hard. The one counterexample is 27B `sae/epo-random32`, which ends
-at cos 0.019 with the feature dead on 19 of 24 finals -- random init, harder base and the lambda
-penalty, all three at once. The activation's peak token is the cosine's argmax token on every final
-where the feature is non-zero, in all eight arms, which is the consistency check that the two are
-read off one forward.
+**Against the MAEMMs on the same rows** (primary `qwen36-27b/2026-09-10_rl-8x2048-full`, and
+`qwen3-8b/2026-09-03_run1-rl` on the 8B; naive max over the 64 drawn rollouts, which equals the
+unbiased best-of-64 to every printed digit here):
 
-**Against the MAEMM the search is a lower bound, not a ceiling, at this budget.** On the same 8
-realact rows of the 27B, `gcg-corpus` reaches mean cos 0.4422 while the two MAEMMs' unbiased
-best-of-64 are 0.5496 (rlI-150) and 0.5430 (rl-8x2048-full) -- the search loses on 7 of 8
-directions and lands roughly at the MAEMMs' best-of-**1** (0.436 / 0.469). The comparison is not
-matched, in three ways that all favour the MAEMM: `gcg` is fixed at T=32 ids while the rollouts
-average 55.8 / 47.5 tokens, best-of-64 is a max over 64 independent strings while `gcg` is one run,
-and candidate forwards are not the same currency as autoregressive rollouts. A length-matched
-(`--seq-len 48`) or best-of-n arm is what would turn this into a ceiling claim; `SMOKES.md` has the
-per-direction numbers.
+| base | family | arm | GCG | MAEMM max-of-64 | difference | GCG wins |
+|---|---|---|---|---|---|---|
+| qwen36-27b | realact | `gcg-corpus` | 0.4886 | 0.5313 | -0.0427 | 9/32 |
+| qwen36-27b | realact | `gcg-random32` | 0.2827 | 0.5313 | -0.2486 | 0/32 |
+| qwen36-27b | sae | `gcg-corpus` | 0.2408 | 0.1308 | **+0.1100** | **29/32** |
+| qwen36-27b | sae | `gcg-random32` | 0.0682 | 0.1308 | -0.0626 | 12/32 |
+| qwen3-8b | realact | `gcg-corpus` | 0.6398 | 0.6532 | -0.0135 | 11/32 |
+| qwen3-8b | realact | `gcg-random32` | 0.4924 | 0.6547 | -0.1623 | 1/31 |
+| qwen3-8b | sae | `gcg-corpus` | 0.3080 | 0.1358 | **+0.1722** | **32/32** |
+| qwen3-8b | sae | `gcg-random32` | 0.2161 | 0.1358 | +0.0803 | 29/32 |
 
-**Cost to scale**, from the measured split of each arm's wall into a fixed per-call part (model and
-SAE load, volume commit) and a per-direction search part: 64 directions per arm costs **$95.32 for
-all 8 qwen3-8b arms and $363.88 for all 8 qwen36-27b arms** ($459.20 together). The 8-direction
-rate over-states the 64-direction rate by only 1-3%. The 27B `epo` arms are 80% of the 27B bill.
+**The answer differs by family.** On `realact` the MAEMM wins narrowly — -0.043 (27B) and -0.014
+(8B), with 9 and 11 of 32 directions going to the search. On `sae` the search wins outright: 32/32
+on the 8B and 29/32 on the 27B, because the MAEMMs reach only 0.111-0.136 on encoder columns and
+their `sae` rollouts are short (mean 21.2 tokens on the 8B, 25.3-28.3 on the 27B) against 42.6-54.2
+on realact.
+
+**The caveat, stated once.** `gcg` optimises a SINGLE string of a FIXED `T = 32` ids and is compared
+against the max over 64 sampled rollouts of mean length 21-54. Neither the token budget, nor the
+number of samples, nor the compute is matched — 76,800 candidate forwards of 33 tokens is not the
+same currency as 64 autoregressive rollouts. A `gcg` number is therefore a reachability figure at
+T=32 from one initialisation: where it EXCEEDS the MAEMM (the `sae` family) the inequality is sound
+in that direction, and where it falls short it bounds nothing.
+
+**Cost.** $53.93 for the 8 arms — 8B $11.74, 27B $42.19 (3.6x) — at $0.089-0.099 and
+$0.325-0.335 per direction, 82-90 s and 258-265 s of wall.
+
+**The `epo` arms were run on the smoke root only**, 8 directions per arm across both bases and both
+families, and are not repeated here. What they measured: the lambda term buys fluency and costs
+cosine monotonically (27B realact `epo-corpus` 0.1 -> cos 0.389 / NLL 2.81, 0.19 -> 0.370 / 2.65,
+0.37 -> 0.355 / 2.63, against `gcg-corpus`'s NLL of 8.41 at cos 0.442), and `epo` trails `gcg` on
+raw cosine in every (base, family, init) cell by 0.02-0.08 — expected at lambda > 0, though its best
+member sits at lambda 0.1 rather than 0, so the 3x-smaller per-iteration candidate pool costs
+something of its own. `SMOKES.md` has those tables; the final run drops `epo` because the Pareto
+front it traces is a separate claim from the reachability figure.
 
 <!--GCG-RESULTS-->
 
@@ -746,6 +767,11 @@ Verified against `ceselder/maemm` master 09d4a01 on 2026-09-15. Line numbers are
   `add_special_tokens=False`, truncation at 95, a BOS sink (or eos) prepended at column 0 and
   excluded from `keep`, adapter disabled (clean base), cosine in fp32 (normalize h, einsum with
   unit dirs, `masked_fill(-1)`, max over tokens). One fixed scoring chunk of 32 rows everywhere.
+  **Scorer noise floor (measured 2026-09-16, GCG shape sweep):** the same string scored at batch
+  1 vs 8/32/128/256/512 differs by up to 1.03e-02 in a per-token cosine (n=1 is the GEMV kernel,
+  every batched shape is bit-identical); every stored score sits on the batched side at
+  `SCORE_CHUNK = 32`, so cross-product comparisons are consistent, and a single-row rescore is
+  the one shape that is not.
   **Divergence (Tomáš, 2026-09-15):** the stored per-token cos and norm carry **no** norm filter;
   the 10x-nanmedian filter (`eval_universal.py:71,145-147`) is an option in
   `reconstruction/stats.py`. The cosine is **uncentred** while realact targets are `unit(act - mu)`

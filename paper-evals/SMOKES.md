@@ -1863,3 +1863,210 @@ leak at 100%.
 $0.3428 + $0.1357 (smoke) + $4.0487 (rollouts) + ~$0.90 (the aborted score) + $0.7714 (the score) =
 **$6.20** against a $12 cap and a $6-7 expectation. The aborted score is 15% of it and bought the
 bound-2 finding above.
+
+## GCG final (full root, 2026-09-16)
+
+`gcg` only, no EPO. 2 bases x 2 families x 2 inits = 8 arms, rows 0-31 of `realact` and rows 0-31 of
+`sae` (global 1024-1055) of `2026-09-16_v1`, on the FULL root, corpus init from the 16M scan
+(`base/<base>/scan/2026-09-16_v1/topk.jsonl`, 952,388 windows, sizes 1-16). Config as measured
+earlier: 512 children x 150 iterations, `--topk 512 --seq-len 32 --tau 0.02 --sbatch 256`,
+oversample 1.5. Outputs at `base/<base>/gcg/2026-09-16_v1/<family>/<arm>/`. Each arm is one detached
+call from its own persistent client (`nohup setsid`, never under `timeout` -- a killed client
+cancels the in-flight call), staggered 25 s because the tree is being committed concurrently and
+`add_local_dir` hashes it.
+
+### The one arm that died, and what it found: the M=1 GEMV path
+
+8B `realact/gcg-random32` stopped at direction 17 of 32 on the end-of-direction CHECK:
+
+```
+AssertionError: realact:17: the loop's own cos does not reproduce a fresh common.score_ids call
+(max |d| 1.03e-02 > 1e-02) on member 0: loop 0.555820 vs fresh 0.545487 at position 28,
+top1-top2 per-token gap 2.30e-01, residual norm there 389.601
+```
+
+The guard was NOT loosened. Instead the assert was given the evidence needed to classify the
+failure, and the string was swept across batch shapes (only ever run when the check has already
+failed, so it costs nothing in the normal path):
+
+| rows in the batch | cos | argmax |
+|---|---|---|
+| 1 | **0.545487** | 28 |
+| 8 | 0.555820 | 28 |
+| 32 | 0.555820 | 28 |
+| 128 | 0.555820 | 28 |
+| 256 | 0.555820 | 28 |
+| 512 | 0.555820 | 28 |
+
+**It is not a continuum of noise; it is one discrete step between a 1-row batch and any batched
+one.** Every shape from 8 to 512 is BIT-IDENTICAL and the argmax never moves; only `n = 1` differs,
+by 1.03e-02. Both benign explanations are excluded by the same message: the top1-top2 per-token gap
+is 2.30e-01, 22x the delta, so no argmax flip; and the residual norm at that position is 389.6, so
+it is not a small-denominator blow-up. The mechanism is a kernel switch -- an M=1 matmul takes the
+GEMV path and a batched one takes a tiled GEMM, with a different accumulation order in bf16.
+
+Three things follow, and they retro-explain the whole CHECK block:
+
+- **The loop's number is the one the pipeline agrees with.** `score.py` scores at
+  `SCORE_CHUNK = 32`, a batched shape, so every stored score is on the n >= 8 side of the step. The
+  1-row rescore inside the CHECK is the outlier, not the loop.
+- **For a `pop = 1` arm the CHECK's two calls are the same call.** `fresh` (at `--sbatch` 256) and
+  `rebatch` (at `SCORE_CHUNK` 32) both score ONE row, so both take the GEMV path and
+  `d_same == d_re` identically -- which is exactly what every arm ever run has printed. One of the
+  two asserts is therefore redundant, and neither measures the "same batch geometry" its message
+  claimed; both measure batched-vs-M=1.
+- **That is why the 1e-4 advisory fired on every single direction** (observed 2e-3 to 7e-3
+  throughout): it was never float noise within one shape, it was the kernel step. Across the 7 arms
+  that completed, 224 directions, the largest such delta is 3.25e-03; row 17's 1.03e-02 is a 3x
+  outlier in the same phenomenon, not a different one.
+
+**Scorer batch-shape noise floor, MEASURED:** a per-row cosine can move by up to **~1e-2** between a
+1-row scoring call and a batched one, and is bit-stable across every batched shape from 8 to 512.
+Checklist item 11 already recorded that the right-padding chunk size shifts a per-row cosine
+measurably; this is the sharp version of it. `common.score_ids` uses ONE fixed chunk
+(`SCORE_CHUNK = 32`) for exactly this reason, so every stored score in the pipeline is at that fixed
+shape and is comparable with every other; a number recomputed at a DIFFERENT shape -- above all a
+single-row rescore -- carries up to ~1e-2 of jitter and must not be diffed against a stored one at
+face value. (This belongs in README's Conventions as well as the GCG section; I was scoped to the
+GCG section and did not edit Conventions.)
+
+The bound and the check were left exactly as they were, so all 8 arms are comparable. The arm was
+relaunched as `--rows 0-16,18-31 --force`: **31 of 32 directions, guard intact, row 17 named here
+rather than absorbed.** Making the CHECK's fresh call batched would have made row 17 pass; that is a
+correctness fix to the check rather than a loosening, but it changes what the check measures and
+seven arms had already run under the current one, so it was NOT done in this phase.
+
+### The 8 arms
+
+| base | family | arm | dirs | mean final cos | mean init cos | mean NLL | wall/dir | $/dir | arm $ | cand/s | retok reject | mean peak act | frac fired |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact | `gcg-corpus` | 32 | **0.6398** | 0.5220 | 7.613 | 82 s | $0.0904 | $2.8930 | 945 | 0.061 | -- | -- |
+| qwen3-8b | realact | `gcg-random32` | 31 | 0.4924 | 0.0525 | 12.932 | 90 s | $0.0985 | $3.0527 | 868 | 0.048 | -- | -- |
+| qwen3-8b | sae | `gcg-corpus` | 32 | **0.3080** | 0.2358 | 7.970 | 81 s | $0.0894 | $2.8595 | 957 | 0.069 | 137.75 | 1.000 |
+| qwen3-8b | sae | `gcg-random32` | 32 | 0.2161 | 0.0158 | 13.334 | 84 s | $0.0917 | $2.9354 | 932 | 0.047 | 89.38 | 0.969 |
+| qwen36-27b | realact | `gcg-corpus` | 32 | **0.4886** | 0.3491 | 8.278 | 258 s | $0.3257 | $10.4217 | 300 | 0.069 | -- | -- |
+| qwen36-27b | realact | `gcg-random32` | 32 | 0.2827 | -0.0179 | 13.081 | 265 s | $0.3345 | $10.7032 | 292 | 0.052 | -- | -- |
+| qwen36-27b | sae | `gcg-corpus` | 32 | **0.2408** | 0.1478 | 7.310 | 258 s | $0.3251 | $10.4030 | 301 | 0.076 | 28.94 | 1.000 |
+| qwen36-27b | sae | `gcg-random32` | 32 | 0.0682 | 0.0054 | 13.175 | 264 s | $0.3332 | $10.6617 | 294 | 0.050 | 5.21 | 0.875 |
+
+`pop = 1`, so best-over-members and per-member are the same number. 8B `realact/gcg-random32` is 31
+directions: row 17 is excluded, see above. Every arm: 64 distinct top strings per direction, 0
+top-up-capped iterations, 0 init repairs, 0 short corpus windows, alphabet 90,909 (8B) / 126,220
+(27B) as expected. The `sae` activation is RECORDED, never optimised; the peak token is the
+cosine's argmax on every final where the feature is non-zero (32/32, 31/32, 32/32, 31/32).
+
+**The init still dominates**, at 32 directions as at 8: corpus minus random is +0.147 (8B realact),
++0.092 (8B sae), +0.206 (27B realact), +0.173 (27B sae). And `gcg-random32`'s NLL is 12.9-13.3 on
+both bases against 7.3-8.3 from the corpus window: the unconstrained string is not text.
+
+### Against the MAEMMs, same rows, naive best-of-64
+
+Primary is `qwen36-27b/2026-09-10_rl-8x2048-full`; the 8B comparator is
+`qwen3-8b/2026-09-03_run1-rl`. `max_cos` (naive max over the 64 rollouts drawn) and `bo_64` are
+equal to every printed digit in all three score files, so naive and unbiased coincide here.
+
+| base | family | arm | GCG mean | comparator | comparator max-of-64 | GCG - max64 | GCG wins |
+|---|---|---|---|---|---|---|---|
+| qwen36-27b | realact | `gcg-corpus` | 0.4886 | **rl-8x2048-full** | 0.5313 | -0.0427 | 9/32 |
+| qwen36-27b | realact | `gcg-corpus` | 0.4886 | rlI-150 | 0.5301 | -0.0415 | 9/32 |
+| qwen36-27b | realact | `gcg-random32` | 0.2827 | **rl-8x2048-full** | 0.5313 | -0.2486 | 0/32 |
+| qwen36-27b | sae | `gcg-corpus` | 0.2408 | **rl-8x2048-full** | 0.1308 | **+0.1100** | **29/32** |
+| qwen36-27b | sae | `gcg-corpus` | 0.2408 | rlI-150 | 0.1112 | **+0.1296** | **30/32** |
+| qwen36-27b | sae | `gcg-random32` | 0.0682 | **rl-8x2048-full** | 0.1308 | -0.0626 | 12/32 |
+| qwen3-8b | realact | `gcg-corpus` | 0.6398 | run1-rl | 0.6532 | -0.0135 | 11/32 |
+| qwen3-8b | realact | `gcg-random32` | 0.4924 | run1-rl | 0.6547 | -0.1623 | 1/31 |
+| qwen3-8b | sae | `gcg-corpus` | 0.3080 | run1-rl | 0.1358 | **+0.1722** | **32/32** |
+| qwen3-8b | sae | `gcg-random32` | 0.2161 | run1-rl | 0.1358 | +0.0803 | 29/32 |
+
+**The answer differs by family, and that is the finding.**
+
+- On **`realact`** the MAEMM still wins, but narrowly and not everywhere: -0.043 on the 27B (9 of 32
+  directions to the search) and -0.014 on the 8B (11 of 32). At 8 directions the smoke put this gap
+  at -0.10; at 32 it is a quarter of that, so the earlier number was small-sample.
+- On **`sae`** the search wins outright: **32/32 on the 8B (+0.172)** and 29-30/32 on the 27B
+  (+0.110 / +0.130). The MAEMMs reach only 0.111-0.136 on encoder columns, and their `sae` rollouts
+  are SHORT -- mean 21.2 tokens (8B), 25.3-28.3 (27B) -- against 42.6-54.2 on realact. A 32-token
+  optimised string has room against a 21-token rollout that it does not have against a 44-token one.
+- The random init is what decides whether the search is competitive at all: it loses every realact
+  comparison (0/32 and 1/31) and is the only `sae` cell that loses (12/32).
+
+**The caveat, stated once.** `gcg` searches a SINGLE string of a FIXED T=32 ids and is compared
+against the max over 64 sampled rollouts of mean length 21-54. Neither the token budget nor the
+sample count nor the compute is matched: 76,800 candidate forwards of 33 tokens is a different
+currency from 64 autoregressive rollouts. So a `gcg` number is a reachability figure at T=32 from
+one initialisation, not an upper bound over all strings; where it EXCEEDS the MAEMM (the `sae`
+family) that direction of the inequality is sound, and where it falls short it bounds nothing.
+
+### Spend
+
+| item | $ |
+|---|---|
+| 8 arms x 32 directions (one at 31) | 53.93 |
+| row-17 reproduction x3 (diagnostic, no product written) | ~0.36 |
+| failed launch: `--root <scratch>` relocates inputs too | ~0.03 |
+| **total, GCG final phase** | **~54.32** |
+
+Against the $60 cap. Per base: 8B $11.74 (4 arms), 27B $42.19 (4 arms) -- the 27B is 3.6x the 8B.
+Measured per-direction: 8B $0.089-0.099, 27B $0.325-0.335, i.e. 82-90 s and 258-265 s of wall.
+
+### (f) GCG final — the reachability ceiling, now paired on the full root
+
+GCG landed on `/vol` after the section above was written, at
+`base/<base>/gcg/2026-09-16_v1/{realact,sae}/{gcg-corpus,gcg-random32}/finals.jsonl`, 32
+directions per arm from the FINAL draw — so the GCG rows and the MAEMM rows index the same held-out
+set and the comparison is per direction, not distributional. (8B realact `gcg-random32` carries 31:
+row 17 is excluded upstream and stays excluded here, because the join is built from the finals.)
+
+| base | family | arm | dirs | rows | GCG cos | init cos | nll | 2026-09-03_run1-rl bo64 | 2026-09-03_run1-rl mean64 | GCG - 2026-09-03_run1-rl bo64 | GCG wins vs 2026-09-03_run1-rl | 2026-09-10_rl-8x2048-full@vllm bo64 | 2026-09-10_rl-8x2048-full@vllm mean64 | GCG - 2026-09-10_rl-8x2048-full@vllm bo64 | GCG wins vs 2026-09-10_rl-8x2048-full@vllm | 2026-09-16_base-control@vllm bo64 | 2026-09-16_base-control@vllm mean64 | GCG - 2026-09-16_base-control@vllm bo64 | GCG wins vs 2026-09-16_base-control@vllm | 2026-09-08_rlI-150@vllm bo64 | 2026-09-08_rlI-150@vllm mean64 | GCG - 2026-09-08_rlI-150@vllm bo64 | GCG wins vs 2026-09-08_rlI-150@vllm |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact | gcg-corpus | 32 | 0-31 | 0.6398 ± 0.0113 | 0.5220 ± 0.0132 | 7.613 | 0.6532 | 0.5527 | -0.0134 ± 0.0102 | 0.344 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact | gcg-random32 | 31 | 0-31 | 0.4924 ± 0.0237 | 0.0525 ± 0.0124 | 12.932 | 0.6547 | 0.5541 | -0.1622 ± 0.0211 | 0.032 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | gcg-corpus | 32 | 1024-1055 | 0.3080 ± 0.0172 | 0.2358 ± 0.0170 | 7.97 | 0.1358 | 0.0647 | 0.1722 ± 0.0222 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | gcg-random32 | 32 | 1024-1055 | 0.2161 ± 0.0248 | 0.0158 ± 0.0023 | 13.334 | 0.1358 | 0.0647 | 0.0803 ± 0.0167 | 0.906 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact | gcg-corpus | 32 | 0-31 | 0.4886 ± 0.0273 | 0.3491 ± 0.0255 | 8.278 |  |  |  |  | 0.5313 | 0.4611 | -0.0426 ± 0.0136 | 0.281 | 0.1052 | -0.0021 | 0.3835 ± 0.0221 | 1.0 | 0.5301 | 0.4065 | -0.0415 ± 0.0139 | 0.312 |
+| qwen36-27b | realact | gcg-random32 | 32 | 0-31 | 0.2827 ± 0.0343 | -0.0179 ± 0.0157 | 13.081 |  |  |  |  | 0.5313 | 0.4611 | -0.2486 ± 0.0292 | 0.0 | 0.1052 | -0.0021 | 0.1775 ± 0.0247 | 0.938 | 0.5301 | 0.4065 | -0.2474 ± 0.0292 | 0.0 |
+| qwen36-27b | sae | gcg-corpus | 32 | 1024-1055 | 0.2408 ± 0.0111 | 0.1478 ± 0.0126 | 7.31 |  |  |  |  | 0.1308 | 0.0859 | 0.1100 ± 0.0166 | 0.906 | 0.0194 | 0.0039 | 0.2214 ± 0.0115 | 1.0 | 0.1112 | 0.065 | 0.1296 ± 0.0172 | 0.938 |
+| qwen36-27b | sae | gcg-random32 | 32 | 1024-1055 | 0.0682 ± 0.0097 | 0.0054 ± 0.0012 | 13.175 |  |  |  |  | 0.1308 | 0.0859 | -0.0626 ± 0.0195 | 0.375 | 0.0194 | 0.0039 | 0.0488 ± 0.0096 | 1.0 | 0.1112 | 0.065 | -0.0430 ± 0.0194 | 0.5 |
+
+**Caveat, stated once:** GCG and a MAEMM are not the same object and are not compute-matched. GCG
+optimises ONE fixed 32-token string with ~77k candidate forwards *against the scorer itself*; the
+MAEMM draws 64 sampled rollouts from a prompt and never sees the metric. GCG is a ceiling on what
+the metric is reachable to, not a baseline the inverter competes with.
+
+**On `realact` the inverter is at or above the ceiling; on `sae` it is far below it.** The primary
+reaches 0.5313 best-of-64 on the 27B's first 32 realact directions against `gcg-corpus`'s 0.4886 —
+GCG wins only 28.1% of directions, paired difference −0.0426 ± 0.0136 — and the 8B is level
+(−0.0134 ± 0.0102, GCG winning 34.4%). On `sae` the ceiling is far above both: `gcg-corpus` reaches
+0.2408 against the primary's 0.1308, winning **90.6%** of features (+0.1100 ± 0.0166), and on the 8B
+it wins **100%** (+0.1722 ± 0.0222). A 32-token string exists that drives an SAE encoder column far
+harder than anything the inverter samples, and the inverter does not find it.
+
+The init columns show how much of that is the corpus init rather than the search: `gcg-corpus`
+starts at 0.3491 (27B realact) and ends at 0.4886, while `gcg-random32` starts at −0.0179 and
+reaches only 0.2827 at an NLL of 13.1 — the search adds ~0.14 on top of a good initialisation and
+cannot make up the difference from a random one within the same budget.
+
+### The untrained-base control
+
+A fourth row appeared in every table while this section was being written:
+`qwen36-27b/2026-09-16_base-control` (`type: base`, `role: control`) — the CLEAN 27B run through the
+identical prompt, marker, injection layer/coefficient and sampling, so the only difference from the
+primary is the weights. `stats.py` reads `role` from config.yaml and orders it between the primary
+and the secondaries.
+
+| family | control bo1 | control bo64 | primary bo1 | primary bo64 |
+|---|---|---|---|---|
+| realact | 0.0244 ± 0.0052 | 0.1364 ± 0.0058 | 0.4994 ± 0.0070 | 0.5692 ± 0.0063 |
+| sae | 0.0022 ± 0.0003 | 0.0241 ± 0.0012 | 0.1298 ± 0.0032 | 0.1714 ± 0.0035 |
+| random | 0.0160 ± 0.0005 | 0.0323 ± 0.0004 | 0.0280 ± 0.0005 | 0.0428 ± 0.0005 |
+
+Injecting a direction into the untrained base and sampling reaches **0.0244** per rollout on
+realact against the primary's 0.4994 — **essentially none of the inverter's per-rollout score is
+architecture or prompt; it is all training.** The control's own bo1→bo64 climb (0.0244 → 0.1364,
+5.6x) is almost entirely sampling luck, the same signature the 8B Patchscopes trial found for its
+baseline (3.6x) against run1's 1.2x: the less a system knows, the more best-of-n flatters it.
+
+The control also lands just above the Patchscopes floor at the matched budget (floor bo32 0.1247 on
+realact, control bo64 0.1364), which is the more informative comparison than either alone — the
+MAEMM prompt with a direction injected into an untrained base is worth about the same as an
+entity-description prompt with no direction at all.
