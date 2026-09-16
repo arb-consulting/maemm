@@ -47,10 +47,20 @@ and the batch path (half price) is used only if it returned inside 30 minutes.
 (export MODAL_PROFILE=maemms; uvx --with pyyaml modal run --detach    repo-maemm-precompute/paper-evals/autointerp/modal_app.py --stage chain    --base qwen36-27b --set 2026-09-16_v1    --maemm qwen36-27b/2026-09-10_rl-8x2048-full --maemm2 qwen36-27b/2026-09-08_rlI-150    --chain-dir 2026-09-16_autointerp-chain)
 ```
 
-**The 2026-09-16 run: chain dir `2026-09-16_autointerp-chain2`, status file
-`/vol/runs/2026-09-16_autointerp-chain2/STATUS.json`.** (The first chain,
-`2026-09-16_autointerp-chain`, ran the pilot and was stopped: its build allocated test draw 2
-before draw 1, which starved the set every arm is scored on.)
+**The 2026-09-16 run: app `ap-oLxIvCsa6PEdJf2NdUnsGo`, chain dir `2026-09-16_autointerp-chain2`,
+status file `/vol/runs/2026-09-16_autointerp-chain2/STATUS.json`.**
+
+Earlier chains, all stopped, and why — each one is a fault worth not repeating:
+
+| app | stopped because |
+|---|---|
+| `ap-KMkH5RvJ6SctMwqy6YYDjK` | superseded before it ran anything: the batch path could resubmit a batch after a container restart |
+| `ap-HB71h7dO6SezJ56W9bV7DA` | ran the pilot, then sat 2097 s in a batch-latency probe that blocked until the batch *ended* instead of abandoning at its threshold |
+| `ap-2jWiGbYlcuv97kS44jKVtR` | died in `build_pilot`: a ruff autofix had left `"text " (...)`, which Python reads as calling a string |
+| `ap-oQHRdUHILPhCSX3PawT5Hq` | ran the pilot on the corrected draw order, but carried the pre-correction acceptance threshold in its image |
+
+The chain dir is deliberately reused across relaunches: the prompt cache lives under it, so a
+relaunch replays every call already paid for and pays for the rest once.
 
 Every step of the chain is IDEMPOTENT, because MEASURED 2026-09-16 a container polling a Message
 Batch was killed with `Runner terminated (SIGTERM), exit code: 143` at 1223 s and Modal
