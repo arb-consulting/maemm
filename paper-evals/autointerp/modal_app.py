@@ -130,7 +130,24 @@ def cpu(stage: str, args: dict):
 # The LLM stage, on the image that carries the Anthropic SDK and the secret that carries the key.
 # 12 h because a Message Batch is allowed up to 24 h by Anthropic and a long queue must not be
 # turned into a lost container; the batch id is printed and a resumed run re-reads the cache.
-@app.function(image=image_llm, volumes=VOLUMES, secrets=LLM_SECRETS, timeout=12 * 3600, cpu=8)
+#
+# RETRIES, because MEASURED 2026-09-16 a container was preempted 2176 s into the primary detection
+# stage -- "Container terminated due to preemption. Your Function will be restarted with the same
+# input" -- and the detached app did NOT come back, leaving five Message Batches running
+# server-side with nobody waiting on them. Both stages this function serves are idempotent, which
+# is what makes an automatic retry safe rather than a way to pay twice: `run` replays every
+# completed call from the prompt cache and RE-ATTACHES to a submitted batch through its ledger
+# instead of resubmitting, and `chain` reuses a build whose `build.json` is already there and
+# continues STATUS.json rather than truncating it. `autointerp/selfcheck.py` exercises exactly
+# those branches before any launch.
+@app.function(
+    image=image_llm,
+    volumes=VOLUMES,
+    secrets=LLM_SECRETS,
+    timeout=12 * 3600,
+    cpu=8,
+    retries=modal.Retries(max_retries=3, initial_delay=15.0, backoff_coefficient=1.0),
+)
 def cpu_llm(stage: str, args: dict):
     return _run(stage, args, "CPU")
 

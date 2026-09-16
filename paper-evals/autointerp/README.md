@@ -50,6 +50,14 @@ and the batch path (half price) is used only if it returned inside 30 minutes.
 **The 2026-09-16 run: app `ap-2H5Xi3kb06MOMS8fq8GRGC`, chain dir `2026-09-16_autointerp-chain2`,
 status file `/vol/runs/2026-09-16_autointerp-chain2/STATUS.json`.**
 
+The chain function carries `retries=modal.Retries(max_retries=3)`. MEASURED 2026-09-16: a
+container was **preempted** 2176 s into the primary detection stage — *"Container terminated due to
+preemption. Your Function will be restarted with the same input"* — and the detached app did not
+come back, leaving five Message Batches running server-side with nobody waiting on them. An
+automatic retry is safe here only because both stages this function serves are idempotent: `run`
+replays completed calls from the prompt cache and **re-attaches** to a submitted batch through its
+ledger instead of resubmitting, and `chain` reuses an existing build and continues `STATUS.json`.
+
 **Run `autointerp/selfcheck.py` before every launch.** It drives the real `build` → `run` → `chain`
 code against a synthetic volume and a stub client — seconds, no network, no key, no cost — and
 exercises the branches that have actually broken launches: `project()` on an empty job list (the
