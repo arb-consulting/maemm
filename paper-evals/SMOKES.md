@@ -2290,3 +2290,91 @@ Source note: the per-direction best member is taken from `finals.jsonl`; where `
 carries `per_dir_best_cos` the two agree exactly (MEASURED on the 27B stratified arms, max
 |difference| = **0.0**), so the table uses the finals and the summary is a cross-check, not a second
 source.
+
+## GCG/EPO 32-target arms (full root)
+
+Eight EPO arms on the SAME 32-target selections as the `gcg` arms: `realact` rows 0-31 and the
+stratified `sae` rows (`--rows 0-7,128-135,256-263,384-391`), both inits, both bases. Config as
+before: pop 3 at lambda 0.1 / 0.19 / 0.37, 85 children x 300 iterations, each member selected by its
+own `L_lambda` so one run traces the Pareto front. Arm names `epo-corpus` / `epo-random32` on
+`realact` and `epo-corpus-strat` / `epo-random32-strat` on `sae`.
+
+Launched in two waves, corpus-init first at the halved scope and `random32` released afterwards:
+
+| wave | arm | app |
+|---|---|---|
+| 1 | 27B `realact/epo-corpus` | `ap-g1qeBZYciX07uk2Mk9Oz4h` |
+| 1 | 27B `sae/epo-corpus-strat` | `ap-ZhT7yERDXUkxoiKFF8uOGC` |
+| 1 | 8B `realact/epo-corpus` | `ap-A8X7er0BHFldL8qHbSJkwE` |
+| 1 | 8B `sae/epo-corpus-strat` | `ap-d4xzFG9m1Auae9vHseDVqi` |
+| 2 | 27B `realact/epo-random32` | `ap-pTJ6lWVb5x7783bEUuTssS` |
+| 2 | 27B `sae/epo-random32-strat` | `ap-5MSK86hXV5qoCRbt6NBMvP` |
+| 2 | 8B `realact/epo-random32` | `ap-b4ZacPXmWbeCP7rGwfLc0P` |
+| 2 | 8B `sae/epo-random32-strat` | `ap-BI4SvP04oVgyAJxCcjMsUr` |
+
+**Projection**, at the per-direction rates measured on the smoke-root `epo` arms and amortised to a
+32-direction call: 27B $1.1126 / $1.1294 (corpus, realact / sae) and $1.0343 / $1.0442 (random32),
+8B $0.2857 / $0.2745 and $0.2786 / $0.2770. Times 32 directions: **27B $71.7 (corpus) + $66.5
+(random32), 8B $17.9 + $17.8, EPO total ~= $174.** Actuals replace these when the arms land.
+
+### Two conventions this section follows
+
+**`sae` reporting.** The **stratified** arms are the reported `sae` rows. The `--rows 0-31` arms are
+a labelled **rare-stratum (q0) view**, because a stratum-major family makes rows 0-31 all of density
+quartile q0 — they are kept, not discarded, since the q0 contrast is itself a result (the
+random-init `sae` win exists only there). `realact` is not stratified and its rows 0-31 are the
+family.
+
+**27B precision.** 27B arm means are quoted to **2 decimal places with their SE**; the 8B keeps 3.
+The reason is the non-determinism measured above: the 27B backward runs fla's GatedDeltaNet Triton
+kernels, single directions are NOT reproducible (over the 8 shared rows, 1/8 and 0/8 identical final
+strings, max |d cos| **0.26**), and arm means move by about -+0.03 between runs. So no per-direction
+claim on the 27B is safe from one run, and a 27B arm mean is good to about the second decimal. The
+8B search is bit-exact across runs and needs no such hedge.
+
+### The full run, 2026-09-16 (chain `2026-09-16_autointerp-chain2`, batch path)
+
+`STATUS.json` `state: done`, `restarts: 3`, elapsed 8573 s. Path chosen by measurement: `batch`,
+at 50% of list price. Costs are computed from returned token counts at $2.00/$10.00 per MTok.
+
+| stage | calls | wall | cost | errors |
+|---|---|---|---|---|
+| pilot (64 features, 12 arm-variants) | 12,031 | — | **$34.89** first pass; **$0.00** on replay | 0 |
+| primary explain (512 x 6 arms) | 3,072 | — | included below | 0 |
+| primary detection (512 x 9 arms) | 34,843 | 32 s after RE-ATTACH (2 h 06 m server-side) | included below | 0 |
+| primary fuzzing | 34,843 | 846 s | included below | 0 |
+| **primary total** | **69,686** | — | **$91.92** | **0** |
+| rlI-150 explain (512 x 2 arms) | 1,024 | 452 s | included below | 0 |
+| rlI-150 detection | 7,782 | 727 s | included below | 0 |
+| rlI-150 fuzzing | 7,782 | 2,283 s | included below | 0 |
+| **rlI-150 total** | **16,589** | — | **$23.69** | **0** |
+
+**Zero failed calls in 98,306 requests.** Batch latency is the reason the wall times look odd: the
+three detection batches that had already ENDED did so 2 h 06 m after submission, and the re-attach
+then collected 34,843 results in 32 s.
+
+### The preemption, and what the ledger was for
+
+MEASURED 2026-09-16: a container was preempted 2176 s into the primary detection stage --
+*"Container terminated due to preemption. Your Function will be restarted with the same input"* --
+and the detached app did not come back, leaving five Message Batches running server-side with
+nobody waiting on them. On relaunch:
+
+```
+[detection] RE-ATTACHING to 5 batch(es) from .../batches/detection-a73b599c689c7ef1.json
+            -- not resubmitting 34843 requests
+```
+
+The stage had projected **$56.49** and paid none of it. Batch state at that moment, from the API:
+three ENDED at 8,000/8,000, two still `in_progress` (8,000 + 2,843), **zero errored, zero expired,
+zero canceled**, totalling the ledger's `n = 34,843` exactly. The whole pilot also replayed at
+$0.00, and `build_full_present` reused the 512 build. The function now carries
+`retries=modal.Retries(max_retries=3)`, which is only safe because all three of the prompt cache,
+the batch ledger and the build reuse make the driver idempotent.
+
+### Total autointerp spend
+
+GPU $9.22 (`sae_self` x2 $0.57, `random_pool` $0.14, `examples_4m` $1.63, `examples_docmax` $6.23,
+plus $0.51 sunk on a check that turned out to need a near-tie tolerance). LLM $170.72 ($2.11 on
+OpenRouter before the switch, $34.89 pilot, $91.92 primary, $23.69 rlI-150, ~$18 across the earlier
+stopped chains' pilots). **~$180 against the $500 ceiling.**
