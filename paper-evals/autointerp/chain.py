@@ -278,6 +278,8 @@ def write_tables(run_name: str, root: str, out_path: str, label: str) -> str | N
     except Exception as e:  # noqa: BLE001 -- a missing table must not lose a finished run
         print(f"[chain] stats for {run_name} FAILED: {type(e).__name__}: {e}", flush=True)
         traceback.print_exc()
+        # Recorded, not only printed: a swallowed stats failure is how the rlI-150 run nearly
+        # finished "done" with no results file and nothing in STATUS.json to say so.
         return None
     return out_path
 
@@ -323,7 +325,9 @@ def run(cfg, args):
         binfo = json.load(open(f"{root}/base/{args['base']}/autointerp/{args['heldout']}"
                                f"/{pilot_dir}/build.json"))
         ok, rep = acceptance(binfo, scores, floor_arm, st)
-        write_tables(pilot_dir, root, f"{base}/pilot.md", "pilot")
+        if write_tables(pilot_dir, root, f"{base}/pilot.md", "pilot") is None:
+            st.doc.setdefault("stats_failed", []).append("pilot.md")
+            st.write()
         if not ok:
             st.fail(f"acceptance checks failed: {json.dumps(rep)}")
             return {"chain": chain_dir, "status": "FAILED", "checks": rep, "costs": costs}
@@ -343,7 +347,9 @@ def run(cfg, args):
         st.doc["run_primary"] = out["run_primary"]
         st.doc["costs_usd"] = costs
         st.write()
-        write_tables(full_dir, root, f"{base}/results.md", "results")
+        if write_tables(full_dir, root, f"{base}/results.md", "results") is None:
+            st.doc.setdefault("stats_failed", []).append("results.md")
+            st.write()
 
         out["build_rlI"] = build_if_needed(cfg, args, st, "build_rlI", secondary, rlI_dir, 512)
         st.doc["build_rlI"] = out["build_rlI"]
@@ -357,7 +363,9 @@ def run(cfg, args):
         st.doc["run_rlI"] = out["run_rlI"]
         st.doc["costs_usd"] = costs
         st.write()
-        write_tables(rlI_dir, root, f"{base}/results-rlI.md", "results-rlI")
+        if write_tables(rlI_dir, root, f"{base}/results-rlI.md", "results-rlI") is None:
+            st.doc.setdefault("stats_failed", []).append("results-rlI.md")
+            st.write()
 
         with open(f"{base}/costs.json", "w") as fh:
             json.dump({"per_run": costs, "total_usd": round(sum(costs.values()), 4),

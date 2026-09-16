@@ -514,7 +514,15 @@ class Claude:
         it runs" mechanical rather than a matter of noticing.
         """
         if not jobs:
-            return {"jobs": 0, "usd": 0.0}
+            # EVERY key the full return carries, because the caller formats them. This branch is
+            # reached exactly when the prompt cache already holds the whole stage -- i.e. on the
+            # relaunch a cache exists FOR -- and a partial dict here crashed `gate()` with
+            # KeyError: 'mean_input_tokens' after three stages of real work (2026-09-16).
+            return {
+                "jobs": 0, "sampled": 0, "mean_input_tokens": 0.0, "assumed_output_tokens": 0.0,
+                "usd_per_call": 0.0, "usd": 0.0, "path": "batch" if batch else "sync",
+                "note": "nothing to send: every call of this stage is already in the prompt cache",
+            }
         step = max(1, len(jobs) // sample)
         picked = jobs[::step][:sample]
         tot_in = 0
