@@ -47,8 +47,19 @@ and the batch path (half price) is used only if it returned inside 30 minutes.
 (export MODAL_PROFILE=maemms; uvx --with pyyaml modal run --detach    repo-maemm-precompute/paper-evals/autointerp/modal_app.py --stage chain    --base qwen36-27b --set 2026-09-16_v1    --maemm qwen36-27b/2026-09-10_rl-8x2048-full --maemm2 qwen36-27b/2026-09-08_rlI-150    --chain-dir 2026-09-16_autointerp-chain)
 ```
 
-**The 2026-09-16 run: app `ap-KMkH5RvJ6SctMwqy6YYDjK`, status file
+**The 2026-09-16 run: app `ap-HB71h7dO6SezJ56W9bV7DA`, status file
 `/vol/runs/2026-09-16_autointerp-chain/STATUS.json`.**
+
+Every step of the chain is IDEMPOTENT, because MEASURED 2026-09-16 a container polling a Message
+Batch was killed with `Runner terminated (SIGTERM), exit code: 143` at 1223 s and Modal
+**re-scheduled the input**. A naive restart would have hit `OutDir`'s refusal to overwrite an
+existing product and died on its own earlier success, and — worse — it did resubmit a Message Batch
+that was already running, paying for the same work twice (at the full run's 36,864 requests that is
+a ~$56 double charge and two batches racing). So: a build whose `build.json` already exists is
+reused rather than rerun; the LLM stages resume from the prompt cache; submitted batch ids are
+written to `runs/<run>/batches/<stage>-<hash>.json` **before the first poll** and a restart
+re-attaches to them; and `STATUS.json` is read back and continued, with a `restarts` counter,
+rather than truncated.
 
 Run order when driving the stages by hand: `sae_self` + `random_pool` + `examples_4m` +
 `examples_docmax` (independent of each other) → `build` → `run` → `stats.py`. `sae_self` needs that MAEMM's `rollouts` and `scores`; `build` needs all four P1
