@@ -277,10 +277,13 @@ RATES = {
     "claude-haiku-4-5": {"in": 1.00, "out": 5.00, "cache_write": 1.25, "cache_read": 0.10},
 }
 BATCH_DISCOUNT = 0.5
-# Anthropic's own limits are 100,000 requests / 256 MB per batch; ours are far under that, but a
-# batch is also the unit of polling, so it is capped to keep one stalled batch from holding the
-# whole stage.
-BATCH_MAX_REQUESTS = 20000
+# Anthropic's own limits are 100,000 requests and 256 MB per batch. The request COUNT is not what
+# binds us -- the BYTES are: a detection request carries Delphi's three few-shot turns and five
+# 64-token windows, ~6 KB of JSON, so the full run's detection stage (512 features x 9 arms x 8
+# five-item prompts = 36,864 requests) would be ~220 MB in one batch, inside the limit but with no
+# margin. A stage is therefore cut into chunks of at most BATCH_MAX_REQUESTS, all submitted before
+# any is polled, so the chunks queue in parallel and the stage costs one queue wait rather than k.
+BATCH_MAX_REQUESTS = 8000
 BATCH_POLL_S = 20.0
 
 
@@ -375,59 +378,70 @@ class Claude:
 
     # -- batch path ---------------------------------------------------------------------------
 
-    def run_batch(self, jobs: list[dict], label: str, on_wait=None):
-        """Submit `jobs` as ONE Message Batch and block until it ends. -> {job key: record}.
+    def run_batch(self, jobs: list[dict], label: str):
+        """Submit `jobs` as Message Batches and block until all of them end. -> {job key: record}.
 
-        `custom_id` is a positional token (`r000123`), not the job key: job keys carry `|` and are
-        longer than the id format allows, and results come back in ANY order, so they are keyed
+        All chunks are submitted BEFORE any is polled, so they queue in parallel and the stage
+        waits one queue latency rather than one per chunk.
+
+        `custom_id` is a positional token (`c00r000123`), not the job key: job keys carry `|` and
+        are longer than the id format allows, and results come back in ANY order, so they are keyed
         back by that token rather than by position in the results stream.
         """
         from anthropic.types.messages.batch_create_params import Request
 
-        assert len(jobs) <= BATCH_MAX_REQUESTS, (
-            f"{len(jobs)} requests in one batch; split at {BATCH_MAX_REQUESTS}"
-        )
-        by_id = {f"r{i:06d}": j for i, j in enumerate(jobs)}
-        reqs = [
-            Request(custom_id=cid,
-                    params=self.params(j["system"], j["user"], j["max_tokens"], j.get("fewshot")))
-            for cid, j in by_id.items()
-        ]
         t0 = time.time()
-        batch = self._client.messages.batches.create(requests=reqs)
-        print(f"[{label}] batch {batch.id} submitted, {len(reqs)} requests", flush=True)
-        while True:
-            b = self._client.messages.batches.retrieve(batch.id)
-            if b.processing_status == "ended":
-                break
-            if on_wait:
-                on_wait(b, time.time() - t0)
-            print(f"[{label}] batch {batch.id} {b.processing_status} "
-                  f"{b.request_counts} | {time.time() - t0:.0f}s", flush=True)
+        chunks = [jobs[i : i + BATCH_MAX_REQUESTS] for i in range(0, len(jobs), BATCH_MAX_REQUESTS)]
+        by_id: dict[str, dict] = {}
+        ids: list[str] = []
+        for ci, chunk in enumerate(chunks):
+            reqs = []
+            for i, j in enumerate(chunk):
+                cid = f"c{ci:02d}r{i:06d}"
+                by_id[cid] = j
+                reqs.append(Request(
+                    custom_id=cid,
+                    params=self.params(j["system"], j["user"], j["max_tokens"], j.get("fewshot")),
+                ))
+            b = self._client.messages.batches.create(requests=reqs)
+            ids.append(b.id)
+            print(f"[{label}] batch {b.id} submitted, {len(reqs)} requests "
+                  f"(chunk {ci + 1}/{len(chunks)})", flush=True)
+        pending = set(ids)
+        while pending:
             time.sleep(BATCH_POLL_S)
+            for bid in list(pending):
+                b = self._client.messages.batches.retrieve(bid)
+                if b.processing_status == "ended":
+                    pending.discard(bid)
+                    print(f"[{label}] batch {bid} ended | {time.time() - t0:.0f}s", flush=True)
+                else:
+                    print(f"[{label}] batch {bid} {b.processing_status} {b.request_counts} | "
+                          f"{time.time() - t0:.0f}s", flush=True)
         out: dict[str, dict] = {}
         n_err = 0
-        for res in self._client.messages.batches.results(batch.id):
-            j = by_id.get(res.custom_id)
-            if j is None:
-                continue
-            if res.result.type != "succeeded":
-                n_err += 1
-                self._account(None)
-                continue
-            m = res.result.message
-            usage = _usage_of(m.usage, batch=True, model=self.model)
-            usage["stop_reason"] = m.stop_reason
-            self._account(usage)
-            out[j["key"]] = {
-                "text": "".join(b.text for b in m.content if b.type == "text"),
-                "usage": usage,
-            }
+        for bid in ids:
+            for res in self._client.messages.batches.results(bid):
+                j = by_id.get(res.custom_id)
+                if j is None:
+                    continue
+                if res.result.type != "succeeded":
+                    n_err += 1
+                    self._account(None)
+                    continue
+                m = res.result.message
+                usage = _usage_of(m.usage, batch=True, model=self.model)
+                usage["stop_reason"] = m.stop_reason
+                self._account(usage)
+                out[j["key"]] = {
+                    "text": "".join(b.text for b in m.content if b.type == "text"),
+                    "usage": usage,
+                }
         wall = time.time() - t0
-        print(f"[{label}] batch {batch.id} ENDED: {len(out)} ok, {n_err} failed, {wall:.0f}s "
-              f"({wall / max(1, len(reqs)) * 1000:.0f} ms/request amortised)", flush=True)
-        return out, {"batch_id": batch.id, "wall_s": round(wall, 1), "requests": len(reqs),
-                     "errors": n_err}
+        print(f"[{label}] {len(ids)} batch(es) ENDED: {len(out)} ok, {n_err} failed, {wall:.0f}s "
+              f"({wall / max(1, len(jobs)) * 1000:.0f} ms/request amortised)", flush=True)
+        return out, {"batch_ids": ids, "chunks": len(chunks), "wall_s": round(wall, 1),
+                     "requests": len(jobs), "errors": n_err}
 
     # -- projection ---------------------------------------------------------------------------
 
