@@ -112,6 +112,19 @@ read layer the way `sae_self` measures a rollout. **No such file exists.** `gcg/
 so producing one needs an extra scoring pass over the finals; and at the measured ~$1.09 per 27B
 EPO target the arm is ~$560 at 512 features, which the design leaves as an open decision.
 
+**PREPARED, NOT RUN — three arms behind flags, awaiting Tomáš's decision (2026-09-16).** Each is
+wired end to end and costs nothing until its flag is passed. Projections use the measured per-call
+costs ($0.0085 explain, $0.00302 detection, $0.00194 fuzzing):
+
+| flag | arm | what it is | projected |
+|---|---|---|---|
+| `--explain2` | `C16-explain2` | C16's example set **re-explained** with a fresh explainer call, then scored on draw 1. The third null: `C16-judge2` varies the judge with the description fixed, `C16-draw2` varies the test draw with the description fixed, and neither says how much the **description itself** moves between calls — which matters because this API has no temperature parameter, so every explainer call is a fresh sample | **~$25** at n = 512 (512 explainer + 8,192 scorer calls) |
+| `--centre32` | any C-arm | corpus examples re-cut to **32 tokens centred on the peak** — Delphi's `example_ctx_len 32` + `center_examples True`, and our earlier fork's `--win-ctx 32`. Pure rendering: the per-token activations are already stored for the full 64-token window. Offered on the corpus side only, because a rollout tends to *end* at its peak (the RL reward is there) so centring is not symmetric between the arms | **~$26** at n = 512 over the C-arms |
+| `--crossfam C16,M` | `XC16-q`, `XM-q` | each feature's test set scored with the description of a different feature **in the same density quartile**, detection only. `R-shuffled` already borrows from any other feature; matching the quartile removes "the borrowed description is about something of a different rarity" from what that floor measures. Stricter than the published random-interpretation baseline, which is unmatched — we state which we mean | **~$3.1** on the pilot's 64 features |
+
+`stats.py` also gained an analysis-only robustness table (no API calls): the four headline contrasts
+recomputed over the features that needed **no top-fallback positive**.
+
 **NOT implemented**: the simulation, surprisal, embedding and intruder scorers (Delphi ships them;
 the design asks for detection and fuzzing only), and any 8B row.
 

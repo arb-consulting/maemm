@@ -59,6 +59,8 @@ FAMILY = "sae"
 # Delphi lists at most this many activating tokens per example (facts §3, explainer.py).
 MAX_SHOWN_ACTS = 10
 BANDS = ("q0", "q1", "q2", "q3")
+# Delphi's `example_ctx_len`, used by the PREPARED-NOT-RUN `--centre32` corpus arm below.
+CENTRE32_LEN = 32
 
 
 # ---------------------------------------------------------------------------------------------
@@ -124,6 +126,22 @@ def exemplar_block(examples: list[dict]) -> str:
         pairs = ", ".join(f'("{t}" : {n})' for t, n in e["activations"])
         out.append(f"{line}\nActivations: {pairs}" if pairs else line)
     return "\n".join(out)
+
+
+def centre_on_peak(ids, acts, width: int = CENTRE32_LEN):
+    """Re-cut a window to `width` tokens centred on its peak activation. Returns (ids, acts).
+
+    Delphi's `example_ctx_len 32` + `center_examples True`. Our corpus windows are 64 tokens with
+    the peak anywhere in them; a MAEMM rollout, by contrast, tends to END at its peak because that
+    is where the RL reward is, so centring is not symmetric between the arms and this is offered
+    for the CORPUS side only.
+    """
+    a = np.asarray(acts, dtype=np.float32)
+    if len(a) <= width:
+        return ids, list(a)
+    c = int(a.argmax())
+    lo = max(0, min(c - width // 2, len(a) - width))
+    return ids[lo : lo + width], [float(x) for x in a[lo : lo + width]]
 
 
 def render_example(tok, ids, acts, peak: float, gate: float) -> dict:
@@ -335,6 +353,14 @@ def draw_features(sae_rows: list[dict], n_feat: int, seed: int) -> list[dict]:
 # arms
 # ---------------------------------------------------------------------------------------------
 
+# PREPARED, NOT RUN (Tomas decides; 2026-09-16). `--centre32` re-cuts every CORPUS example to a
+# 32-token window CENTRED on its peak token before rendering, which is Delphi's own
+# `example_ctx_len 32` and `center_examples True` and is also what our earlier fork did
+# (repo-maemm/eval/autointerp_detection.py:715, `--win-ctx 32`). Nothing new has to be computed:
+# the per-token activations are already stored for the full 64-token window, so this is a
+# rendering change plus one fresh explainer call per (feature, arm). PROJECTED at n = 512 over the
+# C-arms: ~3,072 explainer calls at the measured $0.0085 = ~$26, plus scoring if it is scored as
+# its own arm. It is a separate ARM, never a silent change to C16: the two must be comparable.
 # name -> (corpus source, n corpus, rollout source, n rollouts). "c16" is the full-corpus top-k,
 # "c4" the 4M-prefix top-k. The order of the tuple is the order examples are concatenated in
 # before the shuffle.
@@ -611,6 +637,7 @@ def run(cfg, args):
         f"autointerp.nearmiss_source must be 'qband' or 'random', got {nearmiss_source!r}"
     )
     gate_positives = bool(ac["gate_consistent_positives"])
+    centre32 = bool(args.get("centre32"))
     allow_top_fallback = bool(ac["allow_top_fallback"])
     engine = args.get("engine") or "vllm"
     arm_names = [a for a in (args.get("arms") or "").split(",") if a] or list(ARM_SPECS)
@@ -744,7 +771,10 @@ def run(cfg, args):
                     f"feature {feat}, window (doc {e['doc']}, start {e['start']}, len {e['len']}): "
                     f"recovered {len(ids)} tokens but the stored acts are {len(e['acts'])} long"
                 )
-                out = render_example(tok, ids, e["acts"], peak, gate)
+                w_ids, w_acts = (
+                    centre_on_peak(ids, e["acts"]) if centre32 else (ids, e["acts"])
+                )
+                out = render_example(tok, w_ids, w_acts, peak, gate)
                 return {
                     **out,
                     "src": "corpus",
@@ -914,6 +944,7 @@ def run(cfg, args):
                 "shuffle_seed": shuffle_seed,
                 "n_examples": n_ex,
                 "corpus_prefix_m": prefix_m,
+                "centre32": centre32,
                 "n_pos": n_pos,
                 "n_neg": n_neg,
                 "n_neg_nearmiss": n_neg_nearmiss,
@@ -965,8 +996,10 @@ def run(cfg, args):
             f"{float(np.mean(mark_frac)) if mark_frac else 0:.4f}."
         )
         od.note(
-            f"corpus windows are recovered from corpus/tokens.i32 at (doc, start, len) and the "
-            f"recovered length is ASSERTED equal to len(acts); the window is also asserted to be "
+            "corpus windows are recovered from corpus/tokens.i32 at (doc, start, len) and the "
+            (f"CORPUS examples are re-cut to {CENTRE32_LEN} tokens CENTRED on the peak "
+             f"(--centre32, Delphi's example_ctx_len/center_examples). " if centre32 else "")
+            + f"recovered length is ASSERTED equal to len(acts); the window is also asserted to be "
             f"one of common.windows_of's cuts. Per-token decode joins back to tok.decode(ids) on "
             f"{join_total - join_bad}/{join_total} examples (byte-level BPE can split a codepoint)."
         )

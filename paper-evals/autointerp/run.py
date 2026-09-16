@@ -744,6 +744,25 @@ def _feature_rows(build_dir: str, feat: int):
     return meta, arms, t1, t2
 
 
+def derangement_within(items: list, groups: dict, seed: int) -> dict:
+    """A derangement that keeps each item inside its own group. Falls back to a rotation per group.
+
+    Used by the PREPARED-NOT-RUN cross-family check: the `R-shuffled` floor borrows a description
+    from ANY other feature, so part of what it measures is that the borrowed description is about
+    something of a different rarity. Matching on the density quartile removes that, and what is
+    left is the floor a description of a SIMILARLY COMMON feature reaches. It is a stricter floor
+    than the published random-interpretation baseline, which is unmatched; we state which we mean.
+    """
+    out: dict = {}
+    for g in sorted({groups[i] for i in items}):
+        mem = [i for i in items if groups[i] == g]
+        if len(mem) < 2:
+            out.update({i: i for i in mem})  # a singleton group cannot be deranged; flagged by caller
+            continue
+        out.update(derangement(mem, seed + hash(str(g)) % 10_000))
+    return out
+
+
 def derangement(items: list, seed: int) -> dict:
     """A fixed permutation with NO fixed point: the floor arm's "a different random feature".
 
@@ -834,6 +853,23 @@ def run(cfg, args):
     batch_int = int(ac["scorer_batch"])
     floor_arm, floor_src, draw2_arm = str(ac["floor_arm"]), str(ac["floor_source_arm"]), "C16-draw2"
     judge_arm = str(ac.get("judge_floor_arm") or "C16-judge2")
+    # PREPARED, NOT RUN (Tomas decides; 2026-09-16). `--explain2` adds `C16-explain2`: C16's
+    # example set RE-EXPLAINED with a fresh explainer call, then scored on draw 1. It is the third
+    # null and it bounds the one source of variance the other two cannot see -- `C16-judge2` holds
+    # the description fixed and varies the judge, `C16-draw2` holds the description fixed and
+    # varies the test draw, and neither says how much the DESCRIPTION itself moves between calls.
+    # That matters here because the API has no temperature parameter, so every explainer call is a
+    # fresh sample. PROJECTED at n = 512: 512 explainer calls at the measured $0.0085 = $4.35, plus
+    # 512 x 8 x 2 scorer calls at $0.00302 / $0.00194 = $20.3, TOTAL ~$25.
+    explain2_arm = "C16-explain2"
+    want_explain2 = bool(args.get("explain2"))
+    # PREPARED, NOT RUN (Tomas decides; 2026-09-16). `--crossfam` adds one arm per source arm in
+    # `crossfam_arms`, scoring each feature's test set with the description of a DIFFERENT feature
+    # IN THE SAME DENSITY QUARTILE, detection only. `R-shuffled` already borrows a description from
+    # any other feature; matching the quartile removes "the borrowed description is about something
+    # of a different rarity" from what that floor measures. PROJECTED on the pilot's 64 features
+    # for C16 and M: 2 x 64 x 8 detection calls at the measured $0.00302 = ~$3.1.
+    crossfam_arms = [a for a in (args.get("crossfam") or "").split(",") if a]
 
     run_name = args.get("run_dir") or f"{time.strftime('%Y-%m-%d')}_autointerp-{base.split('-')[-1]}"
     run_root = f"{root}/runs/{run_name}"
@@ -922,6 +958,14 @@ def run(cfg, args):
                 "system": DELPHI_EXPLAINER_SYSTEM, "fewshot": DELPHI_EXPLAINER_FEWSHOT,
                 "user": arms[a]["block"], "max_tokens": int(ac["explainer_max_tokens"]),
             })
+    if want_explain2:
+        # A SECOND call on the same prompt under its own job key, so the cache treats it as a
+        # separate sample rather than returning the first answer.
+        jobs += [
+            {**j, "key": j["key"] + "|explain2", "arm": explain2_arm}
+            for j in list(jobs)
+            if j["arm"] == floor_src
+        ]
     got: dict[str, dict] = {}
     if gate(jobs, "explain"):
         got, info = _submit(cl, cache, jobs, "explain", max_cost, concurrency, path,
@@ -970,6 +1014,13 @@ def run(cfg, args):
           f"{n_trunc} truncated-and-retried, ${explain_cost:.4f}", flush=True)
 
     perm = derangement(feats, int(ac["shuffle_seed"]))
+    strat_of = {f: int(fmeta[f]["stratum"]) for f in feats}
+    perm_q = derangement_within(feats, strat_of, int(ac["shuffle_seed"]) + 7)
+    if crossfam_arms:
+        fixed = [f for f in feats if perm_q[f] == f]
+        if fixed:
+            print(f"[run] crossfam: {len(fixed)} features are alone in their quartile and cannot "
+                  f"be deranged within it; they are skipped", flush=True)
 
     # ---- PHASE 2: score. ONE job list per scorer over EVERY feature, so the batch path has a
     # batch worth submitting and the sync path keeps the thread pool saturated.
@@ -980,6 +1031,11 @@ def run(cfg, args):
         _meta, arms, t1, t2 = _feature_rows(build_dir, feat)
         plan = [(a, expl.get((feat, a), ""), t1) for a in arm_names if a in arms]
         plan.append((floor_arm, expl.get((perm[feat], floor_src), ""), t1))
+        if want_explain2 and expl.get((feat, explain2_arm)):
+            plan.append((explain2_arm, expl.get((feat, explain2_arm), ""), t1))
+        for src in crossfam_arms:
+            if perm_q[feat] != feat and expl.get((perm_q[feat], src)):
+                plan.append((f"X{src}-q", expl.get((perm_q[feat], src), ""), t1))
         if expl.get((feat, floor_src)):
             # The JUDGE-ONLY floor: the same description on the SAME draw-1 items. Its job key
             # differs from C16's, so the cache treats it as a separate call and it really is a
@@ -997,13 +1053,16 @@ def run(cfg, args):
     for scorer in scorers:
         if stopped_at:
             break
+        # The cross-family check is DETECTION ONLY: fuzzing asks whether a marking is correct, and
+        # a borrowed description has no bearing on marks that were placed from stored activations.
+        skip_arms = {f"X{a}-q" for a in crossfam_arms} if scorer != "detection" else set()
         field = "text" if scorer == "detection" else "text_fuzz"
         system = DELPHI_DETECTION_SYSTEM if scorer == "detection" else DELPHI_FUZZ_SYSTEM
         fewshot = DELPHI_DETECTION_FEWSHOT if scorer == "detection" else None
         jobs = []
         for feat in feats:
             for a, e, items in plans[feat]:
-                if not e:
+                if not e or a in skip_arms:
                     continue
                 for bi, g in enumerate(groups_of(items)):
                     jobs.append({
@@ -1024,6 +1083,8 @@ def run(cfg, args):
             gate_v = float(_feature_rows(build_dir, feat)[0]["gate"])
             arms = _feature_rows(build_dir, feat)[1]
             for a, e, items in plans[feat]:
+                if a in skip_arms:
+                    continue
                 gs = groups_of(items)
                 labels, preds, srcs = [], [], []
                 n_batches = n_parsed = 0
@@ -1072,7 +1133,9 @@ def run(cfg, args):
                              else "draw_null" if a == draw2_arm else "arm"),
                     "n_examples": arms[a]["n"] if a in arms else 0,
                     "explanation_ok": bool(e),
-                    "explanation_of": perm[feat] if a == floor_arm else feat,
+                    "explanation_of": (perm[feat] if a == floor_arm
+                                       else perm_q[feat] if a.startswith("X") and a.endswith("-q")
+                                       else feat),
                     "path": path, "gate": gate_v,
                     "stratum": fmeta[feat]["stratum"],
                     "fire_fraction": fmeta[feat]["fire_fraction"],
