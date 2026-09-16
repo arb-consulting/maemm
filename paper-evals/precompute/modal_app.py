@@ -223,6 +223,7 @@ PRODUCTS = {
     "repo_examples": _script("repo_examples"),
     "centred": _script("centred"),
     "patchscopes": _script("patchscopes"),
+    "top1_act": _script("top1_act"),
 }
 # `corpus` is CPU AND the only product that goes to the network: the Ultra-FineWeb parquet parts
 # are not in the volume's HF cache, so corpus.py flips HF_HUB_OFFLINE off for itself. `mu_check`

@@ -2118,3 +2118,175 @@ The 12 features whose draw 1 is short are the sparsest end of the density range 
 instance, has corpus density 1.8e-6 and gets 0 positives): their entire gate-passing corpus
 presence fits inside what the arms already show. They drop out of the paired contrasts through
 `drop_nulls` rather than being padded.
+
+## `top1_act` — activation of the cosine top-1 corpus window per sae feature (2026-09-16, full root)
+
+| date | item | command | wall | cost | result |
+|---|---|---|---|---|---|
+| 2026-09-16 | `top1_act` 27B, 512 sae features | `--product top1_act --base qwen36-27b --set 2026-09-16_v1` | 201.5 s | **$0.2542** | 508 joined from `examples/`, 4 forwarded; all 512 forwarded as the check (max rel. join-vs-forward 2.4e-2, median 2.2e-6 = the bf16 batch-shape floor); 512/512 pass the gate 1.5846, median act/gate 13.60, Spearman(top1_cos, act_max) 0.937 |
+| 2026-09-16 | `top1_act` 8B, 512 sae features | `--product top1_act --base qwen3-8b --set 2026-09-16_v1` | 78.4 s | **$0.0860** | 473 joined, 39 forwarded; 508/512 pass the gate 6.936, median act/gate 14.24, Spearman 0.951 |
+
+The cosine-selected top-1 window is essentially the feature's max-activation window (median act_max / the
+feature's held-out max 0.993 (27B) / 0.972 (8B)), because the pre-gate activation is near-monotone in the
+cosine at fixed norm. CSV for the figure: `paper/inversion-eval/data/corpus_top1_activation.csv` (1,024 rows).
+
+
+## GCG stratified sae (full root, 2026-09-16)
+
+The `sae` rows 0-31 used by the final arms are **all density quartile q0**: `targets.py` lays the
+sae family out stratum-major, verified here from `ids.jsonl`'s own `stratum` field rather than
+assumed -- 128 rows per quartile, contiguous, q0 = sae-local 0-127 = global 1024-1151.
+
+| base | q0 density | q1 | q2 | q3 |
+|---|---|---|---|---|
+| qwen3-8b | 3.27e-06 - 1.43e-04 | 1.50e-04 - 3.67e-04 | 3.78e-04 - 1.15e-03 | 1.18e-03 - 1.69e-02 |
+| qwen36-27b | 4.28e-07 - 4.54e-05 | 4.75e-05 - 1.66e-04 | 1.68e-04 - 4.47e-04 | 4.51e-04 - 4.97e-02 |
+
+So the q0-only arms are the **rare-stratum view**, not the sae family. The rerun takes 8 rows of
+EACH quartile -- `--rows 0-7,128-135,256-263,384-391 --family sae` -- into NEW directories
+`sae/{gcg-corpus-strat,gcg-random32-strat}` via a new `--arm-suffix` flag, so the q0 arms are never
+overwritten. The suffix becomes a directory name and is asserted to be lowercase alphanumerics with
+single hyphens (`../q0`, `a/b`, `Strat`, `x--y` and three others rejected); it is deliberately NOT
+part of `--arm`, which must stay parseable as `<mode>-<init>`.
+
+### The four stratified arms
+
+Mean +- SE over the 32 TARGETS of each target's best member. For arms that landed before
+2026-09-16 the SE is recomputed from `per_dir_best_cos`, which every `summary.json` already carries;
+the landed files are NOT rewritten, because a product directory is written once by temp-and-rename
+and its README records the wall and cost of the call that produced it, so editing it afterwards
+would make that record false. Arms run after this date carry `mean_per_dir_best_cos` and
+`se_per_dir_best_cos` natively.
+
+| base | arm | dirs | mean final cos +- SE | mean init cos +- SE | mean NLL | $/dir | wall/dir | mean peak act | frac fired |
+|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | `gcg-corpus-strat` | 32 | **0.2983 +- 0.0168** | 0.2332 +- 0.0143 | 7.461 | $0.0922 | 84 s | 133.96 | 1.000 |
+| qwen3-8b | `gcg-random32-strat` | 32 | 0.2032 +- 0.0240 | 0.0098 +- 0.0017 | 13.422 | $0.0946 | 86 s | 87.22 | 0.969 |
+| qwen36-27b | `gcg-corpus-strat` | 32 | **0.2344 +- 0.0159** | 0.1594 +- 0.0138 | 7.147 | $0.3358 | 266 s | 29.85 | 1.000 |
+| qwen36-27b | `gcg-random32-strat` | 32 | 0.0843 +- 0.0089 | 0.0038 +- 0.0011 | 13.354 | $0.3225 | 256 s | 8.70 | 0.969 |
+
+The q0-only arms for comparison: 8B 0.3080 / 0.2161, 27B 0.2408 / 0.0682. **The arm MEAN barely
+moves** (0.01-0.02 in every cell) -- which is why the per-quartile breakdown, not the mean, is the
+reason to have run this.
+
+### Per quartile, against the MAEMMs on the same rows (best-of-64 = max)
+
+| base | arm | q0 (rarest) | q1 | q2 | q3 (densest) |
+|---|---|---|---|---|---|
+| 8B | `gcg-corpus-strat` | 0.3505, **+0.2103** (8/8) | 0.2868, +0.1185 (8/8) | 0.2780, +0.1284 (8/8) | 0.2778, +0.1078 (8/8) |
+| 8B | `gcg-random32-strat` | 0.2844, **+0.1441** (8/8) | 0.1833, +0.0150 (6/8) | 0.1476, **-0.0019** (4/8) | 0.1974, +0.0274 (5/8) |
+| 27B | `gcg-corpus-strat` | 0.2343, +0.0790 (6/8) | 0.2880, +0.0240 (6/8) | 0.2235, +0.0551 (8/8) | 0.1918, +0.0586 (8/8) |
+| 27B | `gcg-random32-strat` | 0.0683, **-0.0870** (3/8) | 0.0993, **-0.1647** (0/8) | 0.0813, -0.0871 (0/8) | 0.0882, -0.0450 (3/8) |
+
+(differences against the primary `qwen36-27b/2026-09-10_rl-8x2048-full` on the 27B and
+`qwen3-8b/2026-09-03_run1-rl` on the 8B; against `rlI-150` the 27B corpus arm wins 8/8 in every
+quartile, +0.1147 / +0.0435 / +0.0650 / +0.0665.)
+
+**What stratifying changes, and what it does not.**
+
+- **The corpus-init result survives intact.** 8B `gcg-corpus-strat` beats the MAEMM on **32/32**
+  targets across every density quartile; the 27B wins 28/32 against the primary and 32/32 against
+  `rlI-150`. That is the `sae` headline and it is not a rare-feature artefact.
+- **The random-init result does NOT survive.** On the 8B its advantage is real only on q0
+  (+0.1441, 8/8) and collapses to a tie everywhere else (+0.015, **-0.002**, +0.027; 6/8, 4/8, 5/8).
+  The +0.0803 / 29-of-32 reported for `sae/gcg-random32` in the final-run section is a **q0
+  artefact** and should not be read as a `sae`-family result. On the 27B the random arm loses in
+  every quartile.
+- **Rarer is not uniformly easier.** The 8B corpus arm falls monotonically from q0 to q2 and then
+  flattens, but the 27B corpus arm PEAKS at q1 (0.2880) and is lowest at q3 (0.1918), and the
+  MAEMM's own q1 is its best quartile too (0.2640). Whatever q1 is on the 27B, both methods find it
+  easier, so it is a property of the features rather than of the search.
+
+### The 8 shared rows: the 8B is exactly reproducible, the 27B is not
+
+Rows 1024-1031 are in BOTH the q0 arms and the stratified arms, run independently with the same
+per-direction seeding (`[seed, crc32(family), row]`). That makes them a free determinism check:
+
+| base | arm | identical final ids | max abs cos difference |
+|---|---|---|---|
+| qwen3-8b | `gcg-corpus` | **8/8** | **0.00e+00** |
+| qwen3-8b | `gcg-random32` | **8/8** | **0.00e+00** |
+| qwen36-27b | `gcg-corpus` | 1/8 | **2.64e-01** |
+| qwen36-27b | `gcg-random32` | 0/8 | 1.46e-01 |
+
+**The 8B search is bit-exact across runs; the 27B is not.** The inits are identical in both cases
+(max |d| 0.00e+00 corpus, 4.39e-04 random32), so the divergence is in the SEARCH, not the setup: the
+27B is the only base whose backward goes through fla's GatedDeltaNet Triton path -- the one that
+needed `triton>=3.7.1` -- and a nondeterministic gradient changes the proposed candidates, after
+which the trajectories separate for good. Most rows still agree closely (per-row differences
+-0.264, -0.049, 0.004, -0.005, 0.004, 0.014, 0.007, 0.000 on `gcg-corpus`); one row per arm diverges
+hard.
+
+**The caveat this puts on every 27B number:** a single 27B direction is NOT reproducible, and the
+arm mean over these 8 rows moved by -0.036 (`gcg-corpus`) and +0.024 (`gcg-random32`) between runs.
+That is the same size as the 27B realact GCG-vs-MAEMM gap (-0.043), so on a 32-target arm the
+run-to-run component is smaller but not negligible, and the SE over targets does NOT capture it.
+Quoting a 27B arm mean to three decimals overstates what one run establishes.
+
+### Spend
+
+4 arms x 32 directions: 8B $2.9524 + $3.0318, 27B $10.7499 + $10.3208 = **$27.05**, against ~$30.
+Per direction: 8B $0.0922-0.0946, 27B $0.3225-0.3359.
+
+### (f) GCG final, stratified
+
+The sae arms were re-run on a STRATIFIED draw — 8 targets from each of the four density quartiles,
+32 in all — at `sae/{gcg-corpus-strat,gcg-random32-strat}/` on both bases. Those are now the
+reported sae rows. The earlier plain sae arms took the first 32 sae rows, which are **all q0**, so
+they are kept as a separate "rare-stratum q0 view" and never averaged in as the family: reporting
+them as the sae number would report the rarest quartile as the whole. realact is unchanged.
+
+| base | family | view | arm | slice | dirs | rows | GCG cos | init cos | nll | 2026-09-03_run1-rl bo64 | 2026-09-03_run1-rl mean64 | GCG - 2026-09-03_run1-rl bo64 | GCG wins vs 2026-09-03_run1-rl | 2026-09-10_rl-8x2048-full@vllm bo64 | 2026-09-10_rl-8x2048-full@vllm mean64 | GCG - 2026-09-10_rl-8x2048-full@vllm bo64 | GCG wins vs 2026-09-10_rl-8x2048-full@vllm | 2026-09-16_base-control@vllm bo64 | 2026-09-16_base-control@vllm mean64 | GCG - 2026-09-16_base-control@vllm bo64 | GCG wins vs 2026-09-16_base-control@vllm | 2026-09-08_rlI-150@vllm bo64 | 2026-09-08_rlI-150@vllm mean64 | GCG - 2026-09-08_rlI-150@vllm bo64 | GCG wins vs 2026-09-08_rlI-150@vllm |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact |  | gcg-corpus | all | 32 | 0-31 | 0.6398 ± 0.0113 | 0.5220 ± 0.0132 | 7.613 | 0.6532 | 0.5527 | -0.0134 ± 0.0102 | 0.344 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | gcg-random32 | all | 31 | 0-31 | 0.4924 ± 0.0237 | 0.0525 ± 0.0124 | 12.932 | 0.6547 | 0.5541 | -0.1622 ± 0.0211 | 0.032 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | rare-stratum q0 view | gcg-corpus | all | 32 | 1024-1055 | 0.3080 ± 0.0172 | 0.2358 ± 0.0170 | 7.97 | 0.1358 | 0.0647 | 0.1722 ± 0.0222 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | all | 32 | 1024-1415 | 0.2983 ± 0.0168 | 0.2332 ± 0.0143 | 7.461 | 0.157 | 0.0775 | 0.1412 ± 0.0157 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q0 | 8 | 1024-1031 | 0.3505 ± 0.0206 | 0.2778 ± 0.0198 | 8.299 | 0.1402 | 0.0575 | 0.2103 ± 0.0451 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q1 | 8 | 1152-1159 | 0.2868 ± 0.0268 | 0.2431 ± 0.0234 | 6.622 | 0.1683 | 0.0924 | 0.1185 ± 0.0205 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q2 | 8 | 1280-1287 | 0.2780 ± 0.0174 | 0.2045 ± 0.0212 | 7.842 | 0.1496 | 0.0653 | 0.1284 ± 0.0227 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q3 | 8 | 1408-1415 | 0.2778 ± 0.0551 | 0.2073 ± 0.0416 | 7.082 | 0.17 | 0.0948 | 0.1078 ± 0.0218 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | rare-stratum q0 view | gcg-random32 | all | 32 | 1024-1055 | 0.2161 ± 0.0248 | 0.0158 ± 0.0023 | 13.334 | 0.1358 | 0.0647 | 0.0803 ± 0.0167 | 0.906 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | all | 32 | 1024-1415 | 0.2032 ± 0.0240 | 0.0098 ± 0.0017 | 13.422 | 0.157 | 0.0775 | 0.0461 ± 0.0194 | 0.719 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q0 | 8 | 1024-1031 | 0.2844 ± 0.0439 | 0.0116 ± 0.0029 | 13.517 | 0.1402 | 0.0575 | 0.1441 ± 0.0369 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q1 | 8 | 1152-1159 | 0.1833 ± 0.0486 | 0.0177 ± 0.0041 | 13.75 | 0.1683 | 0.0924 | 0.0150 ± 0.0423 | 0.75 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q2 | 8 | 1280-1287 | 0.1476 ± 0.0416 | 0.0053 ± 0.0019 | 13.283 | 0.1496 | 0.0653 | -0.0019 ± 0.0355 | 0.5 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q3 | 8 | 1408-1415 | 0.1974 ± 0.0525 | 0.0047 ± 0.0019 | 13.137 | 0.17 | 0.0948 | 0.0273 ± 0.0195 | 0.625 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | gcg-corpus | all | 32 | 0-31 | 0.4886 ± 0.0273 | 0.3491 ± 0.0255 | 8.278 |  |  |  |  | 0.5313 | 0.4611 | -0.0426 ± 0.0136 | 0.281 | 0.1052 | -0.0021 | 0.3835 ± 0.0221 | 1.0 | 0.5301 | 0.4065 | -0.0415 ± 0.0139 | 0.312 |
+| qwen36-27b | realact |  | gcg-random32 | all | 32 | 0-31 | 0.2827 ± 0.0343 | -0.0179 ± 0.0157 | 13.081 |  |  |  |  | 0.5313 | 0.4611 | -0.2486 ± 0.0292 | 0.0 | 0.1052 | -0.0021 | 0.1775 ± 0.0247 | 0.938 | 0.5301 | 0.4065 | -0.2474 ± 0.0292 | 0.0 |
+| qwen36-27b | sae | rare-stratum q0 view | gcg-corpus | all | 32 | 1024-1055 | 0.2408 ± 0.0111 | 0.1478 ± 0.0126 | 7.31 |  |  |  |  | 0.1308 | 0.0859 | 0.1100 ± 0.0166 | 0.906 | 0.0194 | 0.0039 | 0.2214 ± 0.0115 | 1.0 | 0.1112 | 0.065 | 0.1296 ± 0.0172 | 0.938 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | all | 32 | 1024-1415 | 0.2344 ± 0.0159 | 0.1594 ± 0.0138 | 7.147 |  |  |  |  | 0.1802 | 0.1316 | 0.0542 ± 0.0100 | 0.875 | 0.0218 | 0.0032 | 0.2126 ± 0.0164 | 1.0 | 0.162 | 0.1109 | 0.0724 ± 0.0101 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q0 | 8 | 1024-1031 | 0.2343 ± 0.0357 | 0.1481 ± 0.0391 | 6.938 |  |  |  |  | 0.1553 | 0.083 | 0.0790 ± 0.0348 | 0.75 | 0.0191 | 0.0045 | 0.2151 ± 0.0357 | 1.0 | 0.1196 | 0.0441 | 0.1147 ± 0.0322 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q1 | 8 | 1152-1159 | 0.2880 ± 0.0254 | 0.2105 ± 0.0170 | 6.864 |  |  |  |  | 0.2639 | 0.212 | 0.0240 ± 0.0115 | 0.75 | 0.0196 | 0.0039 | 0.2683 ± 0.0265 | 1.0 | 0.2444 | 0.1919 | 0.0435 ± 0.0077 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q2 | 8 | 1280-1287 | 0.2235 ± 0.0218 | 0.1472 ± 0.0193 | 7.584 |  |  |  |  | 0.1684 | 0.1312 | 0.0551 ± 0.0101 | 1.0 | 0.0196 | 0.0018 | 0.2039 ± 0.0212 | 1.0 | 0.1585 | 0.1142 | 0.0650 ± 0.0081 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q3 | 8 | 1408-1415 | 0.1918 ± 0.0375 | 0.1318 ± 0.0252 | 7.203 |  |  |  |  | 0.1332 | 0.1002 | 0.0586 ± 0.0109 | 1.0 | 0.0286 | 0.0026 | 0.1632 ± 0.0394 | 1.0 | 0.1253 | 0.0935 | 0.0665 ± 0.0157 | 1.0 |
+| qwen36-27b | sae | rare-stratum q0 view | gcg-random32 | all | 32 | 1024-1055 | 0.0682 ± 0.0097 | 0.0054 ± 0.0012 | 13.175 |  |  |  |  | 0.1308 | 0.0859 | -0.0626 ± 0.0195 | 0.375 | 0.0194 | 0.0039 | 0.0488 ± 0.0096 | 1.0 | 0.1112 | 0.065 | -0.0430 ± 0.0194 | 0.5 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | all | 32 | 1024-1415 | 0.0843 ± 0.0089 | 0.0038 ± 0.0011 | 13.354 |  |  |  |  | 0.1802 | 0.1316 | -0.0959 ± 0.0155 | 0.188 | 0.0218 | 0.0032 | 0.0625 ± 0.0095 | 0.938 | 0.162 | 0.1109 | -0.0777 ± 0.0147 | 0.156 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q0 | 8 | 1024-1031 | 0.0683 ± 0.0185 | 0.0068 ± 0.0034 | 13.569 |  |  |  |  | 0.1553 | 0.083 | -0.0869 ± 0.0340 | 0.375 | 0.0191 | 0.0045 | 0.0492 ± 0.0184 | 1.0 | 0.1196 | 0.0441 | -0.0513 ± 0.0278 | 0.375 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q1 | 8 | 1152-1159 | 0.0993 ± 0.0270 | 0.0022 ± 0.0021 | 13.266 |  |  |  |  | 0.2639 | 0.212 | -0.1647 ± 0.0252 | 0.0 | 0.0196 | 0.0039 | 0.0796 ± 0.0295 | 0.875 | 0.2444 | 0.1919 | -0.1452 ± 0.0324 | 0.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q2 | 8 | 1280-1287 | 0.0813 ± 0.0097 | 0.0024 ± 0.0013 | 13.307 |  |  |  |  | 0.1684 | 0.1312 | -0.0871 ± 0.0202 | 0.0 | 0.0196 | 0.0018 | 0.0617 ± 0.0096 | 1.0 | 0.1585 | 0.1142 | -0.0772 ± 0.0177 | 0.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q3 | 8 | 1408-1415 | 0.0882 ± 0.0128 | 0.0035 ± 0.0020 | 13.273 |  |  |  |  | 0.1332 | 0.1002 | -0.0450 ± 0.0312 | 0.375 | 0.0286 | 0.0026 | 0.0596 ± 0.0147 | 0.875 | 0.1253 | 0.0935 | -0.0371 ± 0.0266 | 0.25 |
+
+**The stratified draw halves the sae gap, and the q0-only view was the reason it looked larger.**
+On the 27B, `gcg-corpus` against the primary: the q0 view says **+0.1100 ± 0.0166** (GCG winning
+90.6%), the stratified draw says **+0.0542 ± 0.0100** (87.5%). Same arm, same objective, same
+scorer — the difference is entirely which features were drawn. The 8B moves the same way, +0.1722 →
+**+0.1412 ± 0.0157**, still winning 100% of features. So the qualitative claim survives (a 32-token
+optimised string beats the inverter on SAE encoder columns, on every 8B feature tested and 87.5% of
+27B ones) while the magnitude on the 27B was overstated about twofold by the draw.
+
+**Per quartile the gap tracks how rare the feature is**, and so does the inverter's own score. On
+the 27B the primary's best-of-64 runs 0.1553 / 0.2639 / 0.1684 / 0.1332 across q0-q3 while the GCG
+gap runs +0.0790 / +0.0240 / +0.0551 / +0.0586 — widest in q0, narrowest in q1, which is also where
+the inverter is strongest. The 8B is monotone: gap +0.2103 / +0.1185 / +0.1284 / +0.1078.
+
+**Random-init is the control that separates search from initialisation.** `gcg-random32-strat`
+LOSES to the 27B primary on the stratified draw (−0.0959 ± 0.0155, winning 18.8%) while the
+corpus-init arm wins — so on the 27B the sae ceiling is reachable from a good corpus window and not
+from 300 iterations starting at noise. On the 8B random-init still wins (+0.0461 ± 0.0194, 71.9%),
+concentrated in q0 (+0.1441, 100%) and gone by q2 (−0.0019, 50%).
+
+Source note: the per-direction best member is taken from `finals.jsonl`; where `summary.json` also
+carries `per_dir_best_cos` the two agree exactly (MEASURED on the 27B stratified arms, max
+|difference| = **0.0**), so the table uses the finals and the summary is a cross-check, not a second
+source.

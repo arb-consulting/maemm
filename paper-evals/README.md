@@ -112,6 +112,7 @@ allowed sidecar, so an array's length is never inferred from its file size).
 | `repo_examples` | GPU | `base/<base>/sae/<sae>/repo_examples/<set>/` | the SAE repo's OWN shipped max-activating windows for the tested features, scored through `common.score_tokens` exactly like a rollout: the `sae-repo-top32` baseline column, plus the repo-vs-us activation agreement |
 | `gcg` | GPU | `base/<base>/gcg/<set>/<family>/<arm>/` | discrete-token search on the scorer's own objective -- the reachability ceiling a text of T=32 tokens gets to, against which a MAEMM rollout is read. Its own Modal app (`gcg/modal_app.py`), one call per (base, family, arm). NEVER loads a MAEMM |
 | `mu_diag` | GPU | `base/<base>/stats/mu_diag/` | WHY `mu_check`'s two means disagree: Celeste's 512-token / no-sink / all-position geometry recomputed on OUR corpus, plus the position mix, the massive-activation tokens and the split-half sampling noise of each geometry. One forward pass per geometry; `--tokens` caps the corpus walk (default 500k) |
+| `top1_act` | GPU | `base/<base>/sae/<sae>/top1_act/<set>/` | for every sae held-out feature, the pre-gate activation of the feature on its cosine-selected corpus top-1 window (scan rank 0 at 16M): join against the activation-ranked examples where present, and ONE forward of all 512 windows (scan geometry, clean base) as the checked path; feeds `reconstruction/corpus_top1_activation.py` → `paper/inversion-eval/data/corpus_top1_activation.csv`. Measured 2026-09-16: 27B 512/512 windows pass the gate (median act/gate 13.6, Spearman(cos, act) 0.94), 8B 508/512; ~$0.25 / $0.09 |
 
 Each product refuses to overwrite its output directory without `--force`, writes its own
 `README.md` + `index.json` (command, date, commit, inputs, shapes, sizes, wall, **cost**, status),
@@ -622,6 +623,51 @@ raw cosine in every (base, family, init) cell by 0.02-0.08 — expected at lambd
 member sits at lambda 0.1 rather than 0, so the 3x-smaller per-iteration candidate pool costs
 something of its own. `SMOKES.md` has those tables; the final run drops `epo` because the Pareto
 front it traces is a separate claim from the reachability figure.
+
+### The `sae` rows are stratified by feature density, and the quartile matters
+
+`targets.py` lays the `sae` family out **stratum-major**: 128 rows per density quartile, contiguous,
+q0 (rarest) = sae-local 0-127 = global 1024-1151. So `--family sae --rows 0-31` is **all q0**, and
+the table above is the rare-stratum view of `sae`, not the family. The stratified rerun takes 8 rows
+of each quartile — `--rows 0-7,128-135,256-263,384-391` — into separate arm directories via
+`--arm-suffix strat`, so both views exist side by side. (A row's quartile is cross-checked against
+`ids.jsonl`'s own `stratum` field, not inferred from the index.)
+
+| base | arm | dirs | mean final cos ± SE | mean init cos | mean NLL | $/dir | peak act | fired |
+|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | `gcg-corpus-strat` | 32 | **0.2983 ± 0.0168** | 0.2332 | 7.461 | $0.0922 | 133.96 | 1.000 |
+| qwen3-8b | `gcg-random32-strat` | 32 | 0.2032 ± 0.0240 | 0.0098 | 13.422 | $0.0946 | 87.22 | 0.969 |
+| qwen36-27b | `gcg-corpus-strat` | 32 | **0.2344 ± 0.0159** | 0.1594 | 7.147 | $0.3358 | 29.85 | 1.000 |
+| qwen36-27b | `gcg-random32-strat` | 32 | 0.0843 ± 0.0089 | 0.0038 | 13.354 | $0.3225 | 8.70 | 0.969 |
+
+The arm mean barely moves against the q0-only arms (8B 0.3080 / 0.2161, 27B 0.2408 / 0.0682), so the
+per-quartile difference against the MAEMM is the reason to have run it:
+
+| base | arm | q0 (rarest) | q1 | q2 | q3 (densest) |
+|---|---|---|---|---|---|
+| 8b | `gcg-corpus-strat` | **+0.2103** (8/8) | +0.1185 (8/8) | +0.1284 (8/8) | +0.1078 (8/8) |
+| 8b | `gcg-random32-strat` | **+0.1441** (8/8) | +0.0150 (6/8) | **−0.0019** (4/8) | +0.0274 (5/8) |
+| 27b | `gcg-corpus-strat` | +0.0790 (6/8) | +0.0240 (6/8) | +0.0551 (8/8) | +0.0586 (8/8) |
+| 27b | `gcg-random32-strat` | −0.0870 (3/8) | **−0.1647** (0/8) | −0.0871 (0/8) | −0.0450 (3/8) |
+
+**The corpus-init `sae` result survives stratification; the random-init one does not.** The 8B
+corpus arm beats the MAEMM on 32/32 targets in every quartile and the 27B on 28/32 (32/32 against
+`rlI-150`). The random-init arm's advantage is real only on q0 and is a tie elsewhere — so the
+`sae/gcg-random32` line in the table above (+0.0803, 29/32) is a **rare-feature artefact** and
+should not be quoted as a family-level result. Note also that rarer is not uniformly easier: the 27B
+corpus arm peaks at **q1**, and so does the MAEMM, which makes that a property of the features
+rather than of either method.
+
+**Reproducibility: the 8B search is bit-exact, the 27B is not.** Rows 1024-1031 appear in both the
+q0 and the stratified arms and are seeded identically, so they are a free determinism check. The 8B
+returns identical final ids on 8/8 with max |Δcos| **0.00e+00**; the 27B returns 1/8 and 0/8 with
+max |Δcos| **0.264** and 0.146. The inits agree in both cases, so the divergence is in the search:
+the 27B is the only base whose backward runs fla's GatedDeltaNet Triton kernels, and a
+nondeterministic gradient changes the proposed candidates, after which the trajectories separate.
+Most rows still agree to ~0.005-0.03 and one row per arm diverges hard. **A single 27B direction is
+therefore not reproducible**, and the arm mean over those 8 rows moved by −0.036 and +0.024 between
+runs — the same order as the 27B realact GCG-vs-MAEMM gap, so the SE over targets understates what
+one run establishes on that base.
 
 <!--GCG-RESULTS-->
 

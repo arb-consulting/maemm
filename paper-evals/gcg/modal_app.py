@@ -126,6 +126,7 @@ def main(
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
     family: str = "realact",
+    arm_suffix: str = "",
     rows: str = "",
     root: str = VOL,
     force: bool = False,
@@ -170,6 +171,7 @@ def main(
         "init": init,
         "heldout": set_name,
         "family": family,
+        "arm_suffix": arm_suffix,
         "rows": rows,
         "root": root.rstrip("/") or VOL,
         "force": force,

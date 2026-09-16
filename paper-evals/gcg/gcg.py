@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 import zlib
 
@@ -123,8 +124,18 @@ _WU32: dict[int, object] = {}  # id(model) -> the fp32 [d, V] lm_head, built onc
 _NLL_CHECKED = [False]  # the NLL self-check fires on the FIRST call of the process, once
 
 
-def arm_name(mode: str, init: str) -> str:
-    return f"{mode}-{init}"
+def arm_name(mode: str, init: str, suffix: str = "") -> str:
+    """`<mode>-<init>`, plus `-<suffix>` when one is given.
+
+    The suffix is what lets a SECOND run over a different row selection live beside the first
+    instead of overwriting it -- `sae/gcg-corpus` is rows 0-31 (all density quartile q0, because
+    targets.py lays the sae family out stratum-major) and `sae/gcg-corpus-strat` is 8 rows of each
+    quartile. It is NOT part of `--arm`, which must stay parseable as `<mode>-<init>`.
+    """
+    return f"{mode}-{init}" + (f"-{suffix}" if suffix else "")
+
+
+ARM_SUFFIX_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1120,7 +1131,12 @@ def resolve_config(cfg, args):
         "log_every": int(args.get("log_every") or 10),
         "filter_oversample": float(args.get("filter_oversample") or INIT_OVERSAMPLE[init]),
         "seed": int(args.get("seed") or 0),
+        "arm_suffix": (args.get("arm_suffix") or "").strip(),
     }
+    assert not a["arm_suffix"] or ARM_SUFFIX_RE.match(a["arm_suffix"]), (
+        f"--arm-suffix {a['arm_suffix']!r} becomes a directory name, so it must be lowercase "
+        f"alphanumerics separated by single hyphens"
+    )
     # The mode/pop invariant is checked BEFORE the grid is parsed, so `--mode epo --pop 1` reports
     # the population it is wrong about rather than the grid length that follows from it.
     if mode == "gcg":
@@ -1142,7 +1158,7 @@ def resolve_config(cfg, args):
         f"and common.score_ids refuses a row above the re-encode truncation)"
     )
     assert a["iters"] > 0 and a["children"] > 0 and a["topk"] > 0
-    return a, lams, arm_name(mode, init)
+    return a, lams, arm_name(mode, init, a["arm_suffix"])
 
 
 def _load_targets(cfg, args):
@@ -1373,6 +1389,21 @@ def run(cfg, args):
             "mean_final_cos": float(best.mean()),
             "mean_init_cos": float(init_c.mean()),
             "mean_nll": float(nlls.mean()),
+            # The number to quote: mean over TARGETS of each target's best member, with its
+            # standard error. `mean_final_cos` above averages over (target, member) pairs, which
+            # for an `epo` arm mixes three lambdas and is not the arm's reachability figure.
+            "mean_per_dir_best_cos": float(np.mean(per_dir_best)),
+            "se_per_dir_best_cos": (
+                float(np.std(per_dir_best, ddof=1) / np.sqrt(len(per_dir_best)))
+                if len(per_dir_best) > 1
+                else None
+            ),
+            "mean_per_dir_init_cos": float(np.mean(per_dir_init)),
+            "se_per_dir_init_cos": (
+                float(np.std(per_dir_init, ddof=1) / np.sqrt(len(per_dir_init)))
+                if len(per_dir_init) > 1
+                else None
+            ),
             "per_dir_best_cos": [round(float(x), 6) for x in per_dir_best],
             "per_dir_init_cos": [round(float(x), 6) for x in per_dir_init],
             "distinct_top_strings_per_dir": n_distinct,
