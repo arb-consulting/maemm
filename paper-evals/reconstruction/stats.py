@@ -213,6 +213,16 @@ def sign_test(d: np.ndarray) -> tuple[float, float, int]:
     return p, pos / m, m
 
 
+# Row order in every table: the PRIMARY MAEMM the paper's claims are about, then the
+# untrained-base CONTROL it is read against, then the secondaries kept because their computation
+# was already paid for. `role` comes from config.yaml (`primary: true` / `role: control`).
+ROLE_ORDER = {"primary": 0, "control": 1, "secondary": 2}
+
+
+def role_rank(s) -> int:
+    return ROLE_ORDER.get(s.role, len(ROLE_ORDER))
+
+
 def pm(mean: float, err: float, nd: int = 4) -> str:
     return f"{mean:.{nd}f} ± {err:.{nd}f}" if np.isfinite(err) else f"{mean:.{nd}f}"
 
@@ -466,7 +476,8 @@ def table_a(out: Out, sides: list[Scores], corpus: dict) -> None:
         caption(
             sides,
             corpus,
-            "rows are ordered PRIMARY FIRST (config.yaml `primary: true`); "
+            "rows are ordered PRIMARY, then the untrained-base CONTROL, then the secondaries "
+            "(the `role` column; config.yaml `primary: true` / `role: control`); "
             "bo-k UNBIASED order statistic, ± SE across targets; the last column is the "
             "disjoint-group estimator the product stores, which equals the unbiased one at k = n",
         ),
@@ -520,7 +531,16 @@ def table_b(out: Out, sides: list[Scores], corpus: dict) -> None:
 
 
 def table_c(out: Out, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
-    """(c) paired MAEMM comparison per family and per SAE density stratum (items 25, 63)."""
+    """(c) paired MAEMM comparison per family and per SAE density stratum (items 25, 63).
+
+    A is the PRIMARY where one is declared, and it is paired against EVERY other side on the same
+    (base, set) -- the untrained-base control first, then the secondaries -- so "primary minus
+    control" is a row of this table rather than a subtraction the reader does by eye. The MAEMM
+    names live in the `A` / `B` COLUMNS rather than in the column headers, because with a variable
+    number of B sides a per-side header is not a fixed schema. `c_*.csv` is not consumed by the
+    paper scripts (paper/inversion-eval/data/README-data.md: only a,d,e,g,i,j,k,l are), so the
+    schema change stops here.
+    """
     by_key: dict[tuple[str, str], list[Scores]] = {}
     for s in sides:
         by_key.setdefault((s.base, s.set), []).append(s)
@@ -528,46 +548,49 @@ def table_c(out: Out, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
     for (base, _set), group in sorted(by_key.items()):
         if len(group) < 2:
             continue
-        # A is the primary where one is declared, so every difference reads "primary minus other"
-        group = sorted(group, key=lambda x: (not x.primary, x.short))
-        a, b = group[0], group[1]
-        common = sorted(set(a.rows) & set(b.rows))
-        if not common:
-            continue
+        group = sorted(group, key=lambda x: (role_rank(x), x.short))
+        a = group[0]
         ia = {r: i for i, r in enumerate(a.rows)}
-        ib = {r: i for i, r in enumerate(b.rows)}
         ids = ids_of[(base, _set)]
-        strata = {}
-        for r in common:
-            fam = ids[r]["family"]
-            strata.setdefault((fam, "all"), []).append(r)
-            if fam == "sae" and ids[r].get("stratum") is not None:
-                strata.setdefault((fam, f"density q{ids[r]['stratum']}"), []).append(r)
-        for (fam, slice_), rs in sorted(strata.items()):
-            ja = np.array([ia[r] for r in rs])
-            jb = np.array([ib[r] for r in rs])
-            k = min(a.n, b.n)
-            for stat, fn in (
-                (f"best-of-{k} (unbiased)", lambda x, k=k: bo_unbiased(x, k)),
-                ("mean cos", lambda x: x.mean(1)),
-            ):
-                va, vb = fn(a.best[ja]), fn(b.best[jb])
-                d = va - vb
-                p, win, m = sign_test(d)
-                rows.append(
-                    {
-                        "base": base,
-                        "family": fam,
-                        "slice": slice_,
-                        "statistic": stat,
-                        "targets": len(rs),
-                        a.short: round(float(va.mean()), 4),
-                        b.short: round(float(vb.mean()), 4),
-                        "diff (A-B)": pm(float(d.mean()), se(d)),
-                        f"{a.short} wins": f"{win:.3f}" if m else "",
-                        "sign-test p": f"{p:.3g}" if m else "",
-                    }
-                )
+        for b in group[1:]:
+            common = sorted(set(a.rows) & set(b.rows))
+            if not common:
+                continue
+            ib = {r: i for i, r in enumerate(b.rows)}
+            strata = {}
+            for r in common:
+                fam = ids[r]["family"]
+                strata.setdefault((fam, "all"), []).append(r)
+                if fam == "sae" and ids[r].get("stratum") is not None:
+                    strata.setdefault((fam, f"density q{ids[r]['stratum']}"), []).append(r)
+            for (fam, slice_), rs in sorted(strata.items()):
+                ja = np.array([ia[r] for r in rs])
+                jb = np.array([ib[r] for r in rs])
+                k = min(a.n, b.n)
+                for stat, fn in (
+                    (f"best-of-{k} (unbiased)", lambda x, k=k: bo_unbiased(x, k)),
+                    ("mean cos", lambda x: x.mean(1)),
+                ):
+                    va, vb = fn(a.best[ja]), fn(b.best[jb])
+                    d = va - vb
+                    p, win, m = sign_test(d)
+                    rows.append(
+                        {
+                            "base": base,
+                            "A": a.short,
+                            "B": b.short,
+                            "B role": b.role,
+                            "family": fam,
+                            "slice": slice_,
+                            "statistic": stat,
+                            "targets": len(rs),
+                            "A value": round(float(va.mean()), 4),
+                            "B value": round(float(vb.mean()), 4),
+                            "diff (A-B)": pm(float(d.mean()), se(d)),
+                            "A wins": f"{win:.3f}" if m else "",
+                            "sign-test p": f"{p:.3g}" if m else "",
+                        }
+                    )
     if not rows:
         return out.skip("c", "fewer than two MAEMMs scored on one base, or no shared target rows")
     df = pl.DataFrame(rows, infer_schema_length=None)
@@ -578,7 +601,9 @@ def table_c(out: Out, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
         caption(
             sides,
             corpus,
-            "A is the PRIMARY MAEMM where one is declared. A - B is per target, then "
+            "A is the PRIMARY MAEMM where one is declared, paired against EVERY other side on "
+            "the same base and set (the untrained-base CONTROL first, then the secondaries -- "
+            "`B role` says which). A - B is per target, then "
             "averaged; ± SE across targets; the sign test is two-sided "
             "exact over non-ties. SAE strata are the ids.jsonl corpus-density quartiles "
             "(q0 = rarest), checklist item 63",
@@ -1214,8 +1239,16 @@ def main(
                 label = maemm.split("/")[-1] + (f"@{engine}" if engine else "")
                 sc = Scores(vol, base, label, set_name, ids, f"maemms/{maemm}/scores/{stem}")
                 if sc.ok:
-                    sc.primary = bool(cfg["maemms"].get(maemm, {}).get("primary", False))
-                    sc.role = "primary" if sc.primary else "secondary"
+                    entry = cfg["maemms"].get(maemm, {})
+                    sc.primary = bool(entry.get("primary", False))
+                    # `role: control` (or `type: base`) marks the UNTRAINED-BASE CONTROL: the clean
+                    # base through the identical prompt / injection / sampling path. It is neither
+                    # the primary nor a secondary MAEMM and sorts between them.
+                    control = entry.get("role") == "control" or entry.get("type") == "base"
+                    sc.role = "primary" if sc.primary else ("control" if control else "secondary")
+                    assert not (sc.primary and control), (
+                        f"{maemm}: config.yaml marks it BOTH `primary: true` and the control"
+                    )
                     sides.append(sc)
                 else:
                     console.print(f"[yellow]incomplete scores: {maemm} / {stem}[/yellow]")
@@ -1248,12 +1281,14 @@ def main(
     # claims are about; the rest are secondary rows kept because their computation is already done.
     # With no primary declared this is a no-op and the caption says the order is config order.
     n_primary = sum(s.primary for s in sides)
-    sides.sort(key=lambda x: (not x.primary, x.base, x.short))
+    sides.sort(key=lambda x: (role_rank(x), x.base, x.short))
     if n_primary:
         console.print(
             "[bold]primary MAEMM[/bold]: "
             + ", ".join(s.short for s in sides if s.primary)
-            + f" (config.yaml `primary: true`); {len(sides) - n_primary} secondary row(s)"
+            + " (config.yaml `primary: true`); "
+            + f"{sum(s.role == 'control' for s in sides)} control row(s), "
+            + f"{sum(s.role == 'secondary' for s in sides)} secondary row(s)"
         )
     else:
         console.print("[yellow]no `primary: true` in config.yaml -- tables keep config order[/yellow]")

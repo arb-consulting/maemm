@@ -44,6 +44,10 @@ GEN_ROWS = {"qwen3-8b": 256, "qwen36-27b": 32}
 # The marker norm under the served model must differ from the clean base by at least this fraction
 # (checklist item 22: equality is the silent-adapter-off signature; 8B run1 is ~98.5 vs ~14.06).
 MARKER_NORM_MIN_REL = 0.05
+# ...EXCEPT for `type: base`, the untrained-base control, which serves the base snapshot itself and
+# must AGREE with it. 25% is a sanity bound catching a trained checkpoint served by mistake (the
+# 27B's sit at 130 and 512 against the base's 14.06), not a numerical-agreement claim.
+BASE_CONTROL_NORM_TOL = 0.25
 
 
 def load_dirs(cfg, args, device: str = "cuda"):
@@ -69,9 +73,10 @@ def load_dirs(cfg, args, device: str = "cuda"):
 def weight_identity(cfg, maemm_key: str) -> dict:
     """The MAEMM's weight sha for its README (checklist item 74).
 
-    lora: a full streamed sha256 of the adapter (1.3-1.7 GiB). full: index.json + shard sizes only
-    -- hashing 52 GiB off the FUSE volume costs minutes of H200 for a field nobody diffs, and
-    common.sha256_of_index says so in the README it lands in.
+    lora: a full streamed sha256 of the adapter (1.3-1.7 GiB). full / base: index.json + shard
+    sizes only -- hashing 52 GiB off the FUSE volume costs minutes of H200 for a field nobody
+    diffs, and common.sha256_of_index says so in the README it lands in. For the untrained-base
+    control this hashes the BASE snapshot, which is the identity that matters there.
     """
     path = C.maemm_weights_path(cfg, maemm_key)
     if cfg["maemms"][maemm_key]["type"] == "lora":
@@ -96,10 +101,32 @@ def write_maemm_readme(cfg, args, maemm_key: str, sha: dict, prompt_name: str, n
         f"- adapter subdir: {spec.get('subdir') or '(repo root)'}",
         f"- resolved weights: {C.maemm_weights_path(cfg, maemm_key)}",
         f"- train_max_new: {spec.get('train_max_new')} (the budget it was TRAINED at)",
+        *([f"- role: {spec['role']}"] if spec.get("role") else []),
+        *([f"- note: {spec['note']}"] if spec.get("note") else []),
         f"- written by: `{' '.join(args.get('argv') or [])}`",
         f"- repo commit: {args.get('repo_commit', '?')[:12]}",
         f"- date: {time.strftime('%Y-%m-%d %H:%M:%SZ', time.gmtime())}",
         "",
+        *(
+            [
+                "## THIS IS THE UNTRAINED-BASE CONTROL",
+                "",
+                "**No MAEMM weights of any kind.** The served model IS the base snapshot "
+                f"`{spec['hf']}` -- the same one `bases.{C.split_key(maemm_key, 'maemm')[0]}` "
+                "resolves to -- with no adapter, no fine-tuned shards and nothing loaded on top.",
+                "Everything else is the primary MAEMM's: the same prompt function, the same marker "
+                "token, the same block-1 norm-matched injection at the same coefficient and the "
+                "same `rollouts:` sampling constants. The only difference is the weights, which is "
+                "what makes the difference in the tables attributable to training.",
+                "",
+                "Its marker ||h|| therefore EQUALS the clean base's, where every trained MAEMM's "
+                "differs from it -- the self-checks invert accordingly "
+                "(rollouts_vllm.marker_norm_vs_hf, rollouts_hf.marker_check).",
+                "",
+            ]
+            if spec["type"] == "base"
+            else []
+        ),
         "## Injection convention",
         "",
         f"- inject layer: {inj['layer']} (decoder block OUTPUT), mode add, coeff {inj['coef']}",
@@ -148,6 +175,31 @@ def marker_check(cfg, args, model, kind, prompt, mpos, inj_layer):
     if args.get("no_marker_check"):
         print(f"[rollouts] marker ||h|| served {hn_served:.3f}; --no-marker-check, no comparison", flush=True)
         return hn_served, None, "skipped (--no-marker-check)"
+    if kind == "base":
+        # The untrained-base CONTROL serves the base itself: served == clean base is the CORRECT
+        # outcome here, the opposite of every other kind, so the "must differ" assert below must
+        # not run. What is checked instead is that a trained checkpoint was not served by mistake.
+        cfg_val = cfg["bases"][base].get("marker_norm_base")
+        src = f"config.yaml bases.{base}.marker_norm_base (untrained-base control: EXPECTED EQUAL)"
+        if cfg_val is None:
+            print(
+                f"[rollouts] marker ||h|| served {hn_served:.3f}; no bases.{base}.marker_norm_base",
+                flush=True,
+            )
+            return hn_served, None, f"skipped (base control, no bases.{base}.marker_norm_base in config)"
+        hn_base = float(cfg_val)
+        rel = abs(hn_served - hn_base) / max(hn_base, 1e-6)
+        print(
+            f"[rollouts] marker ||h|| served {hn_served:.3f} vs clean base {hn_base:.3f} [{src}]",
+            flush=True,
+        )
+        assert rel <= BASE_CONTROL_NORM_TOL, (
+            f"the untrained-base control measures marker ||h|| {hn_served:.4f} against the clean "
+            f"base's {hn_base:.4f} ({rel:.2%}, sanity bound {BASE_CONTROL_NORM_TOL:.0%}): a "
+            f"TRAINED checkpoint was served where the control was asked for (the 27B's sit at 130 "
+            f"and 512 against 14.06)"
+        )
+        return hn_served, hn_base, src
     if kind == "lora":
         hn_base = C.marker_norm(model, prompt, mpos, inj_layer, adapter=False)
         src = "measured here with the adapter disabled"
@@ -352,7 +404,12 @@ def run(cfg, args):
             f"extra forwards of the shared prompt BEFORE generation, nothing hooked into the "
             f"generation path): served {hn_served:.4f}, clean base "
             + (
-                f"{hn_base:.4f} [{hn_src}], asserted to differ by > {MARKER_NORM_MIN_REL:.0%}"
+                (
+                    f"{hn_base:.4f} [{hn_src}], asserted EQUAL within "
+                    f"{BASE_CONTROL_NORM_TOL:.0%} (untrained-base control)"
+                    if kind == "base"
+                    else f"{hn_base:.4f} [{hn_src}], asserted to differ by > {MARKER_NORM_MIN_REL:.0%}"
+                )
                 if hn_base is not None
                 else f"NOT COMPARED -- {hn_src}"
             )

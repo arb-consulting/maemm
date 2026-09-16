@@ -119,8 +119,21 @@ def load_config(path: str | Path | None = None) -> dict:
     for key, spec in cfg["maemms"].items():
         base, _ = split_key(key, "maemm")
         assert base in cfg["bases"], f"maemm {key!r} names base {base!r}, which is not in config bases"
-        assert spec.get("type") in ("lora", "full"), (
-            f"maemm {key!r}: type must be 'lora' or 'full', got {spec.get('type')!r}"
+        # `base` is the UNTRAINED-BASE CONTROL: no MAEMM weights at all, the clean base run
+        # through the identical prompt / marker / injection / sampling path so the tables have a
+        # "what does the untrained model reach" row (2026-09-16_base-control).
+        assert spec.get("type") in ("lora", "full", "base"), (
+            f"maemm {key!r}: type must be 'lora', 'full' or 'base', got {spec.get('type')!r}"
+        )
+        if spec.get("type") == "base":
+            assert spec.get("hf") == cfg["bases"][base]["hf"], (
+                f"maemm {key!r}: type 'base' is the untrained-base control, so its `hf` must be "
+                f"the base's own repo {cfg['bases'][base]['hf']!r}, got {spec.get('hf')!r} -- "
+                f"anything else is a TRAINED checkpoint wearing the control's label"
+            )
+        assert spec.get("role") in (None, "control"), (
+            f"maemm {key!r}: `role`, when given, must be 'control' (reconstruction/stats.py shows "
+            f"it between the primary and the secondaries), got {spec.get('role')!r}"
         )
         assert ("hf" in spec) != ("src" in spec), (
             f"maemm {key!r}: give exactly one of hf (repo id) / src (volume path), got {sorted(spec)}"
@@ -415,6 +428,8 @@ def maemm_weights_path(cfg: dict, maemm_key: str) -> str:
     path = spec["src"] if "src" in spec else snapshot(cfg, spec["hf"])
     if spec.get("subdir"):
         path = os.path.join(path, spec["subdir"])
+    # lora: the adapter dir. full / base: a model dir -- for `base` that is the base snapshot
+    # itself, which is exactly the point of the control.
     marker = "adapter_config.json" if spec["type"] == "lora" else "config.json"
     assert os.path.exists(os.path.join(path, marker)), (
         f"maemm {maemm_key!r}: no {marker} under {path} (type={spec['type']})"
@@ -469,11 +484,15 @@ def load_base(cfg: dict, base: str, device: str = "cuda"):
 
 
 def load_maemm(cfg: dict, base: str, maemm_key: str, device: str = "cuda"):
-    """(model, tok, kind) for the GENERATING model. kind is 'lora' or 'full'.
+    """(model, tok, kind) for the GENERATING model. kind is the config `type`: 'lora', 'full' or 'base'.
 
     lora: base + PeftModel; scoring runs on the same object with the adapter disabled.
     full: the tuned model IS the generator and has no adapter to switch off, so the caller must
     load a separate clean base for scoring (eval/eval_ckpt_daemon.py:333-390).
+    base: the UNTRAINED-BASE CONTROL -- no MAEMM weights anywhere; `maemm_weights_path` resolves to
+    the base's own snapshot, so this loads exactly what `load_base` would and takes the same
+    no-adapter path as `full`. The kind is returned verbatim so every caller can tell the control
+    apart from a trained full-parameter MAEMM (their marker-norm expectations are OPPOSITE).
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -502,8 +521,8 @@ def load_maemm(cfg: dict, base: str, maemm_key: str, device: str = "cuda"):
         path, dtype=torch.bfloat16, attn_implementation="sdpa", device_map={"": device}
     )
     model.eval()
-    print(f"[load] full model {path} in {time.time() - t0:.0f}s", flush=True)
-    return model, tok, "full"
+    print(f"[load] {spec['type']} model {path} in {time.time() - t0:.0f}s", flush=True)
+    return model, tok, spec["type"]
 
 
 def clean_adapter(model):
