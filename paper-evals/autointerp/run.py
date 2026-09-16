@@ -321,11 +321,13 @@ class Claude:
     """
 
     def __init__(self, model: str, api_key: str, timeout_s: float = 90.0, max_retries: int = 8,
-                 cache_prompt: bool = True):
+                 cache_prompt: bool = True, on_commit=None):
         import anthropic
 
         self.model = model
         self.cache_prompt = cache_prompt
+        # so a batch ledger written mid-stage survives a container that is about to be SIGTERMed
+        self.on_commit = on_commit
         self._client = anthropic.Anthropic(api_key=api_key, timeout=timeout_s,
                                            max_retries=max_retries)
         self._lock = threading.Lock()
@@ -378,7 +380,7 @@ class Claude:
 
     # -- batch path ---------------------------------------------------------------------------
 
-    def run_batch(self, jobs: list[dict], label: str):
+    def run_batch(self, jobs: list[dict], label: str, ledger: str = ""):
         """Submit `jobs` as Message Batches and block until all of them end. -> {job key: record}.
 
         All chunks are submitted BEFORE any is polled, so they queue in parallel and the stage
@@ -386,27 +388,71 @@ class Claude:
 
         `custom_id` is a positional token (`c00r000123`), not the job key: job keys carry `|` and
         are longer than the id format allows, and results come back in ANY order, so they are keyed
-        back by that token rather than by position in the results stream.
+        back by that token rather than by position in the results stream. The id is derived from
+        the job's POSITION in `jobs`, so a re-attach must rebuild `by_id` from the same list -- it
+        does, because the ledger is keyed by a hash of the job keys.
+
+        RE-ATTACH, and the measurement that forced it. MEASURED 2026-09-16: a Modal container
+        polling a batch was terminated at 1223 s with `Runner terminated (SIGTERM), exit code:
+        143`, Modal re-scheduled the input, and this function submitted a SECOND batch for the same
+        six requests -- the prompt cache could not help, because it is only written once a batch
+        ends. At the full run's 36,864 requests that is a ~$56 double charge and two batches racing
+        for the same work. So the batch ids are written to `ledger` BEFORE the first poll, and a
+        restart re-attaches to them instead of submitting again.
         """
         from anthropic.types.messages.batch_create_params import Request
 
         t0 = time.time()
         chunks = [jobs[i : i + BATCH_MAX_REQUESTS] for i in range(0, len(jobs), BATCH_MAX_REQUESTS)]
         by_id: dict[str, dict] = {}
-        ids: list[str] = []
         for ci, chunk in enumerate(chunks):
-            reqs = []
             for i, j in enumerate(chunk):
-                cid = f"c{ci:02d}r{i:06d}"
-                by_id[cid] = j
-                reqs.append(Request(
-                    custom_id=cid,
-                    params=self.params(j["system"], j["user"], j["max_tokens"], j.get("fewshot")),
-                ))
-            b = self._client.messages.batches.create(requests=reqs)
-            ids.append(b.id)
-            print(f"[{label}] batch {b.id} submitted, {len(reqs)} requests "
-                  f"(chunk {ci + 1}/{len(chunks)})", flush=True)
+                by_id[f"c{ci:02d}r{i:06d}"] = j
+        ids: list[str] = []
+        prior = None
+        if ledger and os.path.exists(ledger):
+            try:
+                with open(ledger) as fh:
+                    prior = json.load(fh)
+            except json.JSONDecodeError:
+                prior = None
+        if prior and int(prior.get("n", -1)) == len(jobs):
+            ids = list(prior["batch_ids"])
+            ok = True
+            for bid in ids:
+                try:
+                    self._client.messages.batches.retrieve(bid)
+                except Exception as e:  # noqa: BLE001 -- an id we cannot retrieve is not reusable
+                    print(f"[{label}] ledger names batch {bid} but it cannot be retrieved "
+                          f"({type(e).__name__}); submitting fresh", flush=True)
+                    ok = False
+                    break
+            if ok:
+                print(f"[{label}] RE-ATTACHING to {len(ids)} batch(es) from {ledger} -- not "
+                      f"resubmitting {len(jobs)} requests", flush=True)
+            else:
+                ids = []
+        if not ids:
+            for ci, chunk in enumerate(chunks):
+                reqs = [
+                    Request(custom_id=f"c{ci:02d}r{i:06d}",
+                            params=self.params(j["system"], j["user"], j["max_tokens"],
+                                               j.get("fewshot")))
+                    for i, j in enumerate(chunk)
+                ]
+                b = self._client.messages.batches.create(requests=reqs)
+                ids.append(b.id)
+                print(f"[{label}] batch {b.id} submitted, {len(reqs)} requests "
+                      f"(chunk {ci + 1}/{len(chunks)})", flush=True)
+            if ledger:
+                os.makedirs(os.path.dirname(ledger), exist_ok=True)
+                tmp = f"{ledger}.tmp"
+                with open(tmp, "w") as fh:
+                    json.dump({"batch_ids": ids, "n": len(jobs), "label": label,
+                               "submitted": time.time()}, fh)
+                os.replace(tmp, ledger)
+                if self.on_commit:
+                    self.on_commit()
         pending = set(ids)
         while pending:
             time.sleep(BATCH_POLL_S)
@@ -586,7 +632,7 @@ def _nr(x, nd=6):
 
 
 def _submit(cl: Claude, cache: Cache, jobs: list[dict], label: str, max_cost_usd: float,
-            concurrency: int, path: str):
+            concurrency: int, path: str, ledger: str = ""):
     """Run `jobs` through the cache and the client. Returns ({job key: record}, info).
 
     Cached jobs never reach the network, in either path. The sync path checks the cost ceiling
@@ -613,7 +659,7 @@ def _submit(cl: Claude, cache: Cache, jobs: list[dict], label: str, max_cost_usd
         if cl.snapshot()["cost"] >= max_cost_usd:
             print(f"[{label}] COST CAP ${max_cost_usd:.2f} reached, batch not submitted", flush=True)
             return out, {**info, "stopped": True}
-        got, binfo = cl.run_batch([j for j, _ in todo], label)
+        got, binfo = cl.run_batch([j for j, _ in todo], label, ledger=ledger)
         for j, k in todo:
             rec = got.get(j["key"])
             if rec is not None:
@@ -777,7 +823,13 @@ def run(cfg, args):
     run_name = args.get("run_dir") or f"{time.strftime('%Y-%m-%d')}_autointerp-{base.split('-')[-1]}"
     run_root = f"{root}/runs/{run_name}"
     cache = Cache(f"{run_root}/cache", on_commit=args.get("on_commit"))
-    cl = Claude(model, key, timeout_s=float(args.get("timeout_s") or ac["timeout_s"]))
+    cl = Claude(model, key, timeout_s=float(args.get("timeout_s") or ac["timeout_s"]),
+                on_commit=args.get("on_commit"))
+
+    def ledger_for(stage_label: str, jobs: list[dict]) -> str:
+        """One ledger file per (stage, exact job set), so a re-attach can only match its own work."""
+        h = hashlib.sha256("\n".join(sorted(j["key"] for j in jobs)).encode()).hexdigest()[:16]
+        return f"{run_root}/batches/{stage_label}-{h}.json"
 
     arm_names = list(binfo["arms"])
     if args.get("arms"):
@@ -856,7 +908,8 @@ def run(cfg, args):
             })
     got: dict[str, dict] = {}
     if gate(jobs, "explain"):
-        got, info = _submit(cl, cache, jobs, "explain", max_cost, concurrency, path)
+        got, info = _submit(cl, cache, jobs, "explain", max_cost, concurrency, path,
+                            ledger=ledger_for("explain", jobs))
         stage_info["explain"] = info
         # A10: an explainer answer cut off at max_tokens is an ERROR, not a shorter explanation.
         # Retry ONCE at double the budget under its own job key, then raise.
@@ -869,7 +922,8 @@ def run(cfg, args):
         if retry:
             print(f"[run] A10: {n_trunc} explainer answers hit max_tokens; retrying at "
                   f"{2 * int(ac['explainer_max_tokens'])}", flush=True)
-            got2, _ = _submit(cl, cache, retry, "explain-retry", max_cost, concurrency, path)
+            got2, _ = _submit(cl, cache, retry, "explain-retry", max_cost, concurrency, path,
+                              ledger=ledger_for("explain-retry", retry))
             still = []
             for j in retry:
                 rec = got2.get(j["key"])
@@ -944,7 +998,8 @@ def run(cfg, args):
                     })
         if not gate(jobs, scorer):
             break
-        got, info = _submit(cl, cache, jobs, scorer, max_cost, concurrency, path)
+        got, info = _submit(cl, cache, jobs, scorer, max_cost, concurrency, path,
+                            ledger=ledger_for(scorer, jobs))
         stage_info[scorer] = info
         if info.get("stopped"):
             stopped_at = stopped_at or f"cost cap during {scorer}"

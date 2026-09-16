@@ -57,12 +57,23 @@ class Status:
         self.path = path
         self.on_commit = on_commit
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        # A restart must not lose the earlier stages' record, so an existing STATUS is read back
+        # and continued rather than truncated.
+        prior = {}
+        if os.path.exists(path):
+            try:
+                with open(path) as fh:
+                    prior = json.load(fh)
+            except json.JSONDecodeError:
+                prior = {}
         self.doc = {
+            **prior,
             "state": "starting",
-            "started": time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime()),
-            "stages": [],
-            "costs_usd": {},
-            "checks": {},
+            "restarts": int(prior.get("restarts", 0)) + (1 if prior else 0),
+            "stages": list(prior.get("stages", [])),
+            "started": prior.get("started") or time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime()),
+            "costs_usd": dict(prior.get("costs_usd", {})),
+            "checks": dict(prior.get("checks", {})),
             **(meta or {}),
         }
         self.t0 = time.time()
@@ -95,6 +106,26 @@ class Status:
         self.doc["state"] = "done"
         self.doc.update(kw)
         self.write()
+
+
+def build_if_needed(cfg, args, st: Status, name: str, maemm: str, build_dir: str, n_feat: int):
+    """Run `build` unless its output is already there.
+
+    MEASURED 2026-09-16: a Modal container polling a batch was SIGTERMed at 1223 s and Modal
+    RE-SCHEDULED the input. A chain that simply restarted would hit `OutDir`'s refusal to overwrite
+    an existing product and die on its own earlier success, so every step of this chain has to be
+    idempotent. The LLM stages already are, through the prompt cache; the builds are made so here.
+    """
+    out_dir = (f"{args['root']}/base/{args['base']}/autointerp/{args['heldout']}/{build_dir}")
+    if os.path.exists(f"{out_dir}/build.json"):
+        info = json.load(open(f"{out_dir}/build.json"))
+        st.stage(f"{name}_present", build_dir=build_dir, features=info.get("n_features"))
+        return {"out": out_dir, "reused": True, **{k: info.get(k) for k in
+                ("n_features", "n_short_draw1", "n_short_draw2", "n_empty_draw2", "n_short_c4")}}
+    st.stage(name)
+    from autointerp import build as B
+
+    return B.run(cfg, _sub(args, maemm=maemm, build_dir=build_dir, n_feat=n_feat))
 
 
 def _sub(args: dict, **over) -> dict:
@@ -218,7 +249,6 @@ def write_tables(run_name: str, root: str, out_path: str, label: str) -> str | N
 
 
 def run(cfg, args):
-    from autointerp import build as B
     from autointerp import run as R
 
     root = args["root"]
@@ -242,8 +272,7 @@ def run(cfg, args):
     try:
         wait_for_docmax(cfg, args, st)
 
-        st.stage("build_pilot")
-        out["build_pilot"] = B.run(cfg, _sub(args, maemm=primary, build_dir=pilot_dir, n_feat=0))
+        out["build_pilot"] = build_if_needed(cfg, args, st, "build_pilot", primary, pilot_dir, 0)
         st.doc["build_pilot"] = out["build_pilot"]
         st.write()
 
@@ -268,8 +297,7 @@ def run(cfg, args):
         path, probe_wall = batch_probe(cfg, _sub(args, chain_dir=chain_dir))
         st.stage("batch_probe", path=path, wall_s=round(probe_wall, 1), threshold_s=BATCH_OK_S)
 
-        st.stage("build_full")
-        out["build_full"] = B.run(cfg, _sub(args, maemm=primary, build_dir=full_dir, n_feat=512))
+        out["build_full"] = build_if_needed(cfg, args, st, "build_full", primary, full_dir, 512)
         st.doc["build_full"] = out["build_full"]
         st.write()
 
@@ -283,8 +311,7 @@ def run(cfg, args):
         st.write()
         write_tables(full_dir, root, f"{base}/results.md", "results")
 
-        st.stage("build_rlI")
-        out["build_rlI"] = B.run(cfg, _sub(args, maemm=secondary, build_dir=rlI_dir, n_feat=512))
+        out["build_rlI"] = build_if_needed(cfg, args, st, "build_rlI", secondary, rlI_dir, 512)
         st.doc["build_rlI"] = out["build_rlI"]
         st.write()
 
