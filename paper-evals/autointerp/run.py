@@ -372,7 +372,7 @@ class Cache:
     whole point of that arm.
     """
 
-    def __init__(self, path: str, on_commit=None, commit_every: int = 200):
+    def __init__(self, path: str, on_commit=None, commit_every: int = 500):
         self.path = path
         os.makedirs(path, exist_ok=True)
         self.on_commit = on_commit
@@ -387,8 +387,19 @@ class Cache:
         payload = json.dumps({"job": job_key, "body": body}, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(payload.encode()).hexdigest()
 
+    def _file(self, k: str) -> str:
+        """Sharded by the key's first two hex characters.
+
+        The full 512-feature run makes ~68,000 calls and therefore ~68,000 cache files. One
+        directory with that many entries is a volume-commit and directory-listing problem on a
+        FUSE mount; 256 shards of ~270 files each is not.
+        """
+        d = os.path.join(self.path, k[:2])
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, f"{k}.json")
+
     def get(self, k: str):
-        p = os.path.join(self.path, f"{k}.json")
+        p = self._file(k)
         if not os.path.exists(p):
             return None
         try:
@@ -401,7 +412,7 @@ class Cache:
         return rec
 
     def put(self, k: str, rec: dict):
-        p = os.path.join(self.path, f"{k}.json")
+        p = self._file(k)
         tmp = f"{p}.tmp"
         with open(tmp, "w") as fh:
             json.dump(rec, fh)
