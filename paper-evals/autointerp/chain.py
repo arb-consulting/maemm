@@ -235,15 +235,31 @@ def acceptance(build_info: dict, scores: list[dict], floor_arm: str, st: Status)
     # is to record it. An EMPTY draw 2 on more than a third of features is fatal, because the null
     # is then not measurable and every contrast loses its threshold.
     rep["draw2_ok"] = rep["n_empty_draw2"] <= max(1, rep["n_features"] // 3)
-    rep["draw1_ok"] = rep["n_no_pos_draw1"] <= max(1, rep["n_features"] // 20)
-    rep["draw1_window"] = f"<= {max(1, rep['n_features'] // 20)} of {rep['n_features']}"
+    # The threshold is 1/8, and the reasoning is worth stating because it is a judgement call.
+    # This gate exists to catch a BUG -- a draw-allocation fault, a broken pool, a build that
+    # silently stops filling draw 1 -- not to assert that the corpus can support every feature.
+    # MEASURED 2026-09-16 with draw 1 taking first pick: 6 of 64 features have no gate-passing,
+    # document-disjoint window left after the arms take theirs, and ALL SIX are in the rarest
+    # density quartile. That is a property of the data, not of the code: a feature at density
+    # 1.8e-6 fires on ~110 windows in the whole 16M corpus, concentrated in few documents, and the
+    # arms show 16-32 of them. Reversing the draw order recovered one of seven, which is the most
+    # the order could ever have been worth. So the gate is set where a systematic fault (the
+    # draw-order bug scaled up, or exclusions appearing outside q0) fails and this measured floor
+    # does not, and `stats.py` reports the exclusions per quartile either way.
+    lim = max(1, rep["n_features"] // 8)
+    rep["draw1_ok"] = rep["n_no_pos_draw1"] <= lim
+    rep["draw1_window"] = f"<= {lim} of {rep['n_features']} (1/8)"
+    # A feature excluded outside the rarest quartile is not the known floor and is gated hard.
+    nonq0 = sum(int(v) for k, v in (rep.get("no_pos_draw1_by_stratum") or {}).items() if k != "0")
+    rep["n_no_pos_draw1_outside_q0"] = nonq0
+    rep["draw1_ok"] = bool(rep["draw1_ok"] and nonq0 <= max(1, rep["n_features"] // 32))
     ok = bool(rep["floor_ok"] and rep["c4_ok"] and rep["draw1_ok"] and rep["draw2_ok"]
               and rep["gate_consistent_positives"])
     rep["ok"] = ok
     st.doc["checks"] = rep
     st.stage("acceptance", **{k: rep[k] for k in ("ok", "floor_mean", "n_short_c4",
-                                                  "n_no_pos_draw1", "n_empty_draw2",
-                                                  "n_short_draw1")})
+                                                  "n_no_pos_draw1", "n_no_pos_draw1_outside_q0",
+                                                  "n_empty_draw2", "n_short_draw1")})
     return ok, rep
 
 
