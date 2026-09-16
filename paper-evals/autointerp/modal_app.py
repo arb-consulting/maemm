@@ -51,7 +51,15 @@ app = modal.App(APP)
 # container's environment; no value passes through this file, the launcher, or any output.
 LLM_SECRETS = [*SECRETS, modal.Secret.from_name("openrouter")]
 
-STAGES = ("sae_self", "build", "run")
+# stage -> (module, function). `random_pool` is P1's sibling: the same SAE-encode machinery over
+# corpus windows instead of rollouts, so it lives in sae_self.py rather than in a file of its own.
+STAGES = {
+    "sae_self": ("sae_self", "run"),
+    "random_pool": ("sae_self", "run_random_pool"),
+    "examples_4m": ("sae_self", "run_examples_4m"),
+    "build": ("build", "run"),
+    "run": ("run", "run"),
+}
 CPU_STAGES = ("build", "run")
 
 
@@ -64,7 +72,7 @@ def _run(stage: str, args: dict, gpu_label: str):
 
     t0 = time.time()
     cfg = C.load_config()
-    assert stage in STAGES, f"unknown stage {stage!r}, want one of {list(STAGES)}"
+    assert stage in STAGES, f"unknown stage {stage!r}, want one of {sorted(STAGES)}"
     args = {
         **args,
         "gpu": gpu_label,
@@ -73,7 +81,8 @@ def _run(stage: str, args: dict, gpu_label: str):
         # so each stage README's wall/cost covers the whole container call, model load included
         "t0": t0,
     }
-    out = importlib.import_module(f"autointerp.{stage}").run(cfg, args)
+    mod, fn = STAGES[stage]
+    out = getattr(importlib.import_module(f"autointerp.{mod}"), fn)(cfg, args)
     vol.commit()
     wall = time.time() - t0
     cost = wall * USD_PER_S[gpu_label]
@@ -115,6 +124,11 @@ def main(
     force: bool = False,
     engine: str = "vllm",
     out_suffix: str = "",
+    # random_pool
+    n_windows: int = 0,
+    pool_seed: int = 0,
+    prefix_m: int = 0,
+    batch: int = 0,
     # build
     build_dir: str = "",
     n_feat: int = 0,
@@ -134,7 +148,10 @@ def main(
 ):
     """One autointerp stage. `--stage sae_self|build|run`.
 
-    sae_self: GPU, per MAEMM -- the per-token target-feature activation on its own rollouts.
+    sae_self:    GPU, per MAEMM -- the per-token target-feature activation on its own rollouts.
+    random_pool: GPU -- the shared negative pool: 2048 random corpus windows encoded for every
+                 tested feature, per-token. Replaces scan's 256-window `_random256`.
+    examples_4m: GPU -- the C4 arm's own top-128 over the 4M nested prefix (amendment A3).
     build:    CPU -- the rendered example sets and the shared test set (needs sae_self for the M arms).
     run:      CPU + OpenRouter -- explainer, then the detection and fuzzing scorers.
     """
@@ -142,14 +159,14 @@ def main(
     import precompute.common as C
 
     cfg = C.load_config()
-    assert stage in STAGES, f"unknown stage {stage!r}, want one of {list(STAGES)}"
+    assert stage in STAGES, f"unknown stage {stage!r}, want one of {sorted(STAGES)}"
     assert base in cfg["bases"], f"unknown base {base!r}, want one of {sorted(cfg['bases'])}"
     set_name = set or heldout or sorted(cfg["heldout"])[-1]
     assert set_name in cfg["heldout"], (
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])}"
     )
-    if stage == "sae_self":
-        assert maemm, "stage sae_self needs --maemm (the rollouts whose feature activations it makes)"
+    if stage in ("sae_self", "build"):
+        assert maemm, f"stage {stage} needs --maemm (the rollouts its M arms read)"
     if maemm:
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
@@ -162,6 +179,10 @@ def main(
         "force": force,
         "engine": engine,
         "out_suffix": out_suffix,
+        "n_windows": n_windows,
+        "pool_seed": pool_seed,
+        "prefix_m": prefix_m,
+        "batch": batch,
         "build_dir": build_dir.rstrip("/"),
         "n_feat": n_feat,
         "feat_seed": feat_seed,

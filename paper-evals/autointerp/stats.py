@@ -20,11 +20,13 @@ the CI is a percentile bootstrap over features, not over items. The design asks 
   * M - C16          "are rollouts as good as max-activating corpus examples?"
   * (C4+M) - C4      "do rollouts add to a CHEAP corpus?"
   * C4 - C16         what the cheap corpus costs on its own
-  * the N ablations, and the additive C4+M16 against C4
+  * (C16+M16) - C32  the MATCHED-N enrichment test (amendment A8)
+  * the N points on C16 and M, descriptive only (A9)
   * the same, per density quartile
   * win fractions and the whole distribution, because the outcome is bimodal and a mean misleads
   * fire fraction as the covariate that separates the hard stratum
-  * C16-rep - C16, the run-to-run noise floor every other difference is quoted against
+  * the floor arm R-shuffled, which should sit at 0.5, and the NULL -- the second disjoint test
+    draw scored with C16's own description (A7) -- reported beside every win fraction
 
 `reconstruction/stats.py`'s `Vol` does the fetching; nothing here re-implements it, and nothing
 here writes to that file.
@@ -51,18 +53,28 @@ from reconstruction.stats import Vol, sign_test  # noqa: E402
 console = Console()
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
-# The comparisons the design names, as (label, arm_a, arm_b) meaning a - b.
+# The comparisons the design names, as (label, arm_a, arm_b) meaning a - b. The first three are
+# the headline; the matched-N pair is amendment A8; the N points are descriptive only (A9).
 CONTRASTS = [
     ("substitution", "M", "C16"),
     ("enrichment", "C4M", "C4"),
     ("cheap corpus", "C4", "C16"),
-    ("additive (N=32)", "C4M16", "C4"),
-    ("corpus N: 8 - 16", "C16-N8", "C16"),
-    ("corpus N: 32 - 16", "C16-N32", "C16"),
-    ("maemm N: 8 - 16", "M-N8", "M"),
-    ("maemm N: 32 - 16", "M-N32", "M"),
+    ("matched-N enrichment", "C16M16", "C32"),
+    ("corpus N: 8 - 16 (descriptive)", "C16-N8", "C16"),
+    ("corpus N: 32 - 16 (descriptive)", "C32", "C16"),
+    ("maemm N: 8 - 16 (descriptive)", "M-N8", "M"),
+    ("maemm N: 32 - 16 (descriptive)", "M-N32", "M"),
 ]
-DRIFT = ("drift (repeat of C16)", "C16-rep", "C16")
+# Amendment A7: the null is a SECOND, DISJOINT test draw scored with C16's own description, not a
+# temperature-0 repeat. Its per-feature difference is the test-set sampling noise every contrast is
+# exposed to, and it is reported beside every win fraction.
+NULL = ("null (second test draw, same C16 description)", "C16", "C16-draw2")
+FLOOR_ARM = "R-shuffled"
+# One metric, three views of the SAME scorer answers: the pooled balanced accuracy, and the two
+# restrictions of the negative half that amendment A5 created (10 zero-activation randoms + 10
+# near-miss windows). A result that lives entirely on one half cannot hide in the pooled number.
+METRICS = ("bal_acc",)
+NEG_VIEWS = ("bal_acc", "bal_acc_zero_neg", "bal_acc_nearmiss_neg")
 QUANTS = (0.10, 0.25, 0.50, 0.75, 0.90)
 N_BOOT = 10000
 BOOT_SEED = 20260916
@@ -86,12 +98,12 @@ def ci_str(m: float, lo: float, hi: float, nd: int = 4) -> str:
     return f"{m:+.{nd}f} [{lo:+.{nd}f}, {hi:+.{nd}f}]"
 
 
-def paired(df: pl.DataFrame, a: str, b: str, scorer: str):
+def paired(df: pl.DataFrame, a: str, b: str, scorer: str, metric: str = "bal_acc"):
     """(features, d) -- the per-feature difference arm `a` minus arm `b` for one scorer."""
     sub = df.filter(pl.col("scorer") == scorer)
     wide = (
         sub.filter(pl.col("arm").is_in([a, b]))
-        .pivot(values="bal_acc", index="feature", on="arm")
+        .pivot(values=metric, index="feature", on="arm")
         .drop_nulls()
     )
     if a not in wide.columns or b not in wide.columns or not len(wide):
@@ -109,6 +121,7 @@ def md_table(rows: list[list[str]], header: list[str]) -> list[str]:
 def main(
     run: Annotated[str, typer.Option(help="the run directory name under /vol/runs/")],
     out: Annotated[str, typer.Option(help="the markdown file to write")] = "",
+    label: Annotated[str, typer.Option(help="`pilot` or `results`; picks the default filename")] = "results",
     data_dir: Annotated[str, typer.Option()] = "",
     modal_cmd: Annotated[str, typer.Option()] = "uvx modal",
     refetch: Annotated[bool, typer.Option()] = False,
@@ -137,7 +150,7 @@ def main(
 
     lines: list[str] = []
     lines += [
-        f"# Autointerp pilot -- `{run}`",
+        f"# Autointerp {label} -- `{run}`",
         "",
         f"Delphi-style SAE autointerp on base `{binfo['base']}`, SAE `{binfo['sae']}`, held-out "
         f"set `{binfo['set']}`, MAEMM `{binfo['maemm']}` (engine `{binfo['engine']}`). "
@@ -171,67 +184,112 @@ def main(
         ],
         ["arm", "calls", "input tok", "output tok", "cost", "$/feature"],
     )
+    lines += ["", "Per stage:", ""]
+    lines += md_table(
+        [[f"`{a}`", f"{d['calls']:,}", f"{d['in']:,}", f"{d['out']:,}", f"${d['cost']:.4f}"]
+         for a, d in costs.get("per_stage", {}).items()],
+        ["stage", "calls", "input tok", "output tok", "cost"],
+    )
     lines += [
         "",
         f"Cost is each response's own `usage.cost`, never a key usage delta. "
         f"{costs['cache_hits']:,} of {costs['cache_hits'] + costs['cache_misses']:,} calls came "
         f"from the prompt cache. Projection recorded at the probe gate: "
-        + (f"${costs['projection_usd']:.2f}." if costs["projection_usd"] else "n/a (not reached)."),
+        + (f"${costs['projection_usd']:.2f}" if costs["projection_usd"] else "n/a (not reached)")
+        + f" against a ${costs.get('max_cost_usd', 0):.2f} cap"
+        + (f"; STOPPED EARLY: {costs['stopped_at']}." if costs.get("stopped_at") else "."),
         "",
     ]
 
     # ---- per-arm levels -------------------------------------------------------------------
+    lines += ["## Test set and the two negative halves", "",
+              "A test positive is a window whose peak pre-gate activation EXCEEDS THE GATE "
+              "(amendment A1); without that rule, MEASURED on feature 845, 17 of 20 band-drawn "
+              "positives sat below the gate on text unrelated to the feature and every arm landed "
+              "near 0.6 balanced accuracy whatever its description said. The 20 negatives are 10 "
+              "zero-activation windows from the 2048-window random pool plus 10 near-miss windows "
+              "(0 < peak <= gate) (A5). Both halves are reported separately below, from the same "
+              "scorer answers, because they are not the same test.", ""]
+    tpr = df.filter(pl.col("arm") != FLOOR_ARM).group_by("scorer").agg(
+        pl.col("tpr").mean().alias("tpr"), pl.col("tnr").mean().alias("tnr"),
+        pl.col("tnr_zero").mean().alias("tnr_zero"),
+        pl.col("tnr_nearmiss").mean().alias("tnr_nm"),
+        pl.col("n_pos").mean().alias("np"), pl.col("n_neg_nearmiss").mean().alias("nnm"),
+    )
+    lines += md_table(
+        [[r["scorer"], f"{r['tpr']:.4f}", f"{r['tnr']:.4f}", f"{r['tnr_zero']:.4f}",
+          f"{r['tnr_nm']:.4f}", f"{r['np']:.1f}", f"{r['nnm']:.1f}"]
+         for r in tpr.iter_rows(named=True)],
+        ["scorer", "mean TPR", "mean TNR (all)", "TNR on zero-activation", "TNR on near-miss",
+         "positives/feature", "near-miss negatives/feature"],
+    )
+    lines += [""]
+
     lines += ["## Per-arm balanced accuracy", ""]
     rows = []
-    for scorer in scorers:
-        for a in arms:
-            v = df.filter((pl.col("scorer") == scorer) & (pl.col("arm") == a))["bal_acc"]
-            v = np.asarray([x for x in v.to_list() if x is not None], dtype=float)
-            if not len(v):
-                continue
-            m, lo, hi = boot_ci(v)
-            rows.append([
-                scorer, f"`{a}`", len(v), f"{m:.4f} [{lo:.4f}, {hi:.4f}]",
-                *[f"{np.quantile(v, q):.3f}" for q in QUANTS],
-                f"{float((v <= 0.5 + 1e-9).mean()):.3f}",
-            ])
+    for view in NEG_VIEWS:
+        for scorer in scorers:
+            for a_ in arms:
+                v = df.filter((pl.col("scorer") == scorer) & (pl.col("arm") == a_))[view]
+                v = np.asarray([x for x in v.to_list() if x is not None], dtype=float)
+                v = v[np.isfinite(v)]
+                if not len(v):
+                    continue
+                m, lo, hi = boot_ci(v)
+                ne = df.filter((pl.col("scorer") == scorer) & (pl.col("arm") == a_))["n_examples"]
+                rows.append([
+                    f"`{view}`", scorer, f"`{a_}`", f"{float(np.mean(ne.to_numpy())):.1f}", len(v),
+                    f"{m:.4f} [{lo:.4f}, {hi:.4f}]",
+                    *[f"{np.quantile(v, q):.3f}" for q in QUANTS],
+                    f"{float((v <= 0.5 + 1e-9).mean()):.3f}",
+                ])
     lines += md_table(
         rows,
-        ["scorer", "arm", "n", "mean [95% CI]", *[f"q{int(q * 100)}" for q in QUANTS], "frac <= 0.5"],
+        ["negatives", "scorer", "arm", "mean N shown", "n", "mean [95% CI]",
+         *[f"q{int(q * 100)}" for q in QUANTS], "frac <= 0.5"],
     )
     lines += [
         "",
-        "`frac <= 0.5` is the fraction of features on which the description is no better than "
-        "chance -- the bimodality the design warns about, which a mean alone hides.",
+        f"`frac <= 0.5` is the fraction of features on which the description is no better than "
+        f"chance -- the bimodality the design warns about, which a mean alone hides. `mean N "
+        f"shown` is the arm's ACTUAL example count averaged over features. **`{FLOOR_ARM}` is the "
+        f"floor** (amendment A6): each feature's test set scored with a DIFFERENT feature's C16 "
+        f"description under a fixed derangement. It should sit at 0.5; how far it sits above 0.5 "
+        f"is how much of every other arm's number is available without knowing anything about the "
+        f"feature. **`C16-draw2`** is C16's own description on the second, disjoint test draw "
+        f"(A7) -- the null.",
         "",
     ]
 
-    # ---- drift ----------------------------------------------------------------------------
-    drift_txt = {}
-    lines += ["## Noise floor: the repeated arm", ""]
+    null_txt: dict[tuple[str, str], tuple] = {}
+    lines += ["## The null: a second, disjoint test draw", ""]
     rows = []
-    for scorer in scorers:
-        _f, d = paired(df, DRIFT[1], DRIFT[2], scorer)
-        if not len(d):
-            continue
-        m, lo, hi = boot_ci(d)
-        p, win, m_non = sign_test(d)
-        drift_txt[scorer] = (m, lo, hi, float(np.abs(d).mean()), len(d))
-        rows.append([
-            scorer, f"`{DRIFT[1]}` - `{DRIFT[2]}`", len(d), ci_str(m, lo, hi),
-            f"{float(np.abs(d).mean()):.4f}", f"{float(np.abs(d).std(ddof=1)):.4f}",
-            f"{win:.3f}" if np.isfinite(win) else "-", f"{p:.3f}" if np.isfinite(p) else "-",
-        ])
+    for metric in METRICS:
+        for scorer in scorers:
+            _f, d = paired(df, NULL[1], NULL[2], scorer, metric)
+            if not len(d):
+                continue
+            m, lo, hi = boot_ci(d)
+            p, win, _m_non = sign_test(d)
+            q90 = float(np.quantile(np.abs(d), 0.90)) if len(d) else float("nan")
+            null_txt[(metric, scorer)] = (m, lo, hi, float(np.abs(d).mean()), q90, win, len(d))
+            rows.append([
+                f"`{metric}`", scorer, f"`{NULL[1]}` - `{NULL[2]}`", len(d), ci_str(m, lo, hi),
+                f"{float(np.abs(d).mean()):.4f}", f"{q90:.4f}",
+                f"{win:.3f}" if np.isfinite(win) else "-", f"{p:.3f}" if np.isfinite(p) else "-",
+            ])
     lines += md_table(
         rows,
-        ["scorer", "contrast", "n", "mean diff [95% CI]", "mean |diff|", "sd |diff|",
+        ["metric", "scorer", "contrast", "n", "mean diff [95% CI]", "mean |diff|", "q90 |diff|",
          "win frac", "sign p"],
     )
     lines += [
         "",
-        "`C16-rep` is byte-identical to `C16`: the same 16 examples, re-explained and re-scored "
-        "under a separate cache key. Its mean |difference| is the run-to-run floor -- a contrast "
-        "below it is not a finding whatever its CI says.",
+        "The SAME C16 description scored on two disjoint test draws built under identical rules. "
+        "Its mean difference should be 0 and its win fraction 0.5; its `mean |diff|` and "
+        "`q90 |diff|` are the scale of test-set sampling noise, and its win fraction is the null "
+        "every other win fraction is read against. It replaces the temperature-0 repeat, which "
+        "measured judge jitter rather than the sampling every contrast is exposed to (A7).",
         "",
     ]
 
@@ -239,25 +297,29 @@ def main(
     lines += ["## Paired contrasts (features as the unit, percentile bootstrap, B = "
               f"{N_BOOT:,})", ""]
     rows = []
-    for scorer in scorers:
-        floor = drift_txt.get(scorer, (0, 0, 0, float("nan"), 0))[3]
-        for label, a, b in CONTRASTS:
-            _f, d = paired(df, a, b, scorer)
-            if not len(d):
-                continue
-            m, lo, hi = boot_ci(d)
-            p, win, _m = sign_test(d)
-            clear = "yes" if np.isfinite(lo) and (lo > 0 or hi < 0) else "no"
-            over = "yes" if np.isfinite(floor) and abs(m) > floor else "no"
-            rows.append([
-                scorer, label, f"`{a}` - `{b}`", len(d), ci_str(m, lo, hi),
-                f"{win:.3f}" if np.isfinite(win) else "-",
-                f"{p:.4f}" if np.isfinite(p) else "-", clear, over,
-            ])
+    for metric in METRICS:
+        for scorer in scorers:
+            nul = null_txt.get((metric, scorer), (0, 0, 0, float("nan"), float("nan"), 0.5, 0))
+            floor, nq90, nwin = nul[3], nul[4], nul[5]
+            for label, a, b in CONTRASTS:
+                _f, d = paired(df, a, b, scorer, metric)
+                if not len(d):
+                    continue
+                m, lo, hi = boot_ci(d)
+                p, win, _m = sign_test(d)
+                clear = "yes" if np.isfinite(lo) and (lo > 0 or hi < 0) else "no"
+                over = "yes" if np.isfinite(nq90) and abs(m) > nq90 else "no"
+                rows.append([
+                    f"`{metric}`", scorer, label, f"`{a}` - `{b}`", len(d), ci_str(m, lo, hi),
+                    f"{win:.3f}" if np.isfinite(win) else "-",
+                    f"{nwin:.3f}" if np.isfinite(nwin) else "-",
+                    f"{p:.4f}" if np.isfinite(p) else "-",
+                    f"{floor:.4f}" if np.isfinite(floor) else "-", clear, over,
+                ])
     lines += md_table(
         rows,
-        ["scorer", "contrast", "arms", "n", "mean diff [95% CI]", "win frac", "sign p",
-         "CI clears 0", "|diff| > drift floor"],
+        ["metric", "scorer", "contrast", "arms", "n", "mean diff [95% CI]", "win frac",
+         "NULL win frac", "sign p", "null mean |diff|", "CI clears 0", "|diff| > null q90"],
     )
     lines += [""]
 
@@ -267,19 +329,23 @@ def main(
               "commonest (`precompute/targets.py:229-252`).", ""]
     strat = {int(r["feature"]): int(r["stratum"]) for r in feats["features"]}
     rows = []
-    for scorer in scorers:
+    for metric in METRICS:
+      for scorer in scorers:
         for label, a, b in CONTRASTS[:3]:
             for q in sorted(set(strat.values())):
-                f_ids, d = paired(df, a, b, scorer)
+                f_ids, d = paired(df, a, b, scorer, metric)
                 keep = np.asarray([strat[int(x)] == q for x in f_ids])
                 dq = d[keep]
                 if not len(dq):
                     continue
                 m, lo, hi = boot_ci(dq)
                 _p, win, _m = sign_test(dq)
-                rows.append([scorer, label, q, len(dq), ci_str(m, lo, hi),
+                rows.append([f"`{metric}`", scorer, label, q, len(dq), ci_str(m, lo, hi),
                              f"{win:.3f}" if np.isfinite(win) else "-"])
-    lines += md_table(rows, ["scorer", "contrast", "quartile", "n", "mean diff [95% CI]", "win frac"])
+    lines += md_table(
+        rows,
+        ["metric", "scorer", "contrast", "quartile", "n", "mean diff [95% CI]", "win frac"],
+    )
     lines += [""]
 
     # ---- fire fraction ----------------------------------------------------------------------
@@ -291,8 +357,9 @@ def main(
     fire = {int(r["feature"]): float(r["fire_fraction"]) for r in feats["features"]}
     edges = [0.0, 0.25, 0.5, 0.75, 1.0001]
     rows = []
-    for scorer in scorers:
-        f_ids, d = paired(df, "M", "C16", scorer)
+    for metric in METRICS:
+      for scorer in scorers:
+        f_ids, d = paired(df, "M", "C16", scorer, metric)
         if not len(d):
             continue
         fv = np.asarray([fire[int(x)] for x in f_ids])
@@ -302,11 +369,12 @@ def main(
             if not keep.any():
                 continue
             m, lo, hi = boot_ci(d[keep])
-            rows.append([scorer, f"[{lo_e:.2f}, {hi_e:.2f})", int(keep.sum()),
+            rows.append([f"`{metric}`", scorer, f"[{lo_e:.2f}, {hi_e:.2f})", int(keep.sum()),
                          f"{fv[keep].mean():.3f}", ci_str(m, lo, hi)])
-        lines.append(f"Pearson r(fire fraction, `M` - `C16`) = **{r:.3f}** on {scorer} (n = {len(d)}).")
+        lines.append(f"Pearson r(fire fraction, `M` - `C16`) = **{r:.3f}** on {scorer}, "
+                     f"`{metric}` (n = {len(d)}).")
         lines.append("")
-    lines += md_table(rows, ["scorer", "fire fraction bin", "n", "mean fire frac",
+    lines += md_table(rows, ["metric", "scorer", "fire fraction bin", "n", "mean fire frac",
                              "`M` - `C16` [95% CI]"])
     lines += [""]
 
@@ -326,6 +394,10 @@ def main(
               f"{binfo['token_join_mismatches']}.",
               f"- build flags: {len(binfo['flags'])}"
               + (f" -- first: {binfo['flags'][0]}" if binfo["flags"] else ""),
+              f"- A10 explainer truncation: "
+              f"{costs.get('explainer_truncated_and_retried', 0)} answers hit max_tokens and were "
+              f"retried once at double the budget; a still-truncated answer raises.",
+              f"- A12 temperature check: {costs.get('temperature_check', {})}",
               ""]
 
     # ---- full-run projection ------------------------------------------------------------------
@@ -345,7 +417,7 @@ def main(
               "example sets and the test set do not grow with the number of features.",
               ""]
 
-    dest = Path(out) if out else HERE / "pilot.md"
+    dest = Path(out) if out else HERE / f"{label}.md"
     dest.write_text("\n".join(lines) + "\n")
     console.print(f"[green]wrote {dest}[/green] ({dest.stat().st_size} B)")
     if vol.missing:
