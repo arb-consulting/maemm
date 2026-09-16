@@ -1,0 +1,194 @@
+"""The `autointerp` stages' own Modal app -- P1 (GPU), P2 (CPU) and the LLM run (CPU + OpenRouter).
+
+    cd 2026-09-maemms && (set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; \
+        uvx --with pyyaml modal run --detach \
+        repo-maemm-precompute/paper-evals/autointerp/modal_app.py \
+        --stage sae_self --base qwen36-27b --maemm qwen36-27b/2026-09-10_rl-8x2048-full \
+        --set 2026-09-16_v1 --rows 1024-1025)
+
+A SEPARATE app (`maemm-paper-evals-autointerp`) for the same reason `gcg/modal_app.py` is one: the
+LLM stage runs for tens of minutes on a CPU container while every precompute product is a single
+GPU pass, and mixing them makes one app's log stream unreadable. The IMAGE chain, the volume, the
+price list and the HF secret are imported from `precompute/modal_app.py`, so the pins and the layer
+cache are identical by construction.
+
+The `run` stage additionally mounts the `openrouter` Modal secret, which carries
+`OPENROUTER_API_KEY` and nothing else. The key is never printed, never written to the volume and
+never put in a README: `run.py` reads it from the environment and only ever records token counts
+and dollars.
+"""
+
+import sys
+import time
+from pathlib import Path
+
+import modal
+
+HERE = Path(__file__).resolve().parent
+LOCAL_ROOT = HERE.parent  # paper-evals/
+REMOTE_ROOT = "/root/paper-evals"
+VOL = "/vol"
+APP = "maemm-paper-evals-autointerp"
+
+if str(LOCAL_ROOT) not in sys.path:
+    sys.path.insert(0, str(LOCAL_ROOT))
+
+# The image chain, the volume, the secrets and the price list, from the one place that defines
+# them. Deliberately NOT `app`: two modal.App objects in this module's globals would make
+# `modal run` ambiguous about which one it is launching.
+from precompute.modal_app import (  # noqa: E402
+    SECRETS,
+    USD_PER_S,
+    VOLUMES,
+    image,
+    image27,
+    vol,
+)
+
+app = modal.App(APP)
+
+# The LLM stage needs the OpenRouter key on top of the HF one. It is a name here and a name in the
+# container's environment; no value passes through this file, the launcher, or any output.
+LLM_SECRETS = [*SECRETS, modal.Secret.from_name("openrouter")]
+
+STAGES = ("sae_self", "build", "run")
+CPU_STAGES = ("build", "run")
+
+
+def _run(stage: str, args: dict, gpu_label: str):
+    """Container-side body shared by every function: load config, dispatch, report wall and cost."""
+    sys.path.insert(0, REMOTE_ROOT)
+    import importlib
+
+    import precompute.common as C
+
+    t0 = time.time()
+    cfg = C.load_config()
+    assert stage in STAGES, f"unknown stage {stage!r}, want one of {list(STAGES)}"
+    args = {
+        **args,
+        "gpu": gpu_label,
+        "usd_per_s": USD_PER_S[gpu_label],
+        "on_commit": vol.commit,
+        # so each stage README's wall/cost covers the whole container call, model load included
+        "t0": t0,
+    }
+    out = importlib.import_module(f"autointerp.{stage}").run(cfg, args)
+    vol.commit()
+    wall = time.time() - t0
+    cost = wall * USD_PER_S[gpu_label]
+    print(
+        f"[wall] stage={stage} base={args.get('base') or '-'} gpu={gpu_label} "
+        f"seconds={wall:.1f} cost=${cost:.4f}",
+        flush=True,
+    )
+    return {"stage": stage, "gpu": gpu_label, "seconds": round(wall, 1),
+            "cost_usd": round(cost, 4), "result": out}
+
+
+# 6 h: `build` walks the 16M corpus memmap for 512 features and `run` makes ~11k LLM calls; both
+# are resumable, but a timeout kill still throws away the container.
+@app.function(image=image, volumes=VOLUMES, secrets=LLM_SECRETS, timeout=6 * 3600, cpu=8)
+def cpu(stage: str, args: dict):
+    return _run(stage, args, "CPU")
+
+
+@app.function(image=image, gpu="H100", volumes=VOLUMES, secrets=SECRETS, timeout=6 * 3600)
+def gpu_h100(stage: str, args: dict):
+    return _run(stage, args, "H100")
+
+
+@app.function(image=image27, gpu="H200", volumes=VOLUMES, secrets=SECRETS, timeout=6 * 3600)
+def gpu_h200(stage: str, args: dict):
+    return _run(stage, args, "H200")
+
+
+@app.local_entrypoint()
+def main(
+    stage: str,
+    base: str = "qwen36-27b",
+    maemm: str = "",
+    heldout: str = "",
+    set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
+    rows: str = "",
+    root: str = VOL,
+    force: bool = False,
+    engine: str = "vllm",
+    out_suffix: str = "",
+    # build
+    build_dir: str = "",
+    n_feat: int = 0,
+    feat_seed: int = 0,
+    n_examples: int = 0,
+    arms: str = "",
+    epo_strings: str = "",
+    # run
+    run_dir: str = "",
+    model: str = "",
+    scorers: str = "",
+    concurrency: int = 0,
+    max_cost_usd: float = 0.0,
+    probe_features: int = 0,
+    timeout_s: float = 0.0,
+    dry_run: bool = False,
+):
+    """One autointerp stage. `--stage sae_self|build|run`.
+
+    sae_self: GPU, per MAEMM -- the per-token target-feature activation on its own rollouts.
+    build:    CPU -- the rendered example sets and the shared test set (needs sae_self for the M arms).
+    run:      CPU + OpenRouter -- explainer, then the detection and fuzzing scorers.
+    """
+    sys.path.insert(0, str(LOCAL_ROOT))
+    import precompute.common as C
+
+    cfg = C.load_config()
+    assert stage in STAGES, f"unknown stage {stage!r}, want one of {list(STAGES)}"
+    assert base in cfg["bases"], f"unknown base {base!r}, want one of {sorted(cfg['bases'])}"
+    set_name = set or heldout or sorted(cfg["heldout"])[-1]
+    assert set_name in cfg["heldout"], (
+        f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])}"
+    )
+    if stage == "sae_self":
+        assert maemm, "stage sae_self needs --maemm (the rollouts whose feature activations it makes)"
+    if maemm:
+        assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+        assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    args = {
+        "base": base,
+        "maemm": maemm,
+        "heldout": set_name,
+        "rows": rows,
+        "root": root.rstrip("/") or VOL,
+        "force": force,
+        "engine": engine,
+        "out_suffix": out_suffix,
+        "build_dir": build_dir.rstrip("/"),
+        "n_feat": n_feat,
+        "feat_seed": feat_seed,
+        "n_examples": n_examples,
+        "arms": arms,
+        "epo_strings": epo_strings,
+        "run_dir": run_dir.rstrip("/"),
+        "model": model,
+        "scorers": scorers,
+        "concurrency": concurrency,
+        "max_cost_usd": max_cost_usd,
+        "probe_features": probe_features,
+        "timeout_s": timeout_s,
+        "dry_run": dry_run,
+        # The container has no git checkout, so the commit every README records is captured here.
+        "repo_commit": C.repo_commit(LOCAL_ROOT),
+        "argv": sys.argv,
+    }
+    if stage in CPU_STAGES:
+        fn, label = cpu, "CPU"
+    else:
+        gpu = cfg["bases"][base]["gpu"]
+        fn, label = {"H100": gpu_h100, "H200": gpu_h200}[gpu], gpu
+    print(
+        f"[launch] autointerp {stage} base={base} maemm={maemm or '-'} set={set_name} "
+        f"root={args['root']} on {label} commit={args['repo_commit'][:8]}"
+    )
+    res = fn.remote(stage, args)
+    print(f"[done] {res['stage']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")
+    print(f"       {res['result']}")

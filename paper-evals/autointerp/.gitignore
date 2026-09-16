@@ -1,0 +1,3 @@
+# Local analysis working directory (autointerp/stats.py): the small files it fetches off the
+# volume. Reproducible from the volume; the tables it writes (pilot.md) ARE committed.
+data/
