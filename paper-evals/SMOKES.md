@@ -1663,7 +1663,7 @@ token counts at the rate table in `costs.json` (the Anthropic Messages API retur
 | 5 | `sae_self` `rlI-150` | 512 x 64 = 32,768 rows | 237.2 s | **$0.2991** |
 | 6 | `random_pool` | 2,048 windows x 512 features | 111.8 s | **$0.1410** |
 | 7 | `examples_4m` (A3) | 4,738 docs, 3,999,724 tokens, 237,980 windows | 1293.4 s | **$1.6311** |
-| 8 | `examples_docmax` | 18,813 docs, 16M tokens, top 256 docs/feature | see below | see below |
+| 8 | `examples_docmax` | 18,813 docs, 16M tokens, 952,388 windows, top 256 docs/feature | 4941.6 s | **$6.2319** |
 
 Items 2 and 3 are the same work as 4 and 5 and are listed because they were paid for: the
 `sae_self` argmax check was written as an EQUALITY against the stored `argmax.i16` and failed on
@@ -2070,3 +2070,51 @@ The control also lands just above the Patchscopes floor at the matched budget (f
 realact, control bo64 0.1364), which is the more informative comparison than either alone — the
 MAEMM prompt with a direction injected into an untrained base is worth about the same as an
 entity-description prompt with no direction at all.
+
+### `examples_docmax`, measured
+
+18,813 documents, 952,388 windows (the same enumeration `scan` used), 512 features, 128,217 stored
+rows, 57.7 MiB, 4941.6 s, **$6.2319** on H200. Per feature, documents whose best window clears the
+gate: median **256** (i.e. the whole top-256 for the median feature), minimum 6, and fewer than 48
+on **55 of 512** features. 48 is the number the two test draws need (40 positives plus headroom),
+so ~11% of features may still be short once the arms' ~28-44 shown documents are removed; the
+chain's acceptance report carries the actual `n_short_draw1` / `n_short_draw2` / `n_empty_draw2`.
+
+### Operational: Modal re-schedules a SIGTERMed container, and a batch gets paid for twice
+
+MEASURED 2026-09-16 on the batch-path smoke. A CPU container polling a Message Batch was killed
+with `Runner terminated (SIGTERM), exit code: 143` at 1223 s; Modal re-scheduled the input; the
+code re-entered `run_batch` and submitted a SECOND batch for the same six requests. The prompt
+cache cannot prevent this, because it is only written once a batch ends. At the full run's 36,864
+requests that is a ~$56 double charge and two batches racing for the same work.
+
+Fixed by making every step of the `chain` stage idempotent: batch ids are written to
+`runs/<run>/batches/<stage>-<hash>.json` and committed BEFORE the first poll, and a restart
+re-attaches to them; a build whose `build.json` exists is reused rather than rerun (otherwise a
+restarted chain dies on `OutDir`'s refusal to overwrite its own earlier success); and `STATUS.json`
+is read back and continued with a `restarts` counter rather than truncated.
+
+Separately, batch LATENCY looks poor for this workload: two independent 6-request batches each sat
+`in_progress` for 20 minutes without completing. The chain therefore re-probes and takes the
+half-price batch path only if a probe batch returns inside 30 minutes; otherwise the two full runs
+go through the sync path at full price.
+
+### What `examples_docmax` bought, on the same 64 features
+
+| | positive pool = `examples/` only | + `examples_docmax` |
+|---|---|---|
+| draw 1 short of 20 positives | 29 / 64 | **12 / 64** |
+| draw 2 short of 20 positives | 44 / 64 | **7 / 64** |
+| draw 2 EMPTY | 21 / 64 | **6 / 64** |
+| C4 short of 16 examples | 0 / 64 (after A3) | **0 / 64** |
+| negatives short of 20 | 0 / 64 | **0 / 64** |
+
+Draw 2 comes out healthier than draw 1 because draw 2 is ALLOCATED FIRST: when the pool is short it
+is draw 2 that would go empty, and an empty draw 2 costs the null -- which, with no `temperature`
+parameter available, is the only noise floor the evaluation has. Draw 1 takes what is left and its
+shortfall is recorded per feature. Document-level disjointness is never relaxed to make a count.
+
+The 12 features whose draw 1 is short are the sparsest end of the density range (feature 845, for
+instance, has corpus density 1.8e-6 and gets 0 positives): their entire gate-passing corpus
+presence fits inside what the arms already show. They drop out of the paired contrasts through
+`drop_nulls` rather than being padded.
