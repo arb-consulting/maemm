@@ -21,7 +21,7 @@ Everything under `autointerp/` imports only `precompute/common.py`, two private 
 | `random_pool` | GPU | `base/<base>/sae/<sae>/random_pool/<set>/` | P1 (A5): 2048 random corpus windows encoded for every tested feature, per-token, sparse. Replaces scan's 256-window `_random256` |
 | `examples_4m` | GPU | `base/<base>/sae/<sae>/examples_4m/<set>/` | P1 (A3): the C4 arm's OWN top-128 over the 4M nested prefix |
 | `build` | CPU | `base/<base>/autointerp/<set>/<date>_build/` | P2: the rendered example sets per arm and the two test draws, one jsonl per feature. Loads no model except the tokenizer |
-| `run` | CPU + OpenRouter | `runs/<date>_autointerp-<tag>/{cache,explain,detection,fuzzing,summary}/` | the LLM half: Delphi's explainer, then its detection and fuzzing scorers. Cached by prompt hash, resumable, cost-capped |
+| `run` | CPU + Anthropic API | `runs/<date>_autointerp-<tag>/{cache,explain,detection,fuzzing,summary}/` | the LLM half: Delphi's explainer, then its detection and fuzzing scorers. `--path sync\|batch`, cached by prompt hash, resumable, projected and capped before each stage |
 | `stats.py` | local | `autointerp/pilot.md`, `autointerp/results.md` | paired bootstrap CIs over features, per quartile, win fractions against the null, distributions, the fire-fraction covariate |
 
 Run order: `sae_self` + `random_pool` + `examples_4m` (independent of each other) → `build` → `run`
@@ -39,8 +39,9 @@ Flags: `--rows` restricts the targets (`common.parse_rows`, global row numbering
 family is 1024-1535) and OVERRIDES the stratified draw in `build`; `--out-suffix` keeps a shakeout
 out of the canonical path; `--n-windows` / `--pool-seed` belong to `random_pool`, `--prefix-m` to
 `examples_4m`, `--n-feat` / `--feat-seed` / `--arms` / `--build-dir` / `--epo-strings` to `build`,
-and `--model` / `--scorers` / `--concurrency` / `--max-cost-usd` / `--probe-features` /
-`--run-dir` / `--dry-run` to `run`. Every default is in `config.yaml`'s `autointerp:` block.
+and `--model` / `--scorers` / `--path` / `--concurrency` / `--max-cost-usd` / `--stop-above-usd` /
+`--approved` / `--run-dir` / `--dry-run` to `run`. Every default is in `config.yaml`'s
+`autointerp:` block.
 
 ## Arms
 
@@ -133,29 +134,51 @@ the design asks for detection and fuzzing only), and any 8B row.
 - **A10 — explainer truncation is an error.** `finish_reason == "length"` triggers one retry at
   double `max_tokens`; a still-truncated answer raises. A truncated explanation is not a shorter
   explanation.
-- **A12 / DEVIATION from the lifted client — `temperature` IS sent** (0, per the design), and a
-  real call at startup confirms OpenRouter accepts it with reasoning disabled. The lifted
-  `_OpenRouter` never sent temperature because its default judge was Opus 5 through the Anthropic
-  Batches API, which 400s on it with thinking on.
+- **THE API IS ANTHROPIC'S MESSAGES API, DIRECTLY** (Tomáš, 2026-09-16), not OpenRouter, on model
+  `claude-sonnet-5`, through the pinned `anthropic==1.6.0` SDK. Two paths: `--path sync` (a bounded
+  thread pool at concurrency 32; retries are the SDK's own, `max_retries=8`, which covers 429 and
+  529) and `--path batch` (one Message Batch per stage, **half price**). The pilot measures batch
+  latency so the full run can choose on evidence.
+- **DEVIATION FORCED BY THE API — `temperature` IS NOT SENT, and cannot be.** MEASURED 2026-09-16:
+  `anthropic` 1.6.0's `messages.create()` has no `temperature` parameter for this model generation
+  (`TypeError: unexpected keyword argument`), because sampling parameters were removed. OpenRouter
+  accepted the parameter, which is what hid this. **The design's "temperature 0" is not achievable
+  on this surface**, so run-to-run variation is real and the A7 null arm — the same C16 description
+  scored on a second disjoint test draw — is the only noise floor this evaluation has. The config
+  keeps `temperature: 0.0` as the stated intent and `run.py` asserts it is absent from every
+  request body.
+- **A12 — one real call at startup** confirms the model id and that `thinking: {"type": "disabled"}`
+  is accepted (thinking is on by default on this generation and would eat `max_tokens`).
+- **Cost is COMPUTED, not returned.** The Anthropic API returns token counts only, so `run.py`
+  applies a rate table ($2.00 / $10.00 per MTok input/output for Sonnet 5, cache writes 1.25×,
+  cache reads 0.1×, batch 50% of all of it) and writes **both the rates and the counts** into
+  `costs.json`, so every dollar figure is auditable rather than asserted.
+- **Every stage is projected before it runs.** `messages.count_tokens` on a sample of the uncached
+  jobs gives the input side exactly; the output side is an assumed fraction of `max_tokens`, stated
+  as such. A stage projecting more than `autointerp.stop_above_usd` ($100) refuses to run without
+  `--approved` — the "report anything over $100 before it runs" rule, made mechanical.
+- **Prompt caching is attempted, not assumed.** A `cache_control` breakpoint sits after the stable
+  prefix (system + Delphi's verbatim few-shots). Sonnet 5's minimum cacheable prefix is 1024
+  tokens and the detection prefix is near it, so `usage.cache_creation_input_tokens` decides
+  whether an entry exists; nothing is added to the prompt to reach the minimum, because the
+  prompts are Delphi's, verbatim.
 - **Unparsed scorer batches are DROPPED, never imputed.** The parser takes the last bracketed group
   of exactly the batch length; a wrong-length answer is refused. The judge narrates before
   answering on roughly one batch in six (MEASURED 2026-09-15), which is why `max_tokens` is 600.
-- **Costs come from each response's own `usage.cost`**, never from the key's usage delta — the
-  OpenRouter key is shared (`experiments/2026-09-11_autointerp-64feat-plan.md:153`).
 
 ## Prompt provenance
 
 Everything between the `# ---- Delphi` markers in `run.py`, and the rendering in `build.py`, is
 transcribed from EleutherAI/delphi pinned to `4fea06e6e8b68eeaf302474325fca13df95c5d6f`, by way of
 `repo-maemm/eval/autointerp_detection.py:229-450`, which records the raw-file URLs and the fetch
-date. The OpenRouter client is that same file's `_OpenRouter` (`:1825-1911`). Both are copied
-rather than imported: that worktree is read-only here and carries `mxf`/torch imports the CPU
-container must not need. The Delphi library itself is **not** installed, vendored or pinned
+date. Only the prompts and parsers are lifted; the client is new (the lifted `_OpenRouter` is for a
+different API). They are copied rather than imported because that worktree is read-only here and
+carries `mxf`/torch imports the CPU container must not need. The Delphi library itself is **not** installed, vendored or pinned
 anywhere in this repo, so nothing here is verified against Delphi source.
 
 ## Secrets
 
-The OpenRouter key reaches the `run` stage as the Modal secret `openrouter` (env
-`OPENROUTER_API_KEY`) and nothing else. It is never printed, never written to the volume, never put
+The Anthropic key reaches the `run` stage as the Modal secret `anthropic` (env
+`ANTHROPIC_API_KEY`) and nothing else. It is never printed, never written to the volume, never put
 in a README, and `run.py` records only call counts, token counts and dollars. The local copy lives
 in `2026-09-maemms/.env.local`, outside every clone and gitignored.

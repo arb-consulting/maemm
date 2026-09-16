@@ -1,4 +1,4 @@
-"""The `autointerp` stages' own Modal app -- P1 (GPU), P2 (CPU) and the LLM run (CPU + OpenRouter).
+"""The `autointerp` stages' own Modal app -- P1 (GPU), P2 (CPU) and the LLM run (CPU + the Anthropic API).
 
     cd 2026-09-maemms && (set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; \
         uvx --with pyyaml modal run --detach \
@@ -12,10 +12,10 @@ GPU pass, and mixing them makes one app's log stream unreadable. The IMAGE chain
 price list and the HF secret are imported from `precompute/modal_app.py`, so the pins and the layer
 cache are identical by construction.
 
-The `run` stage additionally mounts the `openrouter` Modal secret, which carries
-`OPENROUTER_API_KEY` and nothing else. The key is never printed, never written to the volume and
-never put in a README: `run.py` reads it from the environment and only ever records token counts
-and dollars.
+The `run` stage runs on its own image (`image_llm`, the shared chain plus the pinned `anthropic`
+SDK) and mounts the `anthropic` Modal secret, which carries `ANTHROPIC_API_KEY` and nothing else.
+The key is never printed, never written to the volume and never put in a README: `run.py` reads it
+from the environment and only ever records token counts and dollars.
 """
 
 import sys
@@ -37,9 +37,11 @@ if str(LOCAL_ROOT) not in sys.path:
 # them. Deliberately NOT `app`: two modal.App objects in this module's globals would make
 # `modal run` ambiguous about which one it is launching.
 from precompute.modal_app import (  # noqa: E402
+    _CODE,
     SECRETS,
     USD_PER_S,
     VOLUMES,
+    _image_base,
     image,
     image27,
     vol,
@@ -47,9 +49,17 @@ from precompute.modal_app import (  # noqa: E402
 
 app = modal.App(APP)
 
-# The LLM stage needs the OpenRouter key on top of the HF one. It is a name here and a name in the
-# container's environment; no value passes through this file, the launcher, or any output.
-LLM_SECRETS = [*SECRETS, modal.Secret.from_name("openrouter")]
+# The `run` stage is the only thing in paper-evals that talks to an LLM API, so the SDK goes on a
+# layer of its own, BEFORE add_local_dir (precompute/modal_app.py:69: Modal forbids a build step
+# after it). Everything below this layer is the shared cache, so no other product rebuilds.
+# Pinned: an SDK minor can move the request surface, and this one already did -- `temperature` is
+# gone from messages.create() for this model generation.
+image_llm = _image_base.pip_install("anthropic==1.6.0").add_local_dir(**_CODE)
+
+# The LLM stage needs the Anthropic key on top of the HF one (Tomas 2026-09-16: the direct
+# Messages API, not OpenRouter). It is a name here and a name in the container's environment; no
+# value passes through this file, the launcher, or any output.
+LLM_SECRETS = [*SECRETS, modal.Secret.from_name("anthropic")]
 
 # stage -> (module, function). `random_pool` is P1's sibling: the same SAE-encode machinery over
 # corpus windows instead of rollouts, so it lives in sae_self.py rather than in a file of its own.
@@ -57,6 +67,7 @@ STAGES = {
     "sae_self": ("sae_self", "run"),
     "random_pool": ("sae_self", "run_random_pool"),
     "examples_4m": ("sae_self", "run_examples_4m"),
+    "examples_docmax": ("sae_self", "run_examples_docmax"),
     "build": ("build", "run"),
     "run": ("run", "run"),
 }
@@ -95,10 +106,19 @@ def _run(stage: str, args: dict, gpu_label: str):
             "cost_usd": round(cost, 4), "result": out}
 
 
-# 6 h: `build` walks the 16M corpus memmap for 512 features and `run` makes ~11k LLM calls; both
-# are resumable, but a timeout kill still throws away the container.
-@app.function(image=image, volumes=VOLUMES, secrets=LLM_SECRETS, timeout=6 * 3600, cpu=8)
+# 6 h: `build` walks the 16M corpus memmap for 512 features; `run` makes tens of thousands of LLM
+# calls and, on the batch path, waits on Anthropic's queue. Both are resumable through the prompt
+# cache, but a timeout kill still throws away the container.
+@app.function(image=image, volumes=VOLUMES, secrets=SECRETS, timeout=6 * 3600, cpu=8)
 def cpu(stage: str, args: dict):
+    return _run(stage, args, "CPU")
+
+
+# The LLM stage, on the image that carries the Anthropic SDK and the secret that carries the key.
+# 12 h because a Message Batch is allowed up to 24 h by Anthropic and a long queue must not be
+# turned into a lost container; the batch id is printed and a resumed run re-reads the cache.
+@app.function(image=image_llm, volumes=VOLUMES, secrets=LLM_SECRETS, timeout=12 * 3600, cpu=8)
+def cpu_llm(stage: str, args: dict):
     return _run(stage, args, "CPU")
 
 
@@ -140,8 +160,11 @@ def main(
     run_dir: str = "",
     model: str = "",
     scorers: str = "",
+    path: str = "",
     concurrency: int = 0,
     max_cost_usd: float = 0.0,
+    stop_above_usd: float = 0.0,
+    approved: bool = False,
     probe_features: int = 0,
     timeout_s: float = 0.0,
     dry_run: bool = False,
@@ -152,8 +175,12 @@ def main(
     random_pool: GPU -- the shared negative pool: 2048 random corpus windows encoded for every
                  tested feature, per-token. Replaces scan's 256-window `_random256`.
     examples_4m: GPU -- the C4 arm's own top-128 over the 4M nested prefix (amendment A3).
+    examples_docmax: GPU -- the test set's positive pool: one window per DOCUMENT, top 256
+                 documents per feature, so A4 has something to draw from.
     build:    CPU -- the rendered example sets and the shared test set (needs sae_self for the M arms).
-    run:      CPU + OpenRouter -- explainer, then the detection and fuzzing scorers.
+    run:      CPU + the Anthropic Messages API -- explainer, then the detection and fuzzing
+              scorers. `--path sync|batch`; `--approved` releases a stage whose projection is
+              above `autointerp.stop_above_usd`.
     """
     sys.path.insert(0, str(LOCAL_ROOT))
     import precompute.common as C
@@ -192,8 +219,11 @@ def main(
         "run_dir": run_dir.rstrip("/"),
         "model": model,
         "scorers": scorers,
+        "path": path,
         "concurrency": concurrency,
         "max_cost_usd": max_cost_usd,
+        "stop_above_usd": stop_above_usd,
+        "approved": approved,
         "probe_features": probe_features,
         "timeout_s": timeout_s,
         "dry_run": dry_run,
@@ -201,7 +231,9 @@ def main(
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,
     }
-    if stage in CPU_STAGES:
+    if stage == "run":
+        fn, label = cpu_llm, "CPU"
+    elif stage in CPU_STAGES:
         fn, label = cpu, "CPU"
     else:
         gpu = cfg["bases"][base]["gpu"]

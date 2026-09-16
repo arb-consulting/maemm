@@ -743,13 +743,15 @@ def run(cfg, args):
                 csrc, cn, msrc, mn = ARM_SPECS[name]
                 picks = []
                 if cn:
-                    pool = pools[csrc]
-                    if len(pool) < cn:
+                    # NOT `pool`: that name is the shared _RandomPool of negatives, and rebinding
+                    # it here is how the first build of the amended code died.
+                    src_pool = pools[csrc]
+                    if len(src_pool) < cn:
                         flags.append(
                             f"feature {feat}: arm {name} wanted {cn} {csrc} windows, "
-                            f"has {len(pool)}"
+                            f"has {len(src_pool)}"
                         )
-                    picks += [corpus_ex(e) for e in pool[:cn]]
+                    picks += [corpus_ex(e) for e in src_pool[:cn]]
                 if mn:
                     if len(pools[msrc]) < mn:
                         flags.append(
