@@ -47,8 +47,10 @@ and the batch path (half price) is used only if it returned inside 30 minutes.
 (export MODAL_PROFILE=maemms; uvx --with pyyaml modal run --detach    repo-maemm-precompute/paper-evals/autointerp/modal_app.py --stage chain    --base qwen36-27b --set 2026-09-16_v1    --maemm qwen36-27b/2026-09-10_rl-8x2048-full --maemm2 qwen36-27b/2026-09-08_rlI-150    --chain-dir 2026-09-16_autointerp-chain)
 ```
 
-**The 2026-09-16 run: app `ap-HB71h7dO6SezJ56W9bV7DA`, status file
-`/vol/runs/2026-09-16_autointerp-chain/STATUS.json`.**
+**The 2026-09-16 run: chain dir `2026-09-16_autointerp-chain2`, status file
+`/vol/runs/2026-09-16_autointerp-chain2/STATUS.json`.** (The first chain,
+`2026-09-16_autointerp-chain`, ran the pilot and was stopped: its build allocated test draw 2
+before draw 1, which starved the set every arm is scored on.)
 
 Every step of the chain is IDEMPOTENT, because MEASURED 2026-09-16 a container polling a Message
 Batch was killed with `Runner terminated (SIGTERM), exit code: 143` at 1223 s and Modal
@@ -167,9 +169,16 @@ the design asks for detection and fuzzing only), and any 8B row.
   gets two disjoint test draws under identical rules; `run` scores C16 on both (`C16-draw2`) *and*
   scores draw 1 a second time with the same description (`C16-judge2`). The first carries judge and
   test-set-draw variation together, the second the judge half alone; their difference is the draw
-  half. Both are reported beside every win fraction. **Draw 2 is allocated before draw 1**: when the
-  positive pool is short it is draw 2 that goes empty, and an empty draw 2 costs the null. If draw 1
-  then falls short, n is reduced and recorded — disjointness is never relaxed to make the count.
+  half. Both are reported beside every win fraction. **Draw 1 is allocated before draw 2**: draw 1
+  is the set every arm is scored on, so starving it drops the feature from *every* contrast, while
+  draw 2 feeds one arm and a null measured on fewer features is still a null. Where a draw then
+  falls short, n is reduced and recorded — disjointness is never relaxed to make the count.
+  MEASURED on the pilot: reversing the order took features with no draw-1 positive from 7 of 64 to
+  6, and moved the remaining shortfall onto draw 2 (short 7 → 12) where it costs one arm instead of
+  all of them. The 6 that remain are **all in the rarest density quartile** and are a property of
+  the corpus, not of the allocation: a feature at density 1.8e-6 fires on ~110 windows in the whole
+  16M corpus, concentrated in few documents, and the arms show 16–32 of them. They are excluded
+  from every contrast and `stats.py` reports the exclusions per quartile.
 - **The test set's positive and near-miss pool is "the top window of each of the feature's 256
   highest-activating documents"** (`examples_docmax/`), banded by the scan's own
   `ceil(max_act / peak × 4) − 1`, unioned with the stored `q0..q3` band rows and deduplicated by
