@@ -1,0 +1,408 @@
+"""The only Modal file in precompute/: one app, one image chain, one entrypoint.
+
+    cd 2026-09-maemms && (set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; \
+        uvx modal run repo-maemm-precompute/paper-evals/precompute/modal_app.py \
+        --product check --base qwen3-8b)
+
+Anything that takes more than a few minutes must be launched with `uvx modal run --detach`
+(checklist item 81: four apps were lost to a dropped local connection).
+
+Products are selected by name; the GPU comes from the base's `gpu` field in config.yaml. Modal
+decorators are static, so the dispatch is: one CPU function, one H100 function (image) and one H200
+function (image27, which carries flash-linear-attention for the 27B's GatedDeltaNet layers). Later
+steps split a product into its own function as soon as its timeout or resources differ from the
+others; today every GPU product is still a stub.
+"""
+
+import os
+import sys
+import time
+from pathlib import Path
+
+import modal
+
+HERE = Path(__file__).resolve().parent
+LOCAL_ROOT = HERE.parent  # paper-evals/
+REMOTE_ROOT = "/root/paper-evals"
+VOL = "/vol"
+APP = "maemm-paper-evals"
+
+USD_PER_S = {"H100": 3.95 / 3600, "H200": 4.54 / 3600, "CPU": 0.0}
+
+app = modal.App(APP)
+vol = modal.Volume.from_name("maemm", create_if_missing=False)
+
+# Layer-for-layer identical to modal/maemm_modal.py:_image_base (wandb included although nothing
+# here imports it) so every layer below the last two is a cache hit on this workspace. pyyaml is a
+# separate layer on top for the same reason.
+_image_base = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
+    .pip_install("vllm==0.19.0", "vllm-lens==1.1.0")
+    .pip_install(
+        "transformers==5.15.0",
+        "peft==0.20.0",
+        "accelerate==1.14.0",
+        "wandb==0.28.2",
+        "numpy==2.4.6",
+        "safetensors==0.8.0",
+        "huggingface_hub==1.27.0",
+        "tokenizers==0.22.2",
+        "hf_xet",
+        "datasets",
+    )
+    .pip_install("pyyaml")
+    .env(
+        {
+            "HF_HOME": f"{VOL}/hf",
+            # Everything is pre-fetched by infra/fetch_hf.py; an accidental download would be a
+            # silent, unpinned revision change, so the run fails loudly instead.
+            "HF_HUB_OFFLINE": "1",
+            "TOKENIZERS_PARALLELISM": "false",
+            "PYTHONPATH": REMOTE_ROOT,
+        }
+    )
+)
+
+# Qwen3.6-27B: 48 of its 64 layers are GatedDeltaNet and transformers picks fla's Triton kernel
+# when `fla` is importable. It branches BEFORE the code layer because Modal forbids a build step
+# after add_local_dir.
+_image27_base = _image_base.pip_install("flash-linear-attention==0.5.2")
+
+# copy=True bakes paper-evals/ into the image (checklist item 82: a live mount is shared state
+# between concurrent sessions). Last layer, so an edit rebuilds only this one.
+# Ignored: caches, the local analysis outputs and every .md -- other sessions write those while an
+# image is being hashed, and Modal refuses a tree that changes mid-build.
+_IGNORE = ["**/__pycache__", "**/*.pyc", "**/.ruff_cache", "reconstruction/out",
+           "reconstruction/data", "**/*.md"]
+_CODE = dict(local_path=LOCAL_ROOT, remote_path=REMOTE_ROOT, copy=True, ignore=_IGNORE)
+image = _image_base.add_local_dir(**_CODE)
+image27 = _image27_base.add_local_dir(**_CODE)
+
+SECRETS = [modal.Secret.from_name("hf-write")]
+VOLUMES = {VOL: vol}
+
+
+# ==============================================================================================
+# products (container side)
+# ==============================================================================================
+
+
+def _script(module, fn: str = "run"):
+    """Dispatch to precompute/<module>.py:<fn>, imported lazily so a CPU product never imports torch."""
+
+    def run(cfg, args):
+        import importlib
+
+        return getattr(importlib.import_module(f"precompute.{module}"), fn)(cfg, args)
+
+    return run
+
+
+def _model_dims(snapshot_path):
+    """(hidden_size, num_hidden_layers) from a snapshot's config.json.
+
+    Qwen3.6-27B is a multimodal wrapper whose text tower sits under `text_config`; Qwen3-8B is flat.
+    """
+    import json
+
+    with open(os.path.join(snapshot_path, "config.json")) as fh:
+        conf = json.load(fh)
+    text = conf.get("text_config", conf)
+    return text.get("hidden_size"), text.get("num_hidden_layers")
+
+
+def product_check(cfg, args):
+    """CPU: resolve every path the pipeline will need and build both prompts. No weights loaded.
+
+    This is the cheap gate in front of every GPU run: a missing snapshot, a moved adapter subdir or
+    a tokenizer whose marker is not one token should cost seconds of CPU, not an H200 hour.
+    """
+    from transformers import AutoTokenizer
+
+    import precompute.common as C
+
+    bases = [args["base"]] if args.get("base") else sorted(cfg["bases"])
+    report = {}
+    for base in bases:
+        spec = cfg["bases"][base]
+        snap = C.snapshot(cfg, spec["hf"])
+        d, n_layers = _model_dims(snap)
+        assert d == spec["d"], f"base {base}: config.yaml says d={spec['d']}, {snap}/config.json says {d}"
+        assert n_layers == spec["n_layers"], (
+            f"base {base}: config.yaml says n_layers={spec['n_layers']}, config.json says {n_layers}"
+        )
+        print(
+            f"[check] base {base}: {snap} d={d} n_layers={n_layers} read_layer={spec['read_layer']} "
+            f"gpu={spec['gpu']}",
+            flush=True,
+        )
+
+        tok = AutoTokenizer.from_pretrained(snap)
+        marker_id = tok.encode(C.MARKER, add_special_tokens=False)
+        assert len(marker_id) == 1, f"base {base}: marker {C.MARKER!r} is not single-token: {marker_id}"
+        prompts = sorted({cfg["maemms"][k]["prompt"] for k in C.maemms_for(cfg, base, False)})
+        for name in prompts:
+            ids, pos = C.prompt_ids(tok, name, spec["read_layer"])
+            assert pos == len(ids) - 1, f"marker must be the LAST prompt token, got {pos} of {len(ids)}"
+            print(
+                f"[check] base {base} prompt {name}: {len(ids)} tokens, marker id {marker_id[0]} "
+                f"at {pos} (single occurrence), vocab {len(tok)}",
+                flush=True,
+            )
+            report[f"{base}/{name}"] = {"n_tokens": len(ids), "marker_pos": pos, "marker_id": marker_id[0]}
+
+        for key in [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]:
+            path = C.sae_path(cfg, key)
+            print(f"[check] sae {key}: {path} ({C.human(os.path.getsize(path))})", flush=True)
+            if cfg["saes"][key].get("max_acts"):
+                ma = C.max_acts_path(cfg, key)
+                print(
+                    f"[check] sae {key} max_acts: {ma} ({C.human(os.path.getsize(ma))}, "
+                    f"sink_first={cfg['saes'][key]['max_acts']['sink_first']})",
+                    flush=True,
+                )
+        for key in C.maemms_for(cfg, base, computable_only=False):
+            spec = cfg["maemms"][key]
+            computable = spec.get("compute", True)
+            try:
+                path = C.maemm_weights_path(cfg, key)
+            except AssertionError as e:
+                # A compute: false entry is declared for the paper's model table; nothing is
+                # generated for it, so it need not be fetched to the volume yet. A computable one
+                # that does not resolve is a hard failure -- that is what this gate is for.
+                assert not computable, e
+                print(f"[check] maemm {key} ({spec['type']}): compute: false, NOT FETCHED -- {e}", flush=True)
+                continue
+            print(
+                f"[check] maemm {key} ({spec['type']}{'' if computable else ', compute: false'}): "
+                f"{path} ({C.human(C.dir_size(path))})",
+                flush=True,
+            )
+
+    heldout = sorted(cfg["heldout"])
+    for set_name in heldout:
+        for base in bases:
+            fams = C.families_for(cfg, set_name, base)
+            print(
+                f"[check] heldout {set_name} on {base}: "
+                + ", ".join(
+                    f"{f}={s['n']}{' (empty slot)' if s.get('status') == 'empty' else ''}"
+                    for f, s in fams.items()
+                ),
+                flush=True,
+            )
+    print(
+        f"[check] scoring: max_length={C.SCORE_MAX_LENGTH} chunk={C.SCORE_CHUNK} "
+        f"width={C.SCORE_WIDTH} rollouts.max_new={cfg['rollouts']['max_new']}",
+        flush=True,
+    )
+    return report
+
+
+def product_unit(cfg, args):
+    """CPU: the same unit smoke as `uv run precompute/unit_smoke.py`, inside the image."""
+    from precompute import unit_smoke
+
+    return {"checks": unit_smoke.run_all()}
+
+
+PRODUCTS = {
+    "check": product_check,
+    "unit": product_unit,
+    "corpus": _script("corpus"),
+    "stats": _script("stats"),
+    "mu_check": _script("stats", "run_mu_check"),
+    "mu_diag": _script("mu_diag"),
+    "targets": _script("targets"),
+    "scan": _script("scan"),
+    "rollouts_hf": _script("rollouts_hf"),
+    "rollouts_vllm": _script("rollouts_vllm"),
+    "parity_greedy": _script("rollouts_vllm", "run_parity_greedy"),
+    "score": _script("score"),
+    "repo_examples": _script("repo_examples"),
+    "centred": _script("centred"),
+    "patchscopes": _script("patchscopes"),
+}
+# `corpus` is CPU AND the only product that goes to the network: the Ultra-FineWeb parquet parts
+# are not in the volume's HF cache, so corpus.py flips HF_HUB_OFFLINE off for itself. `mu_check`
+# reads two [d] vectors off the volume and does one dot product.
+# `centred` is CPU too: it only re-reads the arrays `score` already wrote (best_act, cos, norm).
+CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
+# Products that need --maemm.
+MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_vllm", "parity_greedy", "score", "centred")
+
+
+def _run(product, args, gpu_label):
+    """Container-side body shared by every Modal function: load config, dispatch, report wall."""
+    sys.path.insert(0, REMOTE_ROOT)
+    import precompute.common as C
+
+    t0 = time.time()
+    cfg = C.load_config()
+    assert product in PRODUCTS, f"unknown product {product!r}, want one of {sorted(PRODUCTS)}"
+    # Everything a product needs to write its own README cost line and commit the volume.
+    args = {
+        **args,
+        "gpu": gpu_label,
+        "usd_per_s": USD_PER_S[gpu_label],
+        "on_commit": vol.commit,
+        # so each product README's wall/cost covers the whole container call (model load included),
+        # not just the few seconds its OutDir was open
+        "t0": t0,
+    }
+    out = PRODUCTS[product](cfg, args)
+    vol.commit()
+    wall = time.time() - t0
+    cost = wall * USD_PER_S[gpu_label]
+    print(
+        f"[wall] product={product} base={args.get('base') or 'all'} gpu={gpu_label} "
+        f"seconds={wall:.1f} cost=${cost:.4f}",
+        flush=True,
+    )
+    return {
+        "product": product,
+        "gpu": gpu_label,
+        "seconds": round(wall, 1),
+        "cost_usd": round(cost, 4),
+        "result": out,
+    }
+
+
+@app.function(image=image, volumes=VOLUMES, secrets=SECRETS, timeout=4 * 3600, cpu=8)
+def cpu(product: str, args: dict):
+    # NO hard exit here, although checklist item 59 asks for one in corpus.py. MEASURED
+    # 2026-09-15: `os._exit()` inside a Modal function body kills the container mid-call, Modal
+    # re-schedules the input, and the retry fails on "<dir> already exists" although the first
+    # attempt had finished and committed. corpus.py instead drops the streaming iterators and
+    # collects garbage before it returns, which closes the same window from inside the process.
+    return _run(product, args, "CPU")
+
+
+# 10 h, not the 6 h the smokes ran at: the FULL-scale calls are the long ones -- a 27B rollouts
+# run over 1,536 targets x 64 is 3-7 h depending on the engine, and `stats` / `scan` / `score`
+# on the 16M corpus are 1.5-2.5 h each. A timeout kill costs the whole call's GPU spend.
+@app.function(image=image, gpu="H100", volumes=VOLUMES, secrets=SECRETS, timeout=10 * 3600)
+def gpu_h100(product: str, args: dict):
+    return _run(product, args, "H100")
+
+
+@app.function(image=image27, gpu="H200", volumes=VOLUMES, secrets=SECRETS, timeout=10 * 3600)
+def gpu_h200(product: str, args: dict):
+    return _run(product, args, "H200")
+
+
+@app.local_entrypoint()
+def main(
+    product: str,
+    base: str = "",
+    maemm: str = "",
+    heldout: str = "",
+    set: str = "",  # noqa: A002 -- `--set` is the flag name the spec uses; alias of --heldout
+    force: bool = False,
+    root: str = VOL,
+    tokens: int = 0,
+    batch: int = 0,
+    allow_short: bool = False,
+    n: int = 0,
+    rows: str = "",
+    max_new: int = 0,
+    gen_rows: int = 0,
+    dirs_from: str = "",
+    import_run1: bool = False,
+    rescore_texts: str = "",
+    score_name: str = "",
+    no_sae: bool = False,
+    no_marker_check: bool = False,
+    max_num_seqs: int = 0,
+    gpu_mem: float = 0.0,
+    throughput: str = "",
+    stock_hook: bool = False,
+    eager: bool = False,
+    engine: str = "hf",
+    # patchscopes: which decoder blocks to patch ("" = precompute/patchscopes.py's PS_LAYERS), and
+    # whether to skip the no-injection floor cell (which is otherwise always produced alongside).
+    ps_layers: str = "",
+    no_ps_floor: bool = False,
+    # suffixes the patchscopes cell directory names, so a second run of the same layer at a
+    # different rollout budget does not collide with the first (sweep bo 8 vs final bo 32)
+    ps_tag: str = "",
+    # score: read <dir>/rollouts.jsonl + <dir>/rollouts.summary.json and write <dir>/scores/
+    # instead of a MAEMM's rollouts -- how a `patchscopes` cell reaches the one scoring path.
+    rollouts_dir: str = "",
+):
+    """Dispatch one product. `base` picks the GPU; CPU products ignore it for placement.
+
+    --root mirrors the whole <root>/base/<base>/... layout elsewhere (smokes write under
+    /vol/runs/<date>_paper-evals-smoke); --tokens shrinks the corpus; --set is the held-out set.
+    """
+    sys.path.insert(0, str(LOCAL_ROOT))
+    import precompute.common as C
+
+    cfg = C.load_config()
+    assert product in PRODUCTS, f"unknown product {product!r}, want one of {sorted(PRODUCTS)}"
+    if base:
+        assert base in cfg["bases"], f"unknown base {base!r}, want one of {sorted(cfg['bases'])}"
+    if import_run1:
+        assert product == "targets", f"--import-run1 belongs to the `targets` product, not {product!r}"
+    # C.IMPORT_RUN1_SET is not a config.yaml draw -- it is a 16-row slice of run1's archived eval
+    # cache (targets.import_run1) -- but rollouts_hf and score must still be able to name it.
+    default = C.IMPORT_RUN1_SET if import_run1 else sorted(cfg["heldout"])[-1]
+    set_name = set or heldout or default
+    assert set_name in cfg["heldout"] or set_name == C.IMPORT_RUN1_SET, (
+        f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])} and the only "
+        f"imported set is {C.IMPORT_RUN1_SET!r} (built by `--product targets --import-run1`)"
+    )
+    args = {
+        "base": base,
+        "maemm": maemm,
+        "heldout": set_name,
+        "force": force,
+        "root": root.rstrip("/") or VOL,
+        "tokens": tokens,
+        "batch": batch,
+        "allow_short": allow_short,
+        "n": n,
+        "rows": rows,
+        "max_new": max_new,
+        "gen_rows": gen_rows,
+        "dirs_from": dirs_from.rstrip("/"),
+        "import_run1": import_run1,
+        "rescore_texts": rescore_texts,
+        "score_name": score_name,
+        "no_sae": no_sae,
+        "no_marker_check": no_marker_check,
+        "max_num_seqs": max_num_seqs,
+        "gpu_mem": gpu_mem,
+        "throughput": throughput,
+        "stock_hook": stock_hook,
+        "eager": eager,
+        "engine": engine,
+        "ps_layers": ps_layers,
+        "no_ps_floor": no_ps_floor,
+        "ps_tag": ps_tag,
+        "rollouts_dir": rollouts_dir.rstrip("/"),
+        # The container has no git checkout, so the commit every README records is captured here.
+        "repo_commit": C.repo_commit(LOCAL_ROOT),
+        "argv": sys.argv,
+    }
+    assert engine in C.ENGINES, f"--engine must be one of {list(C.ENGINES)}, got {engine!r}"
+    # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
+    # MAEMM_PRODUCTS call that must be allowed without --maemm.
+    if product in MAEMM_PRODUCTS and not (product == "score" and rollouts_dir):
+        assert maemm, f"product {product!r} needs --maemm"
+        assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+        assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    # `targets --import-run1` only torch.loads a 512-row cache and writes it back out: no GPU.
+    if product in CPU_PRODUCTS or (product == "targets" and import_run1):
+        fn, label = cpu, "CPU"
+    else:
+        assert base, f"product {product!r} needs --base to choose the GPU"
+        gpu = cfg["bases"][base]["gpu"]
+        fn, label = {"H100": gpu_h100, "H200": gpu_h200}[gpu], gpu
+    print(
+        f"[launch] {product} base={base or 'all'} maemm={maemm or '-'} set={set_name} "
+        f"root={args['root']} on {label} commit={args['repo_commit'][:8]}"
+    )
+    res = fn.remote(product, args)
+    print(f"[done] {res['product']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")
