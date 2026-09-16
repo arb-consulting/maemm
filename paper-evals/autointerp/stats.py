@@ -383,7 +383,12 @@ def main(
             for label, a, b in CONTRASTS[:4]:
                 for q in sorted(set(strat.values())):
                     f_ids, d = paired(df, a, b, scorer, metric)
-                    keep = np.asarray([strat[int(x)] == q for x in f_ids])
+                    if not len(d):
+                        continue  # an arm this run does not have: np.asarray([]) is FLOAT, and
+                        # indexing with it raises "arrays used as indices must be of integer (or
+                        # boolean) type" -- which is how the rlI-150 run, whose arms are M and C4M
+                        # with no C16, lost its whole results file behind write_tables' except.
+                    keep = np.asarray([strat[int(x)] == q for x in f_ids], dtype=bool)
                     dq = d[keep]
                     if not len(dq):
                         continue
