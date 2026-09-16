@@ -714,8 +714,19 @@ def table_e(out: Out, vol: Vol, found: dict) -> None:
     )
 
 
-def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_by_base: dict) -> None:
-    """(f) GCG / EPO finals -- the reachability ceiling -- against the MAEMM on the SAME rows."""
+def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
+    """(f) GCG / EPO -- the reachability ceiling -- PAIRED against each MAEMM on the same directions.
+
+    Layout is `<root>/base/<base>/gcg/<set>/<family>/<arm>/finals.jsonl`; a realact direction and an
+    sae direction are different objects and never share an arm directory. With the final draw the
+    GCG rows and the MAEMM rows index the SAME held-out set, so the comparison is per direction, not
+    distributional -- which is what lets this table carry a paired difference and a win fraction
+    rather than two means side by side.
+
+    A direction missing from `finals.jsonl` (8B realact gcg-random32 excludes row 17) is simply
+    absent from the join: `per_dir` is built from the finals, and the MAEMM columns are computed on
+    `per_dir`'s rows, so the pairing stays exact and the `dirs` column says how many survived.
+    """
     rows = []
     for base, info in sorted(found["bases"].items()):
         for set_name, arms in sorted(info["gcg"].items()):
@@ -727,6 +738,7 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_by_base: d
                 for r in fin:
                     by_fam.setdefault(r["family"], []).append(r)
                 for fam, recs in sorted(by_fam.items()):
+                    # one entry per direction: the best member (EPO holds several lambdas; GCG one)
                     per_dir: dict[int, dict] = {}
                     for r in recs:
                         cur = per_dir.get(int(r["row"]))
@@ -739,22 +751,27 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_by_base: d
                     rec = {
                         "base": base,
                         "family": fam,
-                        "arm": arm,
+                        "arm": arm.split("/")[-1],
                         "dirs": len(dirs),
-                        "members/dir": round(len(recs) / max(len(dirs), 1), 2),
                         "rows": f"{min(dirs)}-{max(dirs)}",
-                        "final cos": pm(float(cos.mean()), se(cos)),
+                        "GCG cos": pm(float(cos.mean()), se(cos)),
                         "init cos": pm(float(init.mean()), se(init)),
-                        "nll": round(float(nll.mean()), 4) if len(nll) else "",
+                        "nll": round(float(nll.mean()), 3) if len(nll) else "",
                     }
-                    for s in sides:
-                        if s.base != base or s.set != set_name:
+                    for s_ in sides:
+                        if s_.base != base or s_.set != set_name:
                             continue
-                        pos = [i for i, r in enumerate(s.rows) if r in per_dir]
-                        if not pos:
+                        pos = np.array([i for i, r in enumerate(s_.rows) if r in per_dir])
+                        if not len(pos):
                             continue
-                        v = bo_unbiased(s.best[np.array(pos)], s.n)
-                        rec[f"{s.short} bo{s.n}"] = round(float(v.mean()), 4)
+                        paired = np.array([per_dir[s_.rows[i]]["cos"] for i in pos])
+                        bo = bo_unbiased(s_.best[pos], s_.n)
+                        mean64 = s_.best[pos].mean(1)
+                        d = paired - bo
+                        rec[f"{s_.short} bo{s_.n}"] = round(float(bo.mean()), 4)
+                        rec[f"{s_.short} mean{s_.n}"] = round(float(mean64.mean()), 4)
+                        rec[f"GCG - {s_.short} bo{s_.n}"] = pm(float(d.mean()), se(d))
+                        rec[f"GCG wins vs {s_.short}"] = round(float((paired >= bo).mean()), 3)
                     rows.append(rec)
     if not rows:
         return out.skip("f", "no gcg arms with finals.jsonl on this root")
@@ -762,12 +779,19 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_by_base: d
     out.table(
         "f",
         "gcg_ceiling",
-        "GCG / EPO finals against the MAEMM on the same directions",
-        "per (base, family, arm): the per-direction BEST member's final cosine, its init cosine "
-        "and its NLL, ± SE across directions. The MAEMM column is the unbiased best-of-n on "
-        "EXACTLY those rows. CAVEAT: a GCG arm runs the FIRST 8 rows of each family unless it was "
-        "launched otherwise -- the `rows` column says which, and the MAEMM column is restricted to "
-        "the same ones, so the two are paired",
+        "GCG / EPO reachability ceiling, paired against each MAEMM on the same directions",
+        caption(
+            sides,
+            corpus,
+            "per (base, family, arm): the per-direction best member's final cosine, its init cosine "
+            "and its NLL, ± SE across directions; MAEMM columns are the unbiased best-of-n and the "
+            "mean-of-n on EXACTLY the same directions, with the paired difference and the fraction "
+            "of directions GCG wins. MAEMM columns are ordered primary first. CAVEAT, stated once: "
+            "the two are not compute-matched and not the same object -- GCG optimises ONE fixed "
+            "T=32 token string with ~77k candidate forwards against the scorer itself, while the "
+            "MAEMM draws n sampled rollouts from a prompt and never sees the metric. GCG is a "
+            "ceiling on what the metric is reachable to, not a baseline the inverter competes with",
+        ),
         df,
     )
 
@@ -1316,7 +1340,7 @@ def main(
     if "e" in want:
         table_e(out, vol, found)
     if "f" in want:
-        table_f(out, vol, found, sides, ids_by_base)
+        table_f(out, vol, found, sides, ids_flat, corpus)
     if "g" in want:
         table_g(out, sides, corpus)
     if "h" in want:
