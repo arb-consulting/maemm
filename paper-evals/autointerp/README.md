@@ -47,8 +47,17 @@ and the batch path (half price) is used only if it returned inside 30 minutes.
 (export MODAL_PROFILE=maemms; uvx --with pyyaml modal run --detach    repo-maemm-precompute/paper-evals/autointerp/modal_app.py --stage chain    --base qwen36-27b --set 2026-09-16_v1    --maemm qwen36-27b/2026-09-10_rl-8x2048-full --maemm2 qwen36-27b/2026-09-08_rlI-150    --chain-dir 2026-09-16_autointerp-chain)
 ```
 
-**The 2026-09-16 run: app `ap-oLxIvCsa6PEdJf2NdUnsGo`, chain dir `2026-09-16_autointerp-chain2`,
+**The 2026-09-16 run: app `ap-2H5Xi3kb06MOMS8fq8GRGC`, chain dir `2026-09-16_autointerp-chain2`,
 status file `/vol/runs/2026-09-16_autointerp-chain2/STATUS.json`.**
+
+**Run `autointerp/selfcheck.py` before every launch.** It drives the real `build` → `run` → `chain`
+code against a synthetic volume and a stub client — seconds, no network, no key, no cost — and
+exercises the branches that have actually broken launches: `project()` on an empty job list (the
+fully-cached branch a relaunch takes) and per job kind, with `gate()` formatting every key it
+returns; `gate()` under the threshold, over it, and over it with `--approved`; `run.run()` on both
+paths twice each; and `chain.run()` through all nine stages. Four launches died to formatting, key
+and control-flow faults that `ruff` and `ast.parse` cannot see — calling a string is valid syntax,
+and a missing dict key is a runtime event.
 
 Earlier chains, all stopped, and why — each one is a fault worth not repeating:
 
@@ -58,6 +67,7 @@ Earlier chains, all stopped, and why — each one is a fault worth not repeating
 | `ap-HB71h7dO6SezJ56W9bV7DA` | ran the pilot, then sat 2097 s in a batch-latency probe that blocked until the batch *ended* instead of abandoning at its threshold |
 | `ap-2jWiGbYlcuv97kS44jKVtR` | died in `build_pilot`: a ruff autofix had left `"text " (...)`, which Python reads as calling a string |
 | `ap-oQHRdUHILPhCSX3PawT5Hq` | ran the pilot on the corrected draw order, but carried the pre-correction acceptance threshold in its image |
+| `ap-oLxIvCsa6PEdJf2NdUnsGo` | `KeyError: 'mean_input_tokens'` — `project()`'s empty-job-list branch returned two of its eight keys and `gate()` formats five. Reached only when the cache already holds the stage, so the cache working is what exposed it |
 
 The chain dir is deliberately reused across relaunches: the prompt cache lives under it, so a
 relaunch replays every call already paid for and pays for the rest once.
