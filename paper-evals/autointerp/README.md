@@ -22,10 +22,36 @@ Everything under `autointerp/` imports only `precompute/common.py`, two private 
 | `examples_4m` | GPU | `base/<base>/sae/<sae>/examples_4m/<set>/` | P1 (A3): the C4 arm's OWN top-128 over the 4M nested prefix |
 | `build` | CPU | `base/<base>/autointerp/<set>/<date>_build/` | P2: the rendered example sets per arm and the two test draws, one jsonl per feature. Loads no model except the tokenizer |
 | `run` | CPU + Anthropic API | `runs/<date>_autointerp-<tag>/{cache,explain,detection,fuzzing,summary}/` | the LLM half: Delphi's explainer, then its detection and fuzzing scorers. `--path sync\|batch`, cached by prompt hash, resumable, projected and capped before each stage |
-| `stats.py` | local | `autointerp/pilot.md`, `autointerp/results.md` | paired bootstrap CIs over features, per quartile, win fractions against the null, distributions, the fire-fraction covariate |
+| `stats.py` | local **or in `chain`** | `autointerp/pilot.md`, `autointerp/results.md` | paired bootstrap CIs over features, per quartile, win fractions against the nulls, distributions, the fire-fraction covariate |
+| `chain` | CPU + Anthropic API | `runs/<chain>/STATUS.json`, `pilot.md`, `results.md`, `results-rlI.md`, `costs.json` | the whole remaining sequence in ONE detached call |
 
-Run order: `sae_self` + `random_pool` + `examples_4m` (independent of each other) → `build` → `run`
-→ `stats.py`. `sae_self` needs that MAEMM's `rollouts` and `scores`; `build` needs all three P1
+## The `chain` stage — run it detached and read one file
+
+`--stage chain` does the whole remaining sequence in a single detached Modal call on a 12 h
+timeout, so nothing depends on a local client staying alive:
+
+    wait for examples_docmax → build the 64-feature pilot → run the pilot (sync) →
+    ACCEPTANCE CHECKS → build all 512 → primary run (--approved) → build rlI-150 →
+    rlI-150 on M and C4+M → stats.py for each → done
+
+It reports through **`/vol/runs/<chain_dir>/STATUS.json`**, rewritten and committed at every stage
+boundary, with the running per-run costs and the acceptance report in it. The acceptance gate
+aborts the chain — writing the reason into that file — rather than spending the full run's budget
+on a broken test set: the floor arm's mean detection balanced accuracy must be inside [0.42, 0.58],
+C4 must be filled at 16 on every feature, draw 2 must be non-empty on more than two thirds of
+features, and gate-consistent positives must be on. Draw shortfalls are recorded, not fatal. The
+API path for the two full runs is chosen by MEASUREMENT: a small Message Batch is timed end to end
+and the batch path (half price) is used only if it returned inside 30 minutes.
+
+```
+(export MODAL_PROFILE=maemms; uvx --with pyyaml modal run --detach    repo-maemm-precompute/paper-evals/autointerp/modal_app.py --stage chain    --base qwen36-27b --set 2026-09-16_v1    --maemm qwen36-27b/2026-09-10_rl-8x2048-full --maemm2 qwen36-27b/2026-09-08_rlI-150    --chain-dir 2026-09-16_autointerp-chain)
+```
+
+**The 2026-09-16 run: app `ap-KMkH5RvJ6SctMwqy6YYDjK`, status file
+`/vol/runs/2026-09-16_autointerp-chain/STATUS.json`.**
+
+Run order when driving the stages by hand: `sae_self` + `random_pool` + `examples_4m` +
+`examples_docmax` (independent of each other) → `build` → `run` → `stats.py`. `sae_self` needs that MAEMM's `rollouts` and `scores`; `build` needs all four P1
 products; `run` needs `build`.
 
 ```

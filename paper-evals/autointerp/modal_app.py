@@ -54,7 +54,13 @@ app = modal.App(APP)
 # after it). Everything below this layer is the shared cache, so no other product rebuilds.
 # Pinned: an SDK minor can move the request surface, and this one already did -- `temperature` is
 # gone from messages.create() for this model generation.
-image_llm = _image_base.pip_install("anthropic==1.6.0").add_local_dir(**_CODE)
+# polars / typer / rich are here for ONE reason: the `chain` stage runs `autointerp/stats.py`
+# in-process at the end, so the tables land on the volume without a second, local step.
+image_llm = (
+    _image_base.pip_install("anthropic==1.6.0")
+    .pip_install("polars>=1", "typer>=0.15", "rich>=13")
+    .add_local_dir(**_CODE)
+)
 
 # The LLM stage needs the Anthropic key on top of the HF one (Tomas 2026-09-16: the direct
 # Messages API, not OpenRouter). It is a name here and a name in the container's environment; no
@@ -70,8 +76,12 @@ STAGES = {
     "examples_docmax": ("sae_self", "run_examples_docmax"),
     "build": ("build", "run"),
     "run": ("run", "run"),
+    # The whole remaining sequence as ONE detached call, so nothing depends on a local client
+    # staying alive: wait for examples_docmax -> build -> pilot -> acceptance checks -> full 512
+    # -> rlI-150 -> stats, with STATUS.json rewritten at every stage boundary.
+    "chain": ("chain", "run"),
 }
-CPU_STAGES = ("build", "run")
+CPU_STAGES = ("build", "run", "chain")
 
 
 def _run(stage: str, args: dict, gpu_label: str):
@@ -89,6 +99,9 @@ def _run(stage: str, args: dict, gpu_label: str):
         "gpu": gpu_label,
         "usd_per_s": USD_PER_S[gpu_label],
         "on_commit": vol.commit,
+        # `chain` waits for another container's product to land, and a Modal volume only shows
+        # another writer's commits after a reload.
+        "on_reload": vol.reload,
         # so each stage README's wall/cost covers the whole container call, model load included
         "t0": t0,
     }
@@ -157,8 +170,10 @@ def main(
     allow_short: bool = False,
     arms: str = "",
     epo_strings: str = "",
-    # run
+    # run / chain
     run_dir: str = "",
+    chain_dir: str = "",
+    maemm2: str = "",
     model: str = "",
     scorers: str = "",
     path: str = "",
@@ -182,6 +197,9 @@ def main(
     run:      CPU + the Anthropic Messages API -- explainer, then the detection and fuzzing
               scorers. `--path sync|batch`; `--approved` releases a stage whose projection is
               above `autointerp.stop_above_usd`.
+    chain:    CPU + the API -- the whole remaining sequence in ONE detached call, reporting
+              through `<root>/runs/<chain_dir>/STATUS.json`. Launch it with `--detach` and read
+              that file; nothing else needs to stay alive.
     """
     sys.path.insert(0, str(LOCAL_ROOT))
     import precompute.common as C
@@ -195,6 +213,8 @@ def main(
     )
     if stage in ("sae_self", "build"):
         assert maemm, f"stage {stage} needs --maemm (the rollouts its M arms read)"
+    if stage == "chain" and maemm2:
+        assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
     if maemm:
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
@@ -219,6 +239,8 @@ def main(
         "arms": arms,
         "epo_strings": epo_strings,
         "run_dir": run_dir.rstrip("/"),
+        "chain_dir": chain_dir.rstrip("/"),
+        "maemm2": maemm2,
         "model": model,
         "scorers": scorers,
         "path": path,
@@ -233,7 +255,7 @@ def main(
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,
     }
-    if stage == "run":
+    if stage in ("run", "chain"):
         fn, label = cpu_llm, "CPU"
     elif stage in CPU_STAGES:
         fn, label = cpu, "CPU"
