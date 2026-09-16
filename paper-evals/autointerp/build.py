@@ -294,6 +294,20 @@ def dedup(rows: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------------------------
 
 
+def band_of(max_act: float, peak: float) -> str:
+    """The stored activation band of a window, by `precompute/scan.py:257`'s own formula.
+
+    `q = ceil(amax / peak * 4) - 1`, clamped to 0..3: EQUAL-WIDTH bins of (0, max_act], not
+    quantiles. It is reimplemented here so that a row from `examples_docmax/` -- which scan.py
+    never binned -- carries a band label meaning exactly what a `q0..q3` row's does, and the
+    band-stratified draw can run over both pools at once.
+    """
+    if peak <= 0:
+        return BANDS[0]
+    q = int(min(3, max(0, math.ceil(max_act / peak * 4) - 1)))
+    return BANDS[q]
+
+
 def draw_features(sae_rows: list[dict], n_feat: int, seed: int) -> list[dict]:
     """`n_feat` rows, n_feat/4 from each density quartile, by a fixed seed. 0 means every row.
 
@@ -618,6 +632,17 @@ def run(cfg, args):
         f"no {prefix_m}M example scan at {ex4_dir}: run `--stage examples_4m` on this (base, set) "
         f"first -- the C4 arm is its top-128, not a filter of the 16M one (amendment A3)"
     )
+    # The test set's positive pool. MEASURED 2026-09-16: with only `examples/`'s q-bands and its
+    # top-128 to draw from, gate-consistent positives (A1) under document-level disjointness (A4)
+    # left draw 1 short on 29 of 64 pilot features and draw 2 EMPTY on 21. `examples_docmax/`
+    # ranks DOCUMENTS instead of windows -- one window from each of the top 256 documents -- which
+    # is the pool A4 actually needs.
+    exdoc_dir = f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}"
+    use_docmax = os.path.exists(f"{exdoc_dir}/tested.json")
+    assert use_docmax or args.get("allow_short"), (
+        f"no document-diverse example scan at {exdoc_dir}: run `--stage examples_docmax` on this "
+        f"(base, set) first, or pass --allow-short to build a knowingly short test set"
+    )
     hdir = C.heldout_dir(base, set_name, root)
     sdir = C.scores_dir(maemm, set_name, root, engine)
     self_dir = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
@@ -696,6 +721,18 @@ def run(cfg, args):
                 (e for e in ex_rows if e["kind"] == "top"), key=lambda e: -float(e["max_act"])
             )
             c16_pool = dedup(tops)
+            # Positive / near-miss candidates: the stored q-bands PLUS the document-diverse pool,
+            # deduplicated by window id, every row carrying the band label `scan.py`'s own formula
+            # gives it. The `top` rows are NOT candidates -- they are what the arms show -- except
+            # through the explicit fallback tier below.
+            cand_rows = [dict(e) for e in ex_rows if e["kind"] in BANDS]
+            seen_w = {int(e["window"]) for e in cand_rows}
+            if use_docmax:
+                for e in C.read_jsonl(f"{exdoc_dir}/{feat}.jsonl"):
+                    if int(e["window"]) in seen_w:
+                        continue
+                    seen_w.add(int(e["window"]))
+                    cand_rows.append({**e, "kind": band_of(float(e["max_act"]), peak)})
             ex4_rows = C.read_jsonl(f"{ex4_dir}/{feat}.jsonl")
             c4_pool = dedup(
                 sorted(ex4_rows, key=lambda e: -float(e["max_act"]))
@@ -794,11 +831,16 @@ def run(cfg, args):
             shown_docs = {int(p["doc"]) for p in shown_windows}
             shown_windows_ids = {int(p["window"]) for p in shown_windows}
             used_docs = set(shown_docs)
-            draws = []
-            for tag in ("test", "test2"):
+            # Draw 2 is allocated FIRST (coordinator, 2026-09-16): when the pool is short it is
+            # draw 2 that goes empty, and an empty draw 2 costs the null -- the only noise floor
+            # this evaluation has, now that the API has no temperature parameter. Draw 1 takes what
+            # is left; if IT then falls short, n is reduced and recorded, and disjointness is never
+            # relaxed to make the count.
+            draws = {}
+            for tag in ("test2", "test"):
                 items, info = draw_test(
                     feat=feat,
-                    ex_rows=ex_rows,
+                    ex_rows=cand_rows,
                     tops=tops,
                     pool=pool,
                     corpus=corpus,
@@ -814,11 +856,12 @@ def run(cfg, args):
                     flags=flags,
                     tag=tag,
                 )
-                draws.append((tag, items, info))
-            items, info1 = draws[0][1], draws[0][2]
-            info2 = draws[1][2]
+                draws[tag] = (items, info)
+            items, info1 = draws["test"]
+            info2 = draws["test2"][1]
             test_rows = [{"kind": tag, "i": i, **it}
-                         for tag, its, _ in draws for i, it in enumerate(its)]
+                         for tag in ("test", "test2")
+                         for i, it in enumerate(draws[tag][0])]
             n_mark_neg = info1["n_mark_neg"]
             n_top_fallback = info1["n_top_fallback"]
 
@@ -838,6 +881,8 @@ def run(cfg, args):
                 "pool_c16": len(c16_pool),
                 "pool_c4": len(c4_pool),
                 "pool_m": len(roll_pool),
+                "pool_cand": len(cand_rows),
+                "pool_cand_gated": sum(1 for e in cand_rows if float(e["max_act"]) > gate),
                 "n_mark_neg": n_mark_neg,
                 "n_top_fallback": n_top_fallback,
                 "n_pos_bands": info1["n_pos_bands"],
@@ -873,6 +918,7 @@ def run(cfg, args):
                 "gate_consistent_positives": gate_positives,
                 "allow_top_fallback": allow_top_fallback,
                 "examples_4m": ex4_dir,
+                "examples_docmax": exdoc_dir if use_docmax else "(absent -- test set is short)",
                 "random_pool": pool.path,
                 "random_pool_windows": pool.n_win,
                 "arms": {a: ARM_SPECS[a] for a in arm_names},
@@ -921,7 +967,11 @@ def run(cfg, args):
             f"a band that cannot fill its quota of {n_pos // len(BANDS)} carries the deficit to "
             f"the next band DOWN, and what is still short is filled from the top-ranked windows "
             f"BEYOND those any arm shows (labelled band `top`, counted per feature as "
-            f"`n_top_fallback`)."
+            f"`n_top_fallback`). The candidate pool is the stored q-bands PLUS "
+            f"`examples_docmax/` -- one window from each of a feature's top 256 DOCUMENTS -- "
+            f"deduplicated by window id, each row banded by scan.py's own "
+            f"`ceil(max_act/peak*4)-1`. Without the document-diverse half, A1 and A4 together left "
+            f"draw 1 short on 29 of 64 pilot features and draw 2 empty on 21."
         )
         od.note(
             "TWO test draws per feature, `test` and `test2` (amendment A7): disjoint from each "

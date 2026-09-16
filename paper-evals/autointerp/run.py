@@ -758,6 +758,7 @@ def run(cfg, args):
     assert len(key) > 8, "ANTHROPIC_API_KEY is present but implausibly short"
     batch_int = int(ac["scorer_batch"])
     floor_arm, floor_src, draw2_arm = str(ac["floor_arm"]), str(ac["floor_source_arm"]), "C16-draw2"
+    judge_arm = str(ac.get("judge_floor_arm") or "C16-judge2")
 
     run_name = args.get("run_dir") or f"{time.strftime('%Y-%m-%d')}_autointerp-{base.split('-')[-1]}"
     run_root = f"{root}/runs/{run_name}"
@@ -772,7 +773,7 @@ def run(cfg, args):
         feats = [f for f in feats if fmeta[f]["row"] in want] or feats
     print(
         f"[run] {len(feats)} features x {len(arm_names)} explainer arms (+ {floor_arm}, "
-        f"{draw2_arm}) x {scorers} | model {model} | path {path} | cap ${max_cost:.2f} | "
+        f"{judge_arm}, {draw2_arm}) x {scorers} | model {model} | path {path} | cap ${max_cost:.2f} | "
         f"report-above ${stop_above:.2f}{' (APPROVED)' if approved else ''} | build {build_dir}",
         flush=True,
     )
@@ -895,8 +896,15 @@ def run(cfg, args):
         _meta, arms, t1, t2 = _feature_rows(build_dir, feat)
         plan = [(a, expl.get((feat, a), ""), t1) for a in arm_names if a in arms]
         plan.append((floor_arm, expl.get((perm[feat], floor_src), ""), t1))
-        if t2 and expl.get((feat, "C16")):
-            plan.append((draw2_arm, expl.get((feat, "C16"), ""), t2))
+        if expl.get((feat, floor_src)):
+            # The JUDGE-ONLY floor: the same description on the SAME draw-1 items. Its job key
+            # differs from C16's, so the cache treats it as a separate call and it really is a
+            # second judgement -- which is a measurement now that no temperature parameter exists
+            # and nothing is deterministic. `C16-draw2` then measures judge AND draw variation
+            # together, and the difference between the two floors is the draw half.
+            plan.append((judge_arm, expl.get((feat, floor_src), ""), t1))
+        if t2 and expl.get((feat, floor_src)):
+            plan.append((draw2_arm, expl.get((feat, floor_src), ""), t2))
         plans[feat] = plan
 
     def groups_of(items):
@@ -974,6 +982,8 @@ def run(cfg, args):
                     "n_pos": int(sum(labels)),
                     "n_neg_nearmiss": int(sum(1 for sr in srcs if str(sr).startswith("nearmiss"))),
                     "draw": 2 if a == draw2_arm else 1,
+                    "role": ("floor" if a == floor_arm else "judge_null" if a == judge_arm
+                             else "draw_null" if a == draw2_arm else "arm"),
                     "n_examples": arms[a]["n"] if a in arms else 0,
                     "explanation_ok": bool(e),
                     "explanation_of": perm[feat] if a == floor_arm else feat,
@@ -1041,7 +1051,7 @@ def run(cfg, args):
 
     common_inputs = {
         "build": build_dir, "features": f"{n_scored} of {len(feats)}",
-        "arms": ",".join([*arm_names, floor_arm, draw2_arm]),
+        "arms": ",".join([*arm_names, floor_arm, judge_arm, draw2_arm]),
         "api": "anthropic-messages", "model": model, "path": path,
         "delphi_commit": DELPHI_COMMIT,
     }
@@ -1064,10 +1074,12 @@ def run(cfg, args):
             f"budget; a still-truncated answer raises rather than being kept as a short one."
         )
         od.note(
-            f"the floor arm `{floor_arm}` (A6) and `{draw2_arm}` (A7) have NO explainer call of "
-            f"their own: the first reuses a different feature's `{floor_src}` description under a "
-            f"fixed derangement, the second reuses this feature's C16 description on the second, "
-            f"disjoint test draw."
+            f"three arms have NO explainer call of their own: `{floor_arm}` (A6, a DIFFERENT "
+            f"feature's `{floor_src}` description under a fixed derangement -- the interpretability "
+            f"floor), `{judge_arm}` (the same description on the same draw-1 items, scored again -- "
+            f"the JUDGE-ONLY noise floor), and `{draw2_arm}` (A7, the same description on the "
+            f"second disjoint draw -- judge AND draw variation together). The difference between "
+            f"the last two is the test-set-draw half of the noise."
         )
     for scorer in scorers:
         rows = batch_rows[scorer]
@@ -1136,7 +1148,7 @@ def run(cfg, args):
     return {
         "out": run_root, "path": path,
         "features_done": n_scored, "features_total": len(feats),
-        "arms": [*arm_names, floor_arm, draw2_arm], "scorers": scorers,
+        "arms": [*arm_names, floor_arm, judge_arm, draw2_arm], "scorers": scorers,
         "explainer_truncated": n_trunc, "explanations_empty": n_empty,
         "cost_this_call": round(s["cost"], 4), "cost_cumulative": round(cum["cost"], 4),
         "calls_this_call": s["calls"], "cache_hits": cache.hits,

@@ -154,6 +154,7 @@ def main(
     n_feat: int = 0,
     feat_seed: int = 0,
     n_examples: int = 0,
+    allow_short: bool = False,
     arms: str = "",
     epo_strings: str = "",
     # run
@@ -214,6 +215,7 @@ def main(
         "n_feat": n_feat,
         "feat_seed": feat_seed,
         "n_examples": n_examples,
+        "allow_short": allow_short,
         "arms": arms,
         "epo_strings": epo_strings,
         "run_dir": run_dir.rstrip("/"),
