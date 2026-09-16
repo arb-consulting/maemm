@@ -25,8 +25,9 @@ the CI is a percentile bootstrap over features, not over items. The design asks 
   * the same, per density quartile
   * win fractions and the whole distribution, because the outcome is bimodal and a mean misleads
   * fire fraction as the covariate that separates the hard stratum
-  * the floor arm R-shuffled, which should sit at 0.5, and the NULL -- the second disjoint test
-    draw scored with C16's own description (A7) -- reported beside every win fraction
+  * the floor arm R-shuffled, which should sit at 0.5, and TWO nulls -- the same description
+    scored twice on the same items (judge-only), and on a second disjoint draw (judge + draw) --
+    reported beside every win fraction
 
 `reconstruction/stats.py`'s `Vol` does the fetching; nothing here re-implements it, and nothing
 here writes to that file.
@@ -68,8 +69,18 @@ CONTRASTS = [
 # Amendment A7: the null is a SECOND, DISJOINT test draw scored with C16's own description, not a
 # temperature-0 repeat. Its per-feature difference is the test-set sampling noise every contrast is
 # exposed to, and it is reported beside every win fraction.
-NULL = ("null (second test draw, same C16 description)", "C16", "C16-draw2")
+# Two nulls, both scorer-only. `C16-judge2` is the SAME description on the SAME draw-1 items,
+# scored a second time: the JUDGE-ONLY floor, which exists because the Anthropic Messages API has
+# no temperature parameter for this model generation and nothing is deterministic. `C16-draw2` is
+# the same description on the second disjoint draw (A7): judge AND test-set-draw variation
+# together. The difference between them is the draw half.
+NULLS = [
+    ("judge-only null (same description, same items, scored twice)", "C16", "C16-judge2"),
+    ("draw null (same description, second disjoint test draw)", "C16", "C16-draw2"),
+]
+NULL = NULLS[1]
 FLOOR_ARM = "R-shuffled"
+JUDGE_NULL_ARM = "C16-judge2"
 # One metric, three views of the SAME scorer answers: the pooled balanced accuracy, and the two
 # restrictions of the negative half that amendment A5 created (10 zero-activation randoms + 10
 # near-miss windows). A result that lives entirely on one half cannot hide in the pooled number.
@@ -268,34 +279,41 @@ def main(
     ]
 
     null_txt: dict[tuple[str, str], tuple] = {}
-    lines += ["## The null: a second, disjoint test draw", ""]
+    lines += ["## The two nulls", ""]
     rows = []
-    for metric in METRICS:
-        for scorer in scorers:
-            _f, d = paired(df, NULL[1], NULL[2], scorer, metric)
-            if not len(d):
-                continue
-            m, lo, hi = boot_ci(d)
-            p, win, _m_non = sign_test(d)
-            q90 = float(np.quantile(np.abs(d), 0.90)) if len(d) else float("nan")
-            null_txt[(metric, scorer)] = (m, lo, hi, float(np.abs(d).mean()), q90, win, len(d))
-            rows.append([
-                f"`{metric}`", scorer, f"`{NULL[1]}` - `{NULL[2]}`", len(d), ci_str(m, lo, hi),
-                f"{float(np.abs(d).mean()):.4f}", f"{q90:.4f}",
-                f"{win:.3f}" if np.isfinite(win) else "-", f"{p:.3f}" if np.isfinite(p) else "-",
-            ])
+    for label, a_, b_ in NULLS:
+        for metric in METRICS:
+            for scorer in scorers:
+                _f, d = paired(df, a_, b_, scorer, metric)
+                if not len(d):
+                    continue
+                m, lo, hi = boot_ci(d)
+                p, win, _m_non = sign_test(d)
+                q90 = float(np.quantile(np.abs(d), 0.90))
+                if b_ == NULL[2]:
+                    null_txt[(metric, scorer)] = (m, lo, hi, float(np.abs(d).mean()), q90, win,
+                                                  len(d))
+                rows.append([
+                    label.split(" (")[0], f"`{metric}`", scorer, f"`{a_}` - `{b_}`", len(d),
+                    ci_str(m, lo, hi), f"{float(np.abs(d).mean()):.4f}", f"{q90:.4f}",
+                    f"{win:.3f}" if np.isfinite(win) else "-",
+                    f"{p:.3f}" if np.isfinite(p) else "-",
+                ])
     lines += md_table(
         rows,
-        ["metric", "scorer", "contrast", "n", "mean diff [95% CI]", "mean |diff|", "q90 |diff|",
-         "win frac", "sign p"],
+        ["null", "metric", "scorer", "contrast", "n", "mean diff [95% CI]", "mean |diff|",
+         "q90 |diff|", "win frac", "sign p"],
     )
     lines += [
         "",
-        "The SAME C16 description scored on two disjoint test draws built under identical rules. "
-        "Its mean difference should be 0 and its win fraction 0.5; its `mean |diff|` and "
-        "`q90 |diff|` are the scale of test-set sampling noise, and its win fraction is the null "
-        "every other win fraction is read against. It replaces the temperature-0 repeat, which "
-        "measured judge jitter rather than the sampling every contrast is exposed to (A7).",
+        "Both nulls score the SAME C16 description with no new explainer call. The **judge-only** "
+        "null re-scores the SAME draw-1 items, so its spread is the scorer's own run-to-run "
+        "variation -- which is real rather than zero, because the Anthropic Messages API has no "
+        "`temperature` parameter for this model generation and nothing is deterministic. The "
+        "**draw** null scores the second, disjoint draw, so it carries that variation PLUS "
+        "test-set sampling; the gap between the two is the sampling half. Each should have a mean "
+        "difference of 0 and a win fraction of 0.5; the draw null's `mean |diff|` and `q90 |diff|` "
+        "are what every contrast below is read against.",
         "",
     ]
 
