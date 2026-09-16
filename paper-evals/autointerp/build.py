@@ -712,6 +712,7 @@ def run(cfg, args):
     mark_frac: list[float] = []
     join_bad = 0
     join_total = 0
+    n_exceed_peak = 0
     build_name = args.get("build_dir") or time.strftime("%Y-%m-%d") + "_build"
     out_dir = f"{C.base_dir(base, root)}/autointerp/{set_name}/{build_name}"
 
@@ -832,6 +833,8 @@ def run(cfg, args):
                     mark_frac.append(p["n_marked"] / max(1, p["n_tok"]))
                     join_total += 1
                     join_bad += 0 if p["join_ok"] else 1
+                    if float(p["peak_act"]) > peak:
+                        n_exceed_peak += 1
                 arm_rows.append(
                     {
                         "kind": "arm",
@@ -974,6 +977,13 @@ def run(cfg, args):
                 },
                 "n_top_fallback_features": sum(1 for f in feat_table if f["n_top_fallback"] > 0),
                 "n_top_fallback_positives": sum(f["n_top_fallback"] for f in feat_table),
+                # How often Delphi's quantisation clamp is actually active. `ceil(10*act/peak_f)`
+                # clamps at 10 when a shown example's activation EXCEEDS the feature's corpus peak,
+                # which corpus examples cannot do by construction but rollouts can. Recorded here
+                # so the paper's cell reads from a summary file instead of needing the ~90 MB of
+                # per-feature jsonl.
+                "n_shown_exceeding_corpus_peak": n_exceed_peak,
+                "n_shown_examples": join_total,
                 "min_pos_draw1": min((f["draw1"]["n_pos"] for f in feat_table), default=0),
                 "min_pos_draw2": min((f["draw2"]["n_pos"] for f in feat_table), default=0),
                 "flags": flags,
