@@ -1,0 +1,154 @@
+# paper-evals: every model, SAE, MAEMM, target set and sampling constant used by precompute/.
+#
+# Keys `<base>/<name>` under `saes` and `maemms` are the directory names on the volume:
+#   /vol/base/<base>/sae/<name>/ and /vol/maemms/<base>/<maemm>/.
+# Base key spelling is `qwen36-27b` (infra/precompute-layout.md §1). An OLDER tree spelled
+# `qwen3.6-27b` exists under /vol/maemms/ from a previous pipeline; it is not ours and not touched.
+# Families are keyed BY NAME everywhere (never by list position) -- checklist item 38.
+
+bases:
+  qwen3-8b:
+    hf: Qwen/Qwen3-8B
+    read_layer: 27          # block OUTPUT of layer 27 (mxf/config.py profile qwen3-8b)
+    d: 4096
+    gpu: H100               # $3.95/h
+    n_layers: 36
+    # ||h|| at the marker of the inject layer under the CLEAN base, MEASURED 2026-09-15 by
+    # rollouts_hf's marker check (bf16, so quantized). Only used for full-parameter MAEMMs, which
+    # have no adapter to disable: see rollouts_hf.marker_check (checklist item 22).
+    marker_norm_base: 14.5
+  qwen36-27b:
+    hf: Qwen/Qwen3.6-27B
+    read_layer: 42          # mxf/config.py:6
+    d: 5120
+    gpu: H200               # $4.54/h
+    n_layers: 64            # 48 of them GatedDeltaNet -> the image needs flash-linear-attention
+    marker_norm_base: 14.062  # MEASURED 2026-09-15 by the rlI-150 rollouts run (see qwen3-8b above)
+
+saes:
+  qwen3-8b/adamkarvonen-t2:
+    hf: adamkarvonen/qwen3-8b-saes
+    file: saes_Qwen_Qwen3-8B_batch_top_k/resid_post_layer_27/trainer_2/ae.pt
+    layer: 27
+    # The shipped max-activating windows the `repo_examples` product scores. NOT part of the SAE
+    # repo: they live in adamkarvonen's separate `sae_max_acts` DATASET repo, 30 windows of 32
+    # tokens per feature, and EVERY window carries the sink token at position 0 (her `_reencode`
+    # prepends the tokenizer's eos; Qwen3-8B has no bos) -- hence sink_first: true, which
+    # repo_examples asserts against the data before stripping column 0.
+    max_acts:
+      repo: adamkarvonen/sae_max_acts
+      repo_type: dataset
+      file: acts_Qwen_Qwen3-8B_layer_27_trainer_2_layer_percent_75_context_length_32.pt
+      windows: 30
+      sink_first: true
+  qwen36-27b/l42-1b:
+    # NOT ceselder/qwen36-27b-sae-l42 (the older repo master's code references): same width 131k
+    # and k=64, 4x the training tokens. File list verified 2026-09-15 with list_repo_files.
+    hf: ceselder/qwen36-27b-sae-l42-1b
+    file: saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt
+    layer: 42
+    # Shipped inside the SAE repo itself (no `repo:` key -> the sae's own `hf`), 32 windows of 32
+    # tokens per feature and NO sink prefix: position 0 is an ordinary corpus token, so all 32 ids
+    # are scored and score_tokens prepends its own sink.
+    max_acts:
+      file: maxacts/acts_Qwen_Qwen3.6-27B_layer_42_trainer_0_context_length_32.pt
+      windows: 32
+      sink_first: false
+
+# `compute: false` (default true) means the entry is DECLARED but nothing is generated for it in
+# this pipeline: it exists so the paper's model table, the prompt inventory and the `check` product
+# know about it. common.maemms_for() filters these out of every "all MAEMMs" iteration; `check`
+# resolves them too, but LENIENTLY -- an entry nobody computes need not be in the volume's HF cache.
+maemms:
+  qwen3-8b/2026-09-03_run1-rl:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/final    # volume path, not an HF repo
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+  qwen36-27b/2026-09-08_rlI-150:
+    type: lora
+    hf: ceselder/maemm-qwen36-27b-inverter-rlI-step150
+    subdir: step_150        # adapter_config.json lives here, not at the repo root
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
+  qwen36-27b/2026-09-10_rl-8x2048-full:
+    type: full              # 12 safetensors shards at the repo root; scoring uses the clean base
+    hf: ceselder/qwen36-27b-maemm-inverter-rl-8x2048
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 192
+    primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
+  qwen36-27b/2026-09-05_rlE-250:
+    type: lora
+    hf: ceselder/maemm-qwen36-27b-inverter-rlE-step250   # adapter at the repo root
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96       # ASSUMED: mxf/config.py:72 RLConfig.max_new_tokens for the LoRA chain
+    compute: false
+
+  # --- declared only (compute: false): nothing is generated for these today ---------------------
+  qwen3-8b/2026-09-03_run1-sft:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/sft/final      # volume path, not an HF repo
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    compute: false
+    note: the SFT checkpoint run1's RL chain started from
+  qwen36-27b/2026-09-05_init-realact23m-sft:
+    type: lora
+    hf: ceselder/maemm-init-realact23m-sft
+    subdir: sft_final       # adapter_config.json lives here, not at the repo root
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    compute: false
+  qwen36-27b/2026-09-09_pretrain-104m-full:
+    type: full
+    hf: ceselder/qwen36-27b-maemm-inverter-pretrain-104m
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    compute: false
+    note: the full-parameter line's published init
+
+heldout:
+  2026-09-16_v1:
+    seed: 20260916
+    families:
+      realact: {n: 512}
+      random:  {n: 512}
+      sae:     {n: 512}
+      # No J-lens matrix exists on either base yet: the slot is declared so the set's shape is
+      # stable, and `status: empty` means targets.py writes zero rows for it.
+      jlens:   {n: 512, bases: [qwen36-27b], status: empty}
+    # SPAN LENGTH of the shown realact text, in tokens. NOTE the conflict to resolve before
+    # targets.py: this [1, 64] is the brief's value; Celeste's recipe (and
+    # infra/2026-09-15_eval-conventions-checklist.md item 30) is L ~ U[16, 64] at p ~ U[16, T)
+    # in 512-token no-BOS windows.
+    realact_len: [1, 64]
+    sae_min_fires: 20       # counted with the SAE's learned gate, not raw act > 0
+    sae_strata: 4           # rarity quartiles of the corpus fire count
+
+corpus:
+  dataset: openbmb/Ultra-FineWeb
+  files:
+    - data/ultrafineweb_en/ultrafineweb-en-part-0009-of-2048.parquet
+    - data/ultrafineweb_en/ultrafineweb-en-part-0010-of-2048.parquet
+  tokens: 16000000          # 16M; nested subsets below are in MILLIONS of tokens
+  sizes: [1, 2, 4, 8, 16]
+  seed: 20260916
+
+rollouts:
+  n: 64                     # rollouts per target
+  temperature: 1.0
+  max_new: 64
+  min_new: 16
+  top_p: 1.0
+  top_k: 0
+  seed: 1234                # rl/rl.py GEN_SEED
+
+modal:
+  volume: maemm
+  hf_home: /vol/hf
+  archive: /vol/archive/gavento-1        # read-only by convention
+  secrets: [hf-write]

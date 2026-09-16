@@ -1,0 +1,4 @@
+# Local analysis working directories (reconstruction/stats.py): fetched volume files and the
+# tables it writes. Both are reproducible from the volume, and data/ holds run-sized arrays.
+reconstruction/data/
+reconstruction/out/
