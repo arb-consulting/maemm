@@ -175,10 +175,13 @@ def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int
     if acts is not None:
         a = np.asarray(acts, dtype=np.float32)
         marks = list(a > gate)
-        assert any(marks), (
-            "a fuzzing positive with nothing above the gate: test positives are gate-consistent "
-            "(amendment A1), so this cannot happen and would render an unmarked 'positive'"
-        )
+        if not any(marks) and len(a):
+            # f16 TOLERANCE, not a second rule. A positive is selected on the stored scalar
+            # `max_act` (an f32 max, rounded to 4 dp) while `acts` is the f16-rounded per-token
+            # payload, so a peak a hair above the gate can quantise a hair below it and leave a
+            # gate-consistent positive (A1) with no mark at all. The peak is marked in that case
+            # and only that case; it is the same token either way.
+            marks[int(a.argmax())] = True
     else:
         k = max(1, min(n_mark_neg, len(pieces)))
         start = rng.randrange(0, max(1, len(pieces) - k + 1))

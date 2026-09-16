@@ -330,18 +330,18 @@ def main(
     strat = {int(r["feature"]): int(r["stratum"]) for r in feats["features"]}
     rows = []
     for metric in METRICS:
-      for scorer in scorers:
-        for label, a, b in CONTRASTS[:3]:
-            for q in sorted(set(strat.values())):
-                f_ids, d = paired(df, a, b, scorer, metric)
-                keep = np.asarray([strat[int(x)] == q for x in f_ids])
-                dq = d[keep]
-                if not len(dq):
-                    continue
-                m, lo, hi = boot_ci(dq)
-                _p, win, _m = sign_test(dq)
-                rows.append([f"`{metric}`", scorer, label, q, len(dq), ci_str(m, lo, hi),
-                             f"{win:.3f}" if np.isfinite(win) else "-"])
+        for scorer in scorers:
+            for label, a, b in CONTRASTS[:4]:
+                for q in sorted(set(strat.values())):
+                    f_ids, d = paired(df, a, b, scorer, metric)
+                    keep = np.asarray([strat[int(x)] == q for x in f_ids])
+                    dq = d[keep]
+                    if not len(dq):
+                        continue
+                    m, lo, hi = boot_ci(dq)
+                    _p, win, _m = sign_test(dq)
+                    rows.append([f"`{metric}`", scorer, label, q, len(dq), ci_str(m, lo, hi),
+                                 f"{win:.3f}" if np.isfinite(win) else "-"])
     lines += md_table(
         rows,
         ["metric", "scorer", "contrast", "quartile", "n", "mean diff [95% CI]", "win frac"],
@@ -358,22 +358,22 @@ def main(
     edges = [0.0, 0.25, 0.5, 0.75, 1.0001]
     rows = []
     for metric in METRICS:
-      for scorer in scorers:
-        f_ids, d = paired(df, "M", "C16", scorer, metric)
-        if not len(d):
-            continue
-        fv = np.asarray([fire[int(x)] for x in f_ids])
-        r = float(np.corrcoef(fv, d)[0, 1]) if len(d) > 2 else float("nan")
-        for lo_e, hi_e in zip(edges[:-1], edges[1:], strict=True):
-            keep = (fv >= lo_e) & (fv < hi_e)
-            if not keep.any():
+        for scorer in scorers:
+            f_ids, d = paired(df, "M", "C16", scorer, metric)
+            if not len(d):
                 continue
-            m, lo, hi = boot_ci(d[keep])
-            rows.append([f"`{metric}`", scorer, f"[{lo_e:.2f}, {hi_e:.2f})", int(keep.sum()),
-                         f"{fv[keep].mean():.3f}", ci_str(m, lo, hi)])
-        lines.append(f"Pearson r(fire fraction, `M` - `C16`) = **{r:.3f}** on {scorer}, "
-                     f"`{metric}` (n = {len(d)}).")
-        lines.append("")
+            fv = np.asarray([fire[int(x)] for x in f_ids])
+            r = float(np.corrcoef(fv, d)[0, 1]) if len(d) > 2 else float("nan")
+            for lo_e, hi_e in zip(edges[:-1], edges[1:], strict=True):
+                keep = (fv >= lo_e) & (fv < hi_e)
+                if not keep.any():
+                    continue
+                m, lo, hi = boot_ci(d[keep])
+                rows.append([f"`{metric}`", scorer, f"[{lo_e:.2f}, {hi_e:.2f})", int(keep.sum()),
+                             f"{fv[keep].mean():.3f}", ci_str(m, lo, hi)])
+            lines.append(f"Pearson r(fire fraction, `M` - `C16`) = **{r:.3f}** on {scorer}, "
+                         f"`{metric}` (n = {len(d)}).")
+            lines.append("")
     lines += md_table(rows, ["metric", "scorer", "fire fraction bin", "n", "mean fire frac",
                              "`M` - `C16` [95% CI]"])
     lines += [""]
