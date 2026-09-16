@@ -383,7 +383,7 @@ class Claude:
 
     # -- batch path ---------------------------------------------------------------------------
 
-    def run_batch(self, jobs: list[dict], label: str, ledger: str = ""):
+    def run_batch(self, jobs: list[dict], label: str, ledger: str = "", max_wait_s: float = 0.0):
         """Submit `jobs` as Message Batches and block until all of them end. -> {job key: record}.
 
         All chunks are submitted BEFORE any is polled, so they queue in parallel and the stage
@@ -457,7 +457,17 @@ class Claude:
                 if self.on_commit:
                     self.on_commit()
         pending = set(ids)
+        abandoned = False
         while pending:
+            if max_wait_s and time.time() - t0 > max_wait_s:
+                # Only a PROBE passes max_wait_s. Giving up on the wait does not cancel the batch
+                # server-side, and the ledger keeps its ids, so a later re-attach can still collect
+                # it -- what is abandoned is the waiting, not the work.
+                print(f"[{label}] ABANDONING the wait after {time.time() - t0:.0f}s "
+                      f"(limit {max_wait_s:.0f}s); {len(pending)} batch(es) still running",
+                      flush=True)
+                abandoned = True
+                break
             time.sleep(BATCH_POLL_S)
             for bid in list(pending):
                 b = self._client.messages.batches.retrieve(bid)
@@ -469,7 +479,7 @@ class Claude:
                           f"{time.time() - t0:.0f}s", flush=True)
         out: dict[str, dict] = {}
         n_err = 0
-        for bid in ids:
+        for bid in (set(ids) - pending) if abandoned else ids:
             for res in self._client.messages.batches.results(bid):
                 j = by_id.get(res.custom_id)
                 if j is None:
@@ -490,7 +500,8 @@ class Claude:
         print(f"[{label}] {len(ids)} batch(es) ENDED: {len(out)} ok, {n_err} failed, {wall:.0f}s "
               f"({wall / max(1, len(jobs)) * 1000:.0f} ms/request amortised)", flush=True)
         return out, {"batch_ids": ids, "chunks": len(chunks), "wall_s": round(wall, 1),
-                     "requests": len(jobs), "errors": n_err}
+                     "requests": len(jobs), "errors": n_err, "abandoned": abandoned,
+                     "still_running": sorted(pending)}
 
     # -- projection ---------------------------------------------------------------------------
 
