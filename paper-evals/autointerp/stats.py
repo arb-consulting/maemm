@@ -332,8 +332,8 @@ def main(
     rows = []
     for metric in METRICS:
         for scorer in scorers:
-            nul = null_txt.get((metric, scorer), (0, 0, 0, float("nan"), float("nan"), 0.5, 0))
-            floor, nq90, nwin = nul[3], nul[4], nul[5]
+            nul = null_txt.get((metric, scorer), (0.0, 0, 0, float("nan"), float("nan"), 0.5, 0))
+            nmean, floor, nwin = nul[0], nul[3], nul[5]
             for label, a, b in CONTRASTS:
                 _f, d = paired(df, a, b, scorer, metric)
                 if not len(d):
@@ -341,19 +341,35 @@ def main(
                 m, lo, hi = boot_ci(d)
                 p, win, _m = sign_test(d)
                 clear = "yes" if np.isfinite(lo) and (lo > 0 or hi < 0) else "no"
-                over = "yes" if np.isfinite(nq90) and abs(m) > nq90 else "no"
+                # The honest comparison against the null is mean-to-mean: does this contrast's
+                # 95% CI exclude the null's OWN mean difference? Comparing the contrast's mean
+                # against the null's q90 of per-feature |diff| -- which an earlier version of this
+                # table did -- compares a mean to a per-feature spread and reads as "inside the
+                # noise" for effects that are in fact many times the null's mean.
+                outside = "yes" if np.isfinite(lo) and not (lo <= nmean <= hi) else "no"
                 rows.append([
                     f"`{metric}`", scorer, label, f"`{a}` - `{b}`", len(d), ci_str(m, lo, hi),
                     f"{win:.3f}" if np.isfinite(win) else "-",
                     f"{nwin:.3f}" if np.isfinite(nwin) else "-",
                     f"{p:.4f}" if np.isfinite(p) else "-",
-                    f"{floor:.4f}" if np.isfinite(floor) else "-", clear, over,
+                    f"{nmean:+.4f}" if np.isfinite(nmean) else "-",
+                    f"{floor:.4f}" if np.isfinite(floor) else "-", clear, outside,
                 ])
     lines += md_table(
         rows,
         ["metric", "scorer", "contrast", "arms", "n", "mean diff [95% CI]", "win frac",
-         "NULL win frac", "sign p", "null mean |diff|", "CI clears 0", "|diff| > null q90"],
+         "NULL win frac", "sign p", "null mean diff", "null mean per-feature |diff|",
+         "CI clears 0", "CI excludes null mean"],
     )
+    lines += [
+        "",
+        "`null mean per-feature |diff|` is the typical size of the SAME description's "
+        "disagreement between two disjoint test draws on ONE feature. It is a per-feature spread, "
+        "NOT the uncertainty of a mean over features, and it must not be used as a threshold for "
+        "the mean effects in this table -- with n in the fifties the mean is estimated far more "
+        "precisely than any single feature. The columns that do the work are `CI clears 0` and "
+        "`CI excludes null mean`.",
+    ]
     lines += [""]
 
     # ---- per quartile -----------------------------------------------------------------------
