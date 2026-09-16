@@ -180,13 +180,19 @@ def batch_probe(cfg, args) -> tuple[str, float]:
     if not todo:
         return "batch", 0.0
     t0 = time.time()
-    got, info = cl.run_batch(todo, "batch-probe")
+    # The probe must ABANDON at the threshold, not discover the answer by waiting past it.
+    # MEASURED 2026-09-16: an 8-request probe sat `in_progress` for 2097 s while `run_batch`
+    # blocked, because the batch had not ENDED -- the chain would have waited up to Anthropic's
+    # 24 h batch SLA to learn that batch latency is unacceptable.
+    got, info = cl.run_batch(todo, "batch-probe", max_wait_s=BATCH_OK_S)
     for j in todo:
         rec = got.get(j["key"])
         if rec is not None:
             cache.put(Cache.key(j["key"], cl.params(j["system"], j["user"], j["max_tokens"])), rec)
     wall = time.time() - t0
     path = "batch" if wall <= BATCH_OK_S and len(got) == len(todo) else "sync"
+    if info.get("abandoned"):
+        path = "sync"
     print(f"[chain] batch probe: {len(got)}/{len(todo)} in {wall:.0f}s "
           f"(threshold {BATCH_OK_S:.0f}s) -> full runs use `{path}`", flush=True)
     return path, wall
@@ -208,6 +214,14 @@ def acceptance(build_info: dict, scores: list[dict], floor_arm: str, st: Status)
     rep["n_short_c4"] = int(build_info.get("n_short_c4", 0))
     rep["c4_ok"] = rep["n_short_c4"] == 0
     rep["n_short_draw1"] = int(build_info.get("n_short_draw1", 0))
+    # Draw 1 is the set EVERY arm is scored on, so a feature with no draw-1 positive is a feature
+    # missing from every contrast. Gated, not merely recorded: MEASURED on the first pilot, 7 of 64
+    # -- all in the rarest density quartile -- had none, which at 512 projects to ~55 lost q0
+    # features and would quietly hollow out the per-quartile table.
+    rep["n_no_pos_draw1"] = int(build_info.get("n_no_pos_draw1", 0))
+    rep["no_pos_draw1_by_stratum"] = build_info.get("no_pos_draw1_by_stratum", {})
+    rep["n_top_fallback_features"] = int(build_info.get("n_top_fallback_features", 0))
+    rep["n_top_fallback_positives"] = int(build_info.get("n_top_fallback_positives", 0))
     rep["n_short_draw2"] = int(build_info.get("n_short_draw2", 0))
     rep["n_empty_draw2"] = int(build_info.get("n_empty_draw2", 0))
     rep["min_pos_draw1"] = int(build_info.get("min_pos_draw1", 0))
@@ -221,11 +235,15 @@ def acceptance(build_info: dict, scores: list[dict], floor_arm: str, st: Status)
     # is to record it. An EMPTY draw 2 on more than a third of features is fatal, because the null
     # is then not measurable and every contrast loses its threshold.
     rep["draw2_ok"] = rep["n_empty_draw2"] <= max(1, rep["n_features"] // 3)
-    ok = bool(rep["floor_ok"] and rep["c4_ok"] and rep["draw2_ok"] and rep["gate_consistent_positives"])
+    rep["draw1_ok"] = rep["n_no_pos_draw1"] <= max(1, rep["n_features"] // 20)
+    rep["draw1_window"] = f"<= {max(1, rep['n_features'] // 20)} of {rep['n_features']}"
+    ok = bool(rep["floor_ok"] and rep["c4_ok"] and rep["draw1_ok"] and rep["draw2_ok"]
+              and rep["gate_consistent_positives"])
     rep["ok"] = ok
     st.doc["checks"] = rep
     st.stage("acceptance", **{k: rep[k] for k in ("ok", "floor_mean", "n_short_c4",
-                                                  "n_empty_draw2", "n_short_draw1")})
+                                                  "n_no_pos_draw1", "n_empty_draw2",
+                                                  "n_short_draw1")})
     return ok, rep
 
 

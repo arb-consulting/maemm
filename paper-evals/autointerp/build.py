@@ -831,13 +831,16 @@ def run(cfg, args):
             shown_docs = {int(p["doc"]) for p in shown_windows}
             shown_windows_ids = {int(p["window"]) for p in shown_windows}
             used_docs = set(shown_docs)
-            # Draw 2 is allocated FIRST (coordinator, 2026-09-16): when the pool is short it is
-            # draw 2 that goes empty, and an empty draw 2 costs the null -- the only noise floor
-            # this evaluation has, now that the API has no temperature parameter. Draw 1 takes what
-            # is left; if IT then falls short, n is reduced and recorded, and disjointness is never
-            # relaxed to make the count.
+            # DRAW 1 IS ALLOCATED FIRST. It was briefly the other way round, to protect the null
+            # from an empty draw 2, and that was the wrong trade: draw 1 is the set EVERY arm is
+            # scored on, so starving it drops the feature from every contrast, while draw 2 is used
+            # by one arm (`C16-draw2`, the null) and a null measured on fewer features is still a
+            # null. MEASURED on the first pilot: 7 of 64 features -- all in the rarest density
+            # quartile -- had no draw-1 positive at all and fell out of every comparison, which at
+            # 512 features projects to ~55 lost q0 features. Draw 2 now takes the remainder, and
+            # its own shortfall is recorded.
             draws = {}
-            for tag in ("test2", "test"):
+            for tag in ("test", "test2"):
                 items, info = draw_test(
                     feat=feat,
                     ex_rows=cand_rows,
@@ -931,6 +934,15 @@ def run(cfg, args):
                 "n_empty_draw2": sum(1 for f in feat_table if f["draw2"]["n_pos"] == 0),
                 "n_short_c4": sum(1 for f in feat_table if f["pool_c4"] < 16),
                 "n_short_neg": sum(1 for f in feat_table if f["draw1"]["n_neg"] < n_neg),
+                "n_no_pos_draw1": sum(1 for f in feat_table if f["draw1"]["n_pos"] == 0),
+                # The features that will fall out of every contrast, and which quartile loses them.
+                "no_pos_draw1_by_stratum": {
+                    str(q): sum(1 for f in feat_table
+                                if f["draw1"]["n_pos"] == 0 and f["stratum"] == q)
+                    for q in sorted({f["stratum"] for f in feat_table})
+                },
+                "n_top_fallback_features": sum(1 for f in feat_table if f["n_top_fallback"] > 0),
+                "n_top_fallback_positives": sum(f["n_top_fallback"] for f in feat_table),
                 "min_pos_draw1": min((f["draw1"]["n_pos"] for f in feat_table), default=0),
                 "min_pos_draw2": min((f["draw2"]["n_pos"] for f in feat_table), default=0),
                 "flags": flags,
@@ -1026,7 +1038,10 @@ def run(cfg, args):
         "n_short_draw1": sum(1 for f in feat_table if f["draw1"]["n_pos"] < n_pos),
         "n_short_draw2": sum(1 for f in feat_table if f["draw2"]["n_pos"] < n_pos),
         "n_empty_draw2": sum(1 for f in feat_table if f["draw2"]["n_pos"] == 0),
+        "n_no_pos_draw1": sum(1 for f in feat_table if f["draw1"]["n_pos"] == 0),
         "n_short_c4": sum(1 for f in feat_table if f["pool_c4"] < 16),
+        "n_top_fallback_features": sum(1 for f in feat_table if f["n_top_fallback"] > 0),
+        "n_top_fallback_positives": sum(f["n_top_fallback"] for f in feat_table),
         "flags": len(flags),
         "mean_marked_fraction": round(float(np.mean(mark_frac)) if mark_frac else 0.0, 4),
         "token_join_mismatches": join_bad,

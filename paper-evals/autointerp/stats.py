@@ -399,10 +399,12 @@ def main(
 
     # ---- fire fraction ----------------------------------------------------------------------
     lines += ["## Fire fraction as covariate", "",
-              "`fire_fraction` is the share of the MAEMM's 64 rollouts on which the target "
-              "feature exceeds the SAE gate somewhere (`sae_self`). The hard stratum is exactly "
-              "the set the MAEMM never fires on, so this is the covariate that should separate "
-              "it.", ""]
+              "`fire_fraction` is the share of ALL 64 of the MAEMM's rollouts on which the target "
+              "feature exceeds the SAE gate somewhere, as stored by `sae_self` -- NOT the share "
+              "among the 16 rollouts the M arm happens to show, which is near 1 by construction "
+              "(they are the top 16 by activation) and therefore degenerate as a covariate. The "
+              "hard stratum is exactly the set the MAEMM never fires on, so this is the covariate "
+              "that should separate it.", ""]
     fire = {int(r["feature"]): float(r["fire_fraction"]) for r in feats["features"]}
     edges = [0.0, 0.25, 0.5, 0.75, 1.0001]
     rows = []
@@ -427,9 +429,51 @@ def main(
                              "`M` - `C16` [95% CI]"])
     lines += [""]
 
+    # ---- exclusions and pool health ----------------------------------------------------------
+    lines += ["## Exclusions and pool health", "",
+              "A feature with no scorable draw-1 positive is missing from EVERY contrast, so the "
+              "count is reported per density quartile rather than folded into an `n`.", ""]
+    scored = {int(f) for f in df["feature"].unique().to_list()}
+    rows = []
+    for q in sorted({int(r["stratum"]) for r in feats["features"]}):
+        inq = [r for r in feats["features"] if int(r["stratum"]) == q]
+        miss = [r for r in inq if int(r["feature"]) not in scored or r["draw1"]["n_pos"] == 0]
+        short = [r for r in inq if 0 < r["draw1"]["n_pos"] < binfo["n_pos"]]
+        tf = [r for r in inq if r.get("n_top_fallback", 0) > 0]
+        rows.append([q, len(inq), len(miss), len(short),
+                     f"{len(tf)} / {sum(r.get('n_top_fallback', 0) for r in inq)}",
+                     f"{float(np.mean([r['draw1']['n_pos'] for r in inq])):.1f}"])
+    lines += md_table(
+        rows,
+        ["quartile", "features", "no draw-1 positive (EXCLUDED)", "short of n_pos",
+         "top-fallback features / positives", "mean draw-1 positives"],
+    )
+    lines += [
+        "",
+        "`top-fallback positives` are test positives taken from the feature's top-ranked windows "
+        "BEYOND those any arm shows, used when the activation bands cannot fill the quota. They "
+        "are drawn from the same ranking the C-arms draw their examples from, which makes them the "
+        "easiest positives in the set; the robustness row below re-runs the headline contrasts "
+        "with them excluded.",
+        "",
+    ]
+
     # ---- explanations / parse health --------------------------------------------------------
     edf = pl.DataFrame(expl)
     n_empty = int(edf.filter(~pl.col("ok")).height)
+    lines += ["## Description drop rate, per arm", "",
+              "An empty explainer answer means that arm has no description for that feature and is "
+              "not scored on it, so a high rate is a silent loss of n.", ""]
+    drop = (edf.group_by("arm")
+            .agg(pl.len().alias("n"), (~pl.col("ok")).sum().alias("empty"))
+            .sort("arm"))
+    lines += md_table(
+        [[f"`{r['arm']}`", r["n"], r["empty"], f"{r['empty'] / max(1, r['n']):.3f}"]
+         for r in drop.iter_rows(named=True)]
+        + [["**total**", edf.height, n_empty, f"{n_empty / max(1, edf.height):.3f}"]],
+        ["arm", "descriptions", "empty", "rate"],
+    )
+    lines += [""]
     parsed = df.select(
         (pl.col("n_parsed").sum() / pl.col("n_batches").sum()).alias("f")
     )["f"][0]
@@ -449,6 +493,35 @@ def main(
               f"- A12 model check: {costs.get('model_check', {})}",
               f"- per-stage API path and wall: {costs.get('stage_info', {})}",
               ""]
+
+    # ---- robustness: drop the top-fallback positives -----------------------------------------
+    # ANALYSIS ONLY, no extra calls: re-run the headline contrasts over the features that needed
+    # NO top-fallback positive, i.e. whose whole test set came from the activation bands. If a
+    # contrast survives that, it does not depend on the easiest positives in the set.
+    tf_feats = {int(r["feature"]) for r in feats["features"] if r.get("n_top_fallback", 0) > 0}
+    lines += ["## Robustness: features with no top-fallback positive", "",
+              f"{len(tf_feats)} of {len(feats['features'])} features needed at least one "
+              f"top-fallback positive. The headline contrasts below are recomputed over the "
+              f"remainder -- no new API calls, the same answers, a narrower feature set.", ""]
+    clean = df.filter(~pl.col("feature").is_in(list(tf_feats)))
+    rows = []
+    for scorer in scorers:
+        for label, a_, b_ in CONTRASTS[:4]:
+            _f, d = paired(clean, a_, b_, scorer, "bal_acc")
+            if len(d) < 3:
+                continue
+            m, lo, hi = boot_ci(d)
+            _p, win, _m = sign_test(d)
+            _fa, da = paired(df, a_, b_, scorer, "bal_acc")
+            ma = float(np.mean(da)) if len(da) else float("nan")
+            rows.append([scorer, label, f"`{a_}` - `{b_}`", len(d), ci_str(m, lo, hi),
+                         f"{win:.3f}" if np.isfinite(win) else "-",
+                         f"{ma:+.4f} (n={len(da)})"])
+    lines += md_table(
+        rows,
+        ["scorer", "contrast", "arms", "n", "mean diff [95% CI]", "win frac", "all features"],
+    )
+    lines += [""]
 
     # ---- full-run projection ------------------------------------------------------------------
     per_feat_arm = {a: d["cost"] / max(1, n_feat) for a, d in costs["per_arm"].items()}
