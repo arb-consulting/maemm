@@ -113,6 +113,20 @@ pairing exact rather than distributional; a direction missing from `finals.jsonl
 survived. An EPO arm holds 3 members at different λ, so "the arm's result" is the best member per
 direction, not a mean over members.
 
+**Two sae views, and why they are not merged.** The sae arms exist on two draws. The `*-strat`
+arms take 8 targets from each of the four density quartiles (32 in all) and are the **reported** sae
+rows: their `all` slice is a stratified estimate of the family, and the per-quartile slices carry
+the variation. The earlier plain sae arms took the first 32 sae rows, which are **all q0**, the
+rarest quartile; they are kept as a `rare-stratum q0 view` and never averaged in, because reporting
+them as the family number reports the rarest quartile as the whole. MEASURED 2026-09-16: that
+distinction is worth a factor of two — on the 27B, `gcg-corpus` beats the primary by +0.1100 ±
+0.0166 on the q0 view and by +0.0542 ± 0.0100 stratified. The `view` and `slice` columns say which
+row is which; realact has one draw and one slice.
+
+**Sources.** The per-direction best member comes from `finals.jsonl`. Where `summary.json` also
+carries `per_dir_best_cos`, the two agree exactly (max |difference| 0.0 on the 27B stratified arms),
+so the summary is a cross-check rather than a second source of truth.
+
 **The caveat the caption states once:** GCG and a MAEMM are not the same object and are not
 compute-matched. GCG optimises ONE fixed 32-token string with ~77k candidate forwards *against the
 scorer itself*; the MAEMM draws n sampled rollouts from a prompt and never sees the metric. GCG
