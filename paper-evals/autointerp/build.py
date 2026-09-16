@@ -248,7 +248,14 @@ class _RandomPool:
         return self.max_act[self.col[feature]].astype(np.float32)
 
     def acts(self, feature: int, w: int):
-        """The window's per-token pre-gate activations of `feature`, as a dense list of its len."""
+        """The window's per-token pre-gate activations of `feature`, densified to its length.
+
+        NOT used by the current negative rule: amendment A5 marks every negative, near-miss
+        included, at RANDOM for fuzzing, so only `maxima` is needed to select them. It is the
+        reader for the per-token half of the product, which `run_random_pool` writes because a
+        near-miss negative rendered with its OWN activations is the obvious next variant and
+        re-running the GPU pass to get it would cost another $0.14 and another hour of wall.
+        """
         row = self.col[feature] * self.n_win + w
         lo, hi = int(self.off[row]), int(self.off[row + 1])
         a = np.zeros(int(self.windows[w]["len"]), dtype=np.float32)
@@ -860,6 +867,7 @@ def run(cfg, args):
                 "nearmiss_source": nearmiss_source,
                 "gate_consistent_positives": gate_positives,
                 "allow_top_fallback": allow_top_fallback,
+                "examples_4m": ex4_dir,
                 "random_pool": pool.path,
                 "random_pool_windows": pool.n_win,
                 "arms": {a: ARM_SPECS[a] for a in arm_names},
@@ -894,8 +902,9 @@ def run(cfg, args):
         od.note(
             f"dedup: within a source, a window overlapping one already kept IS DROPPED (stride "
             f"{C.SCAN_STRIDE} in {C.SCAN_BLOCK}-token windows makes the top-k of a feature "
-            f"routinely four cuts of one passage). C4 is the same ranking restricted to documents "
-            f"tagged <= {prefix_m}M, i.e. the nested prefix, NOT a re-scan."
+            f"routinely four cuts of one passage). C4 comes from `{ex4_dir}` -- the "
+            f"{prefix_m}M prefix's OWN top-128 (amendment A3), not the {prefix_m}M members of the "
+            f"16M ranking, which left a median of 14 candidates after dedup."
         )
         od.note(
             f"test positives are GATE-CONSISTENT (amendment 2026-09-16): only a window whose "
