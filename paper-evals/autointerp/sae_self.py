@@ -363,3 +363,426 @@ def run(cfg, args):
         "checks": checks,
         "seconds": round(elapsed, 1),
     }
+
+
+# ==============================================================================================
+# Product `random_pool`: a larger shared negative pool, with PER-TOKEN activations
+# ==============================================================================================
+#
+# AMENDMENT 2026-09-16 (coordinator). The shared `_random256` pool that `scan` wrote cannot serve
+# this evaluation: it is 256 windows carrying only a per-feature MAXIMUM, and for the densest
+# tested features fewer than 20 of those 256 have a maximum of exactly 0, so the design's
+# zero-activation negative rule runs out. 2,048 windows fixes that, and storing per-token
+# activations makes two more things possible for free: near-miss negatives (0 < max <= gate) and
+# fuzzing marks on any negative that has real activations.
+#
+#     <root>/base/<base>/sae/<sae>/random_pool/<set>/
+#         windows.jsonl   2048 rows: window index, doc, start, len
+#         max_act.f16     [n_feat, n_win]   per-feature per-window maximum, pre-gate
+#         tok_off.i64     [n_feat * n_win + 1]  CSR offsets, FEATURE-MAJOR (row = f_idx*n_win + w)
+#         tok_pos.i16     [nnz]  token position WITHIN the window (0-based, sink dropped)
+#         tok_val.f16     [nnz]  the pre-gate activation there
+#         pool.json       features, seed, gate, the window draw, nnz and the density it implies
+#
+# Only tokens with act > 0 are stored: the array is a post-ReLU pre-gate activation, so a zero is
+# a real zero and its position carries nothing. The dense equivalent would be
+# n_feat * n_win * 64 * 2 bytes = 134 MiB at 512 x 2048; the sparse form is reported against that
+# in the README so the choice can be re-judged if the density changes.
+
+RANDOM_POOL_BATCH = 256
+
+
+def _forward_windows(model, read_layer, rows, sink, pad_id):
+    """(h [B, T, d] fp32, keep [B, T]) for a list of id arrays -- `precompute/scan.py:_forward`.
+
+    Copied rather than imported: `scan._forward` is private to that product, and this is four
+    lines of batch assembly around the one shared `common.read_resid`.
+    """
+    import torch
+
+    width = 1 + max(len(r) for r in rows)
+    ids = np.full((len(rows), width), pad_id, dtype=np.int64)
+    am = np.zeros((len(rows), width), dtype=np.int64)
+    ids[:, 0] = sink
+    am[:, 0] = 1
+    for i, r in enumerate(rows):
+        ids[i, 1 : 1 + len(r)] = r
+        am[i, 1 : 1 + len(r)] = 1
+    h, mask = C.read_resid(
+        model,
+        read_layer,
+        {"input_ids": torch.from_numpy(ids).cuda(), "attention_mask": torch.from_numpy(am).cuda()},
+        pool="all",
+    )
+    keep = mask.clone()
+    keep[:, 0] = False
+    return h, keep
+
+
+def enumerate_windows(docs):
+    """[(doc, start, len)] for every corpus window, in the SAME order `scan` forwarded them.
+
+    `scan` walks documents in stored order and emits `common.windows_of(doc_len)` for each, so
+    replaying that walk reproduces its global window index exactly -- which is what makes a
+    `window` id in one product mean the same window in another.
+    """
+    out = []
+    for r in docs:
+        for s, ln in C.windows_of(int(r["len"])):
+            out.append((int(r["doc"]), s, ln))
+    return out
+
+
+def run_random_pool(cfg, args):
+    import torch
+
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    assert base, "product random_pool needs --base"
+    ac = cfg["autointerp"]
+    n_win = int(args.get("n_windows") or ac["random_pool_windows"])
+    seed = int(args.get("pool_seed") or ac["random_pool_seed"])
+    read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
+
+    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    n_feat = len(feats)
+    toks, docs = C.load_corpus(base, root)
+    wins = enumerate_windows(docs)
+    rng = np.random.default_rng(seed)
+    pick = np.sort(rng.choice(len(wins), size=min(n_win, len(wins)), replace=False))
+    n_win = len(pick)
+    print(f"[random_pool] {n_win} of {len(wins)} windows, {n_feat} features, seed {seed}", flush=True)
+
+    model, tok = C.load_base(cfg, base)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    gate = float(sae.threshold)
+    sink = C.sink_token_id(tok)
+    pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
+    fidx = torch.as_tensor(feats, device="cuda")
+    w_enc = sae.W_enc[:, fidx].contiguous()
+    b_enc = sae.b_enc[fidx]
+
+    dense = np.zeros((n_feat, n_win, C.SCAN_BLOCK), dtype=np.float16)
+    offs = {int(r["doc"]): int(r["offset"]) for r in docs}
+    wrows = []
+    t0 = time.time()
+    for s in range(0, n_win, RANDOM_POOL_BATCH):
+        sel = pick[s : s + RANDOM_POOL_BATCH]
+        ids_list = []
+        for j, wi in enumerate(sel.tolist()):
+            doc, st, ln = wins[wi]
+            ids_list.append(np.asarray(toks[offs[doc] + st : offs[doc] + st + ln]))
+            wrows.append({"window": wi, "doc": doc, "start": st, "len": ln, "row": s + j})
+        with torch.no_grad():
+            h, keep = _forward_windows(model, read_layer, ids_list, sink, pad_id)
+            a = torch.relu((h - sae.b_dec) @ w_enc + b_enc)  # [B, T, n_feat] pre-gate
+            a = a.masked_fill(~keep.unsqueeze(-1), 0.0)
+            t = min(a.shape[1] - 1, C.SCAN_BLOCK)
+            blk = a[:, 1 : 1 + t].permute(2, 0, 1).to(torch.float16).cpu().numpy()  # [n_feat, B, t]
+        dense[:, s : s + len(sel), :t] = blk
+    elapsed = time.time() - t0
+
+    lens = np.asarray([w["len"] for w in wrows], dtype=np.int64)
+    valid = np.arange(C.SCAN_BLOCK)[None, :] < lens[:, None]  # [n_win, 64]
+    dense *= valid[None, :, :]
+    mx = dense.max(axis=2)  # [n_feat, n_win]
+    nz = dense > 0
+    counts = nz.reshape(n_feat * n_win, C.SCAN_BLOCK).sum(1)
+    tok_off = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
+    fi, wi_, ti = np.nonzero(nz)
+    order = np.argsort(fi.astype(np.int64) * n_win + wi_, kind="stable")
+    tok_pos = ti[order].astype(np.int16)
+    tok_val = dense[fi[order], wi_[order], ti[order]].astype(np.float16)
+    assert len(tok_pos) == tok_off[-1], f"CSR {len(tok_pos)} entries but offsets end at {tok_off[-1]}"
+
+    zero = (mx == 0).sum(1)
+    near = ((mx > 0) & (mx <= gate)).sum(1)
+    above = (mx > gate).sum(1)
+    out = f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}"
+    dense_bytes = n_feat * n_win * C.SCAN_BLOCK * 2
+    with C.outdir(
+        out,
+        args,
+        inputs={
+            "corpus": C.corpus_dir(base, root),
+            "heldout": C.heldout_dir(base, set_name, root),
+            "sae": sae_key,
+            "features": n_feat,
+            "windows": n_win,
+            "seed": seed,
+            "gate": gate,
+        },
+    ) as od:
+        od.write_jsonl("windows.jsonl", wrows)
+        od.write_array("max_act.f16", mx, "float16")
+        od.write_array("tok_off.i64", tok_off, "int64")
+        od.write_array("tok_pos.i16", tok_pos, "int16")
+        od.write_array("tok_val.f16", tok_val, "float16")
+        od.write_json(
+            "pool.json",
+            {
+                "features": feats,
+                "rows": list(sae_rows),
+                "n_windows": n_win,
+                "n_corpus_windows": len(wins),
+                "seed": seed,
+                "gate": gate,
+                "block": C.SCAN_BLOCK,
+                "nnz": int(tok_off[-1]),
+                "density": round(float(tok_off[-1]) / (n_feat * n_win * C.SCAN_BLOCK), 6),
+                "zero_windows_per_feature": {
+                    "min": int(zero.min()), "median": int(np.median(zero)), "max": int(zero.max())
+                },
+                "nearmiss_windows_per_feature": {
+                    "min": int(near.min()), "median": int(np.median(near)), "max": int(near.max())
+                },
+                "above_gate_windows_per_feature": {
+                    "min": int(above.min()), "median": int(np.median(above)), "max": int(above.max())
+                },
+                "seconds": round(elapsed, 1),
+            },
+        )
+        od.note(
+            f"{n_win} windows drawn UNIFORMLY WITHOUT REPLACEMENT over all {len(wins)} corpus "
+            f"windows by `np.random.default_rng({seed}).choice`, then sorted. `window` is the "
+            f"GLOBAL window index in `scan`'s own enumeration (documents in stored order, "
+            f"common.windows_of per document), so it means the same window as in "
+            f"sae/<sae>/examples/. This pool is an INDEPENDENT draw: it is not a superset of "
+            f"scan's `_random256`, whose reservoir order cannot be replayed by index."
+        )
+        od.note(
+            f"`max_act.f16` is [{n_feat}, {n_win}] pre-gate maxima in the feature order of "
+            f"pool.json. Per feature: zero-activation windows min {int(zero.min())} / median "
+            f"{int(np.median(zero))}; near-miss (0 < max <= gate {gate:.4f}) min {int(near.min())} "
+            f"/ median {int(np.median(near))}; above the gate min {int(above.min())} / median "
+            f"{int(np.median(above))}. THIS IS THE POINT OF THE PRODUCT: scan's 256-window pool "
+            f"leaves the densest features short of 20 zero-activation negatives."
+        )
+        od.note(
+            f"per-token activations are a CSR over the FEATURE-MAJOR (feature, window) grid: row "
+            f"f*{n_win} + w, `tok_pos` the 0-based position within the window (sink already "
+            f"dropped), `tok_val` the pre-gate activation. Only act > 0 is stored -- a post-ReLU "
+            f"zero is a real zero. {int(tok_off[-1])} entries, density "
+            f"{float(tok_off[-1]) / (n_feat * n_win * C.SCAN_BLOCK):.4f} of the "
+            f"{C.human(dense_bytes)} dense equivalent."
+        )
+        od.note(f"forward wall {elapsed:.1f}s for {n_win} windows x {n_feat} features")
+    return {
+        "out": out,
+        "windows": n_win,
+        "features": n_feat,
+        "gate": gate,
+        "nnz": int(tok_off[-1]),
+        "density": round(float(tok_off[-1]) / (n_feat * n_win * C.SCAN_BLOCK), 6),
+        "zero_min": int(zero.min()),
+        "nearmiss_min": int(near.min()),
+        "seconds": round(elapsed, 1),
+    }
+
+
+# ==============================================================================================
+# Product `examples_4m`: the 4M-prefix corpus examples (design amendment A3)
+# ==============================================================================================
+#
+# The `C4` arm is "what a cheap corpus search finds". Filtering the 16M `examples/` top-128 down to
+# the documents inside the 4M prefix does NOT produce that: it produces the 4M-prefix members of
+# the 16M ranking, which is a different and much smaller object -- MEASURED 2026-09-16 on the
+# 64-feature pilot build, a median of 14 candidates after dedup and fewer than 16 on 38 of 64
+# features. The honest C4 is its own top-k over the 4M prefix, which is this product.
+#
+#     <root>/base/<base>/sae/<sae>/examples_4m/<set>/
+#         <feature>.jsonl   the SAME row schema as scan's examples/ (row, kind "top", window, doc,
+#                           start, len, max_act, argmax, acts), top 128 by peak activation
+#         tested.json, scan_4m.json
+#
+# `window` is the GLOBAL window index of `scan`'s own enumeration. The nested subsets are prefixes
+# of the document order (common.size_tag_of), so the 4M prefix is a prefix of that enumeration and
+# the two indices coincide -- a `window` means the same window here, in examples/ and in
+# random_pool/.
+
+EX4M_TOP = 128
+EX4M_BATCH = 256
+
+
+def run_examples_4m(cfg, args):
+    import torch
+
+    from precompute.scan import _Heap
+
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    assert base, "product examples_4m needs --base"
+    prefix_m = int(args.get("prefix_m") or cfg["autointerp"]["corpus_prefix_m"])
+    read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
+    batch_rows = int(args.get("batch") or EX4M_BATCH)
+
+    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    n_feat = len(feats)
+    toks, docs = C.load_corpus(base, root)
+    sizes = C.corpus_sizes(docs)
+    assert prefix_m in sizes, f"corpus has nested sizes {sizes}; {prefix_m}M is not one of them"
+    keep_docs = [r for r in docs if int(r["size_tag"]) <= prefix_m]
+    n_tok = sum(int(r["len"]) for r in keep_docs)
+    print(
+        f"[examples_4m] {len(keep_docs)} of {len(docs)} docs, {n_tok} tokens (<= {prefix_m}M), "
+        f"{n_feat} features",
+        flush=True,
+    )
+
+    model, tok = C.load_base(cfg, base)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    gate = float(sae.threshold)
+    sink = C.sink_token_id(tok)
+    pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
+    fidx = torch.as_tensor(feats, device="cuda")
+    w_enc = sae.W_enc[:, fidx].contiguous()
+    b_enc = sae.b_enc[fidx]
+
+    heap = _Heap(n_feat, EX4M_TOP, "cuda", payload_shape=(C.SCAN_BLOCK,))
+    win_doc: list = []
+    win_start: list = []
+    win_len: list = []
+    buf: list = []
+    buf_meta: list = []
+    w_global = 0
+    t0 = time.time()
+
+    def flush():
+        nonlocal w_global
+        if not buf:
+            return
+        with torch.no_grad():
+            h, keep = _forward_windows(model, read_layer, buf, sink, pad_id)
+            b, t = keep.shape
+            a = torch.relu((h - sae.b_dec) @ w_enc + b_enc)  # [B, T, n_feat] pre-gate
+            a = a.masked_fill(~keep.unsqueeze(-1), 0.0)
+            amax, aarg = a.max(dim=1)  # [B, n_feat]
+            pay = torch.zeros((b, C.SCAN_BLOCK, n_feat), dtype=torch.float16, device="cuda")
+            pay[:, : min(t - 1, C.SCAN_BLOCK)] = a[:, 1 : 1 + C.SCAN_BLOCK].to(torch.float16)
+            pay = pay.permute(2, 0, 1).contiguous()  # [n_feat, B, 64]
+            wid = torch.arange(w_global, w_global + b, device="cuda")
+            heap.push(amax.T.contiguous(), wid, aarg.T.contiguous(), pay)
+        win_doc.append(np.asarray([m[0] for m in buf_meta], dtype=np.int32))
+        win_start.append(np.asarray([m[1] for m in buf_meta], dtype=np.int32))
+        win_len.append(np.asarray([len(r) for r in buf], dtype=np.int32))
+        w_global += b
+        buf.clear()
+        buf_meta.clear()
+
+    done_tokens = 0
+    for r in keep_docs:
+        ids = np.asarray(toks[r["offset"] : r["offset"] + r["len"]])
+        for s, ln in C.windows_of(int(r["len"])):
+            buf.append(ids[s : s + ln])
+            buf_meta.append((int(r["doc"]), s))
+            if len(buf) >= batch_rows:
+                flush()
+        done_tokens += int(r["len"])
+        if r["doc"] % 2000 == 0 and r["doc"]:
+            el = time.time() - t0
+            print(
+                f"[examples_4m] doc {r['doc']}/{len(keep_docs)} {done_tokens / 1e6:.2f}M tokens | "
+                f"{done_tokens / max(el, 1e-9):.0f} corpus tok/s",
+                flush=True,
+            )
+    flush()
+    elapsed = time.time() - t0
+    wdoc = np.concatenate(win_doc)
+    wstart = np.concatenate(win_start)
+    wlen = np.concatenate(win_len)
+    assert len(wdoc) == w_global, f"window table {len(wdoc)} != {w_global} forwarded windows"
+
+    from precompute.scan import _ex
+
+    tv = heap.val.cpu().numpy()
+    tw = heap.win.cpu().numpy()
+    ta = heap.arg.cpu().numpy()
+    tp = heap.payload.cpu().numpy()
+    out = f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}"
+    per_feature = []
+    ex_rows = 0
+    nbytes = 0
+    with C.outdir(
+        out,
+        args,
+        inputs={
+            "corpus": C.corpus_dir(base, root),
+            "heldout": C.heldout_dir(base, set_name, root),
+            "sae": sae_key,
+            "prefix_m": prefix_m,
+            "docs": len(keep_docs),
+            "tokens": n_tok,
+            "windows": int(w_global),
+            "features": n_feat,
+        },
+    ) as od:
+        for fi, feat in enumerate(feats):
+            recs = []
+            for j in range(EX4M_TOP):
+                if not np.isfinite(tv[fi, j]) or tv[fi, j] <= 0:
+                    continue
+                recs.append(
+                    _ex(sae_rows[fi], "top", tv[fi, j], tw[fi, j], ta[fi, j], tp[fi, j],
+                        wdoc, wstart, wlen)
+                )
+            path = od.file(f"{feat}.jsonl")
+            C.write_jsonl(path, recs)
+            nbytes += path.stat().st_size
+            ex_rows += len(recs)
+            n_gate = sum(1 for r in recs if r["max_act"] > gate)
+            per_feature.append({"feature": feat, "row": sae_rows[fi], "n": len(recs),
+                                "n_above_gate": n_gate,
+                                "n_docs": len({r["doc"] for r in recs}),
+                                "max_act": recs[0]["max_act"] if recs else 0.0})
+        od.index["examples"] = {"kind": "jsonl", "rows": ex_rows, "bytes": nbytes}
+        od.write_json("tested.json", {"features": feats, "rows": sae_rows, "sae": sae_key})
+        ng = np.asarray([p["n_above_gate"] for p in per_feature])
+        nd = np.asarray([p["n_docs"] for p in per_feature])
+        od.write_json(
+            "scan_4m.json",
+            {
+                "prefix_m": prefix_m,
+                "docs": len(keep_docs),
+                "tokens": n_tok,
+                "windows": int(w_global),
+                "top_n": EX4M_TOP,
+                "gate": gate,
+                "features": n_feat,
+                "per_feature": per_feature,
+                "n_above_gate": {"min": int(ng.min()), "median": int(np.median(ng)),
+                                 "n_below_16": int((ng < 16).sum())},
+                "n_distinct_docs": {"min": int(nd.min()), "median": int(np.median(nd)),
+                                    "n_below_16": int((nd < 16).sum())},
+                "seconds": round(elapsed, 1),
+            },
+        )
+        od.note(
+            f"the C4 arm's OWN top-{EX4M_TOP} over the {prefix_m}M nested prefix "
+            f"({len(keep_docs)} documents, {n_tok} tokens, {w_global} windows at "
+            f"{C.SCAN_BLOCK}/{C.SCAN_STRIDE}), not the {prefix_m}M members of the 16M ranking. "
+            f"Design amendment A3: the filtered version left a median of 14 candidates after "
+            f"dedup and fewer than 16 on 38 of 64 pilot features, so C4 was not an N=16 arm."
+        )
+        od.note(
+            f"row schema and ranking are `precompute/scan.py`'s (`_ex`, `_Heap`), so a row here is "
+            f"interchangeable with one from sae/<sae>/examples/. `window` is the GLOBAL index of "
+            f"scan's enumeration: the nested subsets are prefixes of the document order, so the "
+            f"{prefix_m}M prefix is a prefix of that enumeration and the indices coincide."
+        )
+        od.note(
+            f"per feature, windows above the gate {gate:.4f}: min {int(ng.min())}, median "
+            f"{int(np.median(ng))}, below 16 on {int((ng < 16).sum())} of {n_feat} features. "
+            f"Distinct documents: min {int(nd.min())}, median {int(np.median(nd))}, below 16 on "
+            f"{int((nd < 16).sum())} -- the binding constraint once document-level disjointness "
+            f"(A4) is enforced."
+        )
+        od.note(f"scan wall {elapsed:.1f}s, {done_tokens / max(elapsed, 1e-9):.0f} corpus tok/s")
+    return {
+        "out": out,
+        "docs": len(keep_docs),
+        "tokens": n_tok,
+        "windows": int(w_global),
+        "features": n_feat,
+        "rows": ex_rows,
+        "n_above_gate_min": int(ng.min()),
+        "n_features_below_16_above_gate": int((ng < 16).sum()),
+        "seconds": round(elapsed, 1),
+    }

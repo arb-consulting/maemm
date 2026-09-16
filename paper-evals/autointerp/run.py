@@ -22,11 +22,22 @@ dollars are recorded -- and the dollars come from each response's own `usage.cos
 key's usage delta, because the key is shared
 (experiments/2026-09-11_autointerp-64feat-plan.md:153).
 
+Two phases, in this order for a reason: EVERY feature is explained first, then features are scored
+one at a time. The floor arm (A6) scores a feature's test set with a DIFFERENT feature's
+description, so it cannot run inside a feature-at-a-time loop that has not written that
+description yet.
+
+Arms `run` adds to the build's, neither of which has an explainer call of its own:
+  * `R-shuffled` (A6) -- the floor: another feature's C16 description, under a fixed derangement.
+  * `C16-draw2` (A7) -- the null: C16's own description on the second, disjoint test draw. The
+    per-feature C16 - C16-draw2 difference is the test-set sampling noise every contrast is
+    exposed to, and it replaces the temperature-0 repeat, which measured judge jitter instead.
+
 Cost control, two layers. `autointerp.max_cost_usd` is a HARD ceiling checked before every
 submission (the lifted `--max-cost-usd` behaviour). On top of it, the first
-`autointerp.probe_features` features are run to completion and the whole run's cost is PROJECTED
-from them; if the projection exceeds the ceiling the run stops there and says so, rather than
-discovering the overrun at feature 60.
+`autointerp.probe_features` features are SCORED and the whole run's cost is PROJECTED from them
+plus the already-paid explainer bill; if the projection exceeds the ceiling the run stops there
+and says so, rather than discovering the overrun at feature 60.
 """
 
 from __future__ import annotations
@@ -492,12 +503,69 @@ def _submit(cl: OpenRouter, cache: Cache, jobs: list[dict], label: str, max_cost
 
 
 def _feature_rows(build_dir: str, feat: int):
+    """(meta, {arm: row}, draw-1 test items, draw-2 test items) for one feature's build file."""
     rows = C.read_jsonl(f"{build_dir}/{feat}.jsonl")
     meta = rows[0]
     assert meta["kind"] == "meta", f"{build_dir}/{feat}.jsonl does not start with its meta row"
     arms = {r["arm"]: r for r in rows if r["kind"] == "arm"}
-    tests = [r for r in rows if r["kind"] == "test"]
-    return meta, arms, tests
+    t1 = [r for r in rows if r["kind"] == "test"]
+    t2 = [r for r in rows if r["kind"] == "test2"]
+    assert t1, f"{build_dir}/{feat}.jsonl has no `test` rows"
+    return meta, arms, t1, t2
+
+
+def derangement(items: list, seed: int) -> dict:
+    """A fixed permutation with NO fixed point: the floor arm's "a different random feature".
+
+    Amendment A6. A plain shuffle would leave roughly one feature in e scoring against its own
+    description, which is exactly the case the floor arm exists to exclude.
+    """
+    assert len(items) >= 2, "a floor arm needs at least two features to permute between"
+    rng = random.Random(seed)
+    order = list(items)
+    for _ in range(64):
+        rng.shuffle(order)
+        if all(a != b for a, b in zip(items, order, strict=True)):
+            return dict(zip(items, order, strict=True))
+    # Deterministic fallback: a rotation by one is a derangement for any length >= 2.
+    return dict(zip(items, items[1:] + items[:1], strict=True))
+
+
+def check_temperature(cl: OpenRouter, cache: Cache) -> dict:
+    """Amendment A12: one call confirming OpenRouter accepts `temperature` with reasoning disabled.
+
+    Sent through the cache like every other call, so it costs nothing on a resume. It is a real
+    request rather than a dry run because the failure it guards against -- a 400 on `temperature`,
+    which is what the Anthropic Batches path does for Opus 5 with thinking on -- is a server-side
+    rejection that only a real request can surface.
+    """
+    job = {
+        "key": "check|temperature",
+        "system": "You are a test harness. Reply with exactly the word OK.",
+        "user": "Reply with exactly the word OK.",
+        "max_tokens": 16,
+    }
+    body = cl.body_for(job["system"], job["user"], job["max_tokens"])
+    assert body["temperature"] == cl.temperature and body["reasoning"] == {"enabled": False}, (
+        "the request body does not carry temperature with reasoning disabled"
+    )
+    k = Cache.key(job["key"], body)
+    rec = cache.get(k)
+    if rec is None:
+        text, usage = cl.complete(job["system"], job["user"], job["max_tokens"])
+        rec = {"text": text, "usage": usage}
+        cache.put(k, rec)
+    out = {
+        "model": cl.model,
+        "temperature": cl.temperature,
+        "reasoning": "disabled",
+        "accepted": True,
+        "reply": rec["text"].strip()[:40],
+        "usage": rec["usage"],
+    }
+    print(f"[run] A12 temperature check: {cl.model} accepted temperature="
+          f"{cl.temperature} with reasoning disabled; reply {out['reply']!r}", flush=True)
+    return out
 
 
 def run(cfg, args):
@@ -509,8 +577,8 @@ def run(cfg, args):
         f"no build at {build_dir}: run `--stage build` first (or pass --build-dir <name>)"
     )
     binfo = json.load(open(f"{build_dir}/build.json"))
-    feats = [f["feature"] for f in json.load(open(f"{build_dir}/features.json"))["features"]]
     fmeta = {f["feature"]: f for f in json.load(open(f"{build_dir}/features.json"))["features"]}
+    feats = list(fmeta)
 
     scorers = [s for s in (args.get("scorers") or "detection,fuzzing").split(",") if s]
     for s in scorers:
@@ -520,6 +588,9 @@ def run(cfg, args):
     max_cost = float(args.get("max_cost_usd") or ac["max_cost_usd"])
     probe_n = int(args.get("probe_features") or ac["probe_features"])
     batch = int(ac["scorer_batch"])
+    floor_arm = str(ac["floor_arm"])
+    floor_src = str(ac["floor_source_arm"])
+    draw2_arm = "C16-draw2"
     key = os.environ.get("OPENROUTER_API_KEY")
     assert key, (
         "no OPENROUTER_API_KEY in the environment: the Modal secret `openrouter` must be mounted "
@@ -538,95 +609,130 @@ def run(cfg, args):
     )
 
     arm_names = list(binfo["arms"])
+    if args.get("arms"):
+        arm_names = [a for a in args["arms"].split(",") if a]
     print(
-        f"[run] {len(feats)} features x {len(arm_names)} arms x {scorers} | model {model} | "
-        f"cap ${max_cost:.2f} | build {build_dir}",
+        f"[run] {len(feats)} features x {len(arm_names)} explainer arms (+ {floor_arm}, "
+        f"{draw2_arm}) x {scorers} | model {model} | cap ${max_cost:.2f} | build {build_dir}",
         flush=True,
     )
     if args.get("dry_run"):
-        meta, arms, tests = _feature_rows(build_dir, feats[0])
-        sample = {
-            "explain": cl.body_for(
-                DELPHI_EXPLAINER_SYSTEM, arms[arm_names[0]]["block"],
-                int(ac["explainer_max_tokens"]), DELPHI_EXPLAINER_FEWSHOT,
-            ),
+        _meta, arms, tests, _t2 = _feature_rows(build_dir, feats[0])
+        print(json.dumps({
+            "explain": cl.body_for(DELPHI_EXPLAINER_SYSTEM, arms[arm_names[0]]["block"],
+                                   int(ac["explainer_max_tokens"]), DELPHI_EXPLAINER_FEWSHOT),
             "detection": cl.body_for(
                 DELPHI_DETECTION_SYSTEM,
                 delphi_scorer_prompt("<explanation>", [t["text"] for t in tests[:batch]]),
-                int(ac["scorer_max_tokens"]), DELPHI_DETECTION_FEWSHOT,
-            ),
-        }
-        print(json.dumps(sample)[:4000], flush=True)
+                int(ac["scorer_max_tokens"]), DELPHI_DETECTION_FEWSHOT),
+        })[:4000], flush=True)
         return {"dry_run": True, "features": len(feats), "arms": arm_names}
 
-    expl_rows: list[dict] = []
-    batch_rows: dict[str, list[dict]] = {s: [] for s in scorers}
-    per_feature: dict[str, list[dict]] = {s: [] for s in scorers}
-    scores: list[dict] = []
-    stopped_at = None
-    projection = None
-    done = 0
+    temp_check = check_temperature(cl, cache)
 
+    # ---- PHASE 1: explain every feature x every explainer arm -------------------------------
+    # All of it before any scoring, because the floor arm needs ANOTHER feature's description and
+    # feature-by-feature ordering cannot supply one that has not been written yet.
+    expl_rows: list[dict] = []
+    expl: dict[tuple[int, str], str] = {}
+    n_trunc = 0
+    jobs = []
     for feat in feats:
-        meta, arms, tests = _feature_rows(build_dir, feat)
-        gate = float(meta["gate"])
-        # ---- explainer ------------------------------------------------------------------
-        jobs = [
-            {
+        _meta, arms, _t1, _t2 = _feature_rows(build_dir, feat)
+        for a in arm_names:
+            if a not in arms:
+                continue
+            jobs.append({
                 "key": f"explain|{feat}|{a}",
                 "system": DELPHI_EXPLAINER_SYSTEM,
                 "fewshot": DELPHI_EXPLAINER_FEWSHOT,
                 "user": arms[a]["block"],
                 "max_tokens": int(ac["explainer_max_tokens"]),
-            }
-            for a in arm_names
-            if a in arms
-        ]
-        got, stop = _submit(cl, cache, jobs, f"explain f{feat}", max_cost, concurrency)
-        expl: dict[str, str] = {}
-        for a in arm_names:
-            rec = got.get(f"explain|{feat}|{a}")
-            text = rec["text"] if rec else ""
-            e = parse_delphi_explanation(text)
-            expl[a] = e
-            expl_rows.append(
-                {
-                    "feature": feat,
-                    "arm": a,
-                    "n_examples": arms[a]["n"] if a in arms else 0,
-                    "explanation": e,
-                    "ok": bool(e),
-                    "raw_len": len(text),
-                    "usage": (rec or {}).get("usage", {}),
-                }
-            )
-        if stop:
-            stopped_at = f"cost cap during explain on feature {feat}"
-            break
+                "feat": feat,
+                "arm": a,
+                "n": arms[a]["n"],
+            })
+    got, stopped = _submit(cl, cache, jobs, "explain", max_cost, concurrency)
+    # A10: an explainer answer cut off at max_tokens is an ERROR, not a shorter explanation. Retry
+    # ONCE at double the budget under its own job key, then raise.
+    retry = []
+    for j in jobs:
+        rec = got.get(j["key"])
+        if rec and (rec.get("usage") or {}).get("finish_reason") == "length":
+            n_trunc += 1
+            retry.append({**j, "key": j["key"] + "|retry", "max_tokens": 2 * j["max_tokens"]})
+    if retry:
+        print(f"[run] A10: {len(retry)} explainer answers hit max_tokens; retrying at "
+              f"{2 * int(ac['explainer_max_tokens'])}", flush=True)
+        got2, _ = _submit(cl, cache, retry, "explain-retry", max_cost, concurrency)
+        still = []
+        for j in retry:
+            rec = got2.get(j["key"])
+            if rec is None or (rec.get("usage") or {}).get("finish_reason") == "length":
+                still.append(j["key"])
+            else:
+                got[j["key"].removesuffix("|retry")] = rec
+        assert not still, (
+            f"A10: {len(still)} explainer answers were STILL truncated at "
+            f"{2 * int(ac['explainer_max_tokens'])} tokens ({still[:3]}). A truncated explanation "
+            f"is not a shorter explanation -- raise autointerp.explainer_max_tokens and re-run."
+        )
+    for j in jobs:
+        rec = got.get(j["key"])
+        text = rec["text"] if rec else ""
+        e = parse_delphi_explanation(text)
+        expl[(j["feat"], j["arm"])] = e
+        expl_rows.append({
+            "feature": j["feat"], "arm": j["arm"], "n_examples": j["n"], "explanation": e,
+            "ok": bool(e), "raw_len": len(text), "usage": (rec or {}).get("usage", {}),
+        })
+    explain_cost = cl.snapshot()["cost"]
+    n_empty = sum(1 for r in expl_rows if not r["ok"])
+    print(f"[run] explained {len(expl_rows)} (feature, arm) pairs, {n_empty} empty, "
+          f"{n_trunc} truncated-and-retried, ${explain_cost:.4f}", flush=True)
 
-        # ---- scorers --------------------------------------------------------------------
-        groups = [list(range(i, min(i + batch, len(tests)))) for i in range(0, len(tests), batch)]
+    perm = derangement(feats, int(ac["shuffle_seed"]))
+
+    # ---- PHASE 2: score, feature by feature so the projection gate can stop the run ----------
+    batch_rows: dict[str, list[dict]] = {s: [] for s in scorers}
+    scores: list[dict] = []
+    stopped_at = "cost cap during explain" if stopped else None
+    projection = None
+    done = 0
+    for feat in feats:
+        if stopped_at:
+            break
+        _meta, arms, t1, t2 = _feature_rows(build_dir, feat)
+        gate = float(_meta["gate"])
+        # (arm label, explanation, items). The two scorer-only pseudo-arms are here and nowhere
+        # else: neither has an explainer call of its own.
+        plan = [(a, expl.get((feat, a), ""), t1) for a in arm_names if a in arms]
+        plan.append((floor_arm, expl.get((perm[feat], floor_src), ""), t1))
+        if t2 and (feat, "C16") in expl:
+            plan.append((draw2_arm, expl.get((feat, "C16"), ""), t2))
         for scorer in scorers:
             field = "text" if scorer == "detection" else "text_fuzz"
             system = DELPHI_DETECTION_SYSTEM if scorer == "detection" else DELPHI_FUZZ_SYSTEM
             fewshot = DELPHI_DETECTION_FEWSHOT if scorer == "detection" else None
             jobs = []
-            for a in arm_names:
-                if not expl[a]:
+            for a, e, items in plan:
+                if not e:
                     continue
+                groups = [list(range(i, min(i + batch, len(items))))
+                          for i in range(0, len(items), batch)]
                 for bi, g in enumerate(groups):
-                    jobs.append(
-                        {
-                            "key": f"{scorer}|{feat}|{a}|{bi}",
-                            "system": system,
-                            "fewshot": fewshot,
-                            "user": delphi_scorer_prompt(expl[a], [tests[i][field] for i in g]),
-                            "max_tokens": int(ac["scorer_max_tokens"]),
-                        }
-                    )
+                    jobs.append({
+                        "key": f"{scorer}|{feat}|{a}|{bi}",
+                        "system": system,
+                        "fewshot": fewshot,
+                        "user": delphi_scorer_prompt(e, [items[i][field] for i in g]),
+                        "max_tokens": int(ac["scorer_max_tokens"]),
+                    })
             got, stop = _submit(cl, cache, jobs, f"{scorer} f{feat}", max_cost, concurrency)
-            for a in arm_names:
-                labels, preds, gated = [], [], []
+            for a, e, items in plan:
+                groups = [list(range(i, min(i + batch, len(items))))
+                          for i in range(0, len(items), batch)]
+                labels, preds, srcs = [], [], []
                 n_batches = n_parsed = 0
                 for bi, g in enumerate(groups):
                     rec = got.get(f"{scorer}|{feat}|{a}|{bi}")
@@ -634,69 +740,48 @@ def run(cfg, args):
                         continue
                     n_batches += 1
                     vals = parse_delphi_scores(rec["text"], len(g))
-                    batch_rows[scorer].append(
-                        {
-                            "feature": feat,
-                            "arm": a,
-                            "batch": bi,
-                            "items": [tests[i]["i"] for i in g],
-                            "labels": [tests[i]["label"] for i in g],
-                            "preds": vals,
-                            "parsed": vals is not None,
-                            "usage": rec.get("usage", {}),
-                        }
-                    )
+                    batch_rows[scorer].append({
+                        "feature": feat, "arm": a, "batch": bi,
+                        "items": [items[i]["i"] for i in g],
+                        "labels": [items[i]["label"] for i in g],
+                        "preds": vals, "parsed": vals is not None,
+                        "usage": rec.get("usage", {}),
+                    })
                     if vals is None:
                         continue  # unparsed batches are DROPPED, never imputed
                     n_parsed += 1
-                    labels += [tests[i]["label"] for i in g]
+                    labels += [items[i]["label"] for i in g]
                     preds += vals
-                    # A test positive is "gated" when the feature actually FIRES in that window by
-                    # the SAE's own gate. It matters: the stored bands are equal-width bins of
-                    # (0, max_act], so for a heavy-tailed feature q0 holds windows activating at
-                    # 0.4% of peak -- text with no relation to the feature, labelled positive only
-                    # because a PRE-GATE ReLU is non-zero there. MEASURED 2026-09-16 on feature
-                    # 845: 17 of 20 positives are below the gate and the judge calls 3 of those 17
-                    # positive, pinning every arm near 0.6 whatever its description says. So the
-                    # design's metric is reported as the headline AND the gate-restricted one
-                    # beside it, from the SAME answers at no extra cost.
-                    gated += [
-                        (tests[i]["label"] == 0) or (float(tests[i]["max_act"]) > gate)
-                        for i in g
-                    ]
+                    srcs += [items[i]["src"] for i in g]
                 acc, tpr, tnr = rates(labels, preds)
-                gl = [x for x, k in zip(labels, gated, strict=True) if k]
-                gp = [x for x, k in zip(preds, gated, strict=True) if k]
-                gacc, gtpr, gtnr = rates(gl, gp)
+                # Amendment A5: the negative side is half zero-activation randoms and half
+                # near-miss windows, and they are NOT the same test. Reported separately, from the
+                # same answers, so a result that lives entirely on one half cannot hide.
+                zi = [i for i, sr in enumerate(srcs) if not str(sr).startswith("nearmiss")]
+                ni = [i for i, sr in enumerate(srcs) if str(sr).startswith("nearmiss")
+                      or labels[i] == 1]
+                z_acc, _z_tpr, z_tnr = rates([labels[i] for i in zi], [preds[i] for i in zi])
+                n_acc, _n_tpr, n_tnr = rates([labels[i] for i in ni], [preds[i] for i in ni])
                 row = {
-                    "feature": feat,
-                    "arm": a,
-                    "scorer": scorer,
-                    "bal_acc": _nr(acc),
-                    "tpr": _nr(tpr),
-                    "tnr": _nr(tnr),
-                    "bal_acc_gated": _nr(gacc),
-                    "tpr_gated": _nr(gtpr),
-                    "n_pos_gated": int(sum(1 for x, k in zip(labels, gated, strict=True) if k and x == 1)),
+                    "feature": feat, "arm": a, "scorer": scorer,
+                    "bal_acc": _nr(acc), "tpr": _nr(tpr), "tnr": _nr(tnr),
+                    "bal_acc_zero_neg": _nr(z_acc), "tnr_zero": _nr(z_tnr),
+                    "bal_acc_nearmiss_neg": _nr(n_acc), "tnr_nearmiss": _nr(n_tnr),
                     "acc": _nr(float(np.mean(np.asarray(labels) == np.asarray(preds))))
-                    if labels
-                    else None,
-                    "n_items": len(labels),
-                    "n_batches": n_batches,
-                    "n_parsed": n_parsed,
+                    if labels else None,
+                    "n_items": len(labels), "n_batches": n_batches, "n_parsed": n_parsed,
                     "n_pos": int(sum(labels)),
-                    # The arm's ACTUAL example count, which is not always its nominal one: 38 of
-                    # the pilot's 64 features have fewer than 16 corpus windows inside the 4M
-                    # prefix, so `C4` and its mixes are example-starved on most features and the
-                    # analysis must be able to condition on that rather than assume N = 16.
+                    "n_neg_nearmiss": int(sum(1 for sr in srcs if str(sr).startswith("nearmiss"))),
+                    "draw": 2 if a == draw2_arm else 1,
                     "n_examples": arms[a]["n"] if a in arms else 0,
-                    "explanation_ok": bool(expl[a]),
+                    "explanation_ok": bool(e),
+                    "explanation_of": perm[feat] if a == floor_arm else feat,
+                    "gate": gate,
                     "stratum": fmeta[feat]["stratum"],
                     "fire_fraction": fmeta[feat]["fire_fraction"],
                     "corpus_peak": fmeta[feat]["corpus_peak"],
                     "density": fmeta[feat]["density"],
                 }
-                per_feature[scorer].append(row)
                 scores.append(row)
             if stop:
                 stopped_at = f"cost cap during {scorer} on feature {feat}"
@@ -705,59 +790,64 @@ def run(cfg, args):
         if stopped_at:
             break
         if done == probe_n and len(feats) > probe_n:
-            s = cl.snapshot()
-            projection = s["cost"] / done * len(feats)
+            score_cost = cl.snapshot()["cost"] - explain_cost
+            projection = explain_cost + score_cost / done * len(feats)
             print(
-                f"[run] PROJECTION from {done} features: ${s['cost']:.4f} so far -> "
-                f"${projection:.2f} for {len(feats)} (cap ${max_cost:.2f})",
+                f"[run] PROJECTION from {done} scored features: explain ${explain_cost:.4f} + "
+                f"scoring ${score_cost:.4f} so far -> ${projection:.2f} for {len(feats)} "
+                f"(cap ${max_cost:.2f})",
                 flush=True,
             )
             if projection > max_cost:
                 stopped_at = (
-                    f"projected ${projection:.2f} from the first {done} features exceeds the "
-                    f"${max_cost:.2f} cap"
+                    f"projected ${projection:.2f} from the first {done} scored features exceeds "
+                    f"the ${max_cost:.2f} cap"
                 )
                 break
 
     # ---- products ---------------------------------------------------------------------------
     s = cl.snapshot()
-    cached_usage = {"in": 0, "out": 0, "cost": 0.0, "calls": 0}
+    cum = {"in": 0, "out": 0, "cost": 0.0, "calls": 0}
     by_arm: dict[str, dict] = {}
-    for rows in (expl_rows, *[batch_rows[x] for x in scorers]):
+    by_stage: dict[str, dict] = {}
+    for rows, stage in [(expl_rows, "explain")] + [(batch_rows[x], x) for x in scorers]:
         for r in rows:
             u = r.get("usage") or {}
-            a = by_arm.setdefault(r["arm"], {"in": 0, "out": 0, "cost": 0.0, "calls": 0})
-            for k2 in ("in", "out", "cost"):
-                a[k2] += u.get(k2, 0)
-                cached_usage[k2] += u.get(k2, 0)
-            a["calls"] += 1
-            cached_usage["calls"] += 1
+            for d in (by_arm.setdefault(r["arm"], {"in": 0, "out": 0, "cost": 0.0, "calls": 0}),
+                      by_stage.setdefault(stage, {"in": 0, "out": 0, "cost": 0.0, "calls": 0}),
+                      cum):
+                for k2 in ("in", "out", "cost"):
+                    d[k2] += u.get(k2, 0)
+                d["calls"] += 1
+    rnd = lambda d: {k: (round(v, 6) if isinstance(v, float) else v) for k, v in d.items()}  # noqa: E731
     costs = {
         "model": model,
         "temperature": float(ac["temperature"]),
+        "temperature_check": temp_check,
         "this_call": s,
-        "cumulative_over_cache": {k: round(v, 6) if isinstance(v, float) else v
-                                  for k, v in cached_usage.items()},
-        "per_arm": {a: {k: round(v, 6) if isinstance(v, float) else v for k, v in d.items()}
-                    for a, d in sorted(by_arm.items())},
+        "cumulative_over_cache": rnd(cum),
+        "per_arm": {a: rnd(d) for a, d in sorted(by_arm.items())},
+        "per_stage": {a: rnd(d) for a, d in sorted(by_stage.items())},
+        "explainer_truncated_and_retried": n_trunc,
         "cache_hits": cache.hits,
         "cache_misses": cache.misses,
         "features_done": done,
         "features_total": len(feats),
+        "max_cost_usd": max_cost,
         "projection_usd": None if projection is None else round(projection, 2),
         "stopped_at": stopped_at,
     }
-    print(f"[run] costs {json.dumps(costs['this_call'])} | cumulative "
-          f"${cached_usage['cost']:.4f} over {cached_usage['calls']} calls", flush=True)
+    print(f"[run] costs {json.dumps(costs['this_call'])} | cumulative ${cum['cost']:.4f} over "
+          f"{cum['calls']} calls", flush=True)
 
     common_inputs = {
         "build": build_dir,
         "features": f"{done} of {len(feats)}",
-        "arms": ",".join(arm_names),
+        "arms": ",".join([*arm_names, floor_arm, draw2_arm]),
         "model": model,
         "delphi_commit": DELPHI_COMMIT,
     }
-    # These four directories are a PURE FUNCTION of cache/, so a resumed run rewrites them and
+    # These directories are a PURE FUNCTION of cache/, so a resumed run rewrites them and
     # force=True is not destroying a measurement -- the measurement is the cache.
     def out(name, status="ok"):
         return C.outdir(f"{run_root}/{name}", {**args, "force": True},
@@ -771,20 +861,27 @@ def run(cfg, args):
             f"Delphi explainer, verbatim system prompt + the one few-shot user/assistant pair, "
             f"temperature {float(ac['temperature'])}, max_tokens {int(ac['explainer_max_tokens'])}. "
             f"The answer is the text after the LAST `[EXPLANATION]:`; a response without the tag "
-            f"falls back to the whole body. {sum(1 for r in expl_rows if not r['ok'])} of "
-            f"{len(expl_rows)} explanations came back empty."
+            f"falls back to the whole body. {n_empty} of {len(expl_rows)} came back empty. "
+            f"AMENDMENT A10: {n_trunc} answers hit max_tokens and were retried ONCE at double the "
+            f"budget; a still-truncated answer raises rather than being kept as a short one."
+        )
+        od.note(
+            f"the floor arm `{floor_arm}` (A6) and `{draw2_arm}` (A7) have NO explainer call of "
+            f"their own: the first reuses a different feature's `{floor_src}` description under a "
+            f"fixed derangement, the second reuses this feature's C16 description on the second, "
+            f"disjoint test draw."
         )
     for scorer in scorers:
         rows = batch_rows[scorer]
         n_bad = sum(1 for r in rows if not r["parsed"])
         with out(scorer, status) as od:
             od.write_jsonl("batches.jsonl", rows)
-            od.write_jsonl("per_feature.jsonl", per_feature[scorer])
+            od.write_jsonl("per_feature.jsonl", [r for r in scores if r["scorer"] == scorer])
             od.write_json("costs.json", costs)
             od.note(
                 f"Delphi {scorer} scorer, {batch} items per prompt, binary answers, "
                 f"max_tokens {int(ac['scorer_max_tokens'])}. The parser takes the LAST bracketed "
-                f"group of exactly {batch} values; a wrong-length or unreadable answer DROPS the "
+                f"group of exactly the batch length; a wrong-length or unreadable answer DROPS the "
                 f"batch rather than padding it. {n_bad} of {len(rows)} batches "
                 f"({n_bad / max(1, len(rows)):.2%}) were unparsed and dropped."
             )
@@ -795,35 +892,51 @@ def run(cfg, args):
                 "comparable ACROSS ARMS but not to each other."
             )
             od.note(
-                "metric per (feature, arm): balanced accuracy = mean(TPR, TNR) over the items in "
-                "PARSED batches only; `acc` is plain accuracy on the same items."
+                "metric per (feature, arm): balanced accuracy = mean(TPR, TNR) over the items of "
+                "PARSED batches only. `bal_acc_zero_neg` and `bal_acc_nearmiss_neg` are the same "
+                "answers with the negative side restricted to each half of the A5 mix, so a "
+                "result that lives entirely on one half cannot hide in the pooled number."
             )
     with out("summary", status) as od:
         od.write_jsonl("scores.jsonl", scores)
         od.write_json("costs.json", costs)
         od.write_json("features.json", {"features": [fmeta[f] for f in feats[:done]]})
         od.write_json("build.json", binfo)
+        od.write_json("floor_permutation.json",
+                      {"floor_arm": floor_arm, "source_arm": floor_src,
+                       "seed": int(ac["shuffle_seed"]),
+                       "map": {str(k): v for k, v in perm.items()}})
         od.note(
-            f"scores.jsonl is one row per (feature, arm, scorer) with bal_acc, the item counts, "
-            f"and the feature covariates (stratum, density, corpus peak, fire fraction). "
-            f"{len(scores)} rows over {done} features."
+            f"scores.jsonl is one row per (feature, arm, scorer): bal_acc, its two negative-half "
+            f"restrictions, tpr/tnr, item counts, the arm's ACTUAL example count, which test draw "
+            f"it used, whose description it used, and the feature covariates. {len(scores)} rows "
+            f"over {done} features."
+        )
+        od.note(
+            f"`{floor_arm}` is the floor: each feature's test set scored with ANOTHER feature's "
+            f"`{floor_src}` description under a fixed derangement (no fixed point). "
+            f"`{draw2_arm}` is the null: C16's own description on the second, disjoint test draw, "
+            f"so the per-feature C16 - C16-draw2 difference is the test-set sampling noise every "
+            f"contrast is exposed to."
         )
         if stopped_at:
             od.note(f"STOPPED EARLY: {stopped_at}")
         od.note(
             f"cost, from each response's own usage.cost: this call ${s['cost']:.4f} over "
             f"{s['calls']} calls ({s['fails']} failures); cumulative over the cache "
-            f"${cached_usage['cost']:.4f} over {cached_usage['calls']} calls. Per arm in costs.json."
+            f"${cum['cost']:.4f} over {cum['calls']} calls. Per arm and per stage in costs.json."
         )
 
     return {
         "out": run_root,
         "features_done": done,
         "features_total": len(feats),
-        "arms": arm_names,
+        "arms": [*arm_names, floor_arm, draw2_arm],
         "scorers": scorers,
+        "explainer_truncated": n_trunc,
+        "explanations_empty": n_empty,
         "cost_this_call": round(s["cost"], 4),
-        "cost_cumulative": round(cached_usage["cost"], 4),
+        "cost_cumulative": round(cum["cost"], 4),
         "calls_this_call": s["calls"],
         "cache_hits": cache.hits,
         "projection_usd": costs["projection_usd"],
