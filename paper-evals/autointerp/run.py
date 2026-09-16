@@ -285,6 +285,9 @@ BATCH_DISCOUNT = 0.5
 # any is polled, so the chunks queue in parallel and the stage costs one queue wait rather than k.
 BATCH_MAX_REQUESTS = 8000
 BATCH_POLL_S = 20.0
+# Output tokens a call of each kind actually writes, MEASURED 2026-09-16 over 576 explainer and
+# ~11,800 scorer calls. Used ONLY by `Claude.project`, which says so in its `note`.
+EXPECTED_OUT = {"explain": 300, "score": 24}
 
 
 def _cost(usage: dict, model: str, batch: bool) -> float:
@@ -512,12 +515,13 @@ class Claude:
             )
             tot_in += int(ct.input_tokens)
         mean_in = tot_in / len(picked)
-        # MEASURED on the OpenRouter pilot: the explainer writes ~100 tokens of its 300-token
-        # budget and a scorer ~20 of its 600, i.e. 0.33 and 0.033 of max_tokens. 0.35 is used for
-        # the explainer and 0.05 for a scorer, both deliberately generous.
-        mean_max = sum(j["max_tokens"] for j in picked) / len(picked)
-        frac = 0.35 if mean_max <= 400 else 0.05
-        mean_out = mean_max * frac
+        # The output side is the only estimated quantity here. It keys off the job's declared
+        # KIND, not off `max_tokens`: MEASURED 2026-09-16, keying off `max_tokens <= 400` broke
+        # silently the moment `explainer_max_tokens` went 300 -> 600 under A10, because that pushed
+        # the explainer into the scorer's branch and assumed 30 output tokens where it writes ~290.
+        # The explain stage then projected $3.38 against an actual $4.87. Per-call medians from
+        # that same run: explainer 290 output tokens, scorer 20.
+        mean_out = sum(EXPECTED_OUT.get(j.get("kind", "score"), 24) for j in picked) / len(picked)
         per = _cost({"in": mean_in, "out": mean_out}, self.model, batch)
         return {
             "jobs": len(jobs), "sampled": len(picked),
@@ -903,6 +907,7 @@ def run(cfg, args):
                 continue
             jobs.append({
                 "key": f"explain|{feat}|{a}", "arm": a, "feat": feat, "n": arms[a]["n"],
+                "kind": "explain",
                 "system": DELPHI_EXPLAINER_SYSTEM, "fewshot": DELPHI_EXPLAINER_FEWSHOT,
                 "user": arms[a]["block"], "max_tokens": int(ac["explainer_max_tokens"]),
             })
@@ -992,6 +997,7 @@ def run(cfg, args):
                 for bi, g in enumerate(groups_of(items)):
                     jobs.append({
                         "key": f"{scorer}|{feat}|{a}|{bi}", "arm": a, "feat": feat,
+                        "kind": "score",
                         "system": system, "fewshot": fewshot,
                         "user": delphi_scorer_prompt(e, [items[i][field] for i in g]),
                         "max_tokens": int(ac["scorer_max_tokens"]),
