@@ -52,6 +52,12 @@ shape. Sources are sections of `paper-evals/SMOKES.md` unless marked README.
 | `gcg` arms, full root, 32 dirs each (realact + sae x corpus/random32), per arm | 8B | H100 | 0.724-0.773 | 2,457.6k candidate forwards (32 x 76,800; 2,380.8k on the 31-dir arm) | 2.95e-4 - 3.25e-4 per 1k cand; **0.0225-0.0250 per direction** | $2.86-3.05 | M | GCG final (full root) |
 | `gcg` arms, full root, 32 dirs each, per arm | 27B | H200 | 2.291-2.358 | 2,457.6k candidate forwards | 9.3e-4 - 9.6e-4 per 1k cand; **0.0717-0.0736 per direction** | $10.40-10.70 | M | GCG final (full root) |
 | row-17 batch-shape diagnostic, 3 reproductions (no product written) | 8B | H100 | ~0.091 | — | — | ~$0.36 | M (cost est.) | GCG final (full root), Spend |
+| `gcg` stratified `sae` arms (`gcg-corpus-strat`, `gcg-random32-strat`), 32 targets each (8 per density quartile), per arm | 8B | H100 | 0.747-0.766 | 2,457.6k candidate forwards (32 x 76,800) | 3.0e-4 - 3.1e-4 per 1k cand; 0.0233-0.0239 per direction | $2.95 / $3.03 ($0.0922 / $0.0946 per dir; 84 / 86 s) | M | GCG stratified sae (full root) |
+| `gcg` stratified `sae` arms, 32 targets each (8 per density quartile), per arm | 27B | H200 | 2.273-2.367 | 2,457.6k candidate forwards | 9.3e-4 - 9.6e-4 per 1k cand; 0.0711-0.0739 per direction | $10.75 / $10.32 ($0.3358 / $0.3225 per dir; 266 / 256 s) | M | GCG stratified sae (full root) |
+| `epo` corpus-init arms at 32 targets (realact + sae), in flight, per base | 8B | H100 | ~4.5 | 64 directions | ~0.0708 per direction | ~$17.9 | **E** | in flight, reported by the GCG agent |
+| `epo` corpus-init arms at 32 targets (realact + sae), in flight, per base | 27B | H200 | ~15.6 | 64 directions | ~0.244 per direction | ~$71-72 | **E** | in flight, reported by the GCG agent |
+| `top1_act`, cosine top-1 corpus window per `sae` feature | 8B | H100 | 0.022 | 0.512k features (473 joined, 39 forwarded) | 4.25e-2 | $0.09 | M | `top1_act` |
+| `top1_act`, cosine top-1 corpus window per `sae` feature | 27B | H200 | 0.056 | 0.512k features (508 joined, 4 forwarded; all 512 forwarded as the check) | 1.09e-1 | $0.25 | M | `top1_act` |
 | `gcg` / `epo` arm at 64 dirs, SUPERSEDED by the measured 32-direction run (2026-09-16); kept for the cost-per-direction extrapolation only (per arm: 8B gcg / 8B epo / 27B gcg / 27B epo) | both | mixed | 1.43-1.57 / 4.45-4.63 / 4.61-5.08 / 14.58-15.92 | 4,915.2k / 4,896.0k candidate forwards | — | $5.63-6.19 / $17.57-18.29 / $20.93-23.06 / $66.19-72.28 | **E** | Sharpened projection |
 | vLLM `--throughput` probe, `run1-rl`, 32-512 rows | 8B | H100 | 0.040 | overhead | — | $0.16 | M | Full run 2026-09-16 |
 | vLLM `--throughput` probe, `rlI-150`, 32-512 rows | 27B | H200 | 0.133 | overhead | — | $0.61 | M | Full run 2026-09-16 |
@@ -65,14 +71,33 @@ shape. Sources are sections of `paper-evals/SMOKES.md` unless marked README.
 
 **Totals, measured rows only** (sunk and failed runs included, since they were paid):
 
-- **qwen3-8b (H100): 7.98 GPU-hours, $31.54** — 1.86 h / $7.33 of pipeline and probes; 3.07 h /
-  $12.11 of the 8 smoke-root GCG/EPO arms at 8 directions; 3.06 h / $12.10 of the 4 full-root
-  `gcg` arms at 32 directions plus the row-17 diagnostic.
-- **qwen36-27b (H200): 29.69 GPU-hours, $134.82** — 10.27 h / $46.63 of pipeline, probes,
-  Patchscopes and the $7.03 of sunk relaunch cost; 10.13 h / $46.00 of the 8 smoke-root arms;
-  9.29 h / $42.19 of the 4 full-root `gcg` arms at 32 directions.
-- Both bases: **37.68 GPU-hours, $166.36**, plus ~4 min of CPU. The 27B is 3.6x the 8B on the
-  identical full-root GCG work and 4.3x overall.
+- **qwen3-8b (H100): 9.52 GPU-hours, $37.61** — 1.86 h / $7.33 of pipeline and probes; 3.07 h /
+  $12.11 of the exploratory GCG/EPO pass at 8 directions; 3.06 h / $12.10 of the 4 full-root
+  `gcg` arms at 32 directions plus the row-17 diagnostic; 1.52 h / $5.98 of the 2 stratified
+  `sae` arms; 0.02 h / $0.09 of `top1_act`.
+- **qwen36-27b (H200): 34.39 GPU-hours, $156.15** — 10.27 h / $46.63 of pipeline, probes,
+  Patchscopes and the $7.03 of sunk relaunch cost; 10.13 h / $46.00 of the exploratory pass;
+  9.29 h / $42.19 of the 4 full-root `gcg` arms; 4.64 h / $21.07 of the 2 stratified `sae` arms;
+  0.06 h / $0.25 of `top1_act`.
+- Both bases: **43.91 GPU-hours, $193.76**, plus ~4 min of CPU. The 27B is 3.6x the 8B on the
+  identical full-root GCG work and 4.2x overall. The in-flight `epo` arms (~$90 over both bases)
+  are NOT in these totals.
+
+## Precision limit for per-direction claims on the 27B
+
+The 27B GCG search is not run-to-run reproducible. Rows 1024-1031 appear in both the q0 `sae` arms
+and the stratified arms, run independently from byte-identical inits and the same per-direction
+seeding, so they are a free determinism check: on the 27B the two runs returned identical final
+strings on **1 of 8** directions (`gcg-corpus`) and **0 of 8** (`gcg-random32`), with max
+|Δcos| **0.264** and the arm mean over those 8 rows moving **-0.036** and **+0.024** between runs.
+The 8B is bit-exact on the same check (**16/16**, max |Δcos| 0.00e+00). The inits agree to
+0.00e+00 (corpus) and 4.4e-04 (random32), so the divergence is in the search, and the only
+27B-specific path is fla's GatedDeltaNet Triton backward — a nondeterministic gradient changes the
+proposed candidates and the trajectories then separate for good. Most rows still agree closely; one
+row per arm diverges hard. The -0.036 is the same size as the 27B realact GCG-vs-MAEMM gap
+(-0.043), and the SE over targets does not capture it. **Convention, decided 2026-09-16:** 27B
+GCG/EPO arm means are quoted to 2 decimal places with the SE over targets, and no single 27B
+direction's GCG value is quoted. Source: SMOKES.md, "GCG stratified sae (full root, 2026-09-16)".
 
 ## Rates that matter
 
@@ -117,6 +142,13 @@ shape. Sources are sections of `paper-evals/SMOKES.md` unless marked README.
   $42.19** over 4 arms each. The 8B `realact/gcg-random32` arm covers 31 of 32 directions:
   row 17 tripped the end-of-direction check on a 1e-2 batch-shape discrepancy (M=1 GEMV vs
   batched GEMM in bf16) and was excluded rather than absorbed.
+- The four stratified `sae` `gcg` arms (`*-strat`) take 8 rows from each of the four density
+  quartiles, against the final arms' rows 0-31, which are all q0. They are the sae-family view of
+  the same search, not an independent pass; stage total **$27.05** (SMOKES's own Spend line;
+  32 x $/dir over the four arms rounds to $27.04). The final arms are therefore the RARE-stratum view.
+- The two `epo` corpus-init rows at 32 targets are arms in flight at the time of writing, marked E
+  from the running agent's projection (27B ~880 s/dir, ~$1.11/dir; 8B ~$0.28/dir) and excluded
+  from the totals. Replace with measured figures when they land.
 - The ~$0.03 failed-launch line (`--root <scratch>` relocates inputs too) appears in both GCG
   spend tables; it is counted once here, in the shakeouts row.
 - The 64-direction row stays a projection (E) and is SUPERSEDED as a description of what was run:

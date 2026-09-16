@@ -714,65 +714,99 @@ def table_e(out: Out, vol: Vol, found: dict) -> None:
     )
 
 
+def _gcg_row(base, fam, arm, view, slice_, dirs, per_dir, sides, set_name):
+    """One emitted row of table (f): the arm's numbers over `dirs`, plus each MAEMM on those rows."""
+    cos = np.array([per_dir[r]["cos"] for r in dirs])
+    init = np.array([per_dir[r]["init_cos"] for r in dirs])
+    nll = np.array([per_dir[r]["nll"] for r in dirs if per_dir[r].get("nll") is not None])
+    rec = {
+        "base": base,
+        "family": fam,
+        "view": view,
+        "arm": arm,
+        "slice": slice_,
+        "dirs": len(dirs),
+        "rows": f"{min(dirs)}-{max(dirs)}",
+        "GCG cos": pm(float(cos.mean()), se(cos)),
+        "init cos": pm(float(init.mean()), se(init)),
+        "nll": round(float(nll.mean()), 3) if len(nll) else "",
+    }
+    want = set(dirs)
+    for s_ in sides:
+        if s_.base != base or s_.set != set_name:
+            continue
+        pos = np.array([i for i, r in enumerate(s_.rows) if r in want])
+        if not len(pos):
+            continue
+        paired = np.array([per_dir[s_.rows[i]]["cos"] for i in pos])
+        bo = bo_unbiased(s_.best[pos], s_.n)
+        d = paired - bo
+        rec[f"{s_.short} bo{s_.n}"] = round(float(bo.mean()), 4)
+        rec[f"{s_.short} mean{s_.n}"] = round(float(s_.best[pos].mean(1).mean()), 4)
+        rec[f"GCG - {s_.short} bo{s_.n}"] = pm(float(d.mean()), se(d))
+        rec[f"GCG wins vs {s_.short}"] = round(float((paired >= bo).mean()), 3)
+    return rec
+
+
 def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
     """(f) GCG / EPO -- the reachability ceiling -- PAIRED against each MAEMM on the same directions.
 
     Layout is `<root>/base/<base>/gcg/<set>/<family>/<arm>/finals.jsonl`; a realact direction and an
     sae direction are different objects and never share an arm directory. With the final draw the
-    GCG rows and the MAEMM rows index the SAME held-out set, so the comparison is per direction, not
-    distributional -- which is what lets this table carry a paired difference and a win fraction
-    rather than two means side by side.
+    GCG rows and the MAEMM rows index the SAME held-out set, so every comparison here is per
+    direction -- which is what lets the table carry a paired difference and a win fraction rather
+    than two means side by side.
 
-    A direction missing from `finals.jsonl` (8B realact gcg-random32 excludes row 17) is simply
-    absent from the join: `per_dir` is built from the finals, and the MAEMM columns are computed on
-    `per_dir`'s rows, so the pairing stays exact and the `dirs` column says how many survived.
+    TWO SAE VIEWS, because the sae arms were run twice on different draws and they answer different
+    questions (2026-09-16):
+
+      * `*-strat` arms are the REPORTED sae rows: 8 targets from each of the four density quartiles
+        (32 in all), so the arm's "all" row is a stratified estimate of the whole sae family and the
+        per-quartile rows are where the interesting variation is.
+      * the earlier plain sae arms took the first 32 sae rows, which are ALL q0 -- the rarest
+        quartile. They are kept as a "rare-stratum (q0) view", not as a competing estimate of the
+        family, because averaging them would silently report the rarest quartile as the whole.
+
+    A direction missing from `finals.jsonl` (8B realact gcg-random32 excludes row 17) is absent from
+    the join by construction, and `dirs` says how many survived. The per-direction best member is
+    taken from the finals; where `summary.json` also carries `per_dir_best_cos` the two agree
+    exactly (MEASURED 2026-09-16 on the 27B stratified arms: max |difference| = 0.0).
     """
     rows = []
     for base, info in sorted(found["bases"].items()):
         for set_name, arms in sorted(info["gcg"].items()):
+            ids = ids_of.get((base, set_name), {})
             for arm in arms:
                 fin = vol.jsonl(f"base/{base}/gcg/{set_name}/{arm}/finals.jsonl")
                 if not fin:
                     continue
+                name = arm.split("/")[-1]
+                strat = name.endswith("-strat")
                 by_fam: dict[str, list[dict]] = {}
                 for r in fin:
                     by_fam.setdefault(r["family"], []).append(r)
                 for fam, recs in sorted(by_fam.items()):
-                    # one entry per direction: the best member (EPO holds several lambdas; GCG one)
                     per_dir: dict[int, dict] = {}
                     for r in recs:
                         cur = per_dir.get(int(r["row"]))
                         if cur is None or r["cos"] > cur["cos"]:
                             per_dir[int(r["row"])] = r
                     dirs = sorted(per_dir)
-                    cos = np.array([per_dir[r]["cos"] for r in dirs])
-                    init = np.array([per_dir[r]["init_cos"] for r in dirs])
-                    nll = np.array([per_dir[r]["nll"] for r in dirs if per_dir[r].get("nll") is not None])
-                    rec = {
-                        "base": base,
-                        "family": fam,
-                        "arm": arm.split("/")[-1],
-                        "dirs": len(dirs),
-                        "rows": f"{min(dirs)}-{max(dirs)}",
-                        "GCG cos": pm(float(cos.mean()), se(cos)),
-                        "init cos": pm(float(init.mean()), se(init)),
-                        "nll": round(float(nll.mean()), 3) if len(nll) else "",
-                    }
-                    for s_ in sides:
-                        if s_.base != base or s_.set != set_name:
-                            continue
-                        pos = np.array([i for i, r in enumerate(s_.rows) if r in per_dir])
-                        if not len(pos):
-                            continue
-                        paired = np.array([per_dir[s_.rows[i]]["cos"] for i in pos])
-                        bo = bo_unbiased(s_.best[pos], s_.n)
-                        mean64 = s_.best[pos].mean(1)
-                        d = paired - bo
-                        rec[f"{s_.short} bo{s_.n}"] = round(float(bo.mean()), 4)
-                        rec[f"{s_.short} mean{s_.n}"] = round(float(mean64.mean()), 4)
-                        rec[f"GCG - {s_.short} bo{s_.n}"] = pm(float(d.mean()), se(d))
-                        rec[f"GCG wins vs {s_.short}"] = round(float((paired >= bo).mean()), 3)
-                    rows.append(rec)
+                    if fam != "sae":
+                        view = ""
+                    else:
+                        view = "reported (stratified)" if strat else "rare-stratum q0 view"
+                    rows.append(_gcg_row(base, fam, name, view, "all", dirs, per_dir, sides, set_name))
+                    if fam == "sae" and strat:
+                        qs = sorted({ids.get(r, {}).get("stratum") for r in dirs} - {None})
+                        for q in qs:
+                            sub = [r for r in dirs if ids.get(r, {}).get("stratum") == q]
+                            if sub:
+                                rows.append(
+                                    _gcg_row(
+                                        base, fam, name, view, f"density q{q}", sub, per_dir, sides, set_name
+                                    )
+                                )
     if not rows:
         return out.skip("f", "no gcg arms with finals.jsonl on this root")
     df = pl.DataFrame(rows, infer_schema_length=None)
@@ -783,14 +817,18 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
         caption(
             sides,
             corpus,
-            "per (base, family, arm): the per-direction best member's final cosine, its init cosine "
-            "and its NLL, ± SE across directions; MAEMM columns are the unbiased best-of-n and the "
-            "mean-of-n on EXACTLY the same directions, with the paired difference and the fraction "
-            "of directions GCG wins. MAEMM columns are ordered primary first. CAVEAT, stated once: "
-            "the two are not compute-matched and not the same object -- GCG optimises ONE fixed "
-            "T=32 token string with ~77k candidate forwards against the scorer itself, while the "
-            "MAEMM draws n sampled rollouts from a prompt and never sees the metric. GCG is a "
-            "ceiling on what the metric is reachable to, not a baseline the inverter competes with",
+            "per (base, family, arm, slice): the per-direction best member's final cosine, its init "
+            "cosine and its NLL, ± SE across TARGETS; MAEMM columns are the unbiased best-of-n and "
+            "the mean-of-n on EXACTLY those directions, with the paired difference ± SE and the "
+            "fraction of directions GCG wins, ordered primary first. The sae family has TWO views: "
+            "`*-strat` arms (8 targets per density quartile, 32 total) are the REPORTED rows and "
+            "carry the per-quartile breakdown, while the earlier plain sae arms are the first 32 "
+            "sae rows -- all q0 -- and are kept as a rare-stratum view, never averaged in as the "
+            "family. CAVEAT, stated once: the two sides are not compute-matched and not the same "
+            "object -- GCG optimises ONE fixed T=32 token string with ~77k candidate forwards "
+            "against the scorer itself, while the MAEMM draws n sampled rollouts from a prompt and "
+            "never sees the metric. GCG bounds what the metric is reachable to; it is not a "
+            "baseline the inverter competes with",
         ),
         df,
     )
