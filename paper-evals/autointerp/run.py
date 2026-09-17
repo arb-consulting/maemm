@@ -942,7 +942,12 @@ def run(cfg, args):
 
     run_name = args.get("run_dir") or f"{time.strftime('%Y-%m-%d')}_autointerp-{base.split('-')[-1]}"
     run_root = f"{root}/runs/{run_name}"
-    cache = Cache(f"{run_root}/cache", on_commit=args.get("on_commit"))
+    # `--cache-dir` lets a follow-up arm REUSE a finished run's paid-for calls while writing its
+    # products somewhere else. Without it, adding an arm to the published 512-feature run means
+    # pointing `run` at that run's own directory, which rewrites its `summary/` with only the arms
+    # passed this time -- i.e. overwrites the published numbers to add one arm.
+    cache_path = args.get("cache_dir") or f"{run_root}/cache"
+    cache = Cache(cache_path, on_commit=args.get("on_commit"))
     cl = Claude(model, key, timeout_s=float(args.get("timeout_s") or ac["timeout_s"]),
                 on_commit=args.get("on_commit"))
 
