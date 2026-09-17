@@ -80,8 +80,10 @@ STAGES = {
     # staying alive: wait for examples_docmax -> build -> pilot -> acceptance checks -> full 512
     # -> rlI-150 -> stats, with STATUS.json rewritten at every stage boundary.
     "chain": ("chain", "run"),
+    # per-item recall by activation band, joined where the big files already are
+    "bands": ("bands", "run"),
 }
-CPU_STAGES = ("build", "run", "chain")
+CPU_STAGES = ("build", "run", "chain", "bands")
 
 
 def _run(stage: str, args: dict, gpu_label: str):
