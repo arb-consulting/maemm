@@ -581,16 +581,24 @@ every one after it ~0.2 s, so a short shakeout badly understates the steady-stat
 `base/<base>/gcg/2026-09-16_v1/<family>/<arm>/`. `pop = 1`, so best-over-members and per-member are
 the same number.
 
+**Reporting convention for `sae`.** The `sae` rows in THIS table are the **rare-stratum (q0) view**
+— `--rows 0-31` of a stratum-major family is all of density quartile q0. The rows to report for the
+`sae` family are the **stratified** arms in the next section, which take 8 rows of each quartile.
+The `realact` family is not stratified and its rows 0-31 are the family.
+
+**Precision on the 27B.** 27B arm means are quoted to 2 decimal places with their SE, because the
+27B search is not reproducible per direction (below); the 8B, which is bit-exact, keeps 3.
+
 | base | family | arm | dirs | mean final cos | mean init cos | mean NLL | $/direction | peak act / gate | frac fired |
 |---|---|---|---|---|---|---|---|---|---|
 | qwen3-8b | realact | `gcg-corpus` | 32 | **0.6398** | 0.5220 | 7.613 | $0.0904 | -- | -- |
 | qwen3-8b | realact | `gcg-random32` | 31 | 0.4924 | 0.0525 | 12.932 | $0.0985 | -- | -- |
-| qwen3-8b | sae | `gcg-corpus` | 32 | **0.3080** | 0.2358 | 7.970 | $0.0894 | 137.8 / 6.94 | 1.000 |
-| qwen3-8b | sae | `gcg-random32` | 32 | 0.2161 | 0.0158 | 13.334 | $0.0917 | 89.4 / 6.94 | 0.969 |
-| qwen36-27b | realact | `gcg-corpus` | 32 | **0.4886** | 0.3491 | 8.278 | $0.3257 | -- | -- |
-| qwen36-27b | realact | `gcg-random32` | 32 | 0.2827 | -0.0179 | 13.081 | $0.3345 | -- | -- |
-| qwen36-27b | sae | `gcg-corpus` | 32 | **0.2408** | 0.1478 | 7.310 | $0.3251 | 28.9 / 1.58 | 1.000 |
-| qwen36-27b | sae | `gcg-random32` | 32 | 0.0682 | 0.0054 | 13.175 | $0.3332 | 5.2 / 1.58 | 0.875 |
+| qwen3-8b | sae (q0 view) | `gcg-corpus` | 32 | **0.3080** | 0.2358 | 7.970 | $0.0894 | 137.8 / 6.94 | 1.000 |
+| qwen3-8b | sae (q0 view) | `gcg-random32` | 32 | 0.2161 | 0.0158 | 13.334 | $0.0917 | 89.4 / 6.94 | 0.969 |
+| qwen36-27b | realact | `gcg-corpus` | 32 | **0.49 +- 0.03** | 0.3491 | 8.278 | $0.3257 | -- | -- |
+| qwen36-27b | realact | `gcg-random32` | 32 | 0.28 +- 0.03 | -0.0179 | 13.081 | $0.3345 | -- | -- |
+| qwen36-27b | sae (q0 view) | `gcg-corpus` | 32 | **0.24 +- 0.01** | 0.1478 | 7.310 | $0.3251 | 28.9 / 1.58 | 1.000 |
+| qwen36-27b | sae (q0 view) | `gcg-random32` | 32 | 0.07 +- 0.01 | 0.0054 | 13.175 | $0.3332 | 5.2 / 1.58 | 0.875 |
 
 8B `realact/gcg-random32` covers 31 directions: row 17 is excluded because its end-of-direction
 CHECK exceeded the hard bound and the bound was not loosened to absorb it (`SMOKES.md` has the
@@ -654,8 +662,8 @@ of each quartile — `--rows 0-7,128-135,256-263,384-391` — into separate arm 
 |---|---|---|---|---|---|---|---|---|
 | qwen3-8b | `gcg-corpus-strat` | 32 | **0.2983 ± 0.0168** | 0.2332 | 7.461 | $0.0922 | 133.96 | 1.000 |
 | qwen3-8b | `gcg-random32-strat` | 32 | 0.2032 ± 0.0240 | 0.0098 | 13.422 | $0.0946 | 87.22 | 0.969 |
-| qwen36-27b | `gcg-corpus-strat` | 32 | **0.2344 ± 0.0159** | 0.1594 | 7.147 | $0.3358 | 29.85 | 1.000 |
-| qwen36-27b | `gcg-random32-strat` | 32 | 0.0843 ± 0.0089 | 0.0038 | 13.354 | $0.3225 | 8.70 | 0.969 |
+| qwen36-27b | `gcg-corpus-strat` | 32 | **0.23 ± 0.02** | 0.1594 | 7.147 | $0.3358 | 29.85 | 1.000 |
+| qwen36-27b | `gcg-random32-strat` | 32 | 0.08 ± 0.01 | 0.0038 | 13.354 | $0.3225 | 8.70 | 0.969 |
 
 The arm mean barely moves against the q0-only arms (8B 0.3080 / 0.2161, 27B 0.2408 / 0.0682), so the
 per-quartile difference against the MAEMM is the reason to have run it:

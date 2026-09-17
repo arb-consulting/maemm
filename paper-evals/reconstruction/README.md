@@ -123,6 +123,26 @@ distinction is worth a factor of two — on the 27B, `gcg-corpus` beats the prim
 0.0166 on the q0 view and by +0.0542 ± 0.0100 stratified. The `view` and `slice` columns say which
 row is which; realact has one draw and one slice.
 
+**GCG and EPO in one table.** `gcg-*` arms hold one member; `epo-*` arms hold three, one per
+lambda (0.1 / 0.19 / 0.37), each selected by its own `L_lambda`, so an EPO arm traces a Pareto front
+in a single run. An arm's `all` row is the mean ± SE over targets of the **per-target best member**,
+which is the reachability figure; the `lam ... (member)` rows are PER-MEMBER means and carry no
+MAEMM columns, because comparing one member against the inverter is a different claim. Read together
+they separate two ceilings: what a 32-token string reaches at any fluency (GCG, NLL 8-13) and what a
+readable one reaches (EPO, NLL 2.4-3.1).
+
+**Precision.** An arm's own mean columns are shown to 2 dp on the 27B and 3 on the 8B — the
+precision their SEs support. The paired columns keep 4 dp: they are per-direction differences with
+much tighter SEs, and the arm's precision would erase real signal there. `ARM_MEAN_DP` in the
+script is the one place this lives.
+
+**Superseded arms are labelled, never silently dropped.** An arm whose directory name ends in
+`-smoke` is a partial or abandoned run kept beside the arm that replaced it (27B realact
+`epo-corpus-smoke`, 25 of 32 directions). Its `view` column reads `SUPERSEDED partial run -- not a
+reported arm` and its `dirs` column is honest, so the rows stay inspectable while being impossible
+to average in by accident. Note such an arm's MAEMM columns are computed on ITS subset of
+directions, so they will not match the full arm's.
+
 **Sources.** The per-direction best member comes from `finals.jsonl`. Where `summary.json` also
 carries `per_dir_best_cos`, the two agree exactly (max |difference| 0.0 on the 27B stratified arms),
 so the summary is a cross-check rather than a second source of truth.
