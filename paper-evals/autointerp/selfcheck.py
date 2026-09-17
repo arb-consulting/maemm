@@ -272,6 +272,48 @@ def check_run_both_paths(cfg, tmp: Path, base: str, set_name: str):
               f"then {second['cache_hits']} cache hits and 0 sent")
 
 
+def check_followup_arms(cfg, tmp: Path, base: str, set_name: str):
+    """`--explain2` and `--crossfam` as follow-up arms on a FINISHED run, through `--cache-dir`.
+
+    The property the launch depends on: pointed at a finished run's cache but a NEW product
+    directory, only the new arms send calls, every existing arm replays for free, and the finished
+    run's own `summary/` is not rewritten.
+    """
+    feats = list(range(400, 400 + N_FEAT))
+    synth_build(tmp, base, set_name, "fu_build", feats)
+    base_run = base_args(tmp, base, set_name, "fu_build", "fu_base")
+    base_run["arms"] = "C16,M"
+    first = R.run(cfg, base_run)
+    summary = tmp / "runs" / "fu_base" / "summary" / "scores.jsonl"
+    before = summary.read_bytes()
+    shared = str(tmp / "runs" / "fu_base" / "cache")
+
+    a = base_args(tmp, base, set_name, "fu_build", "fu_explain2")
+    a.update({"arms": "C16", "explain2": True, "cache_dir": shared})
+    res = R.run(cfg, a)
+    rows = C.read_jsonl(tmp / "runs" / "fu_explain2" / "summary" / "scores.jsonl")
+    arms = {r["arm"] for r in rows}
+    assert "C16-explain2" in arms, f"--explain2 produced no C16-explain2 rows: {sorted(arms)}"
+    assert res["calls_this_call"] > 0, "--explain2 sent nothing: the fresh explanation was not paid"
+    assert res["calls_this_call"] < first["calls_this_call"], (
+        f"--explain2 re-sent existing arms: {res['calls_this_call']} >= "
+        f"{first['calls_this_call']} of the base run"
+    )
+    assert summary.read_bytes() == before, "the base run's summary/ was rewritten"
+
+    b = base_args(tmp, base, set_name, "fu_build", "fu_crossfam")
+    b.update({"arms": "C16,M", "crossfam": "C16,M", "scorers": "detection", "cache_dir": shared})
+    R.run(cfg, b)
+    rows = C.read_jsonl(tmp / "runs" / "fu_crossfam" / "summary" / "scores.jsonl")
+    xarms = {r["arm"] for r in rows if r["arm"].startswith("X")}
+    assert xarms == {"XC16-q", "XM-q"}, f"--crossfam arms wrong: {sorted(xarms)}"
+    assert all(r["scorer"] == "detection" for r in rows if r["arm"].startswith("X")), (
+        "crossfam scored something other than detection"
+    )
+    print(f"[selfcheck] follow-up arms OK: explain2 sent {res['calls_this_call']} of "
+          f"{first['calls_this_call']}, crossfam arms {sorted(xarms)}, base summary untouched")
+
+
 def check_chain(cfg, tmp: Path, base: str, set_name: str):
     """The chain's whole control flow, with docmax already present and the API stubbed."""
     keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
@@ -314,6 +356,7 @@ def main() -> int:
         check_projection_keys(cfg)
         check_gate(cfg, tmp, base, set_name)
         check_run_both_paths(cfg, tmp, base, set_name)
+        check_followup_arms(cfg, tmp, base, set_name)
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE

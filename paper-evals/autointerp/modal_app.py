@@ -191,6 +191,7 @@ def main(
     epo_strings: str = "",
     # run / chain
     run_dir: str = "",
+    cache_dir: str = "",
     chain_dir: str = "",
     maemm2: str = "",
     model: str = "",
@@ -265,6 +266,7 @@ def main(
         "arms": arms,
         "epo_strings": epo_strings,
         "run_dir": run_dir.rstrip("/"),
+        "cache_dir": cache_dir.rstrip("/"),
         "chain_dir": chain_dir.rstrip("/"),
         "maemm2": maemm2,
         "model": model,
