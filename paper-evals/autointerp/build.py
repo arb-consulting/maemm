@@ -328,6 +328,44 @@ def _overlaps(a: dict, b: dict) -> bool:
     return a["start"] < b["start"] + b["len"] and b["start"] < a["start"] + a["len"]
 
 
+def _trigrams(text: str) -> set[str]:
+    w = text.split()
+    return {" ".join(w[i : i + 3]) for i in range(max(0, len(w) - 2))} or {text}
+
+
+def diversify(pool: list[dict], n: int, jaccard_max: float = 0.5) -> list[dict]:
+    """`n` rollouts by near-duplicate removal then QUANTILE sampling of the peak activation.
+
+    Two steps, in this order:
+      1. greedily drop any rollout whose word-trigram Jaccard against an already-kept one exceeds
+         `jaccard_max` -- exact-text dedup does not catch "16 variants of one template";
+      2. from what survives, take `n` at evenly spaced quantiles of `max_act` (the pool arrives
+         sorted by peak, descending), so the set spans the activation range instead of piling at
+         the top.
+    Falls back to the surviving order when fewer than `n` remain, and the shortfall is recorded by
+    the caller like every other.
+    """
+    kept: list[dict] = []
+    grams: list[set[str]] = []
+    for e in pool:
+        g = _trigrams(e["text"])
+        if any(len(g & h) / max(1, len(g | h)) > jaccard_max for h in grams):
+            continue
+        kept.append(e)
+        grams.append(g)
+    if len(kept) <= n:
+        return kept
+    idx = [round(i * (len(kept) - 1) / (n - 1)) for i in range(n)] if n > 1 else [0]
+    seen: set[int] = set()
+    out = []
+    for i in idx:
+        while i in seen and i + 1 < len(kept):
+            i += 1
+        seen.add(i)
+        out.append(kept[i])
+    return out
+
+
 def dedup(rows: list[dict]) -> list[dict]:
     """`rows` in order, dropping any window that overlaps one already kept."""
     kept: list[dict] = []
@@ -404,6 +442,13 @@ ARM_SPECS = {
     # and with C4's shortfall, so nothing it showed could be attributed.
     "C16M16": ("c16", 16, "m", 16),
     "C32": ("c16", 32, None, 0),
+    # The method review's test: the M arm shows 16 variants of ONE template (median pairwise
+    # word-trigram Jaccard within the shown set 0.046 against the corpus set's 0.001, 40x), so its
+    # loss may be an artefact of an undiversified top-16 rather than of the source. `M-div` keeps
+    # the same 64 rollouts and the same N, and changes only the CHOICE: near-duplicates dropped by
+    # trigram Jaccard, then quantile sampling across the peak-activation range (Delphi's
+    # `train_type: "quantiles"` analogue) instead of the top 16.
+    "M-div": (None, 0, "mdiv", 16),
     # Descriptive pilot points only (amendment A9: N = 16 is fixed a priori, not selected).
     "C16-N8": ("c16", 8, None, 0),
     "M-N8": (None, 0, "m", 8),
@@ -856,7 +901,8 @@ def run(cfg, args):
                 roll_pool.append({**e, "src": "rollout", "k": int(k),
                                   "max_act": round(float(peaks[k]), 4)})
 
-            pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool}
+            pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool,
+                     "mdiv": diversify(roll_pool, 16, float(ac.get("mdiv_jaccard", 0.5)))}
 
             # ---- arms -------------------------------------------------------------------
             arm_rows = []
@@ -973,6 +1019,7 @@ def run(cfg, args):
                 "pool_c4": len(c4_pool),
                 "pool_m": len(roll_pool),
                 "n_dup_rollouts": n_dup_roll,
+                "pool_mdiv": len(pools["mdiv"]) if "mdiv" in pools else 0,
                 "pool_cand": len(cand_rows),
                 "pool_cand_gated": sum(1 for e in cand_rows if float(e["max_act"]) > gate),
                 "n_mark_neg": n_mark_neg,
