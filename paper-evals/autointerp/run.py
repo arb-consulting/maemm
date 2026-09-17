@@ -114,6 +114,62 @@ DELPHI_EXPLAINER_FEWSHOT = [
     },
 ]
 
+# prompts.py::EXAMPLE_2 / EXAMPLE_3 and their _ACTIVATIONS / _EXPLANATION, FETCHED VERBATIM
+# 2026-09-17 from the pinned commit. Delphi's `default/prompt_builder.py:build_examples` sends ALL
+# THREE shots; the published 2026-09-16 run sent only the first, so `--shots 3` is a flag and the
+# README says which the run used. Shots 2 and 3 teach a TOKEN-LEVEL and a POSITIONAL description
+# ("the token 'er' at the end of a comparative adjective", "nouns ... preceding a quotation mark");
+# with only the idiom shot, every arm is steered toward topical descriptions.
+DELPHI_EXPLAINER_FEWSHOT_2 = [
+    {
+        "role": "user",
+        "content": (
+            "Example 1:  a river is wide but the ocean is wid<<er>>. The ocean\n"
+            'Activations: ("er", 8)\n'
+            'Example 2:  every year you get tall<<er>>," she\n'
+            'Activations: ("er", 2)\n'
+            "Example 3:  the hole was small<<er>> but deep<<er>> than the\n"
+            'Activations: ("er", 9), ("er", 9)'
+        ),
+    },
+    {
+        "role": "assistant",
+        "content": '[EXPLANATION]: The token "er" at the end of a comparative adjective '
+                   "describing size.",
+    },
+]
+DELPHI_EXPLAINER_FEWSHOT_3 = [
+    {
+        "role": "user",
+        "content": (
+            'Example 1:  something happening inside my <<house>>", he\n'
+            'Activations: ("house", 7)\n'
+            'Example 2:  presumably was always contained in <<a box>>", according\n'
+            'Activations: ("a", 5), ("box", 9)\n'
+            'Example 3:  people were coming into the <<smoking area>>".\n'
+            "\n"
+            "However he\n"
+            'Activations: ("smoking", 2), ("area", 4)\n'
+            'Example 4:  Patrick: "why are you getting in the << way?>>" Later,\n'
+            'Activations: ("way", 4), ("?", 2)'
+        ),
+    },
+    {
+        "role": "assistant",
+        "content": "[EXPLANATION]: Nouns representing a distinct objects that contains something, "
+                   "sometimes preciding a quotation mark.",
+    },
+]
+
+
+def explainer_fewshot(shots: int) -> list[dict]:
+    """Delphi's explainer shots. `shots=1` is what the published run sent; `shots=3` is Delphi's."""
+    assert shots in (1, 3), f"--shots must be 1 or 3, got {shots}"
+    if shots == 1:
+        return list(DELPHI_EXPLAINER_FEWSHOT)
+    return [*DELPHI_EXPLAINER_FEWSHOT, *DELPHI_EXPLAINER_FEWSHOT_2, *DELPHI_EXPLAINER_FEWSHOT_3]
+
+
 # scorers/classifier/prompts/detection_prompt.py::DSCORER_SYSTEM_PROMPT, verbatim.
 DELPHI_DETECTION_SYSTEM = (
     "You are an intelligent and meticulous linguistics researcher.\n\n"
@@ -726,7 +782,10 @@ def _submit(cl: Claude, cache: Cache, jobs: list[dict], label: str, max_cost_usd
                 except Exception as e:  # noqa: BLE001 -- one dead call is not fatal
                     errs.append(f"{type(e).__name__}: {str(e)[:160]}")
                     continue
-                cache.put(k, rec)
+                # An EMPTY answer is not cached unless this job is already a retry: caching one
+                # makes a transient refusal permanent, and every relaunch then replays it.
+                if rec["text"].strip() or jk.endswith("|retry"):
+                    cache.put(k, rec)
                 out[jk] = rec
     s = cl.snapshot()
     wall = time.time() - t0
@@ -861,6 +920,8 @@ def run(cfg, args):
     batch_int = int(ac["scorer_batch"])
     floor_arm, floor_src, draw2_arm = str(ac["floor_arm"]), str(ac["floor_source_arm"]), "C16-draw2"
     judge_arm = str(ac.get("judge_floor_arm") or "C16-judge2")
+    shots = int(args.get("shots") or 1)
+    fewshot_expl = explainer_fewshot(shots)
     # PREPARED, NOT RUN (Tomas decides; 2026-09-16). `--explain2` adds `C16-explain2`: C16's
     # example set RE-EXPLAINED with a fresh explainer call, then scored on draw 1. It is the third
     # null and it bounds the one source of variance the other two cannot see -- `C16-judge2` holds
@@ -906,7 +967,7 @@ def run(cfg, args):
         _meta, arms, tests, _t2 = _feature_rows(build_dir, feats[0])
         print(json.dumps({
             "explain": cl.params(DELPHI_EXPLAINER_SYSTEM, arms[arm_names[0]]["block"],
-                                 int(ac["explainer_max_tokens"]), DELPHI_EXPLAINER_FEWSHOT),
+                                 int(ac["explainer_max_tokens"]), explainer_fewshot(shots)),
             "detection": cl.params(
                 DELPHI_DETECTION_SYSTEM,
                 delphi_scorer_prompt("<explanation>", [t["text"] for t in tests[:batch_int]]),
@@ -954,6 +1015,7 @@ def run(cfg, args):
     expl_rows: list[dict] = []
     expl: dict[tuple[int, str], str] = {}
     n_trunc = 0
+    n_refusal = 0
     jobs = []
     for feat in feats:
         _meta, arms, _t1, _t2 = _feature_rows(build_dir, feat)
@@ -963,7 +1025,7 @@ def run(cfg, args):
             jobs.append({
                 "key": f"explain|{feat}|{a}", "arm": a, "feat": feat, "n": arms[a]["n"],
                 "kind": "explain",
-                "system": DELPHI_EXPLAINER_SYSTEM, "fewshot": DELPHI_EXPLAINER_FEWSHOT,
+                "system": DELPHI_EXPLAINER_SYSTEM, "fewshot": fewshot_expl,
                 "user": arms[a]["block"], "max_tokens": int(ac["explainer_max_tokens"]),
             })
     if want_explain2:
@@ -981,23 +1043,42 @@ def run(cfg, args):
         stage_info["explain"] = info
         # A10: an explainer answer cut off at max_tokens is an ERROR, not a shorter explanation.
         # Retry ONCE at double the budget under its own job key, then raise.
+        # A10 (max_tokens) AND refusals. MEASURED on the full run: 44 explainer calls came back
+        # `stop_reason: "refusal"`, 42 of them empty, and an empty explanation silently emitted no
+        # scorer job -- so the arms were scored on different feature sets and the refusal was
+        # CACHED as a final answer, replayed on every relaunch. A refusal is not deterministic
+        # (f3473 refused on C16/C4/C4M/C16M16 but not on C32, whose examples contain C16's), so a
+        # retry is worth one call.
+        n_refusal = sum(
+            1 for j in jobs
+            if (got.get(j["key"]) or {}).get("usage", {}).get("stop_reason") == "refusal"
+        )
         retry = [
             {**j, "key": j["key"] + "|retry", "max_tokens": 2 * j["max_tokens"]}
             for j in jobs
-            if (got.get(j["key"]) or {}).get("usage", {}).get("stop_reason") == "max_tokens"
+            if (got.get(j["key"]) or {}).get("usage", {}).get("stop_reason")
+            in ("max_tokens", "refusal")
         ]
-        n_trunc = len(retry)
+        n_trunc = sum(
+            1 for j in jobs
+            if (got.get(j["key"]) or {}).get("usage", {}).get("stop_reason") == "max_tokens"
+        )
         if retry:
-            print(f"[run] A10: {n_trunc} explainer answers hit max_tokens; retrying at "
+            print(f"[run] A10: {n_trunc} explainer answers hit max_tokens and {n_refusal} were "
+                  f"refusals; retrying {len(retry)} at "
                   f"{2 * int(ac['explainer_max_tokens'])}", flush=True)
             got2, _ = _submit(cl, cache, retry, "explain-retry", max_cost, concurrency, path,
                               ledger=ledger_for("explain-retry", retry))
             still = []
             for j in retry:
                 rec = got2.get(j["key"])
-                if rec is None or rec.get("usage", {}).get("stop_reason") == "max_tokens":
+                sr = (rec or {}).get("usage", {}).get("stop_reason")
+                if rec is None or sr == "max_tokens":
                     still.append(j["key"])
                 else:
+                    # A refusal on the retry too is a RECORDED outcome, not an error: it keeps its
+                    # stop_reason so the arm's refusal count and the dropped (feature, arm) pair
+                    # are both visible downstream.
                     got[j["key"].removesuffix("|retry")] = rec
             assert not still, (
                 f"A10: {len(still)} explainer answers were STILL truncated at "
@@ -1007,14 +1088,22 @@ def run(cfg, args):
             )
         if info.get("stopped"):
             stopped_at = stopped_at or "cost cap during explain"
+    n_refused_final = 0
     for j in jobs:
         rec = got.get(j["key"])
         text = rec["text"] if rec else ""
-        e = parse_delphi_explanation(text)
+        sr = (rec or {}).get("usage", {}).get("stop_reason")
+        # A NON-EMPTY refusal is not a shorter explanation either: the model declined partway and
+        # the text is a fragment. It is recorded and NOT scored, rather than passed off as an
+        # ordinary description (2 such were scored in the published run).
+        refused = sr == "refusal"
+        e = "" if refused else parse_delphi_explanation(text)
+        n_refused_final += int(refused)
         expl[(j["feat"], j["arm"])] = e
         expl_rows.append({
             "feature": j["feat"], "arm": j["arm"], "n_examples": j["n"], "explanation": e,
-            "ok": bool(e), "raw_len": len(text), "usage": (rec or {}).get("usage", {}),
+            "ok": bool(e), "refused": refused, "stop_reason": sr,
+            "raw_len": len(text), "usage": (rec or {}).get("usage", {}),
         })
     explain_cost = cl.snapshot()["cost"]
     n_empty = sum(1 for r in expl_rows if not r["ok"])
@@ -1193,6 +1282,15 @@ def run(cfg, args):
         "stage_info": stage_info,
         "projections": projections,
         "explainer_truncated_and_retried": n_trunc,
+        "explainer_refusals_first_pass": n_refusal,
+        "explainer_refusals_final": n_refused_final,
+        "explainer_refusals_by_arm": {
+            a: sum(1 for r in expl_rows if r["arm"] == a and r.get("refused"))
+            for a in sorted({r["arm"] for r in expl_rows})
+        },
+        "shots": shots,
+        "mark": binfo.get("mark", "gate"),
+        "fuzz_marks": binfo.get("fuzz_marks", "contiguous"),
         "cache_hits": cache.hits,
         "cache_misses": cache.misses,
         "features_done": n_scored,
@@ -1307,6 +1405,7 @@ def run(cfg, args):
         "features_done": n_scored, "features_total": len(feats),
         "arms": [*arm_names, floor_arm, judge_arm, draw2_arm], "scorers": scorers,
         "explainer_truncated": n_trunc, "explanations_empty": n_empty,
+        "explainer_refusals": n_refused_final, "shots": shots,
         "cost_this_call": round(s["cost"], 4), "cost_cumulative": round(cum["cost"], 4),
         "calls_this_call": s["calls"], "cache_hits": cache.hits,
         "projections": {k: v["usd"] for k, v in projections.items()},

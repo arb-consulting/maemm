@@ -283,6 +283,22 @@ def run(cfg, args):
         "targets": f"{N} of {len(sae_rows)} {FAMILY} rows",
         "n": n,
     }
+    # The checks run BEFORE the product is written, so a failed check never renames a bad product
+    # onto the canonical path. SMOKES records two full 512x64 runs that failed the argmax check;
+    # under the old order those had already been renamed by the time the assert fired, and `build`
+    # reads the product without looking at `checks`.
+    assert argmax_ok, (
+        f"CHECK 1 FAILED: our argmax differs from the stored argmax.i16 on "
+        f"{arg_total - arg_agree} of {arg_total} rollouts, and the worst of those is a cosine gap "
+        f"of {worst_tie:.2e}, ABOVE the {ARGMAX_TIE_TOL:.0e} near-tie tolerance -- so it is not "
+        f"batch-composition noise. {rpath} and {sdir} may not be the same run. Values written to "
+        f"{out} for inspection."
+    )
+    assert val_bad == 0 and has_bad == 0, (
+        f"CHECK 2/3 FAILED: {val_bad} value and {has_bad} membership mismatches against the stored "
+        f"SAE CSR at the argmax token (worst |diff| {val_worst:.4f}). Written to {out}."
+    )
+
     with C.outdir(out, args, inputs=inputs) as od:
         od.write_array("sae_self.f16", act, "float16")
         od.write_array("sae_self_ids.i32", ids, "int32")
@@ -342,17 +358,6 @@ def run(cfg, args):
             f"({len(flat) / max(elapsed, 1e-9):.1f} rows/s)"
         )
 
-    assert argmax_ok, (
-        f"CHECK 1 FAILED: our argmax differs from the stored argmax.i16 on "
-        f"{arg_total - arg_agree} of {arg_total} rollouts, and the worst of those is a cosine gap "
-        f"of {worst_tie:.2e}, ABOVE the {ARGMAX_TIE_TOL:.0e} near-tie tolerance -- so it is not "
-        f"batch-composition noise. {rpath} and {sdir} may not be the same run. Values written to "
-        f"{out} for inspection."
-    )
-    assert val_bad == 0 and has_bad == 0, (
-        f"CHECK 2/3 FAILED: {val_bad} value and {has_bad} membership mismatches against the stored "
-        f"SAE CSR at the argmax token (worst |diff| {val_worst:.4f}). Written to {out}."
-    )
     return {
         "out": out,
         "targets": N,

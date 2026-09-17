@@ -61,6 +61,9 @@ MAX_SHOWN_ACTS = 10
 BANDS = ("q0", "q1", "q2", "q3")
 # Delphi's `example_ctx_len`, used by the PREPARED-NOT-RUN `--centre32` corpus arm below.
 CENTRE32_LEN = 32
+# Delphi's explainer highlight threshold, FETCHED 2026-09-17 from `explainers/explainer.py`
+# @4fea06e: `threshold: float = 0.3`, applied as `max(activations) * self.threshold`.
+DELPHI_MARK_FRAC = 0.3
 
 
 # ---------------------------------------------------------------------------------------------
@@ -144,24 +147,40 @@ def centre_on_peak(ids, acts, width: int = CENTRE32_LEN):
     return ids[lo : lo + width], [float(x) for x in a[lo : lo + width]]
 
 
-def render_example(tok, ids, acts, peak: float, gate: float) -> dict:
+def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate") -> dict:
     """One rendered explainer example from an id list and its per-token pre-gate activations.
 
-    MARKING RULE (design amendment A2, ONE rule for explainer examples, fuzzing marks and
-    rollouts alike): a token is marked iff its pre-gate activation EXCEEDS THE GATE -- Delphi's
-    post-TopK "activating" -- and the `Activations:` line lists the marked tokens by DESCENDING
-    activation, top 10, so the peak token is always present. The build had marked `act > 0`, which
-    is a post-ReLU non-zero and put markers on 70-86% of the tokens of a dense feature's example.
+    TWO MARKING RULES, and the published run used the first. FETCHED 2026-09-17 from Delphi
+    @4fea06e (`explainers/explainer.py`), which settles what "Delphi's rule" is:
+
+      `mark="gate"`   (DEFAULT, what the 2026-09-16 512-feature run used): a token is marked iff
+                      its pre-gate activation exceeds the SAE's learned gate, and the
+                      `Activations:` line lists the marked tokens by DESCENDING activation, first
+                      10. This is the paper's own fire rule applied to rendering. It is NOT
+                      Delphi's, and calling it "Delphi's post-TopK activating" was wrong.
+      `mark="delphi"` Delphi's actual rule: `threshold = max(activations) * 0.3` -- 0.3 x THIS
+                      EXAMPLE'S OWN max, not the gate and not the corpus peak -- and the
+                      `Activations:` line lists them in TEXT ORDER, first 10 (`_highlight` and
+                      `_join_activations` iterate the sequence; `if activation_count > 10: break`).
+
+    The difference is not cosmetic across arms: a rollout carries higher activation relative to the
+    corpus peak than a corpus window does, so the gate rule marks proportionally more of a rollout,
+    and 299 of 512 features have shown rollouts exceeding the corpus peak.
     """
     pieces = token_pieces(tok, ids)
     a = [float(x) for x in acts]
     quant = [quant_act(x, peak) for x in a]
-    marks = [x > gate for x in a]
-    shown = sorted(
-        ((pieces[i], quant[i], a[i]) for i in range(len(pieces)) if marks[i]),
-        key=lambda t: -t[2],
-    )[:MAX_SHOWN_ACTS]
-    shown = [(t, n) for t, n, _ in shown]
+    if mark == "delphi":
+        thr = max(a) * DELPHI_MARK_FRAC if a else 0.0
+        marks = [x > thr for x in a]
+        shown = [(pieces[i], quant[i]) for i in range(len(pieces)) if marks[i]][:MAX_SHOWN_ACTS]
+    else:
+        marks = [x > gate for x in a]
+        shown = sorted(
+            ((pieces[i], quant[i], a[i]) for i in range(len(pieces)) if marks[i]),
+            key=lambda t: -t[2],
+        )[:MAX_SHOWN_ACTS]
+        shown = [(t, n) for t, n, _ in shown]
     return {
         "text": "".join(pieces),
         "text_marked": marked_text(pieces, marks),
@@ -173,7 +192,8 @@ def render_example(tok, ids, acts, peak: float, gate: float) -> dict:
     }
 
 
-def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int) -> dict:
+def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int,
+                fuzz_marks: str = "contiguous") -> dict:
     """One test item: the plain text the DETECTION scorer sees and the marked text FUZZING sees.
 
     Marking rule: design amendment A2's single rule, `act > gate` -- the same rule
@@ -183,11 +203,17 @@ def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int
     rest of this paper uses. Every test positive is gate-consistent (A1), so its peak is marked by
     construction.
 
-    A negative window has no activation to mark, so a contiguous run of `n_mark_neg` tokens is
-    marked at a seeded random start -- the construction Delphi's intruder scorer uses for its
-    intruder example ("a random selection of tokens is highlighted, the count matching the average
-    in the activating examples, rounded down"). Delphi's own fuzzing `_prepare` is NOT in our
-    transcription, so this is [RECONSTRUCTED] and build.json says so.
+    A negative window has no activation to mark, so marks are placed at random. TWO RULES, and the
+    published run used the first:
+
+      `fuzz_marks="contiguous"` (DEFAULT, the 512-feature run): one contiguous run of `n_mark_neg`
+                      tokens at a seeded random start. Reconstructed from Delphi's INTRUDER paper
+                      when its fuzzing source was not to hand. It is a detectable artefact --
+                      negatives carry one block, positives carry 1-2 scattered marks.
+      `fuzz_marks="scattered"` Delphi's actual rule, FETCHED 2026-09-17 from
+                      `scorers/classifier/sample.py` @4fea06e: below-threshold tokens chosen by
+                      `random.sample`, i.e. scattered, with `n_incorrect = ceil(mean nonzero
+                      count)` (`fuzz.py`).
     """
     pieces = token_pieces(tok, ids)
     if acts is not None:
@@ -200,6 +226,10 @@ def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int
             # gate-consistent positive (A1) with no mark at all. The peak is marked in that case
             # and only that case; it is the same token either way.
             marks[int(a.argmax())] = True
+    elif fuzz_marks == "scattered":
+        k = max(1, min(n_mark_neg, len(pieces)))
+        idx = set(rng.sample(range(len(pieces)), k))
+        marks = [i in idx for i in range(len(pieces))]
     else:
         k = max(1, min(n_mark_neg, len(pieces)))
         start = rng.randrange(0, max(1, len(pieces) - k + 1))
@@ -385,7 +415,7 @@ ARM_SPECS = {
 FULL_ARMS = ("C16", "C4", "M", "C4M", "C32", "C16M16")
 
 
-def _epo_arm(path: str, feature: int, tok, peak: float, gate: float):
+def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str = "gate"):
     """The E arm's documented hook: per-feature EPO / GCG strings as a fourth example source.
 
     NOT RUN in the pilot (design §8: at the measured ~$1.09 per 27B epo target, 512 features is
@@ -411,7 +441,7 @@ def _epo_arm(path: str, feature: int, tok, peak: float, gate: float):
         assert len(s["ids"]) == len(s["acts"]), (
             f"{path}, feature {feature}, string {i}: {len(s['ids'])} ids but {len(s['acts'])} acts"
         )
-        e = render_example(tok, s["ids"], s["acts"], peak, gate)
+        e = render_example(tok, s["ids"], s["acts"], peak, gate, mark)
         out.append({**e, "src": "epo", "k": i})
     return out
 
@@ -421,7 +451,7 @@ def _epo_arm(path: str, feature: int, tok, peak: float, gate: float):
 
 def draw_test(
     *, feat, ex_rows, tops, pool, corpus, tok, gate, rng_test, rng_mark, cfgv,
-    shown_windows_ids, shown_docs, used_docs, flags, tag,
+    shown_windows_ids, shown_docs, used_docs, flags, tag, fuzz_marks="contiguous",
 ):
     """One test draw for one feature: n_pos positives + n_neg negatives, rendered both ways.
 
@@ -561,7 +591,7 @@ def draw_test(
             f"feature {feat}, test positive (doc {e['doc']}, start {e['start']}): recovered "
             f"{len(ids)} tokens vs {len(e['acts'])} stored acts"
         )
-        t = render_test(tok, ids, e["acts"], gate, rng_mark, 0)
+        t = render_test(tok, ids, e["acts"], gate, rng_mark, 0, fuzz_marks)
         items.append({**t, "label": 1, "src": "corpus", "band": e["band"],
                       "window": e["window"], "doc": e["doc"], "start": e["start"],
                       "max_act": e["max_act"]})
@@ -581,12 +611,12 @@ def draw_test(
             ids = corpus.ids(pw["doc"], pw["start"], pw["len"])
             meta_w = {"window": pw["window"], "doc": pw["doc"], "start": pw["start"],
                       "max_act": round(float(mx[w]), 4)}
-        t = render_test(tok, ids, None, gate, rng_mark, n_mark_neg)
+        t = render_test(tok, ids, None, gate, rng_mark, n_mark_neg, fuzz_marks)
         items.append({**t, "label": 0, "src": f"nearmiss-{src}", "band": "-", **meta_w})
     for w in zero_pick:
         pw = pool.windows[w]
         ids = corpus.ids(pw["doc"], pw["start"], pw["len"])
-        t = render_test(tok, ids, None, gate, rng_mark, n_mark_neg)
+        t = render_test(tok, ids, None, gate, rng_mark, n_mark_neg, fuzz_marks)
         items.append({**t, "label": 0, "src": "random", "band": "-",
                       "window": pw["window"], "doc": pw["doc"], "start": pw["start"],
                       "max_act": 0.0})
@@ -638,6 +668,12 @@ def run(cfg, args):
     )
     gate_positives = bool(ac["gate_consistent_positives"])
     centre32 = bool(args.get("centre32"))
+    mark = str(args.get("mark") or "gate")
+    assert mark in ("gate", "delphi"), f"--mark must be 'gate' or 'delphi', got {mark!r}"
+    fuzz_marks = str(args.get("fuzz_marks") or "contiguous")
+    assert fuzz_marks in ("contiguous", "scattered"), (
+        f"--fuzz-marks must be 'contiguous' or 'scattered', got {fuzz_marks!r}"
+    )
     allow_top_fallback = bool(ac["allow_top_fallback"])
     engine = args.get("engine") or "vllm"
     arm_names = [a for a in (args.get("arms") or "").split(",") if a] or list(ARM_SPECS)
@@ -693,6 +729,14 @@ def run(cfg, args):
 
     self_meta = json.load(open(f"{self_dir}/sae_self.json"))
     gate = float(self_meta["gate"])
+    # `build` used to read the product and ignore its `checks`, so a sae_self that failed its own
+    # argmax / CSR checks would still have been consumed. The checks are now a precondition.
+    _ck = self_meta.get("checks") or {}
+    assert _ck.get("argmax_ok", True) and not _ck.get("csr_value_mismatches", 0) \
+        and not _ck.get("csr_membership_mismatches", 0), (
+        f"{self_dir}/sae_self.json reports failed checks {_ck}: its per-token activations cannot "
+        f"be used to build the M arms"
+    )
     self_rows = list(self_meta["rows"])
     n_roll = int(self_meta["n"])
     shape = (len(self_rows), n_roll, C.SCORE_WIDTH)
@@ -775,7 +819,7 @@ def run(cfg, args):
                 w_ids, w_acts = (
                     centre_on_peak(ids, e["acts"]) if centre32 else (ids, e["acts"])
                 )
-                out = render_example(tok, w_ids, w_acts, peak, gate)
+                out = render_example(tok, w_ids, w_acts, peak, gate, mark)
                 return {
                     **out,
                     "src": "corpus",
@@ -794,13 +838,23 @@ def run(cfg, args):
             peaks = np.nan_to_num(np.nanmax(np.where(np.isfinite(acts), acts, -np.inf), 1), nan=0.0)
             peaks = np.where(np.isfinite(peaks), peaks, 0.0)
             order = np.argsort(-peaks, kind="stable")
+            # The corpus pools are deduplicated and the rollout pool was not, so a repeated
+            # rollout cost the M arm an example slot at matched N -- in the direction of the effect
+            # under test. Exact-text dedup, and the count is recorded per feature.
             roll_pool = []
+            seen_text: set[str] = set()
+            n_dup_roll = 0
             for k in order.tolist():
                 keep = rids[k] >= 0
                 if not keep.any():
                     continue
-                e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate)
-                roll_pool.append({**e, "src": "rollout", "k": int(k), "max_act": round(float(peaks[k]), 4)})
+                e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate, mark)
+                if e["text"] in seen_text:
+                    n_dup_roll += 1
+                    continue
+                seen_text.add(e["text"])
+                roll_pool.append({**e, "src": "rollout", "k": int(k),
+                                  "max_act": round(float(peaks[k]), 4)})
 
             pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool}
 
@@ -853,7 +907,7 @@ def run(cfg, args):
                     }
                 )
             if args.get("epo_strings"):
-                picks = _epo_arm(args["epo_strings"], feat, tok, peak, gate)
+                picks = _epo_arm(args["epo_strings"], feat, tok, peak, gate, mark)
                 arm_rows.append(
                     {"kind": "arm", "arm": "E", "n": len(picks), "block": exemplar_block(picks),
                      "examples": [{"src": "epo", "k": p["k"], "n_marked": p["n_marked"],
@@ -891,6 +945,7 @@ def run(cfg, args):
                     used_docs=used_docs,
                     flags=flags,
                     tag=tag,
+                    fuzz_marks=fuzz_marks,
                 )
                 draws[tag] = (items, info)
             items, info1 = draws["test"]
@@ -917,6 +972,7 @@ def run(cfg, args):
                 "pool_c16": len(c16_pool),
                 "pool_c4": len(c4_pool),
                 "pool_m": len(roll_pool),
+                "n_dup_rollouts": n_dup_roll,
                 "pool_cand": len(cand_rows),
                 "pool_cand_gated": sum(1 for e in cand_rows if float(e["max_act"]) > gate),
                 "n_mark_neg": n_mark_neg,
@@ -948,6 +1004,8 @@ def run(cfg, args):
                 "n_examples": n_ex,
                 "corpus_prefix_m": prefix_m,
                 "centre32": centre32,
+                "mark": mark,
+                "fuzz_marks": fuzz_marks,
                 "n_pos": n_pos,
                 "n_neg": n_neg,
                 "n_neg_nearmiss": n_neg_nearmiss,
@@ -982,6 +1040,10 @@ def run(cfg, args):
                 # which corpus examples cannot do by construction but rollouts can. Recorded here
                 # so the paper's cell reads from a summary file instead of needing the ~90 MB of
                 # per-feature jsonl.
+                "n_features_with_dup_rollouts": sum(
+                    1 for f in feat_table if f.get("n_dup_rollouts", 0) > 0
+                ),
+                "n_dup_rollouts_total": sum(f.get("n_dup_rollouts", 0) for f in feat_table),
                 "n_shown_exceeding_corpus_peak": n_exceed_peak,
                 "n_shown_examples": join_total,
                 "min_pos_draw1": min((f["draw1"]["n_pos"] for f in feat_table), default=0),
