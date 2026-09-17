@@ -129,8 +129,9 @@ direction's GCG value is quoted. Source: SMOKES.md, "GCG stratified sae (full ro
   -> **43.9** at 2,048 -> **115** at 20,480. At the full 98,304-row job the wall-inclusive rate is
   ~202 / ~195 rows/s (`rlI-150` / full) on the 27B and ~500 rows/s on the 8B.
 - **GCG candidate throughput**, full root at 32 directions: 8B `gcg` **868-957 cand/s**, 27B
-  `gcg` **292-301** (smoke root at 8 directions: 876-962 and 270-297). EPO was run at 8
-  directions only: 8B **294-306**, 27B **86-93**. EPO's 3x-smaller per-iteration pool (255 vs 512 candidates) is
+  `gcg` **292-301** (smoke root at 8 directions: 876-962 and 270-297). EPO at 32 targets ran ~250-270 s/dir (8B)
+  and ~870-880 s/dir (27B) over 76,500 candidate forwards per direction, i.e. ~283-306 and
+  ~87-88 cand/s; the 8-direction pass measured 8B **294-306**, 27B **86-93**. EPO's 3x-smaller per-iteration pool (255 vs 512 candidates) is
   why its wall/dir is ~3x despite the same per-direction budget.
 
 ## Notes on the numbers
@@ -152,9 +153,17 @@ direction's GCG value is quoted. Source: SMOKES.md, "GCG stratified sae (full ro
   quartiles, against the final arms' rows 0-31, which are all q0. They are the sae-family view of
   the same search, not an independent pass; stage total **$27.05** (SMOKES's own Spend line;
   32 x $/dir over the four arms rounds to $27.04). The final arms are therefore the RARE-stratum view.
-- The two `epo` corpus-init rows at 32 targets are arms in flight at the time of writing, marked E
-  from the running agent's projection (27B ~880 s/dir, ~$1.11/dir; 8B ~$0.28/dir) and excluded
-  from the totals. Replace with measured figures when they land.
+- **The four 27B `epo` arms each cost two calls, and the arm README records only the second.**
+  At ~880 s/direction, 32 directions is 7.8 h against the 6 h `timeout` `gcg/modal_app.py` then
+  carried, so all four were killed by Modal at exactly 21,600 s with 24-25 of 32 directions
+  written. They were completed with `--resume-from` on the kept temp dir (another session, which
+  also raised the timeout to 9 h), so the partial compute was reused rather than discarded —
+  ~$36 of resume against ~$140 to re-run from scratch. The cost of each arm is the timed-out call
+  ($27.24 = 21,600 s at $4.54/h) PLUS the resume ($7.27-$9.16); summing the four arm READMEs
+  understates the 27B EPO stage by **$108.96**. The table above carries the true totals.
+- EPO per-direction cost came in at $1.0786-$1.1376 (27B) and $0.2720-$0.2970 (8B) against a
+  projection of $1.03-$1.13 and $0.2745-$0.2857: the per-direction rate was right and the
+  stage overran by 3% ($179.34 against $174) entirely through the timeout accounting.
 - The ~$0.03 failed-launch line (`--root <scratch>` relocates inputs too) appears in both GCG
   spend tables; it is counted once here, in the shakeouts row.
 - The 64-direction row stays a projection (E) and is SUPERSEDED as a description of what was run:
@@ -163,7 +172,8 @@ direction's GCG value is quoted. Source: SMOKES.md, "GCG stratified sae (full ro
   **$95.32 (8B) / $363.88 (27B)**, $459.20 both.
 - The exploratory pass (smoke draw, 8 directions per arm, both `gcg` and `epo`) is reported
   separately from the final arms throughout: it used a different root and a different target
-  draw, and EPO exists only there. The final GCG run is `gcg` only, 32 directions, full root.
+  draw. The final arms are all full root at 32 targets — `gcg` first, then `epo` on the same
+  selections (realact rows 0-31 and the stratified `sae` rows).
 - Number of documents forwarded by `targets` at 16M: n/a in SMOKES (only the 512-per-family
   target counts and the wall are recorded; the smoke run's realact pool was 550 documents at 1M
   on the 27B and is a 1,024-document sample at 16M).

@@ -2479,3 +2479,188 @@ GPU $9.22 (`sae_self` x2 $0.57, `random_pool` $0.14, `examples_4m` $1.63, `examp
 plus $0.51 sunk on a check that turned out to need a near-tie tolerance). LLM $170.72 ($2.11 on
 OpenRouter before the switch, $34.89 pilot, $91.92 primary, $23.69 rlI-150, ~$18 across the earlier
 stopped chains' pilots). **~$180 against the $500 ceiling.**
+
+### All 8 EPO arms landed (2026-09-17)
+
+Mean +- SE over the 32 TARGETS of each target's best member; 27B to 2 dp per the precision rule.
+
+| base | family | arm | dirs | mean final cos +- SE | mean init cos | mean NLL | true $/dir | mean peak act | frac fired |
+|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact | `epo-corpus` | 32 | **0.5787 +- 0.012** | 0.5218 | 3.020 | $0.2720 | -- | -- |
+| qwen3-8b | realact | `epo-random32` | 32 | 0.4689 +- 0.021 | 0.0558 | 4.746 | $0.2941 | -- | -- |
+| qwen3-8b | sae | `epo-corpus-strat` | 32 | **0.2516 +- 0.015** | 0.2332 | 2.926 | $0.2778 | 117.72 | 1.000 |
+| qwen3-8b | sae | `epo-random32-strat` | 32 | 0.1481 +- 0.021 | 0.0101 | 4.039 | $0.2970 | 67.19 | 0.781 |
+| qwen36-27b | realact | `epo-corpus` | 32 | **0.43 +- 0.03** | 0.3491 | 3.026 | $1.1375 | -- | -- |
+| qwen36-27b | realact | `epo-random32` | 32 | 0.22 +- 0.03 | -0.0226 | 5.121 | $1.0786 | -- | -- |
+| qwen36-27b | sae | `epo-corpus-strat` | 32 | **0.19 +- 0.02** | 0.1594 | 2.557 | $1.1099 | 23.43 | 0.969 |
+| qwen36-27b | sae | `epo-random32-strat` | 32 | 0.03 +- 0.01 | 0.0044 | 4.461 | $1.1376 | 2.12 | **0.250** |
+
+Verified on all eight: `n_directions` 32, `finals.jsonl` 96 rows (32 targets x 3 members),
+`trajectory.jsonl` 2,976, `top64.jsonl` 6,144, `summary.json`, README with a cost, lambdas
+[0.1, 0.19, 0.37] in every arm.
+
+Per member (the Pareto slice the population exists to trace), cos / NLL at lambda 0.1 / 0.19 / 0.37:
+
+| base | arm | lambda 0.1 | lambda 0.19 | lambda 0.37 |
+|---|---|---|---|---|
+| 8B | `realact/epo-corpus` | 0.5764 / 3.024 | 0.5594 / 2.900 | 0.5380 / 2.778 |
+| 8B | `realact/epo-random32` | 0.4445 / 4.819 | 0.3750 / 4.403 | 0.2975 / 4.188 |
+| 8B | `sae/epo-corpus-strat` | 0.2506 / 2.928 | 0.2416 / 2.849 | 0.2309 / 2.774 |
+| 8B | `sae/epo-random32-strat` | 0.1296 / 4.158 | 0.0721 / 3.911 | 0.0521 / 3.874 |
+| 27B | `realact/epo-corpus` | 0.4212 / 3.052 | 0.3969 / 2.781 | 0.3790 / 2.715 |
+| 27B | `realact/epo-random32` | 0.1948 / 5.087 | 0.1449 / 4.904 | 0.0892 / 4.619 |
+| 27B | `sae/epo-corpus-strat` | 0.1874 / 2.557 | 0.1774 / 2.471 | 0.1632 / 2.428 |
+| 27B | `sae/epo-random32-strat` | 0.0255 / 4.432 | 0.0165 / 4.460 | 0.0079 / 4.136 |
+
+**Lambda trades cosine for fluency monotonically in all eight arms**, with no exception on either
+base or either family -- 24 of 24 (arm, lambda-step) pairs move cosine down and NLL down together.
+Against the matching `gcg` arms the trade is large: 8B `realact` gives up 0.061 of cosine (0.6398 ->
+0.5787) for **4.6 nats** (7.61 -> 3.02), and the 27B gives up 0.06 for 5.3 nats. The `random32`
+arms trade far worse (8B `sae` loses 0.055 of an already small 0.2032 for 9.4 nats), which is the
+expected shape: there is no fluent neighbourhood to fall back into when the start is noise.
+
+**EPO trails GCG on raw cosine in all eight cells**, by 0.023-0.061 -- expected at lambda > 0, but
+the best member is at lambda 0.1 rather than 0, so the 3x-smaller per-iteration candidate pool
+(255 against 512) costs something of its own on top of the objective change.
+
+**The 27B `sae/epo-random32-strat` arm is where the search stops working**: cos 0.03 +- 0.01 and the
+feature fires on only **25%** of finals, against 97% for the corpus init on the same rows. The
+corresponding `gcg` arm reached 0.08 with 97% firing, so adding the fluency penalty to an already
+failing random start is what pushes it below the gate.
+
+### Spend, with the timeout that the projection did not include
+
+All four 27B EPO arms **hit the app's 6-hour function timeout at 24-25 of 32 directions**
+(`timeout=6*3600` in `gcg/modal_app.py`, against a measured 32 x ~880 s = 7.8 h). They were completed
+by a `--resume-from <kept temp dir>` run from another session (commit `1a9bf26`, which also raised
+the timeout to 9 h), so the partial compute was reused rather than discarded and every arm is a full
+32 directions. The cost, however, is the timed-out call PLUS the resume:
+
+| arm | timed-out call | resume | true total | true $/dir |
+|---|---|---|---|---|
+| 27B `realact/epo-corpus` | $27.24 | $9.1609 | **$36.40** | $1.1375 |
+| 27B `realact/epo-random32` | $27.24 | $7.2740 | **$34.51** | $1.0786 |
+| 27B `sae/epo-corpus-strat` | $27.24 | $8.2769 | **$35.52** | $1.1099 |
+| 27B `sae/epo-random32-strat` | $27.24 | $9.1623 | **$36.40** | $1.1376 |
+
+**27B EPO $142.83, 8B EPO $36.51, EPO total $179.34** against the $174 projection -- +3%, and the
+projection was right per direction ($1.08-1.14 measured against $1.03-1.13 projected). The arm
+READMEs on the volume record only the RESUME call's cost for the four 27B arms, so reading
+`- cost:` off those four understates them by $27.24 each; the true figures are the table above.
+
+### (f) GCG and EPO, 32 targets
+
+All eight EPO arms landed (96 rows each = 32 targets x 3 members at lambda 0.1 / 0.19 / 0.37), so
+table (f) now carries both optimisers. **Verified rather than assumed** after the reported 6 h
+timeout and resume of the four 27B arms: every one of the eight has 96 rows over exactly 32 distinct
+directions, 3.0 rows per direction — no direction lost and none double-written by the resume.
+
+Precision: an arm's own mean columns are 2 dp on the 27B and 3 on the 8B, the precision their SEs
+(~0.03 / ~0.01) support. The PAIRED columns keep 4 dp — they are per-direction differences with much
+tighter SEs, and rounding them to the arm's precision would make -0.0426 and -0.0450 both read
+-0.04. `lam ... (member)` rows are per-member means, not per-target bests, and carry no MAEMM
+columns: pairing one member against the inverter is a different claim from the arm's reachability.
+
+| base | family | view | arm | slice | dirs | rows | GCG cos | init cos | nll | 2026-09-03_run1-rl bo64 | 2026-09-03_run1-rl mean64 | GCG - 2026-09-03_run1-rl bo64 | GCG wins vs 2026-09-03_run1-rl | 2026-09-10_rl-8x2048-full@vllm bo64 | 2026-09-10_rl-8x2048-full@vllm mean64 | GCG - 2026-09-10_rl-8x2048-full@vllm bo64 | GCG wins vs 2026-09-10_rl-8x2048-full@vllm | 2026-09-16_base-control@vllm bo64 | 2026-09-16_base-control@vllm mean64 | GCG - 2026-09-16_base-control@vllm bo64 | GCG wins vs 2026-09-16_base-control@vllm | 2026-09-08_rlI-150@vllm bo64 | 2026-09-08_rlI-150@vllm mean64 | GCG - 2026-09-08_rlI-150@vllm bo64 | GCG wins vs 2026-09-08_rlI-150@vllm |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact |  | epo-corpus | all | 32 | 0-31 | 0.579 ± 0.012 | 0.522 ± 0.013 | 3.02 | 0.6532 | 0.5527 | -0.0745 ± 0.0099 | 0.031 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | epo-corpus | lam 0.1 (member) | 32 | 0-31 | 0.576 ± 0.012 |  | 3.024 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | epo-corpus | lam 0.19 (member) | 32 | 0-31 | 0.559 ± 0.012 |  | 2.9 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | epo-corpus | lam 0.37 (member) | 32 | 0-31 | 0.538 ± 0.012 |  | 2.778 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | epo-random32 | all | 32 | 0-31 | 0.469 ± 0.021 | 0.056 ± 0.012 | 4.746 | 0.6532 | 0.5527 | -0.1843 ± 0.0201 | 0.031 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | epo-random32 | lam 0.1 (member) | 32 | 0-31 | 0.445 ± 0.021 |  | 4.819 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | epo-random32 | lam 0.19 (member) | 32 | 0-31 | 0.375 ± 0.028 |  | 4.403 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | epo-random32 | lam 0.37 (member) | 32 | 0-31 | 0.298 ± 0.022 |  | 4.188 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | gcg-corpus | all | 32 | 0-31 | 0.640 ± 0.011 | 0.522 ± 0.013 | 7.613 | 0.6532 | 0.5527 | -0.0134 ± 0.0102 | 0.344 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | realact |  | gcg-random32 | all | 31 | 0-31 | 0.492 ± 0.024 | 0.053 ± 0.012 | 12.932 | 0.6547 | 0.5541 | -0.1622 ± 0.0211 | 0.032 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | all | 32 | 1024-1415 | 0.252 ± 0.015 | 0.233 ± 0.014 | 2.926 | 0.157 | 0.0775 | 0.0946 ± 0.0146 | 0.969 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | density q0 | 8 | 1024-1031 | 0.295 ± 0.020 | 0.278 ± 0.020 | 3.29 | 0.1402 | 0.0575 | 0.1550 ± 0.0427 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | density q1 | 8 | 1152-1159 | 0.259 ± 0.025 | 0.243 ± 0.023 | 2.969 | 0.1683 | 0.0924 | 0.0902 ± 0.0242 | 0.875 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | density q2 | 8 | 1280-1287 | 0.225 ± 0.019 | 0.204 ± 0.021 | 2.799 | 0.1496 | 0.0653 | 0.0753 ± 0.0206 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | density q3 | 8 | 1408-1415 | 0.228 ± 0.046 | 0.207 ± 0.042 | 2.645 | 0.17 | 0.0948 | 0.0578 ± 0.0135 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | lam 0.1 (member) | 32 | 1024-1415 | 0.251 ± 0.015 |  | 2.928 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | lam 0.19 (member) | 32 | 1024-1415 | 0.242 ± 0.014 |  | 2.849 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-corpus-strat | lam 0.37 (member) | 32 | 1024-1415 | 0.231 ± 0.014 |  | 2.774 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | all | 32 | 1024-1415 | 0.148 ± 0.021 | 0.010 ± 0.002 | 4.039 | 0.157 | 0.0775 | -0.0089 ± 0.0193 | 0.469 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | density q0 | 8 | 1024-1031 | 0.192 ± 0.049 | 0.015 ± 0.003 | 4.29 | 0.1402 | 0.0575 | 0.0516 ± 0.0398 | 0.75 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | density q1 | 8 | 1152-1159 | 0.120 ± 0.044 | 0.015 ± 0.004 | 3.558 | 0.1683 | 0.0924 | -0.0487 ± 0.0408 | 0.25 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | density q2 | 8 | 1280-1287 | 0.124 ± 0.030 | 0.005 ± 0.002 | 4.008 | 0.1496 | 0.0653 | -0.0256 ± 0.0409 | 0.25 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | density q3 | 8 | 1408-1415 | 0.157 ± 0.047 | 0.005 ± 0.002 | 4.301 | 0.17 | 0.0948 | -0.0131 ± 0.0298 | 0.625 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | lam 0.1 (member) | 32 | 1024-1415 | 0.130 ± 0.022 |  | 4.158 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | lam 0.19 (member) | 32 | 1024-1415 | 0.072 ± 0.018 |  | 3.911 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | epo-random32-strat | lam 0.37 (member) | 32 | 1024-1415 | 0.052 ± 0.015 |  | 3.874 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | rare-stratum q0 view | gcg-corpus | all | 32 | 1024-1055 | 0.308 ± 0.017 | 0.236 ± 0.017 | 7.97 | 0.1358 | 0.0647 | 0.1722 ± 0.0222 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | all | 32 | 1024-1415 | 0.298 ± 0.017 | 0.233 ± 0.014 | 7.461 | 0.157 | 0.0775 | 0.1412 ± 0.0157 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q0 | 8 | 1024-1031 | 0.351 ± 0.021 | 0.278 ± 0.020 | 8.299 | 0.1402 | 0.0575 | 0.2103 ± 0.0451 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q1 | 8 | 1152-1159 | 0.287 ± 0.027 | 0.243 ± 0.023 | 6.622 | 0.1683 | 0.0924 | 0.1185 ± 0.0205 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q2 | 8 | 1280-1287 | 0.278 ± 0.017 | 0.204 ± 0.021 | 7.842 | 0.1496 | 0.0653 | 0.1284 ± 0.0227 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-corpus-strat | density q3 | 8 | 1408-1415 | 0.278 ± 0.055 | 0.207 ± 0.042 | 7.082 | 0.17 | 0.0948 | 0.1078 ± 0.0218 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | rare-stratum q0 view | gcg-random32 | all | 32 | 1024-1055 | 0.216 ± 0.025 | 0.016 ± 0.002 | 13.334 | 0.1358 | 0.0647 | 0.0803 ± 0.0167 | 0.906 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | all | 32 | 1024-1415 | 0.203 ± 0.024 | 0.010 ± 0.002 | 13.422 | 0.157 | 0.0775 | 0.0461 ± 0.0194 | 0.719 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q0 | 8 | 1024-1031 | 0.284 ± 0.044 | 0.012 ± 0.003 | 13.517 | 0.1402 | 0.0575 | 0.1441 ± 0.0369 | 1.0 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q1 | 8 | 1152-1159 | 0.183 ± 0.049 | 0.018 ± 0.004 | 13.75 | 0.1683 | 0.0924 | 0.0150 ± 0.0423 | 0.75 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q2 | 8 | 1280-1287 | 0.148 ± 0.042 | 0.005 ± 0.002 | 13.283 | 0.1496 | 0.0653 | -0.0019 ± 0.0355 | 0.5 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen3-8b | sae | reported (stratified) | gcg-random32-strat | density q3 | 8 | 1408-1415 | 0.197 ± 0.052 | 0.005 ± 0.002 | 13.137 | 0.17 | 0.0948 | 0.0273 ± 0.0195 | 0.625 |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | epo-corpus | all | 32 | 0-31 | 0.43 ± 0.03 | 0.35 ± 0.03 | 3.03 |  |  |  |  | 0.5313 | 0.4611 | -0.1039 ± 0.0133 | 0.062 | 0.1052 | -0.0021 | 0.3222 ± 0.0221 | 1.0 | 0.5301 | 0.4065 | -0.1027 ± 0.0138 | 0.031 |
+| qwen36-27b | realact |  | epo-corpus | lam 0.1 (member) | 32 | 0-31 | 0.42 ± 0.03 |  | 3.05 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | epo-corpus | lam 0.19 (member) | 32 | 0-31 | 0.40 ± 0.02 |  | 2.78 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | epo-corpus | lam 0.37 (member) | 32 | 0-31 | 0.38 ± 0.03 |  | 2.71 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact | SUPERSEDED partial run -- not a reported arm | epo-corpus-smoke | all | 25 | 0-24 | 0.41 ± 0.03 | 0.34 ± 0.03 | 2.93 |  |  |  |  | 0.5151 | 0.4416 | -0.1014 ± 0.0148 | 0.04 | 0.0808 | -0.019 | 0.3329 ± 0.0265 | 1.0 | 0.5119 | 0.3967 | -0.0982 ± 0.0159 | 0.04 |
+| qwen36-27b | realact | SUPERSEDED partial run -- not a reported arm | epo-corpus-smoke | lam 0.1 (member) | 25 | 0-24 | 0.41 ± 0.03 |  | 2.95 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact | SUPERSEDED partial run -- not a reported arm | epo-corpus-smoke | lam 0.19 (member) | 25 | 0-24 | 0.38 ± 0.03 |  | 2.66 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact | SUPERSEDED partial run -- not a reported arm | epo-corpus-smoke | lam 0.37 (member) | 25 | 0-24 | 0.37 ± 0.03 |  | 2.61 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | epo-random32 | all | 32 | 0-31 | 0.22 ± 0.03 | -0.02 ± 0.02 | 5.12 |  |  |  |  | 0.5313 | 0.4611 | -0.3099 ± 0.0291 | 0.0 | 0.1052 | -0.0021 | 0.1162 ± 0.0208 | 0.812 | 0.5301 | 0.4065 | -0.3087 ± 0.0295 | 0.0 |
+| qwen36-27b | realact |  | epo-random32 | lam 0.1 (member) | 32 | 0-31 | 0.19 ± 0.03 |  | 5.09 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | epo-random32 | lam 0.19 (member) | 32 | 0-31 | 0.14 ± 0.02 |  | 4.9 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | epo-random32 | lam 0.37 (member) | 32 | 0-31 | 0.09 ± 0.03 |  | 4.62 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | realact |  | gcg-corpus | all | 32 | 0-31 | 0.49 ± 0.03 | 0.35 ± 0.03 | 8.28 |  |  |  |  | 0.5313 | 0.4611 | -0.0426 ± 0.0136 | 0.281 | 0.1052 | -0.0021 | 0.3835 ± 0.0221 | 1.0 | 0.5301 | 0.4065 | -0.0415 ± 0.0139 | 0.312 |
+| qwen36-27b | realact |  | gcg-random32 | all | 32 | 0-31 | 0.28 ± 0.03 | -0.02 ± 0.02 | 13.08 |  |  |  |  | 0.5313 | 0.4611 | -0.2486 ± 0.0292 | 0.0 | 0.1052 | -0.0021 | 0.1775 ± 0.0247 | 0.938 | 0.5301 | 0.4065 | -0.2474 ± 0.0292 | 0.0 |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | all | 32 | 1024-1415 | 0.19 ± 0.02 | 0.16 ± 0.01 | 2.56 |  |  |  |  | 0.1802 | 0.1316 | 0.0092 ± 0.0112 | 0.438 | 0.0218 | 0.0032 | 0.1677 ± 0.0156 | 0.969 | 0.162 | 0.1109 | 0.0275 ± 0.0119 | 0.594 |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | density q0 | 8 | 1024-1031 | 0.18 ± 0.04 | 0.15 ± 0.04 | 2.21 |  |  |  |  | 0.1553 | 0.083 | 0.0258 ± 0.0414 | 0.25 | 0.0191 | 0.0045 | 0.1619 ± 0.0378 | 0.875 | 0.1196 | 0.0441 | 0.0615 ± 0.0442 | 0.375 |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | density q1 | 8 | 1152-1159 | 0.25 ± 0.03 | 0.21 ± 0.02 | 2.69 |  |  |  |  | 0.2639 | 0.212 | -0.0139 ± 0.0142 | 0.25 | 0.0196 | 0.0039 | 0.2304 ± 0.0279 | 1.0 | 0.2444 | 0.1919 | 0.0056 ± 0.0109 | 0.375 |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | density q2 | 8 | 1280-1287 | 0.18 ± 0.02 | 0.15 ± 0.02 | 2.66 |  |  |  |  | 0.1684 | 0.1312 | 0.0111 ± 0.0104 | 0.625 | 0.0196 | 0.0018 | 0.1598 ± 0.0188 | 1.0 | 0.1585 | 0.1142 | 0.0210 ± 0.0089 | 0.875 |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | density q3 | 8 | 1408-1415 | 0.15 ± 0.03 | 0.13 ± 0.03 | 2.67 |  |  |  |  | 0.1332 | 0.1002 | 0.0139 ± 0.0082 | 0.625 | 0.0286 | 0.0026 | 0.1186 ± 0.0293 | 1.0 | 0.1253 | 0.0935 | 0.0218 ± 0.0100 | 0.75 |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | lam 0.1 (member) | 32 | 1024-1415 | 0.19 ± 0.02 |  | 2.56 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | lam 0.19 (member) | 32 | 1024-1415 | 0.18 ± 0.02 |  | 2.47 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | sae | reported (stratified) | epo-corpus-strat | lam 0.37 (member) | 32 | 1024-1415 | 0.16 ± 0.01 |  | 2.43 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | all | 32 | 1024-1415 | 0.03 ± 0.01 | 0.00 ± 0.00 | 4.46 |  |  |  |  | 0.1802 | 0.1316 | -0.1510 ± 0.0190 | 0.094 | 0.0218 | 0.0032 | 0.0074 ± 0.0051 | 0.531 | 0.162 | 0.1109 | -0.1328 ± 0.0181 | 0.094 |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | density q0 | 8 | 1024-1031 | 0.02 ± 0.00 | 0.00 ± 0.00 | 4.22 |  |  |  |  | 0.1553 | 0.083 | -0.1377 ± 0.0431 | 0.125 | 0.0191 | 0.0045 | -0.0016 ± 0.0023 | 0.375 | 0.1196 | 0.0441 | -0.1020 ± 0.0395 | 0.125 |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | density q1 | 8 | 1152-1159 | 0.02 ± 0.00 | 0.00 ± 0.00 | 4.22 |  |  |  |  | 0.2639 | 0.212 | -0.2487 ± 0.0183 | 0.0 | 0.0196 | 0.0039 | -0.0044 ± 0.0034 | 0.375 | 0.2444 | 0.1919 | -0.2292 ± 0.0247 | 0.0 |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | density q2 | 8 | 1280-1287 | 0.05 ± 0.02 | 0.00 ± 0.00 | 4.73 |  |  |  |  | 0.1684 | 0.1312 | -0.1181 ± 0.0301 | 0.0 | 0.0196 | 0.0018 | 0.0306 ± 0.0169 | 0.75 | 0.1585 | 0.1142 | -0.1083 ± 0.0276 | 0.0 |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | density q3 | 8 | 1408-1415 | 0.03 ± 0.01 | 0.01 ± 0.00 | 4.67 |  |  |  |  | 0.1332 | 0.1002 | -0.0995 ± 0.0370 | 0.25 | 0.0286 | 0.0026 | 0.0051 ± 0.0067 | 0.625 | 0.1253 | 0.0935 | -0.0916 ± 0.0329 | 0.25 |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | lam 0.1 (member) | 32 | 1024-1415 | 0.03 ± 0.01 |  | 4.43 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | lam 0.19 (member) | 32 | 1024-1415 | 0.02 ± 0.00 |  | 4.46 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | sae | reported (stratified) | epo-random32-strat | lam 0.37 (member) | 32 | 1024-1415 | 0.01 ± 0.00 |  | 4.14 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| qwen36-27b | sae | rare-stratum q0 view | gcg-corpus | all | 32 | 1024-1055 | 0.24 ± 0.01 | 0.15 ± 0.01 | 7.31 |  |  |  |  | 0.1308 | 0.0859 | 0.1100 ± 0.0166 | 0.906 | 0.0194 | 0.0039 | 0.2214 ± 0.0115 | 1.0 | 0.1112 | 0.065 | 0.1296 ± 0.0172 | 0.938 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | all | 32 | 1024-1415 | 0.23 ± 0.02 | 0.16 ± 0.01 | 7.15 |  |  |  |  | 0.1802 | 0.1316 | 0.0542 ± 0.0100 | 0.875 | 0.0218 | 0.0032 | 0.2126 ± 0.0164 | 1.0 | 0.162 | 0.1109 | 0.0724 ± 0.0101 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q0 | 8 | 1024-1031 | 0.23 ± 0.04 | 0.15 ± 0.04 | 6.94 |  |  |  |  | 0.1553 | 0.083 | 0.0790 ± 0.0348 | 0.75 | 0.0191 | 0.0045 | 0.2151 ± 0.0357 | 1.0 | 0.1196 | 0.0441 | 0.1147 ± 0.0322 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q1 | 8 | 1152-1159 | 0.29 ± 0.03 | 0.21 ± 0.02 | 6.86 |  |  |  |  | 0.2639 | 0.212 | 0.0240 ± 0.0115 | 0.75 | 0.0196 | 0.0039 | 0.2683 ± 0.0265 | 1.0 | 0.2444 | 0.1919 | 0.0435 ± 0.0077 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q2 | 8 | 1280-1287 | 0.22 ± 0.02 | 0.15 ± 0.02 | 7.58 |  |  |  |  | 0.1684 | 0.1312 | 0.0551 ± 0.0101 | 1.0 | 0.0196 | 0.0018 | 0.2039 ± 0.0212 | 1.0 | 0.1585 | 0.1142 | 0.0650 ± 0.0081 | 1.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-corpus-strat | density q3 | 8 | 1408-1415 | 0.19 ± 0.04 | 0.13 ± 0.03 | 7.2 |  |  |  |  | 0.1332 | 0.1002 | 0.0586 ± 0.0109 | 1.0 | 0.0286 | 0.0026 | 0.1632 ± 0.0394 | 1.0 | 0.1253 | 0.0935 | 0.0665 ± 0.0157 | 1.0 |
+| qwen36-27b | sae | rare-stratum q0 view | gcg-random32 | all | 32 | 1024-1055 | 0.07 ± 0.01 | 0.01 ± 0.00 | 13.18 |  |  |  |  | 0.1308 | 0.0859 | -0.0626 ± 0.0195 | 0.375 | 0.0194 | 0.0039 | 0.0488 ± 0.0096 | 1.0 | 0.1112 | 0.065 | -0.0430 ± 0.0194 | 0.5 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | all | 32 | 1024-1415 | 0.08 ± 0.01 | 0.00 ± 0.00 | 13.35 |  |  |  |  | 0.1802 | 0.1316 | -0.0959 ± 0.0155 | 0.188 | 0.0218 | 0.0032 | 0.0625 ± 0.0095 | 0.938 | 0.162 | 0.1109 | -0.0777 ± 0.0147 | 0.156 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q0 | 8 | 1024-1031 | 0.07 ± 0.02 | 0.01 ± 0.00 | 13.57 |  |  |  |  | 0.1553 | 0.083 | -0.0869 ± 0.0340 | 0.375 | 0.0191 | 0.0045 | 0.0492 ± 0.0184 | 1.0 | 0.1196 | 0.0441 | -0.0513 ± 0.0278 | 0.375 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q1 | 8 | 1152-1159 | 0.10 ± 0.03 | 0.00 ± 0.00 | 13.27 |  |  |  |  | 0.2639 | 0.212 | -0.1647 ± 0.0252 | 0.0 | 0.0196 | 0.0039 | 0.0796 ± 0.0295 | 0.875 | 0.2444 | 0.1919 | -0.1452 ± 0.0324 | 0.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q2 | 8 | 1280-1287 | 0.08 ± 0.01 | 0.00 ± 0.00 | 13.31 |  |  |  |  | 0.1684 | 0.1312 | -0.0871 ± 0.0202 | 0.0 | 0.0196 | 0.0018 | 0.0617 ± 0.0096 | 1.0 | 0.1585 | 0.1142 | -0.0772 ± 0.0177 | 0.0 |
+| qwen36-27b | sae | reported (stratified) | gcg-random32-strat | density q3 | 8 | 1408-1415 | 0.09 ± 0.01 | 0.00 ± 0.00 | 13.27 |  |  |  |  | 0.1332 | 0.1002 | -0.0450 ± 0.0312 | 0.375 | 0.0286 | 0.0026 | 0.0596 ± 0.0147 | 0.875 | 0.1253 | 0.0935 | -0.0371 ± 0.0266 | 0.25 |
+
+**EPO buys fluency at a small cosine cost, which is the whole point of the lambda grid.** On 27B
+realact, `epo-corpus` reaches **0.43 ± 0.03** at NLL **3.03** against `gcg-corpus`'s **0.49 ± 0.03**
+at NLL **8.28**: ~0.06 of cosine for **5.3 nats**. The per-member rows trace the front directly —
+lambda 0.1 → 0.42 at NLL 3.05, 0.19 → 0.40 at 2.78, 0.37 → 0.38 at 2.71 — monotone in both, exactly
+as a Pareto sweep should be. So the "reachability ceiling" is really two ceilings: what a string can
+reach at any fluency (GCG, NLL 8-13, gibberish) and what a *readable* string can reach (EPO, NLL
+2.4-3.1).
+
+**Against the primary the conclusion changes with the optimiser.** On realact, GCG-corpus is 0.043
+below the inverter and EPO-corpus is **0.104** below (winning 6.2% of directions) — the inverter
+beats any fluent 32-token string we can find. On stratified sae, EPO-corpus is level with the
+inverter (**+0.0092 ± 0.0112**, 43.8% wins) where GCG-corpus was clearly ahead (+0.0542 ± 0.0100,
+87.5%): once the optimised string has to be fluent, the SAE advantage over the inverter mostly
+disappears. Random-init EPO is far behind everywhere (27B sae -0.1510 ± 0.0190, 9.4% wins).
+
+**One arm is labelled, not dropped.** `qwen36-27b/realact/epo-corpus-smoke` has **25 of 32**
+directions and is superseded by `epo-corpus`; it carries `view = SUPERSEDED partial run -- not a
+reported arm` and its own `dirs` column says 25. Its rows are real and are kept visible, but nothing
+should average them in — note its MAEMM column reads 0.5151 rather than 0.5313 precisely because it
+is a different subset of directions.

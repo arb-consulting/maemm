@@ -714,8 +714,16 @@ def table_e(out: Out, vol: Vol, found: dict) -> None:
     )
 
 
+# Decimal places for an ARM's OWN mean columns, per base. The 27B arms carry SEs around 0.03, so a
+# fourth decimal there is false precision; the 8B's are around 0.01. The PAIRED columns keep 4 dp on
+# purpose -- they are per-direction differences with much tighter SEs, and rounding them to the
+# arm's precision would erase real signal (-0.0426 and -0.0450 would both read -0.04).
+ARM_MEAN_DP = {"qwen36-27b": 2, "qwen3-8b": 3}
+
+
 def _gcg_row(base, fam, arm, view, slice_, dirs, per_dir, sides, set_name):
     """One emitted row of table (f): the arm's numbers over `dirs`, plus each MAEMM on those rows."""
+    nd = ARM_MEAN_DP.get(base, 4)
     cos = np.array([per_dir[r]["cos"] for r in dirs])
     init = np.array([per_dir[r]["init_cos"] for r in dirs])
     nll = np.array([per_dir[r]["nll"] for r in dirs if per_dir[r].get("nll") is not None])
@@ -727,9 +735,9 @@ def _gcg_row(base, fam, arm, view, slice_, dirs, per_dir, sides, set_name):
         "slice": slice_,
         "dirs": len(dirs),
         "rows": f"{min(dirs)}-{max(dirs)}",
-        "GCG cos": pm(float(cos.mean()), se(cos)),
-        "init cos": pm(float(init.mean()), se(init)),
-        "nll": round(float(nll.mean()), 3) if len(nll) else "",
+        "GCG cos": pm(float(cos.mean()), se(cos), nd),
+        "init cos": pm(float(init.mean()), se(init), nd),
+        "nll": round(float(nll.mean()), nd) if len(nll) else "",
     }
     want = set(dirs)
     for s_ in sides:
@@ -792,7 +800,13 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
                         if cur is None or r["cos"] > cur["cos"]:
                             per_dir[int(r["row"])] = r
                     dirs = sorted(per_dir)
-                    if fam != "sae":
+                    if name.endswith("-smoke"):
+                        # a partial/abandoned run kept on the volume beside the arm that replaced
+                        # it (27B realact epo-corpus-smoke: 25 of 32 directions). It is LABELLED
+                        # rather than dropped -- the rows are real and the `dirs` column is honest
+                        # -- but the label must make it impossible to average in as a result.
+                        view = "SUPERSEDED partial run -- not a reported arm"
+                    elif fam != "sae":
                         view = ""
                     else:
                         view = "reported (stratified)" if strat else "rare-stratum q0 view"
@@ -807,6 +821,34 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
                                         base, fam, name, view, f"density q{q}", sub, per_dir, sides, set_name
                                     )
                                 )
+                    # EPO holds several members per direction, one lambda each, selected by its own
+                    # L_lambda -- so the arm traces a Pareto front in one run. These rows are
+                    # PER-MEMBER means, not per-target bests, and carry no MAEMM columns: comparing
+                    # one member against the inverter would be a different claim from the arm's
+                    # reachability figure, which is the `all` row above.
+                    lams = sorted({r["lam"] for r in recs if r.get("lam") is not None})
+                    if len(lams) > 1:
+                        nd = ARM_MEAN_DP.get(base, 4)
+                        for lam in lams:
+                            mem = [r for r in recs if r.get("lam") == lam]
+                            if not mem:
+                                continue
+                            c = np.array([r["cos"] for r in mem])
+                            nl = np.array([r["nll"] for r in mem if r.get("nll") is not None])
+                            rows.append(
+                                {
+                                    "base": base,
+                                    "family": fam,
+                                    "view": view,
+                                    "arm": name,
+                                    "slice": f"lam {lam:g} (member)",
+                                    "dirs": len({r["row"] for r in mem}),
+                                    "rows": f"{min(r['row'] for r in mem)}-{max(r['row'] for r in mem)}",
+                                    "GCG cos": pm(float(c.mean()), se(c), nd),
+                                    "init cos": "",
+                                    "nll": round(float(nl.mean()), nd) if len(nl) else "",
+                                }
+                            )
     if not rows:
         return out.skip("f", "no gcg arms with finals.jsonl on this root")
     df = pl.DataFrame(rows, infer_schema_length=None)
@@ -820,7 +862,12 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
             "per (base, family, arm, slice): the per-direction best member's final cosine, its init "
             "cosine and its NLL, ± SE across TARGETS; MAEMM columns are the unbiased best-of-n and "
             "the mean-of-n on EXACTLY those directions, with the paired difference ± SE and the "
-            "fraction of directions GCG wins, ordered primary first. The sae family has TWO views: "
+            "fraction of directions GCG wins, ordered primary first. An arm's own mean columns "
+            "are shown to 2 dp on the 27B and 3 on the 8B, the precision their SEs support; the "
+            "PAIRED columns keep 4 dp because they are per-direction differences with much tighter "
+            "SEs. `lam ... (member)` rows are an EPO arm's PER-MEMBER means (one lambda each, the "
+            "cosine-for-fluency trade), not per-target bests, and carry no MAEMM columns. "
+            "The sae family has TWO views: "
             "`*-strat` arms (8 targets per density quartile, 32 total) are the REPORTED rows and "
             "carry the per-quartile breakdown, while the earlier plain sae arms are the first 32 "
             "sae rows -- all q0 -- and are kept as a rare-stratum view, never averaged in as the "
