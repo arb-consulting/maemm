@@ -91,10 +91,13 @@ def _run(args, gpu_label):
     vol.commit()
     wall = time.time() - t0
     cost = wall * USD_PER_S[gpu_label]
-    per_dir = cost / max(1, int(out.get("n_directions") or 1))
+    # a --resume-from call is charged to the directions it actually ran, not the carried ones
+    n_run = int(out.get("n_directions_run") or out.get("n_directions") or 1)
+    per_dir = cost / max(1, n_run)
     print(
         f"[wall] arm={out['arm']} base={args.get('base')} gpu={gpu_label} seconds={wall:.1f} "
-        f"cost=${cost:.4f} (${per_dir:.4f}/direction over {out['n_directions']} directions)",
+        f"cost=${cost:.4f} (${per_dir:.4f}/direction over the {n_run} of {out['n_directions']} "
+        f"directions run in this call)",
         flush=True,
     )
     return {
@@ -107,12 +110,15 @@ def _run(args, gpu_label):
     }
 
 
-@app.function(image=image, gpu="H100", volumes=VOLUMES, secrets=SECRETS, timeout=6 * 3600)
+# 9 h, not 6: a 32-direction 27B `epo` arm MEASURES ~870 s/direction = ~7.7 h, and all four such arms
+# launched 2026-09-16 were cancelled by Modal at exactly 21600 s with 24-25 of 32 directions done
+# (the container sees the cancellation as a KeyboardInterrupt). `--resume-from` finished them.
+@app.function(image=image, gpu="H100", volumes=VOLUMES, secrets=SECRETS, timeout=9 * 3600)
 def gpu_h100(args: dict):
     return _run(args, "H100")
 
 
-@app.function(image=image27_gcg, gpu="H200", volumes=VOLUMES, secrets=SECRETS, timeout=6 * 3600)
+@app.function(image=image27_gcg, gpu="H200", volumes=VOLUMES, secrets=SECRETS, timeout=9 * 3600)
 def gpu_h200(args: dict):
     return _run(args, "H200")
 
@@ -142,6 +148,7 @@ def main(
     log_every: int = 0,
     filter_oversample: float = 0.0,
     seed: int = 0,
+    resume_from: str = "",
 ):
     """One (base, family, arm) search run. `--arm <mode>-<init>`, or `--mode` and `--init`.
 
@@ -149,6 +156,9 @@ def main(
     eight targets (global rows 1024-1031 of a 512-per-family set). Everything else defaults from
     the mode (gcg: 150 x 1 x 512 at lambda 0; epo: 300 x 3 x 85 at
     lambda 0.1/0.19/0.37) and is overridable for a cheap shakeout, e.g. `--iters 10 --rows 0`.
+
+    `--resume-from /vol/.../<arm>.tmp-<date>` carries the finished directions of a kept temp dir
+    into this call and runs only the rest of `--rows`; the output is the ordinary arm dir.
     """
     sys.path.insert(0, str(LOCAL_ROOT))
     import precompute.common as C
@@ -187,6 +197,7 @@ def main(
         "log_every": log_every,
         "filter_oversample": filter_oversample,
         "seed": seed,
+        "resume_from": resume_from.rstrip("/"),
         # The container has no git checkout, so the commit every README records is captured here.
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,

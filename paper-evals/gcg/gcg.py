@@ -41,8 +41,10 @@ from __future__ import annotations
 import json
 import math
 import re
+import shutil
 import time
 import zlib
+from pathlib import Path
 
 import numpy as np
 
@@ -100,6 +102,10 @@ TOP_PRUNE_TO = 1024
 # Kept out of summary.json's per-run block: they are already in finals.jsonl in full and would
 # multiply the summary's size by the sequence length.
 _BULKY_FINAL_KEYS = ("ids", "init_ids", "per_token_cos")
+
+# The three per-direction streams, in the order a direction writes them; `--resume-from` copies
+# exactly these out of a kept temp dir.
+RESUME_STREAMS = ("finals.jsonl", "trajectory.jsonl", "top64.jsonl")
 
 MODES = ("gcg", "epo")
 INITS = ("random32", "corpus")
@@ -1218,6 +1224,64 @@ def run(cfg, args):
     local_of = dict(zip(sel, sel_local, strict=True))
     fams = sorted({rows_meta[i]["family"] for i in sel})
     assert fams == [family], f"row selection crossed families: {fams}"
+
+    # --resume-from: finish an arm whose call died (e.g. on the Modal function timeout) from its KEPT
+    # temp dir instead of re-running it. Only whole directions are carried: a direction's three
+    # streams are written together after it returns, and the checks below refuse anything else.
+    # `sel` stays the FULL selection, so every per-arm number below is over all of it, and the loop
+    # skips the carried rows. Validated here, before the model load, so a wrong path costs seconds.
+    # The guard compares what finals.jsonl records (family, mode, init, iters, seq_len, lambda per
+    # member); topk/tau/children/oversample/seed are not in the finals and are NOT checked.
+    resume_from = (args.get("resume_from") or "").rstrip("/")
+    done_rows: set[int] = set()
+    prior: dict[str, list[dict]] = {}
+    if resume_from:
+        rdir = Path(resume_from)
+        out_path = Path(C.gcg_dir(base, set_name, family, arm, root))
+        tmp_path = out_path.with_name(f"{out_path.name}.tmp-{time.strftime('%Y-%m-%d')}")
+        # OutDir.__enter__ removes a leftover temp dir of today's name (and, with --force, the final
+        # dir) BEFORE anything is copied, so resuming from either would delete the input.
+        assert rdir.resolve() not in (out_path.resolve(), tmp_path.resolve()), (
+            f"--resume-from {rdir} is this call's own output or temp dir, which OutDir clears on "
+            f"entry; resume from a temp dir of an earlier date or of another arm name"
+        )
+        for name in RESUME_STREAMS:
+            assert (rdir / name).is_file(), f"--resume-from {rdir} has no {name}"
+            prior[name] = C.read_jsonl(str(rdir / name))
+        done_rows = {int(f["row"]) for f in prior["finals.jsonl"]}
+        extra = sorted(done_rows - set(sel))
+        assert not extra, (
+            f"--resume-from {rdir} carries rows {extra[:8]} outside this --rows selection; the "
+            f"per-arm summary is over the selection, so pass a --rows that covers them"
+        )
+        assert done_rows != set(sel), f"--resume-from {rdir} already has all {len(sel)} directions"
+        for name in RESUME_STREAMS[1:]:
+            got = {int(r["row"]) for r in prior[name]}
+            assert got == done_rows, (
+                f"--resume-from {rdir}: {name} and finals.jsonl disagree on rows "
+                f"{sorted(got ^ done_rows)[:8]} -- a partly written direction"
+            )
+        want = {"family": family, "mode": a["mode"], "init": a["init"], "iters": a["iters"],
+                "seq_len": a["seq_len"]}
+        for row in sorted(done_rows):
+            fin = [f for f in prior["finals.jsonl"] if f["row"] == row]
+            assert sorted(f["member"] for f in fin) == list(range(a["pop"])), (
+                f"--resume-from {rdir}: row {row} has members {sorted(f['member'] for f in fin)}, "
+                f"want 0..{a['pop'] - 1}"
+            )
+            for f in fin:
+                got = {k: f[k] for k in want}
+                assert got == want and abs(f["lam"] - lams[f["member"]]) < 1e-9, (
+                    f"--resume-from {rdir}: row {row} member {f['member']} was run as {got} at "
+                    f"lambda {f['lam']}; this call is {want} at lambda {lams[f['member']]}"
+                )
+        print(
+            f"[gcg] resume: {len(done_rows)} of {len(sel)} directions carried from {rdir} "
+            f"({len(prior['finals.jsonl'])} finals, {len(prior['trajectory.jsonl'])} trajectory, "
+            f"{len(prior['top64.jsonl'])} top64 rows); {len(sel) - len(done_rows)} to run",
+            flush=True,
+        )
+    n_todo = len(sel) - len(done_rows)
     print(
         f"[gcg] arm {arm} on {base}/{set_name}: family {family}, {len(sel)} directions "
         f"local {sel_local[:8]}{'...' if len(sel) > 8 else ''} = global {sel[:8]}"
@@ -1289,19 +1353,30 @@ def run(cfg, args):
     if a["init"] == "corpus":
         inputs["scan"] = C.scan_dir(base, set_name, root)
         inputs["corpus"] = C.corpus_dir(base, root)
+    if resume_from:
+        inputs["resumed_from"] = (
+            f"{resume_from} ({len(done_rows)} of {len(sel)} directions carried, not re-run here)"
+        )
 
-    all_finals: list[dict] = []
-    all_top: list[dict] = []
-    all_traj: list[dict] = []
+    all_finals: list[dict] = list(prior.get("finals.jsonl", []))
+    all_top: list[dict] = list(prior.get("top64.jsonl", []))
+    all_traj: list[dict] = list(prior.get("trajectory.jsonl", []))
     runs: dict[str, dict] = {}
     with C.outdir(out_dir, args, inputs=inputs) as od:
         # Streamed, not buffered: an 8-direction epo run is ~20 GPU-minutes and a crash at
         # direction 7 must not throw away the six that finished (OutDir keeps the temp dir).
-        fh_fin = open(od.file("finals.jsonl"), "w")
-        fh_tr = open(od.file("trajectory.jsonl"), "w")
-        fh_top = open(od.file("top64.jsonl"), "w")
+        # On --resume-from the carried streams are copied in byte for byte and appended to.
+        for name in prior:
+            shutil.copyfile(Path(resume_from) / name, od.file(name))
+        mode = "a" if prior else "w"
+        fh_fin = open(od.file("finals.jsonl"), mode)
+        fh_tr = open(od.file("trajectory.jsonl"), mode)
+        fh_top = open(od.file("top64.jsonl"), mode)
         try:
-            for n_done, row in enumerate(sel):
+            n_run = 0
+            for row in sel:
+                if row in done_rows:
+                    continue
                 fam = rows_meta[row]["family"]
                 # crc32, not hash(): Python's string hash is salted per process, so hash(fam) would
                 # make --seed reproduce nothing across runs.
@@ -1330,13 +1405,14 @@ def run(cfg, args):
                         {k: v for k, v in f.items() if k not in _BULKY_FINAL_KEYS} for f in fin
                     ],
                 }
+                n_run += 1
                 el = time.time() - t_start
                 print(
                     f"[gcg] DONE {fam}:{row} best cos {max(f['cos'] for f in fin):.4f} "
                     f"(init {fin[0]['init_cos']:.4f}) | {tm['cand_forwards']} cands in "
                     f"{tm['gpu_seconds']:.0f} gpu-s = {tm['cand_per_s_total']:.0f} cand/s | reject "
-                    f"{tm['filter_reject_rate']:.3f} | {n_done + 1}/{len(sel)} dirs, eta "
-                    f"{(len(sel) - n_done - 1) * el / (n_done + 1) / 60:.1f} min",
+                    f"{tm['filter_reject_rate']:.3f} | {len(done_rows) + n_run}/{len(sel)} dirs, "
+                    f"eta {(n_todo - n_run) * el / n_run / 60:.1f} min",
                     flush=True,
                 )
         finally:
@@ -1386,6 +1462,9 @@ def run(cfg, args):
             "score_chunk": C.SCORE_CHUNK,
             "candidate_budget_per_iter": a["pop"] * a["children"],
             "n_directions": len(sel),
+            "n_directions_run": n_todo,
+            "resumed_from": resume_from or None,
+            "resumed_rows": sorted(done_rows),
             "mean_final_cos": float(best.mean()),
             "mean_init_cos": float(init_c.mean()),
             "mean_nll": float(nlls.mean()),
@@ -1512,9 +1591,18 @@ def run(cfg, args):
             f"(grad {tot['grad_s']:.0f}s cand {tot['cand_s']:.0f}s fwd {tot['fwd_s']:.0f}s nll "
             f"{tot['nll_s']:.0f}s misc {tot['misc_s']:.0f}s)"
         )
+        if resume_from:
+            od.note(
+                f"RESUMED from `{resume_from}`: {len(done_rows)} of {len(sel)} directions were "
+                f"carried over byte for byte and NOT re-run in this call. The mean cos / init / NLL "
+                f"above are over all {len(sel)}; the CHECK maxima, the candidate-forward and timing "
+                f"totals, `runs` in summary.json and the wall/cost of this README cover only the "
+                f"{n_todo} directions run here. The carried directions' cost belongs to the call "
+                f"that wrote {resume_from} and is not in this README"
+            )
         od.note(
-            f"cost per direction: ${od.cost_usd() / max(1, len(sel)):.4f} "
-            f"({od.wall() / max(1, len(sel)):.0f} s/dir over {len(sel)} directions)"
+            f"cost per direction: ${od.cost_usd() / max(1, n_todo):.4f} "
+            f"({od.wall() / max(1, n_todo):.0f} s/dir over the {n_todo} direction(s) run in this call)"
         )
         if a["init"] == "corpus":
             od.note(
@@ -1542,6 +1630,7 @@ def run(cfg, args):
         "arm": arm,
         "family": family,
         "n_directions": len(sel),
+        "n_directions_run": n_todo,
         "sae": summary["sae"],
         "mean_final_cos": float(best.mean()),
         "mean_init_cos": float(init_c.mean()),

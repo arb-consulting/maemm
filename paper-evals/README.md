@@ -545,8 +545,25 @@ cd /home/gavento/dev/mimir/2026-09-maemms
 Flags: `--arm <mode>-<init>` (or `--mode` and `--init` separately), `--family` (default
 `realact`), `--rows`, `--set`, `--root`, `--force`, and overrides for a cheap shakeout — `--iters`, `--pop`, `--children`, `--lam-grid`,
 `--topk`, `--seq-len`, `--tau`, `--sbatch`, `--restart-every`, `--log-every`,
-`--filter-oversample`, `--seed`. A full arm is 12-35 minutes, so it goes out with `--detach` and is
-followed through the arm README on the volume.
+`--filter-oversample`, `--seed`, `--resume-from`. A full arm is 12-35 minutes on the 8-direction
+smoke draw, so it goes out with `--detach` and is followed through the arm README on the volume.
+
+**A 32-direction 27B `epo` arm needs ~7.7 h, so the GPU functions time out at 9 h.** MEASURED
+2026-09-16/17: the 27B `epo` arms run **~870 s/direction ($1.10/direction on H200)**, so 32
+directions are ~7.7 h. Under the previous `timeout=6 * 3600` all four such arms were cancelled by
+Modal at exactly 21600 s with 24-25 of 32 directions done -- the log says `hit its timeout of
+21600s`, the container sees it as `KeyboardInterrupt`, and `OutDir` keeps the temp dir. Both
+`gpu_h100` and `gpu_h200` in `gcg/modal_app.py` are now `timeout=9 * 3600`. An arm that still dies
+is finished, not re-run, with `--resume-from /vol/base/<base>/gcg/<set>/<family>/<arm>.tmp-<date>`
+and the SAME `--rows`: the kept `finals.jsonl`, `trajectory.jsonl` and `top64.jsonl` are copied into
+the new temp dir and appended to, the rows already in the finals are skipped inside the loop, and the
+output is the ordinary `<arm>/` dir. Before the model load it refuses a kept dir whose rows fall
+outside `--rows`, whose three streams disagree on rows (a partly written direction), whose rows
+lack a member, or whose finals were run at a different family / mode / init / iters / seq_len /
+lambda (topk, tau, children, oversample and seed are not in the finals and are NOT checked), and it
+refuses to resume from its own output or same-date temp dir, which `OutDir` clears on entry. In a
+resumed arm's README the mean cos / init / NLL cover all directions, while the wall, cost, CHECK
+maxima and timing totals cover only the directions run in that call; the arm README says so.
 
 **The 27B needs a different Triton.** `gcg` is the only product here that runs a BACKWARD pass,
 and on the 27B that backward crosses 48 GatedDeltaNet layers. `flash-linear-attention` 0.5.2
