@@ -686,7 +686,62 @@ therefore not reproducible**, and the arm mean over those 8 rows moved by −0.0
 runs — the same order as the 27B realact GCG-vs-MAEMM gap, so the SE over targets understates what
 one run establishes on that base.
 
+### EPO on the same 32 targets (2026-09-17)
+
+All eight `epo` arms — both inits, both bases, `realact` rows 0-31 and the stratified `sae` rows —
+at pop 3 and lambda 0.1 / 0.19 / 0.37, 85 children x 300 iterations. Mean ± SE over the 32 targets
+of each target's best member; 27B to 2 dp per the precision rule above.
+
+| base | family | arm | mean final cos ± SE | mean init cos | mean NLL | true $/dir | peak act | fired |
+|---|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact | `epo-corpus` | **0.5787 ± 0.012** | 0.5218 | 3.020 | $0.2720 | -- | -- |
+| qwen3-8b | realact | `epo-random32` | 0.4689 ± 0.021 | 0.0558 | 4.746 | $0.2941 | -- | -- |
+| qwen3-8b | sae | `epo-corpus-strat` | **0.2516 ± 0.015** | 0.2332 | 2.926 | $0.2778 | 117.72 | 1.000 |
+| qwen3-8b | sae | `epo-random32-strat` | 0.1481 ± 0.021 | 0.0101 | 4.039 | $0.2970 | 67.19 | 0.781 |
+| qwen36-27b | realact | `epo-corpus` | **0.43 ± 0.03** | 0.3491 | 3.026 | $1.1375 | -- | -- |
+| qwen36-27b | realact | `epo-random32` | 0.22 ± 0.03 | -0.0226 | 5.121 | $1.0786 | -- | -- |
+| qwen36-27b | sae | `epo-corpus-strat` | **0.19 ± 0.02** | 0.1594 | 2.557 | $1.1099 | 23.43 | 0.969 |
+| qwen36-27b | sae | `epo-random32-strat` | 0.03 ± 0.01 | 0.0044 | 4.461 | $1.1376 | 2.12 | **0.250** |
+
+**Lambda trades cosine for fluency monotonically in every arm** — 24 of 24 (arm, lambda-step) pairs
+move both down together. Against the matching `gcg` arm the trade is steep in the right direction:
+8B `realact` gives up 0.061 of cosine for **4.6 nats** of NLL (7.61 → 3.02), the 27B 0.06 for 5.3
+nats. That is the Pareto front the population exists to trace, and it is what makes an `epo` string
+readable where a `gcg` string is not. EPO trails GCG on raw cosine in all eight cells by
+0.023-0.061; since its best member sits at lambda 0.1 rather than 0, part of that is the 3x-smaller
+per-iteration candidate pool rather than the objective.
+
+The one arm where the search stops working is 27B `sae/epo-random32-strat`: cos 0.03 and the feature
+fires on only 25% of finals, against 97% for the corpus init on the same rows. Adding a fluency
+penalty to an already-failing random start pushes it below the gate.
+
 <!--GCG-RESULTS-->
+
+### EPO at the same 32 targets (both bases, 2026-09-16/17)
+
+The same 32-target selections as the `gcg` arms -- `realact` rows 0-31 and the stratified `sae`
+rows -- run with `--arm epo-corpus` / `epo-random32` (pop 3 at lambda 0.1 / 0.19 / 0.37, 85 children
+x 300 iterations, each member selected by its own `L_lambda`, so one run traces the Pareto front).
+`mean final cos` is the per-direction BEST member, the quantity table (f) reports; the arm README's
+own "mean final cos" is over all three members and is a different, lower number.
+
+| base | family | arm | dirs | mean final cos | matching `gcg` arm | mean NLL (`epo` / `gcg`) | $/direction |
+|---|---|---|---|---|---|---|---|
+| qwen3-8b | realact | `epo-corpus` | 32 | **0.5787 ± 0.0117** | 0.6398 ± 0.0113 | 3.020 / 7.613 | $0.2720 |
+| qwen3-8b | realact | `epo-random32` | 32 | 0.4689 ± 0.0215 | 0.4924 ± 0.0237 | 4.746 / 12.932 | $0.2941 |
+| qwen3-8b | sae | `epo-corpus-strat` | 32 | **0.2516 ± 0.0149** | 0.2983 ± 0.0168 | 2.926 / 7.461 | $0.2778 |
+| qwen3-8b | sae | `epo-random32-strat` | 32 | 0.1481 ± 0.0211 | 0.2032 ± 0.0240 | 4.039 / 13.422 | $0.2970 |
+| qwen36-27b | realact | `epo-corpus` | 32 | **0.43 ± 0.03** | 0.49 ± 0.03 | 3.026 / 8.278 | $1.1377 |
+| qwen36-27b | realact | `epo-random32` | 32 | 0.22 ± 0.03 | 0.28 ± 0.03 | 5.121 / 13.081 | $1.0786 |
+| qwen36-27b | sae | `epo-corpus-strat` | 32 | **0.19 ± 0.02** | 0.23 ± 0.02 | 2.557 / 7.147 | $1.1100 |
+| qwen36-27b | sae | `epo-random32-strat` | 32 | 0.03 ± 0.01 | 0.08 ± 0.01 | 4.461 / 13.354 | $1.1376 |
+
+**`epo` trails `gcg` on raw cosine in all eight cells, by 0.02-0.06, and buys 4-9 nats of NLL for
+it.** That is the whole point of the arm: the objective `cos - lambda * nll` is not the objective
+`cos`, and at 32 targets the 8-direction pilot's reading holds on both bases and both families. The
+gap is smallest where the init already dominates (8B `realact/epo-random32`, -0.024) and largest on
+the 27B `sae` arms, where the search has least room to begin with. The 27B `$/direction` column is
+the full cost of the arm, the timed-out first call included -- the resume alone was $1.04-1.15.
 
 ## Run order
 

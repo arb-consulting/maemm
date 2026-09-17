@@ -2312,10 +2312,111 @@ Launched in two waves, corpus-init first at the halved scope and `random32` rele
 | 2 | 8B `realact/epo-random32` | `ap-b4ZacPXmWbeCP7rGwfLc0P` |
 | 2 | 8B `sae/epo-random32-strat` | `ap-BI4SvP04oVgyAJxCcjMsUr` |
 
-**Projection**, at the per-direction rates measured on the smoke-root `epo` arms and amortised to a
-32-direction call: 27B $1.1126 / $1.1294 (corpus, realact / sae) and $1.0343 / $1.0442 (random32),
-8B $0.2857 / $0.2745 and $0.2786 / $0.2770. Times 32 directions: **27B $71.7 (corpus) + $66.5
-(random32), 8B $17.9 + $17.8, EPO total ~= $174.** Actuals replace these when the arms land.
+**Projection** (superseded; kept because the 27B half of it was acted on), at the per-direction
+rates measured on the smoke-root `epo` arms and amortised to a 32-direction call: 27B $1.1126 /
+$1.1294 (corpus, realact / sae) and $1.0343 / $1.0442 (random32), 8B $0.2857 / $0.2745 and $0.2786 /
+$0.2770. Times 32 directions: 27B $71.7 (corpus) + $66.5 (random32), 8B $17.9 + $17.8, EPO total
+~= $174.
+
+**What that projection did not say is that a 27B arm does not FIT.** The per-direction figure was
+right -- MEASURED **~870 s/direction, $1.10/direction** on H200, against $1.1126 projected -- but
+32 x 870 s = **7.7 h** against the `timeout=6 * 3600` that `gcg/modal_app.py` then carried on both
+GPU functions. All four 27B arms were therefore cancelled by Modal at exactly 21600 s, mid-direction,
+with 24-25 of 32 directions written:
+
+| 27B arm | app | dirs at the kill | killed |
+|---|---|---|---|
+| `realact/epo-corpus` | `ap-g1qeBZYciX07uk2Mk9Oz4h` | 24/32 | 01:11:06Z |
+| `realact/epo-random32` | `ap-pTJ6lWVb5x7783bEUuTssS` | 25/32 | 01:32:54Z |
+| `sae/epo-corpus-strat` | `ap-ZhT7yERDXUkxoiKFF8uOGC` | 24/32 | 01:11:34Z |
+| `sae/epo-random32-strat` | `ap-5MSK86hXV5qoCRbt6NBMvP` | 24/32 | 01:32:54Z |
+
+Each kill is exactly launch + 6 h (the 8B siblings' READMEs date wave 1 at 19:11-19:12Z and wave 2
+at 19:32-19:33Z). The logs read `Task's current input ... hit its timeout of 21600s`, then
+`[modal-client] Received a cancellation signal while processing input`, then `[outdir] FAILED:
+KeyboardInterrupt; temp dir kept at ...`, then `Runner terminated.` **This was NOT a dropped or
+reaped client**: `--detach` was used and held, there is no `Stopping app` and no disconnect in any
+of the four logs, and the four kill times are set by the timeout, not by anything local. The 8B
+arms were unaffected because they run ~250-270 s/direction and finish in 2.2-2.4 h.
+
+**The fix, and the recovery.** `timeout=9 * 3600` on both GPU functions, and `--resume-from` in
+`gcg.py`: the kept temp dir's `finals.jsonl` / `trajectory.jsonl` / `top64.jsonl` are copied into
+the new temp dir and appended to, the rows already in the finals are skipped inside the loop, and
+`sel` stays the full 32 so every per-arm mean is over all 32. See `README.md` for what it refuses
+before the model load. Resuming cost **~$36** against **~$140** to re-run all four from scratch --
+which under the old timeout could not have finished either.
+
+| 2026-09-17 | item | app | result |
+|---|---|---|---|
+| resume smoke, 27B `realact` row 24 into `epo-corpus-smoke` (`--rows 0-24`, kept on the volume, NOT a paper arm) | `ap-ESlxEEeDLL7ltqLQcBGwep` | 24 of 25 carried, 1 run; 75 / 2325 / 4800 rows out for 72 / 2232 / 4608 in; 1031 s, **$1.3008**, all charged to the one direction |
+| an earlier launch of the same smoke | `ap-L6rOb7IBNn13EnbuyNTafb` | died locally in the entrypoint import, `No module named 'numpy'` -- the launcher needs `uvx --with pyyaml --with numpy`, as `README.md` says. No GPU, ~$0 |
+| 27B `realact/epo-corpus` resume, 8 dirs | `ap-Pid7yfAtLlMTC78YQG8xcQ` | see the EPO table below |
+| 27B `realact/epo-random32` resume, 7 dirs | `ap-2UmLdVNfA3NvbmGksINNGX` | see the EPO table below |
+| 27B `sae/epo-corpus-strat` resume, 8 dirs | `ap-6CbAEdWnMupsubparzdmQH` | see the EPO table below |
+| 27B `sae/epo-random32-strat` resume, 8 dirs | `ap-wdxGHi79XKWy7951aFcNi3` | see the EPO table below |
+
+### The EPO arms, landed (2026-09-17)
+
+All eight, 32 directions each. `mean final cos` is the per-direction BEST member (the quantity the
+paper's table (f) reports), +- SE over the 32 directions; the arm README's own "mean final cos" is
+over all three members and is lower. Pulled by `paper/inversion-eval/scripts/pull_gcg.py` into
+`data/gcg_final.csv`, `data/gcg_per_target.csv`, `data/gcg_quartiles.csv` and, through
+`same_targets.py`, `data/same_targets.csv`: 196 cross-checks, 0 disagreements.
+
+| base | family | arm | dirs | mean final cos | matching `gcg` | NLL `epo` / `gcg` | MAEMM bo64 same rows | search wins | $/direction | arm $ |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 8B | realact | `epo-corpus` | 32 | **0.5787 +- 0.0117** | 0.6398 +- 0.0113 | 3.020 / 7.613 | 0.6532 | 1/32 | $0.2720 | $8.7055 |
+| 8B | realact | `epo-random32` | 32 | 0.4689 +- 0.0215 | 0.4924 +- 0.0237 | 4.746 / 12.932 | 0.6532 | 1/32 | $0.2941 | $9.4103 |
+| 8B | sae | `epo-corpus-strat` | 32 | **0.2516 +- 0.0149** | 0.2983 +- 0.0168 | 2.926 / 7.461 | 0.1570 | 31/32 | $0.2778 | $8.8890 |
+| 8B | sae | `epo-random32-strat` | 32 | 0.1481 +- 0.0211 | 0.2032 +- 0.0240 | 4.039 / 13.422 | 0.1570 | 15/32 | $0.2970 | $9.5032 |
+| 27B | realact | `epo-corpus` | 32 | **0.43 +- 0.03** | 0.49 +- 0.03 | 3.026 / 8.278 | 0.5313 | 2/32 | $1.1377 | $36.40 |
+| 27B | realact | `epo-random32` | 32 | 0.22 +- 0.03 | 0.28 +- 0.03 | 5.121 / 13.081 | 0.5313 | 0/32 | $1.0786 | $34.52 |
+| 27B | sae | `epo-corpus-strat` | 32 | **0.19 +- 0.02** | 0.23 +- 0.02 | 2.557 / 7.147 | 0.1802 | 14/32 | $1.1100 | $35.52 |
+| 27B | sae | `epo-random32-strat` | 32 | 0.03 +- 0.01 | 0.08 +- 0.01 | 4.461 / 13.354 | 0.1802 | 3/32 | $1.1376 | $36.40 |
+
+MAEMM columns are `8b_lora` on the 8B and `27b_full` on the 27B, unbiased best-of-64 on EXACTLY
+those rows. 27B means are quoted to 2 dp with SE, per the precision convention above.
+
+**`epo` trails `gcg` on raw cosine in all eight cells** (by 0.02-0.06) and buys 4-9 nats of NLL for
+it, which is what the 8-direction pilot said and what the arm is for: `cos - lambda * nll` is not
+`cos`. The resume costs are the second call only -- `27B arm $` adds the ~$27.24 of the 6 h the
+timed-out first call had already been charged for.
+
+| 27B arm | resume app | dirs run | wall | resume $ | $/dir (resume) |
+|---|---|---|---|---|---|
+| `realact/epo-corpus` | `ap-Pid7yfAtLlMTC78YQG8xcQ` | 8 | 7265.8 s | $9.1629 | $1.1454 |
+| `realact/epo-random32` | `ap-2UmLdVNfA3NvbmGksINNGX` | 7 | 5769.3 s | $7.2757 | $1.0394 |
+| `sae/epo-corpus-strat` | `ap-6CbAEdWnMupsubparzdmQH` | 8 | 6565.5 s | $8.2798 | $1.0350 |
+| `sae/epo-random32-strat` | `ap-wdxGHi79XKWy7951aFcNi3` | 8 | 7266.5 s | $9.1639 | $1.1455 |
+
+**Resume total $33.88 + $1.30 smoke, against ~$140 to re-run all four from scratch** -- which under
+the old 6 h timeout could not have finished at all. EPO grand total, both bases, sunk time included:
+$36.51 (8B) + $144.14 (27B) = **$180.65**, against the $174 projection that did not know about the
+timeout.
+
+### A pre-existing check that only `pop = 1` could ever have passed
+
+`pull_gcg.py`'s reproduction gate compared ITS number -- the per-direction BEST member -- against the
+arm README's "mean final cos", which the pipeline writes over EVERY finals row, i.e. all `pop`
+members. On a `gcg` arm `pop = 1` and the two are the same number, so the gate was green for every
+arm that had ever run. The first `epo` pull made all EIGHT arms disagree at once, the four 8B ones
+included -- they had landed 2026-09-16 and nothing about them had changed. The gate, not the data,
+was wrong. Each side is now checked against its own upstream: the recomputed ALL-member means against
+the README, and the best-member means against `summary.json`'s `mean_per_dir_best_cos`.
+
+A second, subtler one fell out of the same fix. `summary.json`'s `mean_per_dir_init_cos` is the mean
+over directions of the MAX init cosine across members, while the per-target table carries the init of
+the member that won on the FINAL cosine. On a corpus-init arm every member starts from the same
+string and the two coincide; on a `random32` `epo` arm each member draws its own init and they differ
+by up to **1.6e-2** (MEASURED, 8B `realact/epo-random32`). Both `random32` pairs, on both bases, flagged
+it. The like-for-like quantity is now recomputed for the check rather than the two being conflated.
+**Anything quoting a `random32` `epo` arm's "mean init cos" must say which of the two it means.**
+
+Offline, before any of this was launched: the `--resume-from` guards were exercised against the real
+kept `realact/epo-corpus` jsonls in 11 cases -- 2 that must pass and 9 that must assert (rows outside
+`--rows`, nothing left to run, resuming from the call's own temp dir, a missing stream file, a partly
+written direction, a missing member, a different `--iters`, a different `--lam-grid`, the wrong
+family's dir). All 11 behaved; removing either of two guards turned the matching case red.
 
 ### Two conventions this section follows
 
