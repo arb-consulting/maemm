@@ -25,9 +25,12 @@ The chain this script reports on (all wandb project celestedeschamphelaere-perso
                                                                     <run>_eval_inj1.5 = scored at the MATCHED 1.5x injection (dashed line, same colour, own table column)
 
 Idempotent: every run re-pulls the eval + training histories from wandb (scan_history AND sampled history unioned, deduped by _step; eval runs =
-every run named <run>_eval unioned, latest row per ckpt_step), reads the LoRA init-ablation arms from ~/shared/reports/maemm-sft-init-ablation/data/
+every run named <run>_eval unioned, latest row per ckpt_step) AND unions in the evaluator's per-checkpoint JSONs (/data/eval_ckpt/<run>/ckpt_N.json on
+the Modal volume, mirrored locally under $MAEMM_EVAL_JSON_DIR = ~/shared/overnight/eval_ckpt_json/<run>/; `modal volume get maemm-data /eval_ckpt/<run>/ <dir>/`).
+The JSONs are authoritative (the wandb history API has been returning only the early rows of the eval runs since 2026-09-11; the JSON is written by the
+evaluator right after each checkpoint is scored), so a JSON row overrides the wandb row for the same ckpt_step. Reads the LoRA init-ablation arms from ~/shared/reports/maemm-sft-init-ablation/data/
 eval_curves.json and the pretrain numbers from ~/shared/reports/maemm-sft-fullft-104m/data/fidelity_vs_examples.json, rewrites data/*.json + every
-figure as PNG + PDF, then (unless --no-html) runs the report folder's build_html.py. Arms that are still training are labelled "(running, step N)";
+figure as PNG + PDF, then (unless --no-html) runs the report folder's build_html.py. Arms that are still training are labelled "(running, step N)", arms whose trainer died are "(stopped, step N)" (see STOPPED_NOTE);
 figures with a step axis switch to a log axis once arm C passes 900 steps, so re-running any time during its 10-day run just works.
 
 Cumulative lr x steps is computed from the configured schedule lr_t = lr_peak * min(1, (t+1)/warmup) for update t (0-indexed), constant after
@@ -197,11 +200,44 @@ def _get_run(api, key):
     return rs[0]
 
 
-def eval_rows(runs):
-    """Latest row per ckpt_step across every eval run with that name (the evaluator daemon can be respawned -> several runs; re-evals overwrite);
+EVAL_JSON_DIR = Path(os.environ.get("MAEMM_EVAL_JSON_DIR", "~/shared/overnight/eval_ckpt_json")).expanduser()   # local mirror of /data/eval_ckpt
+
+
+def _local_eval_dirs(run_name):
+    """Eval run name -> candidate local mirror dirs of /data/eval_ckpt: '<run>_eval' -> '<run>' (SFT runs are stored as 'sft_<run>');
+    '<run>_eval_inj1.5' -> '<run>_inj1.5'."""
+    base = run_name.replace("_eval_inj1.5", "_inj1.5").replace("_eval", "")
+    return [EVAL_JSON_DIR / base, EVAL_JSON_DIR / ("sft_" + base)]
+
+
+def local_eval_rows(run_name):
+    """Rows from the evaluator's per-checkpoint JSONs ({'ckpt_step', 'metrics': {'eval/...': v}}), same schema as the wandb rows."""
+    rows = {}
+    for d in _local_eval_dirs(run_name):
+        for f in sorted(d.glob("ckpt_*.json")) if d.is_dir() else []:
+            try:
+                j = json.load(open(f))
+            except (OSError, json.JSONDecodeError):
+                continue
+            m = j.get("metrics", j)
+            if not (_num(j.get("ckpt_step")) and _num(m.get("eval/mean_all"))):
+                continue
+            row = {k: v for k, v in m.items() if (k.startswith("eval/") or k.startswith("extra/")) and _num(v)}
+            row["ckpt_step"] = int(j["ckpt_step"])
+            rows[row["ckpt_step"]] = row
+    return rows
+
+
+def eval_rows(runs, run_name=None):
+    """Latest row per ckpt_step across every eval run with that name (the evaluator daemon can be respawned -> several runs; re-evals overwrite),
+    unioned with the evaluator's per-checkpoint JSONs mirrored locally (see EVAL_JSON_DIR; the JSON wins for a ckpt_step present in both).
     eval/* + extra/* keys only."""
+    if runs is None:
+        runs = []
     if not isinstance(runs, (list, tuple)):
         runs = [runs]
+    if run_name is None and runs:
+        run_name = runs[0].name
     rows = {}
     for run in sorted(runs, key=lambda r: str(r.created_at)):
         for r in run.scan_history():
@@ -209,6 +245,10 @@ def eval_rows(runs):
                 row = {k: v for k, v in r.items() if (k.startswith("eval/") or k.startswith("extra/")) and _num(v)}
                 row["ckpt_step"] = int(r["ckpt_step"])
                 rows[row["ckpt_step"]] = row
+    n_wandb = len(rows)
+    local = local_eval_rows(run_name) if run_name else {}
+    rows.update(local)
+    print(f"evals {run_name}: wandb {n_wandb} rows, local JSON {len(local)} rows -> union {len(rows)} ckpts {sorted(rows)}")
     return [rows[k] for k in sorted(rows)]
 
 
@@ -271,7 +311,7 @@ def fetch():
             meta = _run_meta(ev_runs[0]) if ev_runs else {"id": None, "name": ARMS[k]["name"] + suffix, "state": "missing", "last_step": None, "created_at": None, "url": None}
             meta["n_runs"] = len(ev_runs)
             D["runs"][k + "_eval" + ("" if skey == series[0][0] else "_" + skey)] = meta
-            ev_series[skey] = {"key": skey, "suffix": suffix, "desc": sdesc, "run_name": ARMS[k]["name"] + suffix, "runs": meta, "evals": eval_rows(ev_runs)}
+            ev_series[skey] = {"key": skey, "suffix": suffix, "desc": sdesc, "run_name": ARMS[k]["name"] + suffix, "runs": meta, "evals": eval_rows(ev_runs, ARMS[k]["name"] + suffix)}
         cfg = {kk: v for kk, v in r.config.items() if not isinstance(v, (dict, list))}
         arm = dict(ARMS[k])
         for ck, ak in (("lr", "lr"), ("warmup_steps", "warmup"), ("groups_per_step", "groups_per_step"), ("group_size", "group_size"), ("total_steps", "total_steps"),
@@ -481,6 +521,17 @@ def peak_summary(tr):
                            "peak_in_last5_frac = P(peak_dist <= 4); peak_dist_mean = mean over the batch (rl/rl_disagg.py:2891-2893)"}
 
 
+STOPPED_STATES = ("crashed", "failed", "killed")
+STOPPED_NOTE = ("wandb state crashed/failed/killed: the trainer died without finishing (the 2026-09-12 02:33Z Modal token outage killed every "
+                "container: arm C at step 1,129, arm D at 617); the arm is resumable from its last saved full-model checkpoint (rl/rl_disagg.py --resume "
+                "--step-offset), so 'stopped' means paused, not abandoned")
+
+
+def run_word(state):
+    """'running' | 'stopped' (crashed / failed / killed, see STOPPED_NOTE) | the raw wandb state for anything else that is not 'finished'."""
+    return "running" if state == "running" else ("stopped" if state in STOPPED_STATES else str(state))
+
+
 def arm_status(D, k):
     """(state, last_step, pending_steps): pending = checkpoints already saved (<= last train step) whose eval has not landed."""
     run, arm, ev = D["runs"][k + "_train"], D["arms"][k]["meta"], D["arms"][k]["evals"]
@@ -496,7 +547,7 @@ def arm_label(D, k, long=True):
     base = arm["long"] if long else arm["nick"]
     if st != "finished":
         tot = f" of {arm['total_steps']:,}" if arm.get("total_steps") else ""
-        return base + f" (running, step {last:,}{tot})"
+        return base + f" ({run_word(st)}, step {last:,}{tot})"
     if pending:
         return base + f" (eval pending for step{'s' if len(pending) > 1 else ''} {', '.join(map(str, pending))})"
     return base
@@ -516,7 +567,7 @@ def series_label(D, k, skey):
     base = f"arm {k.upper()}: {arm['nick']} — {S_['desc']} (dashed, hollow markers)"
     pending = series_pending(D, k, skey)
     if st != "finished":
-        return base + f" (running, step {last:,})"
+        return base + f" ({run_word(st)}, step {last:,})"
     if pending:
         return base + f" (eval pending for step{'s' if len(pending) > 1 else ''} {', '.join(map(str, pending))})"
     return base
@@ -1013,12 +1064,12 @@ def headline_claim(M, N):
                     f"{fmt(B['peak_metrics']['peak_dist_mean']['mean_from50'], 0)} tokens into the rollout")
     if C["last_eval"]:
         bits.append(f"the paper optimizer (lr 5e-7) trails at matched steps ({C['last_eval']['mean_all']:.3f} @{C['last_eval']['ckpt_step']}"
-                    + (f", running, step {C['last_step']:,} of {C['total_steps']:,}" if not C["finished"] else "") + ")")
+                    + (f", {run_word(C['state'])}, step {C['last_step']:,} of {C['total_steps']:,}" if not C["finished"] else "") + ")")
     P = N.get("paper_reward_window")
     if P and P["last_common"]:
         lc = P["last_common"]; Dd = N["arms"]["d"]
         bits.append(f"the all-token reward on the paper optimizer (arm D) is {sgn(lc['delta'])} vs arm C at step {lc['ckpt_step']} ({lc['d']:.3f} vs {lc['c']:.3f}"
-                    + (f"; running, step {Dd['last_step']:,} of {Dd['total_steps']:,}" if not Dd["finished"] else "") + ")")
+                    + (f"; {run_word(Dd['state'])}, step {Dd['last_step']:,} of {Dd['total_steps']:,}" if not Dd["finished"] else "") + ")")
     I = N.get("injection_strength")
     if I and I["fig_step"] is not None:
         bits.append(f"injecting the direction at 1.5x strength buys nothing ({I['std']['mean_all']:.3f} @{I['fig_step']} scored at the standard injection, {sgn(I['delta_std_mean'])}"
@@ -1064,7 +1115,7 @@ def plot_headline(D, M, ABL, N):
         arm = D["arms"][k]["meta"]; st, _, _ = arm_status(D, k)
         if skey is not None:
             labs.append((f"{v:.3f} @{x} · {arm['tiny']}, scored at 1.5x", x, v, arm["color"])); continue
-        extra = f" (band = eval noise ±{NOISE_EPS:.3f})" if k == "this" else (" — best of any arm" if bo and bo["arm"] == k and bo["ckpt_step"] == x else "") + (" (running)" if st != "finished" else "")
+        extra = f" (band = eval noise ±{NOISE_EPS:.3f})" if k == "this" else (" — best of any arm" if bo and bo["arm"] == k and bo["ckpt_step"] == x else "") + (f" ({run_word(st)})" if st != "finished" else "")
         labs.append((f"{v:.3f} @{x} · {arm['tiny']}{extra}", x, v, arm["color"]))
     if M["ref_at_300"] is not None:
         labs.append((f"{M['ref_at_300']:.3f} @300 · old-bank reference", 300, M["ref_at_300"], REF_C))
@@ -1105,7 +1156,11 @@ def plot_headline(D, M, ABL, N):
             if k not in long_arms and e and D["arms"][k]["meta"]["total_steps"] <= 300:
                 ax2.axhline(e[-1]["eval/mean_all"], color=D["arms"][k]["meta"]["color"], lw=1, ls=(0, (4, 3)), zorder=0)
         ax2.set_xlim(0, xm * 1.12)
-        ax2.set_title(wrap("the 7,400-step arms continue: " + "; ".join(arm_label(D, k, long=False) for k in long_arms) + " — dotted = the 300-step arms' final values", 95), fontsize=9.4, loc="left")
+        long_states = {arm_status(D, k)[0] for k in long_arms}
+        lead = ("the 7,400-step arms continue: " if "running" in long_states else
+                "the 7,400-step arms, stopped by the 2026-09-12 Modal outage (resumable from the last checkpoint): " if long_states & set(STOPPED_STATES) else
+                "the 7,400-step arms: ")
+        ax2.set_title(wrap(lead + "; ".join(arm_label(D, k, long=False) for k in long_arms) + " — dotted = the 300-step arms' final values", 95), fontsize=9.4, loc="left")
         ax2.set_xlabel("RL step (7,400-step arms, 16,384 rollouts per step)"); style_ax(ax2)
     head = headline_claim(M, N)
     fig.suptitle(wrap(head, 165) + "\n" + wrap("Held-out mean fidelity vs RL step — Qwen3.6-27B activation-to-text inverter; full-parameter CISPO GRPO from the same SFT init "
@@ -1177,14 +1232,14 @@ def plot_lr_steps(D, M, N):
         if xs:
             xmax = max(xmax, xs[-1])
             if k == "c":
-                ax1.annotate(f"{ys[-1]:.3f} @{D['arms'][k]['evals'][-1]['ckpt_step']:,} · {arm['tiny']}" + (" (running)" if arm_status(D, k)[0] != "finished" else ""), xy=(xs[-1], ys[-1]),
+                ax1.annotate(f"{ys[-1]:.3f} @{D['arms'][k]['evals'][-1]['ckpt_step']:,} · {arm['tiny']}" + (f" ({run_word(arm_status(D, k)[0])})" if arm_status(D, k)[0] != "finished" else ""), xy=(xs[-1], ys[-1]),
                              xytext=(-7, 9), textcoords="offset points", fontsize=8.2, color=INK2, ha="right", va="bottom")
             elif k == "d":     # arm D rides on arm C's curve; its label goes to the empty top-left corner with a thin connector
-                ax1.annotate(f"{ys[-1]:.3f} @{D['arms'][k]['evals'][-1]['ckpt_step']:,} · {arm['tiny']}" + (" (running)" if arm_status(D, k)[0] != "finished" else ""), xy=(xs[-1], ys[-1]),
+                ax1.annotate(f"{ys[-1]:.3f} @{D['arms'][k]['evals'][-1]['ckpt_step']:,} · {arm['tiny']}" + (f" ({run_word(arm_status(D, k)[0])})" if arm_status(D, k)[0] != "finished" else ""), xy=(xs[-1], ys[-1]),
                              xytext=(1.15e-5, 0.427), textcoords="data", fontsize=8.2, color=INK2, ha="left", va="center",
                              arrowprops=dict(arrowstyle="-", color=arm["color"], lw=0.7, alpha=0.7, shrinkA=0, shrinkB=2))
             else:
-                ax1.annotate(f"{ys[-1]:.3f}" + (" (running)" if arm_status(D, k)[0] != "finished" else ""), xy=(xs[-1], ys[-1]), xytext=(7, 0), textcoords="offset points", fontsize=8.2, color=INK2, va="center")
+                ax1.annotate(f"{ys[-1]:.3f}" + (f" ({run_word(arm_status(D, k)[0])})" if arm_status(D, k)[0] != "finished" else ""), xy=(xs[-1], ys[-1]), xytext=(7, 0), textcoords="offset points", fontsize=8.2, color=INK2, va="center")
         tr = D["arms"][k]["train"]
         if tr["step"]:
             cx = np.array([cum_lr(arm, s) for s in tr["step"]]); yy = np.array([np.nan if v is None else v for v in tr["policy/sampler_abs_dlogp"]], dtype=float)
@@ -1382,7 +1437,7 @@ def plot_dynamics(D, M, N):
             f"{fmt(pB['peak_dist_mean']['mean_from50'], 0) if pB else 'n/a'} tokens into the rollout (share peaking at the last token {fmt(pB['peak_last_frac']['mean_from50'], 2) if pB else 'n/a'} vs "
             f"{fmt(pT['peak_last_frac']['mean_from50'], 2) if pT else 'n/a'}; responses {fmt(B['dynamics'].get('len_mean_from50'), 0)} vs {fmt(T['dynamics'].get('len_mean_from50'), 0)} tokens); "
             f"the paper optimizer (lr 5e-7) keeps grad norm at {fmt(C['dynamics'].get('gnorm_last10'), 2)} and |delta log p| at {fmt(C['dynamics'].get('dlogp_last10'))} at step {C['last_step']:,}"
-            + (" (running)" if not C["finished"] else ""))
+            + (f" ({run_word(C['state'])})" if not C["finished"] else ""))
     Ea = N["arms"].get("e"); oE = (Ea or {}).get("onsets") or {}
     if Ea and Ea["dynamics"]:
         head += (f"; the 1.5x-injection arm's reward climb is the 8 x 512 arm's ({fmt(Ea['dynamics'].get('reward_last10'), 3)} vs {fmt(T['dynamics'].get('reward_last10'), 3)} over the last 10 steps), "
@@ -1392,7 +1447,7 @@ def plot_dynamics(D, M, N):
     Dd = N["arms"].get("d"); pD = (Dd or {}).get("peak_metrics") or {}
     if Dd and pD:
         head += (f"; the all-token reward on the paper optimizer (arm D) smears the peak {fmt((pD.get('peak_dist_mean') or {}).get('mean_from50'), 0)} tokens into the rollout "
-                 f"(responses {fmt(Dd['dynamics'].get('len_mean_from50'), 0)} tokens) at step {Dd['last_step']:,}" + (" (running)" if not Dd["finished"] else ""))
+                 f"(responses {fmt(Dd['dynamics'].get('len_mean_from50'), 0)} tokens) at step {Dd['last_step']:,}" + (f" ({run_word(Dd['state'])})" if not Dd["finished"] else ""))
     fig.suptitle(wrap(head, 215) + "\n" + wrap(f"RL training dynamics vs step — the six full-parameter arms from the same re-cut init plus the old-bank reference (orange dashed); thin = per step, "
                  f"thick = {MA}-step moving average. Onset steps in the boxes use the rules of the earlier sections (grad norm > 1 on 2 consecutive steps / for good; |delta log p| > .05 first / 3 consecutive; step >= 100). "
                  "The reference run did not log the peak-position metrics.", 215), fontsize=10.2, x=0.01, ha="left", y=0.995)
@@ -1540,7 +1595,8 @@ def write_data(D, M, N, ABL, bank_plot, leaders):
     mt = D["mid"]["train"]
     json.dump({"generated_at": D["fetched_at"], "run": D["runs"]["mid_train"], "eval_run": D["runs"]["mid_eval"], "stats": M["midtrain"],
                "series": {k: mt[k] for k in ("step", "loss", "lr", "ex_per_s", "peak_mem_gb", "_timestamp")}}, open(dd / "midtrain.json", "w"), indent=1)
-    json.dump({"generated_at": D["fetched_at"], **N, "family_leaders_at_300": leaders}, open(dd / "new_arms.json", "w"), indent=1, default=str)
+    json.dump({"generated_at": D["fetched_at"], **N, "family_leaders_at_300": leaders, "stopped_note": STOPPED_NOTE,
+               "state_words": {k: run_word(N["arms"][k]["state"]) for k in N["arms"]}}, open(dd / "new_arms.json", "w"), indent=1, default=str)
     if N.get("injection_strength"):
         json.dump({"generated_at": D["fetched_at"], **N["injection_strength"]}, open(dd / "injection_strength.json", "w"), indent=1, default=str)
     summ = {k: v for k, v in M.items() if k not in ("midtrain",)} | {"generated_at": D["fetched_at"], "runs": D["runs"], "midtrain_stats": {k: v for k, v in M["midtrain"].items() if k != "evals"},
