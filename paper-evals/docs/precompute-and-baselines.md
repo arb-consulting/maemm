@@ -448,3 +448,31 @@ to match; these are the deltas.
 14. **§1's per-base size estimates are unverified** against the full run. The only measured points to hand are the
     27B `scan` at 2.4 MiB plus 50.0 MiB of SAE examples (SMOKES, 2026-09-16); the order of magnitude holds, the
     numbers are not the run's.
+
+## Mapping to the shared-baselines framing (2026-09-18)
+
+Tomáš's framing for the shared work: one data home (Modal volume now, S3 when public; models on HF); a small
+common library with one signature, `(activation_batch, top_k) -> k texts per activation, each with its base-model
+activation and its cosine to the input`, implemented for (a) the MAEMM, (b) corpus top-k, (c) Patchscopes, (d) NLAs,
+(e) GCG/EPO; and a common pre-processing that runs all of these over the stable test families (realacts,
+realacts_long, sae enc, sae dec, random; not steering vectors or trojans). What this branch already has, per item:
+
+| item | here | gap against the signature |
+|---|---|---|
+| data home | volume `maemm`, `/vol/base`, `/vol/maemms`, `/vol/runs`, `/vol/data/celeste-v2-2026-09-17` | none; S3 mirror is the archive plan, not public yet |
+| (a) MAEMM | `rollouts_vllm` (n=64 per target, vLLM + steering hook) then `score` (clean-base L42 cosine per generated token, `cos.f16 [N, n, 96]`, `norm.f16`, `best_act.f16`) | stage over a held-out set, not a callable over an arbitrary batch; stores cosines and the argmax token, **not** the output's base activation vector |
+| (b) corpus top-k | `scan` → `scan/<set>/topk.jsonl`: per target and corpus size (1M/4M/16M) the top-64 windows `(doc, start, argmax, cos)`; text recovered from `corpus/tokens.i32` | none in substance; same caveat on stored vectors |
+| (c) Patchscopes | `precompute/patchscopes.py`, run as a baseline in the rollout stage | same as (a) |
+| (d) NLAs | absent | to add |
+| (e) GCG/EPO | `gcg/gcg.py`: batch of directions, `gcg` (pop 1, λ 0) or `epo` (pop 3, λ set), writes finals, trajectory, top-64 rows with cos and NLL | none in substance; 27B backward is non-deterministic per direction (arm means stable to ±0.03) |
+| pre-processing over stable families | `heldout/<set>`: realact, sae (encoder columns), random, 512 each, all of (a) (b) (e) computed | no `realact_long`, no `sae_dec` family; the v2 bank has both (16 families × 512), so the new set should carry them |
+
+Three conventions the common library must state, because the numbers depend on them: (1) cosine is uncentred
+against the raw L42 residual of the output, max over generated tokens with the sink dropped (centred variants are
+secondaries in `score`); (2) best-of-k is the unbiased order-statistic estimate over the n stored samples, so store
+all n, not only the top k; (3) targets are centred, `unit(x − mu)` with the English corpus `mu`, for realact — the
+same `mu` is kept on every family. If "each with its base model activation" means one vector per text, store the L42
+residual at the argmax-cosine token (5120 × f16 ≈ 10 KB per text; 512 targets × 64 samples ≈ 335 MB per family and
+method) — cheap, and it makes cross-method comparisons (e.g. scoring a corpus window under a different centring)
+free afterwards. The refactor from stages to the shared signature is moderate: loading, injection and the scorer are
+already one module (`precompute/common.py`); the stages would become thin wrappers that iterate a family through it.
