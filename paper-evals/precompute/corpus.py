@@ -310,19 +310,23 @@ class _ParquetSource:
         base = 0
         for f, n in zip(self.files, self.counts, strict=True):
             hi = base + n
-            if any(base <= w < hi for w in want):
+            here = {w for w in want if base <= w < hi}
+            if here:
+                last = max(here)
                 with self.fs.open(self._path(f), "rb") as fh:
                     pf = pq.ParquetFile(fh)
                     i = base
                     for batch in pf.iter_batches(batch_size=2048, columns=[self.text]):
                         col = batch.column(0)
-                        if any(i <= w < i + len(col) for w in want):
+                        if any(i <= w < i + len(col) for w in here):
                             vals = col.to_pylist()
                             for k, v in enumerate(vals):
-                                if (i + k) in want and v:
+                                if (i + k) in here and v:
                                     out[i + k] = v
                         i += len(col)
-                    assert i == hi, f"{f}: streamed {i - base} rows, footer said {n}"
+                        if i > last:  # every wanted row of this file is in hand
+                            break
+                    assert i > last or i == hi, f"{f}: streamed {i - base} rows, footer said {n}"
             base = hi
         return out
 
@@ -364,14 +368,18 @@ class _JsonlSource:
         base = 0
         for path, n in zip(self.paths, self.counts, strict=True):
             hi = base + n
-            if any(base <= w < hi for w in want):
+            here = {w for w in want if base <= w < hi}
+            if here:
+                last = max(here)
                 for k, line in enumerate(self._lines(path)):
-                    if (base + k) in want:
+                    if (base + k) in here:
                         row = json.loads(line)
                         if row.get(self.text):
                             out[base + k] = row[self.text]
                             if row.get("max_stars_repo_licenses"):
                                 self.licences[base + k] = row["max_stars_repo_licenses"]
+                    if base + k >= last:
+                        break
             base = hi
         return out
 
@@ -421,13 +429,19 @@ def _arm_stream(arm, spec, tok, seed, want_tokens):
     src = _source(spec)
     perm = C.arm_perm(arm, src.n_rows, seed)
     is_formulas = spec["reader"] == "formulas"
-    pos, rate = 0, None
+    # The tokens-per-row RATE is a property of the source, not of which rows, so it is measured on
+    # FILE-ORDER rows 0..PROBE_ROWS-1, which the readers reach after one row group. Measuring it on
+    # the first rows of the PERMUTATION would stream the whole slice (their maximum index is near
+    # the end), i.e. a 1.3 GB pass over an Ultra-FineWeb part just to size the first block.
+    probe = src.fetch(list(range(min(PROBE_ROWS, src.n_rows))))
+    n_probe_tok = sum(
+        len(x) for x in tok(list(probe.values()), add_special_tokens=False)["input_ids"]
+    ) if probe else 0
+    rate = max(n_probe_tok / max(len(probe), 1), 1e-6)
+    print(f"[corpus] {arm}: probe {len(probe)} rows -> {rate:.0f} tok/row", flush=True)
+    pos = 0
     while pos < len(perm):
-        take = (
-            min(PROBE_ROWS, len(perm) - pos)
-            if rate is None
-            else int(max(1024, min(len(perm) - pos, want_tokens / max(rate, 1e-6) * BLOCK_SLACK)))
-        )
+        take = int(max(1024, min(len(perm) - pos, want_tokens / max(rate, 1e-6) * BLOCK_SLACK)))
         block = [int(r) for r in perm[pos : pos + take]]
         idx_of = {r: i for i, r in enumerate(block)}
         texts = src.fetch(sorted(block))
@@ -483,13 +497,13 @@ def run_arm(cfg, args):
     docs, cum, t0 = [], 0, time.time()
     perm_pos = 0
     for pos, rows, ids in stream:
-        if cum >= budget:
-            break
         docs.append((rows, ids))
         cum += len(ids)
         perm_pos = pos
         if len(docs) % 2000 == 0:
             print(f"[corpus] {arm}: {cum / 1e6:.2f}M / {budget / 1e6:.2f}M in {len(docs)} docs", flush=True)
+        if cum >= budget:
+            break  # AFTER appending: the document that crosses the budget is kept, not dropped
     assert cum >= budget, (
         f"arm {arm}: the source ran out at {cum} tokens of the {budget} wanted -- the slice in "
         f"config.yaml is too small for sizes {spec['sizes']}"

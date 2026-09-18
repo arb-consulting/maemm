@@ -1,6 +1,10 @@
 """Product `ood_selfcheck`: every OOD code path that `unit_smoke` cannot reach, before any launch.
 
-    --product ood_selfcheck --base qwen36-27b [--arm a,b] [--stages readers,covariates,nll]
+    --product ood_selfcheck --base qwen36-27b [--arm a,b] [--stages readers,covariates]
+
+The default stages are CPU-only and the product is dispatched to the CPU function; asking for the
+`nll` stage moves the whole call to the base's GPU (MEASURED 2026-09-18: running the network-bound
+`readers` stage on an H200 is how a $0 check becomes a $3 one).
 
 `unit_smoke` covers the parts that are pure CPU and need nothing: the byte tables, the covariate
 rules on a hand-built byte-level tokenizer, the arm permutation, the span search, the config. What
@@ -32,6 +36,7 @@ SNIPPETS = {
     "tha_Thai": ("Thai", True, "สวัสดีครับ วันนี้อากาศดีมาก ผมจะไปเดินเล่นที่สวนสาธารณะ"),
     "python": ("Latin", False, "def add(x, y):\n    return x + y\n\nimport os\nprint(add(1, 2))\n"),
 }
+DEFAULT_STAGES = "readers,covariates"  # CPU; `nll` moves the call to the GPU function
 READER_ROWS = 3
 NLL_ROWS = 2
 NLL_TOL = 1e-3
@@ -46,9 +51,12 @@ def _readers(cfg, arms):
         spec = C.ood_arm(cfg, arm)
         t0 = time.time()
         src = _source(spec)
-        perm = C.arm_perm(arm, src.n_rows, 20260918)
-        wanted = [int(r) for r in perm[:READER_ROWS]]
-        texts = src.fetch(sorted(wanted))
+        # FILE-ORDER rows 0..2, not the first three of the permutation: fetching a random row
+        # index streams the source almost to its end (a 1.3 GB Ultra-FineWeb part, minutes), and
+        # what this stage checks is that the file opens, the row count comes back and the text
+        # field is the right one. Random access is exercised by the real `corpus --arm` build.
+        wanted = list(range(READER_ROWS))
+        texts = src.fetch(wanted)
         got = [texts.get(w, "") for w in wanted]
         assert all(got), (
             f"arm {arm}: rows {wanted} of {src.n_rows} gave "
@@ -172,7 +180,7 @@ def _nll(cfg, args, base):
 def run(cfg, args):
     base = args["base"]
     assert base, "ood_selfcheck needs --base"
-    stages = [s for s in (args.get("stages") or "readers,covariates,nll").split(",") if s]
+    stages = [s for s in (args.get("stages") or DEFAULT_STAGES).split(",") if s]
     arms = [a for a in (args.get("arm") or "").split(",") if a] or list(C.ood_arms(cfg))
     report: dict = {"base": base, "stages": stages, "arms": arms}
     if "readers" in stages:

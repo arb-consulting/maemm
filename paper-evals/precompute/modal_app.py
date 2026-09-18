@@ -662,7 +662,10 @@ def main(
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
     # `targets --import-run1` only torch.loads a 512-row cache and writes it back out: no GPU.
-    if product in CPU_PRODUCTS or (product == "targets" and import_run1):
+    # `ood_selfcheck` is CPU unless its GPU stage is asked for: `readers` is network-bound and
+    # MEASURED 2026-09-18 at minutes per arm, which on an H200 is real money for a check.
+    cpu_selfcheck = product == "ood_selfcheck" and "nll" not in (stages or "readers,covariates")
+    if product in CPU_PRODUCTS or (product == "targets" and import_run1) or cpu_selfcheck:
         fn, label = cpu, "CPU"
     else:
         assert base, f"product {product!r} needs --base to choose the GPU"

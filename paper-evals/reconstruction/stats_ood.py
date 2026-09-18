@@ -1,0 +1,945 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["numpy>=2", "polars>=1", "typer>=0.15", "rich>=13", "pyyaml>=6"]
+# ///
+"""The OOD generalisation evaluation's analysis layer (design infra/2026-09-18_ood-eval-design.md §6, §11).
+
+Local, CPU, no GPU and no model. Like `reconstruction/stats.py` it fetches only small files off the
+volume into `reconstruction/data/<root-tag>/` and writes into `reconstruction/out/<root-tag>/`;
+`paper/inversion-eval/` is FROZEN and nothing here writes into it.
+
+    cd /home/gavento/dev/mimir/2026-09-maemms
+    (set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; \\
+     uv run repo-maemm-ood/paper-evals/reconstruction/stats_ood.py tables --root-tag full)
+
+Commands:
+
+    tables        the per-arm paired comparison, the strata, the chance levels and the examples
+    en-ref        review R1 alone: the English reference recomputed from the 2026-09-16_v1 scan
+                  with own-document windows excluded (needs only the local mirror)
+    train-share   review R7: what share of the inverter's training text is code-like / non-English
+    selfcheck     every code path above on synthetic inputs, in seconds, before any launch
+
+Products (design §6): `ood_arms.csv`, `ood_per_target.csv`, `ood_strata.csv`, `ood_examples.md`.
+
+Estimators. Best-of-k is the UNBIASED order statistic (`stats.bo_unbiased`, the same function the
+paper's tables use). The per-arm paired difference is bootstrapped by resampling TARGETS (10,000
+percentile resamples), which is the unit of analysis; the outcome is three-state (review R9):
+`exceeds` (the CI is above zero), `inconclusive` (it covers zero -- a failure to reject, NOT
+"does not generalise") and `reversed` (below zero).
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Annotated
+
+import numpy as np
+import polars as pl
+import typer
+import yaml
+from rich.console import Console
+from rich.table import Table as RichTable
+
+HERE = Path(__file__).resolve().parent
+PAPER_EVALS = HERE.parent
+CONFIG = PAPER_EVALS / "config.yaml"
+sys.path.insert(0, str(PAPER_EVALS))
+
+import precompute.common as C  # noqa: E402  (the ONE script table, code-like rule and arm table)
+from reconstruction.stats import Scores, Vol, bo_unbiased  # noqa: E402
+
+OOD_SET = "2026-09-18_ood_v1"
+BASE = "qwen36-27b"
+EN_SET = "2026-09-16_v1"
+BOOT = 10_000
+BOOT_SEED = 20260918
+ALPHA = 0.05
+BO_KS = (1, 4, 64)
+# The arms of the level-1 conjunction: everything except the `diag` formula arm and the `ufw_en`
+# pipeline check (design §0: 21 arms = lang 8, code 8, math 4, ufw_zh).
+CONJUNCTION_EXCLUDE = ("formulas", "ufw_en")
+
+console = Console()
+app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+
+
+# ---------------------------------------------------------------------------------------------
+# estimators
+# ---------------------------------------------------------------------------------------------
+
+
+def boot_ci(d: np.ndarray, n: int = BOOT, alpha: float = ALPHA, seed: int = BOOT_SEED):
+    """(mean, lo, hi) of a percentile bootstrap over the TARGETS of one arm."""
+    d = np.asarray(d, dtype=float)
+    assert d.ndim == 1 and d.size > 1, f"need >1 paired difference, got {d.shape}"
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, d.size, size=(n, d.size))
+    means = d[idx].mean(axis=1)
+    lo, hi = np.percentile(means, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+    return float(d.mean()), float(lo), float(hi)
+
+
+def outcome(lo: float, hi: float) -> str:
+    """The three-state per-arm verdict (review R9)."""
+    if lo > 0:
+        return "exceeds"
+    if hi < 0:
+        return "reversed"
+    return "inconclusive"
+
+
+def derangement(n: int, seed: int = BOOT_SEED) -> np.ndarray:
+    """A fixed permutation with no fixed point -- the R4 shuffled-target control's pairing."""
+    rng = np.random.default_rng(seed)
+    for _ in range(1000):
+        p = rng.permutation(n)
+        if not (p == np.arange(n)).any():
+            return p
+    raise AssertionError(f"no derangement of {n} found in 1000 draws")
+
+
+def spearman(x: np.ndarray, y: np.ndarray) -> float:
+    """Spearman rho without scipy: Pearson on the ranks (ties averaged)."""
+    def rank(v):
+        v = np.asarray(v, dtype=float)
+        order = v.argsort()
+        r = np.empty(len(v), dtype=float)
+        r[order] = np.arange(len(v), dtype=float)
+        # average the ranks of ties
+        for val in np.unique(v):
+            m = v == val
+            if m.sum() > 1:
+                r[m] = r[m].mean()
+        return r
+
+    a, b = rank(x), rank(y)
+    if a.std() == 0 or b.std() == 0:
+        return float("nan")
+    return float(np.corrcoef(a, b)[0, 1])
+
+
+# ---------------------------------------------------------------------------------------------
+# R1: the English reference, own-document windows excluded
+# ---------------------------------------------------------------------------------------------
+
+
+def english_reference(vol: Vol, base: str = BASE, set_name: str = EN_SET) -> dict | None:
+    """Corpus top-1 per nested size on the English realact targets, with and without own-document
+    windows (review R1).
+
+    The paper's frozen table counts the target's OWN document -- at 4M the top-1 window IS the
+    target's document for 114 of 512 targets -- while the OOD corpora contain no target document at
+    all. The like-for-like reference is therefore the no-own-document one, which is what every OOD
+    comparison in `ood_arms.csv` is read against.
+
+    A target whose whole stored top-64 is own-document has NO non-own candidate and is EXCLUDED
+    from the no-own mean rather than scored -1; that exclusion is what makes the recomputation
+    reproduce 0.314 / 0.351 / 0.385 at 1/4/16M.
+    """
+    topk = vol.jsonl(f"base/{base}/scan/{set_name}/topk.jsonl")
+    ids = vol.jsonl(f"base/{base}/heldout/{set_name}/ids.jsonl")
+    if topk is None or ids is None:
+        return None
+    doc_of = {int(r["row"]): r.get("doc") for r in ids if r["family"] == "realact"}
+    out = {}
+    for r in topk:
+        if r["family"] != "realact" or not r["top"]:
+            continue
+        own = doc_of[int(r["row"])]
+        size = int(r["size"])
+        non = [t[3] for t in r["top"] if t[0] != own]
+        rec = out.setdefault(size, {"all": [], "noown": [], "own_top1": 0, "no_candidate": 0})
+        rec["all"].append(r["top"][0][3])
+        rec["own_top1"] += int(r["top"][0][0] == own)
+        if non:
+            rec["noown"].append(max(non))
+        else:
+            rec["no_candidate"] += 1
+    return {
+        size: {
+            "n": len(v["all"]),
+            "top1_all": float(np.mean(v["all"])),
+            "top1_noown": float(np.mean(v["noown"])) if v["noown"] else float("nan"),
+            "n_noown": len(v["noown"]),
+            "own_is_top1": v["own_top1"],
+            "no_noown_candidate": v["no_candidate"],
+        }
+        for size, v in sorted(out.items())
+    }
+
+
+# ---------------------------------------------------------------------------------------------
+# loading the OOD products
+# ---------------------------------------------------------------------------------------------
+
+
+def load_ood_ids(vol: Vol, base: str, set_name: str) -> list[dict] | None:
+    return vol.jsonl(f"base/{base}/heldout/{set_name}/ids.jsonl")
+
+
+def load_scans(vol: Vol, base: str, set_name: str) -> dict[str, dict]:
+    """{scan subdirectory -> {(set, set_row, size) -> top-1 cos}} for every scan of this set.
+
+    An OOD scan writes `scan/<set>/<corpus>[-<M>m]/`; the pre-2026-09-18 English scan writes
+    `scan/<set>/` directly and is read by `english_reference`, never here.
+    """
+    out = {}
+    for sub in vol.ls(f"base/{base}/scan/{set_name}"):
+        rows = vol.jsonl(f"base/{base}/scan/{set_name}/{sub}/topk.jsonl")
+        if rows is None:
+            continue
+        top1: dict = {}
+        for r in rows:
+            if not r["top"]:
+                continue
+            key = (r.get("set", set_name), int(r.get("set_row", r["row"])), int(r["size"]))
+            top1[key] = r["top"][0][3]
+        out[sub] = top1
+        console.print(f"[dim]scan {sub}: {len(top1)} (target, size) cells[/dim]")
+    return out
+
+
+def load_quantiles(vol: Vol, base: str, set_name: str, sub: str):
+    idx = vol.json(f"base/{base}/scan/{set_name}/{sub}/index.json")
+    if not idx or "quantiles.f16" not in idx:
+        return None
+    shape = tuple(idx["quantiles.f16"]["shape"])
+    arr = vol.array(f"base/{base}/scan/{set_name}/{sub}/quantiles.f16", "float16", shape)
+    return None if arr is None else arr.astype(np.float32)
+
+
+def load_nll(vol: Vol, base: str, set_name: str) -> dict[int, dict]:
+    rows = vol.jsonl(f"base/{base}/nll/{set_name}/per_target.jsonl")
+    return {int(r["row"]): r for r in rows} if rows else {}
+
+
+def wall_seconds(vol: Vol, rel: str) -> float | None:
+    """The `- wall: N s` line of a product's own README (review R2's GPU-seconds column).
+
+    The README is the number to trust: `modal app logs` replays stale output under a timeout
+    (checklist item 84), so the per-product wall recorded at write time is the only honest one.
+    """
+    p = vol.get(f"{rel}/README.md")
+    if p is None:
+        return None
+    m = re.search(r"^- wall: ([0-9.]+)s", p.read_text(), re.M)
+    return float(m.group(1)) if m else None
+
+
+# ---------------------------------------------------------------------------------------------
+# R3: language id and the code-like classifier on the rollouts
+# ---------------------------------------------------------------------------------------------
+
+
+def load_lid(path: Path):
+    """fastText `lid.176` if the model file is there, else None (the caller prints how to get it)."""
+    try:
+        import fasttext  # noqa: PLC0415
+    except ImportError:
+        console.print("[yellow]fasttext is not installed: `uv run --with fasttext ...`[/yellow]")
+        return None
+    if not path.exists():
+        console.print(f"[yellow]no fastText model at {path}: the lid columns are skipped[/yellow]")
+        return None
+    return fasttext.load_model(str(path))
+
+
+def lid_label(model, text: str) -> tuple[str, float]:
+    t = " ".join(text.split())
+    if not t:
+        return "", 0.0
+    labels, probs = model.predict(t, k=1)
+    return labels[0].removeprefix("__label__"), float(probs[0])
+
+
+def rollout_texts(vol: Vol, base: str, maemm: str, set_name: str, stem: str) -> dict[int, list[str]]:
+    """{target row -> [rollout text] in k order} from the rollouts jsonl (the one big fetch here)."""
+    rows = vol.jsonl(f"maemms/{base}/{maemm}/rollouts/{stem}.jsonl")
+    if rows is None:
+        return {}
+    out: dict[int, list[str]] = {}
+    for r in rows:
+        out.setdefault(int(r["row"]), []).append(r.get("text", ""))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# R7: what the inverter was trained on
+# ---------------------------------------------------------------------------------------------
+
+
+TRAIN_WINDOW = 512
+TRAIN_N = 10_000
+
+
+def _train_share_corpus(vol: Vol, base: str, tok, n: int, seed: int):
+    """`--source corpus`: n random 512-token windows of OUR English corpus (UFW en p0009-0010)."""
+    p = vol.get(f"base/{base}/corpus/tokens.i32")
+    if p is None:
+        return None, "base/<base>/corpus/tokens.i32 is not mirrored locally"
+    toks = np.memmap(p, dtype=np.int32, mode="r")
+    rng = np.random.default_rng(seed)
+    starts = rng.integers(0, len(toks) - TRAIN_WINDOW, size=n)
+    return (tok.decode([int(x) for x in toks[s : s + TRAIN_WINDOW]]) for s in starts), (
+        f"{n} random {TRAIN_WINDOW}-token windows of base/{base}/corpus/tokens.i32 "
+        f"(Ultra-FineWeb en p0009-0010), seed {seed}"
+    )
+
+
+def _train_share_hf(dataset: str, tok, n: int):
+    """`--source hf:<id>`: n documents in FILE ORDER, one 512-token window each.
+
+    `m-a-p/FineFineWeb` is the primary checkpoint's activation corpus
+    (`infra/2026-09-18_ood-eval-training-data.md`). NO revision is pinned anywhere in Celeste's
+    collectors, so the fetch DATE and the files read are recorded instead and the share is reported
+    as of that date.
+    """
+    import datetime
+
+    from datasets import load_dataset
+    from huggingface_hub import HfApi
+
+    rev = HfApi().repo_info(dataset, repo_type="dataset").sha
+    ds = load_dataset(dataset, split="train", streaming=True)
+    today = datetime.date.today().isoformat()
+
+    def gen():
+        got = 0
+        for row in ds:
+            text = row.get("text") or row.get("content") or ""
+            if not text:
+                continue
+            ids = tok(text, add_special_tokens=False)["input_ids"]
+            if len(ids) < TRAIN_WINDOW:
+                continue
+            got += 1
+            yield tok.decode(ids[:TRAIN_WINDOW])
+            if got >= n:
+                return
+
+    return gen(), (
+        f"{n} documents of {dataset} (streaming, FILE ORDER, default config, split train) at "
+        f"revision {rev[:12]}, one {TRAIN_WINDOW}-token window each, fetched {today}; no revision "
+        f"is pinned by the checkpoint's own config, so this is the share as of that date"
+    )
+
+
+# ---------------------------------------------------------------------------------------------
+# the tables
+# ---------------------------------------------------------------------------------------------
+
+
+def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
+    base, set_name = args["base"], args["set"]
+    maemm, control = args["maemm"], args["control"]
+    stem = args["stem"]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    notes: list[str] = []
+
+    ids = load_ood_ids(vol, base, set_name)
+    assert ids, f"no held-out set at base/{base}/heldout/{set_name}/ids.jsonl"
+    arms = C.ood_arms(cfg)
+    by_row = {int(r["row"]): r for r in ids}
+
+    en_ref = english_reference(vol)
+    if en_ref is None:
+        notes.append("R1 English reference: the 2026-09-16_v1 scan is not available")
+
+    scans = load_scans(vol, base, set_name)
+    if not scans:
+        notes.append(f"no scan of {set_name}: every corpus column is empty")
+    nll = load_nll(vol, base, set_name)
+    if not nll:
+        notes.append(f"no nll product for {set_name}: bpb_ctx / nll_ctx columns are empty")
+
+    sides = {}
+    for label, key in (("maemm", maemm), ("control", control)):
+        if not key:
+            continue
+        s = Scores(vol, base, key, set_name, by_row, f"maemms/{base}/{key}/scores/{stem}")
+        if getattr(s, "ok", False):
+            sides[label] = s
+        else:
+            notes.append(f"no scores for {key} on {stem}")
+
+    # ---- per target -------------------------------------------------------------------------
+    rows = []
+    for r in ids:
+        row = int(r["row"])
+        arm = r["arm"]
+        spec = arms.get(arm, {})
+        rec = {
+            "row": row,
+            "arm": arm,
+            "family": r["family"],
+            "tok_class": r.get("tok_class"),
+            "n_subtokens": r.get("n_subtokens"),
+            "byte_piece": bool(r.get("byte_piece")),
+            "whole_char": bool(r.get("whole_char")),
+            "multi_char": bool(r.get("multi_char")),
+            "char_type": r.get("char_type"),
+            "p": r.get("p"),
+            "L": r.get("L"),
+            "unspaced": bool(spec.get("unspaced")),
+        }
+        for label, s in sides.items():
+            i = s.rows.index(row) if row in s.rows else None
+            for k in BO_KS:
+                rec[f"bo{k}_{label}"] = (
+                    float(bo_unbiased(s.best[i : i + 1], k)[0]) if i is not None else None
+                )
+        for sub, top1 in scans.items():
+            for size in (1, 4, 16):
+                v = top1.get((set_name, row, size))
+                if v is not None:
+                    rec[f"corpus_{sub}_{size}m"] = v
+        if row in nll:
+            rec["nll_ctx"] = nll[row]["nll_ctx"]
+            rec["bpb_ctx"] = nll[row]["bpb_ctx"]
+            rec["nll_p"] = nll[row]["nll_p"]
+        rows.append(rec)
+    per_target = pl.DataFrame(rows, infer_schema_length=None)
+
+    # in-domain corpus column: the scan of the arm's OWN corpus
+    def in_domain(rec, size):
+        for sub in (rec["arm"], f"{rec['arm']}-{size}m"):
+            col = f"corpus_{sub}_{size}m"
+            if col in per_target.columns:
+                return col
+        return None
+
+    # ---- per arm ----------------------------------------------------------------------------
+    arm_rows, strata_rows = [], []
+    lid = load_lid(args["lid_model"]) if args["lid"] else None
+    texts = rollout_texts(vol, base, maemm, set_name, stem) if (lid or args["lid"]) else {}
+    gpu = {
+        "rollouts": wall_seconds(vol, f"maemms/{base}/{maemm}/rollouts"),
+        "score": wall_seconds(vol, f"maemms/{base}/{maemm}/scores/{stem}"),
+    }
+
+    for arm, spec in arms.items():
+        sel = per_target.filter(pl.col("arm") == arm)
+        if sel.height == 0:
+            continue
+        rec = {
+            "arm": arm,
+            "family": spec["family"],
+            "n": sel.height,
+            "script": spec["script"],
+            "unspaced": bool(spec["unspaced"]),
+            "sizes": "/".join(str(s) for s in spec["sizes"]),
+            "licence": spec.get("licence"),
+        }
+        for label in sides:
+            for k in BO_KS:
+                col = f"bo{k}_{label}"
+                if col in sel.columns and sel[col].null_count() < sel.height:
+                    rec[col] = round(float(sel[col].mean()), 4)
+        for size in (1, 4, 16):
+            col = in_domain({"arm": arm}, size)
+            if col and sel[col].null_count() < sel.height:
+                rec[f"corpus_{size}m"] = round(float(sel[col].mean()), 4)
+        for size in (1, 4, 16):
+            col = f"corpus_corpus-4m_{size}m"
+            if col not in sel.columns:
+                col = f"corpus_corpus_{size}m"
+            if col in sel.columns and sel[col].null_count() < sel.height:
+                rec[f"english_{size}m"] = round(float(sel[col].mean()), 4)
+        for c in ("nll_ctx", "bpb_ctx"):
+            if c in sel.columns and sel[c].null_count() < sel.height:
+                rec[c] = round(float(sel[c].mean()), 4)
+        rec["byte_piece_rate"] = round(float(sel["byte_piece"].mean()), 4)
+        rec["whole_char_rate"] = round(float(sel["whole_char"].mean()), 4)
+        for cls in ("word", "first", "mid", "last", "unspaced"):
+            rec[f"cls_{cls}"] = int((sel["tok_class"] == cls).sum())
+
+        # the four comparisons of design §6
+        comps = {
+            "bo64_vs_4m": ("bo64_maemm", in_domain({"arm": arm}, 4)),
+            "bo4_vs_4m": ("bo4_maemm", in_domain({"arm": arm}, 4)),
+            "bo1_vs_1m": ("bo1_maemm", in_domain({"arm": arm}, 1)),
+            "bo64_vs_en16m": ("bo64_maemm", "corpus_corpus_16m"),
+            "maemm_vs_control": ("bo64_maemm", "bo64_control"),
+        }
+        for name, (a, b) in comps.items():
+            if not a or not b or a not in sel.columns or b not in sel.columns:
+                continue
+            if sel[a].null_count() or sel[b].null_count():
+                continue
+            d = (sel[a] - sel[b]).to_numpy()
+            mean, lo, hi = boot_ci(d)
+            rec[f"{name}_delta"] = round(mean, 4)
+            rec[f"{name}_lo"] = round(lo, 4)
+            rec[f"{name}_hi"] = round(hi, 4)
+            rec[f"{name}_win"] = round(float((d > 0).mean()), 4)
+            if name == "bo64_vs_4m":
+                rec["outcome"] = outcome(lo, hi)
+                rec["in_conjunction"] = arm not in CONJUNCTION_EXCLUDE
+
+        # R4 chance levels
+        v = vol.array(
+            f"base/{base}/heldout/{set_name}/vecs.f16", "float16",
+            (len(ids), cfg["bases"][base]["d"]),
+        )
+        if v is not None:
+            idx = sel["row"].to_numpy()
+            vv = v[idx].astype(np.float32)
+            vv /= np.linalg.norm(vv, axis=1, keepdims=True)
+            g = vv @ vv.T
+            rec["chance_pairwise_cos"] = round(float(g[np.triu_indices(len(vv), 1)].mean()), 4)
+        q = load_quantiles(vol, base, set_name, arm)
+        if q is None:
+            q = load_quantiles(vol, base, set_name, f"{arm}-4m")
+        if q is not None:
+            sizes_here = [s for s in spec["sizes"]]
+            si = sizes_here.index(4) if 4 in sizes_here else len(sizes_here) - 1
+            idx = sel["row"].to_numpy()
+            rec["chance_scan_median"] = round(float(q[idx, si, 0].mean()), 4)
+            rec["chance_scan_p99"] = round(float(q[idx, si, 2].mean()), 4)
+
+        # R3 language id / code-like on the top-1 and top-4 rollouts
+        if "maemm" in sides and texts:
+            s = sides["maemm"]
+            hits1, hits4, code1, n_seen = 0, 0, 0, 0
+            for row in sel["row"].to_numpy():
+                if row not in texts or row not in s.rows:
+                    continue
+                order = np.argsort(-s.best[s.rows.index(row)])
+                tops = [texts[row][k] for k in order[:4] if k < len(texts[row])]
+                if not tops:
+                    continue
+                n_seen += 1
+                code1 += int(C.code_like(tops[0]))
+                if lid is not None and spec.get("lid"):
+                    l1, _ = lid_label(lid, tops[0])
+                    hits1 += int(l1 == spec["lid"])
+                    hits4 += int(any(lid_label(lid, t)[0] == spec["lid"] for t in tops))
+            if n_seen:
+                rec["code_like_top1_rate"] = round(code1 / n_seen, 4)
+                if lid is not None and spec.get("lid"):
+                    rec["lid_top1_rate"] = round(hits1 / n_seen, 4)
+                    rec["lid_top4_rate"] = round(hits4 / n_seen, 4)
+
+        # R2 GPU-seconds per target
+        if gpu["rollouts"] and len(ids):
+            rec["gpu_s_maemm"] = round((gpu["rollouts"] + (gpu["score"] or 0)) / len(ids), 3)
+        scan_w = wall_seconds(vol, f"base/{base}/scan/{set_name}/{arm}")
+        if scan_w:
+            rec["gpu_s_scan_4m"] = round(scan_w / len(ids), 3)
+
+        # within-arm Spearman of bo64 against the base's own bits per byte (R6)
+        if "bo64_maemm" in sel.columns and "bpb_ctx" in sel.columns:
+            if not sel["bo64_maemm"].null_count() and not sel["bpb_ctx"].null_count():
+                rec["spearman_bo64_bpb"] = round(
+                    spearman(sel["bo64_maemm"].to_numpy(), sel["bpb_ctx"].to_numpy()), 4
+                )
+        arm_rows.append(rec)
+
+        # strata
+        dcol, ccol = "bo64_maemm", in_domain({"arm": arm}, 4)
+        for key in ("tok_class", "byte_piece", "char_type"):
+            for val in sel[key].unique().sort():
+                sub = sel.filter(pl.col(key) == val)
+                srec = {
+                    "arm": arm, "family": spec["family"], "stratum": key,
+                    "value": str(val), "n": sub.height,
+                }
+                if dcol in sub.columns and not sub[dcol].null_count():
+                    srec["bo64"] = round(float(sub[dcol].mean()), 4)
+                if ccol and ccol in sub.columns and not sub[ccol].null_count():
+                    srec["corpus_4m"] = round(float(sub[ccol].mean()), 4)
+                    if dcol in sub.columns and not sub[dcol].null_count():
+                        srec["delta"] = round(float((sub[dcol] - sub[ccol]).mean()), 4)
+                strata_rows.append(srec)
+
+    arms_df = pl.DataFrame(arm_rows, infer_schema_length=None) if arm_rows else pl.DataFrame()
+    strata_df = pl.DataFrame(strata_rows, infer_schema_length=None) if strata_rows else pl.DataFrame()
+
+    # the en_ref row, so the reference and the arms come out of ONE script (R1)
+    if en_ref and not arms_df.is_empty():
+        ref = {
+            "arm": "en_ref",
+            "family": "reference",
+            "n": en_ref[max(en_ref)]["n_noown"],
+            "script": "Latin",
+            "unspaced": False,
+            "sizes": "/".join(str(s) for s in sorted(en_ref)),
+            "licence": "apache-2.0",
+        }
+        for size, v in en_ref.items():
+            if size in (1, 4, 16):
+                ref[f"corpus_{size}m"] = round(v["top1_noown"], 4)
+        arms_df = pl.concat([arms_df, pl.DataFrame([ref])], how="diagonal_relaxed")
+
+    if not arms_df.is_empty():
+        arms_df.write_csv(out_dir / "ood_arms.csv")
+    per_target.write_csv(out_dir / "ood_per_target.csv")
+    if not strata_df.is_empty():
+        strata_df.write_csv(out_dir / "ood_strata.csv")
+
+    # R8 examples: the median-delta target of each arm, with its licence
+    lines = ["# OOD examples: the median-delta target of each arm (review R8)", ""]
+    lines += [
+        "One target per arm, the one whose `bo64 - in-domain top-1 at 4M` is the arm's MEDIAN, with",
+        "the licence of its source beside it. Proof-Pile-2 (`arxiv`) declares no licence on the HF",
+        "repo, so no example is printed from it.",
+        "",
+    ]
+    for rec in arm_rows:
+        arm = rec["arm"]
+        if arm == "arxiv":
+            lines += [f"## {arm}", "", "*no example printed: the source declares no licence*", ""]
+            continue
+        sel = per_target.filter(pl.col("arm") == arm)
+        ccol = in_domain({"arm": arm}, 4)
+        if "bo64_maemm" not in sel.columns or not ccol or sel["bo64_maemm"].null_count():
+            continue
+        d = (sel["bo64_maemm"] - sel[ccol]).to_numpy()
+        row = int(sel["row"].to_numpy()[int(np.argsort(d)[len(d) // 2])])
+        src = by_row[row]
+        lines += [
+            f"## {arm} (row {row}, delta {d[int(np.argsort(d)[len(d) // 2])]:+.4f})",
+            "",
+            f"- source: `{src['src_dataset']}` @ `{src['src_revision'][:12]}`, rows "
+            f"{src['src_rows']}, licence **{src.get('licence')}**",
+            f"- p {src['p']}, L {src['L']}, tok_class `{src.get('tok_class')}`, "
+            f"byte_piece {src.get('byte_piece')}, char_type `{src.get('char_type')}`",
+            "",
+            "```",
+            src["span_text"],
+            "```",
+            "",
+        ]
+    (out_dir / "ood_examples.md").write_text("\n".join(lines) + "\n")
+
+    if not arms_df.is_empty():
+        want = ("arm", "family", "n", "bo64_maemm", "corpus_4m", "bo64_vs_4m_delta",
+                "bo64_vs_4m_lo", "bo64_vs_4m_hi", "outcome", "byte_piece_rate")
+        show = [c for c in want if c in arms_df.columns]
+        t = RichTable(title="OOD arms", header_style="bold")
+        for c in show:
+            t.add_column(c)
+        for r in arms_df.select(show).iter_rows():
+            t.add_row(*["" if v is None else str(v) for v in r])
+        console.print(t)
+    for n in notes:
+        console.print(f"[yellow]note: {n}[/yellow]")
+    (out_dir / "ood_notes.md").write_text("\n".join(f"- {n}" for n in notes) + "\n")
+    return {
+        "arms": arms_df.height if not arms_df.is_empty() else 0,
+        "targets": per_target.height,
+        "strata": strata_df.height if not strata_df.is_empty() else 0,
+        "notes": notes,
+        "en_ref": en_ref,
+    }
+
+
+# ---------------------------------------------------------------------------------------------
+# commands
+# ---------------------------------------------------------------------------------------------
+
+
+def _vol(root_tag, fetch, refetch, quiet, modal_cmd, data_dir):
+    return Vol(
+        root_tag, data_dir or (HERE / "data" / root_tag), modal_cmd, refetch, quiet, offline=not fetch
+    )
+
+
+@app.command()
+def tables(
+    root_tag: Annotated[str, typer.Option(help="smoke | full")] = "full",
+    set_name: Annotated[str, typer.Option("--set", help="the OOD held-out set")] = OOD_SET,
+    base: Annotated[str, typer.Option()] = BASE,
+    maemm: Annotated[str, typer.Option(help="the primary MAEMM")] = "2026-09-10_rl-8x2048-full",
+    control: Annotated[str, typer.Option(help="the untrained-base control")] = (
+        "2026-09-16_base-control"
+    ),
+    stem: Annotated[str, typer.Option(help="the scores subdirectory")] = "",
+    lid: Annotated[bool, typer.Option(help="run fastText lid.176 on the rollouts (review R3)")] = True,
+    lid_model: Annotated[Path | None, typer.Option(help="lid.176.bin")] = None,
+    fetch: Annotated[bool, typer.Option()] = True,
+    refetch: Annotated[bool, typer.Option()] = False,
+    quiet: Annotated[bool, typer.Option()] = False,
+    modal_cmd: Annotated[str, typer.Option()] = "uvx modal",
+    data_dir: Annotated[Path | None, typer.Option()] = None,
+    out_dir: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """The per-arm tables, strata, chance levels and examples."""
+    with open(CONFIG) as fh:
+        cfg = yaml.safe_load(fh)
+    vol = _vol(root_tag, fetch, refetch, quiet, modal_cmd, data_dir)
+    res = build_tables(
+        vol,
+        cfg,
+        out_dir or (HERE / "out" / root_tag / "ood"),
+        {
+            "base": base,
+            "set": set_name,
+            "maemm": maemm,
+            "control": control,
+            "stem": stem or f"{set_name}__vllm",
+            "lid": lid,
+            "lid_model": lid_model or (HERE / "data" / "lid.176.bin"),
+        },
+    )
+    console.print(res)
+
+
+@app.command("en-ref")
+def en_ref_cmd(
+    root_tag: Annotated[str, typer.Option(help="smoke | full")] = "full",
+    fetch: Annotated[bool, typer.Option()] = True,
+    modal_cmd: Annotated[str, typer.Option()] = "uvx modal",
+    data_dir: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Review R1 alone: the English corpus top-1 with and without own-document windows."""
+    vol = _vol(root_tag, fetch, False, False, modal_cmd, data_dir)
+    ref = english_reference(vol)
+    assert ref, "the 2026-09-16_v1 scan and ids are not available on this root"
+    t = RichTable(title="R1: English realact corpus top-1 (2026-09-16_v1, 27B)", header_style="bold")
+    cols = ("size", "n", "top1 (all windows)", "top1 (no own document)", "own is top-1",
+            "no non-own candidate")
+    for c in cols:
+        t.add_column(c)
+    for size, v in ref.items():
+        t.add_row(
+            f"{size}M", str(v["n"]), f"{v['top1_all']:.4f}", f"{v['top1_noown']:.4f}",
+            f"{v['own_is_top1']}", f"{v['no_noown_candidate']}",
+        )
+    console.print(t)
+    console.print(json.dumps(ref, indent=1))
+
+
+@app.command("train-share")
+def train_share(
+    source: Annotated[str, typer.Option(help="hf:<dataset id> | corpus")] = "hf:m-a-p/FineFineWeb",
+    n: Annotated[int, typer.Option()] = TRAIN_N,
+    seed: Annotated[int, typer.Option()] = BOOT_SEED,
+    base: Annotated[str, typer.Option()] = BASE,
+    root_tag: Annotated[str, typer.Option()] = "full",
+    tokenizer: Annotated[str, typer.Option(help="the 27B tokenizer's HF id or path")] = "Qwen/Qwen3.6-27B",
+    lid_model: Annotated[Path | None, typer.Option()] = None,
+    fetch: Annotated[bool, typer.Option()] = True,
+    modal_cmd: Annotated[str, typer.Option()] = "uvx modal",
+    data_dir: Annotated[Path | None, typer.Option()] = None,
+    out_dir: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Review R7: the code-like and non-English share of the inverter's training text.
+
+    `--source hf:m-a-p/FineFineWeb` is the primary checkpoint's ACTUAL activation corpus
+    (`infra/2026-09-18_ood-eval-training-data.md`, 2026-09-18); `--source corpus` measures OUR
+    English eval corpus (Ultra-FineWeb en p0009-0010) the same way, and both are reported.
+    """
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(tokenizer)
+    vol = _vol(root_tag, fetch, False, False, modal_cmd, data_dir)
+    if source == "corpus":
+        gen, prov = _train_share_corpus(vol, base, tok, n, seed)
+        assert gen is not None, prov
+    else:
+        assert source.startswith("hf:"), f"--source must be `corpus` or `hf:<id>`, got {source!r}"
+        gen, prov = _train_share_hf(source.removeprefix("hf:"), tok, n)
+    lid = load_lid(lid_model or (HERE / "data" / "lid.176.bin"))
+    n_code, n_noneng, seen = 0, 0, 0
+    for text in gen:
+        seen += 1
+        n_code += int(C.code_like(text))
+        if lid is not None:
+            label, p = lid_label(lid, text)
+            n_noneng += int(not (label == "en" and p > 0.5))
+    rec = {
+        "source": source,
+        "provenance": prov,
+        "windows": seen,
+        "code_like": n_code,
+        "code_like_share": round(n_code / max(seen, 1), 5),
+        "non_english": n_noneng if lid is not None else None,
+        "non_english_share": round(n_noneng / max(seen, 1), 5) if lid is not None else None,
+        "code_like_rule": (
+            f">= {C.CODE_LIKE_MIN} of {list(C.CODE_LIKE_MARKERS)} + an indentation run "
+            f"(regex \\n[ \\t]{{2,}}\\S) per {TRAIN_WINDOW}-token window"
+        ),
+        "lid_rule": "fastText lid.176 top label != 'en' or p <= 0.5" if lid is not None else "not run",
+        "verdict": (
+            "unseen" if n_code / max(seen, 1) < 0.01 else "under-represented"
+        ),
+    }
+    console.print(json.dumps(rec, indent=1))
+    d = out_dir or (HERE / "out" / root_tag / "ood")
+    d.mkdir(parents=True, exist_ok=True)
+    tag = "corpus" if source == "corpus" else source.removeprefix("hf:").replace("/", "_")
+    (d / f"train_share_{tag}.json").write_text(json.dumps(rec, indent=1) + "\n")
+
+
+@app.command()
+def selfcheck() -> None:
+    """Every code path above on synthetic inputs, in seconds, before any launch."""
+    import shutil
+    import tempfile
+
+    ok = []
+
+    # --- estimators --------------------------------------------------------------------------
+    d = np.full(64, 0.2)
+    m, lo, hi = boot_ci(d)
+    assert abs(m - 0.2) < 1e-12 and abs(lo - 0.2) < 1e-9 and abs(hi - 0.2) < 1e-9, (m, lo, hi)
+    assert outcome(lo, hi) == "exceeds"
+    rng = np.random.default_rng(0)
+    z = rng.normal(0, 0.1, 64)
+    m, lo, hi = boot_ci(z)
+    assert lo < 0 < hi and outcome(lo, hi) == "inconclusive", (m, lo, hi)
+    m, lo, hi = boot_ci(z - 0.5)
+    assert outcome(lo, hi) == "reversed", (m, lo, hi)
+    # the CI half-width the design predicts at sd 0.104, n 64: ~0.025
+    hw = np.mean([
+        (lambda t: (t[2] - t[1]) / 2)(boot_ci(rng.normal(0.1, 0.104, 64), n=2000, seed=s))
+        for s in range(5)
+    ])
+    assert 0.018 < hw < 0.033, f"CI half-width {hw:.4f} is not the design's ~0.025"
+    p = derangement(64)
+    assert len(set(p.tolist())) == 64 and not (p == np.arange(64)).any()
+    assert (derangement(64) == p).all(), "the derangement must be fixed"
+    assert abs(spearman(np.arange(10), np.arange(10)) - 1.0) < 1e-12
+    assert abs(spearman(np.arange(10), -np.arange(10)) + 1.0) < 1e-12
+    ok.append("estimators")
+
+    # --- english_reference on a synthetic scan -------------------------------------------------
+    tmp = Path(tempfile.mkdtemp(prefix="stats_ood_selfcheck_"))
+    try:
+        (tmp / f"base/{BASE}/scan/{EN_SET}").mkdir(parents=True)
+        (tmp / f"base/{BASE}/heldout/{EN_SET}").mkdir(parents=True)
+        ids = [{"row": 0, "family": "realact", "doc": 7}, {"row": 1, "family": "realact", "doc": 9}]
+        (tmp / f"base/{BASE}/heldout/{EN_SET}/ids.jsonl").write_text(
+            "\n".join(json.dumps(r) for r in ids) + "\n"
+        )
+        topk = [
+            {"row": 0, "family": "realact", "size": 4, "top": [[7, 0, 0, 0.90], [3, 0, 0, 0.40]]},
+            {"row": 1, "family": "realact", "size": 4, "top": [[9, 0, 0, 0.80]]},  # own only
+        ]
+        (tmp / f"base/{BASE}/scan/{EN_SET}/topk.jsonl").write_text(
+            "\n".join(json.dumps(r) for r in topk) + "\n"
+        )
+        vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
+        ref = english_reference(vol)
+        assert abs(ref[4]["top1_all"] - 0.85) < 1e-9, ref
+        assert abs(ref[4]["top1_noown"] - 0.40) < 1e-9, ref  # row 1 has no non-own candidate
+        assert ref[4]["n_noown"] == 1 and ref[4]["no_noown_candidate"] == 1, ref
+        assert ref[4]["own_is_top1"] == 2, ref
+        ok.append("english_reference (including the no-non-own-candidate exclusion)")
+
+        # --- build_tables end to end on a synthetic OOD set -----------------------------------
+        cfg = yaml.safe_load(CONFIG.read_text())
+        arms = {"tha_Thai": cfg["ood_arms"]["tha_Thai"], "python": cfg["ood_arms"]["python"]}
+        cfg["ood_arms"] = arms
+        n_arm, d_model = 8, cfg["bases"][BASE]["d"]
+        hd = tmp / f"base/{BASE}/heldout/{OOD_SET}"
+        hd.mkdir(parents=True)
+        ids, rowi = [], 0
+        for arm, spec in arms.items():
+            for j in range(n_arm):
+                ids.append({
+                    "row": rowi, "family": spec["family"], "arm": arm, "id": f"{arm}:{j}",
+                    "pool_i": j, "src_rows": [j], "src_dataset": spec["dataset"],
+                    "src_revision": "0" * 40, "src_split": spec.get("split"),
+                    "src_files": spec["files"], "licence": spec.get("licence"),
+                    "p": 100 + j, "L": 32, "act_norm": 1.0, "span_text": f"span {arm} {j}",
+                    "byte_piece": j % 3 == 0, "whole_char": j % 3 == 1, "multi_char": j % 3 == 2,
+                    "char_type": "letter_arm", "tok_class": "unspaced" if spec["unspaced"] else "word",
+                    "n_subtokens": None if spec["unspaced"] else 1,
+                })
+                rowi += 1
+        (hd / "ids.jsonl").write_text("\n".join(json.dumps(r) for r in ids) + "\n")
+        rs = np.random.default_rng(1)
+        vecs = rs.normal(size=(len(ids), d_model)).astype(np.float16)
+        vecs.tofile(hd / "vecs.f16")
+        for arm in arms:
+            sd = tmp / f"base/{BASE}/scan/{OOD_SET}/{arm}"
+            sd.mkdir(parents=True)
+            lines = []
+            for r in ids:
+                if r["arm"] != arm:
+                    continue
+                for size in (1, 4):
+                    lines.append({
+                        "row": r["row"], "set": OOD_SET, "set_row": r["row"], "family": r["family"],
+                        "arm": arm, "corpus": arm, "size": size,
+                        "top": [[0, 0, 0, 0.30 + 0.01 * size]],
+                    })
+            (sd / "topk.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+            q = np.tile(np.array([0.05, 0.1, 0.15, 0.2, 0.25], dtype=np.float16), (len(ids), 2, 1))
+            q.tofile(sd / "quantiles.f16")
+            (sd / "index.json").write_text(json.dumps({"quantiles.f16": {"shape": [len(ids), 2, 5]}}))
+        nd = tmp / f"base/{BASE}/nll/{OOD_SET}"
+        nd.mkdir(parents=True)
+        (nd / "per_target.jsonl").write_text(
+            "\n".join(
+                json.dumps({"row": r["row"], "arm": r["arm"], "nll_ctx": 2.0 + 0.01 * r["row"],
+                            "bpb_ctx": 1.0 + 0.01 * r["row"], "nll_p": 3.0})
+                for r in ids
+            ) + "\n"
+        )
+        # scores: 64 rollouts per target, the primary above the corpus and the control below it
+        shapes = (("2026-09-10_rl-8x2048-full", 0.30, 0.70), ("2026-09-16_base-control", 0.05, 0.20))
+        for label, lo_, hi_ in shapes:
+            sd = tmp / f"maemms/{BASE}/{label}/scores/{OOD_SET}__vllm"
+            sd.mkdir(parents=True)
+            n_t, n_k, width = len(ids), 64, 96
+            cos = np.full((n_t, n_k, width), np.nan, dtype=np.float16)
+            cos[:, :, 1:5] = rs.uniform(lo_, hi_, size=(n_t, n_k, 4)).astype(np.float16)
+            cos.tofile(sd / "cos.f16")
+            np.zeros((n_t, n_k), dtype=np.int16).tofile(sd / "argmax.i16")
+            (sd / "index.json").write_text(json.dumps({"cos.f16": {"shape": [n_t, n_k, width]}}))
+            (sd / "rows.json").write_text(json.dumps({"rows": [r["row"] for r in ids], "n": n_k}))
+            best = np.nanmax(cos.astype(np.float32), axis=2)
+            (sd / "per_target.jsonl").write_text(
+                "\n".join(
+                    json.dumps({"row": r["row"], "mean_cos": float(best[i].mean()), "seed": 1234})
+                    for i, r in enumerate(ids)
+                ) + "\n"
+            )
+        vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
+        out = tmp / "out"
+        res = build_tables(vol, cfg, out, {
+            "base": BASE, "set": OOD_SET, "maemm": "2026-09-10_rl-8x2048-full",
+            "control": "2026-09-16_base-control", "stem": f"{OOD_SET}__vllm",
+            "lid": False, "lid_model": Path("/nonexistent"),
+        })
+        assert res["targets"] == len(ids), res
+        adf = pl.read_csv(out / "ood_arms.csv")
+        assert set(adf["arm"]) == {"tha_Thai", "python", "en_ref"}, adf["arm"].to_list()
+        arm_rows = adf.filter(pl.col("arm") != "en_ref")
+        assert (arm_rows["outcome"] == "exceeds").all(), arm_rows.select(["arm", "outcome"]).to_dicts()
+        assert (arm_rows["bo64_vs_4m_lo"] > 0).all()
+        assert (arm_rows["maemm_vs_control_delta"] > 0).all()
+        assert arm_rows["chance_pairwise_cos"].null_count() == 0
+        assert arm_rows["chance_scan_median"].null_count() == 0
+        assert set(arm_rows["in_conjunction"]) == {True}
+        pt = pl.read_csv(out / "ood_per_target.csv")
+        assert pt.height == len(ids) and "bpb_ctx" in pt.columns
+        st = pl.read_csv(out / "ood_strata.csv")
+        assert st.height > 0 and "delta" in st.columns
+        ex = (out / "ood_examples.md").read_text()
+        assert "## tha_Thai" in ex and "## python" in ex and "span " in ex
+        ok.append("build_tables end to end (arms, per-target, strata, examples)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # --- the shared classifiers ----------------------------------------------------------------
+    assert C.code_like("def f(x):\n    return {1: 2};\nimport os\n")
+    assert not C.code_like("Dnes je krasne pocasi a jdu ven do parku.")
+    assert C.script_fraction("hello", "Latin") == 1.0
+    ok.append("code_like / script_fraction (common.py, one definition for both layers)")
+
+    for name in ok:
+        console.print(f"[green]ok[/green] {name}")
+    console.print(f"[bold green]{len(ok)}/{len(ok)} stats_ood selfchecks passed[/bold green]")
+
+
+if __name__ == "__main__":
+    app()
