@@ -55,6 +55,7 @@ if str(PAPER_EVALS) not in sys.path:
     sys.path.insert(0, str(PAPER_EVALS))
 
 import precompute.common as C  # noqa: E402
+from autointerp import build as B  # noqa: E402
 from autointerp import chain as CH  # noqa: E402
 from autointerp import run as R  # noqa: E402
 
@@ -192,6 +193,147 @@ def synth_build(root: Path, base: str, set_name: str, name: str, feats: list[int
             "n_top_fallback_features": 1, "n_top_fallback_positives": 1,
         }, fh)
     return d
+
+
+VENDORED = Path(__file__).resolve().parent / "third_party" / "delphi-4fea06e"
+
+
+def _upstream(rel: str) -> dict:
+    """Exec one vendored upstream prompt module and return its globals.
+
+    `exec` rather than `import`: the files sit under a path with a dot in it, they are data and
+    not a package, and their real package does `from ...clients.client import Client` at module
+    scope. The two PROMPT modules are pure string constants plus one `prompt()` function, so
+    executing them has no effect beyond binding those names.
+    """
+    src = (VENDORED / rel).read_text()
+    ns: dict = {}
+    exec(compile(src, str(VENDORED / rel), "exec"), ns)  # noqa: S102 -- vendored constants
+    return ns
+
+
+def check_delphi_verbatim():
+    """Every DELPHI_* string `run.py` sends is byte-identical to upstream at 4fea06e.
+
+    The fidelity claim used to rest on a markdown note saying the strings had been transcribed
+    correctly, which is not a check -- and three of our four statements about Delphi turned out to
+    be wrong when the source was finally fetched (902d8ce). This compares against
+    `third_party/delphi-4fea06e/`, which is `git show 4fea06e:<path>` and nothing else, so a drift
+    on either side fails loudly here instead of silently in a prompt.
+
+    Upstream keeps its constants in triple-quoted literals with leading/trailing newlines that the
+    prompt builder does not strip; we strip them and let the API's own message formatting do the
+    rest. `.strip()` on both sides is therefore the comparison, and it is the ONLY normalisation.
+    """
+    fz = _upstream("scorers/classifier/prompts/fuzz_prompt.py")
+    dt = _upstream("scorers/classifier/prompts/detection_prompt.py")
+    ex = _upstream("explainers/default/prompts.py")
+
+    def eq(what, ours, theirs):
+        assert ours.strip() == theirs.strip(), (
+            f"{what} DIFFERS from upstream 4fea06e.\n"
+            f"  ours   ({len(ours):4d} ch): {ours[:200]!r}\n"
+            f"  theirs ({len(theirs):4d} ch): {theirs[:200]!r}"
+        )
+
+    eq("DELPHI_FUZZ_SYSTEM", R.DELPHI_FUZZ_SYSTEM, fz["DSCORER_SYSTEM_PROMPT"])
+    eq("DELPHI_DETECTION_SYSTEM", R.DELPHI_DETECTION_SYSTEM, dt["DSCORER_SYSTEM_PROMPT"])
+    eq("DELPHI_EXPLAINER_SYSTEM", R.DELPHI_EXPLAINER_SYSTEM,
+       ex["SYSTEM"].replace("{prompt}", "").rstrip())
+
+    # The two few-shot lists, turn by turn, in order, roles included. A list that agreed on
+    # content but sent the turns in the wrong order, or as the wrong role, would be a different
+    # prompt; zip(strict=True) also catches a list of the wrong length.
+    for name, ours, theirs_src in (
+        ("DELPHI_FUZZ_FEWSHOT", R.DELPHI_FUZZ_FEWSHOT, fz),
+        ("DELPHI_DETECTION_FEWSHOT", R.DELPHI_DETECTION_FEWSHOT, dt),
+    ):
+        want = []
+        for n in ("ONE", "TWO", "THREE"):
+            want.append(("user", theirs_src[f"DSCORER_EXAMPLE_{n}"]))
+            want.append(("assistant", theirs_src[f"DSCORER_RESPONSE_{n}"]))
+        assert len(ours) == len(want), f"{name}: {len(ours)} turns, upstream has {len(want)}"
+        for i, (turn, (role, txt)) in enumerate(zip(ours, want, strict=True)):
+            assert turn["role"] == role, f"{name}[{i}] role {turn['role']!r} != {role!r}"
+            eq(f"{name}[{i}]", turn["content"], txt)
+
+    # The explainer shots are (activations block + explanation) concatenated the way
+    # `prompt_builder.py::build_examples` concatenates them.
+    for i, ours in enumerate((R.DELPHI_EXPLAINER_FEWSHOT, R.DELPHI_EXPLAINER_FEWSHOT_2,
+                              R.DELPHI_EXPLAINER_FEWSHOT_3), start=1):
+        turns = {t["role"]: t["content"] for t in ours}
+        assert set(turns) == {"user", "assistant"}, f"shot {i}: roles {sorted(turns)}"
+        eq(f"DELPHI_EXPLAINER_FEWSHOT_{i}", turns["user"], ex[f"EXAMPLE_{i}_ACTIVATIONS"])
+        eq(f"DELPHI_EXPLAINER_FEWSHOT_{i} answer", turns["assistant"],
+           ex[f"EXAMPLE_{i}_EXPLANATION"])
+
+    assert R.DELPHI_COMMIT == "4fea06e6e8b68eeaf302474325fca13df95c5d6f", R.DELPHI_COMMIT
+    print(f"[selfcheck] delphi verbatim OK: 3 systems, {len(R.DELPHI_FUZZ_FEWSHOT)} fuzz turns, "
+          f"{len(R.DELPHI_DETECTION_FEWSHOT)} detection turns, 3 explainer shots, "
+          f"all byte-identical to {VENDORED.name} after strip()")
+
+
+class _StubTok:
+    """The one method `build.token_pieces` calls. A real tokenizer would pull in transformers and
+    a model download for a check that is purely about WHICH INDICES get marked."""
+
+    def decode(self, ids):
+        return f"t{int(ids[0])} "
+
+
+def check_fuzz_marking():
+    """`--fuzz-marks delphi` forces upstream's `len - len//4` index in; `scattered` does not.
+
+    Made to fail first: with the `forced` term deleted from build.py's delphi branch this asserts
+    at seed 0 (the sampled set misses index 24), so it exercises the branch rather than restating
+    that a set contains what was put into it.
+    """
+    import numpy as np
+
+    tok, ids = _StubTok(), list(range(1, 33))
+    forced = len(ids) - len(ids) // 4          # 24 for a 32-token window
+    pieces = B.token_pieces(tok, ids)
+    hits = {"delphi": 0, "scattered": 0}
+    for seed in range(200):
+        for kind in hits:
+            t = B.render_test(tok, ids, None, 1.0, random.Random(seed), 3, kind)
+            marks = _marked_indices(t["text_fuzz"], pieces)
+            assert marks, f"{kind} seed {seed}: no mark placed"
+            hits[kind] += int(forced in marks)
+    assert hits["delphi"] == 200, (
+        f"--fuzz-marks delphi marked the forced index {forced} on only {hits['delphi']}/200 seeds"
+    )
+    assert hits["scattered"] < 200, (
+        f"--fuzz-marks scattered also marked index {forced} on every one of 200 seeds -- the "
+        f"check cannot tell the two branches apart"
+    )
+    # The flag touches NEGATIVES only: a positive is marked from its own activations either way.
+    acts = np.zeros(32, dtype=np.float32)
+    acts[7] = 5.0
+    a = B.render_test(tok, ids, acts, 1.0, random.Random(0), 3, "delphi")
+    b = B.render_test(tok, ids, acts, 1.0, random.Random(0), 3, "contiguous")
+    assert a["text_fuzz"] == b["text_fuzz"], "fuzz_marks changed a POSITIVE's marking"
+    print(f"[selfcheck] fuzz marking OK: delphi forces index {forced} on 200/200 seeds, "
+          f"scattered on {hits['scattered']}/200; positives identical under both")
+
+
+def _marked_indices(text_fuzz: str, pieces: list[str]) -> set[int]:
+    """Which token indices ended up inside `<< >>`, recovered from the rendered string.
+
+    Recovered rather than read off `marks`, so the test covers `marked_text`'s run-grouping too:
+    a rule that marked the right indices but rendered the delimiters wrong would still fail.
+    """
+    out, i, pos = set(), 0, 0
+    depth_open = text_fuzz
+    for i, piece in enumerate(pieces):
+        j = depth_open.find(piece, pos)
+        if j < 0:
+            continue
+        before = depth_open[:j]
+        if before.count("<<") > before.count(">>"):
+            out.add(i)
+        pos = j + len(piece)
+    return out
 
 
 def check_projection_keys(cfg):
@@ -353,6 +495,8 @@ def main() -> int:
         os.environ["ANTHROPIC_API_KEY"] = "selfcheck-placeholder-not-a-key"
     tmp = Path(tempfile.mkdtemp(prefix="autointerp-selfcheck-"))
     try:
+        check_delphi_verbatim()
+        check_fuzz_marking()
         check_projection_keys(cfg)
         check_gate(cfg, tmp, base, set_name)
         check_run_both_paths(cfg, tmp, base, set_name)

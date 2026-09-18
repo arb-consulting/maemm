@@ -210,10 +210,19 @@ def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int
                       tokens at a seeded random start. Reconstructed from Delphi's INTRUDER paper
                       when its fuzzing source was not to hand. It is a detectable artefact --
                       negatives carry one block, positives carry 1-2 scattered marks.
-      `fuzz_marks="scattered"` Delphi's actual rule, FETCHED 2026-09-17 from
-                      `scorers/classifier/sample.py` @4fea06e: below-threshold tokens chosen by
-                      `random.sample`, i.e. scattered, with `n_incorrect = ceil(mean nonzero
-                      count)` (`fuzz.py`).
+      `fuzz_marks="scattered"` below-threshold tokens chosen by `random.sample`, i.e. scattered
+                      but with no forced index -- an intermediate rule, kept because the
+                      sensitivity run used it.
+      `fuzz_marks="delphi"` UPSTREAM's rule at 4fea06e, vendored at third_party/delphi-4fea06e/:
+                      scattered AND with the index `len-len//4` forced in. See the branch below
+                      for the two places we still differ.
+
+    `n_mark_neg` is the caller's `n_incorrect`. Upstream computes it as `ceil(mean number of
+    NONZERO activations over the test positives)` (`fuzz.py:61-69`); we use the mean number of
+    MARKED tokens over the rendered positives, floored, min 1. Those agree when the marking rule
+    and the nonzero rule pick the same tokens and differ otherwise -- ours is tied to what the
+    positives actually show, which is the quantity the negative is meant to imitate. Listed as a
+    deviation in the README.
     """
     pieces = token_pieces(tok, ids)
     if acts is not None:
@@ -226,6 +235,28 @@ def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int
             # gate-consistent positive (A1) with no mark at all. The peak is marked in that case
             # and only that case; it is the same token either way.
             marks[int(a.argmax())] = True
+    elif fuzz_marks == "delphi":
+        # UPSTREAM's rule, `scorers/classifier/sample.py:118-166` @4fea06e, vendored verbatim at
+        # third_party/delphi-4fea06e/. Two differences from "scattered", both deliberate on
+        # upstream's part and one of them carrying upstream's own `# TODO: This is wrong`:
+        #
+        #   1. the index `len(str_toks) - len(str_toks)//4` is FORCED IN whenever it is below
+        #      threshold, and only `n_incorrect - 1` further indices are sampled. Upstream's
+        #      windows are centred so that position IS the activating token, and marking it on a
+        #      negative is what makes the negative a plausible false positive rather than a
+        #      random smear. Our windows are centred the same way (`centre_on_peak`), so the
+        #      position means the same thing here.
+        #   2. `random.seed(22)` -- upstream reseeds the GLOBAL RNG inside the marking function,
+        #      so every example in a run gets the same sample sequence. We keep our own seeded
+        #      `rng` instead: reseeding a shared global from inside a renderer would make this
+        #      function's output depend on call order, and the run is parallel. NOT byte-identical
+        #      to upstream for that reason, and the README says so.
+        k = max(1, min(n_mark_neg, len(pieces)))
+        forced = len(pieces) - len(pieces) // 4
+        rest = [i for i in range(len(pieces)) if i != forced]
+        idx = ({forced, *rng.sample(rest, min(k - 1, len(rest)))} if 0 <= forced < len(pieces)
+               else set(rng.sample(range(len(pieces)), k)))
+        marks = [i in idx for i in range(len(pieces))]
     elif fuzz_marks == "scattered":
         k = max(1, min(n_mark_neg, len(pieces)))
         idx = set(rng.sample(range(len(pieces)), k))
@@ -716,8 +747,8 @@ def run(cfg, args):
     mark = str(args.get("mark") or "gate")
     assert mark in ("gate", "delphi"), f"--mark must be 'gate' or 'delphi', got {mark!r}"
     fuzz_marks = str(args.get("fuzz_marks") or "contiguous")
-    assert fuzz_marks in ("contiguous", "scattered"), (
-        f"--fuzz-marks must be 'contiguous' or 'scattered', got {fuzz_marks!r}"
+    assert fuzz_marks in ("contiguous", "scattered", "delphi"), (
+        f"--fuzz-marks must be contiguous, scattered or delphi, got {fuzz_marks!r}"
     )
     allow_top_fallback = bool(ac["allow_top_fallback"])
     engine = args.get("engine") or "vllm"

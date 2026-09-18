@@ -182,12 +182,10 @@ DELPHI_DETECTION_SYSTEM = (
     "anything else besides a Python list."
 )
 
-# scorers/classifier/prompts/fuzz_prompt.py::FUZZ_SYSTEM_PROMPT, verbatim (fetched 2026-09-13,
-# recorded at related-work/2026-09-13_autointerp-methods-and-prompts.md:411-424). Delphi's fuzzing
-# FEW-SHOT turns are NOT in our transcription, so the fuzzing scorer runs ZERO-SHOT here and the
-# detection scorer keeps its three verbatim shots. That asymmetry is stated in every fuzzing
-# README: it is a reason fuzzing and detection numbers are not comparable to each other, not a
-# reason either is wrong.
+# scorers/classifier/prompts/fuzz_prompt.py::DSCORER_SYSTEM_PROMPT, verbatim. Now checked rather
+# than asserted: `selfcheck.py::check_delphi_verbatim` compares this string, and every other
+# DELPHI_* constant below, against `third_party/delphi-4fea06e/`, which is `git show 4fea06e:<path>`
+# and nothing else.
 DELPHI_FUZZ_SYSTEM = (
     "You are an intelligent and meticulous linguistics researcher.\n\n"
     'You will be given a certain latent of text, such as "male pronouns" or "text with negative '
@@ -201,6 +199,49 @@ DELPHI_FUZZ_SYSTEM = (
     "are mislabeled. You must return your response in a valid Python list. Do not return anything "
     "else besides a Python list."
 )
+
+# scorers/classifier/prompts/fuzz_prompt.py::DSCORER_EXAMPLE_{ONE,TWO,THREE} and their responses,
+# verbatim. TRANSCRIBED 2026-09-17 and sent from 2026-09-18 under `--fuzz-protocol delphi`; until
+# then the fuzzing scorer ran ZERO-SHOT because these turns were not in our transcription, while
+# detection had all three. That asymmetry was real and is what `--fuzz-protocol legacy` (still the
+# default, so the published run reproduces) preserves.
+#
+# The answers are 3/5, 0/5 and 5/5 positive -- mean 8/15, a near-balanced prior, unlike the
+# detection shots' 7/15. Upstream sends them in the SAME order and with the same list syntax
+# (`"[1,0,0,1,1]"`, not JSON), which is why our parser accepts a bare list.
+DELPHI_FUZZ_FEWSHOT = [
+    {"role": "user", "content": """Latent explanation: Words related to American football positions, specifically the tight end position.
+
+Test examples:
+
+Example 0:<|endoftext|>Getty ImagesĊĊPatriots<< tight end>> Rob Gronkowski had his bossâĢĻ
+Example 1: posted<|endoftext|>You should know this<< about>> offensive line coaches: they are large, demanding<< men>>
+Example 2: Media Day 2015ĊĊLSU<< defensive>> end Isaiah Washington (94) speaks<< to the>>
+Example 3:<< running backs>>," he said. .. Defensive<< end>> Carroll Phillips is improving and his injury is
+Example 4:<< line>>, with the left side âĢĶ namely<< tackle>> Byron Bell at<< tackle>> and<< guard>> Amini"""},  # noqa: E501
+    {"role": "assistant", "content": '[1,0,0,1,1]'},
+    {"role": "user", "content": """Latent explanation: The word "guys" in the phrase "you guys".
+
+Test examples:
+
+Example 0: if you are<< comfortable>> with it. You<< guys>> support me in many other ways already and
+Example 1: birth control access<|endoftext|> but I assure you<< women>> in Kentucky aren't laughing as they struggle
+Example 2:âĢĻs gig! I hope you guys<< LOVE>> her, and<< please>> be nice,
+Example 3:American, told<< Hannity>> that âĢľyou<< guys>> are playing the race card.âĢĿ
+Example 4:<< the>><|endoftext|>ľI want to<< remind>> you all that 10 days ago (director Massimil"""},  # noqa: E501
+    {"role": "assistant", "content": '[0,0,0,0,0]'},
+    {"role": "user", "content": """Latent explanation: "of" before words that start with a capital letter.
+
+Test examples:
+
+Example 0: climate, TomblinâĢĻs Chief<< of>> Staff Charlie Lorensen said.Ċ
+Example 1: no wonderworking relics, no true Body and Blood<< of>> Christ, no true Baptism
+Example 2:ĊĊDeborah Sathe, Head<< of>> Talent Development and Production at Film London,
+Example 3:ĊĊIt has been devised by Director<< of>> Public Prosecutions (DPP)
+Example 4: and fair investigation not even include the Director<< of>> Athletics? Â· Finally, we believe the"""},  # noqa: E501
+    {"role": "assistant", "content": '[1,1,1,1,1]'},
+]
+
 
 # scorers/classifier/prompts/detection_prompt.py::DSCORER_EXAMPLE_{ONE,TWO,THREE} and their
 # responses, verbatim. The mojibake (`Ċ`, `âĢĻ`, `<|endoftext|>`) is GPT-2 byte-level token
@@ -921,6 +962,15 @@ def run(cfg, args):
     floor_arm, floor_src, draw2_arm = str(ac["floor_arm"]), str(ac["floor_source_arm"]), "C16-draw2"
     judge_arm = str(ac.get("judge_floor_arm") or "C16-judge2")
     shots = int(args.get("shots") or 1)
+    # Tomas 2026-09-18: adopt upstream Delphi's fuzzing protocol. `delphi` sends the three
+    # fuzzing few-shot turns (`DELPHI_FUZZ_FEWSHOT`, transcribed from 4fea06e); `legacy` keeps the
+    # zero-shot fuzzing prompt the published 512-feature run used, so that run reproduces byte for
+    # byte. The NEGATIVE-MARKING half of the protocol lives in `build.py` (`--fuzz-marks delphi`)
+    # because it changes a build product, not a prompt.
+    fuzz_protocol = str(args.get("fuzz_protocol") or "legacy")
+    assert fuzz_protocol in ("delphi", "legacy"), (
+        f"--fuzz-protocol must be delphi or legacy, got {fuzz_protocol!r}"
+    )
     fewshot_expl = explainer_fewshot(shots)
     # PREPARED, NOT RUN (Tomas decides; 2026-09-16). `--explain2` adds `C16-explain2`: C16's
     # example set RE-EXPLAINED with a fresh explainer call, then scored on draw 1. It is the third
@@ -1160,7 +1210,10 @@ def run(cfg, args):
         skip_arms = {f"X{a}-q" for a in crossfam_arms} if scorer != "detection" else set()
         field = "text" if scorer == "detection" else "text_fuzz"
         system = DELPHI_DETECTION_SYSTEM if scorer == "detection" else DELPHI_FUZZ_SYSTEM
-        fewshot = DELPHI_DETECTION_FEWSHOT if scorer == "detection" else None
+        # `--fuzz-protocol delphi` sends upstream's three fuzzing shots; `legacy` (the DEFAULT)
+        # sends none, which is what the published run did. Detection always had its three.
+        fewshot = (DELPHI_DETECTION_FEWSHOT if scorer == "detection"
+                   else (DELPHI_FUZZ_FEWSHOT if fuzz_protocol == "delphi" else None))
         jobs = []
         for feat in feats:
             for a, e, items in plans[feat]:
@@ -1294,6 +1347,8 @@ def run(cfg, args):
             for a in sorted({r["arm"] for r in expl_rows})
         },
         "shots": shots,
+        "fuzz_protocol": fuzz_protocol,
+        "fuzz_shots": len(DELPHI_FUZZ_FEWSHOT) // 2 if fuzz_protocol == "delphi" else 0,
         "mark": binfo.get("mark", "gate"),
         "fuzz_marks": binfo.get("fuzz_marks", "contiguous"),
         "cache_hits": cache.hits,
