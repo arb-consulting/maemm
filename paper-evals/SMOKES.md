@@ -4325,3 +4325,93 @@ uv run --with transformers --with fasttext reconstruction/stats_ood.py train-sha
     --source hf:m-a-p/FineFineWeb --n 10000 --no-fetch
 uv run --with transformers --with fasttext reconstruction/stats_ood.py train-share --source corpus
 ```
+
+### The §8 pilot's GPU half (2026-09-18, same day)
+
+| what | command | wall | $ | result |
+|---|---|---|---|---|
+| **`scan`, 4 corpora at their 4M prefix** | `--product scan --base qwen36-27b --set 2026-09-18_ood_v1 --corpus tha_Thai,python,ufw_en,corpus --max-size 4 --with-set 2026-09-16_v1:realact+random,2026-09-18_ood_v1_unitend` | **5060.4 s** | **$6.3818** | 1,344 target rows (192 OOD + 1,024 English realact/random + 128 `_unitend`) against each corpus; **2,742 corpus tok/s** at 1,344 targets against the 2,877 measured at 512 — the scan is per corpus token, as the design assumed. `0 own-document masks` on the three arm corpora and **512** on the English one, which is the mask-by-corpus rule working |
+| `nll`, OOD set | `--product nll --base qwen36-27b --set 2026-09-18_ood_v1` | 94.6 s | $0.1193 | 192 windows, 2.26 win/s |
+| `nll`, English realact | `--product nll --base qwen36-27b --set 2026-09-16_v1` | 120.8 s | $0.1524 | 512 windows |
+| `rollouts_vllm` primary, OOD | `--product rollouts_vllm … --maemm qwen36-27b/2026-09-10_rl-8x2048-full --set 2026-09-18_ood_v1 --n 64 --max-num-seqs 256` | 785.9 s | $0.9911 | 12,288 rollouts; marker ‖h‖ 130.08, injection cos 0.999995 |
+| `rollouts_vllm` primary, `_unitend` — **LOST** | the same with `--set 2026-09-18_ood_v1_unitend` | 714.2 s | $0.9007 | finished, then its file was **clobbered** — see below |
+| `rollouts_vllm` control, OOD | `… --maemm qwen36-27b/2026-09-16_base-control --set 2026-09-18_ood_v1` | 631.8 s | $0.7967 | marker ‖h‖ 14.0594 vs the clean base 14.062 (rel 1.9e-4), i.e. the control is the base |
+| `rollouts_vllm` primary, `_unitend`, rerun alone | the same | 716.4 s | $0.9034 | 8,192 rollouts |
+| `score` ×3 | `--product score … --engine vllm` on the three (set, maemm) pairs | 185.2 / 239.2 / 164.8 s | $0.2336 / $0.3016 / $0.2078 | — |
+| `ood_selfcheck --stages nll` | `--product ood_selfcheck --base qwen36-27b --stages nll` | 140.9 s | $0.1777 | criterion (e): our per-position nats vs HF's own `labels=` loss, **2.9e-4 and 4.8e-4** against a 1e-3 tolerance |
+| `stats_ood.py tables` | local | — | $0 | `ood_arms.csv`, `ood_per_target.csv`, `ood_strata.csv`, `ood_examples.md` |
+
+**Total this session $11.74** (the earlier code-and-draw half $0.57 included), against a $16 cap and
+a $13 estimate.
+
+**Two operational findings.**
+
+1. **Two concurrent `rollouts_vllm` runs of the same MAEMM destroy one of them.** `rollouts/` is an
+   ACCUMULATING directory (`OutDir(keep_existing=True)`): each run copies the existing directory
+   into its temp dir, adds its file, and renames over the original. The `_unitend` run finished
+   FIRST, and the `ood_v1` run — whose copy was taken before that file existed — then replaced the
+   directory and took it away. The loss is SILENT: the run reports `[done]` and a cost, and only
+   `score` notices, with `no rollouts at …/2026-09-18_ood_v1_unitend__vllm.jsonl`. Cost of the
+   lesson: $0.90. **Never run two `rollouts_vllm` (or any two products that write the same
+   accumulating directory) concurrently for one MAEMM.** Concurrent runs on DIFFERENT MAEMMs are
+   fine, and the control run (a different MAEMM directory) was unaffected.
+2. **A multi-corpus `scan`'s per-directory cost line is CUMULATIVE.** `OutDir`'s `t0` is the
+   container's start by design ("so each README's wall/cost covers the whole product call"), so the
+   four scan READMEs say $1.72 / $3.30 / $4.85 / $6.38 — the last is the call's total, not the
+   fourth corpus's. Per-corpus costs are the differences: 1365 / 1247 / 1232 / 1216 s.
+
+### Pilot criteria (design §8), with the numbers
+
+| | criterion | result |
+|---|---|---|
+| (a) | `ufw_en` bo64 within 0.04 of 0.569, corpus-4M top-1 within 0.04 of 0.351 | **PASS** — bo64 **0.5514** (−0.018), corpus-4M **0.3518** (+0.0008) |
+| (b) | disjointness holds, verbatim-span rate reported | **PASS** — corpus/pool source rows intersect in 0 on all three arms; verbatim 2/64 `tha_Thai`, 3/64 `python`, 0/64 `ufw_en` |
+| (c) | `tha_Thai` byte-piece and `unspaced` rates are what the tokenizer implies, eye-checked on 10 rows | **PASS, with a surprise** — `unspaced` 64/64 (definitional); `byte_piece` **0/64**, 22 whole-character and 42 multi-character tokens. The 248k tokenizer does not split ordinary Thai into partial UTF-8 pieces |
+| (d) | random-row top-1 at 4M within 0.02 across the corpora | **PASS** — 0.0579 (English) / 0.0576 (`ufw_en`) / 0.0572 (`python`) / 0.0506 (`tha_Thai`), spread **0.0073** |
+| (e) | `nll` agrees with an independent HF forward to 1e-3 | **PASS** — 2.9e-4 and 4.8e-4. NOTE: on **2** rows, not the design's 8 (the implementation brief said 2) |
+| (f) | per-arm chance level reported | **PASS** — pairwise target cosine 0.2208 / 0.0610 / 0.1564 (`tha_Thai` / `ufw_en` / `python`); scan median −0.064 / −0.040 / −0.111; scan p99 0.088 / 0.068 / −0.003 |
+| (g) | language-id rate of top-1 rollouts on `tha_Thai` | **PASS** — lid218e top-1 **0.859**, top-4 **0.938** |
+
+### The arms, as measured (pilot, 4M in-domain corpora)
+
+| arm | n | bo1 | bo4 | bo64 | control bo64 | in-domain 1M | in-domain 4M | English-4M | Δ = bo64 − 4M | 95% CI | win | outcome |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `ufw_en` | 64 | 0.4867 | 0.5195 | **0.5514** | 0.1435 | 0.3131 | 0.3518 | 0.3597 | **+0.1997** | [0.1761, 0.2229] | 0.953 | **exceeds** |
+| `python` | 64 | 0.2774 | 0.3276 | **0.3859** | 0.0266 | 0.2533 | 0.2885 | 0.1464 | **+0.0974** | [0.0658, 0.1297] | 0.828 | **exceeds** |
+| `tha_Thai` | 64 | 0.1987 | 0.2910 | **0.3801** | 0.0100 | 0.3545 | 0.3739 | 0.1221 | **+0.0061** | [−0.0152, 0.0270] | 0.531 | **inconclusive** |
+| `en_ref` | 508 | — | — | (0.569) | — | 0.3137 | 0.3511 | — | (+0.218) | — | — | — |
+
+MAEMM − control on bo64: +0.408 / +0.359 / +0.370 (all CIs far above zero). bits per byte 0.661 /
+0.454 / 1.040; within-arm Spearman of bo64 against bpb −0.075 / +0.101 / +0.168. `code_like` on the
+top-1 rollout: 0.016 on `python`, 0 elsewhere. `bo1` vs the 1M corpus: +0.174 [0.144, 0.202] on
+`ufw_en`, +0.024 [−0.023, 0.066] on `python`, **−0.156** [−0.182, −0.129] on `tha_Thai`.
+
+**An independent confirmation of R1 fell out of the cross-domain row.** The 512 English realact
+targets scored against the `ufw_en` corpus — a DIFFERENT 4M English slice (part 0011), which
+contains none of their documents — give top-1 **0.3512**, against **0.3511** for the same targets on
+their own corpus with own-document windows excluded, and 0.3706 with them counted. The
+own-document exclusion and a genuinely disjoint corpus of the same size agree to 1e-4.
+
+**`tha_Thai` is the arm to look at.** Its corpus search is the strongest of the three (0.3739 at 4M
+against English 0.3518 and Python 0.2885) while its MAEMM bo64 is the weakest relative to it, and
+its 64 targets are the most similar to each other (pairwise cosine 0.221 against 0.061 English). Both
+push Δ toward zero, and neither is the inverter failing outright: bo64 0.380 sits far above the
+control's 0.010 and the scan's p99 of 0.088, and 86% of its top-1 rollouts are in Thai.
+
+### R7, stratified (review R7, Tomas 2026-09-18), $0
+
+| source | draw | windows | code-like | non-English |
+|---|---|---|---|---|
+| `m-a-p/FineFineWeb` rev `7fd92dc825a7` | **stratified**: the head of the first file of each of its **67 domains**, 150 documents each | 10,050 | **0 (0.000)** | 37 (0.0037) |
+| the same, **token-weighted** by the card's `Total Tokens` column (all 67 domains matched) | — | — | **0.000** | **0.0021** |
+| our English eval corpus (UFW en p0009-0010) | 10,000 random 512-token windows | 10,000 | 1 (0.0001) | 66 (0.0066) |
+
+Not one of the 10,050 windows is code-like, `computer_science_and_technology` (203B tokens, 4.6% of
+the corpus) and `mathematics` (6.18B) included — which supports the training-data note's reading
+that FineFineWeb's CS domain is PROSE about computing. On the design's R7 rule (< 1%) the code and
+maths arms are **"unseen"**, not merely under-represented; the earlier file-order draw that read one
+`aerospace` file is superseded. Language id is fastText **lid218e**
+(`facebook/fasttext-language-identification`, `model.bin` sha256 `8ded5749a2ad79ae…`, commit
+`3af127d4124fc58b75666f3594bb5143b9757e78`), chosen because its FLORES-200 labels are our arm ids.
+MEASURED on fasttext 0.9.3: its python `predict` wrapper ends in `np.array(probs, copy=False)`,
+which numpy ≥ 2 refuses, so `lid_label` calls the C++ `model.f.predict` directly.

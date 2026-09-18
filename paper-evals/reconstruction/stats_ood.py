@@ -270,9 +270,26 @@ def load_lid(path: Path | None = None):
 
 
 def lid_label(model, text: str) -> tuple[str, float]:
+    """(label, probability) of the top language, through fastText's C++ predict.
+
+    `_FastText.predict` ends in `np.array(probs, copy=False)`, which numpy >= 2 REFUSES
+    (MEASURED 2026-09-18: `ValueError: Unable to avoid copy while creating an array as requested`
+    on fasttext 0.9.3), and this script is pinned to numpy >= 2 like the rest of reconstruction/.
+    The underlying `model.f.predict` returns plain python lists and is what the wrapper calls, so
+    it is used directly where it exists.
+    """
     t = " ".join(text.split())
     if not t:
         return "", 0.0
+    inner = getattr(model, "f", None)
+    if inner is not None:
+        # MEASURED on fasttext 0.9.3: `f.predict` returns [(prob, "__label__x"), ...] for a single
+        # string -- the python wrapper is what unzips it and then numpy-wraps the probabilities.
+        pairs = inner.predict(t, 1, 0.0, "strict")
+        if not pairs:
+            return "", 0.0
+        prob, label = pairs[0]
+        return label.removeprefix("__label__"), float(prob)
     labels, probs = model.predict(t, k=1)
     return labels[0].removeprefix("__label__"), float(probs[0])
 
@@ -517,12 +534,16 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
         rows.append(rec)
     per_target = pl.DataFrame(rows, infer_schema_length=None)
 
-    # in-domain corpus column: the scan of the arm's OWN corpus
+    # In-domain corpus column: the scan of the arm's OWN corpus at nested size `size`. The scan
+    # SUBDIRECTORY carries the bound the whole scan ran at (`tha_Thai-4m`), which is not the size
+    # being read, so the arm's subdirectory is matched by prefix rather than by name.
     def in_domain(rec, size):
-        for sub in (rec["arm"], f"{rec['arm']}-{size}m"):
-            col = f"corpus_{sub}_{size}m"
-            if col in per_target.columns:
-                return col
+        arm = rec["arm"]
+        for sub in sorted(scans):
+            if sub == arm or sub.startswith(f"{arm}-"):
+                col = f"corpus_{sub}_{size}m"
+                if col in per_target.columns:
+                    return col
         return None
 
     # ---- per arm ----------------------------------------------------------------------------
