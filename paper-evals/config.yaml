@@ -823,32 +823,35 @@ autointerp:
 #   sizes      nested corpus sizes in MILLIONS of tokens; the largest is the arm's token budget
 #   script     the Unicode script the arm's text is expected to be in (stats_ood.py's
 #              script-fraction classifier and targets.py's `char_type` covariate)
-#   lid        the fastText lid.176 label for R3, or null where language id is not meaningful
-#              (code and maths arms report `code_like` instead)
+#   lid        the acceptable fastText labels for R3 as a LIST, or null where language id is not
+#              meaningful (code and maths arms report `code_like` instead). The model is lid218e
+#              (`facebook/fasttext-language-identification`, Tomas 2026-09-18, preferred over
+#              community re-uploads of lid.176): its FLORES-200 labels ARE our arm ids for seven of
+#              the eight language arms, and Chinese is `zho_Hans`/`zho_Hant` there, not `cmn_Hani`.
 #   unspaced   true where the script has no whitespace word boundaries: `tok_class` is then the
 #              single class `unspaced` and `n_subtokens` is null (design §3), and the _unitend
 #              variant moves p to the last byte piece of its CHARACTER rather than of its word
 #   licence    what the appendix must say (design §9)
 ood_arms:
   # --- lang (8): FineWeb-2 `test`, the dataset authors' own held-out split -----------------------
-  ces_Latn:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ces_Latn/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Latin, lid: cs, unspaced: false, licence: odc-by}
-  rus_Cyrl:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/rus_Cyrl/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Cyrillic, lid: ru, unspaced: false, licence: odc-by}
-  ell_Grek:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ell_Grek/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Greek, lid: el, unspaced: false, licence: odc-by}
-  arb_Arab:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/arb_Arab/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Arabic, lid: ar, unspaced: false, licence: odc-by}
-  hin_Deva:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/hin_Deva/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Devanagari, lid: hi, unspaced: false, licence: odc-by}
-  tha_Thai:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/tha_Thai/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 16], script: Thai, lid: th, unspaced: true, licence: odc-by}
-  cmn_Hani:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/cmn_Hani/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Han, lid: zh, unspaced: true, licence: odc-by}
-  jpn_Jpan:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/jpn_Jpan/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Jpan, lid: ja, unspaced: true, licence: odc-by}
+  ces_Latn:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ces_Latn/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Latin, lid: [ces_Latn], unspaced: false, licence: odc-by}
+  rus_Cyrl:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/rus_Cyrl/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Cyrillic, lid: [rus_Cyrl], unspaced: false, licence: odc-by}
+  ell_Grek:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ell_Grek/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Greek, lid: [ell_Grek], unspaced: false, licence: odc-by}
+  arb_Arab:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/arb_Arab/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Arabic, lid: [arb_Arab], unspaced: false, licence: odc-by}
+  hin_Deva:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/hin_Deva/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Devanagari, lid: [hin_Deva], unspaced: false, licence: odc-by}
+  tha_Thai:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/tha_Thai/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 16], script: Thai, lid: [tha_Thai], unspaced: true, licence: odc-by}
+  cmn_Hani:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/cmn_Hani/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant], unspaced: true, licence: odc-by}
+  jpn_Jpan:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/jpn_Jpan/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Jpan, lid: [jpn_Jpan], unspaced: true, licence: odc-by}
 
   # --- ctrl (2): the same filter pipeline as our English corpus, at two scripts ------------------
   # ufw_zh separates "different filter pipeline" from "different script" against cmn_Hani.
-  ufw_zh:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_zh/ultrafineweb-zh-part-001-of-256.parquet], text: content, split: zh, sizes: [1, 4], script: Han, lid: zh, unspaced: true, licence: apache-2.0}
+  ufw_zh:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_zh/ultrafineweb-zh-part-001-of-256.parquet], text: content, split: zh, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant], unspaced: true, licence: apache-2.0}
   # ufw_en is the PIPELINE CHECK (design §8 (a)): a fresh English draw through the new code path,
   # from part 0011 -- disjoint from the 16M corpus (parts 0009/0010) and from the old 8B corpus
   # (part 0001). NOTE (infra/2026-09-18_ood-eval-training-data.md): Ultra-FineWeb is NOT the
   # primary MAEMM's training corpus (that is m-a-p/FineFineWeb), so this arm is a convention check,
   # not an in-training-distribution row.
-  ufw_en:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_en/ultrafineweb-en-part-0011-of-2048.parquet], text: content, split: en, sizes: [1, 4, 16], script: Latin, lid: en, unspaced: false, licence: apache-2.0}
+  ufw_en:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_en/ultrafineweb-en-part-0011-of-2048.parquet], text: content, split: en, sizes: [1, 4, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: apache-2.0}
 
   # --- code (8): the-stack-smol-xl, 10,000 random files per language, `data/<lang>/data.json` ----
   # The file is JSON LINES despite the .json name (MEASURED 2026-09-18); `content` is the source and
@@ -863,7 +866,7 @@ ood_arms:
   shell:      {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/shell/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
 
   # --- math (4) ---------------------------------------------------------------------------------
-  owm:        {family: math, reader: parquet, dataset: open-web-math/open-web-math, files: [data/train-00000-of-00114-5a023365406cb9c4.parquet], text: text, split: train, sizes: [1, 4, 16], script: Latin, lid: en, unspaced: false, licence: odc-by}
+  owm:        {family: math, reader: parquet, dataset: open-web-math/open-web-math, files: [data/train-00000-of-00114-5a023365406cb9c4.parquet], text: text, split: train, sizes: [1, 4, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: odc-by}
   # Proof-Pile-2 declares NO licence on the HF repo (design §9); arXiv content is under arXiv's own
   # licences, which is why R8 never prints an example from this arm.
   arxiv:      {family: math, reader: jsonl_zst, dataset: EleutherAI/proof-pile-2, files: [arxiv/test/arXiv_000.jsonl.zst, arxiv/test/arXiv_001.jsonl.zst, arxiv/test/arXiv_002.jsonl.zst, arxiv/test/arXiv_003.jsonl.zst, arxiv/test/arXiv_004.jsonl.zst, arxiv/test/arXiv_005.jsonl.zst, arxiv/test/arXiv_006.jsonl.zst, arxiv/test/arXiv_007.jsonl.zst, arxiv/test/arXiv_008.jsonl.zst, arxiv/test/arXiv_009.jsonl.zst, arxiv/test/arXiv_010.jsonl.zst, arxiv/test/arXiv_011.jsonl.zst, arxiv/test/arXiv_012.jsonl.zst, arxiv/test/arXiv_013.jsonl.zst, arxiv/test/arXiv_014.jsonl.zst, arxiv/test/arXiv_015.jsonl.zst, arxiv/test/arXiv_016.jsonl.zst, arxiv/test/arXiv_017.jsonl.zst, arxiv/test/arXiv_018.jsonl.zst, arxiv/test/arXiv_019.jsonl.zst], text: text, split: test, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "UNSTATED on the HF repo; arXiv's own per-paper licences"}

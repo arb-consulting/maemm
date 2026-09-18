@@ -1381,6 +1381,16 @@ arms), `n_subtokens` (capped at 16, null when unspaced), `byte_piece` (the token
 valid UTF-8 alone — a partial character under Qwen's byte-level BPE), `whole_char` / `multi_char`
 (review R5) and `char_type` of the character the token's first byte belongs to.
 
+**What the R5 stratum actually is** (Tomas 2026-09-18, after the pilot draw): `byte_piece` is kept
+as a column because it is the point of the `formulas` arm, but it was **0 of 64 on all three pilot
+arms, Thai included** — the 248k Qwen tokenizer does not split ordinary non-Latin text into partial
+UTF-8 pieces. The stratum the tables report is therefore `whole_char` vs `multi_char` on every arm,
+plus `n_subtokens` on the spaced ones. **`char_type` vs `char_type_body`**: both are stored, and the
+tables report `char_type_body` — under a byte-level BPE a token carries its leading space, so the
+design's `char_type` (the token's FIRST character) is `space` for 53 of 64 English and 29 of 64
+Python targets and says little about the token's content; `char_type_body` is the same rule on the
+first NON-space character.
+
 Those covariates rest on the tokenizer being byte-level GPT-2 style, so `common.check_token_bytes`
 asserts that the byte table reconstructs `tok.decode` exactly, once per arm, before any target is
 written. `common.is_letter` counts combining marks as letters — `str.isalpha()` is False for them,
@@ -1417,7 +1427,10 @@ missing control is an inverter trained on the domain, which this evaluation does
 `reconstruction/out/<root-tag>/ood/`. Per arm: the paired Δ with a 10,000-resample percentile
 bootstrap over targets, the three-state outcome (`exceeds` / `inconclusive` / `reversed`, review R9),
 win fractions, the four comparisons of design §6 and MAEMM vs control; R4 chance levels; R3 fastText
-`lid.176` and the `code_like` regex on the top-1/top-4 rollouts; R2 GPU-seconds per target from each
+**lid218e** (`facebook/fasttext-language-identification`, sha256 `8ded5749…`, commit `3af127d4`;
+chosen over community re-uploads of `lid.176` because its FLORES-200 labels ARE our arm ids for
+seven of the eight language arms, with Chinese as `zho_Hans`/`zho_Hant` in config's `lid:` list)
+and the `code_like` regex on the top-1/top-4 rollouts; R2 GPU-seconds per target from each
 product's own README; R6's within-arm Spearman of bo64 against bits per byte; the strata tables; and
 R8's median-Δ example per arm with its licence (never from Proof-Pile-2, which declares none).
 
@@ -1432,8 +1445,12 @@ that is the rule that makes the recomputation reproduce the review's 0.314 / 0.3
 `train-share` (review R7, amended 2026-09-18) reports the code-like and non-English share of the
 inverter's training text. `--source hf:m-a-p/FineFineWeb` is the primary checkpoint's ACTUAL
 activation corpus — `mxf/config.py`'s Ultra-FineWeb is the early collector and stale for the 27B
-line — streamed in file order, 10k documents, one 512-token window each, with the fetch date
-recorded because no revision is pinned anywhere. `--source corpus` measures our own English eval
+line. The draw is **stratified over the corpus's 67 domain directories** (Tomas 2026-09-18): the
+head of the first file of each domain, 150 documents each, per-domain rates reported and the
+aggregate weighted by the card's own `Total Tokens` column, read through the HF API from the same
+revision. `--no-stratify` gives the file-order draw her collectors take, which MEASURED 2026-09-18
+samples one domain (10k documents in file order are all `aerospace`). The fetch date is recorded
+because no revision is pinned anywhere. `--source corpus` measures our own English eval
 corpus the same way. One `code_like` rule, written in `common.py` and printed by both callers.
 
 ### Selfchecks, before any launch

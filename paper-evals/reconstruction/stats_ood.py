@@ -236,17 +236,37 @@ def wall_seconds(vol: Vol, rel: str) -> float | None:
 # ---------------------------------------------------------------------------------------------
 
 
-def load_lid(path: Path):
-    """fastText `lid.176` if the model file is there, else None (the caller prints how to get it)."""
+LID_REPO = "facebook/fasttext-language-identification"
+LID_FILE = "model.bin"
+
+
+def load_lid(path: Path | None = None):
+    """fastText **lid218e** (`facebook/fasttext-language-identification`), or None.
+
+    Tomas 2026-09-18: the official Facebook repo rather than a community re-upload of `lid.176`,
+    because its FLORES-200 labels ARE our arm ids for seven of the eight language arms (`tha_Thai`,
+    `ces_Latn`, ...); Chinese is `zho_Hans`/`zho_Hant` there, which config.yaml's `lid:` list
+    carries. `--lid-model` overrides with a local file; otherwise the HF cache is used and the
+    file's sha256 is printed so the paper can pin it.
+    """
     try:
         import fasttext  # noqa: PLC0415
     except ImportError:
         console.print("[yellow]fasttext is not installed: `uv run --with fasttext ...`[/yellow]")
         return None
-    if not path.exists():
-        console.print(f"[yellow]no fastText model at {path}: the lid columns are skipped[/yellow]")
+    if path is not None and path.exists():
+        console.print(f"[dim]lid model {path}[/dim]")
+        return fasttext.load_model(str(path))
+    try:
+        from huggingface_hub import get_hf_file_metadata, hf_hub_download, hf_hub_url  # noqa: PLC0415
+
+        meta = get_hf_file_metadata(hf_hub_url(LID_REPO, LID_FILE))
+        p = hf_hub_download(LID_REPO, LID_FILE)
+    except Exception as e:  # noqa: BLE001 -- offline or gated: the lid columns are optional
+        console.print(f"[yellow]no lid model ({type(e).__name__}): the lid columns are skipped[/yellow]")
         return None
-    return fasttext.load_model(str(path))
+    console.print(f"[dim]lid218e {LID_REPO}/{LID_FILE} sha256 {meta.etag} commit {meta.commit_hash}[/dim]")
+    return fasttext.load_model(p)
 
 
 def lid_label(model, text: str) -> tuple[str, float]:
@@ -285,29 +305,71 @@ def _train_share_corpus(vol: Vol, base: str, tok, n: int, seed: int):
     toks = np.memmap(p, dtype=np.int32, mode="r")
     rng = np.random.default_rng(seed)
     starts = rng.integers(0, len(toks) - TRAIN_WINDOW, size=n)
-    return (tok.decode([int(x) for x in toks[s : s + TRAIN_WINDOW]]) for s in starts), (
+    return ((None, tok.decode([int(x) for x in toks[s : s + TRAIN_WINDOW]])) for s in starts), (
         f"{n} random {TRAIN_WINDOW}-token windows of base/{base}/corpus/tokens.i32 "
         f"(Ultra-FineWeb en p0009-0010), seed {seed}"
     )
 
 
-def _train_share_hf(dataset: str, tok, n: int):
-    """`--source hf:<id>`: n documents in FILE ORDER, one 512-token window each.
+DOMAIN_DOCS = 150  # documents per domain in the stratified R7 draw (Tomas 2026-09-18)
+HEAD_BYTES = 12 << 20  # how much of each domain's first file is read: ~12 MB gives >= 150 documents
+
+
+def _card_domain_tokens(dataset: str) -> tuple[dict[str, float], str]:
+    """{domain -> total tokens} from the dataset card's own "Data Statistics" table.
+
+    Read from the card through the HF API rather than hardcoded, so the weights and the sample come
+    from the same revision. Rows look like `| aerospace | 5.77B | ... | 6.34B | ... |`; the `Total
+    Tokens` column (the 4th) is taken.
+    """
+    from huggingface_hub import hf_hub_download
+
+    card = Path(hf_hub_download(dataset, "README.md", repo_type="dataset")).read_text()
+    mult = {"K": 1e3, "M": 1e6, "B": 1e9, "T": 1e12}
+    out: dict[str, float] = {}
+    for line in card.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 5 or not re.fullmatch(r"[a-z_]+", cells[0]):
+            continue
+        m = re.fullmatch(r"([0-9.]+)([KMBT])", cells[4])
+        if m:
+            out[cells[0]] = float(m.group(1)) * mult[m.group(2)]
+    assert out, f"no Data Statistics rows parsed from {dataset}'s card"
+    return out, f"{dataset} card 'Data Statistics', Total Tokens column, {len(out)} domains"
+
+
+def _head_lines(url: str, nbytes: int):
+    """Complete json lines from the first `nbytes` of a URL (the transfer is cut, not ranged).
+
+    A FineFineWeb domain file is ~317 MB and we want 150 documents of it, so the read stops after
+    the head; the last, partial line is dropped.
+    """
+    import urllib.request
+
+    with urllib.request.urlopen(url) as fh:  # noqa: S310 -- an https hub URL built by hf_hub_url
+        buf = fh.read(nbytes)
+    return buf.decode("utf-8", errors="replace").split("\n")[:-1]
+
+
+def _train_share_hf(dataset: str, tok, n: int, stratify: bool = True):
+    """`--source hf:<id>`: the inverter's activation corpus, sampled over its DOMAINS.
 
     `m-a-p/FineFineWeb` is the primary checkpoint's activation corpus
-    (`infra/2026-09-18_ood-eval-training-data.md`, 2026-09-18), and her collectors take its files
-    IN ORDER, which is what this reproduces. NO revision is pinned anywhere in those collectors, so
-    the fetch DATE, the repo revision and the FILES READ are recorded instead.
+    (`infra/2026-09-18_ood-eval-training-data.md`, 2026-09-18). It is laid out as
+    `<domain>/<domain>_NNNNNN.jsonl` over 67 domains and 66,103 files of ~317 MB, so reading it "in
+    file order" -- what her collectors do -- samples ONE domain: the first 10k documents are all
+    `aerospace` (MEASURED 2026-09-18). The default here is therefore STRATIFIED (Tomas 2026-09-18):
+    the head of the first file of every domain, `DOMAIN_DOCS` documents each, with the per-domain
+    rate reported and the aggregate weighted by the card's own token counts. `--no-stratify` gives
+    the file-order draw back.
 
-    CAVEAT, printed with the result: FineFineWeb is laid out as `<domain>/<domain>_NNNNNN.jsonl`
-    over 67 domains and 66,103 files of ~317 MB each, so 10k documents in file order come from the
-    FIRST domain alphabetically and are a sample of that domain, not of the corpus. Read the share
-    as "what the first files look like", and see `--files-from` to start elsewhere.
+    No revision is pinned by the checkpoint's config, so the repo revision and the fetch date are
+    recorded instead.
     """
     import datetime
     import json as _json
 
-    from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub import HfApi, hf_hub_download, hf_hub_url
 
     api = HfApi()
     rev = api.repo_info(dataset, repo_type="dataset").sha
@@ -316,32 +378,65 @@ def _train_share_hf(dataset: str, tok, n: int):
     today = datetime.date.today().isoformat()
     read: list[str] = []
 
+    if not stratify:
+        def gen():
+            got = 0
+            for f in files:
+                read.append(f)
+                path = hf_hub_download(dataset, f, repo_type="dataset")
+                with open(path, encoding="utf-8") as fh:
+                    for line in fh:
+                        text = (_json.loads(line).get("text") or "")
+                        ids = tok(text, add_special_tokens=False)["input_ids"] if text else []
+                        if len(ids) < TRAIN_WINDOW:
+                            continue
+                        got += 1
+                        yield None, tok.decode(ids[:TRAIN_WINDOW])
+                        if got >= n:
+                            return
+
+        return gen(), read, (
+            f"{n} documents of {dataset} at revision {rev[:12]}, FILE ORDER over {len(files)} "
+            f".jsonl files, one {TRAIN_WINDOW}-token window each, fetched {today}. NOTE: file "
+            f"order samples the first domain directory alphabetically, not the corpus"
+        )
+
+    first_of: dict[str, str] = {}
+    for f in files:
+        first_of.setdefault(f.split("/")[0], f)
+    domains = sorted(first_of)
+
     def gen():
-        got = 0
-        for f in files:
+        for dom in domains:
+            f = first_of[dom]
             read.append(f)
-            path = hf_hub_download(dataset, f, repo_type="dataset")
-            with open(path, encoding="utf-8") as fh:
-                for line in fh:
-                    row = _json.loads(line)
-                    text = row.get("text") or row.get("content") or ""
-                    if not text:
-                        continue
-                    ids = tok(text, add_special_tokens=False)["input_ids"]
-                    if len(ids) < TRAIN_WINDOW:
-                        continue
-                    got += 1
-                    yield tok.decode(ids[:TRAIN_WINDOW])
-                    if got >= n:
-                        return
+            got = 0
+            try:
+                lines = _head_lines(hf_hub_url(dataset, f, repo_type="dataset"), HEAD_BYTES)
+            except Exception as e:  # noqa: BLE001 -- one unreadable domain must not sink the pass
+                console.print(f"[yellow]{f}: {type(e).__name__}, skipped[/yellow]")
+                continue
+            for line in lines:
+                if got >= DOMAIN_DOCS:
+                    break
+                try:
+                    text = _json.loads(line).get("text") or ""
+                except _json.JSONDecodeError:
+                    continue
+                if not text:
+                    continue
+                ids = tok(text, add_special_tokens=False)["input_ids"]
+                if len(ids) < TRAIN_WINDOW:
+                    continue
+                got += 1
+                yield dom, tok.decode(ids[:TRAIN_WINDOW])
+            console.print(f"[dim]{dom}: {got} documents[/dim]")
 
     return gen(), read, (
-        f"{n} documents of {dataset} at revision {rev[:12]}, taken in FILE ORDER (sorted repo "
-        f"paths) from {len(files)} .jsonl files over the repo's domain directories, one "
-        f"{TRAIN_WINDOW}-token window each, fetched {today}. No revision is pinned by the "
-        f"checkpoint's own config, so this is the share as of that date. NOTE the layout: file "
-        f"order means the FIRST domain directory alphabetically, so this samples that domain "
-        f"rather than the corpus"
+        f"{DOMAIN_DOCS} documents from the head of the first file of EACH of {len(domains)} "
+        f"domains of {dataset} at revision {rev[:12]} (stratified; the first {HEAD_BYTES >> 20} MB "
+        f"of each file are read), one {TRAIN_WINDOW}-token window each, fetched {today}. No "
+        f"revision is pinned by the checkpoint's own config, so this is the share as of that date"
     )
 
 
@@ -533,9 +628,10 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
                 n_seen += 1
                 code1 += int(C.code_like(tops[0]))
                 if lid is not None and spec.get("lid"):
+                    want = set(spec["lid"])
                     l1, _ = lid_label(lid, tops[0])
-                    hits1 += int(l1 == spec["lid"])
-                    hits4 += int(any(lid_label(lid, t)[0] == spec["lid"] for t in tops))
+                    hits1 += int(l1 in want)
+                    hits4 += int(any(lid_label(lid, t)[0] in want for t in tops))
             if n_seen:
                 rec["code_like_top1_rate"] = round(code1 / n_seen, 4)
                 if lid is not None and spec.get("lid"):
@@ -701,7 +797,7 @@ def tables(
             "control": control,
             "stem": stem or f"{set_name}__vllm",
             "lid": lid,
-            "lid_model": lid_model or (HERE / "data" / "lid.176.bin"),
+            "lid_model": lid_model,
         },
     )
     console.print(res)
@@ -735,6 +831,7 @@ def en_ref_cmd(
 @app.command("train-share")
 def train_share(
     source: Annotated[str, typer.Option(help="hf:<dataset id> | corpus")] = "hf:m-a-p/FineFineWeb",
+    stratify: Annotated[bool, typer.Option(help="hf source: one file per DOMAIN, not file order")] = True,
     n: Annotated[int, typer.Option()] = TRAIN_N,
     seed: Annotated[int, typer.Option()] = BOOT_SEED,
     base: Annotated[str, typer.Option()] = BASE,
@@ -762,15 +859,24 @@ def train_share(
         assert gen is not None, prov
     else:
         assert source.startswith("hf:"), f"--source must be `corpus` or `hf:<id>`, got {source!r}"
-        gen, read, prov = _train_share_hf(source.removeprefix("hf:"), tok, n)
-    lid = load_lid(lid_model or (HERE / "data" / "lid.176.bin"))
+        gen, read, prov = _train_share_hf(source.removeprefix("hf:"), tok, n, stratify)
+    lid = load_lid(lid_model)
     n_code, n_noneng, seen = 0, 0, 0
-    for text in gen:
+    per_dom: dict[str, list[int]] = {}
+    for dom, text in gen:
         seen += 1
-        n_code += int(C.code_like(text))
+        c = int(C.code_like(text))
+        n_code += c
+        if dom is not None:
+            d = per_dom.setdefault(dom, [0, 0, 0])
+            d[0] += 1
+            d[1] += c
         if lid is not None:
             label, p = lid_label(lid, text)
-            n_noneng += int(not (label == "en" and p > 0.5))
+            ne = int(not (label == "eng_Latn" and p > 0.5))
+            n_noneng += ne
+            if dom is not None:
+                per_dom[dom][2] += ne
     rec = {
         "source": source,
         "provenance": prov,
@@ -784,11 +890,39 @@ def train_share(
             f">= {C.CODE_LIKE_MIN} of {list(C.CODE_LIKE_MARKERS)} + an indentation run "
             f"(regex \\n[ \\t]{{2,}}\\S) per {TRAIN_WINDOW}-token window"
         ),
-        "lid_rule": "fastText lid.176 top label != 'en' or p <= 0.5" if lid is not None else "not run",
+        "lid_rule": (
+            "fastText lid218e top label != 'eng_Latn' or p <= 0.5" if lid is not None else "not run"
+        ),
         "verdict": (
             "unseen" if n_code / max(seen, 1) < 0.01 else "under-represented"
         ),
     }
+    if per_dom:
+        weights, wprov = _card_domain_tokens(source.removeprefix("hf:"))
+        tot = sum(weights.get(d, 0.0) for d in per_dom)
+        rec["domains"] = {
+            d: {
+                "n": v[0],
+                "code_like": v[1],
+                "code_like_share": round(v[1] / max(v[0], 1), 4),
+                "non_english_share": round(v[2] / max(v[0], 1), 4) if lid is not None else None,
+                "card_tokens": weights.get(d),
+            }
+            for d, v in sorted(per_dom.items())
+        }
+        rec["weights_provenance"] = wprov
+        rec["missing_from_card"] = sorted(d for d in per_dom if d not in weights)
+        if tot > 0:
+            rec["code_like_share_token_weighted"] = round(
+                sum(weights.get(d, 0.0) * v[1] / max(v[0], 1) for d, v in per_dom.items()) / tot, 5
+            )
+            if lid is not None:
+                rec["non_english_share_token_weighted"] = round(
+                    sum(weights.get(d, 0.0) * v[2] / max(v[0], 1) for d, v in per_dom.items()) / tot, 5
+                )
+            rec["verdict"] = (
+                "unseen" if rec["code_like_share_token_weighted"] < 0.01 else "under-represented"
+            )
     console.print(json.dumps(rec, indent=1))
     d = out_dir or (HERE / "out" / root_tag / "ood")
     d.mkdir(parents=True, exist_ok=True)
@@ -928,7 +1062,7 @@ def selfcheck() -> None:
         res = build_tables(vol, cfg, out, {
             "base": BASE, "set": OOD_SET, "maemm": "2026-09-10_rl-8x2048-full",
             "control": "2026-09-16_base-control", "stem": f"{OOD_SET}__vllm",
-            "lid": False, "lid_model": Path("/nonexistent"),
+            "lid": False, "lid_model": None,
         })
         assert res["targets"] == len(ids), res
         adf = pl.read_csv(out / "ood_arms.csv")
