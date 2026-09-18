@@ -2341,6 +2341,8 @@ def check_token_covariates_czech():
     c3 = C.token_covariates(tok, ids, 3, "Latin", unspaced=False)
     assert c3["tok_class"] == "word" and c3["n_subtokens"] == 1, c3
     assert c3["char_type"] == "space" and c3["unitend_rule"] == "none", c3
+    # `char_type` is the FIRST character (the leading space); `char_type_body` skips it
+    assert c3["char_type_body"] == "letter_arm", c3
     # the same window read as a Cyrillic arm: the y-acute is then another script's letter
     assert C.token_covariates(tok, ids, 1, "Cyrillic", unspaced=False)["char_type"] == "letter_other"
 
@@ -2378,6 +2380,8 @@ def check_token_covariates_python():
     c2 = C.token_covariates(tok, ids, 2, "Latin", unspaced=False)
     assert c2["tok_class"] == "mid" and c2["n_subtokens"] == 4, c2  # ' foo' '(' 'x' '):'
     assert c2["unitend_p"] == 4 and c2["char_type"] == "punct", c2
+    c1 = C.token_covariates(tok, ids, 1, "Latin", unspaced=False)
+    assert c1["char_type"] == "space" and c1["char_type_body"] == "letter_arm", c1
     c6 = C.token_covariates(tok, ids, 6, "Latin", unspaced=False)
     assert c6["tok_class"] == "word", c6  # the indentation token carries the whitespace
     assert C.code_like("def f(x):\n    return {1: 2};\nimport os\n")

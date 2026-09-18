@@ -1323,3 +1323,126 @@ MEASURED rather than assumed, all documented in `autointerp/README.md`:
   is why the positive pool had to be rebuilt around documents rather than windows.
 
 Costs are in `SMOKES.md` under "`autointerp` -- the Delphi-style SAE autointerp evaluation".
+
+## Step 8: the OOD generalisation evaluation (`ood_arms`, `corpus --arm`, `nll`, `stats_ood.py`)
+
+Design: `infra/2026-09-18_ood-eval-design.md` (arms §2, target rule §3, baseline §4, controls §5,
+statistics §6, products §7, pilot §8, amendments §11); datasets `infra/2026-09-18_ood-eval-datasets.md`;
+what the primary was actually trained on `infra/2026-09-18_ood-eval-training-data.md`. Branch
+`arb/exp-ood`, worktree `repo-maemm-ood/`. **Nothing under `paper/inversion-eval/` is touched** (its
+CSVs are frozen) and the existing English `corpus/`, `heldout/2026-09-16_v1/` and `scan/2026-09-16_v1/`
+are read, never rewritten.
+
+The question: does the primary MAEMM, trained to invert L42 residuals of English web text, invert
+residuals produced by other languages and scripts, by code and by mathematics — against the paper's
+corpus-search baseline run like-for-like **inside each domain**.
+
+### Arms and their corpora
+
+`config.yaml`'s `ood_arms:` has 23 entries — `lang` 8 (FineWeb-2 `test`), `ctrl` 2 (`ufw_en`
+pipeline check, `ufw_zh` same-pipeline script control), `code` 8 (the-stack-smol-xl), `math` 4
+(OpenWebMath, Proof-Pile-2 arXiv test, smol-xl lean/isabelle), `diag` 1 (`formulas`, outside the
+level-1 conjunction). Each carries its source files, the text field, its nested sizes
+(`[1, 4]`; `[1, 4, 16]` on `ufw_en tha_Thai python owm`, review R2; `[1]` on `formulas`), the
+Unicode script, the fastText label, the unspaced flag and the licence the appendix must state.
+
+```
+--product corpus  --base qwen36-27b --set 2026-09-18_ood_v1 --arm tha_Thai      # CPU + network
+--product targets --base qwen36-27b --set 2026-09-18_ood_v1 [--arm a,b]        # GPU
+--product targets --base qwen36-27b --set 2026-09-18_ood_v1_unitend [--arm a,b]
+--product scan    --base qwen36-27b --set 2026-09-18_ood_v1 --corpus tha_Thai,python,ufw_en \
+                  --max-size 4 --with-set 2026-09-16_v1:realact+random
+--product nll     --base qwen36-27b --set 2026-09-18_ood_v1
+--product ood_selfcheck --base qwen36-27b [--stages readers,covariates]        # CPU (nll -> GPU)
+```
+
+**One permuted row stream per arm.** `common.arm_perm(arm, n_rows, seed)` =
+`default_rng(seed ^ crc32(arm)).permutation(n_rows)`; `corpus --arm` consumes it from the front
+until the token budget, then takes the next 320 documents with ≥ 512 tokens as the TARGET POOL,
+and records both positions in `corpora/<arm>/stream.json`. The pool's 512-token windows are written
+to `corpora/<arm>/pool_windows.i32`, so `targets` runs **offline** and corpus/target disjointness is
+a property of one file rather than of two draws agreeing. `corpus` is the only product that reaches
+the network, as before. `common.arm_rng(arm, seed)` is a separate stream for the p / L draws.
+
+Readers: `hf://` parquet with a column projection (the `cleaned_formulas` image column is 2.8 GB and
+is never read), smol-xl's `data/<lang>/data.json` — json LINES despite the extension, MEASURED
+2026-09-18 — Proof-Pile-2 `.jsonl.zst`, and the `formulas` assembler, which joins consecutive
+permuted rows with a blank line and tokenizes the JOINED text into ≥ 512-token synthetic documents.
+
+### The target rule and the tokenisation covariates
+
+`_realact`'s rule is unchanged on every arm (512-token no-BOS window, `p ~ U[16, 512)`,
+`L ~ U[16, 64]`, the 10× presample-median raw-norm filter at selection only) and the centring mean
+stays the **English** `stats/mu.f32`: it is the inverter's input convention, not a property of the
+domain (design open decision 10). Per target, from the tokenizer alone (`common.token_covariates`,
+CPU): `tok_class` (`word`/`first`/`mid`/`last`, or the single class `unspaced` on the four unspaced
+arms), `n_subtokens` (capped at 16, null when unspaced), `byte_piece` (the token's bytes are not
+valid UTF-8 alone — a partial character under Qwen's byte-level BPE), `whole_char` / `multi_char`
+(review R5) and `char_type` of the character the token's first byte belongs to.
+
+Those covariates rest on the tokenizer being byte-level GPT-2 style, so `common.check_token_bytes`
+asserts that the byte table reconstructs `tok.decode` exactly, once per arm, before any target is
+written. `common.is_letter` counts combining marks as letters — `str.isalpha()` is False for them,
+which would make every Thai vowel sign and every Devanagari matra `punct`.
+
+The `_unitend` variant set (review R5) re-reads the SAME windows with `p` moved to the last token of
+its whitespace unit (wordend, 19 spaced arms) or to the end of its character (charend, the four
+unspaced arms, only where the token at p is a partial character); `variant_rule` and the original
+`p` are recorded and targets already at their unit's end are carried over unchanged.
+
+### The baseline, scanned per corpus
+
+`scan --corpus <a>,<b>` scans arm corpora; `--max-size M` bounds a scan at a nested prefix; `--with-set
+<name>[:<fam>+<fam>]` appends other held-out sets' rows, because a scan costs per corpus TOKEN and
+not per target, so one pass over an arm's corpus can carry the whole OOD set, the 512 English
+realact targets and the 512 random directions at once (design §4). Output is `scan/<set>/<corpus>/`
+(`-<M>m` appended when bounded) — the pre-existing `scan/<set>/` layout is used only when neither
+flag is given, so the English scan is untouched. **The own-document mask now travels with the
+target's own corpus**: a realact target's `doc` indexes ITS corpus and means nothing in another, and
+without that condition an English target would have masked an unrelated Thai document. A set with no
+`sae` targets writes no `examples/` product at all, rather than opening the shared directory.
+
+### `nll` (review R6)
+
+One clean-base forward per target window, storing `nll_ctx` (mean nats/token over positions 1..p),
+`bpb_ctx` (bits per byte of the decoded text of those positions — the number the paper reports, since
+nats per token are not comparable across scripts) and `nll_p`. It runs on the OOD set and on the 512
+English realact rows. The identification claim the first design made for it is **withdrawn**: the
+missing control is an inverter trained on the domain, which this evaluation does not have.
+
+### `reconstruction/stats_ood.py` (CPU, local)
+
+`tables` writes `ood_arms.csv`, `ood_per_target.csv`, `ood_strata.csv`, `ood_examples.md` into
+`reconstruction/out/<root-tag>/ood/`. Per arm: the paired Δ with a 10,000-resample percentile
+bootstrap over targets, the three-state outcome (`exceeds` / `inconclusive` / `reversed`, review R9),
+win fractions, the four comparisons of design §6 and MAEMM vs control; R4 chance levels; R3 fastText
+`lid.176` and the `code_like` regex on the top-1/top-4 rollouts; R2 GPU-seconds per target from each
+product's own README; R6's within-arm Spearman of bo64 against bits per byte; the strata tables; and
+R8's median-Δ example per arm with its licence (never from Proof-Pile-2, which declares none).
+
+`en-ref` recomputes the English reference from `scan/2026-09-16_v1/topk.jsonl` with own-document
+windows excluded. MEASURED 2026-09-18 on the local mirror: corpus top-1 **0.3137 / 0.3315 / 0.3511 /
+0.3672 / 0.3851** at 1/2/4/8/16M against **0.3216 / 0.3433 / 0.3706 / 0.3997 / 0.4105** with own
+documents counted — the paper's frozen 0.371 at 4M is the second column. The target's own document
+is the top-1 window for **114 of 512** targets at 4M. A target whose whole stored top-64 is
+own-document (2 at 4M, 4 at 8/16M) has no non-own candidate and is EXCLUDED from the no-own mean;
+that is the rule that makes the recomputation reproduce the review's 0.314 / 0.351 / 0.385.
+
+`train-share` (review R7, amended 2026-09-18) reports the code-like and non-English share of the
+inverter's training text. `--source hf:m-a-p/FineFineWeb` is the primary checkpoint's ACTUAL
+activation corpus — `mxf/config.py`'s Ultra-FineWeb is the early collector and stale for the 27B
+line — streamed in file order, 10k documents, one 512-token window each, with the fetch date
+recorded because no revision is pinned anywhere. `--source corpus` measures our own English eval
+corpus the same way. One `code_like` rule, written in `common.py` and printed by both callers.
+
+### Selfchecks, before any launch
+
+- `uv run precompute/unit_smoke.py` — 35 checks, 8 of them new: the byte tables, the covariate rules
+  on a hand-built byte-level tokenizer over Czech / Thai / Python snippets (a fixture that can only
+  agree with the real tokenizer's own splitting would not test a character split across tokens), the
+  script fractions, the two arm rngs, the config, the span search.
+- `--product ood_selfcheck` — every arm's source opens, its row count comes back and three rows
+  carry text; `token_covariates` on the REAL 27B tokenizer; `nll` against HF's own `labels=`
+  cross-entropy (design §8 (e)). CPU unless `--stages` asks for `nll`.
+- `uv run reconstruction/stats_ood.py selfcheck` — the estimators, the R1 exclusion rule and the
+  whole `build_tables` path on a synthetic volume, in seconds.

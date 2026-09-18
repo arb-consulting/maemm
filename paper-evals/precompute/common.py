@@ -3025,22 +3025,34 @@ def token_covariates(tok, ids, p: int, script: str, unspaced: bool) -> dict:
 
     # the character this token's first byte belongs to = the first character completed at or after p
     ch = next((first_char[j] for j in range(p, n) if first_char[j] is not None), None)
-    if ch is None:
-        char_type = "partial"
-    elif ch.isspace():
-        char_type = "space"
-    elif ch.isdigit():
-        char_type = "digit"
-    elif is_letter(ch):
-        char_type = "letter_arm" if in_script(ch, script) else "letter_other"
-    else:
-        char_type = "punct"
+
+    def _type(c) -> str:
+        if c is None:
+            return "partial"
+        if c.isspace():
+            return "space"
+        if c.isdigit():
+            return "digit"
+        if is_letter(c):
+            return "letter_arm" if in_script(c, script) else "letter_other"
+        return "punct"
+
+    char_type = _type(ch)
+    # `char_type` is the design's: the type of the token's FIRST character. Under a byte-level BPE
+    # a spaced script's tokens carry their leading space, so that is `space` for about half of them
+    # (MEASURED 2026-09-18: 11 of 21 tokens of a Czech sentence, 13 of 25 of a Python snippet) and
+    # the stratum says little about the token's content. `char_type_body` is the same rule applied
+    # to the token's first NON-space character, which is the one a reader means; both are stored
+    # and the design's field keeps its name and its definition.
+    body = own.decode("utf-8", errors="ignore").lstrip()
+    char_type_body = _type(body[0]) if body else char_type
 
     out = {
         "byte_piece": is_byte_piece,
         "whole_char": (not is_byte_piece) and len(dec_own) == 1,
         "multi_char": (not is_byte_piece) and len(dec_own) >= 2,
         "char_type": char_type,
+        "char_type_body": char_type_body,
     }
     if unspaced:
         out.update(tok_class="unspaced", n_subtokens=None, unit_start=None, unit_end=None)

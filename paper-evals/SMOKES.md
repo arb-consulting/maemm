@@ -4201,3 +4201,127 @@ was already committed, which makes a complete run report failure:
 counter sits inside the `for name in arm_names` loop and the EPO hook appends its row after it. The
 E-arm block counts above come from reading the arm rows' own examples
 (`scratchpad/census.py`), which is the same quantity read from the product.
+## OOD generalisation evaluation — pilot build (2026-09-18, branch `arb/exp-ood`)
+
+Design `infra/2026-09-18_ood-eval-design.md` (+ §11 amendments R1-R9), datasets
+`infra/2026-09-18_ood-eval-datasets.md`, training data `infra/2026-09-18_ood-eval-training-data.md`.
+Worktree `repo-maemm-ood/`, branch off `arb/precompute` f9b709c. Everything below is the CODE-AND-DRAW
+half of the §8 pilot; the GPU stages (`scan`, `rollouts_vllm`, `score`, `nll`) are launched
+separately. **Budget for this session: $2. Spent: $0.57.**
+
+| date | what | command | wall | $ | result | note |
+|---|---|---|---|---|---|---|
+| 2026-09-18 | `ood_selfcheck`, first launch — **STOPPED by hand** | `--product ood_selfcheck --base qwen36-27b` | ~4 min | **~$0.25 est** | 3 of 23 arms' readers verified before it was stopped | the product was not in `CPU_PRODUCTS`, so a network-bound reader check ran on an **H200**. `readers` + `covariates` are now the CPU default and only `--stages …nll` moves the call to the GPU. The cost is an upper bound from the wall clock: the run died before printing one |
+| 2026-09-18 | **`ood_selfcheck`, readers + covariates** | `--product ood_selfcheck --base qwen36-27b --stages readers,covariates` | **386.2 s** | **$0.0000** (CPU) | **23/23 arms** opened, row counts and revisions returned, 3 rows of text each; `token_covariates` on the real 27B tokenizer over the Czech / Thai / Python snippets, `check_token_bytes` verified on all three | slowest arms: `formulas` 132.2 s (6 parquet shards' footers + a column-projected read), `ufw_en` 44.6 s (a 1.3 GB part), `arxiv` 22.7 s (20 `.jsonl.zst` shards), `owm` 18.9 s; every smol-xl arm ≤ 3.5 s once its `data.json` is in the volume HF cache |
+| 2026-09-18 | `corpus --arm tha_Thai`, FULL 16M | `--product corpus --base qwen36-27b --set 2026-09-18_ood_v1 --arm tha_Thai` | **70.0 s** | **$0.0000** (CPU) | **16,000,034 tokens / 10,793 docs**, nested 1/4/16M; pool 320 docs; permutation at 10,793 → 11,238 of 24,037 rows; revision `af9c13333eb9` | 1,416 tok/row measured on the file-order probe |
+| 2026-09-18 | `corpus --arm python`, FULL 16M | `… --arm python` | **62.6 s** | **$0.0000** (CPU) | **16,001,210 tokens / 7,214 docs**; pool 320; permutation at 7,214 → 7,750 of 10,000 rows; revision `e782ebf35c7e` | 2,016 tok/row. The arm uses 78% of smol-xl's 10,000 python files at 16M — a 16M corpus is the largest this source supports for a code arm |
+| 2026-09-18 | `corpus --arm ufw_en`, FULL 16M | `… --arm ufw_en` | **118.1 s** | **$0.0000** (CPU) | **16,000,440 tokens / 19,126 docs**; pool 320; permutation at 19,126 → 19,859 of 566,019 rows; revision `02c85641e3d1` | 1,006 tok/row; part 0011, disjoint from the 16M corpus's parts 0009/0010 and from the old 8B corpus's part 0001 |
+| 2026-09-18 | **`targets --set 2026-09-18_ood_v1`**, 3 pilot arms | `--product targets --base qwen36-27b --set 2026-09-18_ood_v1 --arm tha_Thai,python,ufw_en` | **164.7 s** | **$0.2077** | 192 targets; 320/320 pool windows pass the raw-norm filter on every arm (presample medians 77.2 / 78.9 / 90.9); verbatim shown span in the arm's own corpus **2/64 tha_Thai, 3/64 python, 0/64 ufw_en** | `byte_piece` is **0 of 64 on all three arms**, Thai included — see below |
+| 2026-09-18 | `targets --set 2026-09-18_ood_v1_unitend` | `… --set 2026-09-18_ood_v1_unitend --arm ufw_en,python` | **88.1 s** | **$0.1111** | 128 targets; **20/64 moved on `ufw_en`, 24/64 on `python`**, all `wordend`, no `charend` (neither arm is unspaced) | the move counts equal the `first` + `mid` counts of the base draw exactly (16+4 and 5+19), which is the variant's definition |
+
+Local, CPU, $0: `uv run precompute/unit_smoke.py` **35/35** (8 new checks); `uv run
+reconstruction/stats_ood.py selfcheck` **4/4**; `… en-ref` (below).
+
+### What the draw says
+
+**Disjointness (pilot criterion (b)), checked on the products, not assumed.** The source-row sets of
+each arm's `docs.jsonl` and its `pool.jsonl` intersect in **0** rows on all three arms
+(10,793 / 7,214 / 19,126 corpus rows against 320 pool rows each), and `stream.json`'s permutation
+positions are contiguous — the pool starts exactly where the corpus stopped.
+
+**Verbatim spans (criterion (b)).** 2/64 (3.1%) on `tha_Thai`, 3/64 (4.7%) on `python`, 0/64 on
+`ufw_en`, at 16M. The code arm being the highest is what the design expected (smol-xl does not
+dedup, FineWeb-2 minhashes); none of it is masked, it is reported.
+
+**Tokenisation (criterion (c)) — `byte_piece` is 0 on every pilot arm, Thai included.** The
+Qwen3.6-27B tokenizer (248k vocab) does not split ordinary Thai text into partial-UTF-8 pieces: of
+64 Thai targets, 0 are byte pieces, 22 are single characters and 42 are multi-character tokens, and
+`char_type` is `letter_arm` on 56 of 64. The hand-picked experiment's byte-level failures (ℏ,
+superscripts) were rare SYMBOLS, not an ordinary non-Latin script, so the design's expectation that
+a Thai arm would be byte-piece-heavy does not hold at these positions. Ten rows, for the eye-check:
+
+```
+row  0 p=221 L=63 class=unspaced byte=0 whole=1 multi=0 char=letter_arm  span=…ความคิดโบราณดำเนินไป ทุกคนก็
+row  1 p=428 L=62 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…ณ 172-173 หน้าตาพอใช้ได้ครับ
+row  2 p=488 L=17 class=unspaced byte=0 whole=1 multi=0 char=letter_arm  span=…นห้องน้ำ โคตรเสียว\nคลิปโป๊ฝร
+row  3 p=168 L=51 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…นบาทที่อ่อนตัว (สมมติฐานอยู่
+row  4 p=137 L=28 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…อนหนึ่งว่า “วันนี้กำลังมีการ
+row  5 p=111 L=41 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…แทรกแซงเป็นสิ่งจำเป็น มีหลาย
+row  6 p=191 L=58 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…, ภาวะแซกซ้อนจากการรักษาโรคม
+row  7 p=320 L=16 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…่าสุดของ Gold Series ยอดนิยม
+row  8 p=329 L=29 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…เกมสล็อตที่มาในธีมสตรีทดาร์ก
+row  9 p=498 L=59 class=unspaced byte=0 whole=1 multi=0 char=space       span=…ม่ว่าใครจะละทิ้ง ไม่ใส่ใจ หร
+```
+
+`unspaced` is 64/64 by the arm's own definition (`tha_Thai` has no defensible word boundary, design
+§3), so criterion (c)'s "unspaced rate" is a config property, not a measurement; what the draw
+measures is the class MIX on the spaced arms, which is `word` 37 / `first` 16 / `last` 7 / `mid` 4 on
+`ufw_en` and `word` 25 / `mid` 19 / `last` 15 / `first` 5 on `python` — code splits identifiers far
+more often than English web text splits words, which is the stratum the §3 variant exists for.
+
+**`char_type` needed a second column.** The design's `char_type` is "of the token's FIRST character",
+and under a byte-level BPE a spaced script's tokens carry their leading space: `space` on 53 of 64
+`ufw_en` targets and 29 of 64 `python` ones. The design's field keeps its name and definition, and
+`char_type_body` (the same rule on the token's first NON-space character) is stored beside it.
+
+**`javascript c go shell` are all present in smol-xl** — all 87 language directories resolve, each
+`data/<lang>/data.json` is 10,000 json LINES with a `content` field and a `max_stars_repo_licenses`
+list (the licence R8 prints beside an example). Design §2's "to be confirmed at build time" is
+confirmed.
+
+### R1, the English reference, recomputed (review R1, $0)
+
+`uv run reconstruction/stats_ood.py en-ref --root-tag full --no-fetch` on the local mirror of
+`scan/2026-09-16_v1/topk.jsonl`:
+
+| corpus | n | top-1, all windows | top-1, **no own document** | own doc is top-1 | no non-own candidate |
+|---|---|---|---|---|---|
+| 1M | 512 | 0.3216 | **0.3137** | 38 | 0 |
+| 2M | 512 | 0.3433 | **0.3315** | 66 | 0 |
+| 4M | 512 | 0.3706 | **0.3511** | 114 | 2 |
+| 8M | 512 | 0.3997 | **0.3672** | 209 | 4 |
+| 16M | 512 | 0.4105 | **0.3851** | 168 | 4 |
+
+That reproduces the review's 0.314 / 0.351 / 0.385 at 1/4/16M and its "top-1 on 114/512 targets at
+4M" exactly. The rule that makes it reproduce, and that the review did not spell out: a target whose
+whole stored top-64 is own-document has NO non-own candidate (2 at 4M, 4 at 8M and 16M) and must be
+EXCLUDED from the no-own mean — scoring it -1 instead gives 0.3458 / 0.3742 at 4M / 16M, which is
+where a first attempt at this recomputation lands. The margins against bo64 0.569 are therefore
+**+0.256 / +0.218 / +0.184**, as §0 states.
+
+### R7, what the inverter was trained on (review R7 as amended 2026-09-18, $0, CPU + network)
+
+The primary's activation corpus is **`m-a-p/FineFineWeb`**, not Ultra-FineWeb
+(`infra/2026-09-18_ood-eval-training-data.md`); `mxf/config.py`'s `CORPUS = "openbmb/Ultra-FineWeb"`
+is the early collector and stale for the 27B line. Both sources measured the same way, 10,000
+512-token windows each, one `code_like` rule (`common.CODE_LIKE_MARKERS`, printed in the output):
+
+| source | provenance | windows | code-like | non-English |
+|---|---|---|---|---|
+| `hf:m-a-p/FineFineWeb` | revision `7fd92dc825a7`, file order, fetched 2026-09-18 | 10,000 | **0 (0.000)** | not measured |
+| `corpus` (our eval corpus, UFW en p0009-0010) | 10,000 random windows of `corpus/tokens.i32`, seed 20260918 | 10,000 | **1 (0.0001)** | not measured |
+
+**The FineFineWeb number is a sample of ONE DOMAIN, not of the corpus, and must not be quoted as
+"< 1% of the training data is code".** The repo is laid out as `<domain>/<domain>_NNNNNN.jsonl` over
+**67 domains and 66,103 files of ~317 MB**, so "10k documents in file order" is 10k documents of
+`aerospace/aerospace_000000.jsonl` — the one file the run read, which the output records. The card's
+own domain sizes put `computer_science_and_technology` at 203B of 4,425B tokens (≈ 4.6%) and
+`mathematics` at 6.18B (≈ 0.14%), so a corpus-wide code-like share near 0 is not what the layout
+predicts. **Open for Tomáš**: either measure a stratified draw (the first file of each of the 67
+domains, 150 documents each) or state the share as a per-domain figure. Until then the design's R7
+rule ("call code and maths arms *under-represented* rather than *unseen* unless the share is < 1%")
+should read **under-represented**, on the card's domain sizes rather than on this measurement.
+
+**The non-English half did not run**: `fasttext` is not installed here and no `lid.176.bin` is on
+this machine. The design names fastText `lid.176`; Facebook's own HF repo
+`facebook/fasttext-language-identification` ships the **lid218e** model (`model.bin`,
+`__label__eng_Latn` labels), not lid.176, and the lid.176 mirrors on the hub are community re-uploads
+(`crash-sv/scribe-fasttext-lid176` has `lid.176.bin`). Which of the two the paper cites is a
+decision, not a lookup, so nothing was downloaded. Once the model is in
+`reconstruction/data/lid.176.bin`:
+
+```
+uv run --with transformers --with fasttext reconstruction/stats_ood.py train-share \
+    --source hf:m-a-p/FineFineWeb --n 10000 --no-fetch
+uv run --with transformers --with fasttext reconstruction/stats_ood.py train-share --source corpus
+```

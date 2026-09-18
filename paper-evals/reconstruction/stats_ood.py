@@ -295,37 +295,53 @@ def _train_share_hf(dataset: str, tok, n: int):
     """`--source hf:<id>`: n documents in FILE ORDER, one 512-token window each.
 
     `m-a-p/FineFineWeb` is the primary checkpoint's activation corpus
-    (`infra/2026-09-18_ood-eval-training-data.md`). NO revision is pinned anywhere in Celeste's
-    collectors, so the fetch DATE and the files read are recorded instead and the share is reported
-    as of that date.
+    (`infra/2026-09-18_ood-eval-training-data.md`, 2026-09-18), and her collectors take its files
+    IN ORDER, which is what this reproduces. NO revision is pinned anywhere in those collectors, so
+    the fetch DATE, the repo revision and the FILES READ are recorded instead.
+
+    CAVEAT, printed with the result: FineFineWeb is laid out as `<domain>/<domain>_NNNNNN.jsonl`
+    over 67 domains and 66,103 files of ~317 MB each, so 10k documents in file order come from the
+    FIRST domain alphabetically and are a sample of that domain, not of the corpus. Read the share
+    as "what the first files look like", and see `--files-from` to start elsewhere.
     """
     import datetime
+    import json as _json
 
-    from datasets import load_dataset
-    from huggingface_hub import HfApi
+    from huggingface_hub import HfApi, hf_hub_download
 
-    rev = HfApi().repo_info(dataset, repo_type="dataset").sha
-    ds = load_dataset(dataset, split="train", streaming=True)
+    api = HfApi()
+    rev = api.repo_info(dataset, repo_type="dataset").sha
+    files = sorted(f for f in api.list_repo_files(dataset, repo_type="dataset") if f.endswith(".jsonl"))
+    assert files, f"{dataset} has no .jsonl files"
     today = datetime.date.today().isoformat()
+    read: list[str] = []
 
     def gen():
         got = 0
-        for row in ds:
-            text = row.get("text") or row.get("content") or ""
-            if not text:
-                continue
-            ids = tok(text, add_special_tokens=False)["input_ids"]
-            if len(ids) < TRAIN_WINDOW:
-                continue
-            got += 1
-            yield tok.decode(ids[:TRAIN_WINDOW])
-            if got >= n:
-                return
+        for f in files:
+            read.append(f)
+            path = hf_hub_download(dataset, f, repo_type="dataset")
+            with open(path, encoding="utf-8") as fh:
+                for line in fh:
+                    row = _json.loads(line)
+                    text = row.get("text") or row.get("content") or ""
+                    if not text:
+                        continue
+                    ids = tok(text, add_special_tokens=False)["input_ids"]
+                    if len(ids) < TRAIN_WINDOW:
+                        continue
+                    got += 1
+                    yield tok.decode(ids[:TRAIN_WINDOW])
+                    if got >= n:
+                        return
 
-    return gen(), (
-        f"{n} documents of {dataset} (streaming, FILE ORDER, default config, split train) at "
-        f"revision {rev[:12]}, one {TRAIN_WINDOW}-token window each, fetched {today}; no revision "
-        f"is pinned by the checkpoint's own config, so this is the share as of that date"
+    return gen(), read, (
+        f"{n} documents of {dataset} at revision {rev[:12]}, taken in FILE ORDER (sorted repo "
+        f"paths) from {len(files)} .jsonl files over the repo's domain directories, one "
+        f"{TRAIN_WINDOW}-token window each, fetched {today}. No revision is pinned by the "
+        f"checkpoint's own config, so this is the share as of that date. NOTE the layout: file "
+        f"order means the FIRST domain directory alphabetically, so this samples that domain "
+        f"rather than the corpus"
     )
 
 
@@ -383,6 +399,7 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
             "whole_char": bool(r.get("whole_char")),
             "multi_char": bool(r.get("multi_char")),
             "char_type": r.get("char_type"),
+            "char_type_body": r.get("char_type_body"),
             "p": r.get("p"),
             "L": r.get("L"),
             "unspaced": bool(spec.get("unspaced")),
@@ -542,7 +559,7 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
 
         # strata
         dcol, ccol = "bo64_maemm", in_domain({"arm": arm}, 4)
-        for key in ("tok_class", "byte_piece", "char_type"):
+        for key in ("tok_class", "byte_piece", "char_type", "char_type_body"):
             for val in sel[key].unique().sort():
                 sub = sel.filter(pl.col(key) == val)
                 srec = {
@@ -739,12 +756,13 @@ def train_share(
 
     tok = AutoTokenizer.from_pretrained(tokenizer)
     vol = _vol(root_tag, fetch, False, False, modal_cmd, data_dir)
+    read: list[str] = []
     if source == "corpus":
         gen, prov = _train_share_corpus(vol, base, tok, n, seed)
         assert gen is not None, prov
     else:
         assert source.startswith("hf:"), f"--source must be `corpus` or `hf:<id>`, got {source!r}"
-        gen, prov = _train_share_hf(source.removeprefix("hf:"), tok, n)
+        gen, read, prov = _train_share_hf(source.removeprefix("hf:"), tok, n)
     lid = load_lid(lid_model or (HERE / "data" / "lid.176.bin"))
     n_code, n_noneng, seen = 0, 0, 0
     for text in gen:
@@ -757,6 +775,7 @@ def train_share(
         "source": source,
         "provenance": prov,
         "windows": seen,
+        "files_read": read,
         "code_like": n_code,
         "code_like_share": round(n_code / max(seen, 1), 5),
         "non_english": n_noneng if lid is not None else None,
@@ -850,7 +869,8 @@ def selfcheck() -> None:
                     "src_files": spec["files"], "licence": spec.get("licence"),
                     "p": 100 + j, "L": 32, "act_norm": 1.0, "span_text": f"span {arm} {j}",
                     "byte_piece": j % 3 == 0, "whole_char": j % 3 == 1, "multi_char": j % 3 == 2,
-                    "char_type": "letter_arm", "tok_class": "unspaced" if spec["unspaced"] else "word",
+                    "char_type": "letter_arm", "char_type_body": "letter_arm",
+                    "tok_class": "unspaced" if spec["unspaced"] else "word",
                     "n_subtokens": None if spec["unspaced"] else 1,
                 })
                 rowi += 1
