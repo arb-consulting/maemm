@@ -230,6 +230,9 @@ def run(cfg, args):
     # `--corpus heldout16m,ood_tha_Thai` arrives as ",ood_tha_Thai" and means both of them.
     corpora = (args.get("corpus_name") or "").split(",")
     max_size = int(args.get("max_size") or 0)
+    # A repeat would plan two scans into one output directory; the second refuses on "already
+    # exists" only AFTER the first has been paid for.
+    assert len(set(corpora)) == len(corpora), f"--corpus repeats a corpus: {corpora}"
 
     cen_notes: list[str] = []
     rows, v, masks = _load_targets(cfg, args, notes=cen_notes)
@@ -244,7 +247,10 @@ def run(cfg, args):
     tested_row = [r["row"] for r in sae_sel]
 
     plans = []
-    for cname in corpora:
+    for raw in corpora:
+        # the literal name `corpus` is the base's OWN English corpus, so one call can scan it
+        # beside the arm corpora (the pilot scans three arms plus the English 4M prefix)
+        cname = "" if raw == "corpus" else raw
         label = cname or "corpus"
         # scan/<set> when this is the one unbounded English scan, scan/<set>__<corpus> otherwise
         # (C.scan_dir, H5) -- and `__<M>m` on top when the scan stops at a nested prefix, because a

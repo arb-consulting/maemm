@@ -1350,8 +1350,9 @@ Unicode script, the fastText label, the unspaced flag and the licence the append
 --product corpus  --base qwen36-27b --set 2026-09-18_ood_v1 --arm tha_Thai      # CPU + network
 --product targets --base qwen36-27b --set 2026-09-18_ood_v1 [--arm a,b]        # GPU
 --product targets --base qwen36-27b --set 2026-09-18_ood_v1_unitend [--arm a,b]
---product scan    --base qwen36-27b --set 2026-09-18_ood_v1 --corpus tha_Thai,python,ufw_en \
-                  --max-size 4 --with-set 2026-09-16_v1:realact+random
+--product scan    --base qwen36-27b --set 2026-09-18_ood_v1 \
+                  --corpus tha_Thai,python,ufw_en,corpus --max-size 4 \
+                  --with-set 2026-09-16_v1:realact+random     # `corpus` = the base's own English one
 --product nll     --base qwen36-27b --set 2026-09-18_ood_v1
 --product ood_selfcheck --base qwen36-27b [--stages readers,covariates]        # CPU (nll -> GPU)
 ```
