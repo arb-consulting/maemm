@@ -112,32 +112,71 @@ class _KeyReservoir:
 
 
 def _load_targets(cfg, args, notes=None):
-    """(ids rows, V [N, d] unit fp32 on the gpu, realact mask tables).
+    """(ids rows, V [N, d] unit fp32 on the gpu, mask tables).
+
+    The rows are the `--set` set's, plus every `--with-set <name>[:<fam>,<fam>]` set appended after
+    it -- design §4: one scan of a corpus carries ALL the targets it could ever be asked about (the
+    OOD arms, the 512 English realact targets and the 512 random directions), because the scan's
+    cost is per corpus token and not per target.
 
     `scan` has no `--maemm` in scope at all, so the centring convention has to be told to it
-    (`--mu <file>`) or taken from the set's own stored contract -- see common.mu_for. On a
-    legacy `storage: unit` set that resolves to the mean the set was built with, which reproduces
-    every corpus-search number measured between 2026-09-16 and 2026-09-21 exactly.
+    (`--mu <file>`) or taken from each set's own stored contract -- see common.mu_for. On a legacy
+    `storage: unit` set that resolves to the mean the set was built with, which reproduces every
+    corpus-search number measured between 2026-09-16 and 2026-09-21 exactly. The resolution is
+    PER SET, because `--with-set` can append a `storage: unit` bank to a `storage: raw` one and
+    the two were not centred the same way.
+
+    The own-document mask travels with the target as `mask_corpus`: a realact target's `doc` is an
+    index into ITS OWN corpus and means nothing in another one, so the mask is applied only where
+    the scanned corpus is that corpus. Without that condition an English target's document index
+    would mask an unrelated document of, say, the Thai corpus, silently.
     """
+    import os
+
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
     d = cfg["bases"][base]["d"]
-    hdir = C.heldout_dir(base, set_name, root)
-    rows = C.read_jsonl(f"{hdir}/ids.jsonl")
+    specs = [(set_name, None)]
+    for extra in [x for x in (args.get("with_set") or "").split(",") if x]:
+        name, _, fams = extra.partition(":")
+        specs.append((name, [f for f in fams.split("+") if f] or None))
+    rows, vecs = [], []
+    for name, fams in specs:
+        hdir = C.heldout_dir(base, name, root)
+        assert os.path.exists(f"{hdir}/ids.jsonl"), f"no held-out set at {hdir}"
+        rs = C.read_jsonl(f"{hdir}/ids.jsonl")
+        mu, _ = C.mu_for(cfg, base, hdir, args, "", root, notes)
+        v = np.asarray(C.dirs_for(cfg, base, hdir, mu, root, notes), dtype=np.float32)
+        assert v.shape == (len(rs), d), f"{hdir}: dirs_for returned {v.shape} for {len(rs)} rows"
+        for i, r in enumerate(rs):
+            assert r["row"] == i, f"{hdir}/ids.jsonl row {i} says row={r['row']}"
+            if fams is not None and r["family"] not in fams:
+                continue
+            rows.append({**r, "set": name, "set_row": r["row"]})
+            vecs.append(v[i])
+        print(f"[scan] targets from {name}: {sum(1 for r in rows if r['set'] == name)} rows", flush=True)
     n = len(rows)
-    mu, _ = C.mu_for(cfg, base, hdir, args, "", root, notes)
-    v = C.dirs_for(cfg, base, hdir, mu, root, notes)
-    assert v.shape == (n, d), f"{hdir}: dirs_for returned {v.shape} for {n} rows"
-    v = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)).cuda(), dim=-1)
+    assert n, "no targets selected"
+    V = torch.nn.functional.normalize(torch.from_numpy(np.stack(vecs)).cuda(), dim=-1)
     doc = torch.full((n,), -1, dtype=torch.int64)
     lo = torch.zeros(n, dtype=torch.int64)
     hi = torch.zeros(n, dtype=torch.int64)
+    mask_corpus = []
     for i, r in enumerate(rows):
-        assert r["row"] == i, f"ids.jsonl row {i} says row={r['row']}"
+        r["row"] = i  # the row index WITHIN this scan; `set` + `set_row` is the join key
         if r["family"] == "realact":
             doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
-    return rows, v, (doc.cuda(), lo.cuda(), hi.cuda())
+            mask_corpus.append("corpus")  # realact targets come from the base's own English corpus
+        elif r.get("arm"):
+            # an OOD row: `doc` indexes the arm's OWN in-domain corpus. Targets are drawn from
+            # rows the corpus build did not consume (design §2), so the mask is empty in practice
+            # -- it is written anyway, so that the invariant is the code's and not a comment's.
+            doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
+            mask_corpus.append(C.corpus_key_name(cfg, f"ood_{r['arm']}"))
+        else:
+            mask_corpus.append("")  # nothing to mask: the target's document is in no corpus here
+    return rows, V, (doc, lo, hi, mask_corpus)
 
 
 def _forward(model, read_layer, rows, sink, pad_id):
@@ -163,29 +202,37 @@ def _forward(model, read_layer, rows, sink, pad_id):
 
 
 def run(cfg, args):
+    """Pass B over ONE OR MORE corpora, with the same target bank.
+
+    `--corpus <a>,<b>,...` scans the OOD arm corpora `corpora/<arm>/` instead of the base's own
+    English `corpus/`; `--max-size M` stops at the M-million-token nested prefix (the `examples_4m`
+    trick: a bounded prefix of an existing corpus, at a fraction of the cost). Several corpora in
+    one call share the model load, which is the fixed cost of a short scan.
+
+    Output: `scan/<set>/` exactly as before when NEITHER flag is given, and `scan/<set>/<corpus>/`
+    (with `-<M>m` appended when the scan is bounded) otherwise -- so the existing English scan is
+    never touched by this path.
+    """
     import os
 
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
     assert base, "product scan needs --base"
-    spec = cfg["bases"][base]
-    read_layer, d = spec["read_layer"], spec["d"]
+    d = cfg["bases"][base]["d"]
     batch_rows = int(args.get("batch") or 256)
     # ONE --sae syntax in the whole CLI: common.sae_key_for, which takes a full `<base>/<name>`
     # key and refuses a bare name. This file and stats.py each carried an inline copy that DID
     # accept a bare `sae2m`, so the same flag meant two things depending on the product.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    # WHICH CORPORA, as directory names already resolved from `corpora:` keys on the client
+    # (modal_app.main). NOT filtered for empties: "" is the base's own English `corpus/`, so
+    # `--corpus heldout16m,ood_tha_Thai` arrives as ",ood_tha_Thai" and means both of them.
+    corpora = (args.get("corpus_name") or "").split(",")
+    max_size = int(args.get("max_size") or 0)
 
-    # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
-    # ladder or window geometry is a different corpus, never an edit of one.
-    corpus_name = args.get("corpus_name") or ""
-    C.assert_corpus_geometry(cfg, corpus_name)  # H7: refuse a corpus we would cut at the wrong width
-    toks, docs = C.load_corpus(base, root, corpus_name)
-    sizes = C.corpus_sizes(docs)
     cen_notes: list[str] = []
-    rows, v, (t_doc, t_lo, t_hi) = _load_targets(cfg, args, notes=cen_notes)
-    n = len(rows)
+    rows, v, masks = _load_targets(cfg, args, notes=cen_notes)
     # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
     # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
     # encoder, silently (common.sae_rows_of).
@@ -195,18 +242,28 @@ def run(cfg, args):
     )
     tested = [int(r["id"]) for r in sae_sel]
     tested_row = [r["row"] for r in sae_sel]
-    n_feat = len(tested)
 
-    out_scan = C.scan_dir(base, set_name, root, corpus_name)
-    # KEYED BY SET (B9, 2026-09-21). `examples/` used to be keyed by SAE alone, so a second scan of
-    # the same dictionary against a different held-out set refused without --force and DESTROYED
-    # the first set's examples with it -- and the eval plan runs three scans on sae2m. The scan
-    # half was already set-keyed (C.scan_dir); this is the other half.
-    out_ex = C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=corpus_name)
-    for p in (out_scan, out_ex):
-        assert args.get("force") or not os.path.exists(p), (
-            f"{p} already exists; refusing to overwrite without --force"
+    plans = []
+    for cname in corpora:
+        label = cname or "corpus"
+        # scan/<set> when this is the one unbounded English scan, scan/<set>__<corpus> otherwise
+        # (C.scan_dir, H5) -- and `__<M>m` on top when the scan stops at a nested prefix, because a
+        # 4M-bounded scan of a 16M corpus is a different number from the full one.
+        out_scan = C.scan_dir(base, set_name, root, cname) + (f"__{max_size}m" if max_size else "")
+        # The SAE examples are a product of a scan whose SET has sae targets. An OOD scan has none,
+        # so it writes no examples/ -- and must not, because that directory is shared.
+        # KEYED BY SET AND CORPUS (B9, 2026-09-21): `examples/` used to be keyed by SAE alone, so a
+        # second scan of the same dictionary against a different set refused without --force and
+        # DESTROYED the first set's examples with it.
+        out_ex = (
+            C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=cname)
+            if tested else ""
         )
+        for path in (out_scan, out_ex):
+            assert not path or args.get("force") or not os.path.exists(path), (
+                f"{path} already exists; refusing to overwrite without --force"
+            )
+        plans.append((cname, label, out_scan, out_ex))
 
     model, tok = C.load_base(cfg, base)
     # ENCODER ONLY (D3): everything below reads b_dec, W_enc, b_enc and threshold -- the tested
@@ -215,6 +272,41 @@ def run(cfg, args):
     sae = C.load_sae(
         C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False
     )
+    out = {}
+    for cname, label, out_scan, out_ex in plans:
+        bound = f" (<= {max_size}M)" if max_size else ""
+        print(f"[scan] === corpus {label}{bound} -> {out_scan}", flush=True)
+        out[label] = _scan_one(
+            cfg, args, model, tok, sae, sae_key, rows, v, masks, cname, label, out_scan, out_ex,
+            tested, tested_row, batch_rows, max_size, cen_notes,
+        )
+    return out
+
+
+def _scan_one(
+    cfg, args, model, tok, sae, sae_key, rows, v, masks, cname, label, out_scan, out_ex,
+    tested, tested_row, batch_rows, max_size, cen_notes,
+):
+    import torch
+
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    read_layer = cfg["bases"][base]["read_layer"]
+    n, n_feat = len(rows), len(tested)
+    t_doc_c, t_lo_c, t_hi_c, mask_corpus = masks
+    # the own-document mask applies only to targets whose OWN corpus is the one being scanned
+    keep_mask = torch.tensor([mc == cname for mc in mask_corpus], dtype=torch.bool)
+    t_doc = torch.where(keep_mask, t_doc_c, torch.full_like(t_doc_c, -1)).cuda()
+    t_lo, t_hi = t_lo_c.cuda(), t_hi_c.cuda()
+    n_masked_rows = int(keep_mask.sum())
+
+    # H7: refuse a corpus this pipeline would cut at a geometry its config does not declare.
+    C.assert_corpus_geometry(cfg, cname)
+    toks, docs = C.load_corpus(base, root, cname)
+    sizes = C.corpus_sizes(docs)
+    if max_size:
+        assert max_size in sizes, f"--max-size {max_size} is not one of {label}'s sizes {sizes}"
+        sizes = [s for s in sizes if s <= max_size]
+        docs = [r for r in docs if r["size_tag"] <= max_size]
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
     w_enc = sae.W_enc[:, torch.as_tensor(tested, device="cuda")].contiguous() if n_feat else None
@@ -222,7 +314,8 @@ def run(cfg, args):
     peak = C.read_array(f"{C.sae_dir(sae_key, root)}/max_act.f16", "float16", (sae.d_sae,))
     peak_t = torch.from_numpy(peak[tested].astype(np.float32)).cuda() if n_feat else None
     print(
-        f"[scan] {n} targets ({n_feat} tested sae features), {len(docs)} docs, sizes {sizes}",
+        f"[scan] {n} targets ({n_feat} tested sae features, {n_masked_rows} own-document masks), "
+        f"{len(docs)} docs, sizes {sizes}",
         flush=True,
     )
 
@@ -348,11 +441,14 @@ def run(cfg, args):
     assert len(wdoc) == w_global, f"window table {len(wdoc)} != {w_global} forwarded windows"
 
     inputs = {
-        "corpus": C.corpus_dir(base, root, corpus_name),
+        "corpus": C.corpus_dir(base, root, cname),
+        "corpus label": label,
         "heldout": C.heldout_dir(base, set_name, root),
+        "with_set": args.get("with_set") or "-",
         "targets": n,
         "windows": int(w_global),
         "sizes": sizes,
+        "max_size": max_size or "-",
     }
     with C.outdir(out_scan, args, inputs=inputs) as od:
         C.note_convention(od, cen_notes)
@@ -367,7 +463,18 @@ def run(cfg, args):
                         continue
                     w = int(win[i, j])
                     top.append([int(wdoc[w]), int(wstart[w]), int(arg[i, j] - 1), round(float(val[i, j]), 5)])
-                lines.append({"row": i, "family": rows[i]["family"], "size": size, "top": top})
+                lines.append(
+                    {
+                        "row": i,
+                        "set": rows[i]["set"],
+                        "set_row": rows[i]["set_row"],
+                        "family": rows[i]["family"],
+                        "arm": rows[i].get("arm"),
+                        "corpus": label,
+                        "size": size,
+                        "top": top,
+                    }
+                )
         od.write_jsonl("topk.jsonl", lines)
         q = np.stack([C.quantiles_from_hist(hs, QUANTILES) for hs in snap_hist], axis=1)  # [N, sizes, 5]
         od.write_array("quantiles.f16", q, "float16")
@@ -387,8 +494,10 @@ def run(cfg, args):
             f"{w_global} windows over {done_tokens} corpus tokens"
         )
         od.note(
-            "realact targets mask the windows of their OWN document overlapping [p-L+1, p]; exact "
-            "and near-duplicate documents elsewhere in the corpus are NOT masked"
+            f"{n_masked_rows} of {n} targets mask the windows of their OWN document overlapping "
+            f"[p-L+1, p] -- those whose own corpus IS `{label}`; a target of another corpus masks "
+            "nothing here, because its document index means nothing in this one. Exact and "
+            "near-duplicate documents elsewhere in the corpus are NOT masked"
         )
         if n_dropped:
             od.note(f"{n_dropped} top-k slots were empty (masked or too few windows) and omitted")
@@ -398,7 +507,9 @@ def run(cfg, args):
         )
 
     ex_rows = 0
-    with C.outdir(out_ex, args, inputs={**inputs, "sae": sae_key, "tested": n_feat}) as od:
+    if not n_feat:
+        print("[scan] no sae targets in this set: no examples/ product written", flush=True)
+    with _maybe_outdir(out_ex, args, inputs={**inputs, "sae": sae_key, "tested": n_feat}) as od:
         C.note_convention(od, cen_notes)
         if n_feat:
             tv, tw, ta, tp = (
@@ -505,7 +616,8 @@ def run(cfg, args):
 
     return {
         "scan": out_scan,
-        "examples": out_ex,
+        "corpus": label,
+        "examples": out_ex or "-",
         "windows": int(w_global),
         "topk_rows": len(lines),
         "example_rows": ex_rows,
@@ -531,3 +643,29 @@ def _ex(row, kind, val, win, arg, acts, wdoc, wstart, wlen):
         "argmax": int(arg) - 1,
         "acts": [round(float(x), 4) for x in acts[:ln]],
     }
+
+
+class _NullOut:
+    """Stand-in for an OutDir when a product is not produced at all (an OOD scan writes no SAE
+    examples). Every call is a no-op, so the block below it needs no second code path."""
+
+    index: dict = {}
+
+    def note(self, line):
+        pass
+
+    def write_json(self, name, obj):
+        pass
+
+    def file(self, name):
+        raise AssertionError("no examples directory is being written")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _maybe_outdir(path, args, **kw):
+    return C.outdir(path, args, **kw) if path else _NullOut()

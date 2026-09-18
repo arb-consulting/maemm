@@ -21,6 +21,7 @@ Recipe (infra/precompute.md §2, infra/precompute-layout.md §5 item 2):
 from __future__ import annotations
 
 import gc
+import json
 import os
 import time
 
@@ -145,9 +146,16 @@ def _collect(cfg, budget, tok):
 
 
 def run(cfg, args):
-    """Build (or rebuild) the corpus for one base under args['root']."""
+    """Build (or rebuild) the corpus for one base under args['root'].
+
+    `--arm <id>` builds ONE OOD arm's in-domain corpus instead (`run_arm` at the end of this file);
+    the English corpus path below is untouched by it.
+    """
     import numpy as np
     from transformers import AutoTokenizer
+
+    if args.get("arm"):
+        return run_arm(cfg, args)
 
     _go_online()
 
@@ -236,5 +244,375 @@ def run(cfg, args):
         "max_doc_len": max_len,
         "per_size": per_size,
         "parts": parts,
+        "out": out,
+    }
+
+
+# =============================================================================================
+# `corpus --arm <id>`: one OOD arm's own in-domain corpus (design §2, §4)
+#
+#     <root>/base/<base>/corpora/<arm>/
+#         tokens.i32, docs.jsonl, README.md, index.json    -- exactly the products above
+#         pool_windows.i32 [pool_n, 512], pool.jsonl       -- the TARGET pool, drawn from the rows
+#                                                             AFTER the corpus in the same stream
+#         stream.json                                      -- where the permutation stood
+#
+# The arm's rows come from ONE seeded permutation (`common.arm_perm`), consumed in order: corpus
+# first, then the target pool. `targets` never touches the network -- everything it needs about the
+# rows after the corpus is in pool_windows.i32 / pool.jsonl, written HERE, by the one CPU product
+# that is allowed online. That is also what makes the disjointness assertion a property of the file
+# rather than of two independent draws agreeing.
+# =============================================================================================
+
+POOL_N = 320  # `_realact`'s n + 256 pool, taken at 64 targets per arm
+POOL_WINDOW = 512  # the realact window; a pool document must have at least this many tokens
+PROBE_ROWS = 256  # rows tokenized to estimate tokens/row before the first block is chosen
+BLOCK_SLACK = 1.35  # how much more than the estimate a block asks for, so one pass usually suffices
+
+
+def _hf_revision(dataset: str) -> str:
+    """The dataset repo's current commit sha. FineWeb-2 and smol-xl are MUTABLE `main` refs, so
+    this goes into the corpus README and into every target's `ids.jsonl` row (design §2)."""
+    from huggingface_hub import HfApi
+
+    return HfApi().repo_info(dataset, repo_type="dataset").sha
+
+
+class _ParquetSource:
+    """Rows of one or more parquet files, addressed by a GLOBAL index over the files in order.
+
+    Only the text column is read: `cleaned_formulas` carries a 2.8 GB inline `image` column beside
+    its 552k formulas, and a column projection is the difference between 30 MB and all of it.
+    """
+
+    def __init__(self, dataset: str, files: list[str], text: str):
+        import pyarrow.parquet as pq
+        from huggingface_hub import HfFileSystem
+
+        self.dataset, self.files, self.text = dataset, files, text
+        self.fs = HfFileSystem()
+        self.counts = []
+        for f in files:
+            with self.fs.open(self._path(f), "rb") as fh:
+                md = pq.ParquetFile(fh).metadata
+                self.counts.append(md.num_rows)
+        self.n_rows = sum(self.counts)
+
+    def _path(self, f: str) -> str:
+        return f"datasets/{self.dataset}/{f}"
+
+    def fetch(self, wanted: list[int]) -> dict[int, str]:
+        """{global row -> text} for `wanted` (any order). One streaming pass per file touched."""
+        import pyarrow.parquet as pq
+
+        want = set(int(w) for w in wanted)
+        out: dict[int, str] = {}
+        base = 0
+        for f, n in zip(self.files, self.counts, strict=True):
+            hi = base + n
+            if any(base <= w < hi for w in want):
+                with self.fs.open(self._path(f), "rb") as fh:
+                    pf = pq.ParquetFile(fh)
+                    i = base
+                    for batch in pf.iter_batches(batch_size=2048, columns=[self.text]):
+                        col = batch.column(0)
+                        if any(i <= w < i + len(col) for w in want):
+                            vals = col.to_pylist()
+                            for k, v in enumerate(vals):
+                                if (i + k) in want and v:
+                                    out[i + k] = v
+                        i += len(col)
+                    assert i == hi, f"{f}: streamed {i - base} rows, footer said {n}"
+            base = hi
+        return out
+
+
+class _JsonlSource:
+    """Rows of one or more json-LINES files (optionally zstd-compressed), downloaded to the HF cache.
+
+    `the-stack-smol-xl`'s `data/<lang>/data.json` is json lines despite the extension (MEASURED
+    2026-09-18) and Proof-Pile-2 ships `.jsonl.zst`; both are small enough (<= 182 MB) to fetch
+    once into HF_HOME and read twice, which is cheaper than two network passes.
+    """
+
+    def __init__(self, dataset: str, files: list[str], text: str, zst: bool):
+        from huggingface_hub import hf_hub_download
+
+        self.dataset, self.files, self.text, self.zst = dataset, files, text, zst
+        self.licences: dict[int, list] = {}  # smol-xl's per-file licence, for R8's examples
+        self.paths = [hf_hub_download(dataset, f, repo_type="dataset") for f in files]
+        self.counts = [sum(1 for _ in self._lines(p)) for p in self.paths]
+        self.n_rows = sum(self.counts)
+
+    def _lines(self, path: str):
+        import io
+
+        if self.zst:
+            import zstandard
+
+            with open(path, "rb") as fh:
+                yield from io.TextIOWrapper(
+                    zstandard.ZstdDecompressor().stream_reader(fh), encoding="utf-8"
+                )
+        else:
+            with open(path, encoding="utf-8") as fh:
+                yield from fh
+
+    def fetch(self, wanted: list[int]) -> dict[int, str]:
+        want = {int(w) for w in wanted}
+        out: dict[int, str] = {}
+        base = 0
+        for path, n in zip(self.paths, self.counts, strict=True):
+            hi = base + n
+            if any(base <= w < hi for w in want):
+                for k, line in enumerate(self._lines(path)):
+                    if (base + k) in want:
+                        row = json.loads(line)
+                        if row.get(self.text):
+                            out[base + k] = row[self.text]
+                            if row.get("max_stars_repo_licenses"):
+                                self.licences[base + k] = row["max_stars_repo_licenses"]
+            base = hi
+        return out
+
+
+def _source(spec: dict):
+    reader = spec["reader"]
+    if reader in ("parquet", "formulas"):
+        return _ParquetSource(spec["dataset"], spec["files"], spec["text"])
+    if reader in ("jsonl", "jsonl_zst"):
+        return _JsonlSource(spec["dataset"], spec["files"], spec["text"], zst=reader == "jsonl_zst")
+    raise AssertionError(f"unknown reader {reader!r}")
+
+
+def _formula_docs(pairs, tok, min_tok: int = POOL_WINDOW):
+    """`formulas`: consecutive permuted rows joined by a blank line into >= `min_tok`-token documents.
+
+    Yields (rows, ids). The joined text is tokenized as ONE document -- concatenating the ids of
+    separately tokenized formulas would not be the same token sequence at the joins, and the arm
+    exists precisely to measure what the tokenizer does to symbol-dense text. Rows left in the
+    trailing buffer when the block ends do not make a document and are dropped with it; the stream
+    position advances by the whole block either way, so the corpus / pool boundary stays exact.
+    """
+    import numpy as np
+
+    buf_rows, buf_txt = [], []
+    for row, text in pairs:
+        buf_rows.append(row)
+        buf_txt.append(text)
+        if sum(len(t) for t in buf_txt) < 3 * min_tok:  # ~3 chars/token, a cheap lower bound
+            continue
+        ids = tok("\n\n".join(buf_txt), add_special_tokens=False)["input_ids"]
+        if len(ids) >= min_tok:
+            yield list(buf_rows), np.asarray(ids, dtype=np.int32)
+            buf_rows, buf_txt = [], []
+
+
+def _arm_stream(arm, spec, tok, seed, want_tokens):
+    """Yield (perm_pos, rows, ids) of the arm's documents in PERMUTED row order.
+
+    `perm_pos` is the index into the permutation AFTER this document -- what a consumer records to
+    say where it stopped, and where the next consumer picks up. Rows are read in blocks, one
+    streaming pass over the source per block, sized from the measured tokens-per-row rate, so a
+    16M-token arm normally costs one pass over its slice.
+    """
+    import numpy as np
+
+    src = _source(spec)
+    perm = C.arm_perm(arm, src.n_rows, seed)
+    is_formulas = spec["reader"] == "formulas"
+    pos, rate = 0, None
+    while pos < len(perm):
+        take = (
+            min(PROBE_ROWS, len(perm) - pos)
+            if rate is None
+            else int(max(1024, min(len(perm) - pos, want_tokens / max(rate, 1e-6) * BLOCK_SLACK)))
+        )
+        block = [int(r) for r in perm[pos : pos + take]]
+        idx_of = {r: i for i, r in enumerate(block)}
+        texts = src.fetch(sorted(block))
+        pairs = [(r, texts[r]) for r in block if r in texts]
+        got = 0
+        if is_formulas:
+            for rows, ids in _formula_docs(pairs, tok):
+                got += len(ids)
+                yield pos + idx_of[rows[-1]] + 1, rows, ids
+        else:
+            for s in range(0, len(pairs), TOK_BATCH):
+                chunk = pairs[s : s + TOK_BATCH]
+                enc = tok([t for _, t in chunk], add_special_tokens=False)["input_ids"]
+                for (r, _), ids in zip(chunk, enc, strict=True):
+                    if ids:
+                        got += len(ids)
+                        yield pos + idx_of[r] + 1, [r], np.asarray(ids, dtype=np.int32)
+        rate = got / max(take, 1)
+        pos += take
+        print(f"[corpus] {arm}: block of {take} rows -> {got} tokens ({rate:.0f} tok/row)", flush=True)
+
+
+def run_arm(cfg, args):
+    """Build one OOD arm's corpus AND its target pool. CPU, network (the only online product)."""
+    import numpy as np
+    from transformers import AutoTokenizer
+
+    _go_online()
+
+    base, root, arm = args["base"], args["root"], args["arm"]
+    assert base, "corpus --arm needs --base (the tokenizer, hence the corpus, is per base)"
+    spec = C.ood_arm(cfg, arm)
+    set_name = args.get("heldout") or ""
+    seed = int(args.get("arm_seed") or cfg["heldout"].get(set_name, {}).get("seed") or 20260918)
+    sizes = [int(s) for s in spec["sizes"]]
+    budget = int(args.get("tokens") or sizes[-1] * 1_000_000)
+    sizes = [s for s in sizes if s * 1_000_000 <= budget]
+    assert sizes and budget == sizes[-1] * 1_000_000, (
+        f"--tokens {budget} is not one of arm {arm}'s nested sizes {spec['sizes']} (in millions)"
+    )
+    pool_n = int(args.get("n") or POOL_N)
+
+    snap = C.snapshot(cfg, cfg["bases"][base]["hf"])
+    tok = AutoTokenizer.from_pretrained(snap)
+    revision = _hf_revision(spec["dataset"])
+    print(
+        f"[corpus] arm {arm} ({spec['family']}) {spec['dataset']}@{revision[:12]} "
+        f"budget {budget / 1e6:.0f}M sizes {sizes} seed {seed}",
+        flush=True,
+    )
+
+    stream = _arm_stream(arm, spec, tok, seed, budget)
+    docs, cum, t0 = [], 0, time.time()
+    perm_pos = 0
+    for pos, rows, ids in stream:
+        if cum >= budget:
+            break
+        docs.append((rows, ids))
+        cum += len(ids)
+        perm_pos = pos
+        if len(docs) % 2000 == 0:
+            print(f"[corpus] {arm}: {cum / 1e6:.2f}M / {budget / 1e6:.2f}M in {len(docs)} docs", flush=True)
+    assert cum >= budget, (
+        f"arm {arm}: the source ran out at {cum} tokens of the {budget} wanted -- the slice in "
+        f"config.yaml is too small for sizes {spec['sizes']}"
+    )
+    corpus_docs, corpus_end = docs, perm_pos
+    print(
+        f"[corpus] {arm}: corpus {cum} tokens in {len(corpus_docs)} docs, permutation at "
+        f"{corpus_end} of the arm's rows, {time.time() - t0:.0f}s",
+        flush=True,
+    )
+
+    # the TARGET POOL: the next `pool_n` documents with >= POOL_WINDOW tokens, same stream
+    pool, pool_end = [], corpus_end
+    for pos, rows, ids in stream:
+        pool_end = pos
+        if len(ids) >= POOL_WINDOW:
+            pool.append((rows, ids[:POOL_WINDOW], len(ids)))
+        if len(pool) >= pool_n:
+            break
+    assert len(pool) == pool_n, (
+        f"arm {arm}: only {len(pool)} of {pool_n} pool documents have >= {POOL_WINDOW} tokens "
+        f"before the arm's rows ran out"
+    )
+    print(f"[corpus] {arm}: pool {len(pool)} docs, permutation at {pool_end}", flush=True)
+    gc.collect()  # drop the reader's iterators before the write (checklist item 59)
+
+    rows_out, per_size, n_clamped, cum2 = [], {s: 0 for s in sizes}, 0, 0
+    for i, (src_rows, ids) in enumerate(corpus_docs):
+        tag = C.size_tag_of(cum2, len(ids), sizes)
+        if cum2 + len(ids) > tag * 1_000_000:
+            n_clamped += 1
+        rows_out.append(
+            {"doc": i, "offset": cum2, "len": int(len(ids)), "size_tag": tag, "rows": src_rows}
+        )
+        per_size[tag] += int(len(ids))
+        cum2 += len(ids)
+    assert cum2 == cum, f"offset bookkeeping: {cum2} != {cum}"
+
+    out = C.corpus_dir(base, root, arm)
+    inputs = {
+        "base": base,
+        "arm": arm,
+        "family": spec["family"],
+        "dataset": f"{spec['dataset']}@{revision}",
+        "files": spec["files"],
+        "budget_tokens": budget,
+        "seed": seed,
+    }
+    with C.outdir(out, args, inputs=inputs) as od:
+        od.write_array("tokens.i32", np.concatenate([a for _, a in corpus_docs]), "int32")
+        od.write_jsonl("docs.jsonl", rows_out)
+        od.write_array("pool_windows.i32", np.stack([w for _, w, _ in pool]), "int32")
+        od.write_jsonl(
+            "pool.jsonl",
+            [
+                {"pool_i": i, "rows": r, "n_tok": int(n)}
+                for i, (r, _, n) in enumerate(pool)
+            ],
+        )
+        od.write_json(
+            "stream.json",
+            {
+                "arm": arm,
+                "family": spec["family"],
+                "dataset": spec["dataset"],
+                "revision": revision,
+                "files": spec["files"],
+                "split": spec.get("split"),
+                "licence": spec.get("licence"),
+                "seed": seed,
+                "sizes": sizes,
+                "budget_tokens": budget,
+                "corpus_docs": len(corpus_docs),
+                "corpus_tokens": cum,
+                "perm_pos_corpus_end": int(corpus_end),
+                "perm_pos_pool_end": int(pool_end),
+                "pool_n": len(pool),
+                "pool_window": POOL_WINDOW,
+                "script": spec["script"],
+                "lid": spec.get("lid"),
+                "unspaced": bool(spec["unspaced"]),
+            },
+        )
+        od.section(
+            "Draw",
+            [
+                f"Arm `{arm}` (family `{spec['family']}`) of the OOD set, design "
+                "`infra/2026-09-18_ood-eval-design.md` §2/§4.",
+                "",
+                f"- source `{spec['dataset']}` at revision `{revision}`, files "
+                f"{spec['files']}, text field `{spec['text']}`, reader `{spec['reader']}`;",
+                f"- ONE permutation of the slice's rows, `np.random.default_rng({seed} ^ "
+                f"crc32({arm!r}))` (`common.arm_perm`), consumed IN ORDER;",
+                f"- the corpus took the first {len(corpus_docs)} documents ({cum} tokens, budget "
+                f"{budget}) and stopped at permutation position {corpus_end};",
+                f"- the target pool is the next {len(pool)} documents with >= {POOL_WINDOW} "
+                f"tokens, ending at permutation position {pool_end}. `pool_windows.i32` holds "
+                f"their first {POOL_WINDOW} tokens, which is everything `targets` needs -- so the "
+                "target draw runs OFFLINE and corpus and target documents are disjoint by "
+                "construction, not by a later check;",
+                f"- tokenized with `{snap}` (vocab {len(tok)}), `add_special_tokens=False`, no "
+                "truncation; documents are stored in permutation order, so nested subset k is the "
+                "prefix of `tokens.i32` with `size_tag <= k`.",
+            ],
+        )
+        for s in sizes:
+            cumulative = sum(v for k, v in per_size.items() if k <= s)
+            od.note(f"size {s}M: {per_size[s]} tokens tagged, {cumulative} cumulative")
+        od.note(f"{len(rows_out)} documents, {cum} tokens; `rows` is the source row index of each")
+        od.note(
+            "verbatim-span rate: NOT computed here -- `targets` reports, per arm, the fraction of "
+            "its 64 shown spans that occur verbatim in this tokens.i32 (design §4)"
+        )
+        if n_clamped:
+            od.note(f"{n_clamped} document(s) crossed their size budget and were clamped up a tag")
+    return {
+        "arm": arm,
+        "docs": len(rows_out),
+        "tokens": cum,
+        "per_size": per_size,
+        "pool": len(pool),
+        "perm_pos_corpus_end": int(corpus_end),
+        "perm_pos_pool_end": int(pool_end),
+        "revision": revision,
         "out": out,
     }

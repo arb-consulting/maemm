@@ -2294,6 +2294,166 @@ def check_corpus_axis():
     assert "corpus_key_name" in spawn_src, "spawn.py does not resolve --corpus to a directory"
 
 
+# ---------------------------------------------------------------------------------------------
+# the OOD generalisation evaluation (infra/2026-09-18_ood-eval-design.md)
+#
+# A byte-level tokenizer is built HERE, from explicit byte pieces, rather than loaded: the point of
+# the covariates is what happens when one character is split across several tokens, and a fixture
+# that can only agree with the real tokenizer's own splitting would not test that.
+# ---------------------------------------------------------------------------------------------
+
+
+class FakeByteTok:
+    """A byte-level BPE tokenizer over an explicit list of byte pieces; ids index that list."""
+
+    def __init__(self, pieces):
+        self.pieces = list(pieces)
+
+    def convert_ids_to_tokens(self, ids):
+        return ["".join(C.BYTE_ENCODER[b] for b in self.pieces[int(i)]) for i in ids]
+
+    def decode(self, ids):
+        return b"".join(self.pieces[int(i)] for i in ids).decode("utf-8", errors="replace")
+
+
+def check_byte_tables():
+    """BYTE_ENCODER is a bijection on 0..255 and BYTE_DECODER inverts it."""
+    assert len(C.BYTE_ENCODER) == 256, len(C.BYTE_ENCODER)
+    assert len(set(C.BYTE_ENCODER.values())) == 256
+    assert all(C.BYTE_DECODER[C.BYTE_ENCODER[b]] == b for b in range(256))
+    # and it is the table the real tokenizers use: space -> 'Ġ', newline -> 'Ċ'
+    assert C.BYTE_ENCODER[0x20] == "\u0120" and C.BYTE_ENCODER[0x0A] == "\u010a"
+    tok = FakeByteTok([b"Dobr", b"\xc3\xbd"])
+    assert C.check_token_bytes(tok, [0, 1]).startswith("token_bytes verified")
+
+
+def check_token_covariates_czech():
+    """A Latin word split across a byte boundary: 'Dobrý den' as Dobr | \xc3 | \xbd | ' den'."""
+    tok = FakeByteTok([b"Dobr", b"\xc3", b"\xbd", b" den"])
+    ids = [0, 1, 2, 3]
+    c1 = C.token_covariates(tok, ids, 1, "Latin", unspaced=False)
+    assert c1["byte_piece"] and not c1["whole_char"] and not c1["multi_char"], c1
+    assert c1["char_type"] == "letter_arm", c1  # the y-acute the two pieces make
+    assert c1["tok_class"] == "mid" and c1["n_subtokens"] == 3, c1
+    assert c1["unitend_p"] == 2 and c1["unitend_rule"] == "wordend", c1
+    c0 = C.token_covariates(tok, ids, 0, "Latin", unspaced=False)
+    assert c0["tok_class"] == "first" and c0["multi_char"] and not c0["byte_piece"], c0
+    c3 = C.token_covariates(tok, ids, 3, "Latin", unspaced=False)
+    assert c3["tok_class"] == "word" and c3["n_subtokens"] == 1, c3
+    assert c3["char_type"] == "space" and c3["unitend_rule"] == "none", c3
+    # the same window read as a Cyrillic arm: the y-acute is then another script's letter
+    assert C.token_covariates(tok, ids, 1, "Cyrillic", unspaced=False)["char_type"] == "letter_other"
+
+
+def check_token_covariates_thai():
+    """An unspaced abugida with a vowel sign split across two tokens (the charend rule)."""
+    pieces = [
+        "\u0e2a\u0e27".encode(),  # SO SUA + WO WAEN, two whole characters in one token
+        b"\xe0\xb8",  # the first two bytes of MAI HAN-AKAT
+        b"\xb1",  # its third byte
+        "\u0e2a\u0e14\u0e35".encode(),
+    ]
+    tok = FakeByteTok(pieces)
+    ids = [0, 1, 2, 3]
+    c1 = C.token_covariates(tok, ids, 1, "Thai", unspaced=True)
+    assert c1["tok_class"] == "unspaced" and c1["n_subtokens"] is None, c1
+    assert c1["byte_piece"] and c1["unitend_p"] == 2 and c1["unitend_rule"] == "charend", c1
+    # MAI HAN-AKAT is a COMBINING MARK: str.isalpha() is False for it and common.is_letter is not,
+    # which is the whole reason is_letter exists (an abugida is mostly marks)
+    assert not "\u0e31".isalpha() and C.is_letter("\u0e31")
+    assert c1["char_type"] == "letter_arm", c1
+    c0 = C.token_covariates(tok, ids, 0, "Thai", unspaced=True)
+    assert c0["multi_char"] and not c0["byte_piece"] and c0["unitend_rule"] == "none", c0
+    c2 = C.token_covariates(tok, ids, 2, "Thai", unspaced=True)
+    assert c2["byte_piece"] and c2["unitend_rule"] == "none", c2  # p already ends the character
+
+
+def check_token_covariates_python():
+    """Code: whitespace units over indentation, and a single-token word."""
+    pieces = [b"def", b" foo", b"(", b"x", b"):", b"\n    ", b"return", b" x"]
+    tok = FakeByteTok(pieces)
+    ids = list(range(len(pieces)))
+    c0 = C.token_covariates(tok, ids, 0, "Latin", unspaced=False)
+    assert c0["tok_class"] == "word" and c0["n_subtokens"] == 1, c0
+    c2 = C.token_covariates(tok, ids, 2, "Latin", unspaced=False)
+    assert c2["tok_class"] == "mid" and c2["n_subtokens"] == 4, c2  # ' foo' '(' 'x' '):'
+    assert c2["unitend_p"] == 4 and c2["char_type"] == "punct", c2
+    c6 = C.token_covariates(tok, ids, 6, "Latin", unspaced=False)
+    assert c6["tok_class"] == "word", c6  # the indentation token carries the whitespace
+    assert C.code_like("def f(x):\n    return {1: 2};\nimport os\n")
+    assert not C.code_like("Dobry den, jak se mate? Dnes je krasne pocasi a jdu ven.")
+
+
+def check_script_fraction():
+    assert C.script_fraction("Dobry den", "Latin") == 1.0
+    assert C.script_fraction("\u0434\u0435\u043d\u044c", "Cyrillic") == 1.0
+    assert C.script_fraction("\u0434\u0435\u043d\u044c", "Latin") == 0.0
+    assert C.script_fraction("\u3053\u308c\u306f\u65e5\u672c", "Jpan") == 1.0  # kana + han
+    assert C.script_fraction("\u3053\u308c\u306f\u65e5\u672c", "Han") < 1.0
+    assert C.script_fraction("123 + 456 = 579", "Latin") != C.script_fraction("123", "Latin")  # nan != nan
+    mixed = C.script_fraction("\u0e2a\u0e27\u0e31\u0e2a hello", "Thai")
+    assert abs(mixed - 4 / 9) < 1e-9, mixed
+
+
+def check_arm_perm_and_rng():
+    """The permutation is a function of (arm, seed) only, and different arms differ."""
+    import numpy as np
+
+    a = C.arm_perm("tha_Thai", 1000, 20260918)
+    assert (a == C.arm_perm("tha_Thai", 1000, 20260918)).all()
+    assert not (a == C.arm_perm("python", 1000, 20260918)).all()
+    assert not (a == C.arm_perm("tha_Thai", 1000, 20260919)).all()
+    assert sorted(a.tolist()) == list(range(1000))
+    r1 = C.arm_rng("tha_Thai", 20260918).integers(0, 1_000_000, 8)
+    assert (r1 == C.arm_rng("tha_Thai", 20260918).integers(0, 1_000_000, 8)).all()
+    assert not (r1 == C.arm_rng("python", 20260918).integers(0, 1_000_000, 8)).all()
+    # the p/L stream must NOT be the permutation's stream
+    assert not np.array_equal(r1[:4], C.arm_perm("tha_Thai", 1_000_000, 20260918)[:4])
+
+
+def check_ood_config():
+    """config.yaml's ood_arms and the two OOD held-out sets, as `check` would see them."""
+    cfg = C.load_config()
+    arms = C.ood_arms(cfg)
+    assert len(arms) == 23, len(arms)
+    fams = {}
+    for spec in arms.values():
+        fams[spec["family"]] = fams.get(spec["family"], 0) + 1
+    assert fams == {"lang": 8, "ctrl": 2, "code": 8, "math": 4, "diag": 1}, fams
+    assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 16]] == [
+        "tha_Thai",
+        "ufw_en",
+        "python",
+        "owm",
+    ], "the four 16M arms of review R2"
+    assert [a for a, s in arms.items() if s["unspaced"]] == [
+        "tha_Thai",
+        "cmn_Hani",
+        "jpn_Jpan",
+        "ufw_zh",
+    ], "the four unspaced arms of review R5"
+    assert arms["formulas"]["sizes"] == [1]
+    assert C.is_ood_set(cfg, "2026-09-18_ood_v1")
+    assert not C.is_ood_set(cfg, "2026-09-16_v1")
+    assert len(C.ood_set_arms(cfg, "2026-09-18_ood_v1")) == 23
+    assert cfg["heldout"]["2026-09-18_ood_v1_unitend"]["variant_of"] == "2026-09-18_ood_v1"
+    assert C.families_for(cfg, "2026-09-18_ood_v1", "qwen36-27b") == {}
+
+
+def check_span_in_corpus():
+    """targets._span_in_corpus finds a span and does not find a near miss."""
+    import numpy as np
+
+    from precompute.targets import _span_in_corpus
+
+    toks = np.array([5, 1, 2, 3, 9, 1, 2, 4, 1, 2, 3, 7], dtype=np.int32)
+    assert _span_in_corpus(toks, np.array([1, 2, 3], dtype=np.int32))
+    assert _span_in_corpus(toks, np.array([1, 2, 4], dtype=np.int32))
+    assert not _span_in_corpus(toks, np.array([1, 2, 5], dtype=np.int32))
+    assert not _span_in_corpus(toks, np.array([3, 7, 7], dtype=np.int32))
+    assert _span_in_corpus(toks, np.array([7], dtype=np.int32))
+    assert not _span_in_corpus(np.array([1, 2], dtype=np.int32), np.array([1, 2, 3], dtype=np.int32))
+
 
 CHECKS = [
     check_config,
@@ -2350,6 +2510,14 @@ CHECKS = [
     check_one_set_writers_tuple,
     check_corpus_axis,
     check_rollouts_nla_selftest,
+    check_byte_tables,
+    check_token_covariates_czech,
+    check_token_covariates_thai,
+    check_token_covariates_python,
+    check_script_fraction,
+    check_arm_perm_and_rng,
+    check_ood_config,
+    check_span_in_corpus,
 ]
 
 

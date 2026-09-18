@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import time
+import zlib
 from pathlib import Path
 
 # ---------------------------------------------------------------------------------------------
@@ -149,6 +150,33 @@ def load_config(path: str | Path | None = None) -> dict:
         if "whiten_mu" in spec:
             _check_mu_value(spec["whiten_mu"], f"bases[{base!r}].whiten_mu", allow_unknown=False)
 
+    # The OOD arm corpora are `corpora:` entries like any other -- declared ONCE, in `ood_arms:`,
+    # because that is where the arm's source, ladder and licence already live. Synthesising them
+    # here rather than writing 23 more blocks by hand keeps one source for the ladder: a corpus
+    # built at [1, 4] and declared at [1, 4, 16] somewhere else is exactly the silent mismatch
+    # `assert_corpus_geometry` and the `dirs` uniqueness check below exist to catch.
+    # Geometry is the pipeline's 64/16 (common.SCAN_BLOCK/SCAN_STRIDE), which is also the design's
+    # (infra/2026-09-18_ood-eval-design.md §1: "64-token windows at stride 16"), so no OOD scan
+    # differs from the English one in anything but the text.
+    for arm, aspec in (cfg.get("ood_arms") or {}).items():
+        key = f"ood_{arm}"
+        assert key not in cfg["corpora"], (
+            f"corpora[{key!r}] is declared by hand AND synthesised from ood_arms[{arm!r}]; one of "
+            f"the two ladders would silently win"
+        )
+        cfg["corpora"][key] = {
+            "dir": arm,
+            "sizes": list(aspec["sizes"]),
+            "block": SCAN_BLOCK,
+            "stride": SCAN_STRIDE,
+            "dataset": aspec["dataset"],
+            "note": (
+                f"OOD arm {arm!r} (family {aspec['family']}), its own in-domain corpus, built by "
+                f"`--product corpus --arm {arm}` from the same permuted row stream as the arm's "
+                f"targets and disjoint from them by construction (design §2, §4)."
+            ),
+        }
+
     for key, cspec in cfg["corpora"].items():
         assert isinstance(cspec, dict), f"corpora[{key!r}] must be a mapping, got {cspec!r}"
         for field in ("dir", "sizes", "block", "stride"):
@@ -260,7 +288,46 @@ def load_config(path: str | Path | None = None) -> dict:
             # --mu; `mu_for` refuses to pick one.
             _check_mu_value(spec["mu"], f"maemms[{key!r}].mu", allow_unknown=True)
 
+    # `ood_arms:` (design infra/2026-09-18_ood-eval-design.md §2). Optional: a config without it
+    # is the pre-2026-09-18 pipeline and every check below is skipped.
+    for arm, spec in (cfg.get("ood_arms") or {}).items():
+        assert "/" not in arm and arm, f"ood arm {arm!r} is a DIRECTORY name under corpora/"
+        for field in ("family", "reader", "dataset", "files", "text", "sizes", "script", "unspaced"):
+            assert field in spec, f"ood arm {arm!r} is missing {field!r}"
+        assert spec["family"] in ("lang", "ctrl", "code", "math", "diag"), (
+            f"ood arm {arm!r}: unknown family {spec['family']!r}"
+        )
+        assert spec["reader"] in ("parquet", "jsonl", "jsonl_zst", "formulas"), (
+            f"ood arm {arm!r}: unknown reader {spec['reader']!r}"
+        )
+        assert isinstance(spec["files"], list) and spec["files"], f"ood arm {arm!r}: files must be a list"
+        sizes = spec["sizes"]
+        assert isinstance(sizes, list) and sizes == sorted(sizes) and sizes[0] > 0, (
+            f"ood arm {arm!r}: sizes must be an ascending list of MILLIONS of tokens, got {sizes}"
+        )
+        assert isinstance(spec["unspaced"], bool), f"ood arm {arm!r}: unspaced must be a bool"
+        parts = SCRIPT_ALIASES.get(spec["script"], (spec["script"],))
+        for name in parts:
+            assert name in SCRIPT_RANGES, (
+                f"ood arm {arm!r}: script {spec['script']!r} has no range table "
+                f"(common.SCRIPT_RANGES knows {sorted(SCRIPT_RANGES)})"
+            )
+
     for set_name, spec in cfg["heldout"].items():
+        if spec.get("kind") == "ood":
+            assert cfg.get("ood_arms"), f"heldout {set_name!r} is an ood set but config has no ood_arms"
+            assert int(spec.get("n_per_arm", 0)) > 0, f"heldout {set_name!r}: n_per_arm must be > 0"
+            want = spec.get("arms", "all")
+            assert want == "all" or (isinstance(want, list) and want), (
+                f"heldout {set_name!r}: `arms` must be `all` or a non-empty list, got {want!r}"
+            )
+            if isinstance(want, list):
+                for a in want:
+                    assert a in cfg["ood_arms"], f"heldout {set_name!r}: unknown arm {a!r}"
+            base_set = spec.get("variant_of")
+            assert base_set is None or base_set in cfg["heldout"], (
+                f"heldout {set_name!r}: variant_of {base_set!r} is not a held-out set"
+            )
         assert isinstance(spec.get("families"), dict), (
             f"heldout {set_name!r}: families must be a name -> spec MAPPING (checklist item 38: "
             f"families are keyed by name, never by list position), got {type(spec.get('families'))}"
@@ -1174,6 +1241,11 @@ def scan_dir(base: str, set_name: str, root: str = VOL, corpus_name: str = "") -
     return f"{base_dir(base, root)}/scan/{set_name}{suffix}"
 
 
+def nll_dir(base: str, set_name: str, root: str = VOL) -> str:
+    """`<root>/base/<base>/nll/<set>/` -- the base's own per-token NLL on each target's window."""
+    return f"{base_dir(base, root)}/nll/{set_name}"
+
+
 def sae_dir(sae_key: str, root: str = VOL) -> str:
     base, name = split_key(sae_key, "sae")
     return f"{base_dir(base, root)}/sae/{name}"
@@ -1370,6 +1442,9 @@ def load_corpus(base: str, root: str = VOL, name: str = ""):
 
     The memmap is never randomly indexed across the whole file by the passes -- they walk documents
     in stored order (checklist item 76: volume random reads crawl).
+
+    `name` selects a named corpus (`corpora/<name>/`, e.g. an OOD arm's in-domain corpus)
+    instead of the base's own English one.
     """
     import numpy as np
 
@@ -2685,3 +2760,319 @@ def hard_exit(code: int = 0):
     sys.stdout.flush()
     sys.stderr.flush()
     os._exit(code)
+
+
+# ---------------------------------------------------------------------------------------------
+# The OOD generalisation evaluation (design infra/2026-09-18_ood-eval-design.md)
+#
+# Everything here is CPU and tokenizer-only. It is shared by `corpus --arm`, `targets` on an `ood`
+# held-out set, `nll`, and (through an import of this module) reconstruction/stats_ood.py, so the
+# arm table, the script table and the code-like rule have ONE definition each.
+# ---------------------------------------------------------------------------------------------
+
+
+def ood_arms(cfg: dict) -> dict:
+    """The `ood_arms:` table, keyed by arm id, in config order. Empty when the key is absent."""
+    return dict(cfg.get("ood_arms") or {})
+
+
+def ood_arm(cfg: dict, arm: str) -> dict:
+    arms = ood_arms(cfg)
+    assert arm in arms, f"unknown ood arm {arm!r}; config.yaml has {sorted(arms)}"
+    spec = arms[arm]
+    for field in ("family", "reader", "dataset", "files", "text", "sizes", "script", "unspaced"):
+        assert field in spec, f"ood arm {arm!r} is missing {field!r}"
+    return spec
+
+
+def is_ood_set(cfg: dict, set_name: str) -> bool:
+    return (cfg["heldout"].get(set_name) or {}).get("kind") == "ood"
+
+
+def ood_set_arms(cfg: dict, set_name: str) -> list[str]:
+    """The arms an `ood` held-out set draws, in config order."""
+    spec = cfg["heldout"][set_name]
+    assert spec.get("kind") == "ood", f"held-out set {set_name!r} is not an ood set"
+    want = spec.get("arms", "all")
+    if want == "all":
+        return list(ood_arms(cfg))
+    assert isinstance(want, list) and want, f"heldout {set_name!r}: `arms` must be `all` or a list"
+    for a in want:
+        ood_arm(cfg, a)
+    return list(want)
+
+
+def arm_perm(arm: str, n_rows: int, seed: int):
+    """The arm's ONE row permutation: `default_rng(seed ^ crc32(arm)).permutation(n_rows)`.
+
+    Design §2. `corpus --arm` consumes it from the front until its token budget is met and records
+    how far it got in `stream.json`; `targets` regenerates the identical permutation and continues
+    from that position, which is what makes corpus and target documents disjoint BY CONSTRUCTION
+    rather than by a check. crc32 (not python's `hash`) because `hash` of a str is salted per
+    process and would not reproduce.
+    """
+    import numpy as np
+
+    return np.random.default_rng(int(seed) ^ zlib.crc32(arm.encode("utf-8"))).permutation(int(n_rows))
+
+
+# --- the byte-level BPE pieces behind every tokenisation covariate ----------------------------
+
+def _bytes_to_unicode() -> dict[int, str]:
+    """GPT-2's byte -> printable-unicode table, written out rather than imported.
+
+    `transformers.models.gpt2.tokenization_gpt2.bytes_to_unicode` is the same table; it is copied
+    here because a covariate that decides the paper's `byte_piece` rate must not move when a
+    transformers internal does. `check_token_bytes` verifies the mapping against the real
+    tokenizer before any arm is drawn, so a base whose tokenizer is NOT byte-level GPT-2 style
+    fails loudly instead of producing a plausible-looking wrong rate.
+    """
+    bs = (
+        list(range(ord("!"), ord("~") + 1))
+        + list(range(ord("¡"), ord("¬") + 1))
+        + list(range(ord("®"), ord("ÿ") + 1))
+    )
+    cs = list(bs)
+    n = 0
+    for b in range(256):
+        if b not in bs:
+            bs.append(b)
+            cs.append(256 + n)
+            n += 1
+    return dict(zip(bs, [chr(c) for c in cs], strict=True))
+
+
+BYTE_ENCODER = _bytes_to_unicode()
+BYTE_DECODER = {c: b for b, c in BYTE_ENCODER.items()}
+WS_BYTES = frozenset(b" \t\n\r\x0b\x0c")
+
+
+def token_bytes(tok, ids) -> list[bytes | None]:
+    """The raw bytes of each token id, or None for a piece that is not byte-level (a special token).
+
+    `convert_ids_to_tokens` returns the byte-level strings ('Ġthe', 'ä¸Ń'); BYTE_DECODER maps them
+    back to the bytes the text was made of, which is the only representation in which "this token
+    is half a character" and "this token starts a whitespace unit" are well defined. `tok.decode`
+    cannot answer either question: it replaces a partial character with U+FFFD and loses the bytes.
+    """
+    pieces = tok.convert_ids_to_tokens([int(i) for i in ids])
+    out: list[bytes | None] = []
+    for pc in pieces:
+        try:
+            out.append(bytes(BYTE_DECODER[c] for c in pc))
+        except KeyError:
+            out.append(None)  # a special token (<|endoftext|> and friends): not byte-level
+    return out
+
+
+def check_token_bytes(tok, ids) -> str:
+    """Assert that `token_bytes` reconstructs exactly what the tokenizer decodes. Returns a note.
+
+    Run once per arm in `targets` and in the unit smoke. A mismatch means the byte table above is
+    not this tokenizer's, and every `byte_piece` / `tok_class` number would be quietly wrong.
+    """
+    pb = token_bytes(tok, ids)
+    n_special = sum(1 for b in pb if b is None)
+    joined = b"".join(b for b in pb if b is not None)
+    ours = joined.decode("utf-8", errors="replace")
+    theirs = tok.decode([int(i) for i in ids])
+    assert n_special == 0 and ours == theirs, (
+        f"token_bytes does not reconstruct the tokenizer's own decode: {n_special} non-byte-level "
+        f"piece(s), and the two strings differ at "
+        f"{next((k for k in range(min(len(ours), len(theirs))) if ours[k] != theirs[k]), len(ours))} "
+        f"(lengths {len(ours)} vs {len(theirs)}). The byte-level BPE assumption behind every "
+        f"tokenisation covariate does not hold for this tokenizer."
+    )
+    return f"token_bytes verified against tok.decode on {len(pb)} tokens ({len(joined)} bytes)"
+
+
+def _char_boundaries(pb: list[bytes | None]):
+    """(boundary, first_char) per token, from one incremental UTF-8 decode of the byte stream.
+
+    boundary[i]   the byte prefix through token i ends on a character boundary (nothing pending)
+    first_char[i] the first character COMPLETED inside token i, or None when token i completes none
+    """
+    import codecs
+
+    dec = codecs.getincrementaldecoder("utf-8")("replace")
+    boundary, first_char = [], []
+    for b in pb:
+        s = dec.decode(b if b is not None else b"")
+        boundary.append(dec.getstate()[0] == b"")
+        first_char.append(s[0] if s else None)
+    return boundary, first_char
+
+
+# Unicode script ranges, one entry per script an arm can be in (config `script:`). Coarse on
+# purpose: the covariate asks "is this character in the arm's script", not "which of 160 scripts".
+SCRIPT_RANGES = {
+    "Latin": ((0x0041, 0x005A), (0x0061, 0x007A), (0x00C0, 0x024F), (0x1E00, 0x1EFF)),
+    "Cyrillic": ((0x0400, 0x04FF), (0x0500, 0x052F), (0x2DE0, 0x2DFF), (0xA640, 0xA69F)),
+    "Greek": ((0x0370, 0x03FF), (0x1F00, 0x1FFF)),
+    "Arabic": ((0x0600, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)),
+    "Devanagari": ((0x0900, 0x097F), (0xA8E0, 0xA8FF)),
+    "Thai": ((0x0E00, 0x0E7F),),
+    "Han": ((0x3400, 0x4DBF), (0x4E00, 0x9FFF), (0xF900, 0xFAFF), (0x20000, 0x2A6DF)),
+    "Kana": ((0x3040, 0x309F), (0x30A0, 0x30FF), (0x31F0, 0x31FF)),
+    "Hangul": ((0xAC00, 0xD7AF), (0x1100, 0x11FF), (0x3130, 0x318F)),
+}
+# A composite arm script: Japanese text is Han + both kana, and a Han-only test would call every
+# hiragana particle "other script".
+SCRIPT_ALIASES = {"Jpan": ("Han", "Kana")}
+
+
+def in_script(ch: str, script: str) -> bool:
+    """Is `ch` a character of `script` (config `script:` of an arm)? Unknown scripts raise."""
+    parts = SCRIPT_ALIASES.get(script, (script,))
+    o = ord(ch)
+    for name in parts:
+        assert name in SCRIPT_RANGES, f"unknown script {name!r}; known: {sorted(SCRIPT_RANGES)}"
+        if any(lo <= o <= hi for lo, hi in SCRIPT_RANGES[name]):
+            return True
+    return False
+
+
+def is_letter(ch: str) -> bool:
+    """A letter for the script covariates: a Unicode letter OR a combining mark.
+
+    `str.isalpha()` is False for Mn/Mc, which would make every Thai vowel sign, every Devanagari
+    matra and every Arabic diacritic `punct` -- exactly the characters an abugida arm is made of.
+    """
+    import unicodedata
+
+    return unicodedata.category(ch) in ("Lu", "Ll", "Lt", "Lm", "Lo", "Mn", "Mc", "Me")
+
+
+def script_fraction(text: str, script: str) -> float:
+    """Fraction of the LETTERS of `text` that are in `script` (design §5, H's CPU classifier).
+
+    Non-letters (digits, punctuation, whitespace, symbols) are not counted on either side, so a
+    rollout of pure LaTeX has an undefined -- returned as nan -- script fraction rather than 0.
+    """
+    letters = [c for c in text if is_letter(c)]
+    if not letters:
+        return float("nan")
+    return sum(1 for c in letters if in_script(c, script)) / len(letters)
+
+
+# The one code-like rule, used twice (review R3 on rollouts, R7 on the training corpus). Written
+# out here and PRINTED by both callers' READMEs, so the paper can state it in a sentence.
+CODE_LIKE_MARKERS = ("def ", "{", "};", "import ", "#include", "</", "=>", "->", "();")
+CODE_LIKE_MIN = 3  # distinct markers (indentation runs count as one) per 512-token window
+
+
+def code_like(text: str) -> bool:
+    """>= CODE_LIKE_MIN of {the markers above} + `an indentation run` occur in `text`."""
+    import re
+
+    hits = sum(1 for m in CODE_LIKE_MARKERS if m in text)
+    if re.search(r"\n[ \t]{2,}\S", text):
+        hits += 1
+    return hits >= CODE_LIKE_MIN
+
+
+UNIT_CAP = 16  # `n_subtokens` is capped here (design §3)
+UNITEND_MAX_SHIFT = 8  # how far `_unitend` may move p forward (design §3)
+
+
+def token_covariates(tok, ids, p: int, script: str, unspaced: bool) -> dict:
+    """The design §3 + §11 R5 covariates of the token at position `p` of a token window.
+
+    All of it from the tokenizer alone, at draw time, on the CPU:
+
+      tok_class    `unspaced` on an unspaced arm; otherwise `word` (the token both starts and ends
+                   a whitespace-delimited unit), `first`, `mid` or `last`
+      n_subtokens  the length of that unit, capped at UNIT_CAP; None on an unspaced arm
+      unit_start / unit_end   the unit's token indices (None on an unspaced arm)
+      byte_piece   the token's bytes are not valid UTF-8 on their own -- a partial character under
+                   Qwen's byte-level BPE (R5)
+      whole_char   the token is exactly one character; multi_char: two or more (R5)
+      char_type    of the character the token's first byte belongs to: `letter_arm` (a letter of
+                   the arm's script), `letter_other`, `digit`, `punct`, `space`
+      unitend_p    where the `_unitend` variant would move p: the unit's last token on a spaced
+                   arm (wordend), the end of the character on an unspaced one (charend)
+      unitend_rule `wordend` | `charend` | `none` (p already ends its unit / character)
+
+    A whitespace-delimited unit is a maximal run of tokens with no whitespace byte between them:
+    token i starts a unit iff its first byte is whitespace, or the previous token's bytes carry
+    whitespace after their first byte, or i is the first token of the window.
+    """
+    n = len(ids)
+    assert 0 <= p < n, f"p={p} outside the {n}-token window"
+    pb = token_bytes(tok, ids)
+    boundary, first_char = _char_boundaries(pb)
+
+    def bts(i) -> bytes:
+        return pb[i] if pb[i] is not None else b""
+
+    def lead_ws(i) -> bool:
+        b = bts(i)
+        return bool(b) and b[0] in WS_BYTES
+
+    def inner_ws(i) -> bool:
+        return any(c in WS_BYTES for c in bts(i)[1:])
+
+    def starts(i) -> bool:
+        return i == 0 or lead_ws(i) or inner_ws(i - 1)
+
+    own = bts(p)
+    try:
+        dec_own = own.decode("utf-8")
+        is_byte_piece = False
+    except UnicodeDecodeError:
+        dec_own = ""
+        is_byte_piece = True
+
+    # the character this token's first byte belongs to = the first character completed at or after p
+    ch = next((first_char[j] for j in range(p, n) if first_char[j] is not None), None)
+    if ch is None:
+        char_type = "partial"
+    elif ch.isspace():
+        char_type = "space"
+    elif ch.isdigit():
+        char_type = "digit"
+    elif is_letter(ch):
+        char_type = "letter_arm" if in_script(ch, script) else "letter_other"
+    else:
+        char_type = "punct"
+
+    out = {
+        "byte_piece": is_byte_piece,
+        "whole_char": (not is_byte_piece) and len(dec_own) == 1,
+        "multi_char": (not is_byte_piece) and len(dec_own) >= 2,
+        "char_type": char_type,
+    }
+    if unspaced:
+        out.update(tok_class="unspaced", n_subtokens=None, unit_start=None, unit_end=None)
+        j = next((k for k in range(p, n) if boundary[k]), n - 1)
+        out["unitend_p"] = min(j, p + UNITEND_MAX_SHIFT, n - 1)
+        out["unitend_rule"] = "charend" if out["unitend_p"] > p else "none"
+        return out
+
+    s = p
+    while s > 0 and not starts(s):
+        s -= 1
+    e = p
+    while e + 1 < n and not starts(e + 1):
+        e += 1
+    at_start, at_end = s == p, e == p
+    out["tok_class"] = (
+        "word" if at_start and at_end else "first" if at_start else "last" if at_end else "mid"
+    )
+    out["n_subtokens"] = min(e - s + 1, UNIT_CAP)
+    out["unit_start"], out["unit_end"] = s, e
+    out["unitend_p"] = min(e, p + UNITEND_MAX_SHIFT, n - 1)
+    out["unitend_rule"] = "wordend" if out["unitend_p"] > p else "none"
+    return out
+
+
+def arm_rng(arm: str, seed: int, stream: int = 1):
+    """A per-arm rng INDEPENDENT of `arm_perm`'s (which is `stream` 0 in all but name).
+
+    `default_rng` takes a sequence of ints as entropy, so (seed, crc32(arm), stream) gives each arm
+    its own reproducible stream for the p / L / norm-presample draws without disturbing the row
+    permutation the corpus and the pool were cut from.
+    """
+    import numpy as np
+
+    return np.random.default_rng([int(seed), zlib.crc32(arm.encode("utf-8")), int(stream)])

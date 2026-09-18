@@ -54,6 +54,13 @@ DEFAULTS = {
     "stratified": False, "seed": 0, "sides": "",
     # heldout_v3: which block of the eval-1 v3 set to write.
     "block": "",
+    # The OOD generalisation eval (infra/2026-09-18_ood-eval-design.md). `arm` is one of
+    # `ood_arms:` for `corpus`/`targets`/`ood_selfcheck`; `arm_seed` is that draw's rng seed
+    # (NOT `seed`, which is draw_sae2m's); `max_size`/`with_set` shape a `scan`; `stages` picks
+    # the halves of `ood_selfcheck`. Same bypass caveat as `stratified` above: modal_app.main's
+    # per-product asserts do not run on this path, so a flag given to the wrong product here is
+    # simply a key that product ignores.
+    "arm": "", "arm_seed": 0, "max_size": 0, "with_set": "", "stages": "",
     "dry_run": False,
 }
 # Handled by spawn itself rather than passed through: --set is folded into --heldout here the way
@@ -114,8 +121,16 @@ def main() -> None:
             f"pass --corpus {a.corpus!r} OR --corpus-name {a.corpus_name!r}, not both: the key "
             f"resolves to the directory name and two sources for one value can only disagree"
         )
-        args["corpus_name"] = C.corpus_key_name(C.load_config(), a.corpus)
-        print(f"[spawn] corpus {a.corpus} -> dir {args['corpus_name'] or 'corpus'}")
+        _cfg = C.load_config()
+        # A comma-separated LIST, as modal_app.main takes it: the OOD sweep scans several
+        # in-domain corpora per container. "" (the base's own English corpus) is a legal element,
+        # so the parts are NOT filtered -- ",tha_Thai" means both of them.
+        _dirs = []
+        for _k in [k for k in a.corpus.split(",") if k]:
+            _dirs.append(C.corpus_key_name(_cfg, _k))
+            C.assert_corpus_geometry(_cfg, _dirs[-1])
+        args["corpus_name"] = ",".join(_dirs)
+        print(f"[spawn] corpus {a.corpus} -> dirs {args['corpus_name'] or 'corpus'}")
     args["root"] = args["root"].rstrip("/") or "/vol"
     # The same D6 guard modal_app.main applies: a product that WRITES a set is never given the
     # live default. This path bypasses that entrypoint entirely, which is exactly how the hazard

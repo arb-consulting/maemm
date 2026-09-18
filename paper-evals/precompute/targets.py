@@ -634,6 +634,8 @@ def run(cfg, args):
 
     if args.get("import_run1"):
         return import_run1(cfg, args)
+    if C.is_ood_set(cfg, args["heldout"]):
+        return run_ood(cfg, args)
 
     base, root = args["base"], args["root"]
     set_name = args["heldout"]
@@ -801,3 +803,340 @@ def run(cfg, args):
         "leakage_hits": len(hits),
         "re_derive": redone,
     }
+
+
+# =============================================================================================
+# The OOD generalisation sets (design infra/2026-09-18_ood-eval-design.md §2, §3, §11 R5)
+#
+#     <root>/base/<base>/heldout/2026-09-18_ood_v1/
+#         ids.jsonl      one row per target: row, family, arm, id, p, L, the source coordinates,
+#                        the tokenisation covariates, the licence
+#         vecs.f16       [N, d] unit rows, `unit(X[p] - stats/mu.f32)` -- the ENGLISH centring mean
+#         windows.i32    [N, 512] the 512-token no-BOS window each target was read from, so `nll`
+#                        and any re-analysis need neither the source nor the network
+#
+# The draw runs OFFLINE: `corpus --arm` already wrote each arm's target pool (the documents after
+# its corpus in the same permuted row stream) into `corpora/<arm>/pool_windows.i32`.
+# =============================================================================================
+
+OOD_PRESAMPLE_ROWS = 64  # pool windows forwarded for the norm-filter presample (as `_realact`)
+
+
+def _forward_windows(model, read_layer, windows, device="cuda"):
+    """Read-layer activations [n, T, d] (fp32, cpu) of an [n, T] token array. No sink token."""
+    import torch
+
+    out = []
+    for s in range(0, len(windows), REALACT_DOCS_PER_FWD):
+        ids = np.asarray(windows[s : s + REALACT_DOCS_PER_FWD], dtype=np.int64)
+        t = torch.from_numpy(ids).to(device)
+        h, _ = C.read_resid(
+            model, read_layer, {"input_ids": t, "attention_mask": torch.ones_like(t)}, pool="all"
+        )
+        out.append(h.cpu())
+    return torch.cat(out)
+
+
+def _span_in_corpus(toks, span) -> bool:
+    """Does the token sequence `span` occur verbatim anywhere in `toks`? (design §4)
+
+    Pruned on the first TWO tokens before the full compare, which is what keeps a common leading
+    token (a space, a newline) from costing a length-L compare at every one of its occurrences.
+    """
+    m = len(span)
+    if m == 0 or m > len(toks):
+        return False
+    cand = np.flatnonzero(toks[: len(toks) - m + 1] == span[0])
+    if m > 1 and cand.size:
+        cand = cand[toks[cand + 1] == span[1]]
+    for i in cand:
+        if np.array_equal(toks[i : i + m], span):
+            return True
+    return False
+
+
+def _ood_arm_draw(cfg, args, model, tok, arm, n, seed, od):
+    """One arm's `n` targets, from its pool windows. Returns (rows, acts, windows, report)."""
+    import torch
+
+    base, root = args["base"], args["root"]
+    read_layer = cfg["bases"][base]["read_layer"]
+    spec = C.ood_arm(cfg, arm)
+    cdir = C.corpus_dir(base, root, arm)
+    assert os.path.exists(f"{cdir}/stream.json"), (
+        f"no {cdir}: run `--product corpus --base {base} --arm {arm}` first (it writes the target "
+        f"pool this draw reads)"
+    )
+    with open(f"{cdir}/stream.json") as fh:
+        stream = json.load(fh)
+    pool = C.read_jsonl(f"{cdir}/pool.jsonl")
+    pool_n, window = len(pool), int(stream["pool_window"])
+    wins = C.read_array(f"{cdir}/pool_windows.i32", "int32", (pool_n, window))
+    rng = C.arm_rng(arm, seed)
+    p_all = rng.integers(REALACT_P_MIN, window, size=pool_n)
+    l_all = rng.integers(SPAN_MIN, SPAN_MAX + 1, size=pool_n)
+
+    t0 = time.time()
+    n_pre = min(OOD_PRESAMPLE_ROWS, pool_n)
+    pre = _forward_windows(model, read_layer, wins[:n_pre])
+    ii = rng.integers(0, n_pre, NORM_PRESAMPLE)
+    pp = rng.integers(REALACT_P_MIN, window, NORM_PRESAMPLE)
+    med = float(pre[torch.from_numpy(ii), torch.from_numpy(pp)].norm(dim=-1).median())
+    del pre
+
+    xs = []
+    for s in range(0, pool_n, 256):
+        h = _forward_windows(model, read_layer, wins[s : s + 256])
+        xs.append(h[torch.arange(h.shape[0]), torch.from_numpy(p_all[s : s + h.shape[0]])].clone())
+    x = torch.cat(xs)
+    nrm = x.norm(dim=-1)
+    ok = (nrm > 1e-3) & (nrm <= NORM_FILTER_MULT * med)
+    print(
+        f"[ood {arm}] presample median raw norm {med:.1f}; {int(ok.sum())}/{pool_n} pool windows "
+        f"pass the filter ({time.time() - t0:.0f}s)",
+        flush=True,
+    )
+
+    note = C.check_token_bytes(tok, [int(t) for t in wins[0]])
+    rows, acts, windows = [], [], []
+    for i in np.flatnonzero(ok.numpy()):
+        if len(rows) >= n:
+            break
+        i = int(i)
+        p, span = int(p_all[i]), int(l_all[i])
+        ids = wins[i]
+        cov = C.token_covariates(tok, [int(t) for t in ids], p, spec["script"], bool(spec["unspaced"]))
+        rows.append(
+            {
+                "family": spec["family"],
+                "arm": arm,
+                "id": f"{arm}:pool{i}:p{p}:L{span}",
+                "stratum": cov.get("tok_class"),
+                "pool_i": i,
+                "src_rows": pool[i]["rows"],
+                "src_dataset": stream["dataset"],
+                "src_revision": stream["revision"],
+                "src_split": stream.get("split"),
+                "src_files": stream["files"],
+                "licence": stream.get("licence"),
+                "p": p,
+                "L": span,
+                "act_norm": round(float(nrm[i]), 3),
+                "span_text": tok.decode([int(t) for t in ids[p - span + 1 : p + 1]]),
+                **{k: v for k, v in cov.items() if k not in ("unit_start", "unit_end")},
+            }
+        )
+        acts.append(x[i].float())  # RAW X[p]; the mean is named per RUN, not baked in here
+        windows.append(np.asarray(ids, dtype=np.int32))
+    assert len(rows) == n, (
+        f"arm {arm}: only {len(rows)} of {n} targets survived the raw-norm filter over a "
+        f"{pool_n}-document pool"
+    )
+
+    toks = np.memmap(f"{cdir}/tokens.i32", dtype=np.int32, mode="r")
+    verbatim = sum(
+        1
+        for r, w in zip(rows, windows, strict=True)
+        if _span_in_corpus(toks, w[r["p"] - r["L"] + 1 : r["p"] + 1])
+    )
+    report = {
+        "arm": arm,
+        "family": spec["family"],
+        "n": len(rows),
+        "pool_n": pool_n,
+        "pass_norm_filter": int(ok.sum()),
+        "norm_median": round(med, 2),
+        "verbatim_spans": verbatim,
+        "verbatim_rate": round(verbatim / len(rows), 4),
+        "corpus_tokens": int(stream["corpus_tokens"]),
+        "revision": stream["revision"],
+        "byte_piece_rate": round(sum(r["byte_piece"] for r in rows) / len(rows), 4),
+        "tok_class": {
+            c: sum(1 for r in rows if r.get("tok_class") == c)
+            for c in sorted({r.get("tok_class") for r in rows})
+        },
+        "char_type": {
+            c: sum(1 for r in rows if r["char_type"] == c)
+            for c in sorted({r["char_type"] for r in rows})
+        },
+    }
+    print(f"[ood {arm}] {report}", flush=True)
+    od.note(
+        f"arm `{arm}` ({spec['family']}): {len(rows)} targets from a {pool_n}-doc pool "
+        f"({int(ok.sum())} passed the norm filter, presample median {med:.1f}); source "
+        f"{stream['dataset']}@{stream['revision'][:12]}; corpus {stream['corpus_tokens']} tokens; "
+        f"verbatim shown span in its own corpus: {verbatim}/{len(rows)} "
+        f"({verbatim / len(rows):.1%}); byte-piece rate {report['byte_piece_rate']:.3f}; "
+        f"tok_class {report['tok_class']}; {note}"
+    )
+    return rows, acts, windows, report
+
+
+def run_ood(cfg, args):
+    """`--set <an ood set>`: 64 targets per arm, or the `_unitend` variant of an existing set."""
+    import torch
+
+    base, root = args["base"], args["root"]
+    set_name = args["heldout"]
+    spec = cfg["heldout"][set_name]
+    seed = int(spec["seed"])
+    n = int(spec["n_per_arm"])
+    arms = C.ood_set_arms(cfg, set_name)
+    only = [a for a in (args.get("arm") or "").split(",") if a]
+    if only:
+        for a in only:
+            assert a in arms, f"--arm {a!r} is not in set {set_name!r} ({arms})"
+        arms = only
+    read_layer = cfg["bases"][base]["read_layer"]
+    variant_of = spec.get("variant_of")
+
+    out = C.heldout_dir(base, set_name, root)
+    inputs = {
+        "base": base,
+        "set": set_name,
+        "arms": arms,
+        "n_per_arm": n,
+        "seed": seed,
+        "storage": "raw (act.f32 + unit(act)); the centring mean is NAMED per run, not stored",
+    }
+    if variant_of:
+        inputs["variant_of"] = C.heldout_dir(base, variant_of, root)
+    with C.outdir(out, args, inputs=inputs) as od:
+        model, tok = C.load_base(cfg, base)
+        rows, acts, windows, reports = [], [], [], []
+        if variant_of:
+            rows, acts, windows, reports = _ood_variant(cfg, args, model, tok, variant_of, arms, od)
+        else:
+            for arm in arms:
+                r, v, w, rep = _ood_arm_draw(cfg, args, model, tok, arm, n, seed, od)
+                rows += r
+                acts += v
+                windows += w
+                reports.append(rep)
+        for i, row in enumerate(rows):
+            row["row"] = i
+        # STORAGE: raw (plan §1.2, §4.3.1). act.f32 is X[p] as read and vecs.f16 is unit(act);
+        # the English centring the design fixes (§10 decision 10) is now NAMED at run time --
+        # `--mu base/{base}/stats/mu.f32`, which is every OOD product's default through the
+        # MAEMM's own `mu:` -- instead of being baked into the stored row. The design's choice is
+        # preserved exactly; what changes is that a per-arm-centred rescoring is a flag rather
+        # than a re-draw.
+        a = torch.stack(acts).float()
+        v = torch.nn.functional.normalize(a, dim=-1)
+        nrm = v.norm(dim=-1)
+        assert torch.allclose(nrm, torch.ones_like(nrm), atol=1e-5), (
+            f"held-out vectors must be unit rows; got min {nrm.min():.6f} max {nrm.max():.6f}"
+        )
+        # The contract in one assert, as the English path has it: vecs.f16 IS unit(act.f32).
+        cos_av = torch.nn.functional.cosine_similarity(a, v.float(), dim=-1)
+        assert float(cos_av.min()) > 1 - 1e-5, (
+            f"vecs.f16 is not unit(act.f32) on every row: min cos {float(cos_av.min()):.6f}"
+        )
+        ordered = [{"row": r["row"], **{k: x for k, x in r.items() if k != "row"}} for r in rows]
+        od.write_jsonl("ids.jsonl", ordered)
+        od.write_array("act.f32", a, "float32")
+        od.write_array("vecs.f16", v, "float16")
+        od.write_array("windows.i32", np.stack(windows), "int32")
+        od.write_json(
+            C.STORAGE_FILE,
+            C.storage_record(cfg, set_name, sorted({r["family"] for r in rows})),
+        )
+        od.write_json("arms.json", {"arms": arms, "reports": reports})
+        od.section(
+            "Draw",
+            [
+                f"OOD generalisation set `{set_name}` (design "
+                "`infra/2026-09-18_ood-eval-design.md` §2/§3, review §11 R5).",
+                "",
+                f"- {len(arms)} arms x {n} targets; the family of a row is its ARM's family and "
+                "`arm` is the second stratification key;",
+                "- each arm's targets come from `corpora/<arm>/pool_windows.i32`, the documents "
+                "AFTER that arm's corpus in the one permuted row stream of the source slice, so "
+                "corpus and target documents are disjoint by construction (design §2);",
+                f"- the rule is `_realact`'s, unchanged: a 512-token no-BOS window, `p ~ "
+                f"U[{REALACT_P_MIN}, 512)`, shown span `L ~ U[{SPAN_MIN}, {SPAN_MAX}]` ending at "
+                f"p, a raw-norm filter (> 1e-3 and <= {NORM_FILTER_MULT}x a "
+                f"{NORM_PRESAMPLE}-position presample median of the SAME arm's pool), applied at "
+                "selection only;",
+                "- STORAGE `raw` (storage.json): `act.f32` is `X[p]` as read and `vecs.f16` is "
+                "`unit(X[p])`, UNCENTRED. The direction a run scores against is derived at read "
+                "time by `common.dirs_for` under the mean that run NAMES. The design's mean is "
+                "the ENGLISH `stats/mu.f32` on every arm (open decision 10: the centring mean is "
+                "the inverter's input convention, not a property of the domain), which is what "
+                "each MAEMM's own `mu:` resolves to for the old primary; `rl-last16` names "
+                "`whiten_mu` instead, and both are legal readings of the same stored rows;",
+                "- `p` and `L` come from `common.arm_rng(arm, seed)`, a stream independent of the "
+                "row permutation `common.arm_perm(arm, ...)` the corpus was cut from;",
+                "- the tokenisation covariates (`tok_class`, `n_subtokens`, `byte_piece`, "
+                "`whole_char`, `multi_char`, `char_type`) are from the TOKENIZER alone, at draw "
+                "time, on the CPU (`common.token_covariates`); `unspaced` arms get the single "
+                "class `unspaced` and no `n_subtokens`, because they have no defensible word "
+                "boundary (design §3);",
+                "- `windows.i32` [N, 512] stores each target's window, so `nll` and any "
+                "re-analysis need neither the source nor the network.",
+            ],
+        )
+        od.note(
+            "verbatim-span rate per arm is in the per-arm notes above and in `arms.json`: the "
+            "fraction of targets whose SHOWN span occurs verbatim somewhere in that arm's own "
+            "corpus (design §4 -- near-duplicate documents are reported, never masked)"
+        )
+        od.note(f"read layer {read_layer}; d {cfg['bases'][base]['d']}; one row per target")
+    return {
+        "out": out,
+        "rows": len(rows),
+        "arms": {r["arm"]: r["n"] for r in reports},
+        "reports": reports,
+    }
+
+
+def _ood_variant(cfg, args, model, tok, variant_of, arms, od):
+    """`_unitend` (review R5): the base set's windows with `p` moved to the end of its unit.
+
+    wordend on the spaced-script and code arms (p -> the last token of its whitespace unit),
+    charend on the unspaced ones (p -> the last byte piece of its character, and only where the
+    token at p is a partial character). Targets whose `p` already ends its unit are carried over
+    unchanged with `variant_rule: none`, so the variant set is row-for-row comparable.
+    """
+    base, root = args["base"], args["root"]
+    read_layer = cfg["bases"][base]["read_layer"]
+    src = C.heldout_dir(base, variant_of, root)
+    base_rows = C.read_jsonl(f"{src}/ids.jsonl")
+    n_all = len(base_rows)
+    wins_all = C.read_array(f"{src}/windows.i32", "int32", (n_all, REALACT_WINDOW))
+    keep = [i for i, r in enumerate(base_rows) if r["arm"] in arms]
+    assert keep, f"none of {arms} is in {src}/ids.jsonl"
+    rows, acts, windows, reports = [], [], [], []
+    for arm in arms:
+        sel = [i for i in keep if base_rows[i]["arm"] == arm]
+        wins = wins_all[sel]
+        h = _forward_windows(model, read_layer, wins)
+        moved = 0
+        for k, i in enumerate(sel):
+            b = dict(base_rows[i])
+            p_new = int(b["unitend_p"])
+            rule = b["unitend_rule"]
+            moved += rule != "none"
+            span = int(b["L"])
+            ids = wins[k]
+            row = {
+                **{x: y for x, y in b.items() if x != "row"},
+                "p": p_new,
+                "p_orig": int(b["p"]),
+                "variant_rule": rule,
+                "variant_of": variant_of,
+                "id": f"{arm}:pool{b['pool_i']}:p{p_new}:L{span}",
+                "span_text": tok.decode([int(t) for t in ids[max(0, p_new - span + 1) : p_new + 1]]),
+                "act_norm": round(float(h[k, p_new].norm()), 3),
+            }
+            rows.append(row)
+            acts.append(h[k, p_new].float())  # RAW X[p_new], as the base set
+            windows.append(np.asarray(ids, dtype=np.int32))
+        rules = {
+            r: sum(1 for i in sel if base_rows[i]["unitend_rule"] == r)
+            for r in ("wordend", "charend", "none")
+        }
+        reports.append({"arm": arm, "n": len(sel), "moved": moved, "rules": rules})
+        od.note(f"arm `{arm}`: {moved}/{len(sel)} targets moved; rules {rules}")
+        print(f"[ood-variant {arm}] {moved}/{len(sel)} moved, rules {rules}", flush=True)
+    return rows, acts, windows, reports

@@ -63,6 +63,11 @@ _image_base = (
             "PYTHONPATH": REMOTE_ROOT,
         }
     )
+    # The OOD arms' readers (2026-09-18): `zstandard` for Proof-Pile-2's `.jsonl.zst` shards and
+    # `pyarrow` for the column-projected parquet reader (`datasets` pulls pyarrow in already; it is
+    # named here so the reader does not depend on that staying true). Its OWN layer, on top of the
+    # env, so every layer below stays a cache hit on this workspace.
+    .pip_install("zstandard", "pyarrow")
 )
 
 # Qwen3.6-27B: 48 of its 64 layers are GatedDeltaNet and transformers picks fla's Triton kernel
@@ -221,10 +226,27 @@ def product_check(cfg, args):
                     "max_new": int(nla["max_new"]),
                 }
 
+    for arm, spec in sorted(C.ood_arms(cfg).items()):
+        print(
+            f"[check] ood arm {arm}: {spec['family']} {spec['dataset']} reader={spec['reader']} "
+            f"files={len(spec['files'])} sizes={spec['sizes']} script={spec['script']} "
+            f"unspaced={spec['unspaced']} lid={spec.get('lid')}",
+            flush=True,
+        )
     heldout = sorted(cfg["heldout"])
     report["heldout"] = {}
     for set_name in heldout:
         for base in bases:
+            if C.is_ood_set(cfg, set_name):
+                hspec = cfg["heldout"][set_name]
+                arms = C.ood_set_arms(cfg, set_name)
+                var = hspec.get("variant_of")
+                print(
+                    f"[check] heldout {set_name} on {base}: OOD set, {len(arms)} arms x "
+                    f"{hspec['n_per_arm']} targets" + (f" (variant of {var})" if var else ""),
+                    flush=True,
+                )
+                continue
             fams = C.families_for(cfg, set_name, base)
             print(
                 f"[check] heldout {set_name} on {base}: "
@@ -294,6 +316,8 @@ PRODUCTS = {
     "draw_sae2m": _draw_sae2m,
     "draw_sae131k": _draw_sae131k,
     "heldout_v3": _heldout_v3,
+    "nll": _script("nll"),
+    "ood_selfcheck": _script("ood_selfcheck"),
 }
 # `corpus` is CPU AND the only product that goes to the network: the Ultra-FineWeb parquet parts
 # are not in the volume's HF cache, so corpus.py flips HF_HUB_OFFLINE off for itself. `mu_check`
@@ -438,11 +462,14 @@ def main(
     # repo_examples) it is the only source there is, and they refuse to run on a `storage: raw` set
     # without it (common.mu_for).
     mu: str = "",
-    # WHICH CORPUS, by `corpora:` key (heldout16m, celeste-train10m, ...). Resolves to the
-    # directory name `--corpus-name` takes, so the two flags cannot disagree; pass at most one.
+    # WHICH CORPUS, by `corpora:` key (heldout16m, celeste-train10m, ood_tha_Thai, ...). Resolves
+    # to the directory name `--corpus-name` takes, so the two flags cannot disagree; pass at most
+    # one of the pair. A COMMA-SEPARATED LIST is accepted and `scan` walks them in one call, which
+    # is how the OOD sweep covers several in-domain corpora per container (design §7).
     corpus: str = "",
     # Ari's flag: the corpus DIRECTORY under base/<base>/corpora/. `--corpus` is preferred -- a key
     # carries the ladder, the geometry and the provenance sentence, a directory name carries none.
+    # Also comma-separated, for the same reason.
     corpus_name: str = "",
     # targets: re-forward an EXISTING set under the raw storage contract (act.f32 + unit(act))
     # instead of re-sampling it, asserting row for row that it is the same draw. The named set is
@@ -457,6 +484,18 @@ def main(
     # costs a CPU container and a volume mount, while this costs nothing and still catches a
     # misspelled set, a maemm on the wrong base or a product that needs --maemm.
     dry_run: bool = False,
+    # --- the OOD generalisation evaluation (infra/2026-09-18_ood-eval-design.md) ---------------
+    # `corpus --arm <id>` builds ONE arm's in-domain corpus + its target pool (CPU, network);
+    # `targets --set <ood set> [--arm a,b]` draws that set (or only those arms);
+    # `scan --corpus a,b [--max-size 4] [--with-set 2026-09-16_v1:realact+random]` scans several
+    # corpora in one call, bounded at a nested prefix, with extra target banks appended.
+    arm: str = "",
+    max_size: int = 0,
+    with_set: str = "",
+    # The OOD arm RNG's seed. NOT `--seed`: that one is `draw_sae2m`'s draw seed (evals/sae-smoke64)
+    # and the two would silently swap meaning between products (eval plan §4.2).
+    arm_seed: int = 0,
+    stages: str = "",
 ):
     """Dispatch one product. `base` picks the GPU; CPU products ignore it for placement.
 
@@ -536,6 +575,11 @@ def main(
         "mu": mu,
         "corpus_name": corpus_name,
         "re_derive": re_derive,
+        "arm": arm,
+        "max_size": max_size,
+        "with_set": with_set,
+        "arm_seed": arm_seed,
+        "stages": stages,
         # The container has no git checkout, so the commit every README records is captured here.
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,
@@ -548,9 +592,42 @@ def main(
             f"pass --corpus {corpus!r} OR --corpus-name {corpus_name!r}, not both: the key resolves "
             f"to the directory name and two sources for one value can only ever disagree"
         )
-        args["corpus_name"] = C.corpus_key_name(cfg, corpus)
-        block, stride = C.corpus_geometry(cfg, corpus)
-        print(f"[launch] corpus {corpus} -> dir {args['corpus_name'] or 'corpus'}, window {block}/{stride}")
+        # A LIST, because the OOD sweep scans several in-domain corpora per container (design §7:
+        # four calls of ~6 corpora each, to stay under the 10 h function timeout). One key is the
+        # one-element case; the geometry assert runs per key, so a mismatched corpus in position 4
+        # stops the launch rather than being discovered after three hours of GPU.
+        keys = [k for k in corpus.split(",") if k]
+        dirs = []
+        for k in keys:
+            dirs.append(C.corpus_key_name(cfg, k))
+            block, stride = C.corpus_geometry(cfg, k)
+            C.assert_corpus_geometry(cfg, dirs[-1])
+            print(f"[launch] corpus {k} -> dir {dirs[-1] or 'corpus'}, window {block}/{stride}")
+        args["corpus_name"] = ",".join(dirs)
+    # House style: a flag belongs to ONE product, and a typo that would otherwise reach the
+    # container and cost a scheduled H200 stops here instead.
+    if arm:
+        assert product in ("corpus", "targets", "ood_selfcheck"), (
+            f"--arm names an OOD arm and is a `corpus` / `targets` / `ood_selfcheck` flag "
+            f"(infra/2026-09-18_ood-eval-design.md §2); it means nothing to product {product!r}. "
+            f"The GCG sense of `arm` is a directory name, not a flag."
+        )
+    if arm_seed:
+        assert product == "corpus", (
+            f"--arm-seed is the OOD arm RNG's seed, read by `corpus --arm` when it cuts the "
+            f"permuted row stream; every other product takes the seed from the set's own config "
+            f"entry. It means nothing to product {product!r}."
+        )
+    if max_size or with_set:
+        assert product == "scan", (
+            f"--max-size and --with-set are `scan` flags (a bounded nested prefix, and extra "
+            f"target banks appended to the scanned set); they mean nothing to product {product!r}"
+        )
+    if stages:
+        assert product == "ood_selfcheck", (
+            f"--stages selects which halves of `ood_selfcheck` run (readers,covariates on CPU; "
+            f"nll on the GPU); it means nothing to product {product!r}"
+        )
     if re_derive:
         assert product == "targets", (
             f"--re-derive is a `targets` flag (re-forward an existing set under raw storage) and "
