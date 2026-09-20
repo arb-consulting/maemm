@@ -342,8 +342,19 @@ def run(cfg, args):
     assert base, "product stats needs --base"
     spec = cfg["bases"][base]
     sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(sae_keys) == 1, f"base {base} has {len(sae_keys)} SAEs in config, expected exactly 1"
-    sae_key = sae_keys[0]
+    # A base may carry more than one SAE since 2026-09-20 (qwen36-27b has l42-1b and the
+    # 2M sae2m). Pick with --sae; the single-SAE case keeps its old no-argument behaviour.
+    if args.get("sae"):
+        sae_key = args["sae"] if "/" in args["sae"] else f"{base}/{args['sae']}"
+        assert sae_key in sae_keys, (
+            f"--sae {args['sae']!r} is not an SAE of base {base}; have {sae_keys}"
+        )
+    else:
+        assert len(sae_keys) == 1, (
+            f"base {base} has {len(sae_keys)} SAEs in config ({sae_keys}); "
+            f"pass --sae to say which"
+        )
+        sae_key = sae_keys[0]
 
     toks, docs = C.load_corpus(base, root)
     sizes = C.corpus_sizes(docs)
