@@ -2664,3 +2664,48 @@ directions and is superseded by `epo-corpus`; it carries `view = SUPERSEDED part
 reported arm` and its own `dirs` column says 25. Its rows are real and are kept visible, but nothing
 should average them in — note its MAEMM column reads 0.5151 rather than 0.5313 precisely because it
 is a different subset of directions.
+
+## NLA baseline (2026-09-20, branch `arb/nla` off Ari's `7f3b511`)
+
+`rollouts_nla` runs the public NLA activation verbalizer `ceselder/qwen3.6-27b-nla-av` (merged
+full Qwen3.6-27B, snapshot `def1421d`) over the held-out directions and writes the `rollouts_hf`
+schema, so `score` consumes it unchanged. Input amplitude `--amp exact` (default: `mu + t·u` with
+`||mu + t·u|| = act_norm`; rows without an `act_norm` fall back to `mu + r·u`, r = layer-42 median
+norm 93.26) and `raw` (`r·u`). Every text below hit the 64-token cap (eos rate 0, the `</explanation>`
+close is never reached at 64) -- the card's reference script runs 200 greedy tokens.
+
+| date | item | command (abbreviated) | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-20 | HF fetch: `ceselder/qwen3.6-27b-nla-av` @ `def1421d` | `modal run features/fetch_hf.py --repo … --revision def1421d…` (dry-run first) | 247.3 s | ~$0 (CPU) | 53.81 GB, single snapshot | — |
+| 2026-09-20 | `check` 27B with the `type: nla` entry (CPU) | `--product check --base qwen36-27b` | 19.5 s | ~$0 | NLA prompt **112 tokens, marker 158983 at 93, neighbours 29/510**, sidecar asserted (layer 42, d 5120, norm none, T=1.0 top_p 0.95 top_k 20) | — |
+| 2026-09-20 | `rollouts_nla` v1 realact rows 0-7 x 4, amp exact | `--product rollouts_nla --base qwen36-27b --maemm qwen36-27b/2026-07-14_nla-av --set 2026-09-16_v1 --rows 0-7 --n 4` | 195.1 s | **$0.2461** | 32 rows, all 8 rows solved `exact` (in_norm 73.4-99.5); marker ‖h‖ at block 1 = 588.0 (observation only); 134 gen tok/s | throughput is well below the MAEMM's ~340 tok/s at the same 32 rows/call: 112- vs 103-token prompt does not explain it, plausibly the 64-token cap with no eos (every row decodes to the cap) -- unmeasured |
+| 2026-09-20 | `rollouts_nla` sae2m_2k rows 0-7 x 4, amp exact | same, `--set 2026-09-20_sae2m_2k` | 116.5 s | **$0.1469** | 32 rows, all 8 fell back to `mu` (`no_act_norm`, in_norm ~114-116) | — |
+| 2026-09-20 | `rollouts_nla` sae2m_2k rows 0-7 x 4, amp raw (VARIANT) | same, `--amp raw` → `variants/2026-09-20_sae2m_2k__amp-raw/` | 97.5 s | **$0.1230** | 32 rows, `raw` on all 8 | — |
+| 2026-09-20 | `score` rl-last16 v1 rows 0-7 (`--sae qwen36-27b/l42-1b`) | `--product score --maemm …rl-last16-lr5e-7 --set 2026-09-16_v1 --rows 0-7 --sae qwen36-27b/l42-1b` | ~85 s | ~$0.11 (est.) | **FAILED at the write**: `scores/2026-09-16_v1` already exists (Ari's full 1024-row score dir) | the existing dir is what the comparison below uses; the OutDir refusal fires AFTER the scoring wall was spent -- a pre-flight existence check would save the $0.11 |
+| 2026-09-20 | `score` rl-last16 sae2m_2k rows 0-7 (`--no-sae`) | `… --set 2026-09-20_sae2m_2k --rows 0-7 --no-sae` | 85.4 s | **$0.1078** | mean cos 0.0229 | — |
+| 2026-09-20 | `score` NLA v1 rows 0-7 (`--sae qwen36-27b/l42-1b`) | `… --maemm qwen36-27b/2026-07-14_nla-av --set 2026-09-16_v1 --rows 0-7 --sae qwen36-27b/l42-1b` | 138.2 s | **$0.1742** | mean cos **0.1157**, bo4 0.1838 | `--sae` is the new flag (commit `1a16277`): the 27B carries two SAEs since Ari's `sae2m` entry and `score` could not run on it at all |
+| 2026-09-20 | `score` NLA sae2m_2k rows 0-7 (`--no-sae`) | same set, `--no-sae` | 83.1 s | **$0.1048** | mean cos 0.0206 | — |
+| 2026-09-20 | `score` NLA sae2m_2k amp-raw variant | `--product score --base qwen36-27b --set 2026-09-20_sae2m_2k --rollouts-dir /vol/maemms/…/variants/2026-09-20_sae2m_2k__amp-raw --no-sae` | 134.4 s | **$0.1695** | mean cos 0.0209 | `--rollouts-dir` path works unchanged for the variant layout |
+
+**Total GPU spend for the NLA smoke: ≈ $1.18** (of the $10 authorised).
+
+### NLA vs rl-last16 on the same rows (mean over 8 targets; cosine on the clean base, uncentred)
+
+| set / rows | model | n | mean cos | best-of-4 | mean len | eos |
+|---|---|---|---|---|---|---|
+| `2026-09-16_v1` realact 0-7 | `2026-09-18_rl-last16-lr5e-7` | 64 | **0.3712** | 0.4201 (disjoint groups of 4) | 57.8 | 0.71 |
+| `2026-09-16_v1` realact 0-7 | NLA-av, amp exact | 4 | **0.1157** | 0.1838 | 64.0 | 0.00 |
+| `2026-09-20_sae2m_2k` 0-7 | `2026-09-18_rl-last16-lr5e-7` | 4 | 0.0229 | 0.0280 | 25.8 | 1.00 |
+| `2026-09-20_sae2m_2k` 0-7 | NLA-av, amp exact (→ mu fallback) | 4 | 0.0206 | 0.0234 | 64.0 | 0.00 |
+| `2026-09-20_sae2m_2k` 0-7 | NLA-av, amp raw | 4 | 0.0209 | 0.0241 | 64.0 | 0.00 |
+
+Per-row NLA realact cosines: 0.024, 0.120, 0.228, 0.186, 0.380, −0.010, −0.052, 0.049 against
+rl-last16's 0.248, 0.483, 0.495, 0.175, 0.621, 0.211, 0.244, 0.492. The NLA texts READ as correct
+descriptions of the realact spans (row 0's span is a librarian's "Less is More" conference note; the
+NLA writes "Library conference notes ... 'Less is More' section"), so the low cosine is the metric's
+verdict on a description of the context versus a reconstruction of the token, not a failed run. On
+the 2M-SAE encoder columns both models are at the noise floor on these 8 rows, `mu` vs `raw` making
+no difference (0.0206 vs 0.0209). Eight rows is a smoke, not an estimate.
+
+Not run: `sae_self` -- the v1 rows 0-7 are realact, and the sae2m_2k rows carry family `sae2m_enc`,
+which `sae_self.FAMILY = "sae"` skips (Ari's label; not changed here).
