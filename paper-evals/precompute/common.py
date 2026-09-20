@@ -221,8 +221,7 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
     assert isinstance(nla, dict), f"maemm {key!r}: a `type: nla` entry needs an `nla:` block, got {nla!r}"
     missing, extra = sorted(set(NLA_KEYS) - set(nla)), sorted(set(nla) - set(NLA_KEYS))
     assert not missing and not extra, (
-        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} -- missing {missing}, "
-        f"unexpected {extra}"
+        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} -- missing {missing}, unexpected {extra}"
     )
     for field in ("marker", "template", "amp"):
         assert isinstance(nla[field], str) and nla[field], (
@@ -246,9 +245,7 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
     assert int(samp["top_k"]) >= 0 and int(samp["min_new"]) >= 0, (
         f"maemm {key!r}: nla.sampling top_k and min_new must be >= 0, got {samp}"
     )
-    assert nla["amp"] in AMP_MODES, (
-        f"maemm {key!r}: nla.amp {nla['amp']!r} is not one of {list(AMP_MODES)}"
-    )
+    assert nla["amp"] in AMP_MODES, f"maemm {key!r}: nla.amp {nla['amp']!r} is not one of {list(AMP_MODES)}"
     amp_r = nla["amp_r"]
     numeric_r = isinstance(amp_r, int | float) and not isinstance(amp_r, bool) and amp_r > 0
     assert amp_r == "median" or numeric_r, (
