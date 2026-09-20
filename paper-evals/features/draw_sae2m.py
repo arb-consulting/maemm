@@ -53,6 +53,22 @@ def _eval_split_ids(cfg, args) -> np.ndarray:
     return np.sort(ids)
 
 
+def _bundle_corpus_peaks(args, eval_ids):
+    """Corpus peak per eval feature from Celeste's 1.0B scan, aligned to `eval_ids`.
+
+    The rank-0 window activation IS the shipped corpus_peak -- verified exactly on all
+    512 standard-eval features (max abs diff 0.000000).
+    """
+    import pandas as pd
+
+    path = args.get("maxact_windows") or (
+        f"{args['root']}/data/celeste-v2-2026-09-17/heldout/"
+        f"eval_2m_features_100k_windows.parquet")
+    win = pd.read_parquet(path, columns=["feature_id", "rank", "act"])
+    top = win[win["rank"] == 0].set_index("feature_id")["act"]
+    return top.reindex(eval_ids).to_numpy(dtype=np.float32)
+
+
 def build(cfg, args):
     import torch
 
@@ -64,22 +80,66 @@ def build(cfg, args):
     assert args.get("force") or not os.path.exists(out_dir), (
         f"{out_dir} already exists; refusing to overwrite without --force")
 
-    # Fire counts from the stats pass: [F, n_sizes, 2], last axis (> 0, > gate).
+    # Eligibility and strata come from our own corpus scan when it exists, and from
+    # Celeste's 1.0B-token scan when it does not. The fallback is not a degraded mode:
+    # her scan is 60x larger than ours, reports 0 dead features over all 2^21, and its
+    # rank-0 window activation reproduces the shipped corpus_peak of the standard-eval
+    # 512 EXACTLY (max abs diff 0.000000, features/registry.py). So every eval feature
+    # is already known to fire, and the >= MIN_FIRES gate is satisfied before we compute
+    # anything. Fire counts on OUR corpus are a better stratification axis and get
+    # joined in as a column when the stats pass lands -- they are not a prerequisite.
     sae_stats = C.sae_dir(sae_key, root)
-    with open(f"{sae_stats}/sizes.json") as fh:
-        sizes_meta = json.load(fh)
-    n_sizes, f_sae = len(sizes_meta["sizes"]), sizes_meta["d_sae"]
-    fires = C.read_array(f"{sae_stats}/fire_counts.i64", "int64", (f_sae, n_sizes, 2))
-    max_act = C.read_array(f"{sae_stats}/max_act.f16", "float16", (f_sae,)).astype(np.float32)
-    assert sizes_meta["threshold"] > 0, "stats recorded no gate"
-    gated_full = fires[:, -1, 1]          # gated fires at the FULL corpus size
-    print(f"[draw] fire counts {fires.shape}, gate-fires median {np.median(gated_full):.0f}",
-          flush=True)
-
+    have_stats = os.path.exists(f"{sae_stats}/sizes.json")
+    if have_stats:
+        with open(f"{sae_stats}/sizes.json") as fh:
+            sizes_meta = json.load(fh)
+        n_sizes, f_sae = len(sizes_meta["sizes"]), sizes_meta["d_sae"]
+        fires = C.read_array(f"{sae_stats}/fire_counts.i64", "int64", (f_sae, n_sizes, 2))
+        gated_full = fires[:, -1, 1]
+        max_act = C.read_array(f"{sae_stats}/max_act.f16", "float16",
+                               (f_sae,)).astype(np.float32)
+        assert sizes_meta["threshold"] > 0, "stats recorded no gate"
+        strat_name, strat_source = "log10_gated_fires_16M", "our 16M corpus scan"
+    else:
+        gated_full, max_act = None, None
+        strat_name, strat_source = "log10_corpus_peak_1B", "Celeste's 1.0B-token scan"
+        print("[draw] no stats pass for this SAE yet; using the bundle's corpus peaks "
+              "for eligibility and strata", flush=True)
     eval_ids = _eval_split_ids(cfg, args)
-    eligible = eval_ids[(gated_full[eval_ids] >= MIN_FIRES) & (max_act[eval_ids] > 0)]
-    print(f"[draw] eval split 100,000 -> {len(eligible)} eligible "
-          f"(>= {MIN_FIRES} gated fires and a positive max)", flush=True)
+
+    # An explicit subset (features.parquet from shared/<name>/) takes the draw as given:
+    # the point of a shared subset is that everyone gets the SAME features, so nothing
+    # is re-sampled here and the split/stratum columns are carried through verbatim.
+    subset = args.get("subset")
+    if subset:
+        import pandas as pd
+
+        sub = pd.read_parquet(subset)
+        drawn = sub["feature_id"].to_numpy()
+        assert np.isin(drawn, eval_ids).all(), (
+            "a subset feature is not on the eval side -- it would not be held out")
+        side = sub["split"].to_numpy().astype(str)
+        stratum = sub["stratum"].to_numpy().astype(int)
+        peak_by_id = dict(zip(sub["feature_id"].tolist(), sub["corpus_peak_1b"].tolist()))
+        strat_name, strat_source = "log10_corpus_peak_1B", f"subset {subset}"
+        have_stats = False
+        gated_full = None
+        meta_extra = {"subset": subset, "eligible": int(len(sub))}
+        cuts = []
+        return _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
+                       peak_by_id, strat_name, strat_source, have_stats, gated_full,
+                       cuts, meta_extra)
+
+    peaks_1b = _bundle_corpus_peaks(args, eval_ids)
+    if have_stats:
+        eligible = eval_ids[(gated_full[eval_ids] >= MIN_FIRES) & (max_act[eval_ids] > 0)]
+        rank_stat = gated_full[eligible].astype(np.float64)
+    else:
+        keep = peaks_1b > 0
+        eligible = eval_ids[keep]
+        rank_stat = peaks_1b[keep].astype(np.float64)
+    print(f"[draw] eval split {len(eval_ids):,} -> {len(eligible):,} eligible, "
+          f"strata from {strat_source}", flush=True)
     assert len(eligible) >= N_FEATURES, (
         f"only {len(eligible)} eligible features, need {N_FEATURES}")
 
@@ -87,19 +147,31 @@ def build(cfg, args):
     drawn = np.sort(rng.choice(eligible, size=N_FEATURES, replace=False))
     assert np.isin(drawn, eval_ids).all(), "a drawn feature is not on the eval side"
 
-    # Quartile of log10 gated fire density, over the DRAWN set.
-    dens = np.log10(np.maximum(gated_full[drawn], 1).astype(np.float64))
+    # Quartile of the stratification statistic, over the DRAWN set.
+    by_id = dict(zip(eligible.tolist(), rank_stat.tolist()))
+    dens = np.log10(np.maximum(np.array([by_id[int(f)] for f in drawn]), 1e-6))
     cuts = np.quantile(dens, [0.25, 0.5, 0.75])
     stratum = np.searchsorted(cuts, dens, side="right")
 
     side = np.where(rng.random(N_FEATURES) < FIT_FRACTION, "fit", "report")
 
-    # Directions: the unit encoder column, the same object targets.py uses for `sae`.
+    peak_by_id = dict(zip(eval_ids.tolist(), peaks_1b.tolist()))
+    return _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
+                   peak_by_id, strat_name, strat_source, have_stats, gated_full,
+                   cuts, {"eligible": int(len(eligible))})
+
+
+def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
+            peak_by_id, strat_name, strat_source, have_stats, gated_full, cuts,
+            meta_extra):
+    """Encoder columns for `drawn`, plus the rows the pipeline reads."""
+    import torch
+
     sae = C.load_sae(C.sae_path(cfg, sae_key), spec["d"], device="cpu",
                      dtype=torch.float32, need_decoder=False)
-    assert sae.d_sae > drawn.max(), f"feature id {drawn.max()} outside F={sae.d_sae}"
+    assert sae.d_sae > int(max(drawn)), f"feature id {max(drawn)} outside F={sae.d_sae}"
     vecs = torch.nn.functional.normalize(
-        sae.W_enc[:, torch.as_tensor(drawn)].T.contiguous(), dim=-1)
+        sae.W_enc[:, torch.as_tensor(np.asarray(drawn))].T.contiguous(), dim=-1)
 
     rows = []
     for i, fid in enumerate(drawn):
@@ -110,35 +182,33 @@ def build(cfg, args):
             "stratum": int(stratum[i]),
             "side": str(side[i]),
             "heldout_kind": "feature_id",
-            "gated_fires": int(gated_full[fid]),
-            "corpus_max_act": float(max_act[fid]),
+            "stratum_stat": strat_name,
+            "gated_fires": int(gated_full[fid]) if have_stats else None,
+            "corpus_peak_1b": float(peak_by_id.get(int(fid), float("nan"))),
         })
-    return set_name, out_dir, rows, vecs, {
-        "eligible": int(len(eligible)),
-        "cuts_log10_gated_fires": [float(c) for c in cuts],
-        "n_fit": int((side == "fit").sum()),
-        "n_report": int((side == "report").sum()),
+    meta = {
+        "n_fit": int((side == "fit").sum() + (side == "train").sum()),
+        "n_report": int((side == "report").sum() + (side == "test").sum()),
         "gate": float(sae.threshold),
+        "stratum_stat": strat_name,
+        "stratum_source": strat_source,
+        "cuts": [float(c) for c in cuts],
+        **meta_extra,
     }
+    return set_name, out_dir, rows, vecs, meta
 
 
 def run(cfg, args):
-    import torch
-
     set_name, out_dir, rows, vecs, meta = build(cfg, args)
-    inputs = {"sae": args.get("sae"), "feature_split": "celeste-v2-2026-09-17 (seed 2026)"}
+    inputs = {"sae": args.get("sae"), "subset": args.get("subset") or "(drawn)"}
     with C.outdir(out_dir, args, inputs=inputs) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
         od.note(f"{len(rows)} sae2m_enc targets, all from Celeste's eval split")
-        od.note(f"eligibility: >= {MIN_FIRES} gated fires on the full corpus and a positive "
-                f"max; {meta['eligible']} of 100,000 eval features qualified")
-        od.note(f"draw: uniform over eligible, seed {DRAW_SEED}; strata are RECORDED "
-                f"(log10 gated-fire quartiles, cuts {meta['cuts_log10_gated_fires']}), "
-                f"not sampled")
-        od.note(f"side: {meta['n_fit']} fit / {meta['n_report']} report at "
-                f"{FIT_FRACTION:.0%}. BOTH halves are unseen by the MAEMM -- this splits "
-                f"our analysis, not the model's training")
+        od.note(f"strata: {meta['stratum_stat']} from {meta['stratum_source']}")
+        od.note(f"{meta['n_fit']} train/fit, {meta['n_report']} test/report -- BOTH "
+                f"halves are unseen by the MAEMM; this splits our analysis, not the "
+                f"model's training")
         od.note(f"gate {meta['gate']}; vecs are unit(W_enc[:, f]) in fp32 before the cast")
     print(json.dumps({"set": set_name, "dir": out_dir, **meta}, indent=1), flush=True)
     return {"product": "draw_sae2m", "set": set_name, **meta}

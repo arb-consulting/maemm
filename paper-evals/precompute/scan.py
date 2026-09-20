@@ -165,8 +165,18 @@ def run(cfg, args):
     read_layer, d = spec["read_layer"], spec["d"]
     batch_rows = int(args.get("batch") or 256)
     sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(sae_keys) == 1, f"base {base} has {len(sae_keys)} SAEs in config, expected exactly 1"
-    sae_key = sae_keys[0]
+    # As stats.py: a base may carry more than one SAE since 2026-09-20. --sae picks.
+    if args.get("sae"):
+        sae_key = args["sae"] if "/" in args["sae"] else f"{base}/{args['sae']}"
+        assert sae_key in sae_keys, (
+            f"--sae {args['sae']!r} is not an SAE of base {base}; have {sae_keys}"
+        )
+    else:
+        assert len(sae_keys) == 1, (
+            f"base {base} has {len(sae_keys)} SAEs in config ({sae_keys}); "
+            f"pass --sae to say which"
+        )
+        sae_key = sae_keys[0]
 
     toks, docs = C.load_corpus(base, root)
     sizes = C.corpus_sizes(docs)
