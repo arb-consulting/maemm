@@ -80,6 +80,33 @@ maemms:
     inject: {layer: 1, coef: 1.0}
     train_max_new: 192
     primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
+  # The v2 / simple2m checkpoint (Ari 2026-09-19: the one to use for the experiments).
+  # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
+  # to pin: sha a1e4f299e0100a9340077c395504487375a63eec (config has no `revision:` key;
+  # common.py asserts a single snapshot in the cache, so fetch that one and only that one).
+  qwen36-27b/2026-09-18_rl-last16-lr5e-7:
+    type: full
+    hf: ceselder/maemm-27b-rl-last16-lr5e-7
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
+    train_data: celeste-v2-2026-09-17
+    # RL reward = max cosine over the LAST 16 generated tokens (--reward-window-last 16,
+    # confirmed by Ari 2026-09-19), not the whole span. lr 5e-7 flat after a 25-step
+    # warmup, 300 steps, 8x2048 per step, CISPO/GRPO. SFT init: the 8M-row simple2m mix.
+    # UNVERIFIED, both to be settled by the marker/greedy smoke before any paid run:
+    #   prompt        `celeste27b` is ASSUMED. The prompt is per-MAEMM special casing
+    #                 verified against each MAEMM's training code once; that has NOT been
+    #                 done for the simple2m chain. A one-token difference shifts the mean
+    #                 ~0.01 and is invisible to any distribution comparison (docs/, 3).
+    #   train_max_new 96 is from run_meta.json["argv"], which is STALE on three other
+    #                 fields (lr, reward window, init adapter) and so is not a source.
+    #   marker_norm   never measured for this checkpoint; bases.marker_norm_base 14.062 is
+    #                 the CLEAN base, and rollouts_hf.marker_check uses a divergence from
+    #                 it to prove a full-parameter MAEMM actually loaded.
+    # Not `primary: true` yet -- that demotes 2026-09-10_rl-8x2048-full and is Ari's call.
+    # Note this checkpoint's provenance is strictly better: Ultra-FineWeb en throughout
+    # with explicit doc ranges, against the current primary's unpinned FineFineWeb.
   qwen36-27b/2026-09-16_base-control:
     type: base              # the CLEAN base, no MAEMM weights: the untrained-base control
     hf: Qwen/Qwen3.6-27B    # the same snapshot bases.qwen36-27b resolves to
