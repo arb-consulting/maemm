@@ -389,12 +389,25 @@ time by `rollouts_nla.check_sidecar` and by the CPU `check` product:
   asserts, and why `rollouts_hf`, `rollouts_vllm` and `parity_greedy` refuse a `type: nla` entry
   rather than quietly building the wrong prompt for it;
 - the prompt is ONE user message, the sidecar's `prompt_templates.actor` with `{injection_char}`
-  replaced by the marker, through `apply_chat_template(add_generation_prompt=True,
-  enable_thinking=False)`. `enable_thinking=False` is load-bearing: Qwen3.6 otherwise opens a bare
-  `<think>` block and never reaches its `<explanation>` tags;
-- sampling is the checkpoint's own `generation_config.json` (`T 1.0, top_p 0.95, top_k 20`,
-  `min_new 0`), asserted against that file. The model card's reference script decodes GREEDILY
-  instead; neither is marked canonical and `n` texts per target need sampling to differ at all.
+  replaced by the marker, through `apply_chat_template(add_generation_prompt=True)`;
+- sampling is the checkpoint's own `generation_config.json` — `do_sample true, T 1.0, top_p 0.95,
+  top_k 20`, all four asserted against that file. The model card's reference script decodes
+  GREEDILY instead; neither is marked canonical and `n` texts per target need sampling to differ
+  at all. `min_new 0` is **ours** — `generation_config.json` has no such key.
+
+**Two things in the prompt are OURS, not the contract.** `enable_thinking=False` is the one that
+matters. `nla/utils/prompts.py:build_prompt_text` and `scripts/show_nla_generations.py` pass no
+`enable_thinking` at all, so the Qwen3.6 template takes its `else` branch and the reference prompt
+ends `<|im_start|>assistant\n<think>\n` — an **open** think block. Ours ends
+`<|im_start|>assistant\n<think>\n\n</think>\n\n`, the block already closed and empty. MEASURED
+on the real tokenizer (2026-09-20): reference **110** tokens, ours **112**, and the marker sits at
+**93 either way** — the whole difference is in the generation prefix *after* the marker, so nothing
+about the injection changes. Two reasons for ours: the AV-SFT rendering (`nla/schema.py`, which
+appends a trailing assistant message) emits exactly our prefix, and the sibling `qwen3.6-27b-nla-rl`
+and `nla-qwen36-27b-matryoshka` cards both instruct `enable_thinking=False` — the `-av` card is
+silent on it. **The A/B is UNMEASURED**: nobody has run the same rows under the reference's open
+`<think>` block. Every summary and the identity card record `enable_thinking: false` so the choice
+is visible rather than implicit.
 
 **`--amp`: what is actually injected.** The hook normalises `v` before scaling it by `||h||`, so
 only the DIRECTION reaches the model and a pure rescale of the input is a no-op. But our `realact`
@@ -411,8 +424,15 @@ amplitude decides how far. It is a mixing ratio, not a scale:
 `r` is `nla.amp_r`: `median` resolves to the read layer's q[0.50] of
 `base/<base>/stats/resid_norm_quantiles.json` (**93.259** at layer 42 of `qwen36-27b`, against
 `‖mu‖` = 67.93 and the card's own `example_activations.parquet` norms of min 67.7 / median 88.3 /
-max 116.8), or a number is taken as is. Every row and the summary carry `amp`, `amp_used`, `r` and
-`in_norm`, and the summary also carries the `amp_used` / fallback counts and the `‖x‖` quantiles.
+max 116.8), or a number is taken as is. Every row carries `amp`, `amp_used`, `r`, `in_norm`,
+`cos_in_dir` and `exact_ambiguous`; the summary carries the `amp_used` / fallback counts, the
+`exact_ambiguous` count and quantiles of `‖x‖` and of `cos_in_dir`. **`cos_in_dir` = cos(x, u)** is
+the one to look at: the hook normalises, so the input's amplitude is invisible and this is exactly
+how far adding `mu` tilted the input away from the direction the scorer measures against (1.0
+everywhere under `raw`). **`exact_ambiguous`** marks a row where the quadratic has TWO positive
+roots — `act_norm < ‖mu‖` and `mu·u < 0`, so two different directions satisfy the same norm
+constraint; the larger root is taken and the row says so rather than resolving it silently. On
+`2026-09-16_v1` only 7 of 512 realact rows have `act_norm < ‖mu‖` at all (min 62.1 against 67.93).
 The DEFAULT amp writes the ordinary accumulating `rollouts/<set>.jsonl`; **any other amp writes
 `maemms/<base>/<nla>/variants/<set>__amp-<amp>/rollouts.jsonl`**, which `score --rollouts-dir`
 reads — so a sweep cannot overwrite the headline run and cannot be mistaken for it.
@@ -424,11 +444,12 @@ so `bases.<base>.marker_norm_base` is not a comparable number. What proves these
 the pinned `revision`, asserted against the resolved snapshot's directory name, and the
 index+sizes sha256. The summary says so in those words.
 
-**Out of scope, so a missing number is not read as a negative one:** the card's native 256-token
-generation (we generate at 64 = `rollouts.max_new`, because `SCORE_MAX_LENGTH` is 95 and `score`
-asserts no scored row reaches it; `nla.card_max_new` records the 200), and the AR critic — the
-reconstruction / FVE half of the autoencoder, a second checkpoint and a second objective. Nothing
-in `rollouts_nla` computes a cosine or an FVE.
+**Out of scope, so a missing number is not read as a negative one:** the card's own **200**-token
+generation (`--max-new-tokens 200` in its invocation, and the reference script's own default — we
+generate at 64 = `rollouts.max_new`, because `SCORE_MAX_LENGTH` is 95 and `score` asserts no
+scored row reaches it; `nla.card_max_new` records the 200 without using it), and the AR critic —
+the reconstruction / FVE half of the autoencoder, a second checkpoint and a second objective.
+Nothing in `rollouts_nla` computes a cosine or an FVE.
 
 ## The SAE repo's own examples (`repo_examples`)
 

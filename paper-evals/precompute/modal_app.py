@@ -186,16 +186,24 @@ def product_check(cfg, args):
                 flush=True,
             )
             if computable and C.is_nla(cfg, key):
-                # The same gate the MAEMM prompts get, on the verbalizer's own contract: its
-                # tokenizer (not the base's -- a merged checkpoint ships its own), its marker
-                # between the two neighbour ids the injection hook requires, and its shipped
-                # sidecar against config.yaml. Seconds of CPU against an H200 hour.
+                # The same gate the MAEMM prompts get, on the verbalizer's own contract, and in
+                # the SAME ORDER rollouts_nla.run does it: pinned revision, then the shipped
+                # sidecar against config.yaml, then the prompt on the checkpoint's own tokenizer
+                # (not the base's -- a merged checkpoint ships its own) with its marker between
+                # the two neighbour ids the injection hook requires. Seconds of CPU against an
+                # H200 hour, and this is the only place that gate runs without a GPU.
                 from precompute import rollouts_nla
 
-                ntok = AutoTokenizer.from_pretrained(path)
-                nids, npos = rollouts_nla.nla_prompt_ids(ntok, spec)
+                assert os.path.basename(path) == spec["revision"], (
+                    f"maemm {key!r} resolved to {path}, whose snapshot directory is "
+                    f"{os.path.basename(path)!r} and not the pinned revision "
+                    f"{spec['revision']!r}: the HF cache holds a different commit of "
+                    f"{spec['hf']} than config.yaml names"
+                )
                 bspec = cfg["bases"][base]
                 rollouts_nla.check_sidecar(path, spec, bspec["read_layer"], bspec["d"])
+                ntok = AutoTokenizer.from_pretrained(path)
+                nids, npos = rollouts_nla.nla_prompt_ids(ntok, spec)
                 nla = spec["nla"]
                 print(
                     f"[check] maemm {key} nla prompt: {len(nids)} tokens, marker id "
@@ -444,6 +452,14 @@ def main(
         "argv": sys.argv,
     }
     assert engine in C.ENGINES, f"--engine must be one of {list(C.ENGINES)}, got {engine!r}"
+    # --amp belongs to rollouts_nla alone, and is checked HERE as well as there so --dry-run
+    # actually covers it: a typo would otherwise reach the container and cost a scheduled H200.
+    if amp:
+        assert product == "rollouts_nla", (
+            f"--amp is a `rollouts_nla` flag (which input-amplitude convention to inject) and "
+            f"means nothing to product {product!r}"
+        )
+        assert amp in C.AMP_MODES, f"--amp must be one of {list(C.AMP_MODES)}, got {amp!r}"
     # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
     # MAEMM_PRODUCTS call that must be allowed without --maemm.
     if product in MAEMM_PRODUCTS and not (product == "score" and rollouts_dir):

@@ -34,11 +34,11 @@ through the SAME scorer they do: this product writes rollout rows and computes n
     NOT the last prompt token, which is where this product's prompt handling parts company with
     `rollouts_hf` (whose `mpos == len(prompt) - 1` assert would fire here);
   * the prompt is ONE user message -- the sidecar's `prompt_templates.actor` with
-    `{injection_char}` replaced by the marker -- through
-    `apply_chat_template(..., add_generation_prompt=True, enable_thinking=False)`, i.e.
-    `common._chat_ids`. `enable_thinking=False` is load-bearing: Qwen3.6 otherwise opens a bare
-    `<think>` block and the answer never reaches its `<explanation>` tags. (The reference script
-    renders with `tokenize=False` and then `tok.encode(text, add_special_tokens=False)`; same ids.)
+    `{injection_char}` replaced by the marker -- through `apply_chat_template(...,
+    add_generation_prompt=True)`. The `enable_thinking` argument is OURS and is a DIVERGENCE, not
+    part of the contract; see the divergences below. (The reference script renders with
+    `tokenize=False` and then `tok.encode(text, add_special_tokens=False)`, which gives the same
+    ids as its own `tokenize=True` rendering -- an equivalence about ITS rendering, not about ours.)
 
 **Why the input AMPLITUDE only matters through `mu`.** The hook normalises `v` before it scales by
 `||h_p||`, so multiplying the whole input vector by any positive constant changes nothing the model
@@ -75,9 +75,25 @@ on every row it produced.
 deliberate and recorded in every summary:
 
   * it decodes GREEDILY at `max_new_tokens=200`; we SAMPLE at the checkpoint's own shipped
-    `generation_config.json` constants (`do_sample true, T 1.0, top_p 0.95, top_k 20`, asserted
-    against the file by `check_sidecar`) with `min_new 0`. Neither is marked canonical on the card,
-    and `n` texts per target need sampling to differ at all;
+    `generation_config.json` constants (`do_sample true, T 1.0, top_p 0.95, top_k 20` -- all four
+    asserted against that file by `check_sidecar`). `min_new 0` is OURS: the file has no such key
+    and the NLA answer is short, so a floor would only pad it. Neither greedy nor sampled is
+    marked canonical on the card, and `n` texts per target need sampling to differ at all;
+  * **`enable_thinking=False`, which the reference does NOT pass.**
+    `nla/utils/prompts.py:build_prompt_text:12` and `scripts/show_nla_generations.py` call
+    `apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)` with no
+    `enable_thinking`, so the Qwen3.6 template takes its `else` branch and the prompt ends
+    `<|im_start|>assistant\n<think>\n` -- an OPEN think block. Ours ends
+    `<|im_start|>assistant\n<think>\n\n</think>\n\n`, i.e. the block already closed and empty.
+    MEASURED on the real tokenizer (review, 2026-09-20): reference 110 tokens, ours 112, marker at
+    93 EITHER WAY -- the difference is entirely in the generation prefix after the marker. Two
+    reasons for ours: the AV-SFT rendering (`nla/schema.py:205-225`, which appends a trailing
+    assistant message) emits `<|im_start|>assistant\n<think>\n` + trimmed reasoning +
+    `\n</think>\n\n`, which with empty reasoning is EXACTLY our prefix; and the sibling model
+    cards (`qwen3.6-27b-nla-rl`, `nla-qwen36-27b-matryoshka`) say to pass `enable_thinking=False`,
+    while the `-av` card is silent on it. The A/B -- the same rows under the reference's open
+    `<think>` block -- is UNMEASURED. Recorded as `enable_thinking` in every summary and on the
+    identity card so the choice is visible rather than implicit;
   * `max_new` is 64, not 200: `SCORE_MAX_LENGTH` is 95 and `score.py` asserts no scored row reaches
     it, so 200 tokens would be truncated by the scorer rather than scored. A sampled prefix does
     not depend on the cap, so the paper's "first 64 tokens" row is exactly this. `nla.card_max_new`
@@ -86,8 +102,9 @@ deliberate and recorded in every summary:
     IDENTICAL prompt so the batch is rectangular and UNPADDED (asserted -- padding would move the
     marker away from its two required neighbours and the injection would land nowhere).
 
-**Out of scope here**, and named so nobody reads a missing number as a negative one: the native
-256-token generation (it needs scorer changes, `nla.card_max_new` is recorded but not used), and
+**Out of scope here**, and named so nobody reads a missing number as a negative one: the card's own
+200-token generation (`--max-new-tokens 200` in the card's invocation, and the reference script's
+own default; it needs scorer changes, and `nla.card_max_new` records it without using it), and
 the AR critic -- the reconstruction / FVE half of the autoencoder, which is a second checkpoint and
 a second objective. Nothing in this file computes a cosine or an FVE.
 """
@@ -157,15 +174,24 @@ def build_inputs(u: np.ndarray, rows_meta: list[dict], mu: np.ndarray | None, am
     each `amp` means and why the amplitude is a mixing ratio rather than a scale.
 
     The `exact` solve: with `||u|| = 1`, `||mu + t*u||^2 = t^2 + 2t(mu.u) + ||mu||^2`, so
-    `||mu + t*u|| = a` has the root `t = -(mu.u) + sqrt((mu.u)^2 + a^2 - ||mu||^2)`. The
+    `||mu + t*u|| = a` has the roots `t = -(mu.u) +- sqrt((mu.u)^2 + a^2 - ||mu||^2)`. The
     discriminant is negative exactly when `a < dist(0, the line mu + R*u)`, i.e. when the row's
     recorded raw norm is smaller than anything reachable on that line -- possible for a genuinely
     small activation, so it is a FALLBACK with a reason on the row, not an assert.
 
+    WHICH ROOT: always the larger, `-b + sqrt(...)`. The roots multiply to `||mu||^2 - a^2`, so
+    when `a > ||mu||` they have opposite signs and the larger one is the UNIQUE positive solution
+    -- no choice to make. When `a < ||mu||` AND `mu.u < 0` they are both positive and the two
+    inputs `mu + t*u` differ in direction, which is the only thing the model sees; the row is then
+    flagged `exact_ambiguous: True` (and counted in the summary) rather than silently resolved.
+    MEASURED on `2026-09-16_v1`: 7 of 512 realact rows have `act_norm < ||mu||` at all (min 62.1
+    against `||mu||` 67.93), so this is a rare tail, not the common case. `fallback` stays None --
+    the solve HOLDS, it is the uniqueness that does not.
+
     Every info dict carries `amp` (what was asked for), `amp_used` (what this row got), `r` (the
     coefficient actually used: `t` for an exact row, `r` otherwise), `in_norm` (`||x||`),
     `cos_in_dir` (`cos(x, u)`: how far adding mu tilted the direction, which is the only thing the
-    model sees) and `fallback` (None, "no_act_norm" or "discriminant").
+    model sees), `fallback` (None, "no_act_norm" or "discriminant") and `exact_ambiguous`.
     """
     assert amp in AMP_MODES, f"unknown amp {amp!r}, want one of {list(AMP_MODES)}"
     assert u.ndim == 2, f"u must be [N, d], got {u.shape}"
@@ -189,7 +215,7 @@ def build_inputs(u: np.ndarray, rows_meta: list[dict], mu: np.ndarray | None, am
     info: list[dict] = []
     for i in range(n):
         ui = u[i].astype(np.float64)
-        fallback, used, coef = None, amp, float(r)
+        fallback, used, coef, ambiguous = None, amp, float(r), False
         if amp == "exact":
             a = rows_meta[i].get("act_norm")
             if a is None or not np.isfinite(float(a)) or float(a) <= 0:
@@ -204,6 +230,10 @@ def build_inputs(u: np.ndarray, rows_meta: list[dict], mu: np.ndarray | None, am
                     used, fallback = "mu", "discriminant"
                 else:
                     coef = t
+                    # the SMALLER root -b - sqrt(disc) is positive too exactly when b < 0 and
+                    # a < ||mu||: two different inputs satisfy the same norm constraint and we
+                    # take the larger. Flagged, not resolved -- see the docstring.
+                    ambiguous = bool(b < 0 and float(a) ** 2 < mu_sq)
         row = (coef * ui) if used == "raw" else (mu64 + coef * ui)
         x[i] = row.astype(np.float32)
         nrm = float(np.linalg.norm(row))
@@ -215,6 +245,7 @@ def build_inputs(u: np.ndarray, rows_meta: list[dict], mu: np.ndarray | None, am
                 "in_norm": round(nrm, 4),
                 "cos_in_dir": round(float(row @ ui / max(nrm, 1e-12)), 6),
                 "fallback": fallback,
+                "exact_ambiguous": ambiguous,
             }
         )
     norms = np.array([rec["in_norm"] for rec in info])
@@ -311,8 +342,11 @@ def rows_from_generation(chunk, new_ids, stop, tok, seed: int, rows_meta: list[d
 
     The schema is `rollouts_hf`'s verbatim -- row, family, k, text, ids (the generated ids only,
     trimmed at the first stop token which is KEPT, rl/rl.py:82-90), n_tok, finished, engine, seed
-    -- plus five NLA-only fields (amp, amp_used, r, in_norm, explanation). score.py reads the
-    former and ignores the latter, which is what keeps this product on the one scoring path.
+    -- plus seven NLA-only fields (amp, amp_used, r, in_norm, cos_in_dir, exact_ambiguous,
+    explanation). score.py reads the former and ignores the latter, which is what keeps this
+    product on the one scoring path. `cos_in_dir` is on the ROW, not only in the summary, because
+    it is the per-target number an analysis would regress the score against: how far adding mu
+    tilted this row's input away from the direction the scorer measures against.
 
     `text` is the FULL decode of the trimmed ids, never the extracted explanation.
     """
@@ -336,10 +370,20 @@ def rows_from_generation(chunk, new_ids, stop, tok, seed: int, rows_meta: list[d
                 "amp_used": rec["amp_used"],
                 "r": rec["r"],
                 "in_norm": rec["in_norm"],
+                "cos_in_dir": rec["cos_in_dir"],
+                "exact_ambiguous": rec["exact_ambiguous"],
                 "explanation": extract_explanation(text),
             }
         )
     return out
+
+
+def _quantiles(v) -> list[float]:
+    """[min, q25, q50, q75, max] of a 1-D array, rounded -- the shape every summary reports."""
+    return [
+        round(float(x), 6)
+        for x in (v.min(), np.quantile(v, 0.25), np.quantile(v, 0.50), np.quantile(v, 0.75), v.max())
+    ]
 
 
 def template_sha256(spec: dict) -> str:
@@ -410,16 +454,27 @@ def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> dic
     with open(gpath) as fh:
         gen = json.load(fh)
     samp = nla["sampling"]
+    # do_sample has no config counterpart -- we always sample -- but it is asserted here because
+    # the whole justification for sampling rather than decoding greedily like the reference script
+    # is that this is what the checkpoint shipped.
+    assert gen.get("do_sample") is True, (
+        f"{gpath} says do_sample={gen.get('do_sample')!r}: this product SAMPLES, and the reason it "
+        f"does instead of following the reference script's greedy decode is that the checkpoint "
+        f"shipped do_sample true"
+    )
     for field in ("temperature", "top_p", "top_k"):
         assert float(gen[field]) == float(samp[field]), (
             f"{gpath} says {field}={gen[field]}, config.yaml nla.sampling.{field}={samp[field]}: "
             f"we sample with the checkpoint's OWN constants, so the config may not drift from them"
         )
+    # NOT asserted, because generation_config.json has no such key: nla.sampling.min_new is OURS
+    # (config.yaml says so), and so is enable_thinking=False.
     print(
         f"[nla] sidecar {path}: layer {ext['layer_index']}, d {ext['d_model']}, norm "
         f"{ext['norm']!r}, marker {tokens['injection_token_id']} between "
         f"({tokens['injection_left_neighbor_id']}, {tokens['injection_right_neighbor_id']}); "
-        f"generation_config T={gen['temperature']} top_p={gen['top_p']} top_k={gen['top_k']}",
+        f"generation_config do_sample={gen['do_sample']} T={gen['temperature']} "
+        f"top_p={gen['top_p']} top_k={gen['top_k']} (min_new {samp['min_new']} is ours)",
         flush=True,
     )
     return side
@@ -471,8 +526,14 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         "token: the `</concept>` tag and the generation prompt follow it.",
         "- prompt: ONE user message, `nla_meta.yaml prompt_templates.actor` with "
         "`{injection_char}` replaced by the marker, through `apply_chat_template("
-        "add_generation_prompt=True, enable_thinking=False)`. `enable_thinking=False` is "
-        "load-bearing -- Qwen3.6 otherwise opens a bare `<think>` block.",
+        "add_generation_prompt=True, enable_thinking=False)`.",
+        "- **`enable_thinking=False` is OUR choice, not the reference's.** "
+        "`nla/utils/prompts.py:build_prompt_text` and `scripts/show_nla_generations.py` pass no "
+        "`enable_thinking` at all, so their prompt ends with an OPEN `<think>\\n` block (110 "
+        "tokens on this tokenizer, against our 112; the marker sits at 93 either way). Ours "
+        "matches the AV-SFT rendering (`nla/schema.py`, trailing assistant message -> "
+        "`<think>\\n\\n</think>\\n\\n`) and what the sibling `-rl` / matryoshka cards "
+        "instruct; the `-av` card is silent. The A/B is UNMEASURED.",
         f"- template sha256: `{template_sha256(spec)}` (stripped, placeholder not substituted)",
         "- ONLY the direction reaches the model: the hook normalises `v` before scaling it by "
         "`||h||`. See the amp conventions below for what that means for the input.",
@@ -485,11 +546,13 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         "",
         "## Sampling",
         "",
-        f"- {nla['sampling']} (the checkpoint's own `generation_config.json`, asserted against it "
-        "by `rollouts_nla.check_sidecar`), `do_sample=True`.",
+        f"- {nla['sampling']}. `do_sample`, `temperature`, `top_p` and `top_k` come from the "
+        "checkpoint's own `generation_config.json` and are asserted against it by "
+        "`rollouts_nla.check_sidecar`; `min_new` is OURS -- that file has no such key.",
         f"- max_new {nla['max_new']} = `rollouts.max_new`, because `score.py` never scores past "
         f"`common.SCORE_MAX_LENGTH` = {C.SCORE_MAX_LENGTH} tokens. The model card's reference "
-        f"script uses {nla['card_max_new']} GREEDY tokens instead (`nla.card_max_new`); that "
+        f"script uses {nla['card_max_new']} GREEDY tokens instead (`--max-new-tokens "
+        f"{nla['card_max_new']}` in the card's own invocation, and the script's default); that "
         "variant needs scorer changes and is OUT OF SCOPE here.",
         "",
         "## Input amplitude (`--amp`)",
@@ -597,10 +660,13 @@ def run(cfg, args):
         if rec["fallback"]:
             fallback_counts[rec["fallback"]] = fallback_counts.get(rec["fallback"], 0) + 1
     in_norms = np.array([rec["in_norm"] for rec in info], dtype=np.float64)
+    cos_dirs = np.array([rec["cos_in_dir"] for rec in info], dtype=np.float64)
+    n_ambiguous = sum(1 for rec in info if rec["exact_ambiguous"])
     print(
         f"[nla] {maemm} on {len(sel)} of {len(rows_meta)} targets x {n} texts = {len(sel) * n} "
         f"rows, {gen_rows} per generate call, dirs from {dirs_src}; amp {amp} (r={r:.4f} "
-        f"[{r_src}]), amp_used {amp_used_counts}, fallbacks {fallback_counts or 'none'}; "
+        f"[{r_src}]), amp_used {amp_used_counts}, fallbacks {fallback_counts or 'none'}, "
+        f"{n_ambiguous} rows with a second positive root; "
         f"writing {'VARIANT ' if variant else ''}{path}",
         flush=True,
     )
@@ -686,6 +752,13 @@ def run(cfg, args):
             )
     elapsed = time.time() - t0
 
+    # The "not all identical" guard rollouts_hf has. TWO things are different here and neither is
+    # fixed: nla.n defaults to 4, not 64, and the output is a short templated
+    # <explanation>...</explanation>, so two of four samples colliding is a great deal more likely
+    # than it is at n=64 over free-form rollouts -- this can fire on a run that is perfectly fine.
+    # And it runs AFTER the whole generate loop, so a trip costs the run's full GPU time. Left as
+    # is deliberately: a shared-seed / greedy / no-injection bug has exactly this signature, and a
+    # loud stop is the point.
     if n > 1:
         by_row: dict[int, list[dict]] = {}
         for rec in out_rows:
@@ -714,6 +787,10 @@ def run(cfg, args):
         "kind": "nla",
         "prompt": PROMPT_NAME,
         "prompt_tokens": len(prompt),
+        # OURS, not the checkpoint's: the reference script passes no enable_thinking and gets an
+        # OPEN <think> block (110 tokens against our 112, marker at 93 either way). Recorded so
+        # the choice is visible in the summary rather than implicit in the code.
+        "enable_thinking": False,
         "marker_pos": mpos,
         "marker_id": int(nla["marker_id"]),
         "inject_layer": inj_layer,
@@ -745,16 +822,11 @@ def run(cfg, args):
         "mu_norm": None if mu is None else round(float(np.linalg.norm(mu)), 4),
         "amp_used_counts": amp_used_counts,
         "fallback_counts": fallback_counts,
-        "in_norm_quantiles": [
-            round(float(v), 4)
-            for v in (
-                in_norms.min(),
-                np.quantile(in_norms, 0.25),
-                np.quantile(in_norms, 0.50),
-                np.quantile(in_norms, 0.75),
-                in_norms.max(),
-            )
-        ],
+        "in_norm_quantiles": _quantiles(in_norms),
+        # cos(x, u): how far adding mu tilted the input away from the direction the SCORER
+        # measures against. 1.0 everywhere under `raw`; below 1 under `mu` / `exact`.
+        "cos_in_dir_quantiles": _quantiles(cos_dirs),
+        "exact_ambiguous_count": n_ambiguous,
         "template_sha256": template_sha256(spec),
         "explanation_rate": round(expl_rate, 4),
         "card_max_new": int(nla["card_max_new"]),
@@ -801,7 +873,11 @@ def run(cfg, args):
             f"{fallback_counts or 'none'}; ||x|| quantiles [min, q25, q50, q75, max] = "
             f"{summary['in_norm_quantiles']}. ONLY the direction reaches the model (the hook "
             f"normalises), so the amplitude acts as the mixing ratio between mu and the target "
-            f"direction -- see ../README.md for what each amp means."
+            f"direction, and cos(x, u) -- on every row and quantiled here as "
+            f"{summary['cos_in_dir_quantiles']} -- is how far that mixing tilted the input away "
+            f"from the direction the SCORER measures against. {n_ambiguous} row(s) had a SECOND "
+            f"positive root (act_norm < ||mu|| and mu.u < 0; the larger root is taken and the row "
+            f"carries exact_ambiguous). See ../README.md for what each amp means."
         )
         od.note(
             f"marker ||h|| at inject layer {inj_layer} under the served verbalizer: "
@@ -902,11 +978,30 @@ def _selftest_build_inputs():
     assert info[7]["fallback"] == "no_act_norm", info[7]
     assert info[3]["r"] == 10.0, "a no_act_norm row falls back to mu AT r"
 
+    assert not any(rec["exact_ambiguous"] for rec in info), (
+        "every act_norm here is > ||mu||, so each solve has a UNIQUE positive root"
+    )
+
+    # act_norm < ||mu|| AND mu.u < 0 -> the smaller root is positive too. Construct it: take a
+    # direction with mu.u < 0 and a norm between the line's closest approach and ||mu||.
+    u0 = -mu.astype(np.float64) / mu_norm
+    b0 = float(mu.astype(np.float64) @ u0)
+    assert b0 < 0, "u0 was built to point against mu"
+    amb = [{"family": "realact", "act_norm": 0.5 * mu_norm}]  # closest approach is 0 here
+    xa, ia = build_inputs(u0.astype(np.float32)[None, :], amb, mu, "exact", 10.0)
+    assert ia[0]["amp_used"] == "exact" and ia[0]["fallback"] is None, ia[0]
+    assert ia[0]["exact_ambiguous"] is True, "a < ||mu|| with mu.u < 0 has TWO positive roots"
+    got = float(np.linalg.norm(xa[0].astype(np.float64)))
+    assert abs(got - 0.5 * mu_norm) < 1e-3 * mu_norm, f"the solve must still hold: {got}"
+    t_big, t_small = ia[0]["r"], 2.0 * (-b0) - ia[0]["r"]
+    assert t_big > t_small > 0, f"the LARGER root must be the one taken: {t_big} vs {t_small}"
+
     # a row whose recorded norm is BELOW the line's closest approach: discriminant < 0
     close = [dict(meta[0]) for _ in range(1)]
     close[0]["act_norm"] = 1e-3
     xs, infos = build_inputs(u[:1], close, mu, "exact", 10.0)
     assert infos[0]["fallback"] == "discriminant" and infos[0]["amp_used"] == "mu", infos[0]
+    assert infos[0]["exact_ambiguous"] is False, "a fallback row solved nothing, ambiguously or not"
     assert abs(float(np.linalg.norm(xs[0] - (mu + 10.0 * u[0])))) < 1e-3, "fallback must be mu + r*u"
 
     # `raw` twice: once with no mu at all and once with mu IN HAND, because a "raw" branch that
@@ -1042,8 +1137,24 @@ def _selftest_rows_from_generation():
     stop = {ord("Z")}
     rows_meta = [{"row": 0, "family": "realact"}, {"row": 1, "family": "sae"}]
     info = {
-        0: {"amp": "exact", "amp_used": "exact", "r": 25.0, "in_norm": 93.2, "fallback": None},
-        1: {"amp": "exact", "amp_used": "mu", "r": 10.0, "in_norm": 68.1, "fallback": "no_act_norm"},
+        0: {
+            "amp": "exact",
+            "amp_used": "exact",
+            "r": 25.0,
+            "in_norm": 93.2,
+            "cos_in_dir": 0.7312,
+            "fallback": None,
+            "exact_ambiguous": False,
+        },
+        1: {
+            "amp": "exact",
+            "amp_used": "mu",
+            "r": 10.0,
+            "in_norm": 68.1,
+            "cos_in_dir": 0.1455,
+            "fallback": "no_act_norm",
+            "exact_ambiguous": True,
+        },
     }
     body = [ord(c) for c in "<explanation>ab</explanation>"]
     gen = [
@@ -1060,12 +1171,9 @@ def _selftest_rows_from_generation():
     assert out[0]["family"] == "realact" and out[1]["family"] == "sae"
     for y, src in zip(out, (info[0], info[1]), strict=True):
         assert y["engine"] == "hf" and y["seed"] == 1234000
-        assert (y["amp"], y["amp_used"], y["r"], y["in_norm"]) == (
-            src["amp"],
-            src["amp_used"],
-            src["r"],
-            src["in_norm"],
-        )
+        for key in ("amp", "amp_used", "r", "in_norm", "cos_in_dir", "exact_ambiguous"):
+            assert key in y, f"row is missing the NLA field {key!r}"
+            assert y[key] == src[key], f"row {key} is {y[key]!r}, build_inputs said {src[key]!r}"
 
 
 SELFTESTS = (
