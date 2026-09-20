@@ -139,6 +139,55 @@ maemms:
     # and the `rollouts:` sampling block -- is the primary's, so the only difference from
     # 2026-09-10_rl-8x2048-full is the weights.
     note: untrained-base control for the primary (2026-09-10_rl-8x2048-full); identical prompt, marker, injection and sampling, base weights only
+  # The NLA activation-verbalizer baseline (Natural Language Autoencoder, EasyNLA / nanoNLA
+  # recipe, github.com/asherps/EasyNLA). NOT a MAEMM: a FULL merged bf16 Qwen3_5ForCausalLM
+  # (2 shards, 53.8 GB, model.safetensors.index.json present, tokenizer + chat_template.jinja +
+  # generation_config.json + nla_meta.yaml shipped) trained to VERBALIZE a layer-42 activation --
+  # warm-start SFT on ceselder/qwen3-8b-nla-L24-finefineweb-100k explanations, then GRPO against a
+  # reconstruction reward; the card claims held-out FVE ~= 75%. It is a `maemms:` entry because it
+  # shares everything the layout and the objective need: it is served like a `type: full` MAEMM,
+  # it takes ONE direction at ONE marker token of block 1's output under the same Karvonen
+  # norm-matched add, and its rows land in maemms/<base>/<entry>/{rollouts,scores} and go through
+  # the ONE clean-base scoring path (README "Methods"). What it does NOT share is the prompt, the
+  # marker and the output format, so `rollouts_nla` is its only generator and every product that
+  # injects with the MAEMM prompt (rollouts_hf, rollouts_vllm, parity_greedy) REFUSES type nla.
+  qwen36-27b/2026-07-14_nla-av:
+    type: nla
+    hf: ceselder/qwen3.6-27b-nla-av
+    revision: def1421d20fd949f9da13bfeeba1b600b31a654f   # asserted against the cached snapshot's dir name
+    inject: {layer: 1, coef: 1.0}     # Karvonen norm-matched add at block-1 output, as the MAEMMs
+    nla:
+      # tokens: block of nla_meta.yaml on the checkpoint. The hook injects ONLY where
+      # ids[p-1] == left_id and ids[p+1] == right_id (nla/injection.py), so the neighbours are
+      # part of the contract, not a diagnostic. The marker is NOT the last prompt token.
+      marker: "㈜"
+      marker_id: 158983
+      left_id: 29
+      right_id: 510
+      # nla_meta.yaml prompt_templates.actor, VERBATIM; rollouts_nla.check_sidecar asserts this is
+      # equal to the shipped sidecar's text (after strip) before it generates anything.
+      template: |
+        You are a meticulous AI researcher conducting an important investigation into activation vectors from a language model. Your overall task is to describe the semantic content of that activation vector.
+
+        We will pass the vector enclosed in <concept> tags into your context. You must then produce an explanation for the vector, enclosed within <explanation> tags. The explanation consists of 2-3 text snippets describing that vector.
+
+        Here is the vector:
+
+        <concept>{injection_char}</concept>
+
+        Please provide an explanation.
+      # The checkpoint's own generation_config.json (do_sample true), asserted against the file at
+      # run time so the config cannot drift from the weights. min_new 0 is OURS: the NLA answer is
+      # short and a floor would only pad it. The reference script (scripts/show_nla_generations.py)
+      # hard-codes GREEDY instead; neither is marked canonical on the card and we need n texts per
+      # target, so we sample.
+      sampling: {temperature: 1.0, top_p: 0.95, top_k: 20, min_new: 0}
+      max_new: 64            # = rollouts.max_new; the scorer's 95-token window is the reason (README)
+      card_max_new: 200      # what the reference script uses; NOT scoreable unchanged, recorded only
+      n: 4                   # texts per target, default; --n overrides
+      amp: exact             # default input-amplitude convention; --amp overrides (writes a variant dir)
+      amp_r: median          # r for `mu`/`raw` and the `exact` fallback: layer read_layer q[0.5] of stats/resid_norm_quantiles.json, or a number
+    compute: true
   qwen36-27b/2026-09-05_rlE-250:
     type: lora
     hf: ceselder/maemm-qwen36-27b-inverter-rlE-step250   # adapter at the repo root
@@ -187,6 +236,24 @@ heldout:
     realact_len: [1, 64]
     sae_min_fires: 20       # counted with the SAE's learned gate, not raw act > 0
     sae_strata: 4           # rarity quartiles of the corpus fire count
+
+  # DRAWN, not drawn here: Ari's `features/draw_sae2m.py` wrote this set on 2026-09-20 (commit
+  # b767d1a, its own README on the volume) through `features/spawn.py`, which calls the Modal
+  # function directly and so BYPASSES `modal_app.main`'s "set_name in cfg['heldout']" assert --
+  # which is why the set exists on the volume without ever having been declared here. Declaring it
+  # now lets `--set 2026-09-20_sae2m_2k` through the entrypoint.
+  #
+  # `imported: true` keeps it OUT of the default-set rule: `sorted(cfg["heldout"])[-1]` would make
+  # this 2,000-row sae2m set the default of every product that omits --set, silently moving
+  # `2026-09-16_v1` off the tables. `common.default_heldout` takes the latest NON-imported set
+  # instead, and every entrypoint uses it.
+  #
+  # KNOWN, not fixed here: the family label is `sae2m_enc`, not `sae`, so `autointerp`'s sae_self
+  # stage and every `family == "sae"` filter in the pipeline skip these rows.
+  2026-09-20_sae2m_2k:
+    imported: true
+    families:
+      sae2m_enc: {n: 2000, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
 
 corpus:
   dataset: openbmb/Ultra-FineWeb

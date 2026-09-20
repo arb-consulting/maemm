@@ -43,6 +43,11 @@ SCORE_WIDTH = SCORE_MAX_LENGTH + 1
 
 MARKER = " ?"  # mxf/prompts.py:4
 
+# Input-amplitude conventions of the `nla` verbalizer (`precompute/rollouts_nla.py`, which aliases
+# this tuple and documents what each one does). It lives here because load_config validates
+# `nla.amp` and must not import a product module to do it.
+AMP_MODES = ("exact", "mu", "raw")
+
 # The held-out set name `targets.py --import-run1` writes. It is NOT a config.yaml `heldout` entry:
 # it is not a draw of ours at all but a 16-row slice of run1's archived eval cache, and it exists
 # only so reconstruction/repro_run1.py can compare our pipeline against the archived numbers.
@@ -122,8 +127,11 @@ def load_config(path: str | Path | None = None) -> dict:
         # `base` is the UNTRAINED-BASE CONTROL: no MAEMM weights at all, the clean base run
         # through the identical prompt / marker / injection / sampling path so the tables have a
         # "what does the untrained model reach" row (2026-09-16_base-control).
-        assert spec.get("type") in ("lora", "full", "base"), (
-            f"maemm {key!r}: type must be 'lora', 'full' or 'base', got {spec.get('type')!r}"
+        # `nla` is the activation-verbalizer BASELINE (EasyNLA): served exactly like a `full`
+        # model, injected at the same block-1 output with the same norm-matched add, but with its
+        # own prompt, marker and output format -- so only `rollouts_nla` generates for it.
+        assert spec.get("type") in ("lora", "full", "base", "nla"), (
+            f"maemm {key!r}: type must be 'lora', 'full', 'base' or 'nla', got {spec.get('type')!r}"
         )
         if spec.get("type") == "base":
             assert spec.get("hf") == cfg["bases"][base]["hf"], (
@@ -138,9 +146,15 @@ def load_config(path: str | Path | None = None) -> dict:
         assert ("hf" in spec) != ("src" in spec), (
             f"maemm {key!r}: give exactly one of hf (repo id) / src (volume path), got {sorted(spec)}"
         )
-        assert spec.get("prompt") in PROMPTS, (
-            f"maemm {key!r}: prompt {spec.get('prompt')!r} is not one of {sorted(PROMPTS)}"
-        )
+        if spec.get("type") == "nla":
+            # The NLA verbalizer builds its OWN prompt from the checkpoint's sidecar (its marker
+            # is not our MARKER and is not the last prompt token), so the `prompt in PROMPTS`
+            # assert below does not apply to it and `nla:` is validated instead.
+            _check_nla(key, spec, max_new)
+        else:
+            assert spec.get("prompt") in PROMPTS, (
+                f"maemm {key!r}: prompt {spec.get('prompt')!r} is not one of {sorted(PROMPTS)}"
+            )
         inject = spec.get("inject", {})
         assert "layer" in inject and "coef" in inject, (
             f"maemm {key!r}: inject needs both 'layer' and 'coef', got {inject}"
@@ -161,6 +175,122 @@ def load_config(path: str | Path | None = None) -> dict:
                     f"heldout {set_name!r} family {fam!r} restricted to unknown base {b!r}"
                 )
     return cfg
+
+
+# Exactly the keys a `type: nla` entry's `nla:` block carries, and the keys of its `sampling:`
+# sub-block. Both are closed sets: a typo (`max_nev: 96`) in a block whose every field steers an
+# H200 run would otherwise be read as "the field is absent", and every field here is required, so
+# "absent" has no safe meaning.
+NLA_KEYS = (
+    "marker",
+    "marker_id",
+    "left_id",
+    "right_id",
+    "template",
+    "sampling",
+    "max_new",
+    "card_max_new",
+    "n",
+    "amp",
+    "amp_r",
+)
+NLA_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "min_new")
+
+
+def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
+    """Validate one `type: nla` maemms entry. Called from load_config, never at use site.
+
+    Everything here is a fact about the CHECKPOINT (ceselder/qwen3.6-27b-nla-av's nla_meta.yaml
+    and generation_config.json) rather than a choice of ours, except `max_new`, `n`, `amp` and
+    `amp_r`. `rollouts_nla.check_sidecar` asserts the checkpoint's shipped files still agree with
+    the values below before it generates anything; this function only checks the config's shape,
+    which is what the CPU `check` gate can do without the weights.
+    """
+    assert "hf" in spec, f"maemm {key!r}: a `type: nla` entry is fetched from HF, so it needs `hf`"
+    rev = spec.get("revision")
+    assert isinstance(rev, str) and len(rev) == 40 and all(c in "0123456789abcdef" for c in rev), (
+        f"maemm {key!r}: `revision` must be the 40-hex HF commit sha the snapshot directory is "
+        f"named after (rollouts_nla asserts the resolved path against it), got {rev!r}"
+    )
+    assert "prompt" not in spec, (
+        f"maemm {key!r}: a `type: nla` entry must NOT name a `prompt` -- the verbalizer builds its "
+        f"own from `nla.template` and the marker in `nla.marker`, and common.PROMPTS' marker is "
+        f"neither that character nor at that position"
+    )
+    nla = spec.get("nla")
+    assert isinstance(nla, dict), f"maemm {key!r}: a `type: nla` entry needs an `nla:` block, got {nla!r}"
+    missing, extra = sorted(set(NLA_KEYS) - set(nla)), sorted(set(nla) - set(NLA_KEYS))
+    assert not missing and not extra, (
+        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} -- missing {missing}, "
+        f"unexpected {extra}"
+    )
+    for field in ("marker", "template", "amp"):
+        assert isinstance(nla[field], str) and nla[field], (
+            f"maemm {key!r}: nla.{field} must be a non-empty string, got {nla[field]!r}"
+        )
+    for field in ("marker_id", "left_id", "right_id", "max_new", "card_max_new", "n"):
+        assert isinstance(nla[field], int) and not isinstance(nla[field], bool) and nla[field] > 0, (
+            f"maemm {key!r}: nla.{field} must be a positive int, got {nla[field]!r}"
+        )
+    assert "{injection_char}" in nla["template"], (
+        f"maemm {key!r}: nla.template must carry the sidecar's `{{injection_char}}` placeholder -- "
+        f"that is where the marker token, and so the injected direction, goes"
+    )
+    samp = nla["sampling"]
+    assert isinstance(samp, dict) and sorted(samp) == sorted(NLA_SAMPLING_KEYS), (
+        f"maemm {key!r}: nla.sampling must carry exactly {list(NLA_SAMPLING_KEYS)}, got {sorted(samp)}"
+    )
+    assert float(samp["temperature"]) > 0 and 0 < float(samp["top_p"]) <= 1, (
+        f"maemm {key!r}: nla.sampling temperature must be > 0 and top_p in (0, 1], got {samp}"
+    )
+    assert int(samp["top_k"]) >= 0 and int(samp["min_new"]) >= 0, (
+        f"maemm {key!r}: nla.sampling top_k and min_new must be >= 0, got {samp}"
+    )
+    assert nla["amp"] in AMP_MODES, (
+        f"maemm {key!r}: nla.amp {nla['amp']!r} is not one of {list(AMP_MODES)}"
+    )
+    amp_r = nla["amp_r"]
+    numeric_r = isinstance(amp_r, int | float) and not isinstance(amp_r, bool) and amp_r > 0
+    assert amp_r == "median" or numeric_r, (
+        f"maemm {key!r}: nla.amp_r must be 'median' (layer read_layer's q[0.5] of "
+        f"stats/resid_norm_quantiles.json) or a positive number, got {amp_r!r}"
+    )
+    # The scorer's window is the binding constraint, exactly as it is for `rollouts.max_new`:
+    # SCORE_MAX_LENGTH = 95 and score.py asserts no scored row reaches it, so an NLA rollout may
+    # not be longer than the rollouts the rest of the pipeline is built around.
+    assert nla["max_new"] <= rollouts_max_new, (
+        f"maemm {key!r}: nla.max_new {nla['max_new']} exceeds rollouts.max_new {rollouts_max_new}, "
+        f"which SCORE_MAX_LENGTH={SCORE_MAX_LENGTH} bounds -- the tail of such a rollout would "
+        f"never be scored (nla.card_max_new records the checkpoint's own 200-token budget, which "
+        f"needs scorer changes and is out of scope)"
+    )
+    assert nla["card_max_new"] >= nla["max_new"], (
+        f"maemm {key!r}: nla.card_max_new {nla['card_max_new']} is the budget the model card's "
+        f"reference script uses and must be >= the nla.max_new {nla['max_new']} we generate at"
+    )
+
+
+def is_nla(cfg: dict, maemm_key: str) -> bool:
+    """True for the activation-verbalizer baseline, whose ONLY generator is `rollouts_nla`."""
+    return cfg["maemms"][maemm_key].get("type") == "nla"
+
+
+def default_heldout(cfg: dict) -> str:
+    """The held-out set a product takes when `--set` is omitted: the latest NON-imported one.
+
+    `sorted(cfg["heldout"])[-1]` was that rule until a set drawn elsewhere had to be REGISTERED
+    here so the entrypoint would accept its name (`2026-09-20_sae2m_2k`, written by
+    features/draw_sae2m.py through features/spawn.py, which bypasses modal_app.main's assert).
+    Registering it under the old rule would have silently moved every default-set product off
+    `2026-09-16_v1`, which is the set the paper's tables are built on. `imported: true` marks a
+    set as "nameable, never the default".
+    """
+    own = sorted(k for k, s in cfg["heldout"].items() if not s.get("imported"))
+    assert own, (
+        f"config.yaml declares no non-imported held-out set: {sorted(cfg['heldout'])} are all "
+        f"`imported: true`, so there is no default for a product called without --set"
+    )
+    return own[-1]
 
 
 def split_key(key: str, what: str) -> tuple[str, str]:
