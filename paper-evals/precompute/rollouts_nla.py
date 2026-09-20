@@ -626,11 +626,19 @@ def run(cfg, args):
     # is fully merged (no adapter to disable) with a prompt and marker no clean base was ever
     # measured at. bases.<base>.marker_norm_base is the MAEMM prompt's number and is not
     # comparable. What proves the weights loaded is the revision assert and the weight sha above.
-    hn_served = C.marker_norm(model, prompt, mpos, inj_layer, adapter=True)
     hn_src = "none: the NLA marker/prompt has no clean-base reference"
+    if args.get("no_marker_check"):
+        # The flag means the same thing here as in rollouts_hf -- skip the extra forwards -- even
+        # though here they cost one prompt and prove nothing on their own.
+        hn_served = None
+        hn_src = "skipped (--no-marker-check)"
+    else:
+        hn_served = C.marker_norm(model, prompt, mpos, inj_layer, adapter=True)
     print(
         f"[nla] prompt {len(prompt)} tokens, marker {nla['marker_id']} at {mpos}; marker ||h|| at "
-        f"layer {inj_layer} = {hn_served:.3f} (observation only, {hn_src})",
+        f"layer {inj_layer} = "
+        + ("not measured" if hn_served is None else f"{hn_served:.3f}")
+        + f" (observation only, {hn_src})",
         flush=True,
     )
 
@@ -717,7 +725,7 @@ def run(cfg, args):
         "max_new": max_new,
         "min_new": min_new,
         "gen_rows": gen_rows,
-        "marker_norm_served": round(hn_served, 4),
+        "marker_norm_served": None if hn_served is None else round(hn_served, 4),
         "marker_norm_clean_base": None,
         "marker_norm_base_source": hn_src,
         "eos_ids": sorted(stop),
@@ -797,7 +805,8 @@ def run(cfg, args):
         )
         od.note(
             f"marker ||h|| at inject layer {inj_layer} under the served verbalizer: "
-            f"{hn_served:.4f}. OBSERVATION ONLY and NOT compared: {hn_src}. The merged checkpoint "
+            + ("NOT MEASURED" if hn_served is None else f"{hn_served:.4f}")
+            + f". OBSERVATION ONLY and NOT compared: {hn_src}. The merged checkpoint "
             f"has no adapter to disable, and bases.{base}.marker_norm_base was measured at the "
             f"MAEMM prompt's marker, a different token at a different position. What proves these "
             f"weights loaded is the pinned revision and the sha below."
