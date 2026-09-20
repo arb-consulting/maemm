@@ -298,6 +298,7 @@ def main(
     product: str,
     base: str = "",
     maemm: str = "",
+    sae: str = "",  # which SAE of the base; needed since a base can carry more than one
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the spec uses; alias of --heldout
     force: bool = False,
@@ -357,6 +358,7 @@ def main(
     args = {
         "base": base,
         "maemm": maemm,
+        "sae": sae,
         "heldout": set_name,
         "force": force,
         "root": root.rstrip("/") or VOL,
