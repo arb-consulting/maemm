@@ -61,3 +61,57 @@ on different corpora (1.0B vs 16M). Any per-quartile number must name which axis
 paths and shrink to the parquet schemas.
 
 Nothing here writes to Celeste's bundle or to `eval/` in her repo.
+
+---
+
+# Activation-target registry
+
+    python -m features.activations --out <path>/activations_v2.parquet
+
+One row per eval target across the eleven families that need no SAE, 5,632 rows.
+Columns: `family, row, doc, pos, act_norm, norm_stratum, doc_n_targets, split,
+shared_component`.
+
+Verified on the v2 draw:
+
+    realact   512 targets, all in the eval doc range [0, 100,000)   OK
+              449 distinct documents
+              59 documents carry 2-3 targets -> 122 targets share one
+    centred   realact shared-component norm 0.0615 vs random's 0.0437
+    context   realact_early/mid/long identical to realact's own
+              early_dirs/mid_dirs/long_dirs columns, 512/512
+              median cosine to realact: -0.009 / -0.006 / -0.007
+
+## Three things this establishes, and what to do about each
+
+**The directions are already centred.** realact's shared component matches the Gaussian
+control, so these are `unit(act - mu)` with Celeste's `whiten_mu`. A scorer that centres
+again centres twice. **`mu` is not in the bundle** -- ask for it; until then the exact
+centring convention of the v2 targets cannot be reproduced, only inherited.
+
+**Targets are not independent.** 122 of 512 realact targets share a document with
+another target. An SE over 512 treats them as independent and is too small. Cluster the
+bootstrap by `doc`; `doc_n_targets` is in the table for exactly this. Re-drawing a
+document-unique 512 would fix it properly but breaks comparability with every number
+Celeste has published on this set, so it is recorded, not fixed.
+
+**The context families are not context variants.** `realact_early/mid/long` are stored
+as extra columns of the realact parquet but are near-orthogonal to it, so they are
+different activations, not one activation read at three context depths. They ship no
+provenance, so their documents, positions and independence structure are unknown. Any
+paired "does context length help" claim across these families is unsupported by the
+draw as it stands.
+
+## Split
+
+Document ranges, from the bundle's `doc_registry.json`, verified doc-disjoint
+(0 intersection, tightest margin 396,399 documents) by the branch's 2026-09-18 check:
+
+    eval       [0, 100,000)              realact eval pool
+    sae_train  [100,000, 1,783,561)      2M-SAE dictionary stream
+    sft        [5,500,000, 5,698,524)    sft_activations_ctx8_64
+    rl         [9,500,000, 9,599,842)    rl_activations_ctx64_2048
+
+Doc-disjoint is not content-disjoint, but the activation side is the clean half: the
+13-gram check puts realact content overlap with her training text at 0.50% of rows,
+against sae2m's 8.31%.
