@@ -32,6 +32,53 @@ from pathlib import Path
 
 SIDES = ("train", "test")
 
+# How each family's held-out claim is established. Nothing here draws or re-draws a
+# split -- the partitions already exist and are verified. This records WHICH KIND each
+# family is, because the paper currently runs three different kinds together and reads
+# as though they were one.
+#
+#   feature_id      the seed-2026 partition; no training bank holds an eval feature.
+#                   Verified by features/registry.py.
+#   doc_range       disjoint Ultra-FineWeb document ranges, 0 intersection, tightest
+#                   margin 396,399 documents. Verified 2026-09-18. Note doc-disjoint
+#                   is not content-disjoint (0.50% of realact rows share a 13-gram).
+#   category        "the generator never saw this KIND of direction". Asserted from
+#                   the training mix, not measured. The weakest of the three, and the
+#                   one carrying the paper's generalisation claims.
+#   in_distribution NOT held out. Must never be pooled into a held-out mean.
+#   unknown         the bundle ships no provenance -- cannot be claimed either way.
+HELDOUT_KINDS = ("feature_id", "doc_range", "category", "in_distribution", "unknown")
+
+KIND_MEANING = {
+    "feature_id": "seed-2026 feature partition; no training bank holds an eval feature "
+                  "(verified by features/registry.py)",
+    "doc_range": "disjoint Ultra-FineWeb document ranges, 0 intersection, tightest "
+                 "margin 396,399 documents (verified 2026-09-18). Doc-disjoint is not "
+                 "content-disjoint: 0.50% of realact rows share a 13-gram",
+    "category": "the generator never saw this kind of direction. Asserted from the "
+                "training mix, not measured",
+    "in_distribution": "NOT held out. Never pool this family into a held-out mean",
+    "unknown": "the bundle ships no provenance for this family, so the held-out claim "
+               "can be inherited but not checked",
+}
+
+FAMILY_HELDOUT = {
+    "sae2m_enc":      "feature_id",
+    "sae2m_dec":      "feature_id",
+    "sae":            "feature_id",   # the 131k SAE; held out of the EARLIER chains only
+    "realact":        "doc_range",
+    "realact_early":  "unknown",      # no provenance shipped; see features/README.md
+    "realact_mid":    "unknown",
+    "realact_long":   "unknown",
+    "random":         "category",     # a Gaussian control has no corpus origin
+    "indist_realact": "in_distribution",
+    "indist_long":    "in_distribution",
+    "indist_probe":   "in_distribution",
+    "cluster":        "unknown",      # in the legacy chain's mix; no v2 doc_ids list
+    "jlens":          "unknown",
+    "bsf":            "unknown",
+}
+
 # Families with no training side, and the reason, written into the empty train/.
 NO_TRAIN_SIDE = {
     "random": "a Gaussian control has no corpus origin, so nothing was trained on it",
@@ -44,8 +91,21 @@ NO_TRAIN_SIDE = {
 }
 
 
+def heldout_kind(family: str) -> str:
+    """How this family's held-out claim is established. Refuses an undeclared family."""
+    try:
+        return FAMILY_HELDOUT[family]
+    except KeyError:
+        raise KeyError(
+            f"{family!r} has no heldout_kind. Nothing is precomputed for a family whose "
+            f"split is not stated: add it to layout.FAMILY_HELDOUT as one of "
+            f"{HELDOUT_KINDS}."
+        ) from None
+
+
 def family_dir(root: str | Path, family: str) -> Path:
-    """`<root>/<family>/`, with both sides created."""
+    """`<root>/<family>/`, with both sides created. Declared families only."""
+    heldout_kind(family)
     head = Path(root) / family
     for side in SIDES:
         (head / side).mkdir(parents=True, exist_ok=True)
