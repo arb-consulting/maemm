@@ -14,6 +14,7 @@ steps split a product into its own function as soon as its timeout or resources 
 others; today every GPU product is still a stub.
 """
 
+import json
 import os
 import sys
 import time
@@ -141,7 +142,12 @@ def product_check(cfg, args):
         tok = AutoTokenizer.from_pretrained(snap)
         marker_id = tok.encode(C.MARKER, add_special_tokens=False)
         assert len(marker_id) == 1, f"base {base}: marker {C.MARKER!r} is not single-token: {marker_id}"
-        prompts = sorted({cfg["maemms"][k]["prompt"] for k in C.maemms_for(cfg, base, False)})
+        # NON-nla entries only: a `type: nla` entry has no `prompt` key at all (it builds its own
+        # from the checkpoint's sidecar), and common.PROMPTS' marker is neither its character nor
+        # at its position. Its gate is the nla block further down.
+        prompts = sorted(
+            {cfg["maemms"][k]["prompt"] for k in C.maemms_for(cfg, base, False) if not C.is_nla(cfg, k)}
+        )
         for name in prompts:
             ids, pos = C.prompt_ids(tok, name, spec["read_layer"])
             assert pos == len(ids) - 1, f"marker must be the LAST prompt token, got {pos} of {len(ids)}"
@@ -179,6 +185,33 @@ def product_check(cfg, args):
                 f"{path} ({C.human(C.dir_size(path))})",
                 flush=True,
             )
+            if computable and C.is_nla(cfg, key):
+                # The same gate the MAEMM prompts get, on the verbalizer's own contract: its
+                # tokenizer (not the base's -- a merged checkpoint ships its own), its marker
+                # between the two neighbour ids the injection hook requires, and its shipped
+                # sidecar against config.yaml. Seconds of CPU against an H200 hour.
+                from precompute import rollouts_nla
+
+                ntok = AutoTokenizer.from_pretrained(path)
+                nids, npos = rollouts_nla.nla_prompt_ids(ntok, spec)
+                bspec = cfg["bases"][base]
+                rollouts_nla.check_sidecar(path, spec, bspec["read_layer"], bspec["d"])
+                nla = spec["nla"]
+                print(
+                    f"[check] maemm {key} nla prompt: {len(nids)} tokens, marker id "
+                    f"{nla['marker_id']} at {npos} (single occurrence, neighbours "
+                    f"{nla['left_id']}/{nla['right_id']}), amp {nla['amp']} r {nla['amp_r']}, "
+                    f"max_new {nla['max_new']} (card {nla['card_max_new']})",
+                    flush=True,
+                )
+                report[key] = {
+                    "n_tokens": len(nids),
+                    "marker_pos": npos,
+                    "marker_id": int(nla["marker_id"]),
+                    "revision": spec["revision"],
+                    "amp": nla["amp"],
+                    "max_new": int(nla["max_new"]),
+                }
 
     heldout = sorted(cfg["heldout"])
     for set_name in heldout:
@@ -224,6 +257,7 @@ PRODUCTS = {
     "targets": _script("targets"),
     "scan": _script("scan"),
     "rollouts_hf": _script("rollouts_hf"),
+    "rollouts_nla": _script("rollouts_nla"),
     "rollouts_vllm": _script("rollouts_vllm"),
     "parity_greedy": _script("rollouts_vllm", "run_parity_greedy"),
     "score": _script("score"),
@@ -239,7 +273,7 @@ PRODUCTS = {
 # `centred` is CPU too: it only re-reads the arrays `score` already wrote (best_act, cos, norm).
 CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
 # Products that need --maemm.
-MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_vllm", "parity_greedy", "score", "centred")
+MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
 
 
 def _run(product, args, gpu_label):
@@ -340,6 +374,15 @@ def main(
     # score: read <dir>/rollouts.jsonl + <dir>/rollouts.summary.json and write <dir>/scores/
     # instead of a MAEMM's rollouts -- how a `patchscopes` cell reaches the one scoring path.
     rollouts_dir: str = "",
+    # rollouts_nla: which input-amplitude convention to inject ("" = the entry's own nla.amp).
+    # A NON-default value writes maemms/<base>/<nla>/variants/<set>__amp-<amp>/ instead of the
+    # accumulating rollouts/ directory (precompute/rollouts_nla.py's docstring says what each is).
+    amp: str = "",
+    # Run every LOCAL assert -- config, product, base, set, maemm -- print what would be sent, and
+    # exit without starting a container. The cheap gate in front of the cheap gate: `check` still
+    # costs a CPU container and a volume mount, while this costs nothing and still catches a
+    # misspelled set, a maemm on the wrong base or a product that needs --maemm.
+    dry_run: bool = False,
 ):
     """Dispatch one product. `base` picks the GPU; CPU products ignore it for placement.
 
@@ -357,7 +400,9 @@ def main(
         assert product == "targets", f"--import-run1 belongs to the `targets` product, not {product!r}"
     # C.IMPORT_RUN1_SET is not a config.yaml draw -- it is a 16-row slice of run1's archived eval
     # cache (targets.import_run1) -- but rollouts_hf and score must still be able to name it.
-    default = C.IMPORT_RUN1_SET if import_run1 else sorted(cfg["heldout"])[-1]
+    # NOT sorted(cfg["heldout"])[-1]: a set registered here only so --set can name it (`imported:
+    # true`, e.g. the sae2m draw) must not become every product's default. common.default_heldout.
+    default = C.IMPORT_RUN1_SET if import_run1 else C.default_heldout(cfg)
     set_name = set or heldout or default
     assert set_name in cfg["heldout"] or set_name == C.IMPORT_RUN1_SET, (
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])} and the only "
@@ -393,6 +438,7 @@ def main(
         "no_ps_floor": no_ps_floor,
         "ps_tag": ps_tag,
         "rollouts_dir": rollouts_dir.rstrip("/"),
+        "amp": amp,
         # The container has no git checkout, so the commit every README records is captured here.
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,
@@ -415,5 +461,10 @@ def main(
         f"[launch] {product} base={base or 'all'} maemm={maemm or '-'} set={set_name} "
         f"root={args['root']} on {label} commit={args['repo_commit'][:8]}"
     )
+    if dry_run:
+        # Every assert above has run; what is printed is exactly the dict `.remote()` would carry.
+        print("[dry-run] no container started; args below are what would be sent")
+        print(json.dumps(args, indent=1, sort_keys=True, default=str))
+        return
     res = fn.remote(product, args)
     print(f"[done] {res['product']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")

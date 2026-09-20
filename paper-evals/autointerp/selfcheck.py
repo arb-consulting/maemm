@@ -485,7 +485,7 @@ def check_chain(cfg, tmp: Path, base: str, set_name: str):
 def main() -> int:
     cfg = C.load_config()
     base = "qwen36-27b"
-    set_name = sorted(cfg["heldout"])[-1]
+    set_name = C.default_heldout(cfg)  # the latest NON-imported set, as every entrypoint uses
     R.Claude = StubClaude
     # `run.run()` asserts a key is present before it builds any job. The stub never reads it and
     # never opens a socket; this placeholder only satisfies that guard, and is removed afterwards

@@ -235,7 +235,9 @@ def main(
     cfg = C.load_config()
     assert stage in STAGES, f"unknown stage {stage!r}, want one of {sorted(STAGES)}"
     assert base in cfg["bases"], f"unknown base {base!r}, want one of {sorted(cfg['bases'])}"
-    set_name = set or heldout or sorted(cfg["heldout"])[-1]
+    # common.default_heldout, not sorted(...)[-1]: a set registered only so --set can name it
+    # (`imported: true`) must not silently become this stage's default.
+    set_name = set or heldout or C.default_heldout(cfg)
     assert set_name in cfg["heldout"], (
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])}"
     )

@@ -551,6 +551,13 @@ def run(cfg, args):
     assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
 
     spec = cfg["maemms"][maemm]
+    # `type: nla` is the activation VERBALIZER baseline: a different prompt, a different marker
+    # character and a marker that is not the last prompt token. Every assert below about the MAEMM
+    # prompt would either fire or, worse, pass on a prompt the checkpoint never saw.
+    assert spec["type"] != "nla", (
+        f"maemm {maemm!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
+        f"builds the verbalizer's own prompt and marker from the checkpoint's nla_meta.yaml"
+    )
     rl = cfg["rollouts"]
     n = int(args.get("n") or rl["n"])
     max_new = int(args.get("max_new") or rl["max_new"])
@@ -986,6 +993,13 @@ def run_parity_greedy(cfg, args):
         f"the injection check and the paired rollouts comparison instead)"
     )
     spec = cfg["maemms"][maemm]
+    # `type: nla` is the activation VERBALIZER baseline: a different prompt, a different marker
+    # character and a marker that is not the last prompt token. Every assert below about the MAEMM
+    # prompt would either fire or, worse, pass on a prompt the checkpoint never saw.
+    assert spec["type"] != "nla", (
+        f"maemm {maemm!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
+        f"builds the verbalizer's own prompt and marker from the checkpoint's nla_meta.yaml"
+    )
     inj_layer, coef = int(spec["inject"]["layer"]), float(spec["inject"]["coef"])
     max_new = int(args.get("max_new") or cfg["rollouts"]["max_new"])
     gpu_mem = float(args.get("gpu_mem") or GPU_MEM_WITH_HF)

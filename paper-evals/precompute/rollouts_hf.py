@@ -234,6 +234,13 @@ def run(cfg, args):
     assert key_base == base, f"maemm {maemm!r} is on base {key_base!r}, not {base!r}"
 
     spec = cfg["maemms"][maemm]
+    # `type: nla` is the activation VERBALIZER baseline: a different prompt, a different marker
+    # character and a marker that is not the last prompt token. Every assert below about the MAEMM
+    # prompt would either fire or, worse, pass on a prompt the checkpoint never saw.
+    assert spec["type"] != "nla", (
+        f"maemm {maemm!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
+        f"builds the verbalizer's own prompt and marker from the checkpoint's nla_meta.yaml"
+    )
     rl = cfg["rollouts"]
     n = int(args.get("n") or rl["n"])
     max_new = int(args.get("max_new") or rl["max_new"])

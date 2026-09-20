@@ -170,7 +170,9 @@ def main(
         assert arm in ARMS, f"unknown --arm {arm!r}, want one of {list(ARMS)}"
     else:
         assert mode and init, "pass --arm <mode>-<init>, or both --mode and --init"
-    set_name = set or heldout or sorted(cfg["heldout"])[-1]
+    # common.default_heldout, not sorted(...)[-1]: a set registered only so --set can name it
+    # (`imported: true`) must not silently become this product's default.
+    set_name = set or heldout or C.default_heldout(cfg)
     assert set_name in cfg["heldout"], (
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])}"
     )
