@@ -374,7 +374,10 @@ def run(cfg, args):
     model, tok = C.load_base(cfg, base)
     load_s = time.time() - t_load
     print(f"[stats] base weights loaded in {load_s:.0f}s", flush=True)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), spec["d"], device="cuda", dtype=torch.float32)
+    # The counters read b_dec, W_enc, b_enc and threshold only -- never W_dec, which is
+    # 43 GB in fp32 at 2^21 features and OOMs an H200 beside the 27B.
+    sae = C.load_sae(C.sae_path(cfg, sae_key), spec["d"], device="cuda",
+                     dtype=torch.float32, need_decoder=False)
     print(f"[stats] sae {sae_key}: F={sae.d_sae} gate={sae.threshold:.4f}", flush=True)
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
