@@ -34,11 +34,14 @@ def _doc_ids(source: str) -> pd.DataFrame:
 
 
 def _head_readme(family: str, train: dict, test: dict, extra: str = "") -> str:
+    kind = layout.heldout_kind(family)
     lines = [
         f"# {family}",
         "",
         f"Snapshot `{bundle.SNAPSHOT}`. Directions live in the raw layer-42 residual "
         f"space of `{bundle.MODEL}` (d = {bundle.D_MODEL}).",
+        "",
+        f"**Held out by: `{kind}`** — {layout.KIND_MEANING[kind]}",
         "",
         "## train/",
         "",
