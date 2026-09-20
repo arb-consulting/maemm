@@ -20,6 +20,12 @@ Modal app (`gcg/modal_app.py`, on precompute/'s image) -- run on the 8B for all 
 Every verified run is logged in `SMOKES.md`, with the cost taken from each product's own README
 (checklist item 84: `modal app logs` replays stale output).
 
+`rollouts_nla` (the NLA activation-verbalizer baseline, below) is implemented and its GPU-free half
+is verified — `uv run precompute/rollouts_nla.py --selftest`, the same checks inside
+`unit_smoke.py`, and `modal run … --product rollouts_nla --dry-run`, which runs every local assert
+and starts no container. **Its generation path has NOT been run on a GPU yet**, so no NLA numbers
+exist anywhere and `SMOKES.md` has no entry for it.
+
 **The FULL RUN happened on 2026-09-16** and its products are the ones under the real root `/vol`
 (`SMOKES.md`, "Full run 2026-09-16"): the 16M corpus, `stats`, held-out set `2026-09-16_v1` and
 `scan` on both bases, `repo_examples` on both, and 1,536 targets x 64 rollouts + `score` +
@@ -38,14 +44,38 @@ One file, read by everything, validated on load (`common.load_config`):
 |---|---|
 | `bases` | `qwen3-8b` (Qwen/Qwen3-8B, read layer 27, d 4096, H100, 36 layers), `qwen36-27b` (Qwen/Qwen3.6-27B, read layer 42, d 5120, H200, 64 layers) |
 | `saes` | `qwen3-8b/adamkarvonen-t2`, `qwen36-27b/l42-1b` (the **1b** repo, not the older `-l42`); each carries a `max_acts` block (file, `windows`, `sink_first`, and `repo`/`repo_type` when the windows are not in the SAE repo) for `repo_examples` |
-| `maemms` | 8B `2026-09-03_run1-rl` (lora, volume path); 27B `2026-09-08_rlI-150` (lora, `step_150/`), `2026-09-10_rl-8x2048-full` (full), `2026-09-05_rlE-250` (lora) |
-| `heldout` | `2026-09-16_v1`: seed 20260916, families `realact`/`random`/`sae` 512 each + `jlens` 512 (27B only, currently an **empty slot** — no J-lens matrix exists) |
+| `maemms` | 8B `2026-09-03_run1-rl` (lora, volume path); 27B `2026-09-08_rlI-150` (lora, `step_150/`), `2026-09-10_rl-8x2048-full` (full), `2026-09-05_rlE-250` (lora), `2026-07-14_nla-av` (**`type: nla`**, the verbalizer baseline — see below) |
+| `heldout` | `2026-09-16_v1`: seed 20260916, families `realact`/`random`/`sae` 512 each + `jlens` 512 (27B only, currently an **empty slot** — no J-lens matrix exists). `2026-09-20_sae2m_2k`: 2,000 `sae2m_enc` rows, **`imported: true`** — see below |
 | `corpus` | Ultra-FineWeb `en` parts 0009 and 0010, 16M tokens, nested sizes 1/2/4/8/16M, seed 20260916 |
 | `rollouts` | n 64, T 1.0, top_p 1.0, top_k 0, max_new 64, min_new 16, seed 1234 |
 | `modal` | volume `maemm`, `HF_HOME=/vol/hf`, archive `/vol/archive/gavento-1`, secret `hf-write` |
 
 Config keys `<base>/<name>` under `saes` and `maemms` **are** the directory names on the volume.
 Families are keyed by name everywhere, never by list position.
+
+**`type: nla`** (`common.load_config`, validated on load) is the activation-verbalizer BASELINE,
+not a MAEMM. It is a `maemms:` entry because it shares the layout and the objective — one direction
+at one marker of block 1's output under the same norm-matched add, rows into
+`maemms/<base>/<entry>/{rollouts,scores}`, the one clean-base scorer — and it shares neither the
+prompt nor the marker, so `rollouts_nla` is its only generator and `rollouts_hf`, `rollouts_vllm`
+and `parity_greedy` refuse it by name. Instead of `prompt` it carries `revision` (the 40-hex HF
+commit, asserted against the resolved snapshot directory) and an `nla:` block holding the
+checkpoint's own contract — `marker` / `marker_id` / `left_id` / `right_id`, the actor `template`
+verbatim, the shipped `sampling` — plus our four choices, `max_new` (≤ `rollouts.max_new`), `n`,
+`amp` and `amp_r`. Both key sets are CLOSED: every field is required, so a typo read as "absent"
+has no safe meaning. `rollouts_nla.check_sidecar` re-asserts the contract against the checkpoint's
+shipped `nla_meta.yaml` and `generation_config.json` at run time (and the CPU `check` product does
+it too), so the config cannot drift from the weights.
+
+**`heldout.<set>.imported: true`** means "declared here only so `--set` can name it, never the
+default". `2026-09-20_sae2m_2k` was drawn by `features/draw_sae2m.py` through `features/spawn.py`,
+which calls the Modal function directly and so never met `modal_app.main`'s "declared in config"
+assert; registering it under the old default rule (`sorted(heldout)[-1]`) would have moved every
+product called without `--set` off `2026-09-16_v1` in silence. `common.default_heldout(cfg)` takes
+the latest NON-imported set and is what every entrypoint uses (`precompute/modal_app.py`,
+`autointerp/modal_app.py`, `gcg/modal_app.py`, `autointerp/selfcheck.py`). Its family label is
+`sae2m_enc`, not `sae`, so `sae_self` and every `family == "sae"` filter skip it — known, not
+fixed here.
 
 ## Volume layout (`maemm` at `/vol`)
 
@@ -79,6 +109,10 @@ Families are keyed by name everywhere, never by list position.
                    per_target.jsonl, rows.json
     scores/<name>__rescore-<x>/  the --rescore-texts variant: FLAT cos.f16 / norm.f16 [M, 96],
                    argmax.i16 [M], rows.jsonl; no best_act, no SAE
+    variants/<set>__amp-<amp>/   `type: nla` only: a rollouts_nla run at a NON-default --amp, in
+                   the `score --rollouts-dir` layout (rollouts.jsonl + rollouts.summary.json +
+                   scores/). Deliberately NOT in the accumulating rollouts/: an amp sweep is a
+                   different INPUT to the same model and must not be mistaken for the headline run
 ```
 
 `maemms/` is `--root`-relative since step 3, exactly as `base/` is: a rollouts/score smoke writes
@@ -106,6 +140,7 @@ allowed sidecar, so an array's length is never inferred from its file size).
 | `targets` | GPU | `base/<base>/heldout/<set>/` | the frozen draw: realact / random / sae (+ the empty `jlens` slot) |
 | `scan` | GPU | `base/<base>/scan/<set>/`, `sae/<sae>/examples/` | pass B: corpus-retrieval top-64 + cos quantiles per size, SAE examples |
 | `rollouts_hf` | GPU | `maemms/<base>/<maemm>/rollouts/` + that MAEMM's `README.md` | n rollouts per target through HF `generate` with the direction injected at the marker; the ONLY product that loads a MAEMM |
+| `rollouts_nla` | GPU | `maemms/<base>/<nla>/rollouts/` (or `.../variants/<set>__amp-<amp>/`) + that entry's `README.md` | the NLA activation-verbalizer BASELINE through the same HF `generate` path, with the verbalizer's own prompt and marker and `--amp` choosing what is injected; same row schema, `engine: "hf"`, `kind: "nla"`. The only generator a `type: nla` entry has |
 | `score` | GPU | `maemms/<base>/<maemm>/scores/<set>/` | per-token cosine / norm on the CLEAN BASE, the argmax residual, the gated SAE features there, and the per-target aggregates. NEVER loads the MAEMM |
 | `rollouts_vllm` | GPU | `maemms/<base>/<maemm>/rollouts/` (stem `<set>__vllm`), `…/throughput/` | the same rollouts through a vLLM engine, one request per target with `n` samples; same row format, `engine: "vllm"`. `--throughput` measures generation tok/s instead |
 | `parity_greedy` | GPU | `maemms/<base>/<maemm>/parity/greedy-<set>/` | 8B only: the HF hook and the vLLM steering on the SAME greedy decode, plus the teacher-forced logprob gap and an unsteered control |
@@ -328,6 +363,72 @@ per-token gap (HF, hooked, on vLLM's own ids vs vLLM's returned logprobs) is **0
 greedy text on 8/8 directions. Greedy decode amplifies a bf16 tie-break into a different sentence,
 so the 24.6-token match length with a zero first-token gap is numerics, not a protocol difference —
 the teacher-forced number is the one that does not compound.
+
+## The NLA activation-verbalizer baseline (`rollouts_nla`)
+
+`ceselder/qwen3.6-27b-nla-av` is a Natural Language Autoencoder verbalizer (EasyNLA / nanoNLA,
+github.com/asherps/EasyNLA): a FULL merged bf16 `Qwen3_5ForCausalLM` trained — warm-start SFT on
+`qwen3-8b-nla-L24` explanations, then GRPO against a reconstruction reward — to read a layer-42
+activation injected at a marker token and answer `<explanation>…</explanation>` with 2-3 snippets
+describing it. It is the paper's "somebody already built an activation-to-text model" baseline, and
+it goes through **our** scorer, not its own: `rollouts_nla` writes the rollouts schema and computes
+no cosine, exactly as `rollouts_hf` does.
+
+**The contract**, from the checkpoint's own `nla_meta.yaml` and EasyNLA's source, asserted at run
+time by `rollouts_nla.check_sidecar` and by the CPU `check` product:
+
+- input is the **RAW** layer-42 block-output residual, `extraction.norm: none` — no centring, no
+  scaling at the model's side;
+- the hook is the Karvonen norm-matched **add** at the OUTPUT of decoder block 1
+  (`nla/injection.py:karvonen_inject_in_residual`): `h[p] += ||h[p]|| * v/||v||`. That is exactly
+  `common.make_inject_hook(…, coeff=1.0)` on `common.get_layer(model, 1)` — the MAEMMs' own hook,
+  at the MAEMMs' own layer and coefficient;
+- the marker is `㈜` (id 158983) and the hook injects **only** where `ids[p-1] == 29` and
+  `ids[p+1] == 510` (the `<concept>` / `</concept>` tags). The neighbours are part of the contract,
+  and the marker is **not** the last prompt token — which is the one thing every MAEMM prompt
+  asserts, and why `rollouts_hf`, `rollouts_vllm` and `parity_greedy` refuse a `type: nla` entry
+  rather than quietly building the wrong prompt for it;
+- the prompt is ONE user message, the sidecar's `prompt_templates.actor` with `{injection_char}`
+  replaced by the marker, through `apply_chat_template(add_generation_prompt=True,
+  enable_thinking=False)`. `enable_thinking=False` is load-bearing: Qwen3.6 otherwise opens a bare
+  `<think>` block and never reaches its `<explanation>` tags;
+- sampling is the checkpoint's own `generation_config.json` (`T 1.0, top_p 0.95, top_k 20`,
+  `min_new 0`), asserted against that file. The model card's reference script decodes GREEDILY
+  instead; neither is marked canonical and `n` texts per target need sampling to differ at all.
+
+**`--amp`: what is actually injected.** The hook normalises `v` before scaling it by `||h||`, so
+only the DIRECTION reaches the model and a pure rescale of the input is a no-op. But our `realact`
+directions are `unit(X[p] − mu)` ("Methods": the centring happens once, in `targets`) while the
+verbalizer was trained on the uncentred `X[p]`, so adding `mu` back **tilts** the direction and the
+amplitude decides how far. It is a mixing ratio, not a scale:
+
+| `--amp` | input | what it is |
+|---|---|---|
+| `exact` (default) | `mu + t·u`, `t` solving `‖mu + t·u‖ = act_norm` | the uncentred reconstruction at the row's OWN recorded raw norm (`targets` stores `act_norm` on every realact row). Falls back to `mu` with a named reason for a row that has none |
+| `mu` | `mu + r·u` | the uncentred reconstruction at a typical corpus amplitude |
+| `raw` | `r·u` | the scorer's own target fed as is, no `mu` anywhere — the honest "wrong input" arm, and what the MAEMMs are injected with |
+
+`r` is `nla.amp_r`: `median` resolves to the read layer's q[0.50] of
+`base/<base>/stats/resid_norm_quantiles.json` (**93.259** at layer 42 of `qwen36-27b`, against
+`‖mu‖` = 67.93 and the card's own `example_activations.parquet` norms of min 67.7 / median 88.3 /
+max 116.8), or a number is taken as is. Every row and the summary carry `amp`, `amp_used`, `r` and
+`in_norm`, and the summary also carries the `amp_used` / fallback counts and the `‖x‖` quantiles.
+The DEFAULT amp writes the ordinary accumulating `rollouts/<set>.jsonl`; **any other amp writes
+`maemms/<base>/<nla>/variants/<set>__amp-<amp>/rollouts.jsonl`**, which `score --rollouts-dir`
+reads — so a sweep cannot overwrite the headline run and cannot be mistaken for it.
+
+**The marker-norm check is an OBSERVATION with no assert here**, unlike `rollouts_hf`'s. That check
+compares the served model against the clean base at the SAME marker and prompt; this checkpoint is
+fully merged (no adapter to disable) and its marker is a different token at a different position,
+so `bases.<base>.marker_norm_base` is not a comparable number. What proves these weights loaded is
+the pinned `revision`, asserted against the resolved snapshot's directory name, and the
+index+sizes sha256. The summary says so in those words.
+
+**Out of scope, so a missing number is not read as a negative one:** the card's native 256-token
+generation (we generate at 64 = `rollouts.max_new`, because `SCORE_MAX_LENGTH` is 95 and `score`
+asserts no scored row reaches it; `nla.card_max_new` records the 200), and the AR critic — the
+reconstruction / FVE half of the autoencoder, a second checkpoint and a second objective. Nothing
+in `rollouts_nla` computes a cosine or an FVE.
 
 ## The SAE repo's own examples (`repo_examples`)
 
