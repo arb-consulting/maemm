@@ -115,3 +115,39 @@ Document ranges, from the bundle's `doc_registry.json`, verified doc-disjoint
 Doc-disjoint is not content-disjoint, but the activation side is the clean half: the
 13-gram check puts realact content overlap with her training text at 0.50% of rows,
 against sae2m's 8.31%.
+
+---
+
+# Output layout
+
+Every precompute product is written as one head folder per family:
+
+    <root>/
+      realact/
+        README.md        what the family is, and the relation between the two sides
+        train/           what the checkpoint was fitted on for this family
+        test/            the frozen eval targets it is scored on
+      random/
+        README.md
+        train/README.md  empty by design, and says why
+        test/
+
+    python -m features.emit --root <root>
+
+Rules, on top of the branch's existing ones (one README per directory written by the
+script that fills it; temp-and-rename; no overwrite without `--force`):
+
+* The head folder is the **family**, never the product. A product is a file or a
+  subdirectory inside a side, so `realact/test/rollouts.jsonl` and `realact/test/scan/`
+  both sit under the one head.
+* **Both sides always exist.** A family with no training side gets an empty `train/`
+  carrying a README that says why, so an absence reads as a statement rather than as a
+  run that died halfway.
+* `README.md` sits in the **head**, not in the sides, because what a reader needs is the
+  relation between them -- what is held out from what.
+
+Emitted today, 13 families. `realact/train/` carries the two document lists the
+checkpoint was fitted on (`sft_activations_ctx8_64`, 125,000 documents,
+5,500,001-5,698,523; `rl_activations_ctx64_2048`, 62,504 documents,
+9,500,000-9,599,841), which match the branch's 2026-09-18 disjointness table exactly.
+`sae2m_enc/` and `sae2m_dec/` carry the feature partition on both sides.
