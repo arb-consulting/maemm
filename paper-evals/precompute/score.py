@@ -128,16 +128,37 @@ def _score_all(model, tok, texts, dirs, read_layer, extra):
 
 
 def _sae_for(cfg, args):
-    """(sae, key) for the base, or (None, '') when --no-sae. The gate is the checkpoint's own."""
+    """(sae, key) for the base, or (None, '') when --no-sae. The gate is the checkpoint's own.
+
+    `--sae <base>/<name>` picks WHICH SAE of the base, and is required as soon as the base has
+    more than one: `qwen36-27b` has carried two since `sae2m` landed, and without this flag
+    `score` could not run on that base at all -- the single-SAE assert below fired before any
+    argument could say which to use. With one SAE the flag is optional and the assert is unchanged.
+
+    NOTE `--sae qwen36-27b/sae2m` will OOM an H200 and is not the way to score an sae2m set: this
+    product loads the FULL SAE in fp32 (`load_sae`'s default `need_decoder=True`), which at 2^21
+    features is 43 GB per weight matrix, 86 GB beside the 27B's ~52 GB of 141 GB available
+    (features/CHANGES.md, fix 2). `--no-sae` is the path for those sets; the cosine, the norms and
+    the argmax -- everything the tables read -- do not involve the SAE at all.
+    """
     import torch
 
     if args.get("no_sae"):
         return None, ""
     base = args["base"]
     keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(keys) == 1, f"base {base} has {len(keys)} SAEs in config, expected exactly 1"
-    sae = C.load_sae(C.sae_path(cfg, keys[0]), cfg["bases"][base]["d"], device="cuda", dtype=torch.float32)
-    return sae, keys[0]
+    want = (args.get("sae") or "").strip()
+    if want:
+        assert want in keys, f"--sae {want!r} is not one of base {base}'s SAEs {sorted(keys)}"
+        key = want
+    else:
+        assert len(keys) == 1, (
+            f"base {base} has {len(keys)} SAEs in config ({sorted(keys)}), so `score` cannot pick "
+            f"one: pass --sae <key>, or --no-sae"
+        )
+        key = keys[0]
+    sae = C.load_sae(C.sae_path(cfg, key), cfg["bases"][base]["d"], device="cuda", dtype=torch.float32)
+    return sae, key
 
 
 def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, prompt_tokens=None):
