@@ -422,6 +422,18 @@ def rollouts_dir(maemm_key: str, root: str = VOL) -> str:
     return f"{maemm_dir(maemm_key, root)}/rollouts"
 
 
+def nla_variant_dir(maemm_key: str, set_name: str, amp: str, root: str = VOL) -> str:
+    """`<root>/maemms/<base>/<nla>/variants/<set>__amp-<amp>` -- a NON-default `rollouts_nla --amp`.
+
+    Its own one-shot directory in the `score --rollouts-dir` layout (`rollouts.jsonl` +
+    `rollouts.summary.json` + `scores/`), deliberately NOT the accumulating `rollouts/`: an amp
+    sweep is a different INPUT to the same model, and putting it under the set's own stem there
+    would make it indistinguishable from the headline run in `index.json`.
+    """
+    assert amp and "/" not in amp and " " not in amp, f"amp {amp!r} must be a bare directory suffix"
+    return f"{maemm_dir(maemm_key, root)}/variants/{set_name}__amp-{amp}"
+
+
 def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf") -> str:
     return f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(set_name, engine)}"
 

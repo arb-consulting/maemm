@@ -918,6 +918,20 @@ def check_strip_repo_sink():
         raise AssertionError("ids/acts of different shapes must not be accepted")
 
 
+def check_rollouts_nla_selftest():
+    """`rollouts_nla`'s own pure-piece checks, so `--product unit` covers them too.
+
+    They live in that module rather than here because they are about ITS recipe (the amp solve,
+    the sidecar's marker contract, the explanation tags), not about common.py -- and because
+    `uv run precompute/rollouts_nla.py --selftest` has to work on numpy alone, with no torch in
+    the call path. This wrapper is the one place the two entry points meet.
+    """
+    from precompute import rollouts_nla
+
+    names = rollouts_nla.selftest()
+    assert len(names) == len(rollouts_nla.SELFTESTS), f"only {len(names)} nla selftests ran"
+
+
 CHECKS = [
     check_config,
     check_paths,
@@ -946,6 +960,7 @@ CHECKS = [
     check_rename_lora_keys,
     check_maemms_for,
     check_strip_repo_sink,
+    check_rollouts_nla_selftest,
 ]
 
 
