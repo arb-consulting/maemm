@@ -535,6 +535,60 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maemm")
 
 
+def check_scores_subset(tmp: Path):
+    """A `scores/` directory written by `score --rows` holds the SELECTED targets only.
+
+    sae_self used to index its stored arrays by the held-out set's own row numbers, which is
+    right only when the whole set was scored. MEASURED 2026-09-21 on the 2k set's 8-row smoke:
+    `ValueError: cannot reshape array of size 32 into shape (2000, 4)`. The arrays are built here
+    at the SUBSET shape and read back through the same helper the stage uses, so the bug is
+    reproduced rather than described.
+    """
+    import numpy as np
+
+    import autointerp.sae_self as SS
+
+    n = 4
+    scored = [1029, 1035, 1053, 1061]  # what `score --rows 1029,1035,1053,1061` would write
+    sdir = tmp / "scores_subset"
+    sdir.mkdir(parents=True, exist_ok=True)
+    with open(sdir / "rows.json", "w") as fh:
+        json.dump({"rows": scored, "n": n, "families": ["sae"] * len(scored)}, fh)
+    # argmax.i16 is [N_sel, n] over the SCORED rows: row i of the file is `scored[i]`.
+    arg = (np.arange(len(scored) * n, dtype=np.int16)).reshape(len(scored), n)
+    arg.tofile(sdir / "argmax.i16")
+
+    score_rows, score_ix, sel_ix = SS.scored_rows_of(str(sdir), n, [1035, 1061])
+    assert score_rows == scored and list(sel_ix) == [1, 3], (score_rows, sel_ix)
+    back = C.read_array(sdir / "argmax.i16", "int16", (len(score_rows), n))[sel_ix]
+    assert back.tolist() == [[4, 5, 6, 7], [12, 13, 14, 15]], back.tolist()
+    # ...and the CSR flattening, which is `score_ix[row] * n + k`, not `row * n + k`
+    assert [score_ix[r] * n + k for r in (1035, 1061) for k in range(n)] == [4, 5, 6, 7, 12, 13, 14, 15]
+
+    # A row the score never covered is named, not reshaped into nonsense.
+    try:
+        SS.scored_rows_of(str(sdir), n, [1035, 1298])
+    except AssertionError as e:
+        assert "does NOT hold rows [1298]" in str(e), f"wrong assert fired: {e}"
+    else:
+        raise AssertionError("scored_rows_of accepted a row the scores directory does not hold")
+    # A scores directory from a different n is refused too.
+    try:
+        SS.scored_rows_of(str(sdir), 64, [1035])
+    except AssertionError as e:
+        assert "not the same run" in str(e), f"wrong assert fired: {e}"
+    else:
+        raise AssertionError("scored_rows_of accepted a scores dir written at another n")
+
+    # The FULL-SET case must stay the identity, or every pilot number would move.
+    full = list(range(6))
+    with open(sdir / "rows.json", "w") as fh:
+        json.dump({"rows": full, "n": n}, fh)
+    _sr, _ix, sel_full = SS.scored_rows_of(str(sdir), n, full)
+    assert list(sel_full) == full, "a fully scored set must index by its own row numbers"
+    print("[selfcheck] scores subset OK: sel_ix, the CSR flattening, both refusals, full-set identity")
+
+
 def check_chain(cfg, tmp: Path, base: str, set_name: str):
     """The chain's whole control flow, with docmax already present and the API stubbed.
 
@@ -588,6 +642,7 @@ def main() -> int:
         check_run_both_paths(cfg, tmp, base, set_name)
         check_followup_arms(cfg, tmp, base, set_name)
         check_nla_arms(cfg, tmp, base)
+        check_scores_subset(tmp)
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE

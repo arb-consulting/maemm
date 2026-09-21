@@ -124,8 +124,11 @@ def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, g
     """(csr_val, csr_has) for each (target, rollout): the stored CSR's activation of THIS target's
     feature at the argmax token, and whether the CSR holds it at all.
 
-    `sae_off.i64` has one offset per flat (target, rollout) row of the WHOLE set in row-major
-    order, so row `r * n + k` -- the same flattening score.py used to write it.
+    `sae_off.i64` has one offset per flat (target, rollout) row of the SCORED grid in row-major
+    order -- the same flattening score.py used to write it. `n_targets` is therefore the number
+    of rows in that directory's `rows.json`, NOT the size of the held-out set, and `flat_rows`
+    must be built from a row's INDEX among the scored rows. The two coincide only when the whole
+    set was scored.
     """
     off = C.read_array(f"{sdir}/sae_off.i64", "int64", (n_targets * n + 1,))
     idx = C.read_array(f"{sdir}/sae_idx.i32", "int32", (int(off[-1]),))
@@ -144,6 +147,36 @@ def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, g
         "the stored CSR holds an entry at or below the gate, which score.py cannot have written"
     )
     return out_val, out_has
+
+
+def scored_rows_of(sdir: str, n: int, sel, where: str = "the rollouts"):
+    """(score_rows, score_ix, sel_ix) for a `scores/<set>/` directory. The row-restriction fix.
+
+    `score --rows` writes its arrays over the SELECTED targets only -- [N_sel, n, T], with
+    `rows.json` naming them IN ORDER -- so a consumer that indexes them by the held-out set's own
+    row numbers is right only when the whole set was scored. That held for the pilot (all 512
+    `sae` rows) and MEASURED 2026-09-21 it does not for a row-restricted score: the 2k set's
+    8-row smoke died on `cannot reshape array of size 32 into shape (2000, 4)`.
+
+    `sel_ix` is the position of each selected row among the SCORED rows, which is the index every
+    stored array wants. When the whole set was scored it is `sel` itself, so the full-set case is
+    bit-identical.
+    """
+    with open(f"{sdir}/rows.json") as fh:
+        rows_json = json.load(fh)
+    score_rows = [int(x) for x in rows_json["rows"]]
+    score_ix = {r: i for i, r in enumerate(score_rows)}
+    assert int(rows_json["n"]) == n, (
+        f"{sdir}/rows.json was written at n={rows_json['n']} but {where} says n={n}: the scores "
+        f"and the rollouts are not the same run"
+    )
+    missing = [r for r in sel if r not in score_ix]
+    assert not missing, (
+        f"{sdir} holds {len(score_rows)} scored targets ({score_rows[:4]}...{score_rows[-4:]}) "
+        f"and does NOT hold rows {missing[:8]}: `score` was run with a narrower --rows than this "
+        f"stage was. Re-run `--product score` over these rows, or restrict --rows here."
+    )
+    return score_rows, score_ix, np.asarray([score_ix[r] for r in sel])
 
 
 def run(cfg, args):
@@ -185,6 +218,8 @@ def run(cfg, args):
     texts = [x["text"] for x in flat]
     row_feats = [feat_of[x["row"]] for x in flat]
 
+    # Which rows that scores directory actually holds -- see `scored_rows_of`.
+    score_rows, score_ix, sel_ix = scored_rows_of(sdir, n, sel, rpath)
     # This pass must reproduce `score`'s forward token for token, so it scores at the SAME
     # re-encode truncation that directory was written at -- the protocol's 95 everywhere but the
     # NLA arm, which asks for 256 (common.score_width_of reads it out of rows.json).
@@ -229,8 +264,8 @@ def run(cfg, args):
     # measurably shifts per-row cosine") showing up exactly where it was predicted to. So a
     # mismatch is allowed ONLY when our own cosine at the two positions is within ARGMAX_TIE_TOL,
     # and the count and the worst gap are reported either way.
-    stored_arg = C.read_array(f"{sdir}/argmax.i16", "int16", (len(rows_meta), n)).astype(np.int64)
-    stored_arg = stored_arg[np.asarray(sel)]
+    stored_arg = C.read_array(f"{sdir}/argmax.i16", "int16", (len(score_rows), n)).astype(np.int64)
+    stored_arg = stored_arg[sel_ix]
     ours_cos = cos.numpy().reshape(N, n, width)
     arg_agree = int((stored_arg == arg).sum())
     arg_total = int(arg.size)
@@ -242,16 +277,17 @@ def run(cfg, args):
         tie_gap = np.abs(np.nan_to_num(a_ours) - np.nan_to_num(a_stored))
     worst_tie = float(tie_gap[diff].max()) if diff.any() else 0.0
     argmax_ok = bool(worst_tie <= ARGMAX_TIE_TOL)
-    stored_cos = C.read_array(f"{sdir}/cos.f16", "float16", (len(rows_meta), n, width))
-    stored_cos = stored_cos[np.asarray(sel)]
+    stored_cos = C.read_array(f"{sdir}/cos.f16", "float16", (len(score_rows), n, width))
+    stored_cos = stored_cos[sel_ix]
     both = np.isfinite(stored_cos) & np.isfinite(ours_cos)
     cos_diff = np.abs(stored_cos[both].astype(np.float32) - ours_cos[both])
     cos_max_abs = float(cos_diff.max()) if both.any() else 0.0
 
     # CHECKS 2 and 3 index OUR activations at the STORED argmax, because that is the token the
     # stored CSR was measured at: they are then exact whatever check 1 found.
-    flat_rows = [x["row"] * n + x["k"] for x in flat]
-    csr_val, csr_has = _csr_at_argmax(sdir, len(rows_meta), n, flat_rows, row_feats, gate)
+    # The CSR is flattened over the SCORED grid, not the set's own row numbering.
+    flat_rows = [score_ix[x["row"]] * n + x["k"] for x in flat]
+    csr_val, csr_has = _csr_at_argmax(sdir, len(score_rows), n, flat_rows, row_feats, gate)
     csr_val = csr_val.reshape(N, n)
     csr_has = csr_has.reshape(N, n)
     at_arg = np.take_along_axis(act, np.clip(stored_arg, 0, None)[:, :, None] + 1, 2)[:, :, 0]
