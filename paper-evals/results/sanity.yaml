@@ -27,11 +27,33 @@
 #
 # A check whose selector resolves to nothing is `absent`, with the reason. That is the normal
 # outcome for a gate written against a set this run is not analysing, and it is not a failure.
+#
+# ===============================================================================================
+# SELECTORS ARE WRITTEN TO THE RUN TAGS THAT EXIST ON THE VOLUME (tightened 2026-09-21).
+#
+# A bare `rl-8x2048-full` matched ONE source on `2026-09-21_v1raw` and matches TWO on every eval-1
+# set -- `:mu-none` and `:mu-stats` -- so it resolves to `absent (matched 2 of the sources)` and
+# the gate silently does not run. Every old-primary gate below therefore names its arm. The tags,
+# read off the scores directories:
+#
+#   2026-09-18_rl-last16-lr5e-7@vllm                 no tag; the only arm of that checkpoint
+#   2026-09-10_rl-8x2048-full@vllm:mu-none           scores/<set>__mu-none__vllm
+#   2026-09-10_rl-8x2048-full@vllm:mu-stats          scores/<set>__mu-stats__vllm  (_realact/_ours)
+#   2026-07-14_nla-av                                scores/<set>, engine hf, NO tag on the v3 sets
+#   2026-07-14_nla-av:amp-exact                      variants/2026-09-21_v1raw__amp-exact/scores
+#   2026-07-14_nla-av:amp-raw                        variants/2026-09-20_sae2m_2k__amp-raw/scores
+#
+# The NLA arm is the one whose label DEPENDS ON THE SET: on the v3 sets its products sit under
+# `scores/` with no tag, and on `2026-09-21_v1raw` under `variants/…__amp-exact`. So an NLA gate
+# that names the tag resolves on v1raw and is `absent` on the v3 sets, and one that does not name
+# it is the other way round -- both are written, and both are correct where they resolve.
+# ===============================================================================================
 
 checks:
 
   # ------------------------------------------------------------------------------------------
   # (1) Celeste's model card -- the numbers in plan §2.3. Her scorer, her 512-feature sets.
+  # EVERY ONE OF THESE IS A DIFFERENT-DENOMINATOR OR DIFFERENT-DRAW COMPARISON, stated per gate.
   # ------------------------------------------------------------------------------------------
 
   - name: card realact, rl-last16 bo4 centred
@@ -42,8 +64,10 @@ checks:
     tol: 0.05
     provenance: >-
       Celeste's card for rl-last16 at bo4 on her 512 realact rows, centred, her scorer.
-      infra/2026-09-21_evals-plan-main.md §2.3. The tolerance is a STATED band, not a measured
-      one: her draw and ours are different rows and her scorer is not this one.
+      infra/2026-09-21_evals-plan-main.md §2.3. DIFFERENT DENOMINATOR AND DIFFERENT DRAW: the
+      tolerance is a STATED band, not a measured one -- her rows are her draw, her scorer is not
+      this one, and our exclusions take the block to n = 486. A pass is consistency, not
+      reproduction; a miss of this size is not by itself evidence of a wrong mu.
 
   - name: card realact_long, rl-last16 bo4 centred
     source: rl-last16
@@ -51,7 +75,13 @@ checks:
     metric: cos_centred.bo4
     expect: 0.716
     tol: 0.05
-    provenance: same card, the realact_long block (plan §2.3).
+    provenance: >-
+      Same card, the realact_long block (plan §2.3). DIFFERENT DENOMINATOR, AND WORSE THAN THE
+      REALACT ONE: `2026-09-21_v3_realact_long` is `storage: unit` with `family_mu: unknown`, so
+      our centred column there is read at `whiten_mu` and not at the `mu_long` those rows were
+      built under -- SMOKES.md 2026-09-21 records cos_raw 0.4360 against cos_centred 0.6991 on
+      exactly this block, the one family where the centred number is far ABOVE the raw one. Read
+      this line as "the labelled number is in the card's neighbourhood", never as a reproduction.
 
   - name: card 2M encoder fired fraction, rl-last16
     source: rl-last16
@@ -61,7 +91,9 @@ checks:
     tol: 0.08
     provenance: >-
       A firing rate has no denominator, so this is the one card number that does not depend on
-      whose corpus peak is used. plan §2.3; also reconstruction/sae_smoke64.py CARD.
+      whose corpus peak is used -- the only gate here that is NOT a different-denominator
+      comparison. It remains a different DRAW (her 512 features against our stratified 512).
+      plan §2.3; reconstruction/sae_smoke64.py CARD["qwen36-27b/sae2m"].
 
   - name: card 2M decoder fired fraction, rl-last16
     source: rl-last16
@@ -71,12 +103,32 @@ checks:
     tol: 0.08
     provenance: >-
       "the 0.416 card gate needs it" -- plan §2.1 puts the decoder block in the set for exactly
-      this line.
+      this line, and it is why `sae_self --sae-side dec` exists. Same denominator-free rate as the
+      encoder row above, same different-draw caveat. The PAIR is the finding: her card reads the
+      decoder side HIGHER than the encoder side (0.416 vs 0.344), so the two gates should miss in
+      the same direction or not at all.
+
+  - name: card 131k normalised activation, rl-last16 bo4 median ratio
+    source: rl-last16
+    family: sae/l42-1b
+    metric: ratio.bo4.median
+    expect: 0.824
+    tol: 0.15
+    compare: false
+    provenance: >-
+      Her card's `norm_act` for rl-last16 at bo4 on her 512-feature 131k set
+      (reconstruction/sae_smoke64.py CARD["qwen36-27b/l42-1b"], quoted in sae_smoke64.md).
+      DIFFERENT DENOMINATOR, and this one is not a band -- it is a different quantity: her ratio
+      divides by her corpus peak from the 1.0B-token scan and ours divides by OUR 16M `max_act`
+      (sae_self.py:383), which is a smaller corpus and therefore a smaller peak and a larger
+      ratio. `compare: false` so both numbers print with no verdict; a tolerance here would
+      assert a comparability that does not exist. `corpus_peak_1b` is on the rows if anyone wants
+      to compute her denominator properly, which is a separate piece of work.
 
   # ------------------------------------------------------------------------------------------
   # (2) The 64-direction stratified smoke, 2026-09-21 (reconstruction/sae_smoke64.md headline).
-  # Medians over 64 features of peak / 16M corpus peak. Resolves only on the sets that smoke
-  # ran on; on any other set these print `absent`, which is the correct outcome.
+  # Medians over 64 features of peak / 16M corpus peak -- OUR denominator on both sides, so these
+  # ARE the same statistic; what differs is the DRAW (64 features there, 512 here) and n.
   # ------------------------------------------------------------------------------------------
 
   - name: sae_smoke64 131k, rl-last16 bo1 median ratio
@@ -85,18 +137,24 @@ checks:
     metric: ratio.bo1.median
     expect: 0.76
     tol: 0.10
-    provenance: reconstruction/sae_smoke64.md headline, 64 features, n=16.
+    provenance: >-
+      reconstruction/sae_smoke64.md headline, 64 features, n=16, HF engine. Same denominator as
+      ours (16M max_act); the band covers the different draw and the n = 16 vs 64 gap.
+      SMOKES.md 2026-09-21 reports the 512-feature run at 0.719 against this 0.76.
 
-  - name: sae_smoke64 131k, old primary bo1 median ratio
-    source: rl-8x2048-full
+  - name: sae_smoke64 131k, old primary mu-none bo1 median ratio
+    source: rl-8x2048-full@vllm:mu-none
     family: sae/l42-1b
     metric: ratio.bo1.median
     expect: 0.83
     tol: 0.10
     provenance: >-
       sae_smoke64.md, the EXISTING vLLM product at n=64 over 64 of the 512 sae rows of
-      2026-09-16_v1. A run of this driver over a different row subset of the same dictionary is
-      a different draw of features; the band is wide for that reason.
+      2026-09-16_v1. A run of this driver over a different row subset of the same dictionary is a
+      different draw of features; the band is wide for that reason. TAG NAMED: the old primary has
+      two arms on every eval-1 set, and `sae`/`random` rows are not centrable, so the two arms'
+      products for this family are bit-identical -- `mu-none` is the one that exists everywhere.
+      SMOKES.md 2026-09-21: 0.803 at 512 features.
 
   - name: sae_smoke64 131k, rl-last16 feature firing fraction
     source: rl-last16
@@ -104,67 +162,232 @@ checks:
     metric: fired.feature
     expect: 0.92
     tol: 0.12
-    provenance: sae_smoke64.md, "features firing 92%" on the 131k side.
+    provenance: >-
+      sae_smoke64.md, "features firing 92%" on the 131k side. A rate, so no denominator question.
+      SMOKES.md 2026-09-21: 0.932 at 512 features.
 
-  - name: sae_smoke64 2M, rl-last16 bo1 median ratio
+  - name: sae_smoke64 2M enc, rl-last16 bo1 median ratio
+    source: rl-last16
+    family: sae/sae2m/enc
+    metric: ratio.bo1.median
+    expect: 0.23
+    tol: 0.10
+    provenance: >-
+      sae_smoke64.md, 2M side, set 2026-09-21_sae2m_64, 16 per quartile. Our 16M denominator on
+      both sides. Family is `sae/sae2m/enc` because the v3 set carries `sae_side` and splits;
+      on the 64-feature smoke root (which does not) the same gate resolves as `sae/sae2m`.
+      SMOKES.md 2026-09-21: 0.239 at 512 features.
+
+  - name: sae_smoke64 2M, rl-last16 bo1 median ratio (unsided sets)
     source: rl-last16
     family: sae/sae2m
     metric: ratio.bo1.median
     expect: 0.23
     tol: 0.10
-    provenance: sae_smoke64.md, 2M side, set 2026-09-21_sae2m_64.
+    provenance: >-
+      The same gate for a set whose rows carry no `sae_side` (`2026-09-21_sae2m_64`,
+      `2026-09-20_sae2m_2k`), where the family label has no side component. Exactly one of this
+      gate and the `/enc` one above resolves on any given set; the other is `absent`, which is
+      the correct outcome and not a failure.
+
+  - name: sae_smoke64 2M enc, old primary mu-none bo1 median ratio
+    source: rl-8x2048-full@vllm:mu-none
+    family: sae/sae2m/enc
+    metric: ratio.bo1.median
+    expect: 0.10
+    tol: 0.08
+    provenance: >-
+      sae_smoke64.md 2M side, old primary at n=16 HF. SMOKES.md 2026-09-21 reads 0.095 at 512
+      features against that 0.102. The band is wide because n = 16 there and 64 here.
+
+  - name: sae_smoke64 2M enc, NLA bo1 median ratio
+    source: 2026-07-14_nla-av
+    family: sae/sae2m/enc
+    metric: ratio.bo1.median
+    expect: 0.24
+    tol: 0.10
+    provenance: >-
+      sae_smoke64.md 2M side, NLA at n=4, 200 tokens, 256-token scoring window. SMOKES.md
+      2026-09-21 reads 0.233 at 512 features against that 0.242. NO RUN TAG: on the v3 sets the
+      NLA products sit under `scores/<set>` with none; the `amp-exact` gate below is the v1raw
+      shape of the same arm.
 
   # ------------------------------------------------------------------------------------------
-  # (3) The old primary's prior numbers. §1.6's two-arm reconciliation and the v1 product.
+  # (3) Our own recorded numbers. §1.6's two-arm reconciliation (the 4-row HF smoke on
+  # 2026-09-21_v1raw) and eval 1's own 486-row production table. These are OUR statistic on OUR
+  # rows by a second code path, so the tolerances are ROUNDING tolerances and a miss is a reader
+  # defect, not a finding.
   # ------------------------------------------------------------------------------------------
 
-  - name: old primary mu-none, realact mean cos (2026-09-21 smoke)
+  - name: old primary mu-none, realact mean cos (2026-09-21 v1raw smoke, n=4)
     source: rl-8x2048-full:mu-none
     family: realact
     metric: cos_raw.bo1
     expect: 0.8760
     tol: 0.0005
     provenance: >-
-      SMOKES.md 2026-09-21, "the two old-primary arms": realact rows 0-3, n=4, --mu none.
-      This is OUR OWN recorded number on these exact rows, so the tolerance is a rounding
-      tolerance and a miss here is a reader defect, not a finding.
+      SMOKES.md 2026-09-21, "the two old-primary arms": realact rows 0-3 of 2026-09-21_v1raw,
+      n=4, HF, --mu none. Resolves on v1raw only; `absent` on every v3 set, where the same arm's
+      number is the 486-row one below.
 
-  - name: old primary mu-stats, realact mean cos (2026-09-21 smoke)
+  - name: old primary mu-stats, realact mean cos (2026-09-21 v1raw smoke, n=4)
     source: rl-8x2048-full:mu-stats
     family: realact
     metric: cos_raw.bo1
     expect: 0.8989
     tol: 0.0005
-    provenance: SMOKES.md 2026-09-21, the same table's stats_mu arm.
+    provenance: SMOKES.md 2026-09-21, the same table's stats_mu arm. v1raw only.
 
-  - name: old primary mu-stats, realact bo4
+  - name: old primary mu-stats, realact bo4 (v1raw smoke)
     source: rl-8x2048-full:mu-stats
     family: realact
     metric: cos_raw.bo4
     expect: 0.9339
     tol: 0.0005
-    provenance: SMOKES.md 2026-09-21, the same table's bo_4 column.
+    provenance: SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.
 
-  - name: old primary mu-none, realact bo4
+  - name: old primary mu-none, realact bo4 (v1raw smoke)
     source: rl-8x2048-full:mu-none
     family: realact
     metric: cos_raw.bo4
     expect: 0.9034
     tol: 0.0005
-    provenance: SMOKES.md 2026-09-21, the same table's bo_4 column.
+    provenance: SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.
 
-  - name: rl-last16 realact mean centred cos (2026-09-21 smoke)
+  - name: rl-last16 realact mean centred cos (v1raw smoke, n=4)
     source: rl-last16
     family: realact
     metric: cos_centred.bo1
     expect: 0.7518
     tol: 0.0005
-    provenance: SMOKES.md 2026-09-21, "cos_centred, first numbers", rl-last16 under whiten_mu.
+    provenance: >-
+      SMOKES.md 2026-09-21, "cos_centred, first numbers", rl-last16 under whiten_mu on
+      2026-09-21_v1raw rows 0-3. v1raw only; on `2026-09-21_v3_realact` the recorded number is
+      0.7590 over 486 rows (gate below).
 
-  # A `kind: cross_set` gate reads ANOTHER set's product for the same checkpoint and compares the
-  # two on the rows they share. `2026-09-21_v1raw` is `2026-09-16_v1` re-forwarded row for row, so
-  # for a NON-CENTRABLE family the stored direction is identical in both and the comparison is
-  # exact. `from_set` / `from_source` name the other side; only cosine metrics resolve.
+  # --- eval 1's own production table (SMOKES.md 2026-09-21, "The summary table"). These gates
+  # --- are the tightest in the file: same rows, same products, a different reader. Exclusions are
+  # --- APPLIED there (realact n = 486, ours n = 506) and are NOT applied by this driver, which
+  # --- reads every row the product carries -- so each of these is written `compare: false` until
+  # --- the exclusion list is threaded through. THAT IS THE ONE THING TO FIX HERE NEXT.
+
+  - name: eval1 rl-last16, realact mean cos_raw (512 rows here vs 486 there)
+    source: rl-last16
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.8860
+    compare: false
+    provenance: >-
+      SMOKES.md 2026-09-21 summary table, rl-last16 x `2026-09-21_v3_realact`, n = 486 AFTER the
+      26-row `hers_n7.exclude.json` list. This driver has no exclusion mechanism and reads all
+      512, so the two are not the same population and the difference is the excluded rows'
+      contribution, not a disagreement. Printed for the record; restate with a tolerance once
+      `--exclude` exists.
+
+  - name: eval1 rl-last16, realact mean cos_centred (512 vs 486)
+    source: rl-last16
+    family: realact
+    metric: cos_centred.bo1
+    expect: 0.7590
+    compare: false
+    provenance: SMOKES.md 2026-09-21 summary table, same row, centred column. Same 512-vs-486 note.
+
+  - name: eval1 rl-last16, subspace/bsf mean cos_raw
+    source: rl-last16
+    family: bsf
+    metric: cos_raw.bo1
+    expect: 0.3177
+    tol: 0.0005
+    provenance: >-
+      SMOKES.md 2026-09-21 summary table. `bsf` has NO exclusions -- all 512 rows in both -- so
+      this one IS a rounding-tolerance gate and a miss is a reader defect.
+
+  - name: eval1 rl-last16, subspace/jlens mean cos_raw
+    source: rl-last16
+    family: jlens
+    metric: cos_raw.bo1
+    expect: 0.1058
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.
+
+  - name: eval1 rl-last16, realact_long mean cos_raw
+    source: rl-last16
+    family: realact_long
+    metric: cos_raw.bo1
+    expect: 0.4360
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.
+
+  - name: eval1 rl-last16, ctrl/random mean cos_raw
+    source: rl-last16
+    family: random
+    metric: cos_raw.bo1
+    expect: 0.0338
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.
+
+  - name: eval1 rl-last16, 2M sae rows mean cos_raw (both sides pooled there)
+    source: rl-last16
+    family: sae/sae2m/enc
+    metric: cos_raw.bo1
+    expect: 0.0584
+    compare: false
+    provenance: >-
+      SMOKES.md 2026-09-21 summary table reports `sae2m / sae` at n = 1024, i.e. the encoder and
+      decoder halves POOLED; this driver splits them on `sae_side`, so the encoder family alone is
+      not that number. Printed for the record: the two split means should straddle it.
+
+  - name: eval1 NLA, realact mean cos_raw (512 vs 486)
+    source: 2026-07-14_nla-av
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.8075
+    compare: false
+    provenance: >-
+      SMOKES.md 2026-09-21 summary table, NLA n=4 on `2026-09-21_v3_realact`, n = 486 after
+      exclusions. Same 512-vs-486 note as the rl-last16 realact rows.
+
+  - name: eval1 rl-last16, 2M enc median bo1 ratio (512 features)
+    source: rl-last16
+    family: sae/sae2m/enc
+    metric: ratio.bo1.median
+    expect: 0.239
+    tol: 0.002
+    provenance: >-
+      SMOKES.md 2026-09-21 SAE table, rl-last16 x 2M, `med bo1 ratio` over the 512 ENCODER
+      features. Same rows, same product, a different reader: a rounding tolerance.
+
+  - name: eval1 rl-last16, 131k median bo1 ratio (512 features)
+    source: rl-last16
+    family: sae/l42-1b
+    metric: ratio.bo1.median
+    expect: 0.719
+    tol: 0.002
+    provenance: SMOKES.md 2026-09-21 SAE table, rl-last16 x 131k l42-1b. Rounding tolerance.
+
+  - name: eval1 old primary mu-none, 2M enc median bo1 ratio
+    source: rl-8x2048-full@vllm:mu-none
+    family: sae/sae2m/enc
+    metric: ratio.bo1.median
+    expect: 0.095
+    tol: 0.002
+    provenance: SMOKES.md 2026-09-21 SAE table. Rounding tolerance.
+
+  - name: eval1 NLA, 2M enc median bo1 ratio
+    source: 2026-07-14_nla-av
+    family: sae/sae2m/enc
+    metric: ratio.bo1.median
+    expect: 0.233
+    tol: 0.002
+    provenance: SMOKES.md 2026-09-21 SAE table, NLA n=4. Rounding tolerance.
+
+  # ------------------------------------------------------------------------------------------
+  # (4) Cross-set gates. A `kind: cross_set` gate reads ANOTHER set's product for the same
+  # checkpoint and compares the two on the rows they share. `2026-09-21_v1raw` is `2026-09-16_v1`
+  # re-forwarded row for row, so for a NON-CENTRABLE family the stored direction is identical in
+  # both and the comparison is exact. `from_set` / `from_source` name the other side; only cosine
+  # metrics resolve.
+  # ------------------------------------------------------------------------------------------
 
   - name: old primary, sae rows, v1raw vs v1 on the shared rows
     kind: cross_set
@@ -194,6 +417,22 @@ checks:
       and a raw scorer -- Celeste's asymmetry -- while a raw set's `cos` centres neither side.
       A tolerance here would assert a comparability that does not exist.
 
+  - name: rl-last16, ctrl sae rows, v3_ctrl vs the 131k rows of v1raw
+    kind: cross_set
+    from_set: 2026-09-21_v1raw
+    from_source: rl-last16
+    source: rl-last16
+    family: sae/l42-1b
+    metric: cos_raw.bo1
+    compare: false
+    provenance: >-
+      `2026-09-21_v3_ctrl` was built `--dirs-from …/2026-09-21_v1raw --rows 512-1535`, so its sae
+      rows ARE v1raw's rows 1024-1535 -- but RENUMBERED, and this gate intersects on the row
+      INDEX. So it compares v3_ctrl row r against v1raw row r, which are different targets, and
+      it is `compare: false` for that reason: it exists to print the two numbers side by side
+      while a row-mapping gate does not exist. `src_set` / `src_row` are on the v3_ctrl rows and
+      are what a proper version of this would join on.
+
   - name: old primary v1 realact mean cos, 0.5076
     source: rl-8x2048-full
     family: realact
@@ -207,3 +446,5 @@ checks:
       centred) and cos_centred (both), never that third column. SMOKES.md 2026-09-21 records
       this as plan gate 2 being unevaluable rather than failed. Printed for the record with no
       verdict; delete the line or restate the gate against cos_centred once that is decided.
+      The BARE selector is deliberate: on a set with two old-primary arms this resolves `absent`
+      (matched 2 of the sources), which is right -- the 0.5076 belongs to neither arm.

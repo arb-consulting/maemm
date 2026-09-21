@@ -376,6 +376,16 @@ def parse_scores_dir(name: str, set_name: str) -> tuple[str, str] | None:
     The inverse of `precompute/common.rollout_stem`: `<set>[__<engine>][__<tag>]`. A suffix part
     that is an engine names the engine; everything else is the tag. A directory that merely STARTS
     with the set name but continues without `__` (e.g. `2026-09-16_v1x`) is another set.
+
+    THE ENGINE PART IS FOUND WHEREVER IT IS, not only first. `rollout_stem` puts it before the tag,
+    but a `score --score-name <set>__<tag> --engine vllm` run -- which is how eval 1's two
+    old-primary arms were written, because `scores_dir` takes no tag of its own -- lands on
+    `<set>__<tag>__<engine>` instead. The first version of this function required the engine part
+    to come first, so it read `2026-09-21_v3_sae2m__mu-none__vllm` as engine `hf` with the tag
+    `mu-none__vllm`: a vLLM product labelled HF in the paper's own CSV, on six of eval 1's arms.
+    MEASURED on the real directory names 2026-09-21. Only the FIRST engine-valued part is taken,
+    so a run tag that is itself spelled `hf` or `vllm` still ends up in the tag -- that collision
+    is inherent to the `__`-joined naming and is not made worse here.
     """
     if name == set_name:
         return "hf", ""
@@ -385,7 +395,7 @@ def parse_scores_dir(name: str, set_name: str) -> tuple[str, str] | None:
     engine = "hf"
     tag_parts = []
     for p in parts:
-        if p in ENGINES and engine == "hf" and not tag_parts:
+        if p in ENGINES and engine == "hf":
             engine = p
         else:
             tag_parts.append(p)

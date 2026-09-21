@@ -310,6 +310,12 @@ def check_parse_scores_dir():
     assert F.R.parse_scores_dir("S__vllm", "S") == ("vllm", "")
     assert F.R.parse_scores_dir("S__mu-none", "S") == ("hf", "mu-none")
     assert F.R.parse_scores_dir("S__vllm__mu-none", "S") == ("vllm", "mu-none")
+    # THE OTHER ORDER, which is the one eval 1's old-primary arms are actually written in:
+    # `score --score-name <set>__<tag> --engine vllm` gives `<set>__<tag>__<engine>`, because
+    # `scores_dir` has no tag parameter and folds the tag into the set name. Reading that as
+    # engine `hf` with the tag `mu-none__vllm` put "hf" in the paper's CSV for six vLLM arms.
+    assert F.R.parse_scores_dir("S__mu-none__vllm", "S") == ("vllm", "mu-none")
+    assert F.R.parse_scores_dir("S__mu-stats__vllm", "S") == ("vllm", "mu-stats")
     # A directory that merely starts with the set name is ANOTHER set, not an untagged run of
     # this one -- `2026-09-16_v1` and `2026-09-16_v1x` both exist in that namespace.
     assert F.R.parse_scores_dir("Sx", "S") is None
@@ -395,6 +401,101 @@ def check_round_trip():
         assert cos_chk.get("rows", 0) >= 8 and cos_chk["n_mismatches"] == 0, cos_chk
         sae_chk = [c for c in res["checks"] if c["kind"] == "sae_self"][0]
         assert sae_chk["n_mismatches"] == 0, sae_chk
+
+
+def check_centred_bok_is_recomputed_from_the_array():
+    """The centred bo-k ladder comes from `cos_centred.f16`, by the disjoint-group estimator.
+
+    `score` writes `bo_c_<k>` only for a row whose EVERY rollout kept a centred token
+    (`score.py:521`, `if len(vals_c) == n`), and on eval 1's own products no row qualifies -- so
+    the centred bo8/bo64 columns of plan §2.3 exist nowhere on the volume and have to be made
+    here. Four things, each its own failure:
+
+      1. with no NaN, the recomputation equals `common.best_of_k_means` on the same values EXACTLY
+         -- it is the same estimator, not a similar one, and that is what lets it sit in a column
+         beside the stored raw ladder;
+      2. a NaN rollout is dropped from ITS OWN group and the positions of the others do not move.
+         Compacting the survivors first would regroup them, which is a different statistic that
+         would agree on the mean (bo1) and differ everywhere else -- so bo1 cannot detect it and
+         bo2 is checked by hand here;
+      3. a group with NO finite draw is dropped from the average, never counted as a zero;
+      4. over `--centred-bok-max-mb` the read is REFUSED with a reason, not answered from the
+         stored ladder that is not there.
+    """
+    ids = [{"row": 0, "family": "realact", "doc": 1, "id": "a"},
+           {"row": 1, "family": "realact", "doc": 2, "id": "b"}]
+    # Row 0: all four finite. Row 1: draws 1 and 2 have no kept centred token.
+    #   row 0 bests [0.25, 0.75, 0.5, 1.0] -> bo1 0.625, bo2 (0.75 + 1.0)/2 = 0.875, bo4 1.0
+    #   row 1 bests [0.5, nan, nan, 0.25]  -> bo1 (0.5+0.25)/2 = 0.375
+    #                                          bo2 groups (0.5,nan) -> 0.5 and (nan,0.25) -> 0.25,
+    #                                               mean 0.375; COMPACTING would give one group
+    #                                               (0.5, 0.25) -> 0.5, which is the wrong answer
+    #                                          bo4 one group -> 0.5
+    centred = {0: [0.25, 0.75, 0.5, 1.0], 1: [0.5, math.nan, math.nan, 0.25]}
+    raw = {0: [0.25] * 4, 1: [0.25] * 4}
+    cfg = {**CFG, "heldout": {**CFG["heldout"],
+                              "CB": {"base": BASE, "families": {"realact": {"n": 2}}}}}
+
+    def write(root: Path) -> None:
+        hd = root / f"base/{BASE}/heldout/CB"
+        hd.mkdir(parents=True, exist_ok=True)
+        with open(hd / "ids.jsonl", "w") as fh:
+            for r in ids:
+                fh.write(json.dumps(r) + "\n")
+        (hd / "storage.json").write_text(json.dumps({"storage": "raw", "mu_stored": None}))
+        d = root / f"maemms/{BASE}/ckpt-one/scores/CB__arm-a"
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "per_target.jsonl", "w") as fh:
+            for r in (0, 1):
+                # mean/max_cos_centred and n_centred, and NO `bo_c_k` -- the production shape.
+                fin = [v for v in centred[r] if math.isfinite(v)]
+                fh.write(json.dumps({
+                    "row": r, "family": "realact", "n": N_ROLLOUTS, "mean_cos": 0.25,
+                    "max_cos": 0.25, "bo_1": 0.25, "bo_2": 0.25, "bo_4": 0.25,
+                    "mean_cos_centred": sum(fin) / len(fin), "max_cos_centred": max(fin),
+                    "n_centred": len(fin)}) + "\n")
+        (d / "rows.json").write_text(json.dumps(
+            {"rows": [0, 1], "n": N_ROLLOUTS, "families": ["realact"] * 2,
+             "score_max_length": WIDTH - 1, "mu": "/mu.npy"}))
+        index = {"per_target.jsonl": {"kind": "jsonl", "rows": 2}}
+        for name, vals in (("cos.f16", raw), ("cos_centred.f16", centred)):
+            arr = np.stack([_block(vals[r]) for r in (0, 1)]).astype(np.float16)
+            arr.tofile(d / name)
+            index[name] = {"kind": "array", "dtype": "float16",
+                           "shape": list(arr.shape), "bytes": arr.nbytes}
+        (d / "index.json").write_text(json.dumps(index))
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write(root)
+        vol = R.Vol("", root, offline=True, quiet=True)
+        res = F.analyse(vol, cfg, "CB", "", 400, 1, True, 8.0, 128.0)
+        # (1) the all-finite row IS `best_of_k_means`, exactly.
+        ladder, info = F.centred_bok(vol, res["sources"][0], 128.0)
+        want0 = R.best_of_k_means(centred[0], R.BO_KS_ALL)
+        assert ladder[0] == want0, f"row 0: {ladder[0]} vs best_of_k_means {want0}"
+        # (2)/(3) the NaN row, by hand.
+        _close(ladder[1][1], 0.375, 1e-9, what="bo1 over the finite draws")
+        _close(ladder[1][2], 0.375, 1e-9, what="bo2 keeps POSITIONS -- compacting would give 0.5")
+        _close(ladder[1][4], 0.5, 1e-9, what="bo4 is the one group's finite max")
+        assert info["rows_with_nan_rollouts"] == 1 and info["nan_rollouts"] == 2, info
+        # The product stores no ladder at all, so there was nothing to compare against -- and the
+        # table must SAY that rather than printing a vacuous zero-mismatch pass.
+        assert info["stored_comparisons"] == 0 and info["n_mismatches"] == 0, info
+        # (and the family mean is the average of the two rows, from the ARRAY not the file)
+        _close(_stat(res, "realact", "ckpt-one:arm-a", "cos_centred.bo2"), (0.875 + 0.375) / 2, 1e-9)
+        _close(_stat(res, "realact", "ckpt-one:arm-a", "cos_centred.bo4"), (1.0 + 0.5) / 2, 1e-9)
+        cell = [c for c in res["cos"] if c["cosine"] == "cos_centred"][0]
+        assert cell["bo_source"].startswith("cos_centred.f16"), cell["bo_source"]
+        raw_cell = [c for c in res["cos"] if c["cosine"] == "cos_raw"][0]
+        assert raw_cell["bo_source"] == "per_target.jsonl", raw_cell["bo_source"]
+
+        # (4) the size refusal: loud, with a reason, and no centred cells at all.
+        res2 = F.analyse(vol, cfg, "CB", "", 400, 1, False, 8.0, 1e-6)
+        assert not [c for c in res2["cos"] if c["cosine"] == "cos_centred"], (
+            "over the size bound the centred columns must be ABSENT, not filled from the file")
+        chk = [c for c in res2["checks"] if c["kind"] == "cos_centred bo-k"][0]
+        assert "over --centred-bok-max-mb" in chk.get("skipped", ""), chk
 
 
 def check_sae_side_reads_its_own_product():
@@ -2068,6 +2169,7 @@ CHECKS = [
     check_round_trip,
     check_second_sae_needs_no_code,
     check_sae_side_reads_its_own_product,
+    check_centred_bok_is_recomputed_from_the_array,
     check_missing_sources_are_listed_not_zeroed,
     check_sources_filter,
     check_reader_check_catches_a_defect,

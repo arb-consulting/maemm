@@ -102,21 +102,110 @@ def _clusters_for(rows: list[int], ids: dict[int, dict]) -> list:
     return [ids[r].get("doc", None) if ids[r].get("doc") is not None else f"row{r}" for r in rows]
 
 
+def centred_bok(vol: R.Vol, src: R.Source, max_mb: float) -> tuple[dict[int, dict[int, float]], dict]:
+    """({row: {k: bo-k of `cos_centred`}}, how it went) -- computed from `cos_centred.f16`.
+
+    THE PRODUCT DOES NOT CARRY THIS. `score` writes `bo_c_<k>` only when EVERY one of the n
+    rollouts has a finite centred best (`score.py:521`, `if len(vals_c) == n`); on the paper's own
+    products some rollout of some row always lacks a kept centred token, so the whole ladder is
+    absent and `per_target.jsonl` has only `mean_cos_centred` / `max_cos_centred` / `n_centred`.
+    That is SMOKES.md's "three things the results run must not get wrong", item 1: the centred bo-k
+    columns of plan §2.3 have to come from the array.
+
+    THE SAME ESTIMATOR AS THE STORED RAW LADDER, and the grouping is what makes it the same one:
+    `common.best_of_k_means` splits the n per-rollout bests into floor(n/k) DISJOINT groups of k
+    CONSECUTIVE rollouts, takes each group's max and averages them; k > n is skipped, never
+    clamped. The one thing this has to decide that `score` never did is what a NaN rollout does to
+    a group, and the answer is the one that reduces exactly to `score`'s when there are none: the
+    group's max is taken over its FINITE entries, and a group with no finite entry is dropped from
+    the average rather than counted as a zero. Positions are kept -- rollout j stays in group
+    j // k -- because dropping the NaNs first would regroup the survivors and quietly change which
+    draws compete with which.
+
+    Where `score` DID store the ladder (a row whose rollouts were all finite) the two are compared,
+    and a disagreement is a defect in this reader, not a result.
+    """
+    entry = src.index.get("cos_centred.f16")
+    if entry is None:
+        return {}, {"skipped": f"{src.scores_rel} has no cos_centred.f16 (the run centred on nothing)"}
+    mb = float(entry.get("bytes", 0)) / 1e6
+    if mb > max_mb:
+        # LOUD, and never a silent fall-back to the stored ladder that is not there: a centred
+        # bo64 column quietly absent at the paper's scale is exactly the failure this guards.
+        return {}, {"skipped": f"cos_centred.f16 is {mb:.1f} MB, over --centred-bok-max-mb "
+                               f"{max_mb:g}; the centred bo-k columns would be EMPTY, so raise "
+                               f"the bound rather than reading the table without them"}
+    arr = vol.array(f"{src.scores_rel}/cos_centred.f16", "float16", tuple(entry["shape"]))
+    if arr is None:
+        return {}, {"skipped": f"{src.scores_rel}/cos_centred.f16 is declared but not on the volume"}
+    order = [int(r) for r in src.rows_meta.get("rows", [])]
+    out: dict[int, dict[int, float]] = {}
+    n_nan_rollouts = 0
+    rows_with_nan = 0
+    checked = mism = 0
+    worst = -math.inf
+    for i, row in enumerate(order):
+        best = R.best_per_rollout(arr[i].astype(np.float32), empty=float("nan"))
+        finite = np.isfinite(best)
+        if not finite.any():
+            continue                       # a non-centrable row: absent, never a one-sided number
+        if not finite.all():
+            rows_with_nan += 1
+            n_nan_rollouts += int((~finite).sum())
+        n = int(best.size)
+        cells: dict[int, float] = {}
+        for k in R.BO_KS_ALL:
+            if k > n:
+                continue
+            maxima = []
+            for g in range(n // k):
+                grp = best[g * k : (g + 1) * k]
+                grp = grp[np.isfinite(grp)]
+                if grp.size:
+                    maxima.append(float(grp.max()))
+            if maxima:
+                cells[k] = float(np.mean(maxima))
+        if cells:
+            out[row] = cells
+        pt = src.per_target.get(row) or {}
+        for k, v in cells.items():
+            stored = pt.get(f"bo_c_{k}")
+            if stored is None:
+                continue
+            d = abs(v - float(stored))
+            worst = max(worst, d - reader_tol(v, float(stored)))
+            mism += int(d > reader_tol(v, float(stored)))
+            checked += 1
+    info = {"rows": len(out), "rows_with_nan_rollouts": rows_with_nan,
+            "nan_rollouts": n_nan_rollouts, "stored_comparisons": checked,
+            "n_mismatches": mism, "worst_excess": round(worst, 6) if checked else None,
+            "product": f"{src.scores_rel}/cos_centred.f16", "mb": round(mb, 2)}
+    return out, info
+
+
 def cosine_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict],
-                 boot: int, seed: int) -> list[dict]:
-    """One dict per (family, source, cosine): the bo-k means with clustered SEs, or []."""
+                 boot: int, seed: int, centred: dict[int, dict[int, float]] | None = None) -> list[dict]:
+    """One dict per (family, source, cosine): the bo-k means with clustered SEs, or [].
+
+    `centred` is `centred_bok`'s per-row ladder. Where it is given it is the ONLY source of the
+    centred numbers -- one estimator, one array -- and the product's own `bo_c_<k>`, on the rows
+    that happen to carry it, is a cross-check made inside `centred_bok` rather than a second
+    supply. Where it is absent (no `cos_centred.f16`, or the size bound refused it) the stored
+    ladder is read as before, so a run that never needed the array behaves exactly as it did.
+    """
     present = [r for r in rows if r in src.per_target]
     if not present:
         return []
     clusters = _clusters_for(present, ids)
     out = []
     for cosine, prefix in COSINES.items():
+        derived = centred if (cosine == "cos_centred" and centred) else None
         cells: dict[int, dict] = {}
         for k in R.BO_KS_ALL:
             key = f"{prefix}{k}"
             vals, cl = [], []
             for r, c in zip(present, clusters, strict=True):
-                v = src.per_target[r].get(key)
+                v = derived.get(r, {}).get(k) if derived is not None else src.per_target[r].get(key)
                 if v is not None and math.isfinite(float(v)):
                     vals.append(float(v))
                     cl.append(c)
@@ -131,6 +220,9 @@ def cosine_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, d
             "family": fam.label, "source": src.label, "cosine": cosine,
             "n": src.n, "engine": src.engine, "run_tag": src.run_tag, "maemm": src.maemm,
             "mu": src.mu, "bo": cells,
+            # WHERE THE NUMBERS CAME FROM, carried into the CSV and the caption. The centred
+            # ladder is `cos_centred.f16` recomputed here; the raw one is what `score` stored.
+            "bo_source": "cos_centred.f16 (recomputed)" if derived is not None else "per_target.jsonl",
             "n_rows": max(c["n_rows"] for c in cells.values()),
             "n_clusters": max(c["n_clusters"] for c in cells.values()),
         })
@@ -273,7 +365,8 @@ def cosine_reader_check(vol: R.Vol, src: R.Source, max_mb: float) -> dict:
 
 
 def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed: int,
-            check_arrays: bool, check_arrays_max_mb: float) -> dict:
+            check_arrays: bool, check_arrays_max_mb: float,
+            centred_bok_max_mb: float = 128.0) -> dict:
     """Everything the tables and figures are built from. Never raises on a missing source."""
     entry = (cfg.get("heldout") or {}).get(set_name)
     assert entry is not None, (
@@ -311,11 +404,18 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
             continue
         usable.append(src)
 
+    # The centred best-of-k ladder, per SOURCE rather than per family: it is one read of one
+    # array and every family of that arm cuts rows out of it.
+    centred: dict[str, dict[int, dict[int, float]]] = {}
     cos_rows: list[dict] = []
     sae_rows: list[dict] = []
     sae_feats: list[dict] = []
     checks: list[dict] = []
     notes: list[str] = []
+    for src in usable:
+        ladder, info = centred_bok(vol, src, centred_bok_max_mb)
+        centred[src.label] = ladder
+        checks.append({"kind": "cos_centred bo-k", "source": src.label, "family": "(all)", **info})
     for fam, rows in fams.items():
         dict_family = R.is_dictionary(fam, cfg)
         if dict_family and not fam.sae_key:
@@ -335,7 +435,7 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
                 else:
                     checks.append({"kind": "sae_self", "source": src.label, "family": fam.label, **chk})
             else:
-                cells = cosine_cells(fam, rows, src, ids, boot, seed)
+                cells = cosine_cells(fam, rows, src, ids, boot, seed, centred.get(src.label))
                 if not cells:
                     missing.append(
                         f"`{src.label}` / `{fam.label}`: scored none of this family's "
@@ -545,7 +645,7 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
         head = ["source", "run tag", "n", "rows", "docs", "cosine",
                 *[f"bo{k}" for k in R.BO_KS_REPORT], "bo_n"]
         csv_head = ["family", "source", "maemm", "engine", "run_tag", "mu", "n", "n_rows",
-                    "n_clusters", "cosine", "k", "mean", "se_cluster", "se_iid"]
+                    "n_clusters", "cosine", "bo_source", "k", "mean", "se_cluster", "se_iid"]
         rows, csv_rows = [], []
         for c in sorted(by_family[family], key=lambda c: (c["source"], c["cosine"])):
             n = c["n"]
@@ -561,17 +661,32 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
             for k in sorted(cells):
                 cell = cells[k]
                 csv_rows.append([family, c["source"], c["maemm"], c["engine"], c["run_tag"],
-                                 c["mu"], n, cell["n_rows"], cell["n_clusters"], c["cosine"], k,
+                                 c["mu"], n, cell["n_rows"], cell["n_clusters"], c["cosine"],
+                                 c.get("bo_source", ""), k,
                                  round(cell["mean"], 6), round(cell["se"], 6),
                                  round(cell["se_iid"], 6)])
         centred = [c for c in by_family[family] if c["cosine"] == "cos_centred"]
+        recomputed = sorted({c["source"] for c in centred
+                             if c.get("bo_source", "").startswith("cos_centred.f16")})
         out.table(
             f"cos_{family.replace('/', '_')}", f"Cosine — family `{family}`",
-            (f"set `{res['set']}`, base `{res['base']}`, root `{res['root']}`. bo-k is the "
-             f"disjoint-group best-of-k mean the product stores, averaged over the family's rows; "
-             f"± is a bootstrap SE over {res['boot']} resamples of the DOCUMENT clusters "
+            (f"set `{res['set']}`, base `{res['base']}`, root `{res['root']}`. "
+             f"**THE ESTIMATOR, on both cosines: bo-k is the DISJOINT-GROUP best-of-k mean** — the "
+             f"n rollouts of a row are split into floor(n/k) groups of k CONSECUTIVE draws, each "
+             f"group's max is taken, and those are averaged; k > n is skipped, never clamped "
+             f"(`precompute/common.best_of_k_means`). It is not the unbiased order-statistic "
+             f"estimator, and the two do not agree. Row values are then averaged over the family's "
+             f"rows; ± is a bootstrap SE over {res['boot']} resamples of the DOCUMENT clusters "
              f"(seed {res['seed']}). `cos_centred` is present only for a run that centred on "
-             f"something — {len(centred)} of {len(by_family[family])} source-rows here."),
+             f"something — {len(centred)} of {len(by_family[family])} source-rows here. The raw "
+             f"ladder is the product's own `bo_<k>`; the CENTRED ladder is RECOMPUTED here from "
+             f"`cos_centred.f16` by that same estimator, because `score` writes `bo_c_<k>` only "
+             f"for a row whose every rollout kept a centred token and the paper's products have "
+             f"none such — a group's max is over its finite draws and an all-NaN group is dropped, "
+             f"which reduces exactly to `score`'s when nothing is NaN. Recomputed for: "
+             f"{', '.join(recomputed) or '(no source on this set)'}. Per-row `bo_source` is in the "
+             f"CSV, and the agreement with the stored `bo_c_<k>` wherever it exists is in the "
+             f"reader-check table."),
             head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
     # --- SAE families ----------------------------------------------------------------------
@@ -634,6 +749,17 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
     for c in res["checks"]:
         if "skipped" in c:
             chk_rows.append([c["kind"], c["source"], c["family"], "—", "—", "skipped: " + c["skipped"]])
+        elif c["kind"] == "cos_centred bo-k":
+            # Not a comparison of two stored numbers but a RECOMPUTATION that the product mostly
+            # cannot be compared against, so the outcome line says how much of it was compared.
+            defect = "" if not c["n_mismatches"] else "  ← POSSIBLE DEFECT"
+            how = (f"{c['stored_comparisons']} vs the stored `bo_c_k`, {c['n_mismatches']} "
+                   f"mismatches{defect}" if c["stored_comparisons"]
+                   else "the product stores NO `bo_c_k` to compare against (score.py:521)")
+            chk_rows.append([c["kind"], c["source"], c["family"], c["rows"],
+                             R.num(c["worst_excess"], 6),
+                             f"{how}; {c['rows_with_nan_rollouts']} rows have a NaN rollout "
+                             f"({c['nan_rollouts']} draws)"])
         else:
             defect = "" if not c["n_mismatches"] else "  ← POSSIBLE DEFECT"
             chk_rows.append([c["kind"], c["source"], c["family"], c["rows"],
@@ -855,6 +981,8 @@ def main(
     seed: Annotated[int, typer.Option(help="bootstrap seed")] = R.BOOT_SEED,
     check_arrays: Annotated[bool, typer.Option(help="recompute the aggregates from the arrays")] = True,
     check_arrays_max_mb: Annotated[float, typer.Option(help="skip the cos.f16 check above this size")] = 8.0,
+    centred_bok_max_mb: Annotated[float, typer.Option(
+        help="refuse to read cos_centred.f16 above this size (the centred bo-k columns need it)")] = 128.0,
     figures: Annotated[bool, typer.Option(help="write figures/ (PDF + PNG)")] = True,
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ) -> None:
@@ -862,7 +990,8 @@ def main(
     cfg = R.load_config()
     mirror = data or (R.HERE / "data" / (root.replace("/", "_") or "vol"))
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
-    res = analyse(vol, cfg, set_, sources, boot, seed, check_arrays, check_arrays_max_mb)
+    res = analyse(vol, cfg, set_, sources, boot, seed, check_arrays, check_arrays_max_mb,
+                  centred_bok_max_mb)
     figs = make_figures(res, out) if figures else []
     sanity = run_sanity(res, sanity_file, vol, cfg)
     preamble = [
