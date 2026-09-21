@@ -3737,13 +3737,24 @@ shares its explanations and differs only in draw and judge, and the rarity and m
 confounded (5 of the 8 top-rarity features are also top-peak). One effect, seen three ways, on two
 correlated axes.
 
-**Three of the seven fail the table's own CI rule** — the widest per-cell interval is at least as
-large as the spread, so the cells overlap and a corrected p does not rescue them (the permutation
-null asks whether the CUT is informative, not whether the cells are separately estimable). That
-rule lived only in the caption; it is now in the `verdict` column as `CI-WIDE`, because the two
-rows it disqualifies are `M` on the old primary — the ONLY MAEMM arm anywhere in either block to
-separate, and therefore the single most tempting number in the table to over-read. **Four
-measurements survive both bars, and all four are the DOCMAX family on detection.**
+**Three of the seven are flagged `CI-WIDE`** — the widest per-cell interval is at least as large
+as the spread, so few features are carrying the effect and a small p should not be read as
+precision. That rule lived only in the caption and is now in the `verdict` column.
+
+**It is a precision warning and NOT an overlap test, and the first version of this section said
+otherwise.** A width is not a difference, and the counterexample is the row this flag was
+introduced to catch: 2M peak `M` (old primary) detection has cells 0.4844 / 0.5062 / 0.4938 /
+0.6219 with the top interval [0.5406, 0.7219] — whose lower bound clears not just every other
+MEAN but every other INTERVAL. Those cells separate cleanly while the width (0.1813) exceeds the
+spread (0.1375). Of the three flagged rows, the two `M` ones have DISJOINT top intervals and only
+`DOCMAX-judge2` (top [0.5927, 0.8281] against stratum 1's [0.5177, 0.6292]) actually overlaps —
+the opposite of what the flag was first said to mean.
+
+What stands: the two `M` rows are the weakest of the seven by spread, they rest on the fewest
+effectively-contributing features, and they are the only MAEMM arm anywhere in either block to
+separate — so they are still the number in this table most likely to be over-read, and flagging
+them was right. **Four measurements clear both bars, and all four are the DOCMAX family on
+detection.**
 
 ---
 
