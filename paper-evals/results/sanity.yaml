@@ -20,6 +20,9 @@
 #             `ratio.bo<k>.median` | `ratio.bo<k>.mean`  (peak activation / 16M corpus peak)
 #             `fired.item`    mean over features of the fraction of that source's draws over gate
 #             `fired.feature` fraction of features whose source fires at all
+#   set       optional; restricts the gate to ONE block. Without it a gate resolves on every
+#             block that carries its family and its source, which is how the v1raw four-row
+#             smoke's 0.7518 came to be compared against a 512-row v3 number and FLAG.
 #   tol       absolute tolerance. `tol_rel: true` makes it relative to `expect`.
 #   compare   `false` prints both numbers and their difference and issues NO verdict -- for a
 #             pair that is not the same statistic. Use it instead of a wide tolerance: a wide
@@ -220,6 +223,7 @@ checks:
   # ------------------------------------------------------------------------------------------
 
   - name: old primary mu-none, realact mean cos (2026-09-21 v1raw smoke, n=4)
+    set: 2026-09-21_v1raw
     source: rl-8x2048-full:mu-none
     family: realact
     metric: cos_raw.bo1
@@ -231,6 +235,7 @@ checks:
       number is the 486-row one below.
 
   - name: old primary mu-stats, realact mean cos (2026-09-21 v1raw smoke, n=4)
+    set: 2026-09-21_v1raw
     source: rl-8x2048-full:mu-stats
     family: realact
     metric: cos_raw.bo1
@@ -239,6 +244,7 @@ checks:
     provenance: SMOKES.md 2026-09-21, the same table's stats_mu arm. v1raw only.
 
   - name: old primary mu-stats, realact bo4 (v1raw smoke)
+    set: 2026-09-21_v1raw
     source: rl-8x2048-full:mu-stats
     family: realact
     metric: cos_raw.bo4
@@ -247,6 +253,7 @@ checks:
     provenance: SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.
 
   - name: old primary mu-none, realact bo4 (v1raw smoke)
+    set: 2026-09-21_v1raw
     source: rl-8x2048-full:mu-none
     family: realact
     metric: cos_raw.bo4
@@ -255,6 +262,7 @@ checks:
     provenance: SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.
 
   - name: rl-last16 realact mean centred cos (v1raw smoke, n=4)
+    set: 2026-09-21_v1raw
     source: rl-last16
     family: realact
     metric: cos_centred.bo1
@@ -266,31 +274,85 @@ checks:
       0.7590 over 486 rows (gate below).
 
   # --- eval 1's own production table (SMOKES.md 2026-09-21, "The summary table"). These gates
-  # --- are the tightest in the file: same rows, same products, a different reader. Exclusions are
-  # --- APPLIED there (realact n = 486, ours n = 506) and are NOT applied by this driver, which
-  # --- reads every row the product carries -- so each of these is written `compare: false` until
-  # --- the exclusion list is threaded through. THAT IS THE ONE THING TO FIX HERE NEXT.
+  # --- are the tightest in the file: same rows, same products, a different reader, and since
+  # --- 2026-09-21 the SAME POPULATION -- this driver reads the block's own `exclusions.json` and
+  # --- drops the 26 (`_realact`) / 6 (`_ours`) rows SMOKES applied by hand, so n = 486 / 506 on
+  # --- both sides. They are rounding-tolerance gates and a miss is a reader defect, not a
+  # --- finding. Run with `--no-exclusions` and every one of them FLAGs, by design.
 
-  - name: eval1 rl-last16, realact mean cos_raw (512 rows here vs 486 there)
+  - name: eval1 rl-last16, realact mean cos_raw (n = 486)
+    set: 2026-09-21_v3_realact
     source: rl-last16
     family: realact
     metric: cos_raw.bo1
     expect: 0.8860
-    compare: false
+    tol: 0.0005
     provenance: >-
-      SMOKES.md 2026-09-21 summary table, rl-last16 x `2026-09-21_v3_realact`, n = 486 AFTER the
-      26-row `hers_n7.exclude.json` list. This driver has no exclusion mechanism and reads all
-      512, so the two are not the same population and the difference is the excluded rows'
-      contribution, not a disagreement. Printed for the record; restate with a tolerance once
-      `--exclude` exists.
+      SMOKES.md 2026-09-21 summary table, rl-last16 x `2026-09-21_v3_realact`, n = 486 after the
+      26-row `hers_n7.exclude.json` list -- which this driver now applies from the set's own
+      `exclusions.json`. Same rows, same product, a different reader.
 
-  - name: eval1 rl-last16, realact mean cos_centred (512 vs 486)
+  - name: eval1 rl-last16, realact mean cos_centred (n = 486)
+    set: 2026-09-21_v3_realact
     source: rl-last16
     family: realact
     metric: cos_centred.bo1
     expect: 0.7590
-    compare: false
-    provenance: SMOKES.md 2026-09-21 summary table, same row, centred column. Same 512-vs-486 note.
+    tol: 0.0005
+    provenance: >-
+      SMOKES.md 2026-09-21 summary table, same row, centred column. NOTE that SMOKES read this
+      from `per_target.jsonl`'s `mean_cos_centred` and this driver recomputes the whole centred
+      ladder from `cos_centred.f16`; the two agreeing to 4 dp is the point of the gate.
+
+  - name: eval1 rl-last16, ours realact mean cos_raw (n = 506)
+    set: 2026-09-21_v3_ours
+    source: rl-last16
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.8884
+    tol: 0.0005
+    provenance: >-
+      SMOKES.md 2026-09-21 summary table, the `ours` block -- our own v1 realact draw, 6 rows
+      excluded by a DIFFERENT instrument (n=13 full reproduction in her v2 text) from the 26 of
+      the `_realact` block.
+
+  - name: eval1 rl-last16, ours realact mean cos_centred (n = 506)
+    set: 2026-09-21_v3_ours
+    source: rl-last16
+    family: realact
+    metric: cos_centred.bo1
+    expect: 0.7668
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21 summary table, the `ours` block, centred column.
+
+  - name: eval1 old primary mu-stats, realact mean cos_raw (n = 486)
+    set: 2026-09-21_v3_realact
+    source: rl-8x2048-full@vllm:mu-stats
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.8881
+    tol: 0.0005
+    provenance: >-
+      SMOKES.md 2026-09-21 summary table, and the arm the "old primary's mu, SETTLED" section
+      declares the winner (+0.0051 over mu-none, doc-clustered 95% CI [+0.0030, +0.0072]).
+
+  - name: eval1 old primary mu-none, realact mean cos_raw (n = 486)
+    set: 2026-09-21_v3_realact
+    source: rl-8x2048-full@vllm:mu-none
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.8830
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21 summary table, the losing arm of the same pair.
+
+  - name: eval1 old primary mu-stats, realact bo64 (n = 486)
+    set: 2026-09-21_v3_realact
+    source: rl-8x2048-full@vllm:mu-stats
+    family: realact
+    metric: cos_raw.bo64
+    expect: 0.9322
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21, "The old primary's mu, SETTLED", bo_64 row.
 
   - name: eval1 rl-last16, subspace/bsf mean cos_raw
     source: rl-last16
@@ -337,15 +399,16 @@ checks:
       decoder halves POOLED; this driver splits them on `sae_side`, so the encoder family alone is
       not that number. Printed for the record: the two split means should straddle it.
 
-  - name: eval1 NLA, realact mean cos_raw (512 vs 486)
+  - name: eval1 NLA, realact mean cos_raw (n = 486)
+    set: 2026-09-21_v3_realact
     source: 2026-07-14_nla-av
     family: realact
     metric: cos_raw.bo1
     expect: 0.8075
-    compare: false
+    tol: 0.0005
     provenance: >-
       SMOKES.md 2026-09-21 summary table, NLA n=4 on `2026-09-21_v3_realact`, n = 486 after
-      exclusions. Same 512-vs-486 note as the rl-last16 realact rows.
+      exclusions -- which this driver now applies.
 
   - name: eval1 rl-last16, 2M enc median bo1 ratio (512 features)
     source: rl-last16
@@ -390,6 +453,7 @@ checks:
   # ------------------------------------------------------------------------------------------
 
   - name: old primary, sae rows, v1raw vs v1 on the shared rows
+    set: 2026-09-21_v1raw
     kind: cross_set
     from_set: 2026-09-16_v1
     from_source: rl-8x2048-full@vllm
@@ -404,6 +468,7 @@ checks:
       because n = 4 here.
 
   - name: old primary, realact rows, v1raw vs v1 on the shared rows
+    set: 2026-09-21_v1raw
     kind: cross_set
     from_set: 2026-09-16_v1
     from_source: rl-8x2048-full@vllm
@@ -418,6 +483,7 @@ checks:
       A tolerance here would assert a comparability that does not exist.
 
   - name: rl-last16, ctrl sae rows, v3_ctrl vs the 131k rows of v1raw
+    set: 2026-09-21_v3_ctrl
     kind: cross_set
     from_set: 2026-09-21_v1raw
     from_source: rl-last16

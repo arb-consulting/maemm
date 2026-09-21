@@ -403,6 +403,62 @@ def check_round_trip():
         assert sae_chk["n_mismatches"] == 0, sae_chk
 
 
+def check_exclusions_leave_every_surface_together():
+    """The set's own `exclusions.json` drops rows from the tables, the SEs, the registry and the
+    figures AT ONCE, and `--no-exclusions` puts them back.
+
+    The rows stay IN the set -- every arm is scored on all of them so the arms pair row for row --
+    so dropping them is the reader's job, and the failure mode is a reader that drops them from
+    one surface and not another: a mean over 486 rows printed beside a document count over 512,
+    or a sanity gate resolving against the unexcluded number while the table shows the excluded
+    one. Row membership is therefore decided in ONE place (the family map) and this check requires
+    the mean, the row count, the cluster count and the registry to move together.
+
+    The fixture excludes row 0, which is the only realact row with a non-constant cosine and
+    shares a document with row 1 -- so the mean, the row count AND the document count all change,
+    and a partial drop cannot produce a consistent triple by luck.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_mirror(root)
+        (root / f"base/{BASE}/heldout/{SET}/exclusions.json").write_text(json.dumps({
+            "block": "realact", "rows_total": 3, "excluded_rows": [0], "n_headline": 2,
+            "criterion": "a synthetic gate", "n_gram": 7, "source": "selftest",
+            "computed_over": "the fixture"}))
+        vol = R.Vol("", root, offline=True, quiet=True)
+        on = F.analyse(vol, CFG, SET, "", 400, 1, True, 8.0, 128.0, True)
+        off = F.analyse(vol, CFG, SET, "", 400, 1, True, 8.0, 128.0, False)
+
+        # rows 1 and 2 only: (0.5 + 0.25) / 2, against all three rows' 1.375 / 3.
+        _close(_stat(on, "realact", "ckpt-one:arm-a", "cos_raw.bo1"), 0.375, 1e-9)
+        _close(_stat(off, "realact", "ckpt-one:arm-a", "cos_raw.bo1"), 1.375 / 3, 1e-9)
+        cell_on = [c for c in on["cos"] if c["family"] == "realact"
+                   and c["source"] == "ckpt-one:arm-a" and c["cosine"] == "cos_raw"][0]
+        cell_off = [c for c in off["cos"] if c["family"] == "realact"
+                    and c["source"] == "ckpt-one:arm-a" and c["cosine"] == "cos_raw"][0]
+        # ALL THREE move together: rows 3 -> 2 and documents 2 -> 2 (row 0 shared doc 7 with row 1,
+        # so the document survives) -- and the per-k counts inside the cell move with them.
+        assert (cell_off["n_rows"], cell_off["n_clusters"]) == (3, 2), cell_off
+        assert (cell_on["n_rows"], cell_on["n_clusters"]) == (2, 2), cell_on
+        assert cell_on["bo"][1]["n_rows"] == 2, cell_on["bo"][1]
+        # The centred ladder is cut too -- it is a separate read of a separate array.
+        _close(_stat(on, "realact", "ckpt-one:arm-a", "cos_centred.bo1"), (0.375 + 0.125) / 2, 1e-9)
+        # And so is the support registry the sanity table prints as `n`.
+        assert F.support_registry(on)[("realact", "ckpt-one:arm-a", None)] == 2
+        assert F.support_registry(off)[("realact", "ckpt-one:arm-a", None)] == 3
+        # A family with no exclusion is untouched.
+        for r in (on, off):
+            _close(_stat(r, "random", "ckpt-one:arm-a", "cos_raw.bo1"), 0.125, 1e-9)
+
+        # The provenance reaches the document, in full, on both settings.
+        line_on = F._exclusion_line(on)
+        assert "1 rows dropped" in line_on and "n = 2 of 3" in line_on and "selftest" in line_on, line_on
+        assert "NOT APPLIED" in F._exclusion_line(off), F._exclusion_line(off)
+        # A set with no exclusions.json says so rather than claiming a clean zero.
+        none = F.analyse(vol, CFG, SET2, "", 400, 1, False, 8.0, 128.0, True)
+        assert "no exclusions.json" in F._exclusion_line(none), F._exclusion_line(none)
+
+
 def check_centred_bok_is_recomputed_from_the_array():
     """The centred bo-k ladder comes from `cos_centred.f16`, by the disjoint-group estimator.
 
@@ -671,6 +727,23 @@ def check_sanity_verdicts():
         assert "bsf" in got[2]["why"] or "not present" in got[2]["why"], got[2]
         _close(got[0]["ours"], 1.375 / 3, 1e-6)
 
+        # `set:` restricts a gate to ONE block. Without it, the four-row v1raw smoke's numbers
+        # resolved against the 512-row v3 block and FLAGged -- a flag that said nothing about the
+        # mu, which is the only thing a flag is supposed to mean. The SAME gate must pass on its
+        # own block and be `absent` on any other, with the reason naming both names.
+        gate = SANITY.replace("  - name: arm-a realact mean cos",
+                              f"  - name: arm-a realact mean cos\n    set: {SET}", 1)
+        y.write_text(gate)
+        here = F.run_sanity(res, y)
+        assert here[0]["verdict"] == "pass", here[0]
+        y.write_text(SANITY.replace("  - name: arm-a realact mean cos",
+                                    "  - name: arm-a realact mean cos\n    set: another-block", 1))
+        elsewhere = F.run_sanity(res, y)
+        assert elsewhere[0]["verdict"] == "absent", elsewhere[0]
+        assert "another-block" in elsewhere[0]["why"] and SET in elsewhere[0]["why"], elsewhere[0]
+        # and the restriction does not touch the gates that do not carry it
+        assert [g["verdict"] for g in elsewhere[1:]] == ["FLAG", "absent", "no verdict"], elsewhere
+
 
 def check_cross_set_gate():
     """A `kind: cross_set` gate compares this set's arm with another set's, ON THE SHARED ROWS.
@@ -777,6 +850,99 @@ def check_render_and_figures():
         assert any(f.startswith("arms_") for f in figs), figs
         assert any(f.startswith("strata_") for f in figs), figs
         assert any(f.startswith("bok_") for f in figs), figs
+
+
+def check_combined_layer_lifts_and_never_recomputes():
+    """The cross-set document: the headline table, the merged sanity block, and the index.
+
+    `analyse` is per SET on purpose -- a set is a storage contract and a family list -- so the
+    combined layer must not merge two blocks into one namespace. Two things are pinned:
+
+      1. every headline cell is BIT-IDENTICAL to the block cell it came from. A combined layer
+         that re-averaged the rows of two blocks would produce a plausible number that matches no
+         table in the document, which is the failure that has no symptom;
+      2. `realact` measured on two different blocks stays TWO rows, keyed by (block, family), and
+         both reach the figure. Collapsing them is how "her draw" and "our draw" become one
+         number that is neither.
+
+    The sanity block is merged across blocks with the block named on every line, and a gate that
+    resolves on one and not the other must appear twice, once with each verdict.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_mirror(root)
+        vol = R.Vol("", root, offline=True, quiet=True)
+        # The same rows under two block names: SET carries realact/random/sae, SET2 carries
+        # realact only, on four of the eight rows and with a different arm's numbers.
+        a = F.analyse(vol, CFG, SET, "", 400, 1, True, 8.0, 128.0)
+        b = F.analyse(vol, CFG, SET2, "", 400, 1, True, 8.0, 128.0)
+        all_res = [a, b]
+
+        hl = F.headline_rows(all_res)
+        assert hl, "the headline carries no row at all"
+        # The arms are DISCOVERED, never spelled: a checkpoint name in the driver is the one
+        # thing this file promises not to have.
+        assert F.headline_arms(all_res) == ["ckpt-one:arm-a", "ckpt-one:arm-b", "ckpt-two"], (
+            F.headline_arms(all_res))
+        import re as _re
+        src = (Path(F.__file__)).read_text()
+        assert not _re.search(r"rl-last16|rl-8x2048|nla-av", src), (
+            "a checkpoint name is spelled in faithfulness.py")
+        # (1) every cell is lifted, not recomputed.
+        for r in hl:
+            src = [c for c in (a["cos"] + b["cos"])
+                   if c["source"] == r["source"] and c["family"] == r["family"]
+                   and c["cosine"] == r["cosine"] and c["n_rows"] == r["n_rows"]]
+            assert src and src[0]["bo"] is r["bo"], (
+                f"the headline row {r['set']}/{r['family']}/{r['arm']}/{r['cosine']} does not "
+                f"carry its block's own `bo` dict -- something recomputed it")
+        # (2) one family, two blocks, two rows -- and they are DIFFERENT numbers here, so a
+        # collapse cannot pass by coincidence (arm-a on SET vs arm-a on SET2 = PT_A vs PT_B).
+        ra = [r for r in hl if r["family"] == "realact" and r["cosine"] == "cos_raw"]
+        by_set = {r["set"]: r["bo"][1]["mean"] for r in ra}
+        assert set(by_set) == {SET, SET2}, f"realact did not survive as two blocks: {by_set}"
+        assert abs(by_set[SET] - by_set[SET2]) > 1e-6, by_set
+
+        y = root / "sanity.yaml"
+        y.write_text(SANITY)
+        sanity = {SET: F.run_sanity(a, y), SET2: F.run_sanity(b, y)}
+        out_dir = root / "all"
+        # The figure's columns are keyed on (block, family), so `realact` gets one per block.
+        keys = F.headline_keys(all_res)
+        assert (SET, "realact") in keys and (SET2, "realact") in keys, keys
+        assert len(keys) == len({(s_, f_) for s_, f_ in keys}), keys
+        figs = F.make_headline_figure(all_res, out_dir)
+        assert figs == ["headline_cosine"], figs
+        for ext in ("pdf", "png"):
+            fp = out_dir / "figures" / f"headline_cosine.{ext}"
+            assert fp.exists() and fp.stat().st_size > 1000, fp
+        o = R.Out(out_dir, "selftest combined", ["- synthetic"])
+        path = F.render_combined(all_res, o, sanity, figs,
+                                 {SET: Path("s"), SET2: Path("s2")})
+        md = path.read_text()
+        assert (out_dir / "headline.csv").exists() and (out_dir / "sanity_all.csv").exists()
+        # The BLOCK COLUMN is populated on every headline row -- a table that printed the two
+        # blocks' `realact` rows under the same (blank) name would put two different numbers
+        # side by side with nothing saying which draw each came from.
+        hl_md = md.split("### Headline")[1].split("\nCSV:")[0]
+        body = [ln for ln in hl_md.splitlines() if ln.startswith("| ") and "---" not in ln][1:]
+        assert body, hl_md
+        blocks_seen = {ln.split("|")[1].strip() for ln in body}
+        assert blocks_seen == {SET, SET2}, f"the headline block column reads {blocks_seen}"
+        csv_blocks = {ln.split(",")[0] for ln in
+                      (out_dir / "headline.csv").read_text().splitlines()[1:]}
+        assert csv_blocks == {SET, SET2}, csv_blocks
+        # The headline number reaches the document, and so does the other block's.
+        for v in by_set.values():
+            assert f"{v:.4f}" in md, f"{v:.4f} is not in the combined tables.md"
+        # Every sanity line names its block, and the gate that resolves on SET but not on SET2
+        # (SET2 has no `sae` rows and a different source set) appears under both.
+        rows = [ln for ln in md.splitlines() if ln.startswith("| S ") or ln.startswith("| S2 ")]
+        assert any(ln.startswith("| S ") for ln in rows) and any(ln.startswith("| S2 ") for ln in rows), (
+            "the merged sanity block does not name the block on every line")
+        assert "a gate that must flag" in md and "FLAG" in md, "the flagging gate is not reported"
+        # The index points at each block's own document.
+        assert "s/tables.md" in md and "s2/tables.md" in md, md[-2000:]
 
 
 # --- eval 2: the autointerp fixture, worked out by hand -----------------------------------------
@@ -2169,6 +2335,7 @@ CHECKS = [
     check_round_trip,
     check_second_sae_needs_no_code,
     check_sae_side_reads_its_own_product,
+    check_exclusions_leave_every_surface_together,
     check_centred_bok_is_recomputed_from_the_array,
     check_missing_sources_are_listed_not_zeroed,
     check_sources_filter,
@@ -2176,6 +2343,7 @@ CHECKS = [
     check_sanity_verdicts,
     check_cross_set_gate,
     check_render_and_figures,
+    check_combined_layer_lifts_and_never_recomputes,
     # eval 2 -- `results/autointerp.py`
     check_autointerp_reader,
     check_autointerp_refusals_and_conventions,

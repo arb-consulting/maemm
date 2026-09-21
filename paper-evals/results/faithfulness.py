@@ -364,9 +364,34 @@ def cosine_reader_check(vol: R.Vol, src: R.Source, max_mb: float) -> dict:
 # ---------------------------------------------------------------------------------------------
 
 
+def load_exclusions(vol: R.Vol, base: str, set_name: str) -> dict:
+    """The set's own `exclusions.json`, or an empty record when it has none.
+
+    A v3 block that has one carries it as a first-class product of the set, written at freeze time
+    and never recomputed: `_realact`'s 26 rows are Ari's `ngram_overlap --side hers` list at
+    coverage >= 0.05, n = 7, over HER training parquets, and `_ours`'s 6 are the rows of our own
+    draw that `check_v2_targets_overlap` found fully reproduced in her v2 text at n = 13. They are
+    DIFFERENT INSTRUMENTS over different corpora and the file says so; the two lists must never be
+    applied to each other's block, which is exactly why they live beside the rows they index
+    rather than in this file.
+
+    The rows are KEPT in the set so every arm pairs row for row; dropping them is the reader's job
+    and this is the reader.
+    """
+    rec = vol.json(f"base/{base}/heldout/{set_name}/exclusions.json")
+    if rec is None:
+        return {"rows": set(), "present": False,
+                "why": f"base/{base}/heldout/{set_name} carries no exclusions.json"}
+    rows = {int(r) for r in rec.get("excluded_rows", [])}
+    return {"rows": rows, "present": True, "n_total": int(rec.get("rows_total", 0)),
+            "n_headline": int(rec.get("n_headline", 0)), "block": rec.get("block"),
+            "criterion": rec.get("criterion"), "n_gram": rec.get("n_gram"),
+            "source": rec.get("source"), "computed_over": rec.get("computed_over")}
+
+
 def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed: int,
             check_arrays: bool, check_arrays_max_mb: float,
-            centred_bok_max_mb: float = 128.0) -> dict:
+            centred_bok_max_mb: float = 128.0, apply_exclusions: bool = True) -> dict:
     """Everything the tables and figures are built from. Never raises on a missing source."""
     entry = (cfg.get("heldout") or {}).get(set_name)
     assert entry is not None, (
@@ -387,7 +412,15 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
             f"{vol.prefix or '/'}: name the base with `heldout.{set_name}.base` in config.yaml")
         base = hits[0]
     ids, declared_sae = R.load_ids(vol, base, set_name, cfg)
-    fams = R.families_of(ids, cfg, declared_sae)
+    excl = load_exclusions(vol, base, set_name)
+    # The excluded rows are dropped from the FAMILY MAP, which is the single place row membership
+    # is decided -- so they leave the tables, the figures, the sanity registry, the SE clusters
+    # and the CSVs together, and there is no path by which one of those keeps them. They stay in
+    # `ids`, because the products are still indexed by the set's own row numbers.
+    drop = excl["rows"] if apply_exclusions else set()
+    fams = {f: [r for r in rows if r not in drop]
+            for f, rows in R.families_of(ids, cfg, declared_sae).items()}
+    fams = {f: rows for f, rows in fams.items() if rows}
 
     found, absent = R.discover_sources(vol, cfg, base, set_name)
     colours = R.colour_map(found)
@@ -452,6 +485,7 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
         "colours": colours, "cos": cos_rows, "sae": sae_rows, "sae_feats": sae_feats,
         "checks": checks, "missing": missing, "notes": notes,
         "declared_sae_key": declared_sae, "boot": boot, "seed": seed,
+        "exclusions": {**excl, "rows": sorted(excl["rows"]), "applied": bool(drop)},
     }
 
 
@@ -564,6 +598,21 @@ def run_sanity(res: dict, path: Path, vol: R.Vol | None = None,
         rec = {"name": name, "expect": chk.get("expect"), "tol": chk.get("tol"),
                "provenance": " ".join(str(chk.get("provenance", "")).split()),
                "compare": chk.get("compare", True)}
+        # `set:` (optional) restricts a gate to ONE block. Without it a gate resolves on every
+        # block that happens to carry its family and its source -- which is how the v1raw
+        # four-row smoke's 0.7518 came to be compared against the 512-row `2026-09-21_v3_realact`
+        # number and FLAG: two different populations, one gate, and the flag said nothing about
+        # the mu. A gate that names a block is `absent` on every other one, which is the correct
+        # and quiet outcome.
+        want_set = str(chk.get("set", ""))
+        if want_set and want_set != res["set"]:
+            rec["verdict"] = "absent"
+            rec["family"] = str(chk.get("family", ""))
+            rec["source"] = str(chk.get("source", ""))
+            rec["metric"] = str(chk.get("metric", ""))
+            rec["why"] = f"`set: {want_set}` — this run is `{res['set']}`"
+            out.append(rec)
+            continue
         if str(chk.get("kind", "")) == "cross_set":
             got = cross_set(vol, cfg, res, chk)
             rec["family"] = str(chk.get("family"))
@@ -632,6 +681,22 @@ def _bo_n(src_n: int) -> int | None:
     """The largest best-of-k a run of n rollouts can report, from score's own BO_KS."""
     ks = [k for k in R.BO_KS_ALL if k <= src_n]
     return max(ks) if ks else None
+
+
+def _exclusion_line(res: dict) -> str:
+    """One line saying which rows left this block's tables, and on whose instrument."""
+    e = res["exclusions"]
+    if not e.get("present"):
+        return f"none — {e.get('why', 'the set declares none')}"
+    n = len(e["rows"])
+    if not e.get("applied"):
+        return (f"**NOT APPLIED** (`--no-exclusions`): the set declares {n} rows "
+                f"({e.get('criterion')}), and they ARE in every number below")
+    return (f"{n} rows dropped, n = {e.get('n_headline')} of {e.get('n_total')} — "
+            f"criterion `{e.get('criterion')}`"
+            + (f" at n-gram {e['n_gram']}" if e.get("n_gram") else "")
+            + f", from `{e.get('source')}`, computed over `{e.get('computed_over')}`. "
+              f"Rows: {', '.join(str(r) for r in e['rows'])}")
 
 
 def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Path:
@@ -961,13 +1026,228 @@ def make_figures(res: dict, out_dir: Path) -> list[str]:
 
 
 # ---------------------------------------------------------------------------------------------
+# the combined layer: one document over several sets
+# ---------------------------------------------------------------------------------------------
+#
+# `analyse` is per SET, deliberately: a set is a storage contract and a family list, and merging
+# two of them into one namespace is how `realact` on `2026-09-21_v3_realact` and `realact` on
+# `_ours` become one row that is neither. So the six eval-1 blocks are six independent runs into
+# six subdirectories, each with its own tables, CSVs, figures and sanity verdicts, and THIS layer
+# writes the document that reads across them: the headline comparison, the merged sanity block,
+# and an index. Nothing here recomputes a number -- every cell is lifted from a block's own `res`.
+
+
+def headline_arms(all_res: list[dict]) -> list[str]:
+    """Every source label present on any block, in `discover_sources`' own order.
+
+    NOT A HARDCODED LIST. `discover_sources` already sorts `primary` first and then by checkpoint,
+    engine and tag, so the arm order is the config's and a new checkpoint joins the headline by
+    having products -- the same promise the rest of this file makes. A label spelled here would be
+    the one place a checkpoint name lived in the code.
+    """
+    out: list[str] = []
+    for res in all_res:
+        for src in res["sources"]:
+            if src.label not in out:
+                out.append(src.label)
+    return out
+
+
+def headline_keys(all_res: list[dict]) -> list[tuple[str, str]]:
+    """The (block, family) pairs the headline has a column for, in block then family order.
+
+    KEYED ON THE BLOCK AS WELL AS THE FAMILY. `realact` is measured on two of eval 1's blocks --
+    `_realact` is Celeste's draw and `_ours` is the draw every v1 table was built on -- and they
+    are two different populations. A key that was the family alone would put them in one column
+    and show one of the two numbers, silently.
+    """
+    out: list[tuple[str, str]] = []
+    for r in sorted(headline_rows(all_res), key=lambda r: (r["set"], r["family"])):
+        if (r["set"], r["family"]) not in out:
+            out.append((r["set"], r["family"]))
+    return out
+
+
+def headline_rows(all_res: list[dict]) -> list[dict]:
+    """One row per (set, family, source, cosine), with the clustered SE.
+
+    Lifted from each block's `cos` rows -- the `bo` dict is the block's own object, not a copy and
+    not a recomputation. A (family, source) the block does not carry is simply absent, which is
+    how the old primary's and the NLA arm's missing `realact_long` / `bsf` / `jlens` and every
+    non-centrable family's missing centred row say what they are.
+    """
+    return [{"set": res["set"], "family": c["family"], "arm": c["source"],
+             "source": c["source"], "cosine": c["cosine"], "n": c["n"],
+             "n_rows": c["n_rows"], "n_clusters": c["n_clusters"],
+             "bo": c["bo"], "bo_source": c.get("bo_source", "")}
+            for res in all_res for c in res["cos"]]
+
+
+def render_combined(all_res: list[dict], out: R.Out, sanity: dict[str, list[dict]],
+                    figures: list[str], blocks: dict[str, Path]) -> Path:
+    """The cross-set document: headline table, merged sanity block, and the index of the blocks."""
+    rows, csv_rows = [], []
+    head = ["set", "family", "arm", "cosine", "rows", "docs", "n",
+            *[f"bo{k}" for k in R.BO_KS_REPORT]]
+    csv_head = ["set", "family", "arm", "source", "cosine", "n", "n_rows", "n_clusters",
+                "bo_source", "k", "mean", "se_cluster", "se_iid"]
+    order = {label: i for i, label in enumerate(headline_arms(all_res))}
+    hl = headline_rows(all_res)
+    for r in sorted(hl, key=lambda r: (r["set"], r["family"], order[r["arm"]], r["cosine"])):
+        cells = r["bo"]
+        rows.append([r["set"].replace("2026-09-21_v3_", ""), r["family"], r["arm"], r["cosine"],
+                     r["n_rows"], r["n_clusters"], r["n"],
+                     *[R.pm(cells[k]["mean"], cells[k]["se"]) if k in cells else "—"
+                       for k in R.BO_KS_REPORT]])
+        for k in sorted(cells):
+            cell = cells[k]
+            csv_rows.append([r["set"], r["family"], r["arm"], r["source"], r["cosine"], r["n"],
+                             cell["n_rows"], cell["n_clusters"], r["bo_source"], k,
+                             round(cell["mean"], 6), round(cell["se"], 6),
+                             round(cell["se_iid"], 6)])
+    out.table(
+        "headline", "Headline — every arm, every cosine family, both cosines",
+        ("One row per (block, family, arm, cosine), lifted from the per-block tables and not "
+         "recomputed. bo-k is the DISJOINT-GROUP best-of-k mean (floor(n/k) groups of k "
+         "consecutive draws, each group's max, averaged; k > n skipped); ± is a bootstrap SE over "
+         "resamples of the DOCUMENT clusters, so `rows` and `docs` differ wherever targets share "
+         "a document. The RAW ladder is each product's own `bo_<k>`; the CENTRED ladder is "
+         "recomputed from `cos_centred.f16` by that same estimator, because `score` stores it "
+         "only for a row whose every rollout kept a centred token and none does. A missing row "
+         "is a missing PRODUCT: the old primary and the NLA arm were never run on "
+         "`realact_long` / `subspace` (no raw directions for them), and a non-centrable family "
+         "has no centred row by the NaN rule, never a one-sided number. **`realact_long`'s "
+         "centred column is read at `whiten_mu` and not at the `mu_long` its rows were built "
+         "under** — a labelled number, not one comparable with the `realact` centred column."),
+        head, rows, csv_header=csv_head, csv_rows=csv_rows)
+
+    # --- the merged sanity block -------------------------------------------------------------
+    sane_rows = []
+    for set_name, recs in sanity.items():
+        for s in recs:
+            sane_rows.append([
+                set_name.replace("2026-09-21_v3_", ""), s["name"], s.get("family", "—"),
+                s.get("source", "—"), s.get("metric", "—"), s.get("n", "—"),
+                R.num(s.get("ours")), R.num(s.get("expect")),
+                R.num(s["tol"]) if isinstance(s.get("tol"), (int, float)) else "—",
+                s["verdict"], s.get("why", ""),
+            ])
+    counts: dict[str, int] = {}
+    for _set_name, recs in sanity.items():
+        for s in recs:
+            counts[s["verdict"]] = counts.get(s["verdict"], 0) + 1
+    out.table(
+        "sanity_all", "Sanity gates (plan §2.3), every block",
+        (f"From `results/sanity.yaml`, resolved independently against each block. "
+         f"**{', '.join(f'{v}: {n}' for v, n in sorted(counts.items()))}.** A `FLAG` means the mu "
+         f"or the prompt may be wrong and the numbers above should not be read until it is "
+         f"explained; `absent` means the gate's selector does not resolve on THAT block, which is "
+         f"the normal and expected outcome for most gate-block pairs — a gate written against "
+         f"`2026-09-21_v1raw` is absent on all six of these, and a gate on `realact` is absent on "
+         f"the four blocks that carry no realact rows. `no verdict` means the YAML declares the "
+         f"two are not the same statistic, which on this run covers every gate whose expected "
+         f"value uses a different denominator (her 1.0B corpus peak) or a different population "
+         f"(SMOKES' exclusion-applied n = 486 against this driver's full 512). `n` is the rows or "
+         f"features behind `ours`."),
+        ["block", "gate", "family", "source", "metric", "n", "ours", "expected", "tol", "verdict",
+         "why"],
+        sane_rows)
+    prov = {}
+    for recs in sanity.values():
+        for s in recs:
+            if s.get("provenance"):
+                prov[s["name"]] = s["provenance"]
+    if prov:
+        out.section("#### Where the expected numbers come from\n\n"
+                    + "\n".join(f"- **{k}** — {v}" for k, v in sorted(prov.items())) + "\n")
+
+    # --- the index of the per-block documents ------------------------------------------------
+    idx = ["### The six blocks", "",
+           "*Each is an independent `faithfulness.py --set <block>` run with its own tables, "
+           "CSVs, figures and sanity verdicts. The numbers above are lifted from them.*", "",
+           "| block | sources | cosine rows | SAE rows | document |",
+           "|---|---|---|---|---|"]
+    for res in all_res:
+        rel = blocks[res["set"]]
+        idx.append(f"| `{res['set']}` | {len(res['sources'])} | {len(res['cos'])} | "
+                   f"{len(res['sae'])} | [`{rel}/tables.md`]({rel}/tables.md) |")
+    out.section("\n".join(idx) + "\n")
+
+    for res in all_res:
+        for m in res["missing"]:
+            out.note(f"`{res['set']}`: {m}")
+        for n in res["notes"]:
+            out.note(f"`{res['set']}`: {n}")
+    return out.finish(figures)
+
+
+def make_headline_figure(all_res: list[dict], out_dir: Path) -> list[str]:
+    """One figure: centred and raw cosine per family, per arm, with the CLUSTERED CI.
+
+    The bars are bo1 (the plain mean over rollouts) with a 95% interval from the document-clustered
+    bootstrap, because that is the estimator every SE in this run uses and a figure drawn on a
+    different one would not match its own table. Two panels, raw and centred, on a shared axis, so
+    the one family where the centred number sits ABOVE the raw one (`realact_long`, read at a mean
+    that is not its own) is visible as what it is rather than hidden in a second scale.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plt.rcParams.update({"figure.facecolor": R.SURFACE, "savefig.facecolor": R.SURFACE,
+                         "font.size": 9, "legend.frameon": False})
+    hl = headline_rows(all_res)
+    if not hl:
+        return []
+    keys = headline_keys(all_res)
+    labels = [f"{f}\n{s.replace('2026-09-21_v3_', '')}" for s, f in keys]
+    arms = headline_arms(all_res)
+    colours = {a: R.PALETTE[i % len(R.PALETTE)] for i, a in enumerate(arms)}
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.2), sharey=True)
+    width = 0.8 / len(arms)
+    for ax, cosine in zip(axes, ("cos_raw", "cos_centred"), strict=True):
+        R.style_axes(ax, ylabel="mean cosine over the family's rows (bo1)", title=cosine)
+        for j, arm in enumerate(arms):
+            xs, ys, es = [], [], []
+            for i, k in enumerate(keys):
+                hit = [r for r in hl if (r["set"], r["family"]) == k and r["arm"] == arm
+                       and r["cosine"] == cosine and 1 in r["bo"]]
+                if not hit:
+                    continue
+                cell = hit[0]["bo"][1]
+                xs.append(i + (j - (len(arms) - 1) / 2) * width)
+                ys.append(cell["mean"])
+                # 95% from the clustered bootstrap SE. NaN where the SE is not estimable (one
+                # cluster), drawn as no bar rather than as a zero-width certainty.
+                es.append(0.0 if not math.isfinite(cell["se"]) else 1.96 * cell["se"])
+            if not xs:
+                continue
+            ax.bar(xs, ys, width=width * 0.88, color=colours[arm], label=arm, zorder=3,
+                   edgecolor=R.SURFACE, linewidth=1.0)
+            ax.errorbar(xs, ys, yerr=es, fmt="none", ecolor=R.INK_MUTED, elinewidth=1.0,
+                        capsize=2, zorder=4)
+        ax.set_xticks(range(len(keys)))
+        ax.set_xticklabels(labels, fontsize=7)
+    handles, lab = axes[0].get_legend_handles_labels()
+    fig.legend(handles, lab, loc="lower center", ncol=len(lab), bbox_to_anchor=(0.5, -0.10))
+    fig.suptitle("Eval 1 headline — bo1 cosine per family, 95% CI over DOCUMENT clusters",
+                 color=R.INK, fontsize=11, x=0.02, ha="left")
+    fig.tight_layout()
+    return [R.savefig(fig, out_dir, "headline_cosine")]
+
+
+# ---------------------------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------------------------
 
 
 @app.command()
 def main(
-    set_: Annotated[str, typer.Option("--set", help="the held-out set, as declared in config.yaml")] = "",
+    set_: Annotated[str, typer.Option(
+        "--set",
+        help="the held-out set, as declared in config.yaml; a COMMA-SEPARATED list runs each one "
+             "into <out>/<block>/ and writes the cross-set document at <out>/")] = "",
     sources: Annotated[str, typer.Option(help="comma-separated substrings of source labels to keep")] = "",
     out: Annotated[Path, typer.Option(help="output directory")] = R.HERE / "out" / "faithfulness",
     root: Annotated[str, typer.Option(help="volume-relative root the products were written under")] = "",
@@ -983,47 +1263,85 @@ def main(
     check_arrays_max_mb: Annotated[float, typer.Option(help="skip the cos.f16 check above this size")] = 8.0,
     centred_bok_max_mb: Annotated[float, typer.Option(
         help="refuse to read cos_centred.f16 above this size (the centred bo-k columns need it)")] = 128.0,
+    exclusions: Annotated[bool, typer.Option(
+        help="drop the rows in the set's own exclusions.json (the paper's n)")] = True,
     figures: Annotated[bool, typer.Option(help="write figures/ (PDF + PNG)")] = True,
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ) -> None:
     assert set_, "--set <name> is required; config.yaml `heldout:` lists the declared sets"
+    names = [x.strip() for x in set_.split(",") if x.strip()]
+    assert len(names) == len(set(names)), f"--set names a block twice: {names}"
     cfg = R.load_config()
     mirror = data or (R.HERE / "data" / (root.replace("/", "_") or "vol"))
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
-    res = analyse(vol, cfg, set_, sources, boot, seed, check_arrays, check_arrays_max_mb,
-                  centred_bok_max_mb)
-    figs = make_figures(res, out) if figures else []
-    sanity = run_sanity(res, sanity_file, vol, cfg)
-    preamble = [
-        f"- set `{res['set']}`, base `{res['base']}`, volume root `{res['root']}`, "
+
+    all_res: list[dict] = []
+    all_sanity: dict[str, list[dict]] = {}
+    blocks: dict[str, Path] = {}
+    # ONE BLOCK PER SUBDIRECTORY, even for a single `--set`: the layout is then the same whether
+    # one block or six were asked for, so a command line that grows a name does not move files
+    # that were already written and cited.
+    for name in names:
+        res = analyse(vol, cfg, name, sources, boot, seed, check_arrays, check_arrays_max_mb,
+                      centred_bok_max_mb, exclusions)
+        sub = Path(out) / name.replace("2026-09-21_v3_", "").replace("/", "_")
+        figs = make_figures(res, sub) if figures else []
+        sanity = run_sanity(res, sanity_file, vol, cfg)
+        preamble = [
+            f"- set `{res['set']}`, base `{res['base']}`, volume root `{res['root']}`, "
+            f"mirror `{vol.local}`",
+            f"- command: `{' '.join(sys.argv)}`",
+            f"- sources present: {', '.join(s.label for s in res['sources']) or '(none)'}",
+            f"- SEs: bootstrap over document clusters, {boot} resamples, seed {seed}",
+            f"- exclusions: {_exclusion_line(res)}",
+        ]
+        o = R.Out(sub, f"Eval 1 — faithfulness on `{res['set']}`", preamble)
+        path = render(res, o, sanity, figs)
+        with open(sub / "results.json", "w") as fh:
+            json.dump({"set": res["set"], "base": res["base"], "root": res["root"],
+                       "cos": res["cos"], "sae": res["sae"], "checks": res["checks"],
+                       "sanity": sanity, "missing": res["missing"], "notes": res["notes"]},
+                      fh, indent=1, default=str)
+        all_res.append(res)
+        all_sanity[name] = sanity
+        blocks[name] = sub.relative_to(Path(out))
+
+        print(f"\n[faithfulness] {path}")
+        print(f"[faithfulness] {len(res['sources'])} sources, {len(res['cos'])} cosine rows, "
+              f"{len(res['sae'])} SAE rows, {len(figs)} figures")
+        for m in res["missing"]:
+            print(f"   MISSING  {m}")
+        for n in res["notes"]:
+            print(f"   NOTE     {n}")
+        for s in sanity:
+            if s["verdict"] != "absent":
+                print(f"   {s['verdict']:<10} {s['name']}: {s.get('why', '')}")
+        for c in res["checks"]:
+            if "skipped" in c:
+                print(f"   check      {c['kind']}/{c['source']}: skipped ({c['skipped']})")
+            elif c.get("n_mismatches"):
+                print(f"   check      {c['kind']}/{c['source']}: {c['n_mismatches']} MISMATCHES "
+                      f"(worst excess {c['worst_excess']})")
+
+    hfigs = make_headline_figure(all_res, Path(out)) if figures else []
+    pre = [
+        f"- blocks: {', '.join('`' + r['set'] + '`' for r in all_res)}",
+        f"- base `{all_res[0]['base']}`, volume root `{all_res[0]['root']}`, "
         f"mirror `{vol.local}`",
         f"- command: `{' '.join(sys.argv)}`",
-        f"- sources present: {', '.join(s.label for s in res['sources']) or '(none)'}",
-        f"- SEs: bootstrap over document clusters, {boot} resamples, seed {seed}",
+        f"- SEs and CIs: bootstrap over document clusters, {boot} resamples, seed {seed}",
+        "- every number here is LIFTED from a block's own table; nothing is recomputed at this "
+        "level",
+        *[f"- exclusions, `{r['set']}`: {_exclusion_line(r)}" for r in all_res],
     ]
-    o = R.Out(out, f"Eval 1 — faithfulness on `{res['set']}`", preamble)
-    path = render(res, o, sanity, figs)
-    with open(Path(out) / "results.json", "w") as fh:
-        json.dump({"set": res["set"], "base": res["base"], "root": res["root"],
-                   "cos": res["cos"], "sae": res["sae"], "checks": res["checks"],
-                   "sanity": sanity, "missing": res["missing"], "notes": res["notes"]},
-                  fh, indent=1, default=str)
-
-    print(f"\n[faithfulness] {path}")
-    print(f"[faithfulness] {len(res['sources'])} sources, {len(res['cos'])} cosine rows, "
-          f"{len(res['sae'])} SAE rows, {len(figs)} figures")
-    for m in res["missing"]:
-        print(f"   MISSING  {m}")
-    for n in res["notes"]:
-        print(f"   NOTE     {n}")
-    for s in sanity:
-        print(f"   {s['verdict']:<10} {s['name']}: {s.get('why', '')}")
-    for c in res["checks"]:
-        if "skipped" in c:
-            print(f"   check      {c['kind']}/{c['source']}: skipped ({c['skipped']})")
-        elif c["n_mismatches"]:
-            print(f"   check      {c['kind']}/{c['source']}: {c['n_mismatches']} MISMATCHES "
-                  f"(worst {c['worst_abs_diff']})")
+    o = R.Out(out, "Eval 1 — faithfulness, all blocks", pre)
+    path = render_combined(all_res, o, all_sanity, hfigs, blocks)
+    flags = [(k, s) for k, recs in all_sanity.items() for s in recs if s["verdict"] == "FLAG"]
+    print(f"\n[faithfulness] COMBINED {path}")
+    print(f"[faithfulness] {len(all_res)} blocks, {len(headline_rows(all_res))} headline rows, "
+          f"{len(flags)} FLAG(s)")
+    for k, s in flags:
+        print(f"   FLAG       {k} / {s['name']}: {s.get('why', '')}")
 
 
 if __name__ == "__main__":

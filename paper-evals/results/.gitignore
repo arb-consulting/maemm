@@ -1,6 +1,10 @@
 # Local analysis working directories, both reproducible from the volume: `data/` is the mirror
-# `Vol` fetches into, `out/` is where the tables, CSVs and figures go. `faithfulness/` is the
-# pre-`out/` default and stays ignored so an old command line does not start committing output.
+# `Vol` fetches into, `out/` is where an ad-hoc run's tables, CSVs and figures go.
+#
+# `faithfulness/` is NOT ignored (2026-09-21). It was, on the reasoning that everything under
+# results/ is reproducible from the volume -- but eval 1's faithfulness output IS the paper's
+# numbers, and a number the paper cites has to be in the history, diffable, and readable without
+# $51 of GPU and a Modal token. So `results/faithfulness/` is committed and `out/` stays the
+# scratch path for everything else; keep ad-hoc runs under `--out results/out/<name>`.
 data/
 out/
-faithfulness/
