@@ -188,9 +188,18 @@ def load_scans(vol: Vol, base: str, set_name: str) -> dict[str, dict]:
     An OOD scan writes `scan/<set>/<corpus>[-<M>m]/`; the pre-2026-09-18 English scan writes
     `scan/<set>/` directly and is read by `english_reference`, never here.
     """
+    # TWO LAYOUTS. The pre-rebase OOD branch nested the corpus under the set --
+    # `scan/<set>/<corpus>[-<M>m]/` -- and the sets drawn before 2026-09-21 still carry it. The
+    # pipeline keys a scan by (set, corpus) as SIBLINGS: `scan/<set>__<corpus>[__<M>m]/`. Reading
+    # only the first would leave the in-domain column of every post-rebase set EMPTY rather than
+    # wrong, which is the failure that looks like a result.
+    subs = [(sub, f"base/{base}/scan/{set_name}/{sub}") for sub in vol.ls(f"base/{base}/scan/{set_name}")]
+    for d in vol.ls(f"base/{base}/scan"):
+        if d.startswith(set_name + "__"):
+            subs.append((d[len(set_name) + 2 :], f"base/{base}/scan/{d}"))
     out = {}
-    for sub in vol.ls(f"base/{base}/scan/{set_name}"):
-        rows = vol.jsonl(f"base/{base}/scan/{set_name}/{sub}/topk.jsonl")
+    for sub, rel in subs:
+        rows = vol.jsonl(f"{rel}/topk.jsonl")
         if rows is None:
             continue
         top1: dict = {}
@@ -199,6 +208,10 @@ def load_scans(vol: Vol, base: str, set_name: str) -> dict[str, dict]:
                 continue
             key = (r.get("set", set_name), int(r.get("set_row", r["row"])), int(r["size"]))
             top1[key] = r["top"][0][3]
+        assert sub not in out, (
+            f"two scan directories resolve to the corpus label {sub!r} for set {set_name}: the "
+            f"nested and the sibling layouts both carry it, and they are different products"
+        )
         out[sub] = top1
         console.print(f"[dim]scan {sub}: {len(top1)} (target, size) cells[/dim]")
     return out
