@@ -1369,6 +1369,84 @@ def check_spawn_mirrors_main():
 
 
 
+
+# How many values each direction/target loader returns. MEASURED THE EXPENSIVE WAY 2026-09-21:
+# `_realact` was given a third return value (the raw activations) and its `return` statement was
+# not updated with it, which nothing on CPU could see -- `targets.run` needs a GPU -- so it
+# surfaced as `ValueError: not enough values to unpack (expected 3, got 2)` after a 148-second
+# H200 forward, with the product's temp directory left on the volume. These functions are the
+# seam this branch kept moving, they are all GPU-only, and an arity is exactly the kind of thing
+# `ast` can check for free.
+RETURN_ARITY = {
+    ("precompute/targets.py", "_realact"): 3,
+    ("precompute/score.py", "_load_dirs"): 5,
+    ("precompute/patchscopes.py", "_patch_check"): 3,
+    ("precompute/rollouts_hf.py", "load_dirs"): 3,
+    ("precompute/scan.py", "_load_targets"): 3,
+    ("precompute/centred.py", "_load_dirs"): 3,
+    ("gcg/gcg.py", "_load_targets"): 2,
+    ("autointerp/sae_self.py", "_sae_rows"): 4,
+    ("precompute/common.py", "mu_for"): 2,
+}
+
+
+def check_return_arities():
+    """Every loader returns as many values as its callers unpack -- checked with `ast`, on CPU.
+
+    Both halves, because either one alone passes while the pair is broken: every `return` in the
+    function yields the declared number of values, AND every `a, b, ... = f(...)` anywhere under
+    paper-evals/ unpacks that many. A single-name assignment (`x = f(...)`) is ignored; it is
+    legal and says nothing about arity.
+    """
+    import ast
+
+    root = Path(__file__).resolve().parent.parent
+    for (rel, fname), want in RETURN_ARITY.items():
+        tree = ast.parse((root / rel).read_text())
+        fns = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == fname]
+        assert len(fns) == 1, f"{rel}: expected exactly one def {fname}, found {len(fns)}"
+        got = [
+            len(n.value.elts) if isinstance(n.value, ast.Tuple) else 1
+            for n in ast.walk(fns[0])
+            if isinstance(n, ast.Return) and n.value is not None
+        ]
+        assert got and set(got) == {want}, (
+            f"{rel}:{fname} returns {got} values, but RETURN_ARITY says {want} -- update both, or "
+            f"a caller unpacking {want} fails only on a GPU, after the forward it paid for"
+        )
+
+    # A leading underscore means module-private, so its unpack sites are looked for in its OWN
+    # file only. That is not pedantry: `_load_targets` is `scan`'s (3 values) AND `gcg`'s (2), and
+    # `_load_dirs` is `score`'s (5) AND `centred`'s (3). A repo-wide match by bare name would
+    # report every one of those as a mismatch.
+    seen = {k: 0 for k in RETURN_ARITY}
+    for path in sorted(root.rglob("*.py")):
+        if "third_party" in path.parts or path.name == "unit_smoke.py":
+            continue
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target, call = node.targets[0], node.value
+            if not isinstance(target, ast.Tuple) or not isinstance(call, ast.Call):
+                continue
+            fn = call.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+            for (rel, fname), want in RETURN_ARITY.items():
+                if name != fname:
+                    continue
+                if fname.startswith("_") and path != root / rel:
+                    continue  # a module-private name: only its own file can mean this function
+                seen[(rel, fname)] += 1
+                assert len(target.elts) == want, (
+                    f"{path.relative_to(root)}:{node.lineno} unpacks {len(target.elts)} values "
+                    f"from {fname}(), which returns {want}"
+                )
+    unused = [k for k, n in seen.items() if not n]
+    assert not unused, f"RETURN_ARITY lists {unused}, which nothing unpacks any more -- stale entry"
+
+
+
 CHECKS = [
     check_config,
     check_paths,
@@ -1405,6 +1483,7 @@ CHECKS = [
     check_family_kinds_table,
     check_exact_solve_roundtrip,
     check_spawn_mirrors_main,
+    check_return_arities,
     check_rollouts_nla_selftest,
 ]
 

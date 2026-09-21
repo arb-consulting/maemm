@@ -351,6 +351,29 @@ heldout:
     sae_min_fires: 20       # counted with the SAE's learned gate, not raw act > 0
     sae_strata: 4           # rarity quartiles of the corpus fire count
 
+  # The RAW re-derive of 2026-09-16_v1 (2026-09-21). Same seed, same families, same sizes, same
+  # sae parameters -- `targets --re-derive` asserts all of that from config before it touches a
+  # GPU, because the rng stream is what makes "the same rows" true. What differs is the STORAGE:
+  # act.f32 + unit(act), with the mean applied at read time. `2026-09-16_v1` is not modified,
+  # replaced or removed by this; a re-derive only ever CREATES a set.
+  2026-09-21_v1raw:
+    # `imported: true` here means "nameable, never the default" (common.default_heldout's own
+    # words), NOT "drawn elsewhere". Without it this entry becomes sorted()[-1] and every product
+    # called without --set silently moves off `2026-09-16_v1`, which is the set the paper's tables
+    # are built on -- and onto a set that does not exist on the volume until `targets` has run.
+    # Drop the flag deliberately, in its own commit, when this set is adopted as the default.
+    imported: true
+    storage: raw
+    mu_stored: null           # nothing stored is centred; --mu decides per run
+    seed: 20260916            # == 2026-09-16_v1, asserted
+    families:
+      realact: {n: 512}
+      random:  {n: 512}
+      sae:     {n: 512}
+      jlens:   {n: 512, bases: [qwen36-27b], status: empty}
+    sae_min_fires: 20
+    sae_strata: 4
+
   # DRAWN, not drawn here: Ari's `features/draw_sae2m.py` wrote this set on 2026-09-20 (commit
   # b767d1a, its own README on the volume) through `features/spawn.py`, which calls the Modal
   # function directly and so BYPASSES `modal_app.main`'s "set_name in cfg['heldout']" assert --

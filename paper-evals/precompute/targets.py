@@ -221,7 +221,7 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
         f"(data/build_universal_bank.py:310). Nothing is centred on it. Against stats/mu.f32 it has "
         f"cos = {mu_cos:.4f} and ||mu_512|| / ||mu|| = {mu_ratio:.4f}."
     )
-    return rows, vecs
+    return rows, vecs, acts
 
 
 def _random(cfg, args, n, seed):
