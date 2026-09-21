@@ -48,19 +48,22 @@ MARKER = " ?"  # mxf/prompts.py:4
 # `nla.amp` and must not import a product module to do it.
 AMP_MODES = ("exact", "mu", "raw")
 
-# --- the centring vocabulary (2026-09-21, branch `evals/conventions`) --------------------------
-# One word per concept, used by config.yaml, every `--centering` flag and every product README.
-# `none` and `unknown` are RESERVED and can never be the name of a mean in `mus:`.
-MU_SOURCES = ("product", "set", "archive", "unknown")
+# --- the centring vocabulary (2026-09-21, branch `evals/pipeline`) -----------------------------
+# A MU IS A FILE. Wherever a centring mean appears -- `maemms.<k>.mu`, `heldout.<set>.mu_stored`,
+# `heldout.<set>.family_mu.<fam>`, `--mu` -- the value is null (subtract nothing), or a path to a
+# [d] `.f32` / `.npy` file, or the string `unknown` (stored rows only). There is no enum and no
+# registry of mean NAMES: a checkpoint trained on a new mean is a new path in a config entry, and
+# nothing else changes. That is what lets a new SAE / MAEMM land as a config-only edit.
 FAMILY_KINDS = ("activation", "synthetic", "dictionary", "subspace")
-# The closed key set of a `maemms.<key>.input:` block, shaped like `nla:` above: one key today, and
-# a typo in it steers an H200 run, so "absent" must have no safe meaning.
-INPUT_KEYS = ("centering",)
 STORAGE_KINDS = ("raw", "unit", "dirs_only")
-# "subtract nothing" -- a legal value of `input.centering`, `--centering` and `family_mu`.
-NO_CENTRING = "none"
-# "this arrived centred on a mean nobody here can name" -- legal in `family_mu` / `mu_stored` only.
+# "this arrived centred on a mean nobody here holds" -- legal in `family_mu` / `mu_stored` only.
 MU_UNKNOWN = "unknown"
+# Accepted on-disk forms of a mean. Anything else is a typo, not a format.
+MU_SUFFIXES = (".f32", ".npy")
+# OUR 64/16-window read-layer mean, as a path rather than a name -- root-relative and
+# base-templated, so a smoke gets its own. It is ONE mean among several, not "the" one; nothing
+# centres on it unless a `mu:` / `--mu` says so.
+STATS_MU = "base/{base}/stats/mu.f32"
 # The file a `targets`-written set carries its own storage contract in. It is an ordinary product
 # file (listed in index.json like any other), NOT a second sidecar: `common.set_storage` reads it
 # when present and falls back to config.yaml's `heldout.<set>` block for every set drawn before it
@@ -105,7 +108,7 @@ def load_config(path: str | Path | None = None) -> dict:
 
     for key in (
         "bases",
-        "mus",
+        "corpora",
         "family_kinds",
         "saes",
         "maemms",
@@ -128,30 +131,35 @@ def load_config(path: str | Path | None = None) -> dict:
         assert spec["read_layer"] < spec["n_layers"], (
             f"base {base!r}: read_layer {spec['read_layer']} must be < n_layers {spec['n_layers']}"
         )
-        assert base in cfg["mus"], (
-            f"base {base!r} has no `mus:` block; every base must declare its named centring means "
-            f"(at least `stats_mu`), because `input.centering` and `--centering` name one"
-        )
+        if "whiten_mu" in spec:
+            _check_mu_value(spec["whiten_mu"], f"bases[{base!r}].whiten_mu", allow_unknown=False)
 
-    for base, block in cfg["mus"].items():
-        assert base in cfg["bases"], f"mus names base {base!r}, which is not in config bases"
-        assert isinstance(block, dict) and block, f"mus[{base!r}] must be a non-empty name -> spec map"
-        for name, mspec in block.items():
-            assert name != "none", (
-                f"mus[{base!r}] declares a mean called 'none'; that word is RESERVED for \"subtract "
-                f"nothing\" in `input.centering` / `--centering` and cannot also be a file"
+    for key, cspec in cfg["corpora"].items():
+        assert isinstance(cspec, dict), f"corpora[{key!r}] must be a mapping, got {cspec!r}"
+        for field in ("dir", "sizes", "block", "stride"):
+            assert field in cspec, f"corpora[{key!r}] is missing {field!r}"
+        assert isinstance(cspec["dir"], str) and cspec["dir"] and "/" not in cspec["dir"], (
+            f"corpora[{key!r}].dir must be a single directory name ('corpus' for the original "
+            f"base/<base>/corpus/, anything else for corpora/<dir>/), got {cspec['dir']!r}"
+        )
+        sizes = cspec["sizes"]
+        assert isinstance(sizes, list) and sizes and sizes == sorted(sizes), (
+            f"corpora[{key!r}].sizes must be an ascending list of nested sizes in millions of "
+            f"tokens, got {sizes!r}"
+        )
+        for field in ("block", "stride"):
+            assert isinstance(cspec[field], int) and cspec[field] > 0, (
+                f"corpora[{key!r}].{field} must be a positive int, got {cspec[field]!r}"
             )
-            assert isinstance(mspec, dict) and mspec.get("source") in MU_SOURCES, (
-                f"mus[{base!r}][{name!r}]: `source` must be one of {list(MU_SOURCES)}, got {mspec!r}"
-            )
-            has_path = "path" in mspec
-            assert has_path == (mspec["source"] != "unknown"), (
-                f"mus[{base!r}][{name!r}]: source {mspec['source']!r} "
-                + ("must NOT carry a `path` (that is what 'unknown' means)" if not has_path
-                   else "needs a `path`")
-            )
-            extra = sorted(set(mspec) - {"source", "path"})
-            assert not extra, f"mus[{base!r}][{name!r}]: unexpected keys {extra}"
+        assert cspec["stride"] <= cspec["block"], (
+            f"corpora[{key!r}]: stride {cspec['stride']} > block {cspec['block']} would leave gaps "
+            f"between windows, so part of the corpus would never be scanned"
+        )
+    dirs = [c["dir"] for c in cfg["corpora"].values()]
+    assert len(set(dirs)) == len(dirs), (
+        f"two `corpora:` keys point at the same directory {sorted(dirs)}: a different ladder or "
+        f"window geometry is a DIFFERENT corpus, never a second name for one"
+    )
 
     for fam, fspec in cfg["family_kinds"].items():
         assert isinstance(fspec, dict) and sorted(fspec) == ["centrable", "kind"], (
@@ -230,8 +238,8 @@ def load_config(path: str | Path | None = None) -> dict:
         assert isinstance(spec.get("compute", True), bool), (
             f"maemm {key!r}: `compute` must be a bool (default true), got {spec.get('compute')!r}"
         )
-        if "input" in spec:
-            _check_input(cfg, key, base, spec["input"])
+        if "mu" in spec:
+            _check_mu_value(spec["mu"], f"maemms[{key!r}].mu", allow_unknown=False)
 
     for set_name, spec in cfg["heldout"].items():
         assert isinstance(spec.get("families"), dict), (
@@ -353,25 +361,119 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
     )
 
 
-def _check_input(cfg: dict, key: str, base: str, block) -> None:
-    """Validate one `maemms.<key>.input:` block. Called from load_config, never at use site.
+def _check_mu_value(val, where: str, allow_unknown: bool) -> None:
+    """A mu value is null, a path to a [d] .f32/.npy file, or (stored rows only) `unknown`.
 
-    `input.centering` is what the CHECKPOINT was trained to receive, so it is a fact about the
-    training chain and not a knob: a product may override it with `--centering`, and then it
-    records the override as a deviation, but it may never infer one.
+    Checked at LOAD, not at use: a typo in a path that steers an H200 run should cost a CPU second.
+    The file's existence is NOT checked here -- config.yaml is read on a laptop with no volume
+    mounted -- `load_mu` asserts that, loudly, at the point it needs the bytes.
     """
-    assert isinstance(block, dict), f"maemm {key!r}: `input:` must be a mapping, got {block!r}"
-    missing, extra = sorted(set(INPUT_KEYS) - set(block)), sorted(set(block) - set(INPUT_KEYS))
-    assert not missing and not extra, (
-        f"maemm {key!r}: `input:` must carry exactly {list(INPUT_KEYS)} -- missing {missing}, "
-        f"unexpected {extra}"
+    if val is None:
+        return
+    if val == MU_UNKNOWN:
+        assert allow_unknown, (
+            f"{where}: {MU_UNKNOWN!r} says \"centred on a mean nobody here holds\", which is a "
+            f"statement about STORED rows. A checkpoint's own input convention cannot be unknown "
+            f"and still be run: give a path, or null, or leave the key out."
+        )
+        return
+    assert isinstance(val, str) and val, f"{where}: a mu is null, a path or {MU_UNKNOWN!r}, got {val!r}"
+    assert val.endswith(MU_SUFFIXES), (
+        f"{where}: {val!r} is not a {' or '.join(MU_SUFFIXES)} file. A mu is a [d] array on the "
+        f"volume; a path starting with / is absolute, anything else is relative to --root, and "
+        f"`{{base}}` expands to the base key."
     )
-    cen = block["centering"]
-    known = sorted(cfg["mus"].get(base, {}))
-    assert isinstance(cen, str) and (cen == NO_CENTRING or cen in cfg["mus"].get(base, {})), (
-        f"maemm {key!r}: input.centering {cen!r} is neither {NO_CENTRING!r} nor one of base "
-        f"{base}'s declared means {known}"
+
+
+def resolve_mu_path(mu: str, base: str, root: str = VOL) -> str:
+    """A config/CLI mu value -> the path to read. `{base}` expands; a relative path takes --root.
+
+    Relative-to-root is what makes a smoke self-contained: a run under /vol/runs/<date>_smoke gets
+    that root's own `base/<base>/stats/mu.f32` rather than the production one, without editing
+    config. An absolute path (Celeste's archived whiten_mu) is the same file for every run.
+    """
+    assert mu and mu != MU_UNKNOWN, f"{mu!r} is not a loadable mu path"
+    path = mu.format(base=base)
+    return path if path.startswith("/") else f"{root.rstrip('/')}/{path}"
+
+
+_MU_CACHE: dict[tuple, object] = {}
+
+
+def load_mu(cfg: dict, base: str, mu, root: str = VOL):
+    """The centring mean [d] as a float32 numpy array, or None when `mu` is null.
+
+    Loud rather than optional: a product that needs a mean and cannot find the file has to stop,
+    because silently falling back to a locally computed mean is the drift this module exists to
+    prevent.
+    """
+    import numpy as np
+
+    if mu is None:
+        return None
+    assert mu != MU_UNKNOWN, (
+        f"mu {MU_UNKNOWN!r} cannot be loaded: it is the label for \"centred on a mean nobody here "
+        f"holds\", which is a statement about stored directions and not a file"
     )
+    path = resolve_mu_path(mu, base, root)
+    key = (base, path)
+    if key in _MU_CACHE:
+        return _MU_CACHE[key]
+    d = cfg["bases"][base]["d"]
+    assert os.path.exists(path), (
+        f"no {path}: this run centres on that file (config `mu:` / `--mu` = {mu!r}). For a "
+        f"stats mean it means the `stats` product has not run on this --root; nothing recomputes "
+        f"its own."
+    )
+    arr = np.load(path) if path.endswith(".npy") else read_array(path, "float32", (d,))
+    arr = np.asarray(arr, dtype=np.float32).reshape(-1)
+    assert arr.shape == (d,) and np.isfinite(arr).all(), (
+        f"{path}: expected {d} finite float32 values for base {base}, got shape {arr.shape}"
+    )
+    _MU_CACHE[key] = arr
+    return arr
+
+
+def mu_label(mu, base: str = "", root: str = VOL) -> str:
+    """How a mu is spelled in a README line: the resolved path, or `none` / `unknown`."""
+    if mu is None:
+        return "none"
+    if mu == MU_UNKNOWN:
+        return MU_UNKNOWN
+    return resolve_mu_path(mu, base, root) if base else str(mu)
+
+
+def mu_of_family(cfg: dict, set_name: str, family: str):
+    """The mean `family`'s rows of the CONFIGURED set `set_name` were stored under.
+
+    `family_mu` first, then the set-wide `mu_stored`, then -- for a family that cannot be centred
+    at all -- None. Returns a path, None or `unknown`.
+    """
+    spec = cfg["heldout"][set_name]
+    fam_mu = spec.get("family_mu") or {}
+    if family in fam_mu:
+        return fam_mu[family]
+    return spec.get("mu_stored")
+
+
+def input_mu(cfg: dict, maemm_key: str):
+    """The mean `maemm_key` was TRAINED to receive: a path, or None. Refuses rather than defaulting.
+
+    Half the products in this repo have no MAEMM in scope at all (scan, gcg, patchscopes,
+    repo_examples) and the other half would silently re-point every number in SMOKES.md if this
+    guessed -- so an entry with no `mu:` key is a hard stop with the ask named. An explicit
+    `mu: null` is a statement; an absent key is a gap.
+    """
+    assert maemm_key in cfg["maemms"], f"unknown maemm {maemm_key!r}, want one of {sorted(cfg['maemms'])}"
+    spec = cfg["maemms"][maemm_key]
+    assert "mu" in spec, (
+        f"maemm {maemm_key!r} has no `mu:` key in config.yaml, so what it was trained to receive is "
+        f"not recorded anywhere. Establish it from the checkpoint's training chain and declare it "
+        f"(`mu: null` for a raw unit activation, or the path of the mean); nothing here will guess. "
+        f"To run against a convention you are CHOOSING rather than reading, pass --mu -- it is "
+        f"recorded as a deviation."
+    )
+    return spec["mu"]
 
 
 def _check_heldout_storage(cfg: dict, set_name: str, spec: dict) -> None:
@@ -390,15 +492,7 @@ def _check_heldout_storage(cfg: dict, set_name: str, spec: dict) -> None:
         f"heldout {set_name!r}: `mu_stored` must be present (null when the set is not centred as a "
         f"whole); an absent key and an explicit null are the same thing to yaml and must not be"
     )
-    all_mus = {name for block in cfg["mus"].values() for name in block}
-
-    def _ok(name, where):
-        assert name is None or name in (NO_CENTRING, MU_UNKNOWN) or name in all_mus, (
-            f"heldout {set_name!r}: {where} names {name!r}, which is not null, {NO_CENTRING!r}, "
-            f"{MU_UNKNOWN!r} or a declared mean ({sorted(all_mus)})"
-        )
-
-    _ok(spec["mu_stored"], "mu_stored")
+    _check_mu_value(spec["mu_stored"], f"heldout[{set_name!r}].mu_stored", allow_unknown=True)
     fam_mu = spec.get("family_mu") or {}
     assert isinstance(fam_mu, dict), f"heldout {set_name!r}: family_mu must be a mapping"
     assert not fam_mu or storage == "unit", (
@@ -410,28 +504,13 @@ def _check_heldout_storage(cfg: dict, set_name: str, spec: dict) -> None:
             f"heldout {set_name!r}: family_mu names family {fam!r}, which the set does not draw "
             f"({sorted(spec['families'])})"
         )
-        _ok(name, f"family_mu[{fam!r}]")
+        _check_mu_value(name, f"heldout[{set_name!r}].family_mu[{fam!r}]", allow_unknown=True)
     if storage == "unit":
         assert spec["mu_stored"] is not None or set(fam_mu) >= set(spec["families"]), (
             f"heldout {set_name!r}: a `storage: unit` set stores directions under SOME mean, so it "
             f"must say which -- either one `mu_stored` for the set or a `family_mu` entry for "
             f"every family (missing {sorted(set(spec['families']) - set(fam_mu))})"
         )
-
-
-def mu_of_family(cfg: dict, set_name: str, family: str):
-    """The mean `family`'s rows of the CONFIGURED set `set_name` were stored under.
-
-    `family_mu` first, then the set-wide `mu_stored`, then -- for a family that cannot be centred
-    at all -- `none`. Returns a `mus:` name, `none` or `unknown`.
-    """
-    spec = cfg["heldout"][set_name]
-    fam_mu = spec.get("family_mu") or {}
-    if family in fam_mu:
-        return fam_mu[family]
-    if spec.get("mu_stored") is not None:
-        return spec["mu_stored"]
-    return NO_CENTRING
 
 
 def family_centrable(cfg: dict, family: str) -> bool:
@@ -446,84 +525,6 @@ def family_centrable(cfg: dict, family: str) -> bool:
         f"subtracted from its rows (have {sorted(cfg['family_kinds'])})"
     )
     return bool(cfg["family_kinds"][family]["centrable"])
-
-
-def input_centering(cfg: dict, maemm_key: str) -> str:
-    """The centring convention `maemm_key` was TRAINED to receive: a `mus:` name or `none`.
-
-    Refuses rather than defaulting. Half the products in this repo have no MAEMM in scope at all
-    (scan, gcg, patchscopes, repo_examples) and the other half would silently re-point every
-    number in SMOKES.md if this guessed -- so an entry with no `input:` block is a hard stop with
-    the ask named, not a `none`.
-    """
-    assert maemm_key in cfg["maemms"], f"unknown maemm {maemm_key!r}, want one of {sorted(cfg['maemms'])}"
-    spec = cfg["maemms"][maemm_key]
-    block = spec.get("input")
-    assert isinstance(block, dict) and "centering" in block, (
-        f"maemm {maemm_key!r} has no `input: {{centering: ...}}` block in config.yaml, so what it "
-        f"was trained to receive is not recorded anywhere. Establish it from the checkpoint's "
-        f"training chain and declare it; nothing here will guess (see config.yaml's `maemms:` "
-        f"header). To run against a convention you are choosing rather than reading, pass "
-        f"--centering explicitly -- it is recorded as a deviation."
-    )
-    return str(block["centering"])
-
-
-_MU_CACHE: dict[tuple, object] = {}
-
-
-def mu_named(cfg: dict, base: str, name: str, root: str = VOL, set_dir: str = ""):
-    """The named centring mean [d] as a float32 numpy array, or None for `none`.
-
-    A mean is referred to BY NAME everywhere and no product ever names a path: `mus:` in
-    config.yaml is the one registry (it replaced stats.ARCHIVE_MU). `source: set` means the file
-    lives in a held-out set's own directory, so those need `set_dir`.
-
-    Loud rather than optional, exactly as `stats_mu` was: a product that needs a mean and cannot
-    find it has to stop, because silently falling back to a locally computed mean is the drift
-    this module exists to prevent.
-    """
-    import numpy as np
-
-    if name == NO_CENTRING:
-        return None
-    assert name != MU_UNKNOWN, (
-        f"mu {MU_UNKNOWN!r} cannot be loaded: it is the label for \"centred on a mean nobody here "
-        f"can name\", which is a statement about a stored direction and not a file"
-    )
-    block = cfg["mus"].get(base, {})
-    assert name in block, f"base {base!r} declares no mean {name!r}; it has {sorted(block)}"
-    spec = block[name]
-    src = spec["source"]
-    assert src != "unknown", (
-        f"mus[{base!r}][{name!r}] has source `unknown`: the mean is not a file we hold. A direction "
-        f"stored under it can be RETURNED with a label (common.dirs_for) but never re-derived."
-    )
-    if src == "product":
-        path = f"{base_dir(base, root)}/{spec['path']}"
-    elif src == "set":
-        assert set_dir, (
-            f"mu {name!r} has source `set` ({spec['path']}), so it lives in a held-out set's own "
-            f"directory: mu_named needs set_dir="
-        )
-        path = f"{set_dir.rstrip('/')}/{spec['path']}"
-    else:
-        path = os.path.join(cfg["modal"]["archive"], spec["path"])
-    key = (base, name, path)
-    if key in _MU_CACHE:
-        return _MU_CACHE[key]
-    d = cfg["bases"][base]["d"]
-    assert os.path.exists(path), (
-        f"no {path}: mean {name!r} of base {base} is declared in config.yaml's `mus:` but is not on "
-        f"disk. For `stats_mu` that means the `stats` product has not run; nothing recomputes its own."
-    )
-    mu = np.load(path) if path.endswith(".npy") else read_array(path, "float32", (d,))
-    mu = np.asarray(mu, dtype=np.float32).reshape(-1)
-    assert mu.shape == (d,) and np.isfinite(mu).all(), (
-        f"{path}: expected {d} finite float32 values for mean {name!r}, got shape {mu.shape}"
-    )
-    _MU_CACHE[key] = mu
-    return mu
 
 
 def set_storage(cfg: dict, set_dir: str, root: str = VOL) -> dict:
@@ -580,82 +581,87 @@ def storage_record(cfg: dict, set_name: str, families) -> dict:
     }
 
 
-def centering_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
-                  root: str = VOL, notes=None) -> tuple[str, str]:
-    """(centring name, where it came from) for this run. THE convention is never inferred silently.
+def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
+           root: str = VOL, notes=None):
+    """(the mean this run centres on, where it came from). THE convention is never inferred silently.
+
+    Returns a mu VALUE -- None, or a path as config spells it -- plus a provenance string.
 
     Order, and nothing else:
 
-      1. `--centering` -- explicit, and when it disagrees with the checkpoint's own
-         `input.centering` it is recorded as a DEVIATION in the product README, not accepted quietly;
-      2. the MAEMM's `input.centering`, for the products that have a `--maemm` in scope;
-      3. the SET's own stored convention, for a legacy `storage: unit` / `dirs_only` set -- which is
-         what keeps every `scan` / `gcg` / `repo_examples` number measured between 2026-09-16 and
-         2026-09-21 reproducible to the digit;
+      1. `--mu <file>` -- explicit, and when it disagrees with the checkpoint's own `mu:` it is
+         recorded as a DEVIATION in the product README, not accepted quietly. `--mu none` is the
+         explicit way to say "subtract nothing";
+      2. the MAEMM's `mu:`, for the products that have a `--maemm` in scope;
+      3. the SET's own stored convention, for a legacy `storage: unit` / `dirs_only` set -- which
+         is what keeps every `scan` / `gcg` / `repo_examples` number measured between 2026-09-16
+         and 2026-09-21 reproducible to the digit;
       4. refuse. A `storage: raw` set read by a product with no MAEMM (scan, gcg, patchscopes,
          repo_examples) has no convention anywhere in scope, and defaulting it to raw would
          silently re-point the corpus search baseline and the GCG ceiling at a different target
          vector than every stored number. That is the one failure this whole layer exists to stop.
     """
     say = notes if notes is not None else []
-    want = (args.get("centering") or "").strip()
+    want = (args.get("mu") or "").strip()
     if want:
-        src = "--centering (explicit)"
+        got = None if want.lower() in ("none", "null") else want
+        _check_mu_value(got, "--mu", allow_unknown=False)
+        src = "--mu (explicit)"
         if maemm_key:
-            own = input_centering(cfg, maemm_key)
-            if own != want:
+            own = input_mu(cfg, maemm_key)
+            if own != got:
                 line = (
-                    f"DEVIATION: --centering {want!r} overrides {maemm_key}'s own trained input "
-                    f"convention {own!r} (config.yaml maemms.{maemm_key}.input.centering). Every "
-                    f"number in this directory is read under {want!r}, not under what the "
-                    f"checkpoint was trained on."
+                    f"DEVIATION: --mu {mu_label(got, base, root)} overrides {maemm_key}'s own "
+                    f"trained input convention {mu_label(own, base, root)} (config.yaml "
+                    f"maemms.{maemm_key}.mu). Every number in this directory is read under the "
+                    f"former, not under what the checkpoint was trained on."
                 )
-                print(f"[centering] {line}", flush=True)
+                print(f"[mu] {line}", flush=True)
                 say.append(line)
-                src = "--centering (OVERRIDE of input.centering)"
-        say.append(f"centering={want!r} from {src}")
-        return want, src
+                src = "--mu (OVERRIDE of the checkpoint's own mu)"
+        say.append(f"mu={mu_label(got, base, root)} from {src}")
+        return got, src
     if maemm_key:
-        own = input_centering(cfg, maemm_key)
-        say.append(f"centering={own!r} from config.yaml maemms.{maemm_key}.input.centering")
-        return own, f"maemms.{maemm_key}.input.centering"
+        own = input_mu(cfg, maemm_key)
+        say.append(f"mu={mu_label(own, base, root)} from config.yaml maemms.{maemm_key}.mu")
+        return own, f"maemms.{maemm_key}.mu"
     contract = set_storage(cfg, set_dir, root)
     storage = contract["storage"]
     assert storage != "raw", (
         f"{set_dir} is `storage: raw` ({contract['source']}): its vecs.f16 is unit(act), UNCENTRED, "
-        f"and this product has no --maemm to take a convention from. Pass --centering <mu name>|"
-        f"{NO_CENTRING} -- base {base} declares {sorted(cfg['mus'].get(base, {}))}. Defaulting it "
-        f"would silently move this product's target vector away from every stored number."
+        f"and this product has no --maemm to take a convention from. Pass --mu <file> (or "
+        f"--mu none). Defaulting it would silently move this product's target vector away from "
+        f"every stored number."
     )
     if storage == "dirs_only":
         say.append(
-            f"centering={NO_CENTRING!r} from the set's own contract ({contract['source']}): "
-            f"`storage: dirs_only`, nothing in it was ever centred"
+            f"mu=none from the set's own contract ({contract['source']}): `storage: dirs_only`, "
+            f"nothing in it was ever centred"
         )
-        return NO_CENTRING, f"set contract ({contract['source']})"
+        return None, f"set contract ({contract['source']})"
     rows = read_jsonl(f"{set_dir.rstrip('/')}/ids.jsonl")
     fams = sorted({r["family"] for r in rows if family_centrable(cfg, r["family"])})
     name = os.path.basename(set_dir.rstrip("/"))
-    means = {mu_of_family(cfg, name, f) for f in fams} if name in cfg["heldout"] else set()
+    means = {contract["family_mu"].get(f, contract["mu_stored"]) for f in fams}
     if not fams:
-        means = {NO_CENTRING}
-    if contract["mu_stored"] is not None:
-        means = {contract["mu_stored"]}
+        means = {None}
     assert len(means) == 1, (
         f"{set_dir} is `storage: unit` and its centrable families {fams} are stored under "
-        f"{sorted(means)} -- more than one convention, so there is no single default. Pass "
-        f"--centering and run the families that match it."
+        f"{sorted(mu_label(m, base, root) for m in means)} -- more than one convention, so there "
+        f"is no single default. Pass --mu and run the families that match it."
     )
     got = means.pop()
     say.append(
-        f"centering={got!r} defaulted from the set's own stored convention ({contract['source']}); "
-        f"this set predates raw storage, so it can only be served at the mean it was built with"
+        f"mu={mu_label(got, base, root)} defaulted from the set's own stored convention "
+        f"({contract['source']}); this set predates raw storage, so it can only be served at the "
+        f"mean it was built with"
     )
+    del name
     return got, f"set contract ({contract['source']})"
 
 
 def note_convention(od, notes) -> None:
-    """Put the centring lines `centering_for` / `dirs_for` collected into a product's README.
+    """Put the centring lines `mu_for` / `dirs_for` collected into a product's README.
 
     Every product that reads a direction calls this. A README that does not say which mean its
     numbers were read under is a README nobody can compare to another one.
@@ -664,26 +670,26 @@ def note_convention(od, notes) -> None:
         od.note(f"CENTRING: {line}")
 
 
-def dirs_for(cfg: dict, base: str, set_dir: str, centering: str, root: str = VOL, notes=None):
-    """The direction every row of this set carries under `centering` -- the WHOLE [N, d] array.
+def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None):
+    """The direction every row of this set carries under `mu` -- the WHOLE [N, d] array.
 
-        storage: raw        -> unit(act - mu_named(centering)) for a centrable family,
-                               unit(act) for every other row (there is no mean to subtract)
-        storage: unit       -> the stored row, ASSERTING the family's own mean == `centering`;
-                               a family whose mean is `unknown` is returned with a warning and a
-                               label instead of a refusal (infra/2026-09-21_evals-plan-main.md §1.4)
+        storage: raw        -> unit(act - mu) for a centrable family, unit(act) for every other row
+                               (there is no mean to subtract from an encoder column)
+        storage: unit       -> the stored row, ASSERTING the family's own mean IS `mu`; a family
+                               whose mean is `unknown` is returned with a warning and a label
+                               instead of a refusal (plan §1.4)
         storage: dirs_only  -> the stored row (no family in such a set is centrable)
 
-    `centering` is a `mus:` name or `none` and is always EXPLICIT: the four products with no MAEMM
-    in scope (scan, gcg, patchscopes, repo_examples) would otherwise silently re-point the corpus
-    search baseline and the GCG ceiling away from every number measured between 09-16 and 09-21.
+    `mu` is None or a path, and is always EXPLICIT: the four products with no MAEMM in scope (scan,
+    gcg, patchscopes, repo_examples) would otherwise silently re-point the corpus search baseline
+    and the GCG ceiling away from every number measured between 09-16 and 09-21.
 
     Returns the whole array and leaves ROW SELECTION at each call site, because `rows` means three
     different things across the readers -- global in score/rollouts_*, family-local in gcg
     (`--family sae --rows 0-7` is global rows 1024-1031), absent in scan/centred/repo_examples.
 
     `notes`, when a list is passed, receives one human-readable line per thing a reader of the
-    product's README has to know (the convention used, and every labelled family).
+    product's README has to know (the mean used, and every labelled family).
     """
     import numpy as np
 
@@ -696,12 +702,10 @@ def dirs_for(cfg: dict, base: str, set_dir: str, centering: str, root: str = VOL
         assert r["row"] == i, f"{set_dir}/ids.jsonl line {i} has row={r['row']}: rows must be 0..N-1"
     contract = set_storage(cfg, set_dir, root)
     storage = contract["storage"]
-    assert centering == NO_CENTRING or centering in cfg["mus"].get(base, {}), (
-        f"--centering {centering!r} is neither {NO_CENTRING!r} nor one of base {base}'s declared "
-        f"means {sorted(cfg['mus'].get(base, {}))}"
-    )
+    _check_mu_value(mu, "dirs_for(mu=)", allow_unknown=False)
     fams = [r["family"] for r in rows]
     say = notes if notes is not None else []
+    label = mu_label(mu, base, root)
 
     if storage == "raw":
         apath = f"{set_dir}/act.f32"
@@ -710,26 +714,26 @@ def dirs_for(cfg: dict, base: str, set_dir: str, centering: str, root: str = VOL
             f"set derives every direction from it. Re-draw, or `--product targets --re-derive`."
         )
         act = read_array(apath, "float32", (n, d)).astype(np.float32)
-        mu = mu_named(cfg, base, centering, root, set_dir=set_dir)
+        arr = load_mu(cfg, base, mu, root)
         out = act.copy()
-        if mu is not None:
+        if arr is not None:
             cen = np.array([family_centrable(cfg, f) for f in fams], dtype=bool)
-            out[cen] -= mu[None, :]
+            out[cen] -= arr[None, :]
             say.append(
-                f"directions derived from {apath} at centering={centering!r}: "
-                f"unit(act - {centering}) on {int(cen.sum())} centrable rows "
+                f"directions derived from {apath} at mu={label}: unit(act - mu) on "
+                f"{int(cen.sum())} centrable rows "
                 f"({sorted({f for f, c in zip(fams, cen, strict=True) if c})}), unit(act) on the "
                 f"other {int((~cen).sum())} (family_kinds says they have no mean to subtract)"
             )
         else:
-            say.append(f"directions derived from {apath} at centering='none': unit(act), all {n} rows")
+            say.append(f"directions derived from {apath} at mu=none: unit(act), all {n} rows")
         return _unit_rows(out)
 
     v = read_array(f"{set_dir}/vecs.f16", "float16", (n, d)).astype(np.float32)
     if storage == "dirs_only":
         say.append(
-            f"{set_dir} is `storage: dirs_only` ({contract['source']}): the stored vecs.f16 rows are "
-            f"returned unchanged and centering={centering!r} does not apply to any of them"
+            f"{set_dir} is `storage: dirs_only` ({contract['source']}): the stored vecs.f16 rows "
+            f"are returned unchanged and mu={label} does not apply to any of them"
         )
         return _unit_rows(v)
 
@@ -739,33 +743,35 @@ def dirs_for(cfg: dict, base: str, set_dir: str, centering: str, root: str = VOL
     stored = contract["mu_stored"]
     labelled, mismatched = [], []
     for fam in sorted(set(fams)):
-        own = fam_mu.get(fam, stored if stored is not None else NO_CENTRING)
+        own = fam_mu.get(fam, stored)
         if own == MU_UNKNOWN:
             labelled.append(fam)
             continue
         if not family_centrable(cfg, fam):
-            continue  # an encoder column is the same object at every centring
-        if own != centering:
+            continue  # an encoder column is the same object under every mean
+        own_path = resolve_mu_path(own, base, root) if own else None
+        want_path = resolve_mu_path(mu, base, root) if mu else None
+        if own_path != want_path:
             mismatched.append((fam, own))
     assert not mismatched, (
         f"{set_dir} is `storage: unit` ({contract['source']}) and its "
-        + ", ".join(f"{f!r} rows are stored under mean {m!r}" for f, m in mismatched)
-        + f", but this run asks for centering={centering!r}. A stored unit direction cannot be "
-        f"re-centred -- unit(act) and mu do not give unit(act - mu) without ||act||. Re-derive the "
-        f"set at `storage: raw` (`--product targets --re-derive <set>`), or run at the mean it was "
-        f"built with and say so."
+        + ", ".join(f"{f!r} rows are stored under {mu_label(m, base, root)}" for f, m in mismatched)
+        + f", but this run asks for mu={label}. A stored unit direction cannot be re-centred -- "
+        f"unit(act) and mu do not give unit(act - mu) without ||act||. Re-derive the set at "
+        f"`storage: raw` (`--product targets --re-derive <set>`), or run at the mean it was built "
+        f"with and say so."
     )
     if labelled:
         msg = (
-            f"{set_dir}: families {labelled} arrived already centred on a mean nobody here can name "
+            f"{set_dir}: families {labelled} arrived already centred on a mean nobody here holds "
             f"(family_mu: {MU_UNKNOWN}). Their rows are returned AS SHIPPED, under the producer's "
-            f"convention, NOT at centering={centering!r}; every number read off them is labelled."
+            f"convention, NOT at mu={label}; every number read off them is labelled."
         )
         print(f"[dirs_for] WARNING: {msg}", flush=True)
         say.append(msg)
     say.append(
         f"{set_dir} is `storage: unit` ({contract['source']}): stored directions returned as they "
-        f"are, which matches centering={centering!r} for every centrable family that names a mean"
+        f"are, which matches mu={label} for every centrable family that names a mean"
     )
     return _unit_rows(v)
 
@@ -888,14 +894,14 @@ def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = ""):
 def stats_mu(cfg: dict, base: str, root: str = VOL):
     """`stats/mu.f32` [d] as a float32 numpy array -- OUR 64/16-window read-layer mean.
 
-    `mu_named(cfg, base, "stats_mu", root)` under its historical name, kept because a dozen call
-    sites spell it this way. It is no longer "the ONE centring mean": since 2026-09-21 a mean is
-    chosen by name per run (`input.centering` / `--centering`), and `stats_mu` is one of several
-    (`mus:` in config.yaml). Still loud rather than optional -- a product that needs a mean and
-    finds no `stats/` has to stop, because silently computing its own is the drift this file exists
-    to prevent.
+    `load_mu(cfg, base, STATS_MU, root)` under its historical name, kept because a dozen call sites
+    spell it this way. It is no longer "the ONE centring mean": since 2026-09-21 a run names the
+    FILE it centres on (`mu:` in config.yaml, `--mu` on the command line) and this is one file
+    among several. Still loud rather than optional -- a product that needs a mean and finds no
+    `stats/` has to stop, because silently computing its own is the drift this file exists to
+    prevent.
     """
-    return mu_named(cfg, base, "stats_mu", root)
+    return load_mu(cfg, base, STATS_MU, root)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -909,6 +915,27 @@ def stats_mu(cfg: dict, base: str, root: str = VOL):
 
 def base_dir(base: str, root: str = VOL) -> str:
     return f"{root}/base/{base}"
+
+
+def corpus_key_name(cfg: dict, key: str) -> str:
+    """A `corpora:` KEY -> the directory name `corpus_dir` / `--corpus-name` takes ("" = corpus/).
+
+    Products name a corpus by key, not by directory: the key carries the ladder, the window
+    geometry and the provenance sentence that says whether a search win on it is evidence about
+    UNSEEN text (heldout16m) or about text the model may have memorised (celeste-train10m). A
+    directory name carries none of that, and the two corpora are not comparable.
+    """
+    assert key in cfg["corpora"], (
+        f"unknown --corpus {key!r}; config.yaml declares {sorted(cfg['corpora'])}"
+    )
+    d = cfg["corpora"][key]["dir"]
+    return "" if d == "corpus" else d
+
+
+def corpus_geometry(cfg: dict, key: str) -> tuple[int, int]:
+    """(block, stride) of a `corpora:` key. A different geometry is a different corpus."""
+    spec = cfg["corpora"][key]
+    return int(spec["block"]), int(spec["stride"])
 
 
 def corpus_dir(base: str, root: str = VOL, name: str = "") -> str:

@@ -63,8 +63,8 @@ def _load_dirs(cfg, args, notes=None):
     d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
-    centering, _ = C.centering_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
-    v = C.dirs_for(cfg, base, src, centering, root, notes)
+    mu, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    v = C.dirs_for(cfg, base, src, mu, root, notes)
     assert v.shape == (len(rows), d), f"{src}: dirs_for returned {v.shape} for {len(rows)} rows"
     return rows, np.asarray(v, dtype=np.float32), src
 

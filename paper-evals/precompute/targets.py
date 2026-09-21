@@ -469,15 +469,19 @@ def _re_derive_check(cfg, args, old_set, rows, v, a, od):
     for fam in sorted({r["family"] for r in rows}):
         ix = np.array([i for i, r in enumerate(rows) if r["family"] == fam])
         name = C.mu_of_family(cfg, old_set, fam)
-        mu = None if name in (C.NO_CENTRING, C.MU_UNKNOWN) else C.mu_named(cfg, base, name, root, old_dir)
+        mu = None if name == C.MU_UNKNOWN else C.load_mu(cfg, base, name, root)
         redone = a_np[ix] - (mu[None, :] if mu is not None else 0.0)
         redone = redone / np.maximum(np.linalg.norm(redone, axis=1, keepdims=True), 1e-12)
         cos = np.einsum("nd,nd->n", redone, old_v[ix])
-        per_fam[fam] = {"mu": name, "n": int(len(ix)), "min_cos": round(float(cos.min()), 8)}
+        per_fam[fam] = {
+            "mu": C.mu_label(name, base, root), "n": int(len(ix)),
+            "min_cos": round(float(cos.min()), 8),
+        }
         worst = min(worst, float(cos.min()))
         assert float(cos.min()) > RE_DERIVE_COS, (
             f"--re-derive {old_set}: re-centring the new act.f32 under the old set's own mean "
-            f"{name!r} does not reproduce its {fam} rows -- min cos {float(cos.min()):.6f} <= "
+            f"{C.mu_label(name, base, root)} does not reproduce its {fam} rows -- min cos "
+            f"{float(cos.min()):.6f} <= "
             f"{RE_DERIVE_COS}. Either the forward moved or the old set's recorded mean is wrong."
         )
     od.write_json(
@@ -609,7 +613,7 @@ def import_run1(cfg, args):
                 # anywhere we hold, so it is labelled rather than asserted: common.dirs_for returns
                 # these rows with a warning and a README label instead of a number that claims a
                 # convention. random / sae were never centred at all.
-                "family_mu": {"realact": C.MU_UNKNOWN, "random": C.NO_CENTRING, "sae": C.NO_CENTRING},
+                "family_mu": {"realact": C.MU_UNKNOWN, "random": None, "sae": None},
                 "note": (
                     "imported verbatim from run1's archived eval cache; no act.f32 exists, so these "
                     "directions cannot be moved to another mean"

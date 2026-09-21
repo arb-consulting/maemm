@@ -135,11 +135,12 @@ def main(
     # WHICH SAE of the base the `sae` family's feature ids index; required as soon as the base
     # carries more than one (qwen36-27b has, since sae2m). Full `<base>/<name>` key.
     sae: str = "",
-    # WHICH centring mean the target directions are derived under: a config.yaml `mus:` name, or
-    # "none". This product has no --maemm in scope, so on a `storage: raw` set it is REQUIRED --
-    # see common.centering_for. On a legacy set it defaults to that set's own stored convention,
-    # which is what keeps every published gcg number reproducible.
-    centering: str = "",
+    # WHICH mean the target directions are centred on: the PATH of a [d] .f32/.npy file (absolute,
+    # or relative to --root, `{base}` expanding to the base key), or "none". This product has no
+    # --maemm in scope, so on a `storage: raw` set it is REQUIRED -- see common.mu_for. On a legacy
+    # set it defaults to that set's own stored convention, which is what keeps every published gcg
+    # number reproducible.
+    mu: str = "",
     arm_suffix: str = "",
     rows: str = "",
     root: str = VOL,
@@ -192,7 +193,7 @@ def main(
         "heldout": set_name,
         "family": family,
         "sae": sae,
-        "centering": centering,
+        "mu": mu,
         "arm_suffix": arm_suffix,
         "rows": rows,
         "root": root.rstrip("/") or VOL,
@@ -218,11 +219,8 @@ def main(
     # validates the whole arm configuration and needs nothing but config.yaml.
     if sae:
         C.sae_key_for(cfg, base, sae)  # fail locally on a bad --sae, not after a 52 GiB load
-    if centering:
-        assert centering == C.NO_CENTRING or centering in cfg["mus"].get(base, {}), (
-            f"--centering {centering!r} is neither {C.NO_CENTRING!r} nor one of base {base}'s "
-            f"declared means {sorted(cfg['mus'].get(base, {}))} (config.yaml `mus:`)"
-        )
+    if mu and mu.lower() not in ("none", "null"):
+        C._check_mu_value(mu, "--mu", allow_unknown=False)
     a, lams, arm_resolved = gcg_mod.resolve_config(cfg, args)
     gpu = cfg["bases"][base]["gpu"]
     fn = {"H100": gpu_h100, "H200": gpu_h200}[gpu]

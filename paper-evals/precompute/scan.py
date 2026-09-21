@@ -115,7 +115,7 @@ def _load_targets(cfg, args, notes=None):
     """(ids rows, V [N, d] unit fp32 on the gpu, realact mask tables).
 
     `scan` has no `--maemm` in scope at all, so the centring convention has to be told to it
-    (`--centering`) or taken from the set's own stored contract -- see common.centering_for. On a
+    (`--mu <file>`) or taken from the set's own stored contract -- see common.mu_for. On a
     legacy `storage: unit` set that resolves to the mean the set was built with, which reproduces
     every corpus-search number measured between 2026-09-16 and 2026-09-21 exactly.
     """
@@ -126,8 +126,8 @@ def _load_targets(cfg, args, notes=None):
     hdir = C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{hdir}/ids.jsonl")
     n = len(rows)
-    centering, _ = C.centering_for(cfg, base, hdir, args, "", root, notes)
-    v = C.dirs_for(cfg, base, hdir, centering, root, notes)
+    mu, _ = C.mu_for(cfg, base, hdir, args, "", root, notes)
+    v = C.dirs_for(cfg, base, hdir, mu, root, notes)
     assert v.shape == (n, d), f"{hdir}: dirs_for returned {v.shape} for {n} rows"
     v = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)).cuda(), dim=-1)
     doc = torch.full((n,), -1, dtype=torch.int64)

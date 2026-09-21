@@ -55,11 +55,11 @@ def load_dirs(cfg, args, device: str = "cuda", notes=None):
 
     rollouts_vllm asks for the cpu: the engine owns the GPU by the time it needs the directions.
 
-    The direction is DERIVED, never read: `common.dirs_for` applies the centring this run names,
-    which for a generator is the checkpoint's own `input.centering` (what it was TRAINED to
-    receive) unless `--centering` overrides it. Handing a MAEMM a direction under the wrong mean is
+    The direction is DERIVED, never read: `common.dirs_for` applies the mean this run names,
+    which for a generator is the checkpoint's own `mu:` (what it was TRAINED to receive) unless
+    `--mu` overrides it. Handing a MAEMM a direction under the wrong mean is
     invisible in every output -- the rollouts look like rollouts -- so the convention is resolved
-    here, once, and written into the summary by the caller. `notes` collects the lines that say
+    here, once, and recorded in the product README by the caller. `notes` collects the lines that say
     which; rollouts_vllm:1007 (parity-greedy) and rollouts_nla:672 come through the same call.
     """
     import torch
@@ -69,8 +69,8 @@ def load_dirs(cfg, args, device: str = "cuda", notes=None):
     rows = C.read_jsonl(f"{src}/ids.jsonl")
     n = len(rows)
     assert n, f"{src}/ids.jsonl is empty"
-    centering, _ = C.centering_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
-    v = C.dirs_for(cfg, base, src, centering, root, notes)
+    mu, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    v = C.dirs_for(cfg, base, src, mu, root, notes)
     assert v.shape == (n, cfg["bases"][base]["d"]), f"{src}: dirs_for returned {v.shape} for {n} rows"
     dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)).to(device), dim=-1)
     for i, r in enumerate(rows):

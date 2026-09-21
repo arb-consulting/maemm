@@ -1173,8 +1173,8 @@ def _load_targets(cfg, args, notes=None):
     The OBJECTIVE is still the uncentred cosine (module docstring) -- that half is untouched. What
     is resolved here is the other half, the TARGET: `vecs.f16` stopped being a fixed object on
     2026-09-21 (a raw set stores unit(act) and derives the rest), so the search's ceiling is
-    computed against whichever direction `--centering` names. This file has no `--maemm` in scope,
-    so on a raw set common.centering_for refuses rather than defaulting; on the legacy sets every
+    computed against whichever direction `--mu` names. This file has no `--maemm` in scope, so on
+    a raw set common.mu_for refuses rather than defaulting; on the legacy sets every
     published gcg number reproduces because the set's own stored convention is the default.
     """
     import torch
@@ -1183,8 +1183,8 @@ def _load_targets(cfg, args, notes=None):
     d_model = cfg["bases"][base]["d"]
     hdir = C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{hdir}/ids.jsonl")
-    centering, _ = C.centering_for(cfg, base, hdir, args, "", root, notes)
-    vecs = C.dirs_for(cfg, base, hdir, centering, root, notes)
+    mu, _ = C.mu_for(cfg, base, hdir, args, "", root, notes)
+    vecs = C.dirs_for(cfg, base, hdir, mu, root, notes)
     assert vecs.shape == (len(rows), d_model), f"{hdir}: dirs_for returned {vecs.shape}"
     v = torch.as_tensor(np.asarray(vecs), dtype=torch.float32)
     v = torch.nn.functional.normalize(v, dim=-1)

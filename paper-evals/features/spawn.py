@@ -37,7 +37,7 @@ DEFAULTS = {
     "engine": "hf", "ps_layers": "", "no_ps_floor": False, "ps_tag": "",
     "rollouts_dir": "", "corpus_name": "", "subset": "", "amp": "",
     "ps_prompt": "", "ps_rule": "", "ps_alpha": 0.0,
-    "centering": "", "re_derive": "",
+    "mu": "", "re_derive": "",
 }
 
 

@@ -306,11 +306,11 @@ def run(cfg, args):
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows_meta = C.read_jsonl(f"{src}/ids.jsonl")
     d = cfg["bases"][base]["d"]
-    # No `--maemm` in this product either: the direction it patches in is whatever `--centering`
-    # names, and on a `storage: raw` set common.centering_for refuses to pick one for it.
+    # No `--maemm` in this product either: the direction it patches in is whatever `--mu`
+    # names, and on a `storage: raw` set common.mu_for refuses to pick one for it.
     cen_notes: list[str] = []
-    centering, _ = C.centering_for(cfg, base, src, args, "", root, cen_notes)
-    v = C.dirs_for(cfg, base, src, centering, root, cen_notes)
+    mu, _ = C.mu_for(cfg, base, src, args, "", root, cen_notes)
+    v = C.dirs_for(cfg, base, src, mu, root, cen_notes)
     assert v.shape == (len(rows_meta), d), f"{src}: dirs_for returned {v.shape}"
     dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)), dim=-1)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))

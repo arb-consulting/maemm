@@ -390,12 +390,19 @@ def main(
     # score: read <dir>/rollouts.jsonl + <dir>/rollouts.summary.json and write <dir>/scores/
     # instead of a MAEMM's rollouts -- how a `patchscopes` cell reaches the one scoring path.
     rollouts_dir: str = "",
-    # WHICH CENTRING MEAN this run's directions are derived under: a `mus:` name from config.yaml
-    # ("stats_mu", "whiten_mu", ...) or "none". For a product with a --maemm it is an OVERRIDE of
-    # that checkpoint's own `input.centering` and is recorded as a deviation; for the products with
-    # no MAEMM in scope (scan, gcg, patchscopes, repo_examples) it is the only source there is, and
-    # they refuse to run on a `storage: raw` set without it (common.dirs_for).
-    centering: str = "",
+    # WHICH MEAN this run's directions are centred on: the PATH of a [d] .f32/.npy file on the
+    # volume (absolute, or relative to --root, with `{base}` expanding to the base key), or the
+    # literal "none". For a product with a --maemm it OVERRIDES that checkpoint's own `mu:` and is
+    # recorded as a deviation; for the products with no MAEMM in scope (scan, gcg, patchscopes,
+    # repo_examples) it is the only source there is, and they refuse to run on a `storage: raw` set
+    # without it (common.mu_for).
+    mu: str = "",
+    # WHICH CORPUS, by `corpora:` key (heldout16m, celeste-train10m, ...). Resolves to the
+    # directory name `--corpus-name` takes, so the two flags cannot disagree; pass at most one.
+    corpus: str = "",
+    # Ari's flag: the corpus DIRECTORY under base/<base>/corpora/. `--corpus` is preferred -- a key
+    # carries the ladder, the geometry and the provenance sentence, a directory name carries none.
+    corpus_name: str = "",
     # targets: re-forward an EXISTING set under the raw storage contract (act.f32 + unit(act))
     # instead of re-sampling it, asserting row for row that it is the same draw. The named set is
     # only READ; --set gives the new one. See precompute/targets.py:_re_derive_check.
@@ -465,19 +472,24 @@ def main(
         "ps_tag": ps_tag,
         "rollouts_dir": rollouts_dir.rstrip("/"),
         "amp": amp,
-        "centering": centering,
+        "mu": mu,
+        "corpus_name": corpus_name,
         "re_derive": re_derive,
         # The container has no git checkout, so the commit every README records is captured here.
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,
     }
     assert engine in C.ENGINES, f"--engine must be one of {list(C.ENGINES)}, got {engine!r}"
-    if centering:
-        assert base, "--centering names a mean of a BASE, so it needs --base"
-        assert centering == C.NO_CENTRING or centering in cfg["mus"].get(base, {}), (
-            f"--centering {centering!r} is neither {C.NO_CENTRING!r} nor one of base {base}'s "
-            f"declared means {sorted(cfg['mus'].get(base, {}))} (config.yaml `mus:`)"
+    if mu and mu.lower() not in ("none", "null"):
+        C._check_mu_value(mu, "--mu", allow_unknown=False)
+    if corpus:
+        assert not corpus_name, (
+            f"pass --corpus {corpus!r} OR --corpus-name {corpus_name!r}, not both: the key resolves "
+            f"to the directory name and two sources for one value can only ever disagree"
         )
+        args["corpus_name"] = C.corpus_key_name(cfg, corpus)
+        block, stride = C.corpus_geometry(cfg, corpus)
+        print(f"[launch] corpus {corpus} -> dir {args['corpus_name'] or 'corpus'}, window {block}/{stride}")
     if re_derive:
         assert product == "targets", (
             f"--re-derive is a `targets` flag (re-forward an existing set under raw storage) and "

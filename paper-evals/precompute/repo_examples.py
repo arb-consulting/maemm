@@ -292,10 +292,10 @@ def run(cfg, args):
     # so every centring resolves to the same vectors here -- but the resolution still goes through
     # common.dirs_for, because that is what makes "the direction scored here is the SAME object the
     # rollouts were scored against" a fact about one code path rather than about two readers of one
-    # file. On a `storage: raw` set with no --maemm in scope, --centering is required.
+    # file. On a `storage: raw` set with no --maemm in scope, --mu is required.
     cen_notes: list[str] = []
-    centering, _ = C.centering_for(cfg, base, src, args, "", root, cen_notes)
-    vecs = C.dirs_for(cfg, base, src, centering, root, cen_notes)
+    mu, _ = C.mu_for(cfg, base, src, args, "", root, cen_notes)
+    vecs = C.dirs_for(cfg, base, src, mu, root, cen_notes)
     assert vecs.shape == (len(rows_meta), d), f"{src}: dirs_for returned {vecs.shape}"
     dirs_f = TF.normalize(torch.from_numpy(np.asarray(vecs)[[r["row"] for r in sel]]), dim=-1)
 

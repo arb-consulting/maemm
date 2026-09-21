@@ -352,7 +352,8 @@ def run(cfg, args):
     toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     print(
-        f"[stats] corpus {C.corpus_dir(base, root, corpus_name)}: {len(docs)} docs, {len(toks)} tokens, sizes {sizes}",
+        f"[stats] corpus {C.corpus_dir(base, root, corpus_name)}: {len(docs)} docs, "
+        f"{len(toks)} tokens, sizes {sizes}",
         flush=True,
     )
 
@@ -395,17 +396,17 @@ def run(cfg, args):
 # ---------------------------------------------------------------------------------------------
 
 # The two archived whiten_mu paths used to live here as the pipeline's only named-mu registry.
-# Since 2026-09-21 that registry is config.yaml's `mus:` block (one entry per base per mean, with a
-# `source:` saying where it lives), read through `common.mu_named` -- so this is the compatibility
-# shim and NOT a second list to keep in step. Kept as a function because `mu_diag` names it too.
+# Since 2026-09-21 a mean is a FILE PATH wherever one is named, and the archived one is
+# `bases.<base>.whiten_mu` in config.yaml -- so this is the lookup those two diagnostics share and
+# NOT a second list to keep in step. Kept as a function because `mu_diag` names it too.
 def archive_mu_path(cfg: dict, base: str) -> str:
-    """Absolute path of base's archived `whiten_mu`, from config.yaml `mus.<base>.whiten_mu`."""
-    spec = cfg["mus"].get(base, {}).get("whiten_mu")
-    assert spec and spec.get("source") == "archive", (
-        f"base {base!r} declares no archived `whiten_mu` in config.yaml's `mus:` block "
-        f"(has {sorted(cfg['mus'].get(base, {}))}); nothing to compare our mean against here"
+    """Absolute path of base's archived `whiten_mu`, from config.yaml `bases.<base>.whiten_mu`."""
+    path = cfg["bases"][base].get("whiten_mu")
+    assert path, (
+        f"base {base!r} declares no archived `whiten_mu:` path in config.yaml; there is nothing to "
+        f"compare our own stats/mu.f32 against on this base"
     )
-    return os.path.join(cfg["modal"]["archive"], spec["path"])
+    return C.resolve_mu_path(path, base, root="/")
 # Below this the two means are NOT the same object and every centred number has to be re-read with
 # that in mind. Reported, never acted on: which mean is right is Tomáš's call, not this script's.
 MU_COS_FLOOR = 0.99
