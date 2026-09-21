@@ -3459,3 +3459,248 @@ against an independently computed cluster bootstrap AND required to differ from 
 number), and `assert 8 not in bo` passed under a clamping mutation that reassigned `k` before the
 write (now `sorted(bo) == [1, 2, 4]`, and the mutation is the honest one — removing the skip,
 which divides by zero).
+
+---
+
+## 2026-09-21 — branch `evals/pipeline-autointerp`: eval 2, the 32-feature autointerp pilot
+
+Six runs, two SAEs, three checkpoints each, Delphi detection + fuzzing. **GPU $2.04 measured
+(+ ≈$0.25 on one failed launch), API $20.4145**, against caps of $30 and $30. Everything wrote
+under `--root /vol/tmp/sae-smoke64` or under new set-keyed paths; **nothing on the volume was
+deleted, replaced or rewritten**, and the 83 files copied in are listed below with their sources.
+Gates before the first launch: `uv run paper-evals/precompute/unit_smoke.py` **45/45** and
+`uv run paper-evals/autointerp/selfcheck.py` **ALL CHECKS PASSED** — the latter had been RED on
+`evals/pipeline` at cd243de and is fixed in 51292a1.
+
+### Inputs, and the 83 files copied to make one root answer everything
+
+The 2M block's inputs were all at the smoke root already except two products `build` requires and
+that dictionary has never had; they were RUN. The 131k block's rollout products are at the smoke
+root while its corpus products are canonical, and `--root` is one value, so the 32-feature SLICE
+of the canonical products was copied in (`scratchpad/copy131k.py`, destinations verified absent,
+a `SLICE.md` in each sliced directory naming the 32 features it holds):
+
+```
+base/qwen36-27b/sae/l42-1b/{examples_docmax,examples_4m}/2026-09-16_v1/  35 files each (32 + tested/index/README)
+base/qwen36-27b/sae/l42-1b/random_pool/2026-09-16_v1/                     8 files
+maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/2026-09-16_v1__vllm/sae_self/  5 files
+        -> the same paths under tmp/sae-smoke64/
+```
+
+### The draw — `draw_features(sae_rows, n_feat=32, seed=20260921)`, 8 per density stratum
+
+**2M**, set `2026-09-21_sae2m_64`, rows `1,3,5,6,8,9,10,13,17,19,20,21,23,30,31,32,33,34,37,38,40,42,45,47,50,52,55,56,57,58,59,60`:
+```
+96012 125750 219456 387529 427438 471848 531516 631801 732964 825992 898212 912063 930951
+1150700 1150755 1160272 1170780 1186060 1241761 1300516 1318364 1385405 1599955 1680734
+1800508 1828701 1864635 1868670 1881904 1940348 1943551 2067892
+```
+**131k**, set `2026-09-16_v1`, drawn from the 64 rows `sae_smoke64.md:15` scored, rows
+`1030,1037,1048,1053,1065,1076,1079,1140,1173,1204,1216,1220,1259,1263,1264,1266,1285,1315,1349,1352,1369,1371,1380,1384,1435,1453,1475,1478,1481,1486,1510,1515`:
+```
+5585 14756 31805 35073 48930 59176 60809 124524 30010 63311 73133 77653 104784 111248 111835
+117145 8954 39522 74515 78781 91751 92633 102208 109363 28280 42890 63883 65629 66908 73531
+101555 107846
+```
+
+### Commands
+
+```
+# the two 2M products `build` requires and the 2M dictionary had never had
+modal run --detach autointerp/modal_app.py --stage random_pool  --base qwen36-27b \
+    --sae qwen36-27b/sae2m --set 2026-09-21_sae2m_64 --root /vol/tmp/sae-smoke64
+modal run --detach autointerp/modal_app.py --stage examples_4m  --base qwen36-27b \
+    --sae qwen36-27b/sae2m --set 2026-09-21_sae2m_64 --root /vol/tmp/sae-smoke64
+
+# six builds (CPU, $0). --rows is the 32-row list above; --arms is DOCMAX,M or DOCMAX,NLA
+modal run autointerp/modal_app.py --stage build --base qwen36-27b --sae <SAE> --set <SET> \
+    --maemm <CKPT> --engine <hf|vllm> --root /vol/tmp/sae-smoke64 --rows <32 rows> \
+    --arms <DOCMAX,M|DOCMAX,NLA> --build-dir 2026-09-21_e2-<block>-<ckpt>
+
+# six runs. ONE SHARED --cache-dir per SAE, which is what makes DOCMAX and the three nulls a
+# single measurement across the three checkpoints instead of three (verified below).
+modal run --detach autointerp/modal_app.py --stage run --base qwen36-27b --sae <SAE> \
+    --root /vol/tmp/sae-smoke64 --set <SET> --build-dir <BUILD> --run-dir <BUILD> \
+    --arms <DOCMAX,M|DOCMAX,NLA> --floor-source-arm DOCMAX --scorers detection,fuzzing \
+    --path sync --cache-dir /vol/tmp/sae-smoke64/runs/e2-cache-<block> --stop-above-usd 12
+
+# tables
+uv run results/autointerp.py --sae qwen36-27b/sae2m --label "2M primary" --root tmp/sae-smoke64 \
+    --out results/out/e2 --run rl-last16=2026-09-21_e2-2m-rl16 \
+    --run old-primary=2026-09-21_e2-2m-oldprim --run nla=2026-09-21_e2-2m-nla --strata
+uv run results/autointerp.py --sae qwen36-27b/l42-1b --label "131k secondary" ... --no-strata
+```
+
+### Cost, per stage
+
+| date | item | wall | cost | result |
+|---|---|---|---|---|
+| 2026-09-21 | `random_pool` 2M, 64 features | 187.9 s | **$0.2370** | 2048 of 952,388 windows, seed 20260916 |
+| 2026-09-21 | `examples_4m` 2M, 64 features | 1432.8 s | **$1.8069** | 4,738 docs / 3,999,724 tokens (≤ 4M), 3.7 MiB |
+| 2026-09-21 | EPO shakeout, 1 direction, 10 iters | ~200 s | **≈$0.25** (est) | **FAILED, OOM** — below |
+| 2026-09-21 | six `build` stages (CPU) | 15-41 s each | **$0** | 32 features each; 2.2-2.3 MiB each |
+| 2026-09-21 | `run` 131k rl-last16 (5 arm-variants) | 215 s | **$6.5601** | 2,373 calls, 0 empty |
+| 2026-09-21 | `run` 131k old-primary (1 new variant) | 60 s | **$1.4094** | 496 calls, 32/64 explain cached |
+| 2026-09-21 | `run` 131k NLA (2 new variants) | 86 s | **$2.7072** | 947 calls, 921-923 scorer calls cached |
+| 2026-09-21 | `run` 2M rl-last16 (5 arm-variants) | 212 s | **$5.8505** | 2,164 calls, **11 refusals** |
+| 2026-09-21 | `run` 2M old-primary (1 new variant) | 55 s | **$1.2663** | 482 calls, 0 empty |
+| 2026-09-21 | `run` 2M NLA (2 new variants) | 84 s | **$2.6210** | 930 calls, 0 empty |
+
+**API total $20.4145**; **GPU total $2.0439 measured**. Per arm-variant per 32 features the
+incremental runs measure it directly: **$1.2663-$1.4094 for one variant**, i.e. **$0.040-0.044 per
+feature per arm-variant on the sync path** — consistent with the published 512-feature run's
+$0.0231 on the half-price batch path.
+
+### Detection and fuzzing, balanced accuracy, mean [95% percentile bootstrap over features]
+
+**131k secondary** (`qwen36-27b/l42-1b`, gate 1.5846), n = 31 of 32 (one feature has no draw-1
+positive):
+
+| arm | detection | fuzzing |
+|---|---|---|
+| `DOCMAX` (corpus ground truth = search, interim-16M) | **0.8019** [0.7602, 0.8438] | **0.7306** [0.6948, 0.7653] |
+| `DOCMAX-judge2` (judge null) | 0.7954 [0.7516, 0.8371] | 0.7172 [0.6839, 0.7507] |
+| `DOCMAX-draw2` (draw null, n=30) | 0.7469 [0.6958, 0.7958] | 0.6861 [0.6405, 0.7289] |
+| `NLA` mode A (4 NLA texts → explainer, n=30) | 0.6647 [0.6072, 0.7264] | 0.6213 [0.5794, 0.6656] |
+| `M` rl-last16 (16 rollouts → explainer) | 0.6594 [0.6097, 0.7057] | 0.6192 [0.5801, 0.6551] |
+| `M` old primary | 0.6030 [0.5616, 0.6497] | 0.5979 [0.5599, 0.6400] |
+| `NLA-desc` mode B (NLA text IS the description, n=30) | 0.5178 [0.5061, 0.5333] | 0.5261 [0.5086, 0.5447] |
+| `R-shuffled` (floor) | 0.4984 [0.4866, 0.5105] | 0.5008 [0.4903, 0.5137] |
+
+**2M primary** (`qwen36-27b/sae2m`, gate 1.6828), n = 32 except `M` rl-last16 at n = 21:
+
+| arm | detection | fuzzing |
+|---|---|---|
+| `DOCMAX` (corpus ground truth = search, interim-16M) | **0.5815** [0.5411, 0.6245] | **0.6135** [0.5818, 0.6451] |
+| `DOCMAX-draw2` (draw null) | 0.5780 [0.5338, 0.6254] | 0.6072 [0.5667, 0.6511] |
+| `DOCMAX-judge2` (judge null) | 0.5745 [0.5279, 0.6216] | 0.6052 [0.5690, 0.6398] |
+| `M` rl-last16 (**n=21**, 11 refusals) | 0.5397 [0.5127, 0.5702] | 0.5143 [0.5000, 0.5321] |
+| `M` old primary | 0.5266 [0.5000, 0.5599] | 0.5237 [0.5008, 0.5516] |
+| `NLA` mode A | 0.5135 [0.4906, 0.5409] | 0.5142 [0.5033, 0.5268] |
+| `NLA-desc` mode B | 0.5057 [0.5000, 0.5135] | 0.5144 [0.5001, 0.5314] |
+| `R-shuffled` (floor) | 0.4836 [0.4617, 0.5055] | 0.5344 [0.5070, 0.5625] |
+
+Paired against `DOCMAX`, detection / fuzzing: 131k `M` rl-last16 **−0.1425 / −0.1114**, `M` old
+primary −0.1989 / −0.1326, `NLA` −0.1389 / −0.1078, `NLA-desc` **−0.2858 / −0.2030**, floor
+−0.3035 / −0.2298. 2M: `M` rl-last16 −0.0516 / −0.0976, `M` old primary −0.0549 / −0.0898, `NLA`
+−0.0680 / −0.0993, `NLA-desc` −0.0758 / −0.0991, floor −0.0979 / −0.0792.
+
+**Three things to read off these, before any of them is quoted:**
+
+1. **The 2M block does not discriminate at this scale.** Its corpus GROUND-TRUTH arm is at 0.58
+   detection, within the 131k floor's distance of chance, and every arm's interval overlaps every
+   other's except against the floor. The per-stratum table says where the signal is: 2M `DOCMAX`
+   detection is 0.5427 / 0.5760 / 0.4875 / **0.7198** across strata 0-3, so only the densest
+   quartile behaves, on n = 8. The 2M numbers are a pilot result about the EVAL, not about the
+   methods; the 131k block is the one that separates arms.
+2. **The 2M fuzzing floor is 0.5344, not 0.5**, while its detection floor is 0.4836. A floor that
+   is not at chance is a property of the negative marking on this dictionary and it makes every
+   2M fuzzing number unreadable as an absolute. It is at 0.5008 on the 131k.
+3. **11 of 32 `M` rl-last16 explainer calls on the 2M came back `stop_reason: refusal`**, empty
+   after the A10 retry at 1200 tokens; 0 on the 131k and 0 for the old primary on the SAME
+   features, so it is that checkpoint's 2M rollout TEXT the API declines to describe, not the
+   prompt. The features are 427438, 732964, 912063, 1170780, 1186060, 1241761, 1385405, 1680734,
+   1800508, 1868670, 1943551. The arm is therefore measured on the 21 features whose text was
+   describable, which is not a random subset, and 0.5397 is if anything an over-estimate. This is
+   the defect class `902d8ce` addressed for the 512-feature run (44 refusals / 42 empty, "the arms
+   were scored on different feature sets"); the retry it added does not help when the refusal is
+   stable. At 34 % it is no longer a footnote.
+
+### NLA mode A against mode B — the one clean result of this pilot
+
+On the 131k, where the eval discriminates: **mode A 0.6647 detection, mode B 0.5178, floor
+0.4984.** Running the verbalizer's texts through the explainer lands the NLA arm on top of the
+MAEMM arm (`M` rl-last16 0.6594); handing the verbalizer's own text to the scorer AS the
+description lands it 0.019 above the floor, and the paired contrast against DOCMAX is −0.2858
+against the floor's −0.3035. Mode B recovers about 6 % of the gap mode A recovers.
+
+This CONTRADICTS the recommendation in `related-work/2026-09-21_nla-in-autointerp.md` §"1. Run NLA
+in description mode: the AV explanation IS the explanation string ... Samples mode has no
+precedent in any NLA paper and adds an unvalidated generation hop". The literature reading is
+right that mode A has no precedent; the measurement says mode B does not work under this protocol.
+Both arms ran on the same 30 features, the same test items and the same scorer calls, so the
+comparison is internal and does not depend on anything above.
+
+### What was verified rather than argued
+
+- **The test sets are identical across the three builds of each SAE**, which is what makes a
+  paired contrast across run directories legitimate. `shown_docs` accrues from CORPUS picks alone
+  (`build.py`: `shown_windows += [p for p in picks if p["src"] == "corpus"]`), so builds sharing
+  their corpus arms agree — that is the argument; the measurement is a SHA-256 over every `test`
+  and `test2` row of all 32 features (`scratchpad/test_identity.py`): 2M `983e477ad1b6e6e9` and
+  131k `85d902987eff7a25`, one digest each across all three builds.
+- **The shared cache makes DOCMAX one measurement, not three.** `DOCMAX − DOCMAX` across run
+  directories is `+0.0000 [+0.0000, +0.0000]` on both SAEs, and `Cache.key` carries no run or
+  build component, so the second and third runs replayed the first's calls.
+- **Reader checks**: 4,612 recomputations of the stored balanced accuracies from the rows' own
+  TPR/TNR across the six runs, worst excess −1.5e-06 (i.e. every comparison inside tolerance),
+  0 rates out of range, 0 bad batch counts. Parse rates 0.953-1.000.
+
+### EPO: launched, REFUSED by the hardware, not run
+
+`gcg --mode epo --init random32 --set 2026-09-21_sae2m_64 --family sae --sae qwen36-27b/sae2m
+--mu none --rows 3 --iters 10 --seq-len 32 --arm-suffix shakeout` — a deliberately tiny shakeout
+before committing the ≈$18 of the 16 approved directions. It reached the GPU, selected the right
+target (`family sae, 1 directions local [3] = global [3]`), loaded the 2M dictionary, and died:
+
+```
+_WU32[k] = model.get_output_embeddings().weight.detach().float().T.contiguous()
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 4.74 GiB. GPU 0 has a total
+capacity of 139.80 GiB of which 4.24 GiB is free. Process 1 has 135.55 GiB memory in use.
+```
+
+**This is not a batch-size knob.** The allocation is the fp32 unembedding, materialised once at
+setup before any candidate forward, on top of the 27B base and the 2M dictionary; `--sbatch`,
+`--children` and `--pop` are all downstream of it. `score` fits the same GPU because it loads the
+2M SAE encoder-only (~43 GB) and never makes an fp32 unembedding. The 16 directions were NOT
+launched: spending ≈$18 and ~4 h on a configuration whose 10-iteration shakeout OOMs is not a
+budget decision anyone would take twice. Unblocking it is a change inside `gcg/gcg.py` — an
+encoder-only SAE load for the `sae` family, or keeping `_WU32` in bf16 — which is the one product
+the 09-21 plan says not to touch casually, so it is left for a decision rather than done here.
+
+**Leftover, not deleted** (deletion was not in scope):
+`/vol/tmp/sae-smoke64/base/qwen36-27b/gcg/2026-09-21_sae2m_64/sae/epo-random32-shakeout.tmp-2026-09-21`.
+
+### Deviations from plan §3, each deliberate
+
+1. **Set and scale.** §3.1 runs eval 2 on eval 1's `2026-09-22_v3` rows 3072-5119 at `--n-feat`
+   256 / 128. This ran on the 64-row smoke sets at **32 features per SAE** (Tomáš, 2026-09-21)
+   because those are the sets that HAVE rollouts, scores and `sae_self` for all three checkpoints;
+   the frozen `2026-09-21_v3_*` blocks have none. The 32 nest inside the 64, which nest inside
+   `2026-09-21_v3_sae2m` by `--include`, so the fidelity regression §3.1 wants is still reachable.
+2. **`search` and `docmax` are ONE arm.** §3.2 lists a corpus ground truth and a separate search
+   baseline. Checked read-only first, as instructed: Ari's `celeste-train10m` scan products do not
+   exist (`base/qwen36-27b/scan/` holds `2026-09-16_v1`, `2026-09-18_ood_v1`, `2026-09-20_sae2m_2k`
+   and nothing over that corpus; `corpora/train_parity_10m/` is a corpus with no scan or examples
+   product above it). The fallback the brief names — top-activating windows from our 16M corpus via
+   `examples_docmax` — is the same pool, ranking and N as the ground-truth arm, so the two collapse.
+   Run once, as `DOCMAX`, **labelled `interim-16M`**. They are not two numbers and are not reported
+   as two.
+3. **No `C16` or `C4` arm anywhere.** The 2M has no `scan` examples/ and `check_corpus_source`
+   refuses a C16 arm by name. For the two blocks to be comparable the 131k block also took its
+   band-labelled positives from `examples_4m` rather than scan's `examples/`, which the published
+   512-feature run used — so the 131k numbers here are NOT directly comparable to `results.md`'s.
+4. **`--fuzz-protocol legacy`, not `delphi`.** §3.3 specifies `delphi`. All six runs used the
+   default `legacy` (zero-shot fuzzing, gate marking) so that the six are mutually comparable;
+   switching after the first run would have cost ~$14 of cache misses. The 09-18 rescore of the
+   512-feature run moved `M − C16` fuzzing from −0.1228 to −0.1248, so the contrast is insensitive
+   to the choice. Detection kept its three verbatim shots throughout.
+5. **The three nulls are sourced from `DOCMAX`**, via the `--floor-source-arm` added in ad4f137,
+   because `floor_source_arm: C16` names an arm that cannot exist on either block here.
+6. **Patchscopes skipped** — Ari's implementation (7f3b511) is pending, per the 09-21 decision.
+7. **EPO not run** — above.
+8. **`n_shown_exceeding_corpus_peak` per arm is NOT in the tables.** §3.3 asks for it;
+   `scores.jsonl` does not carry it. It is in each build's `build.json` and has to be read there.
+9. **No pre-registered primary contrast.** §3.3 asks that one contrast be confirmatory and the
+   rest exploratory. `results/autointerp.py` gives every non-reference arm the same row; nothing
+   here is marked confirmatory, and at n = 32 with the 2M block flat, nothing should be.
+
+### Products written, all new paths
+
+```
+tmp/sae-smoke64/base/qwen36-27b/sae/sae2m/{random_pool,examples_4m}/2026-09-21_sae2m_64/
+tmp/sae-smoke64/base/qwen36-27b/autointerp/2026-09-21_sae2m_64/2026-09-21_e2-2m-{rl16,oldprim,nla}/
+tmp/sae-smoke64/base/qwen36-27b/autointerp/2026-09-16_v1/2026-09-21_e2-131k-{rl16,oldprim,nla}/
+tmp/sae-smoke64/runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}/
+tmp/sae-smoke64/runs/e2-cache-{2m,131k}/
+```
