@@ -630,6 +630,37 @@ def main(
             f"--stages selects which halves of `ood_selfcheck` run (readers,covariates on CPU; "
             f"nll on the GPU); it means nothing to product {product!r}"
         )
+    if with_set:
+        # A `--with-set` bank is resolved by the SAME `--mu` as the primary set, and `dirs_for`
+        # returns the WHOLE set array by contract (row selection is the caller's), so a family
+        # filter does NOT save a set whose stored centring disagrees. That assert fires inside
+        # the container, after the base model load; config says enough to refuse here instead.
+        asked = (mu or "").strip()
+        for extra in [x for x in with_set.split(",") if x]:
+            name = extra.partition(":")[0]
+            assert name in cfg["heldout"], (
+                f"--with-set names {name!r}, which is not a set in config.yaml"
+            )
+            spec = cfg["heldout"][name]
+            if spec.get("storage") != "unit" or not asked or asked.lower() in ("none", "null"):
+                continue
+            stored = dict(spec.get("family_mu") or {})
+            if spec.get("mu_stored") is not None:
+                stored.setdefault("*", spec["mu_stored"])
+            for fam, own in stored.items():
+                if own is None or own == C.MU_UNKNOWN:
+                    continue
+                if fam != "*" and not C.family_centrable(cfg, fam):
+                    continue  # nothing was subtracted from it, so no mean can disagree
+                if C.resolve_mu_path(own, base, VOL) != C.resolve_mu_path(asked, base, VOL):
+                    raise AssertionError(
+                        f"--with-set {name}: it is `storage: unit` and its {fam!r} rows are stored "
+                        f"under {own}, but this run asks for --mu {asked}. A stored unit direction "
+                        f"cannot be re-centred, and `dirs_for` refuses the WHOLE set regardless of "
+                        f"the family filter in `--with-set {extra}`. Drop the bank, or run at the "
+                        f"mean it was built with."
+                    )
+
     if re_derive:
         assert product == "targets", (
             f"--re-derive is a `targets` flag (re-forward an existing set under raw storage) and "
