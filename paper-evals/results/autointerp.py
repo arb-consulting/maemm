@@ -1001,6 +1001,37 @@ def cut_table(res: dict, out: R.Out, view: str, name: str, title: str, caption: 
     out.table(name, title, caption, head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
 
+def trend_verdict(p: float, bonf: float, n_look: int, widest_ci: float, spread: float,
+                  dropped: list[str]) -> str:
+    """The verdict cell of one trend row: what survives, at what correction, with what caveat.
+
+    A pure function of six numbers so it can be unit-tested at its boundaries -- it decides what a
+    reader of the table concludes, and it lived inside a render loop where nothing could reach it.
+
+    `CI-WIDE` is a CAUTION, not a second gate. It fires when the widest per-cell interval in the
+    row is at least as wide as the spread between the cell means, which says the cells are
+    individually estimated less precisely than the difference being claimed between them. It does
+    NOT say the cells fail to separate: a wide interval that sits entirely ABOVE its neighbours
+    still separates them, and the 2M peak `M` detection row is exactly that case -- interval
+    [0.5406, 0.7219] against neighbouring means of 0.484, 0.506 and 0.494, so its lower bound
+    clears all three while its width (0.181) exceeds the spread (0.1375). The flag is there to stop
+    a reader taking a small p as precision; deciding what it means is the reader's job, which is
+    why it is appended to `separates` rather than replacing it.
+    """
+    if not math.isfinite(p):
+        verdict = "not estimable"
+    elif p <= bonf:
+        wide = (math.isfinite(widest_ci) and math.isfinite(spread) and widest_ci >= spread)
+        verdict = f"separates (p ≤ α/{n_look}){', CI-WIDE' if wide else ''}"
+    elif p <= ALPHA:
+        verdict = "uncorrected only"
+    else:
+        verdict = "no separation"
+    if dropped:
+        verdict += f" — {len(dropped)} cell(s) dropped: {', '.join(dropped)}"
+    return verdict
+
+
 def trend_table(res: dict, out: R.Out) -> None:
     """Does any arm x cut trend survive at eight features per cell? Mostly no, and it says so.
 
@@ -1033,26 +1064,7 @@ def trend_table(res: dict, out: R.Out) -> None:
         bonf = ALPHA / n_look
         for t in mine:
             p = t["p_perm"]
-            if not math.isfinite(p):
-                verdict = "not estimable"
-            elif p <= bonf:
-                # THE CI RULE, IN THE VERDICT AND NOT ONLY IN THE CAPTION. A spread narrower than
-                # the widest per-cell interval is a spread between two estimates that overlap, and
-                # a p below the corrected alpha does not rescue it -- the permutation null asks
-                # whether the CUT is informative, not whether the cells are separately estimable.
-                # The caption has always said so; a reader who reads the verdict column and not the
-                # caption was getting the opposite impression, which is how the two `M` rows of the
-                # 2M peak view (spreads 0.1375 and 0.1167 against cell intervals 0.181 and 0.161)
-                # came to look like the one MAEMM arm that separated.
-                wide = (math.isfinite(t["widest_ci"]) and math.isfinite(t["spread"])
-                        and t["widest_ci"] >= t["spread"])
-                verdict = (f"separates (p ≤ α/{n_look}){', CI-WIDE' if wide else ''}")
-            elif p <= ALPHA:
-                verdict = "uncorrected only"
-            else:
-                verdict = "no separation"
-            if t["dropped"]:
-                verdict += f" — {len(t['dropped'])} cell(s) dropped: {', '.join(t['dropped'])}"
+            verdict = trend_verdict(p, bonf, n_look, t["widest_ci"], t["spread"], t["dropped"])
             rows.append([view, t["arm_name"], t["run"], t["scorer"],
                          f"{t['n_cells']}/{t['n_cells_all']}", t["n_min"],
                          R.num(t["widest_ci"], 3), R.num(t["spread"], 4), R.num(t["rho"], 3),
@@ -1093,8 +1105,15 @@ def trend_table(res: dict, out: R.Out) -> None:
          f"block are further looks this divisor does not count -- so read `separates` as "
          f"\"survives the corrections this table can make\", not as a claim about the family of "
          f"everything eval 2 looked at. `widest cell CI` is the width of "
-         f"the widest per-cell percentile interval in the row (full intervals in the view's CSV): "
-         f"where it exceeds the spread, the cells do not separate whatever the p says.\n\n"
+         f"the widest per-cell percentile interval in the row (full intervals in the view's CSV). "
+         f"Where it is at least the spread, the verdict is tagged `CI-WIDE`: the cells are "
+         f"individually estimated less precisely than the difference being claimed between them, "
+         f"so a small p should not be read as precision. It does NOT mean the cells fail to "
+         f"separate — a wide interval sitting entirely ABOVE its neighbours still separates them, "
+         f"and the 2M peak `M` detection row is that case, its interval [0.5406, 0.7219] clearing "
+         f"neighbouring means of 0.484, 0.506 and 0.494 while its width exceeds the spread. Read "
+         f"`CI-WIDE` as 'few features are carrying this', and go to the view's CSV for the "
+         f"intervals themselves.\n\n"
          f"A cell below {MIN_CELL} features is excluded from all three statistics and named in the "
          f"verdict; `cells` is how many of the row's cells were used."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)

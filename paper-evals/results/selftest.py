@@ -1121,8 +1121,22 @@ def _cut_nopos(feat: int) -> bool:
     return _cut_quartile(feat) == 0
 
 
-def write_autointerp_cuts(root: Path) -> None:
-    """The cut fixture's mirror: one run directory and the set's draw record beside it."""
+# A SECOND run directory holding the SAME calls replayed, which is what eval 2 actually did: its
+# three runs per SAE were launched with one shared `--cache-dir` and `run.py`'s cache key carries no
+# run component, so every corpus arm's rows are byte-identical across the three. `RARE` is given
+# different numbers in the replay so the fixture has both regimes at once -- four arms that are one
+# measurement printed twice, and one that is genuinely two.
+AI_CUT_REPLAY = "2026-09-22_autointerp-cuts-replay"
+AI_CUT_REPLAY_DIFFERS = "RARE"
+
+
+def write_autointerp_cuts(root: Path, replay: bool = False) -> None:
+    """The cut fixture's mirror: one run directory, the set's draw record, and optionally a replay.
+
+    `replay=True` adds a second run directory whose rows are identical to the first's for every arm
+    but `RARE` -- the shape a shared `--cache-dir` produces -- so the trend table's multiplicity
+    divisor has something to deduplicate and something it must NOT deduplicate.
+    """
     run_dir = AI_CUT_RUNS["cut"]
     d = root / f"runs/{run_dir}/summary"
     d.mkdir(parents=True, exist_ok=True)
@@ -1152,6 +1166,20 @@ def write_autointerp_cuts(root: Path) -> None:
     rec = root / f"base/{AI_CUT_BASE}/heldout/{AI_CUT_SET}"
     rec.mkdir(parents=True, exist_ok=True)
     (rec / "README.md").write_text(AI_CUT_README)
+    if not replay:
+        return
+    d2 = root / f"runs/{AI_CUT_REPLAY}/summary"
+    d2.mkdir(parents=True, exist_ok=True)
+    with open(d2 / "scores.jsonl", "w") as fh:
+        for r in rows:
+            r = dict(r)
+            if r["arm"] == AI_CUT_REPLAY_DIFFERS and r["bal_acc"] is not None:
+                # Genuinely re-run rather than replayed: a different number, so this arm is two
+                # measurements and the divisor must count it twice.
+                r["bal_acc"] = r["tpr"] = r["tnr"] = r["acc"] = 0.75 - r["bal_acc"] / 2
+            fh.write(json.dumps(r) + "\n")
+    (d2 / "build.json").write_text(json.dumps(
+        {"base": AI_CUT_BASE, "set": AI_CUT_SET, "sae": AI_SAE, "n_features": len(AI_CUT_FEATS)}))
 
 
 def _cut_analyse(root: Path, **kw):
@@ -1416,6 +1444,88 @@ def check_autointerp_trend_statistics():
     assert math.isnan(A.spread_perm_p(np.array([0.5, 0.75]), np.array([0, 0]), 100, 1))
 
 
+def check_autointerp_trend_verdict():
+    """Every branch of the verdict cell, at its boundaries, including `CI-WIDE`.
+
+    This is what a reader of the table concludes, so each branch is pinned to a literal rather than
+    to another call of the code. The boundaries matter in both directions: the corrected alpha and
+    the CI rule are both `<=`/`>=` comparisons, and an off-by-one on either silently reclassifies
+    the rows nearest the line -- which on the real 2M block is where three of the seven separating
+    measurements sit.
+
+    `CI-WIDE` is APPENDED to `separates`, never a replacement for it. It is a caution that few
+    features are carrying the difference, not a second significance gate: a wide interval lying
+    entirely above its neighbours still separates them (the real 2M peak `M` detection row), so a
+    verdict that swallowed `separates` when the flag fired would be making a claim the statistic
+    does not support -- in the opposite direction from the one the flag exists to prevent.
+    """
+    # p below the corrected alpha, cells estimated more precisely than the gap between them.
+    assert A.trend_verdict(0.0001, 0.003125, 16, 0.10, 0.25, []) == "separates (p ≤ α/16)"
+    # The same, with the cells individually wider than the difference claimed between them.
+    assert A.trend_verdict(0.0001, 0.003125, 16, 0.30, 0.25, []) == \
+        "separates (p ≤ α/16), CI-WIDE"
+    # Both comparisons are inclusive, and the two boundaries are independent of each other.
+    assert A.trend_verdict(0.003125, 0.003125, 16, 0.10, 0.25, []) == "separates (p ≤ α/16)"
+    assert A.trend_verdict(0.0001, 0.003125, 16, 0.25, 0.25, []) == \
+        "separates (p ≤ α/16), CI-WIDE"
+    # Just past the corrected alpha is NOT `separates`, and the CI rule does not apply there --
+    # a row that fails the multiplicity correction is not additionally accused of being imprecise.
+    assert A.trend_verdict(0.0032, 0.003125, 16, 0.30, 0.25, []) == "uncorrected only"
+    assert A.trend_verdict(0.05, 0.003125, 16, 0.30, 0.25, []) == "uncorrected only"
+    assert A.trend_verdict(0.0501, 0.003125, 16, 0.30, 0.25, []) == "no separation"
+    # A row with no estimable p says so rather than defaulting to either outcome.
+    assert A.trend_verdict(float("nan"), 0.003125, 16, 0.30, 0.25, []) == "not estimable"
+    # A non-finite width or spread cannot fire the flag: an unknown is not a caution.
+    assert A.trend_verdict(0.0001, 0.003125, 16, float("nan"), 0.25, []) == \
+        "separates (p ≤ α/16)"
+    # Dropped cells are named on EVERY branch, because a verdict computed on two of four cells is
+    # a different claim from one computed on four whatever the verdict says.
+    assert A.trend_verdict(0.0001, 0.003125, 16, 0.30, 0.25, ["3 (n=2)"]) == \
+        "separates (p ≤ α/16), CI-WIDE — 1 cell(s) dropped: 3 (n=2)"
+    assert A.trend_verdict(0.9, 0.003125, 16, 0.10, 0.25, ["0 (n=1)", "3 (n=2)"]) == \
+        "no separation — 2 cell(s) dropped: 0 (n=1), 3 (n=2)"
+
+    # And the real shape the flag was added for, reproduced from the fixture rather than asserted
+    # in the abstract: the divisor counts DISTINCT measurements, so a cache-replayed arm under
+    # three run labels is one look. The cut fixture has one run, so its count is its arm names.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        _vol, res = _cut_analyse(root)
+        o = R.Out(root / "out", "selftest — verdicts", ["- synthetic"])
+        md = A.render(res, o, [], []).read_text()
+        tre = md.split("### Does any arm × cut trend survive?")[1].split("###")[0]
+        # Five arm names x TWO scorers, and a view holds both, so ten distinct measurements --
+        # one run directory, so nothing here is a cache replay and nothing deduplicates.
+        assert "α/10" in tre, tre[:400]
+        rare = next(ln for ln in tre.splitlines() if ln.startswith("| stratum | RARE | cut | det"))
+        assert rare.rstrip().endswith("| separates (p ≤ α/10) |"), rare
+        # RARE's cells are each constant, so their intervals are degenerate and the flag is off --
+        # which is the case that proves the flag is computed and not simply always appended.
+        assert "CI-WIDE" not in rare, rare
+
+    # THE DIVISOR COUNTS MEASUREMENTS, NOT ROWS. With the replay directory there are twice as many
+    # printed rows, but four of the five arms are the same calls replayed from one cache and are
+    # identical to the last digit; only `RARE` was genuinely re-run. So 20 rows per view carry 12
+    # measurements (4 shared + 2 of RARE, times 2 scorers), and the correction must not treat a
+    # repeated printout as an extra look.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root, replay=True)
+        _vol, res = _cut_analyse(root, runs={**AI_CUT_RUNS, "replay": AI_CUT_REPLAY})
+        stratum = [t for t in res["trends"] if t["view"] == "stratum"]
+        assert len(stratum) == 20, len(stratum)
+        o = R.Out(root / "out", "selftest — replay", ["- synthetic"])
+        md = A.render(res, o, [], []).read_text()
+        tre = md.split("### Does any arm × cut trend survive?")[1].split("###")[0]
+        assert "α/12" in tre, [ln for ln in tre.splitlines() if "α/" in ln][:3]
+        assert "α/20" not in tre, "the divisor counted printed rows, not distinct measurements"
+        # The replayed arm's two rows are identical; the re-run arm's two are not.
+        by = {(t["arm"], t["scorer"]): t for t in stratum}
+        assert by[("cut/BIG", "detection")]["_means"] == by[("replay/BIG", "detection")]["_means"]
+        assert by[("cut/RARE", "detection")]["_means"] != by[("replay/RARE", "detection")]["_means"]
+
+
 def check_autointerp_cut_render():
     """Both cut tables and the trend table reach `tables.md` with a CSV each, and the captions
     carry the two statements the tables cannot make for themselves: that the rarity cut was
@@ -1574,6 +1684,7 @@ CHECKS = [
     check_autointerp_short_cells_are_reported,
     check_autointerp_null_bal_acc_is_never_filled_from_acc,
     check_autointerp_trend_statistics,
+    check_autointerp_trend_verdict,
     check_autointerp_cut_render,
     check_autointerp_cuts_catch_a_defect,
 ]
