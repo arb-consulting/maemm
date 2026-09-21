@@ -1270,9 +1270,13 @@ def check_family_kinds_table():
         assert fspec["centrable"] == (fspec["kind"] == "activation"), fam
     for key, spec in cfg["maemms"].items():
         if "mu" in spec:
-            assert spec["mu"] is None or str(spec["mu"]).endswith(C.MU_SUFFIXES), (
-                f"maemms[{key}].mu = {spec['mu']!r} is not null or a file path"
-            )
+            # Three legal states: null, a file path, or `unknown` -- "considered, not established",
+            # which every run must override with --mu (mu_for refuses to pick one).
+            assert (
+                spec["mu"] is None
+                or spec["mu"] == C.MU_UNKNOWN
+                or str(spec["mu"]).endswith(C.MU_SUFFIXES)
+            ), f"maemms[{key}].mu = {spec['mu']!r} is not null, {C.MU_UNKNOWN!r} or a file path"
     # Resolution: `{base}` expands, a relative path takes --root, an absolute one does not.
     assert C.resolve_mu_path("base/{base}/stats/mu.f32", "qq", "/r") == "/r/base/qq/stats/mu.f32"
     assert C.resolve_mu_path("/abs/mu.npy", "qq", "/r") == "/abs/mu.npy"

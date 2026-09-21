@@ -650,9 +650,29 @@ def run(cfg, args):
         assert re_derive in cfg["heldout"], (
             f"--re-derive {re_derive!r} is not a set in config.yaml ({sorted(cfg['heldout'])})"
         )
+        # A RE-DERIVE NEVER REMOVES OR OVERWRITES A SET (Tomáš, 2026-09-21). It exists to make an
+        # existing set readable under the raw contract, and a migration that can destroy the thing
+        # it is migrating is worth less than no migration. Three guards, all before the GPU:
+        #   1. the output is not the source -- the old set is READ, never rewritten;
+        #   2. the output does not already exist;
+        #   3. --force is REFUSED outright, because --force is the flag that rmtrees.
+        # The alternative shape -- writing act.f32 additively INTO the source directory and
+        # keeping its old vecs.f16/README, with storage.json saying which is canonical -- is NOT
+        # implemented: it would leave one directory holding two conventions, which is the thing
+        # this whole branch is removing. Write a new set name and keep both.
         assert re_derive != set_name, (
             f"--re-derive {re_derive!r} into itself: give --set a NEW name (the old set is read, "
             f"never rewritten -- infra/design.md §1)"
+        )
+        assert not args.get("force"), (
+            "--re-derive does not take --force. --force rmtrees the output directory "
+            "(common.OutDir.__enter__), and a migration that can destroy an existing set is not "
+            "one. Pick a --set name that does not exist yet."
+        )
+        assert not os.path.exists(C.heldout_dir(base, set_name, root)), (
+            f"--re-derive {re_derive} --set {set_name}: "
+            f"{C.heldout_dir(base, set_name, root)} already exists. A re-derive only ever CREATES "
+            f"a set; it will not add to, replace or merge with one. Pick a new name."
         )
         old = cfg["heldout"][re_derive]
         same = ["seed", "sae_strata", "sae_min_fires"]

@@ -37,7 +37,7 @@ DEFAULTS = {
     "base": "", "maemm": "", "sae": "", "heldout": "", "set": "", "force": False, "root": "/vol",
     "tokens": 0, "batch": 0, "allow_short": False, "n": 0, "rows": "", "max_new": 0,
     "gen_rows": 0, "dirs_from": "", "import_run1": False, "rescore_texts": "",
-    "score_name": "", "no_sae": False, "no_marker_check": False, "max_num_seqs": 0,
+    "score_name": "", "run_tag": "", "no_sae": False, "no_marker_check": False, "max_num_seqs": 0,
     "gpu_mem": 0.0, "throughput": "", "stock_hook": False, "eager": False,
     "engine": "hf", "ps_layers": "", "no_ps_floor": False, "ps_tag": "",
     "rollouts_dir": "", "corpus_name": "", "subset": "", "amp": "",

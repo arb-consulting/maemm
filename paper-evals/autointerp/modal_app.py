@@ -180,6 +180,14 @@ def main(
     force: bool = False,
     engine: str = "vllm",
     out_suffix: str = "",
+    # sae_self: read <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEMM's, so a patchscopes
+    # cell / a GCG-EPO finals file / a corpus-search result gets the target feature's own
+    # activation through THIS stage rather than a second implementation (D11).
+    rollouts_dir: str = "",
+    # separates two runs of one checkpoint on one set that differ only in --mu
+    # (common.rollout_stem); must match the --run-tag the rollouts were generated with.
+    run_tag: str = "",
+    score_name: str = "",
     # random_pool
     n_windows: int = 0,
     pool_seed: int = 0,
@@ -253,7 +261,12 @@ def main(
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])}"
     )
     if stage in ("sae_self", "build"):
-        assert maemm, f"stage {stage} needs --maemm (the rollouts its M arms read)"
+        # D11: `sae_self --rollouts-dir` scores rows no MAEMM produced, so it is the one call here
+        # that may run without --maemm. `build` still needs one: its M arms ARE a MAEMM's rollouts.
+        assert maemm or (stage == "sae_self" and rollouts_dir), (
+            f"stage {stage} needs --maemm (the rollouts its M arms read)"
+            + (", or --rollouts-dir" if stage == "sae_self" else "")
+        )
     if stage == "chain" and maemm2:
         assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
     if sae:
@@ -272,6 +285,9 @@ def main(
         "force": force,
         "engine": engine,
         "out_suffix": out_suffix,
+        "rollouts_dir": rollouts_dir.rstrip("/"),
+        "run_tag": run_tag,
+        "score_name": score_name,
         "n_windows": n_windows,
         "pool_seed": pool_seed,
         "prefix_m": prefix_m,

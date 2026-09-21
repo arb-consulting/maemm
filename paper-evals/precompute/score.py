@@ -423,8 +423,9 @@ def run(cfg, args):
     if rdir:
         rpath, spath = f"{rdir}/rollouts.jsonl", f"{rdir}/rollouts.summary.json"
     else:
-        stem = C.rollout_stem(set_name, engine)
-        rpath = C.rollouts_path(maemm, set_name, root, engine)
+        tag = args.get("run_tag") or ""
+        stem = C.rollout_stem(set_name, engine, tag)
+        rpath = C.rollouts_path(maemm, set_name, root, engine, tag)
         spath = f"{C.rollouts_dir(maemm, root)}/{stem}.summary.json"
     assert os.path.exists(rpath), (
         f"no rollouts at {rpath}: run `--product rollouts_{engine} --set {set_name}` first"
@@ -545,7 +546,13 @@ def run(cfg, args):
             }
         )
 
-    out = f"{rdir}/scores" if rdir else C.scores_dir(maemm, set_name, root, engine)
+    # The scores directory follows the rollouts file it scored: a --run-tag run must not land on
+    # top of the untagged one, for the same reason its rollouts do not.
+    out = (
+        f"{rdir}/scores"
+        if rdir
+        else C.scores_dir(maemm, args.get("score_name") or set_name, root, engine)
+    )
     inputs = {
         "rollouts": rpath,
         "engine": engine,

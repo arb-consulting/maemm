@@ -192,8 +192,16 @@ def run(cfg, args):
     import torch
 
     base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
-    assert base and maemm, "product sae_self needs --base and --maemm"
-    assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+    # D11: `--rollouts-dir <dir>` reads <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEMM's,
+    # mirroring score.py:352-358. That is what lets a patchscopes cell, a GCG/EPO finals file, a
+    # corpus-search result or any other non-MAEMM text be scored for the target feature's own
+    # activation -- every arm of evals 1 and 2 that has no `maemms:` entry needs it.
+    rdir = (args.get("rollouts_dir") or "").rstrip("/")
+    assert base, "product sae_self needs --base"
+    assert maemm or rdir, "product sae_self needs --maemm (whose rollouts it reads), or --rollouts-dir"
+    assert not maemm or maemm in cfg["maemms"], (
+        f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+    )
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     engine = args.get("engine") or "vllm"
 
@@ -205,12 +213,24 @@ def run(cfg, args):
     )
     feat_of = dict(zip(sae_rows, feats, strict=True))
 
-    rpath = C.rollouts_path(maemm, set_name, root, engine)
-    sdir = C.scores_dir(maemm, set_name, root, engine)
+    tag = args.get("run_tag") or ""
+    if rdir:
+        rpath, spath = f"{rdir}/rollouts.jsonl", f"{rdir}/rollouts.summary.json"
+        sdir = f"{rdir}/scores"
+    else:
+        rpath = C.rollouts_path(maemm, set_name, root, engine, tag)
+        spath = f"{C.rollouts_dir(maemm, root)}/{C.rollout_stem(set_name, engine, tag)}.summary.json"
+        sdir = C.scores_dir(maemm, args.get("score_name") or set_name, root, engine)
     assert os.path.exists(rpath), f"no rollouts at {rpath}"
+    assert os.path.exists(sdir), (
+        f"no scores at {sdir}: this stage re-runs `score`'s forward and cross-checks itself "
+        f"against what that run stored, so `score` must have run on these rollouts first"
+    )
     recs = C.read_jsonl(rpath)
-    with open(f"{C.rollouts_dir(maemm, root)}/{C.rollout_stem(set_name, engine)}.summary.json") as fh:
+    with open(spath) as fh:
         rsum = json.load(fh)
+    if rdir:
+        engine = rsum.get("engine", engine)  # the directory names its own producer
     n = int(rsum["n"])
     by_row: dict[int, dict[int, dict]] = {}
     for r in recs:
@@ -295,17 +315,33 @@ def run(cfg, args):
     # CHECKS 2 and 3 index OUR activations at the STORED argmax, because that is the token the
     # stored CSR was measured at: they are then exact whatever check 1 found.
     # The CSR is flattened over the SCORED grid, not the set's own row numbering.
+    # A scores directory written with `--no-sae` holds EMPTY sae_idx/sae_val arrays (score.py's
+    # collector returns before touching the SAE, :87-88). Checks 2 and 3 then compare our real
+    # firings against an all-False CSR and trip -- after the paid forward -- or, if nothing fires
+    # at any argmax, pass VACUOUSLY, which destroys the cross-check the stage exists for. Neither
+    # is a check. So the absence is detected and the two checks are SKIPPED with the reason
+    # recorded in `checks`, never relaxed (the critique's B11). `--no-sae` is legitimate on a
+    # non-MAEMM arm whose CSR nothing reads; what is not legitimate is reporting a check that did
+    # not happen.
+    with open(f"{sdir}/index.json") as fh:
+        sindex = json.load(fh)
+    csr_bytes = int(sindex.get("sae_idx.i32", {}).get("bytes", 0))
+    has_csr = csr_bytes > 0
     flat_rows = [score_ix[x["row"]] * n + x["k"] for x in flat]
-    csr_val, csr_has = _csr_at_argmax(sdir, len(score_rows), n, flat_rows, row_feats, gate)
-    csr_val = csr_val.reshape(N, n)
-    csr_has = csr_has.reshape(N, n)
+    if has_csr:
+        csr_val, csr_has = _csr_at_argmax(sdir, len(score_rows), n, flat_rows, row_feats, gate)
+        csr_val = csr_val.reshape(N, n)
+        csr_has = csr_has.reshape(N, n)
+    else:
+        csr_val = np.zeros((N, n), dtype=np.float32)
+        csr_has = np.zeros((N, n), dtype=bool)
     at_arg = np.take_along_axis(act, np.clip(stored_arg, 0, None)[:, :, None] + 1, 2)[:, :, 0]
     ours_at_arg = np.where(stored_arg >= 0, at_arg, np.nan)
     ours_fired_at_arg = np.isfinite(ours_at_arg) & (ours_at_arg > gate)
     # f16 tolerance: the CSR stores float16, so a value near 40 carries ~0.03 of quantisation.
     tol = np.maximum(np.abs(csr_val) * 1e-3, 1e-2)
     val_bad = int((csr_has & (np.abs(np.nan_to_num(ours_at_arg) - csr_val) > tol)).sum())
-    has_bad = int((csr_has != ours_fired_at_arg).sum())
+    has_bad = int((csr_has != ours_fired_at_arg).sum()) if has_csr else 0
     val_worst = (
         float(np.abs(np.nan_to_num(ours_at_arg) - csr_val)[csr_has].max()) if csr_has.any() else 0.0
     )
@@ -321,6 +357,19 @@ def run(cfg, args):
         "csr_value_worst_abs_diff": round(val_worst, 6),
         "csr_membership_mismatches": has_bad,
         "csr_entries_present": int(csr_has.sum()),
+        "csr_checked": has_csr,
+        **(
+            {}
+            if has_csr
+            else {
+                "csr_skipped_reason": (
+                    f"{sdir}/sae_idx.i32 is empty, so that scores run was made with --no-sae and "
+                    f"holds no SAE CSR. CHECKS 2 and 3 were SKIPPED, not relaxed: against an "
+                    f"all-False CSR they would either trip on every real firing or pass vacuously "
+                    f"if nothing fired. Re-run `score` WITH --sae on these rollouts to get them."
+                )
+            }
+        ),
     }
 
     # ---- per-target summary -----------------------------------------------------------------
@@ -353,7 +402,7 @@ def run(cfg, args):
         "rollouts": rpath,
         "scores": sdir,
         "engine": engine,
-        "maemm": maemm,
+        "maemm": maemm or f"(none: --rollouts-dir {rdir})",
         "sae": sae_key,
         "gate": gate,
         "targets": f"{N} of {len(sae_rows)} {'/'.join(FAMILIES)} rows",
@@ -370,10 +419,13 @@ def run(cfg, args):
         f"batch-composition noise. {rpath} and {sdir} may not be the same run. Values written to "
         f"{out} for inspection."
     )
-    assert val_bad == 0 and has_bad == 0, (
-        f"CHECK 2/3 FAILED: {val_bad} value and {has_bad} membership mismatches against the stored "
-        f"SAE CSR at the argmax token (worst |diff| {val_worst:.4f}). Written to {out}."
-    )
+    if has_csr:
+        assert val_bad == 0 and has_bad == 0, (
+            f"CHECK 2/3 FAILED: {val_bad} value and {has_bad} membership mismatches against the "
+            f"stored SAE CSR at the argmax token (worst |diff| {val_worst:.4f}). Written to {out}."
+        )
+    else:
+        print(f"[sae_self] CHECKS 2/3 SKIPPED: {checks['csr_skipped_reason']}", flush=True)
 
     with C.outdir(out, args, inputs=inputs) as od:
         od.write_array("sae_self.f16", act, "float16")

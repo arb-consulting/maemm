@@ -239,7 +239,11 @@ def load_config(path: str | Path | None = None) -> dict:
             f"maemm {key!r}: `compute` must be a bool (default true), got {spec.get('compute')!r}"
         )
         if "mu" in spec:
-            _check_mu_value(spec["mu"], f"maemms[{key!r}].mu", allow_unknown=False)
+            # `unknown` IS legal on a checkpoint (Tomáš 2026-09-21): a THIRD state between "no key"
+            # (nobody has considered it) and a path/null (established). It says the training
+            # convention is on the agenda and not on the record, so every run must be told with
+            # --mu; `mu_for` refuses to pick one.
+            _check_mu_value(spec["mu"], f"maemms[{key!r}].mu", allow_unknown=True)
 
     for set_name, spec in cfg["heldout"].items():
         assert isinstance(spec.get("families"), dict), (
@@ -372,9 +376,9 @@ def _check_mu_value(val, where: str, allow_unknown: bool) -> None:
         return
     if val == MU_UNKNOWN:
         assert allow_unknown, (
-            f"{where}: {MU_UNKNOWN!r} says \"centred on a mean nobody here holds\", which is a "
-            f"statement about STORED rows. A checkpoint's own input convention cannot be unknown "
-            f"and still be run: give a path, or null, or leave the key out."
+            f"{where}: {MU_UNKNOWN!r} says \"the mean is not on the record\", which is a statement "
+            f"about stored rows or about a checkpoint's training convention -- not something a "
+            f"run can be performed under. Give a path, or null."
         )
         return
     assert isinstance(val, str) and val, f"{where}: a mu is null, a path or {MU_UNKNOWN!r}, got {val!r}"
@@ -466,6 +470,8 @@ def input_mu(cfg: dict, maemm_key: str):
     """
     assert maemm_key in cfg["maemms"], f"unknown maemm {maemm_key!r}, want one of {sorted(cfg['maemms'])}"
     spec = cfg["maemms"][maemm_key]
+    # Three states, and they are different: no key at all (nobody has considered it), `unknown`
+    # (considered, not established -- every run must be told), a path or null (established).
     assert "mu" in spec, (
         f"maemm {maemm_key!r} has no `mu:` key in config.yaml, so what it was trained to receive is "
         f"not recorded anywhere. Establish it from the checkpoint's training chain and declare it "
@@ -609,6 +615,16 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
         src = "--mu (explicit)"
         if maemm_key:
             own = input_mu(cfg, maemm_key)
+            if own == MU_UNKNOWN:
+                line = (
+                    f"{maemm_key} declares `mu: {MU_UNKNOWN}` (training convention not on the "
+                    f"record); this run was TOLD {mu_label(got, base, root)} by --mu. That is a "
+                    f"choice being made here, not a fact being read."
+                )
+                print(f"[mu] {line}", flush=True)
+                say.append(line)
+                say.append(f"mu={mu_label(got, base, root)} from --mu (a CHOICE, not the record)")
+                return got, "--mu (checkpoint's own mu is `unknown`)"
             if own != got:
                 line = (
                     f"DEVIATION: --mu {mu_label(got, base, root)} overrides {maemm_key}'s own "
@@ -623,6 +639,12 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
         return got, src
     if maemm_key:
         own = input_mu(cfg, maemm_key)
+        assert own != MU_UNKNOWN, (
+            f"maemm {maemm_key!r} declares `mu: {MU_UNKNOWN}`: its training convention is on the "
+            f"agenda and NOT on the record, so nothing here will pick one for it. Pass --mu "
+            f"explicitly (a path, or `none`) and the choice is recorded as a deviation in the "
+            f"product README. That is what the two-arm reconciliation in SMOKES.md settles."
+        )
         say.append(f"mu={mu_label(own, base, root)} from config.yaml maemms.{maemm_key}.mu")
         return own, f"maemms.{maemm_key}.mu"
     contract = set_storage(cfg, set_dir, root)
@@ -1019,20 +1041,30 @@ def maemm_dir(maemm_key: str, root: str = VOL) -> str:
 ENGINES = ("hf", "vllm")
 
 
-def rollout_stem(set_name: str, engine: str = "hf") -> str:
-    """The rollouts/ file stem of one (set, engine) pair.
+def rollout_stem(set_name: str, engine: str = "hf", tag: str = "") -> str:
+    """The rollouts/ file stem of one (set, engine, tag) triple.
 
     The HF stem is the bare set name, so every step-3 file keeps its path; the vLLM stem is
     suffixed. Both engines write into the SAME accumulating rollouts/ directory and `score` picks
     one with `--engine`, so an HF and a vLLM run of the same set never overwrite each other and the
     paired comparison has both files side by side.
+
+    `tag` (`--run-tag`) is the THIRD axis, added 2026-09-21 for the same reason `scan`'s examples/
+    gained a set component: two runs of ONE checkpoint on ONE set that differ only in `--mu` are
+    different experiments, and without a tag the second silently replaces the first -- the whole
+    file, mid-comparison, with nothing raising. It is empty for every run that does not need it,
+    so no existing path moves.
     """
     assert engine in ENGINES, f"unknown engine {engine!r}, want one of {list(ENGINES)}"
-    return set_name if engine == "hf" else f"{set_name}__{engine}"
+    tag = (tag or "").strip()
+    assert "/" not in tag and " " not in tag, f"--run-tag {tag!r} must be a bare file-name suffix"
+    stem = set_name if engine == "hf" else f"{set_name}__{engine}"
+    return f"{stem}__{tag}" if tag else stem
 
 
-def rollouts_path(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf") -> str:
-    return f"{maemm_dir(maemm_key, root)}/rollouts/{rollout_stem(set_name, engine)}.jsonl"
+def rollouts_path(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf",
+                  tag: str = "") -> str:
+    return f"{maemm_dir(maemm_key, root)}/rollouts/{rollout_stem(set_name, engine, tag)}.jsonl"
 
 
 def rollouts_dir(maemm_key: str, root: str = VOL) -> str:

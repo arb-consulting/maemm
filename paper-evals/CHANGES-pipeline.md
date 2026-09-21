@@ -100,6 +100,31 @@ aggregates in `per_target.jsonl`. A caller passing neither keyword is bit-identi
 
 ### 5. Defects: D4 (span clamp), D5, D6, D7, D8, D9, D10 — all closed. See the commit bodies.
 
+### 5b. D11 — `sae_self --rollouts-dir`
+
+`sae_self` reads `<dir>/rollouts.jsonl` + `<dir>/scores/` instead of a MAEMM's, mirroring
+`score.py:352-358`, so a patchscopes cell, a GCG/EPO finals file or a corpus-search result gets
+the target feature's own activation through THIS stage rather than a second implementation.
+`--maemm` is optional in that mode (and only in that mode; `build`'s M arms still need one).
+
+**The critique's B11 is wrong about the code, and following the code made this smaller.** It says
+`score` writes no CSR under `--rollouts-dir`, citing `score.py:343` — but that line is inside
+`_rescore`, the `--rescore-texts` path. The `--rollouts-dir` path goes through the ordinary
+`run()` body and writes the full array set, CSR included, whenever `--sae` is given. So all three
+checks RUN in that mode. What actually produces a CSR-less scores directory is `--no-sae`, and
+that is now detected from `index.json` (`sae_idx.i32` of zero bytes): checks 2 and 3 are SKIPPED
+with `csr_checked: false` and a `csr_skipped_reason` in the product's `checks`, never relaxed —
+against an all-False CSR they would either trip on every real firing or pass vacuously.
+
+### 5c. The rollout stem gained a `--run-tag`
+
+Found while setting up the old-primary reconciliation, and the same class as B9's `examples/`:
+`common.rollout_stem` keyed on (set, engine) only, so two runs of ONE checkpoint on ONE set that
+differ only in `--mu` write the same file and the second silently replaces the first — mid
+comparison, with nothing raising. `--run-tag <suffix>` is the third axis, empty by default so no
+existing path moves; `score` and `sae_self` read it back, and `score`'s output directory follows
+`--score-name` for the same reason.
+
 ### 6. Selftests
 
 `unit_smoke` 29 → **36** checks. `uv run precompute/unit_smoke.py` → `[smoke] 36/36 checks passed`.
@@ -112,7 +137,7 @@ The six new ones were each run against a deliberately broken variant; the mutati
 
 | not done | why / what settles it |
 |---|---|
-| **D11, `sae_self --rollouts-dir`** | Out of the brief's scope list, though §1.5 names it. Every non-MAEMM arm of evals 1 and 2 needs it (~45 lines, mirroring `score.py:352-358`, with the CSR checks SKIPPED and the reason recorded rather than relaxed — `score` writes no CSR in that mode). |
+| ~~D11~~ | **Done.** See "D11" below. |
 | **The §1.6 four-cell local selftest** (old primary, rl-last16) × (131k, 2M) + NLA through `targets → rollouts → score → sae_self` on a tiny synthetic set | The existing selftest pattern does not reach it: `rollouts_*` and `sae_self` load real weights and require CUDA, and there is no fixture for a MAEMM. What IS covered on CPU is every piece those four cells would exercise in `common`: the storage contract, both cosines, the `sae_key` selector, the exact-solve migration. The cell matrix itself is the paid smoke documented in `SMOKES.md`. |
 | **`centred.py` dropping its own einsum** (§1.3) | `score` now writes the honest per-token centred cosine, so `centred.py`'s `cos_centred_best` — a max read at the UNCENTRED argmax — is redundant where `cos_centred.f16` exists. It still computes its own. Should become: read `cos_centred.f16` when present, keep `cos_filtered_best` always. |
 | **`features/heldout_v2.py` getting the `OutDir` treatment** (§1.4) and its docstring correction | Untouched. |
@@ -129,11 +154,16 @@ The six new ones were each run against a deliberately broken variant; the mutati
    2026-09-21 instruction. Consequence: `mu_512` and `mu_long` have no config entry any more —
    `mu_512.f32` is still written by `targets` as a diagnostic, and "centred on a mean nobody here
    holds" is the `unknown` label rather than a named entry.
-2. **The old primary's `mu: null` contradicts §1.6 gate 2.** Declared as the plan says, with the
-   conflict written beside it in `config.yaml`. Every number that checkpoint has on the volume was
-   produced against `2026-09-16_v1`, whose realact rows are `unit(X[p] - stats/mu)` — so the
-   "cos_raw within 0.01 of 0.5076" gate is a `stats/mu.f32` reproduction and cannot hold at
-   `mu: null`. **Ask before the first paid old-primary run on a raw set.**
+2. **The old primary is `mu: unknown`, not `null`** (Tomáš, 2026-09-21), a THIRD state between an
+   absent key (nobody considered it) and an established path/null. The plan declares `none` from a
+   recollection that the 09-10 chain took uncentred input; against that, Celeste's ORIGINAL
+   convention was targets `unit(act − whiten_mu)` with a raw scorer (she diagnosed the asymmetry
+   herself on 09-18, after this checkpoint launched), and the one number it has on our volume —
+   cos_raw 0.5076 on rows 0-7 of `2026-09-16_v1` — was measured against `stats/mu.f32`-centred
+   rows. `mu_for` therefore refuses to pick one and every run must pass `--mu`. The §1.6 smoke
+   settles it empirically with two old-primary arms on the same rows (`--mu null` and
+   `--mu base/{base}/stats/mu.f32`); the plan's reproduction check applies to the stats_mu arm
+   only. **Whichever arm scores higher becomes the declared `mu:`, with the number recorded.**
 3. **`storage.json`, not `index.json`.** §1.2 puts the storage contract in `index.json`; that file
    is `OutDir`'s file→metadata map and a non-file key would break its README table. It is an
    ordinary product file, listed in `index.json` like any other, with a config fallback for the

@@ -376,6 +376,10 @@ def main(
     import_run1: bool = False,
     rescore_texts: str = "",
     score_name: str = "",
+    # A bare suffix separating two runs of ONE checkpoint on ONE set that differ only in --mu
+    # (common.rollout_stem). rollouts_* write `<set>__<engine>__<tag>.jsonl` and `score` reads it
+    # back; without it the second run replaces the first's file outright, mid-comparison.
+    run_tag: str = "",
     no_sae: bool = False,
     no_marker_check: bool = False,
     max_num_seqs: int = 0,
@@ -481,6 +485,7 @@ def main(
         "import_run1": import_run1,
         "rescore_texts": rescore_texts,
         "score_name": score_name,
+        "run_tag": run_tag,
         "no_sae": no_sae,
         "no_marker_check": no_marker_check,
         "max_num_seqs": max_num_seqs,

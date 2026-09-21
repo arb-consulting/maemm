@@ -564,7 +564,9 @@ def run(cfg, args):
     min_new = int(rl["min_new"])
     inj_layer, coef = int(spec["inject"]["layer"]), float(spec["inject"]["coef"])
     gpu_mem = float(args.get("gpu_mem") or GPU_MEM_ROLLOUTS)
-    stem = C.rollout_stem(set_name, "vllm")
+    # --run-tag separates two runs of ONE checkpoint on ONE set that differ only in --mu; without
+    # it the second replaces the first's file outright (common.rollout_stem).
+    stem = C.rollout_stem(set_name, "vllm", args.get("run_tag") or "")
 
     out_dir = C.rollouts_dir(maemm, root)
     path = f"{out_dir}/{stem}.jsonl"

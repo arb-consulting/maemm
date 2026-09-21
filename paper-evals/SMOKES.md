@@ -2793,6 +2793,54 @@ Mutations and what fired, so the checks are known to be capable of red:
 | `sae_rows_of` ignores the row's `sae_key` | `check_sae_key_selector` | `sae_key filter picked [0, 1, 2, 4]; the 131k row must not be in it` |
 | the `storage: unit` mismatch assert is disabled | `check_unit_set_refuses` | `dirs_for served a 'storage: unit' set under the WRONG mean` |
 
+### The three refusals this layer adds, verbatim
+
+They are deliberate and they will be met. Each is reproducible on CPU with no volume mounted.
+
+**1. A checkpoint's mean does not match the set's stored one.** Met by
+`rollouts_* --maemm <rl-last16> --set 2026-09-16_v1`:
+
+```
+<root>/base/qwen36-27b/heldout/2026-09-16_v1 is `storage: unit` (config.yaml
+heldout.2026-09-16_v1) and its 'realact' rows are stored under
+<root>/base/qwen36-27b/stats/mu.f32, but this run asks for
+mu=/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy. A stored unit direction cannot be
+re-centred -- unit(act) and mu do not give unit(act - mu) without ||act||. Re-derive the set at
+`storage: raw` (`--product targets --re-derive <set>`), or run at the mean it was built with and
+say so.
+```
+
+*What it means*: `rl-last16` was trained on `whiten_mu`-centred input and `2026-09-16_v1` stores
+`stats/mu.f32`-centred directions with no `act.f32` to re-derive from. Before this layer the run
+went ahead and the mismatch was invisible. **Fix**: re-derive the set (`--re-derive`), or pass
+`--mu base/{base}/stats/mu.f32` and wear the DEVIATION line in the product README.
+
+**2. A `--dirs-from` directory states no storage contract.**
+
+```
+<root>/elsewhere carries no storage.json and 'elsewhere' is not a set declared in config.yaml, so
+nothing states whether its vecs.f16 is centred. Declare it under `heldout:` (storage / mu_stored /
+family_mu) or re-draw the set, which writes the contract itself.
+```
+
+*What it means*: nothing in that directory says whether its `vecs.f16` is raw or centred, and the
+two are the same bytes to a reader. **Fix**: declare it under `heldout:`, or re-draw it — any set
+`targets` writes carries its own `storage.json`.
+
+**3. A checkpoint declares `mu: unknown`.** Met by any product with
+`--maemm qwen36-27b/2026-09-10_rl-8x2048-full` and no `--mu`:
+
+```
+maemm 'qwen36-27b/2026-09-10_rl-8x2048-full' declares `mu: unknown`: its training convention is on
+the agenda and NOT on the record, so nothing here will pick one for it. Pass --mu explicitly (a
+path, or `none`) and the choice is recorded as a deviation in the product README. That is what the
+two-arm reconciliation in SMOKES.md settles.
+```
+
+*What it means*: the old primary's training convention is genuinely unsettled (see the note beside
+its config entry). **Fix**: pass `--mu none` or `--mu base/{base}/stats/mu.f32` — which is exactly
+the two-arm reconciliation the smoke below runs.
+
 ### The one paid smoke, when the branch is ready to run (§1.6, ≤ $5) — NOT LAUNCHED
 
 A 6-row scratch set (4 `realact` + 2 `sae`) at `storage: raw` through

@@ -145,14 +145,24 @@ maemms:
     prompt: celeste27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 192
-    mu: null                    # trained on UNCENTRED unit activations
-    # UNRECONCILED, recorded rather than resolved (2026-09-21, branch evals/conventions). This
-    # `none` is the eval plan's declaration (infra/2026-09-21_evals-plan-main.md §1.1 and §2.2).
-    # Every number this checkpoint has on the volume was produced against `2026-09-16_v1`, whose
-    # realact rows are `unit(X[p] - stats/mu)` -- i.e. `mu: base/{base}/stats/mu.f32`, not null. So the
-    # plan's own §1.6 gate 2 ("cos_raw within 0.01 of the stored 0.5076 on rows 0-7") CANNOT hold
-    # at `mu: null`: it is a reproduction of a stats/mu.f32 run. Either the declaration or the
-    # gate has to move; ask before the first paid old-primary run on a `storage: raw` set.
+    # UNESTABLISHED, and declared as such (Tomáš, 2026-09-21). `unknown` is not `null`: it says
+    # this checkpoint's training convention is not on the record, so no product will pick one for
+    # it and every run must be told with `--mu` (common.input_mu / mu_for refuse otherwise).
+    #
+    # The evidence points both ways. The eval plan (§1.1, §2.2) declares `none`, from Tomáš's
+    # recollection that the 09-10 chain took uncentred input. Against that: Celeste's ORIGINAL
+    # convention was targets `unit(act - whiten_mu)` with a RAW scorer (observations §2 -- she
+    # diagnosed the asymmetry herself in f9b5095 on 09-18, after this checkpoint launched), and
+    # the one number this checkpoint has on our volume -- cos_raw 0.5076 on rows 0-7 of
+    # `2026-09-16_v1` -- was measured against rows stored as `unit(X[p] - stats/mu.f32)`, which is
+    # a stats_mu-centred input, not a raw one.
+    #
+    # SETTLED EMPIRICALLY by the §1.6 smoke, not by argument: it runs two old-primary arms on the
+    # SAME rows, `--mu null` and `--mu base/{base}/stats/mu.f32`. The plan's reproduction check
+    # ("cos_raw within 0.01 of 0.5076") applies to the stats_mu arm ONLY -- it is a reproduction
+    # of a stats_mu run. Whichever arm scores higher becomes the declared `mu:` here, with the
+    # number recorded beside it.
+    mu: unknown
     primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
   # The v2 / simple2m checkpoint (Ari 2026-09-19: the one to use for the experiments).
   # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
@@ -353,11 +363,16 @@ heldout:
   # instead, and every entrypoint uses it.
   #
   # The family label here is `sae2m_enc` because that is what the rows ON THE VOLUME carry, and
-  # this file describes what exists. `features/draw_sae2m.py` was fixed on 2026-09-21 to emit
-  # `family: "sae"` -- the label every consumer actually filters on -- with the dictionary named
-  # per row in a new `sae_key` field; the 2k set below predates that and is NOT rewritten in
-  # place, so autointerp keeps accepting the old label for it (FAMILIES in sae_self.py/build.py).
-  # A RE-DRAW carries `sae` and its config entry must say `families: {sae: ...}`.
+  # this file describes what exists. `features/draw_sae2m.py` emits `family: "sae"` -- the label
+  # every consumer actually filters on -- with the dictionary named per row in `sae_key`; the 2k
+  # set below predates that and is NOT rewritten in place, so autointerp keeps accepting the old
+  # label for it (FAMILIES in sae_self.py/build.py). A RE-DRAW carries `sae`.
+  # SETTLED 2026-09-21 by reading the volume (`modal volume get maemm
+  # base/qwen36-27b/heldout/2026-09-20_sae2m_2k/ids.jsonl`): all 2,000 rows carry
+  # `family: "sae2m_enc"` and NO `sae_key` field. Ari's 541b4b0 declares
+  # `families: {sae: {n: 2000}}` for this same set, which does not match what is on disk; this
+  # line does. A re-draw under the current draw_sae2m carries `sae` + `sae_key` and needs a new
+  # config entry, not an edit of this one.
   2026-09-20_sae2m_2k:
     imported: true
     storage: dirs_only        # 2,000 unit encoder columns; nothing here was ever centred
