@@ -88,7 +88,13 @@ def run(cfg, args):
     assert index["best_act.f16"]["shape"] == [n_t, n, d], (
         f"{sdir}: best_act.f16 is {index['best_act.f16']['shape']}, expected [{n_t}, {n}, {d}]"
     )
-    assert width == C.SCORE_WIDTH, f"{sdir}: cos.f16 width {width} != common.SCORE_WIDTH {C.SCORE_WIDTH}"
+    # The width is the DIRECTORY's, not the module constant's: an arm whose rollouts summary asked
+    # for a wider scoring window (the NLA arm, 256) stores wider arrays and records the length in
+    # its rows.json. common.score_width_of reads it back, defaulting to SCORE_WIDTH.
+    want_width = C.score_width_of(sdir)
+    assert width == want_width, (
+        f"{sdir}: cos.f16 width {width} != the {want_width} its rows.json score_max_length implies"
+    )
     with open(f"{sdir}/rows.json") as fh:
         rows_json = json.load(fh)
     sel = list(rows_json["rows"])

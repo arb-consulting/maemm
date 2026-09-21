@@ -1048,27 +1048,60 @@ def gen_seed_for(base_seed: int, row: int, k: int, n: int) -> int:
 # ---------------------------------------------------------------------------------------------
 
 
-def encode_for_score(tok, texts):
+def encode_for_score(tok, texts, max_length: int = SCORE_MAX_LENGTH):
     """The TOKENIZATION half of the scoring protocol, on its own: -> a list of id lists.
 
     eval/eval_universal.py:136-138 -- an all-whitespace rollout tokenizes to zero tokens, so `" "`
     is substituted to keep the row scoreable; then add_special_tokens=False and truncation at
-    SCORE_MAX_LENGTH. Nothing is padded here and no sink is prepended: `score_ids` owns both,
-    because a caller that already HAS ids (gcg/gcg.py optimises ids, never text) must reach the
-    SAME forward without passing through a tokenizer at all.
+    `max_length`. Nothing is padded here and no sink is prepended: `score_ids` owns both, because a
+    caller that already HAS ids (gcg/gcg.py optimises ids, never text) must reach the SAME forward
+    without passing through a tokenizer at all.
+
+    `max_length` defaults to SCORE_MAX_LENGTH, which is the protocol and what every arm but one
+    uses. It is a PARAMETER only because the NLA arm generates at the checkpoint's native 200
+    tokens and a 95-token cut would score less than half of each text (README, "The NLA arm").
+    A run that widens it records the value it used in its own outputs -- `score` writes
+    `score_max_length` into `rows.json` and `score_width_of` reads it back -- so a stored array's
+    width is never inferred from a constant that has since changed.
     """
+    assert max_length >= 1, f"max_length must be at least one token, got {max_length}"
     chunk = [t if t.strip() else " " for t in texts]
     prev = tok.padding_side
     tok.padding_side = "right"  # the protocol's side (eval_universal.py:133); nothing pads here
     try:
-        enc = tok(chunk, add_special_tokens=False, truncation=True, max_length=SCORE_MAX_LENGTH)
+        enc = tok(chunk, add_special_tokens=False, truncation=True, max_length=max_length)
     finally:
         tok.padding_side = prev
     return [list(x) for x in enc["input_ids"]]
 
 
+def score_width_of(sdir: str | Path) -> int:
+    """The stored width T of a `scores/<set>/` directory's [N, n, T] arrays.
+
+    `score` writes `score_max_length` into `rows.json`; a directory written before that field
+    existed, or by a run at the protocol's own truncation, has none and is SCORE_WIDTH. Anything
+    that reshapes a stored `cos.f16` must go through this rather than through the constant, or it
+    silently misreads an arm scored at a different width as a different number of rows.
+    """
+    path = Path(sdir) / "rows.json"
+    assert path.exists(), f"no {path}: a scores/ directory always carries rows.json"
+    with open(path) as fh:
+        rows_json = json.load(fh)
+    max_length = int(rows_json.get("score_max_length", SCORE_MAX_LENGTH))
+    assert max_length >= 1, f"{path}: score_max_length {max_length} is not a token count"
+    return max_length + 1
+
+
 def score_ids(
-    model, tok, id_lists, dirs, read_layer, sbatch: int = SCORE_CHUNK, device="cuda", on_chunk=None
+    model,
+    tok,
+    id_lists,
+    dirs,
+    read_layer,
+    sbatch: int = SCORE_CHUNK,
+    device="cuda",
+    on_chunk=None,
+    max_length: int = SCORE_MAX_LENGTH,
 ):
     """Per-token cosine and residual norm of each ID LIST on the CLEAN base at `read_layer`.
 
@@ -1089,9 +1122,11 @@ def score_ids(
     `model` must already be the scoring model: a PeftModel (its adapter is disabled here) or a
     separately loaded clean base (full-parameter MAEMMs have no adapter to switch off).
 
-    Returns a dict of [N, SCORE_WIDTH] tensors on the cpu -- cos (f32), norm (f32), keep (bool),
+    Returns a dict of [N, max_length + 1] tensors on the cpu -- cos (f32), norm (f32), keep (bool),
     ids (i64) -- where column 0 is the sink, cos/norm are NaN outside `keep`, and ids is -1 there.
     Rows are rectangular across chunks of different token lengths, so the arrays concatenate.
+    `max_length` defaults to SCORE_MAX_LENGTH and every caller but the NLA arm leaves it there;
+    see `encode_for_score` for why it is a parameter and who records the value used.
 
     `on_chunk(s, h, cos, keep, ids)` is called once per chunk with that chunk's fp32 read-layer
     residual still on the device, so a caller needing more than cos/norm (score.py wants the
@@ -1103,11 +1138,15 @@ def score_ids(
 
     n = len(id_lists)
     assert len(dirs) == n, f"{n} id lists but {len(dirs)} directions: the scorer pairs them by row"
+    assert max_length >= 1, f"max_length must be at least one token, got {max_length}"
+    # +1 for the sink at column 0. This is SCORE_WIDTH whenever max_length is the protocol's own
+    # SCORE_MAX_LENGTH, which is every caller but the NLA arm.
+    score_width = max_length + 1
     out = {
-        "cos": torch.full((n, SCORE_WIDTH), float("nan")),
-        "norm": torch.full((n, SCORE_WIDTH), float("nan")),
-        "keep": torch.zeros((n, SCORE_WIDTH), dtype=torch.bool),
-        "ids": torch.full((n, SCORE_WIDTH), -1, dtype=torch.long),
+        "cos": torch.full((n, score_width), float("nan")),
+        "norm": torch.full((n, score_width), float("nan")),
+        "keep": torch.zeros((n, score_width), dtype=torch.bool),
+        "ids": torch.full((n, score_width), -1, dtype=torch.long),
     }
     sink = sink_token_id(tok)
     pad = tok.pad_token_id if tok.pad_token_id is not None else sink
@@ -1120,9 +1159,9 @@ def score_ids(
                 f"row {s + lens.index(min(lens))} has no tokens at all; the caller must substitute "
                 f"something scoreable (encode_for_score puts a single space)"
             )
-            assert max(lens) <= SCORE_MAX_LENGTH, (
+            assert max(lens) <= max_length, (
                 f"row {s + lens.index(max(lens))} carries {max(lens)} ids, above the re-encode "
-                f"truncation at max_length={SCORE_MAX_LENGTH}: it must be truncated BEFORE scoring"
+                f"truncation at max_length={max_length}: it must be truncated BEFORE scoring"
             )
             width = max(lens)
             ids = torch.full((b, width + 1), pad, dtype=torch.long)
@@ -1142,9 +1181,9 @@ def score_ids(
             cos = torch.einsum("btd,bd->bt", F.normalize(h.float(), dim=-1), d)
             nrm = h.float().norm(dim=-1)
             t = ids.shape[1]
-            assert t <= SCORE_WIDTH, (
-                f"chunk width {t} exceeds SCORE_WIDTH {SCORE_WIDTH}: truncation at "
-                f"max_length={SCORE_MAX_LENGTH} did not hold"
+            assert t <= score_width, (
+                f"chunk width {t} exceeds this run's width {score_width}: truncation at "
+                f"max_length={max_length} did not hold"
             )
             if on_chunk is not None:
                 on_chunk(s, h, cos, keep, ids)
@@ -1156,7 +1195,15 @@ def score_ids(
 
 
 def score_tokens(
-    model, tok, texts, dirs, read_layer, sbatch: int = SCORE_CHUNK, device="cuda", on_chunk=None
+    model,
+    tok,
+    texts,
+    dirs,
+    read_layer,
+    sbatch: int = SCORE_CHUNK,
+    device="cuda",
+    on_chunk=None,
+    max_length: int = SCORE_MAX_LENGTH,
 ):
     """`score_ids` with the tokenizer in front: see `encode_for_score` and `score_ids`.
 
@@ -1168,12 +1215,13 @@ def score_tokens(
     return score_ids(
         model,
         tok,
-        encode_for_score(tok, texts),
+        encode_for_score(tok, texts, max_length),
         dirs,
         read_layer,
         sbatch=sbatch,
         device=device,
         on_chunk=on_chunk,
+        max_length=max_length,
     )
 
 

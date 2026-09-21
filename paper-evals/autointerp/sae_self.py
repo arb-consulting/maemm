@@ -58,14 +58,18 @@ class _SelfAct:
     `common.sae_encode` restricted to one feature and broadcast over rows.
     """
 
-    def __init__(self, sae, feats, n_rows: int):
+    def __init__(self, sae, feats, n_rows: int, width: int = C.SCORE_WIDTH):
         import torch
 
         self.sae = sae
         self.feats = torch.as_tensor(feats, dtype=torch.long)
         assert len(self.feats) == n_rows, f"{len(self.feats)} feature ids for {n_rows} rows"
-        self.act = torch.full((n_rows, C.SCORE_WIDTH), float("nan"))
-        self.ids = torch.full((n_rows, C.SCORE_WIDTH), -1, dtype=torch.long)
+        # `width` is the scored directory's, read with common.score_width_of: the NLA arm scores
+        # at 256 tokens rather than the protocol's 95, and these arrays must line up with its
+        # cos.f16.
+        self.width = int(width)
+        self.act = torch.full((n_rows, self.width), float("nan"))
+        self.ids = torch.full((n_rows, self.width), -1, dtype=torch.long)
         self.arg = torch.full((n_rows,), -1, dtype=torch.int64)
         self.off = 0  # global row of the current score_tokens call
 
@@ -165,13 +169,19 @@ def run(cfg, args):
     texts = [x["text"] for x in flat]
     row_feats = [feat_of[x["row"]] for x in flat]
 
+    # This pass must reproduce `score`'s forward token for token, so it scores at the SAME
+    # re-encode truncation that directory was written at -- the protocol's 95 everywhere but the
+    # NLA arm, which asks for 256 (common.score_width_of reads it out of rows.json).
+    width = C.score_width_of(sdir)
+    max_length = width - 1
     model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY, exactly as `score`
     sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
     gate = float(sae.threshold)
     dirs = C.sae_dirs(sae, row_feats).cpu()
-    extra = _SelfAct(sae, row_feats, len(flat))
+    extra = _SelfAct(sae, row_feats, len(flat), width)
     print(
-        f"[sae_self] {len(sel)} sae targets x {n} rollouts = {len(flat)} rows, gate {gate:.4f}",
+        f"[sae_self] {len(sel)} sae targets x {n} rollouts = {len(flat)} rows, gate {gate:.4f}, "
+        f"scoring window {max_length} (T={width})",
         flush=True,
     )
     t0 = time.time()
@@ -179,14 +189,16 @@ def run(cfg, args):
     for s in range(0, len(texts), SCORE_ROWS):
         block = texts[s : s + SCORE_ROWS]
         extra.off = s
-        out = C.score_tokens(model, tok, block, dirs[s : s + len(block)], read_layer, on_chunk=extra)
+        out = C.score_tokens(
+            model, tok, block, dirs[s : s + len(block)], read_layer, on_chunk=extra, max_length=max_length
+        )
         cos_parts.append(out["cos"])
     cos = torch.cat(cos_parts)
     elapsed = time.time() - t0
 
     N = len(sel)
-    act = extra.act.numpy().reshape(N, n, C.SCORE_WIDTH)
-    ids = extra.ids.numpy().astype(np.int32).reshape(N, n, C.SCORE_WIDTH)
+    act = extra.act.numpy().reshape(N, n, width)
+    ids = extra.ids.numpy().astype(np.int32).reshape(N, n, width)
     arg = extra.arg.numpy().reshape(N, n)
 
     # ---- the three checks -------------------------------------------------------------------
@@ -200,7 +212,7 @@ def run(cfg, args):
     # and the count and the worst gap are reported either way.
     stored_arg = C.read_array(f"{sdir}/argmax.i16", "int16", (len(rows_meta), n)).astype(np.int64)
     stored_arg = stored_arg[np.asarray(sel)]
-    ours_cos = cos.numpy().reshape(N, n, C.SCORE_WIDTH)
+    ours_cos = cos.numpy().reshape(N, n, width)
     arg_agree = int((stored_arg == arg).sum())
     arg_total = int(arg.size)
     diff = stored_arg != arg
@@ -211,7 +223,7 @@ def run(cfg, args):
         tie_gap = np.abs(np.nan_to_num(a_ours) - np.nan_to_num(a_stored))
     worst_tie = float(tie_gap[diff].max()) if diff.any() else 0.0
     argmax_ok = bool(worst_tie <= ARGMAX_TIE_TOL)
-    stored_cos = C.read_array(f"{sdir}/cos.f16", "float16", (len(rows_meta), n, C.SCORE_WIDTH))
+    stored_cos = C.read_array(f"{sdir}/cos.f16", "float16", (len(rows_meta), n, width))
     stored_cos = stored_cos[np.asarray(sel)]
     both = np.isfinite(stored_cos) & np.isfinite(ours_cos)
     cos_diff = np.abs(stored_cos[both].astype(np.float32) - ours_cos[both])
@@ -308,6 +320,9 @@ def run(cfg, args):
                 "rows": sel,
                 "features": [feat_of[r] for r in sel],
                 "n": n,
+                # the stored [N, n, width] third dimension -- autointerp/build.py reads it back
+                # rather than assuming the protocol's SCORE_WIDTH
+                "width": width,
                 "gate": gate,
                 "checks": checks,
                 "fire_fraction_mean": round(float(fired.mean()), 4),
@@ -316,7 +331,7 @@ def run(cfg, args):
             },
         )
         od.note(
-            f"`sae_self.f16` is [{N}, {n}, {C.SCORE_WIDTH}]: the PRE-GATE activation "
+            f"`sae_self.f16` is [{N}, {n}, {width}]: the PRE-GATE activation "
             f"relu((h - b_dec).W_enc[:, f] + b_enc[f]) of THE TARGET feature f of each row, at "
             f"every scored token of its own rollout, from the SAME clean-base forward "
             f"common.score_tokens runs for `score`. NaN outside `keep`; column 0 is the sink and "

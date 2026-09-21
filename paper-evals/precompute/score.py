@@ -1,6 +1,8 @@
 """Product `score`: score rollouts on the CLEAN BASE -> `<root>/maemms/<base>/<maemm>/scores/<set>/`.
 
-    cos.f16      [N, n, T]   per-token cosine, NaN outside the kept tokens (T = common.SCORE_WIDTH)
+    cos.f16      [N, n, T]   per-token cosine, NaN outside the kept tokens (T = common.SCORE_WIDTH,
+                             except where the rollouts summary carries its own score_max_length --
+                             the NLA arm; rows.json records it and common.score_width_of reads it)
     norm.f16     [N, n, T]   per-token residual norm, NaN in the same places
     argmax.i16   [N, n]      index of the best token AMONG THE SCORED TOKENS (0 = the first
                              generated token; the sink is already dropped), -1 if nothing was kept
@@ -106,9 +108,12 @@ def _load_dirs(cfg, args):
     return rows, torch.nn.functional.normalize(torch.from_numpy(v), dim=-1), src
 
 
-def _score_all(model, tok, texts, dirs, read_layer, extra):
+def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MAX_LENGTH):
     """common.score_tokens over `texts` in SCORE_ROWS slices, concatenated. `extra` sees every
-    chunk's residual (its row offsets are shifted back to the global row index here)."""
+    chunk's residual (its row offsets are shifted back to the global row index here).
+
+    `max_length` is this RUN's re-encode truncation, taken from the rollouts summary in `run`; it
+    is the protocol's SCORE_MAX_LENGTH for every arm but the NLA one."""
     import torch
 
     outs: dict[str, list] = {"cos": [], "norm": [], "keep": [], "ids": []}
@@ -121,6 +126,7 @@ def _score_all(model, tok, texts, dirs, read_layer, extra):
             dirs[s : s + len(block)],
             read_layer,
             on_chunk=(lambda i, h, cos, keep, ids, off=s: extra(off + i, h, cos, keep, ids)),
+            max_length=max_length,
         )
         for k in outs:
             outs[k].append(out[k])
@@ -161,7 +167,9 @@ def _sae_for(cfg, args):
     return sae, key
 
 
-def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, prompt_tokens=None):
+def _check_scored_is_generation(
+    out, texts, tok, max_new, od, gen_n_tok=None, prompt_tokens=None, max_length=C.SCORE_MAX_LENGTH
+):
     """Checklist item 8: what was scored is the ROLLOUT, never the inverter's prompt.
 
     Two hard bounds and one measurement.
@@ -169,8 +177,10 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
       1. The stored GENERATED ids are at most `max_new` long (exact -- they are the ids the sampler
          returned, trimmed at the stop token). Skipped in rescore mode, where the texts are somebody
          else's and no id list came with them.
-      2. No scored row reaches the `SCORE_MAX_LENGTH` truncation. The MAEMM prompt is ~103 tokens,
-         so a row that carried it would be truncated to exactly 95 kept tokens.
+      2. No scored row reaches THIS RUN's re-encode truncation, `max_length` (the protocol's
+         SCORE_MAX_LENGTH = 95 for every arm but the NLA one, which scores at 256 -- see
+         `common.encode_for_score`). The MAEMM prompt is ~103 tokens, so a row that carried it
+         would be truncated to exactly 95 kept tokens at the protocol width.
 
     MEASURED 2026-09-15: a row's decoded text does NOT always re-tokenize to the same number of ids
     (a rollout cut mid-word at max_new re-encodes to one token more), so `kept <= max_new` is NOT a
@@ -203,7 +213,7 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
     """
     kept = out["keep"].sum(1)
     worst = int(kept.max())
-    n_trunc = int((kept >= C.SCORE_MAX_LENGTH).sum())
+    n_trunc = int((kept >= max_length).sum())
     frac_trunc = n_trunc / max(len(texts), 1)
     if gen_n_tok is not None:
         longest = max(gen_n_tok)
@@ -211,11 +221,11 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
             f"a stored rollout has {longest} generated ids but max_new={max_new}: the rollout file "
             f"holds something that is not the generation alone (checklist item 8)"
         )
-    leak_would_reach = prompt_tokens is None or (int(prompt_tokens) + int(max_new)) >= C.SCORE_MAX_LENGTH
+    leak_would_reach = prompt_tokens is None or (int(prompt_tokens) + int(max_new)) >= max_length
     if leak_would_reach:
         assert frac_trunc <= TRUNC_FRAC_MAX, (
             f"{n_trunc} of {len(texts)} scored rows ({frac_trunc:.2%}) kept "
-            f"{C.SCORE_MAX_LENGTH} tokens, i.e. hit the truncation, above the "
+            f"{max_length} tokens, i.e. hit the truncation, above the "
             f"{TRUNC_FRAC_MAX:.0%} bound; the {prompt_tokens or '~103'}-token prompt of this run "
             f"looks exactly like this and would put ~100% of rows over, while a {max_new}-token "
             f"rollout can only get there by re-tokenization expansion, which is rare "
@@ -224,7 +234,7 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
         if n_trunc:
             od.note(
                 f"checklist item 8, bound 2: {n_trunc} of {len(texts)} scored rows "
-                f"({frac_trunc:.2%}) hit the {C.SCORE_MAX_LENGTH}-token truncation through "
+                f"({frac_trunc:.2%}) hit the {max_length}-token truncation through "
                 f"re-tokenization expansion -- under the {TRUNC_FRAC_MAX:.0%} bound a prompt leak "
                 f"would blow through (it puts ~100% of rows over), and bound 1 (stored generated "
                 f"ids <= max_new) passed on every row. Those rows' cosine is a max over a "
@@ -234,10 +244,10 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
         od.note(
             f"checklist item 8, bound 2 NOT APPLICABLE here and therefore not asserted: this run's "
             f"prompt is {prompt_tokens} tokens, so prompt + max_new = {int(prompt_tokens) + int(max_new)} "
-            f"< {C.SCORE_MAX_LENGTH} and a row carrying the whole prompt could not reach the "
+            f"< {max_length} and a row carrying the whole prompt could not reach the "
             f"truncation. Bound 1 (stored generated ids <= max_new) is the exact guard and passed. "
             f"REPORTED instead: {n_trunc} of {len(texts)} scored rows "
-            f"({n_trunc / max(len(texts), 1):.2%}) hit the {C.SCORE_MAX_LENGTH}-token truncation "
+            f"({n_trunc / max(len(texts), 1):.2%}) hit the {max_length}-token truncation "
             f"through re-tokenization expansion, so their cosine is a max over a SHORTENED window "
             f"and is biased DOWN."
         )
@@ -252,7 +262,7 @@ def _check_scored_is_generation(out, texts, tok, max_new, od, gen_n_tok=None, pr
             first = first or f"row {i}: scored {tok.decode(ids)!r} vs stored {txt!r}"
     od.note(
         f"checklist item 8: max kept tokens per scored row {worst}, {n_trunc} of {len(texts)} rows "
-        f"({frac_trunc:.2%}) at the {C.SCORE_MAX_LENGTH}-token truncation ("
+        f"({frac_trunc:.2%}) at the {max_length}-token truncation ("
         + (
             f"asserted <= {TRUNC_FRAC_MAX:.0%}, so no row carried the ~103-token prompt"
             if leak_would_reach
@@ -384,6 +394,17 @@ def run(cfg, args):
     sel = [r for r in C.parse_rows(args.get("rows", ""), len(rows_meta)) if r in by_row]
     assert sel, f"{rpath} holds rows {present[:8]}...; --rows {args.get('rows', '')!r} selected none of them"
     n = int(rsum["n"])
+    # The re-encode truncation THIS run scores at. Every arm but the NLA one omits the field and
+    # gets the protocol's 95 (common.SCORE_MAX_LENGTH); `rollouts_nla` writes 256 because it
+    # generates at the checkpoint's native 200 tokens and a 95-token cut would score less than
+    # half of each text. It is carried on the ROLLOUTS summary, not passed as a flag, so the
+    # scorer cannot be pointed at a width the generation never agreed to.
+    max_length = int(rsum.get("score_max_length", C.SCORE_MAX_LENGTH))
+    assert max_length >= int(rsum["max_new"]) + 1, (
+        f"{rpath} generated at max_new={rsum['max_new']} but its summary asks to score at "
+        f"max_length={max_length}: the window must leave room for the whole generation plus the "
+        f"sink, or the tail of a full-length rollout is never scored"
+    )
     for r in sel:
         ks = sorted(by_row[r])
         assert ks == list(range(n)), (
@@ -398,13 +419,14 @@ def run(cfg, args):
     extra = _Extra(sae, d, len(flat), gate)
     print(f"[score] {len(sel)} targets x {n} rollouts = {len(flat)} rows on the clean base", flush=True)
     t0 = time.time()
-    res = _score_all(model, tok, texts, fdirs, read_layer, extra)
+    res = _score_all(model, tok, texts, fdirs, read_layer, extra, max_length=max_length)
     best, _ = C.agg(res["cos"], res["keep"])
     elapsed = time.time() - t0
 
     N = len(sel)
-    cos = res["cos"].numpy().astype(np.float16).reshape(N, n, C.SCORE_WIDTH)
-    nrm = res["norm"].numpy().astype(np.float16).reshape(N, n, C.SCORE_WIDTH)
+    width = max_length + 1  # the sink at column 0; C.SCORE_WIDTH at the protocol's truncation
+    cos = res["cos"].numpy().astype(np.float16).reshape(N, n, width)
+    nrm = res["norm"].numpy().astype(np.float16).reshape(N, n, width)
     argmax = extra.arg.numpy().astype(np.int16).reshape(N, n)
     best_act = extra.best.numpy().reshape(N, n, d)
     counts = extra.counts.numpy()
@@ -459,6 +481,7 @@ def run(cfg, args):
             od,
             gen_n_tok=[x["n_tok"] for x in flat],
             prompt_tokens=rsum.get("prompt_tokens"),
+            max_length=max_length,
         )
         od.write_array("cos.f16", cos, "float16")
         od.write_array("norm.f16", nrm, "float16")
@@ -468,13 +491,33 @@ def run(cfg, args):
         od.write_array("sae_val.f16", sae_val, "float16")
         od.write_array("sae_off.i64", sae_off, "int64")
         od.write_jsonl("per_target.jsonl", per_target)
-        od.write_json("rows.json", {"rows": sel, "n": n, "families": [rows_meta[r]["family"] for r in sel]})
+        od.write_json(
+            "rows.json",
+            {
+                "rows": sel,
+                "n": n,
+                "families": [rows_meta[r]["family"] for r in sel],
+                # The stored arrays are [N, n, score_max_length + 1]. Written on every run, so a
+                # reader takes the width from the DIRECTORY (common.score_width_of) instead of
+                # from a module constant that a later arm may not share.
+                "score_max_length": max_length,
+            },
+        )
         od.note(
             f"scored on the CLEAN BASE ({cfg['bases'][base]['hf']}); the MAEMM is never loaded by "
             "this product. Protocol: common.score_tokens -- padding_side right, "
-            f"add_special_tokens=False, truncation at {C.SCORE_MAX_LENGTH}, sink at column 0 "
+            f"add_special_tokens=False, truncation at {max_length}, sink at column 0 "
             f"excluded from `keep`, fp32 cosine, ONE fixed chunk of {C.SCORE_CHUNK} rows, NO norm "
-            f"filter (the per-token norm is stored instead). T = {C.SCORE_WIDTH}, NaN outside `keep`."
+            f"filter (the per-token norm is stored instead). T = {width}, NaN outside `keep`."
+            + (
+                ""
+                if max_length == C.SCORE_MAX_LENGTH
+                else f" NOTE this run scores at {max_length} tokens, NOT the protocol's "
+                f"{C.SCORE_MAX_LENGTH}: the producing run's summary asked for it (it generates at "
+                f"max_new={rsum['max_new']}). `rows.json` records score_max_length so a reader "
+                f"takes T from here, and a cosine from this directory is a max over a WIDER "
+                f"window than every other arm's."
+            )
         )
         od.note(
             "`argmax.i16` indexes the SCORED tokens (0 = the first generated token; the sink is "

@@ -815,7 +815,10 @@ def run(cfg, args):
     )
     self_rows = list(self_meta["rows"])
     n_roll = int(self_meta["n"])
-    shape = (len(self_rows), n_roll, C.SCORE_WIDTH)
+    # `width` is written by sae_self since the scoring window became per-run (the NLA arm scores
+    # at 256, not the protocol's 95); a sae_self.json from before that carries none and is the
+    # protocol width.
+    shape = (len(self_rows), n_roll, int(self_meta.get("width", C.SCORE_WIDTH)))
     self_act = C.read_array(f"{self_dir}/sae_self.f16", "float16", shape).astype(np.float32)
     self_ids = C.read_array(f"{self_dir}/sae_self_ids.i32", "int32", shape)
     self_ix = {r: i for i, r in enumerate(self_rows)}

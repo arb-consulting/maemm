@@ -328,6 +328,55 @@ def check_score_ids_is_score_tokens():
     else:
         raise AssertionError("score_ids accepted a row with no tokens")
 
+    # --- the per-run scoring window (the NLA arm scores at 256, not the protocol's 95) ---------
+    WIDE = 256
+    wide = C.score_tokens(model, tok, texts, dirs, read_layer, sbatch=2, device="cpu", max_length=WIDE)
+    for k in ("cos", "norm", "keep", "ids"):
+        assert wide[k].shape == (len(texts), WIDE + 1), (
+            f"max_length={WIDE} must give [{len(texts)}, {WIDE + 1}] arrays, got {tuple(wide[k].shape)}"
+        )
+    # the SHORT rows are scored identically either way: a wider window changes only how far a long
+    # row is allowed to run, never what a row inside both windows scores.
+    short = slice(0, 3)
+    for k in ("cos", "norm", "keep", "ids"):
+        lhs = torch.nan_to_num(a[k][short], nan=-12345.0)
+        rhs = torch.nan_to_num(wide[k][short, : C.SCORE_WIDTH], nan=-12345.0)
+        assert torch.equal(lhs, rhs), (
+            f"the {WIDE}-token window changed `{k}` on rows that fit inside the 95-token one: "
+            f"widening must not move a short row's score"
+        )
+    # ...and the LONG row is the one that moves: 200 chars -> 95 ids at the default, 200 at WIDE.
+    assert int(a["keep"][3].sum()) == C.SCORE_MAX_LENGTH, (
+        f"the 200-character row must be truncated to {C.SCORE_MAX_LENGTH} ids by default, kept "
+        f"{int(a['keep'][3].sum())}"
+    )
+    assert int(wide["keep"][3].sum()) == 200, (
+        f"at max_length={WIDE} the 200-character row must keep all 200 ids, kept "
+        f"{int(wide['keep'][3].sum())} -- the window is not actually being widened"
+    )
+    wide_ids = C.encode_for_score(tok, texts, WIDE)
+    assert [len(x) for x in wide_ids] == [5, 2, 1, 200], (
+        f"encode_for_score at max_length={WIDE} truncated somewhere it should not: "
+        f"{[len(x) for x in wide_ids]}"
+    )
+    # score_ids' over-length guard moves with the window: 96 ids is refused at the default and
+    # accepted at WIDE, which is what makes the two arms' guards the SAME guard.
+    C.score_ids(
+        model, tok, [[7] * (C.SCORE_MAX_LENGTH + 1)], dirs[:1], read_layer, device="cpu", max_length=WIDE
+    )
+
+    # score_width_of reads the width back out of a scores/ directory rather than the constant.
+    with tempfile.TemporaryDirectory() as td:
+        plain, widened = Path(td) / "plain", Path(td) / "wide"
+        rows_of = ((plain, {"rows": [0], "n": 1}), (widened, {"rows": [0], "n": 1, "score_max_length": WIDE}))
+        for d_, obj in rows_of:
+            d_.mkdir()
+            (d_ / "rows.json").write_text(json.dumps(obj))
+        assert C.score_width_of(plain) == C.SCORE_WIDTH, (
+            "a rows.json with no score_max_length is the protocol width"
+        )
+        assert C.score_width_of(widened) == WIDE + 1, "score_width_of must return score_max_length + 1"
+
 
 def check_no_norm_filter():
     """The stored per-token values are UNFILTERED (Tomáš 2026-09-15): the 10x-nanmedian filter
