@@ -1,0 +1,3 @@
+kind,source,family,comparisons,worst excess,outcome
+cos_centred bo-k,2026-09-18_rl-last16-lr5e-7@vllm,(all),512,-0.000239,"3584 vs the stored `bo_c_k`, 0 mismatches; 0 rows have a NaN rollout (0 draws)"
+cos,2026-09-18_rl-last16-lr5e-7@vllm,(all),1024,-0.000200,0 mismatches

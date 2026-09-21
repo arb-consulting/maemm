@@ -622,12 +622,19 @@ def write_csv(path: Path, header: list[str], rows: list[list]) -> None:
             w.writerow(["" if v is None else v for v in r])
 
 
+# PNG raster density. The PDF is vector and ignores it. 140 rather than the 200 this started at:
+# `results/faithfulness/` is COMMITTED (it is the paper's numbers), and at 200 a nine-inch panel
+# is ~150 KB against ~70 KB here, which over a run's ~20 figures is 3 MB of binary in the history
+# for a preview of a vector file that sits beside it. The PDF is the one to cite.
+FIG_DPI = 140
+
+
 def savefig(fig, out_dir: Path, name: str) -> str:
-    """Write one figure as PDF and PNG under `<out>/figures/`. Returns its stem."""
+    """Write one figure as PDF (vector, for the paper) and PNG (FIG_DPI, for a quick look)."""
     d = Path(out_dir) / "figures"
     d.mkdir(parents=True, exist_ok=True)
-    for ext in ("pdf", "png"):
-        fig.savefig(d / f"{name}.{ext}", dpi=200, bbox_inches="tight", facecolor=SURFACE)
+    for ext, kw in (("pdf", {}), ("png", {"dpi": FIG_DPI})):
+        fig.savefig(d / f"{name}.{ext}", bbox_inches="tight", facecolor=SURFACE, **kw)
     import matplotlib.pyplot as plt
 
     plt.close(fig)

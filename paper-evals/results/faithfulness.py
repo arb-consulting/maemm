@@ -445,7 +445,20 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
     sae_feats: list[dict] = []
     checks: list[dict] = []
     notes: list[str] = []
+    # A set none of whose families is centrable (`_ctrl`, `_sae2m`, `_subspace`) still has a
+    # `cos_centred.f16` on some arms -- all NaN, by the rule that a non-centrable row is ABSENT
+    # from the centred aggregates rather than scored one-sidedly. Reading it would fetch ~12 MB
+    # per arm to produce nothing, so the read is skipped and the reason recorded.
+    kinds = cfg.get("family_kinds") or {}
+    centrable = sorted({f.family for f in fams if (kinds.get(f.family) or {}).get("centrable")})
     for src in usable:
+        if not centrable:
+            checks.append({"kind": "cos_centred bo-k", "source": src.label, "family": "(all)",
+                           "skipped": f"no family of `{set_name}` is centrable "
+                                      f"({sorted({f.family for f in fams})}), so a centred cosine "
+                                      f"would be NaN on every row -- the array is not read"})
+            centred[src.label] = {}
+            continue
         ladder, info = centred_bok(vol, src, centred_bok_max_mb)
         centred[src.label] = ladder
         checks.append({"kind": "cos_centred bo-k", "source": src.label, "family": "(all)", **info})

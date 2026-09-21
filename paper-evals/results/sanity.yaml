@@ -388,16 +388,11 @@ checks:
     tol: 0.0005
     provenance: SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.
 
-  - name: eval1 rl-last16, 2M sae rows mean cos_raw (both sides pooled there)
-    source: rl-last16
-    family: sae/sae2m/enc
-    metric: cos_raw.bo1
-    expect: 0.0584
-    compare: false
-    provenance: >-
-      SMOKES.md 2026-09-21 summary table reports `sae2m / sae` at n = 1024, i.e. the encoder and
-      decoder halves POOLED; this driver splits them on `sae_side`, so the encoder family alone is
-      not that number. Printed for the record: the two split means should straddle it.
+  # SMOKES.md's summary table also carries a `sae2m / sae` cosine row (0.0584 at n = 1024, the two
+  # sides pooled). THERE IS NO GATE FOR IT HERE and there cannot be: plan §2.3 keeps SAE-target
+  # cosines out of every markdown table, so `stat_registry` holds no `cos_raw` for a dictionary
+  # family and any such gate resolves `absent` on every block forever. The numbers are in each
+  # block's `sae_cosines.csv`, per row, which is where that rule puts them.
 
   - name: eval1 NLA, realact mean cos_raw (n = 486)
     set: 2026-09-21_v3_realact

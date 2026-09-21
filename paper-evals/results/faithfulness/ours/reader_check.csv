@@ -1,0 +1,7 @@
+kind,source,family,comparisons,worst excess,outcome
+cos_centred bo-k,2026-09-10_rl-8x2048-full@vllm:mu-none,(all),—,—,skipped: maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/2026-09-21_v3_ours__mu-none__vllm has no cos_centred.f16 (the run centred on nothing)
+cos_centred bo-k,2026-09-10_rl-8x2048-full@vllm:mu-stats,(all),512,-0.000265,"3584 vs the stored `bo_c_k`, 0 mismatches; 0 rows have a NaN rollout (0 draws)"
+cos_centred bo-k,2026-09-18_rl-last16-lr5e-7@vllm,(all),512,-0.000268,"3584 vs the stored `bo_c_k`, 0 mismatches; 0 rows have a NaN rollout (0 draws)"
+cos,2026-09-10_rl-8x2048-full@vllm:mu-none,(all),512,-0.000457,0 mismatches
+cos,2026-09-10_rl-8x2048-full@vllm:mu-stats,(all),1024,-0.000371,0 mismatches
+cos,2026-09-18_rl-last16-lr5e-7@vllm,(all),1024,-0.000363,0 mismatches
