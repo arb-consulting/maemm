@@ -1,7 +1,9 @@
 """Product `targets`: draw one held-out set -> `<root>/base/<base>/heldout/<set>/`.
 
     ids.jsonl     one row per target: row, family, id, stratum + the family's own fields
-    vecs.f16      [N, d] UNIT rows, row i is ids.jsonl line i
+    act.f32       [N, d] the RAW vector of each row, before any mean was subtracted
+    vecs.f16      [N, d] UNIT rows = unit(act), UNCENTRED; row i is ids.jsonl line i
+    storage.json  the set's storage contract (raw / mu_stored / family_mu), common.set_storage
     mu_512.f32    [d] DIAGNOSTIC ONLY (see below): the mean of the 512-token no-sink windows
     leakage.jsonl cos > 0.999 hits against the archived 8B training banks (checklist item 35)
 
@@ -11,11 +13,24 @@ is sampled, and a SEPARATE `torch.Generator().manual_seed(seed)` for the random 
 that is Celeste's convention in eval/eval_universal.py:409-453, copied so the two pipelines' draws
 are structurally comparable. Reordering the families changes every family after the first.
 
-ONE CENTRING MEAN (Tomáš, 2026-09-15; supersedes the earlier two-means rule, checklist item 77).
-A realact target is `unit(X[p] - mu)` with `mu` = `stats/mu.f32`, the 64/16-window read-layer mean
-of pass A, and that subtraction happens exactly ONCE, here at construction. Nothing else in the
-pipeline centres anything: every cosine against a target is uncentred and goes through the single
-`common.score_tokens`, and the `sae` and `random` directions are never centred at all.
+RAW STORAGE (Tomáš, 2026-09-21; supersedes the 2026-09-15 one-centring-mean rule below).
+**A stored artefact never encodes a centring choice.** A realact row is written as its raw
+read-layer activation `X[p]` in `act.f32`, with `vecs.f16 = unit(X[p])` -- UNCENTRED -- and the
+mean is subtracted at READ time under a name the run states: `common.dirs_for(..., centering=...)`,
+driven by `maemms.<ckpt>.input.centering` or an explicit `--centering`. The set is therefore the
+same file for every checkpoint and every convention, and "which mu was this drawn under" stops
+being a question anyone can get wrong.
+
+For a family that is not `centrable` (config.yaml `family_kinds:` -- an encoder column, a Gaussian
+draw, a subspace basis) there is no mean to subtract, so its `act.f32` row IS its unit direction
+and `unit(act) == vecs.f16` there. That keeps the array rectangular and makes `centering: none` a
+no-op on those rows rather than a special case at seven call sites.
+
+SUPERSEDED (kept for the record, because every set drawn before 2026-09-21 follows it): "ONE
+CENTRING MEAN (Tomáš, 2026-09-15, checklist item 77) -- a realact target is `unit(X[p] - mu)` with
+`mu` = `stats/mu.f32` and that subtraction happens exactly ONCE, here at construction." Those sets
+are `storage: unit` in config.yaml and `common.dirs_for` serves them only at the mean they were
+built with; `--re-derive` (below) turns one into a `storage: raw` set without re-sampling it.
 
 `mu_512.f32` -- the read-layer mean over ALL positions of the 512-token, NO-sink windows this draw
 forwards, which is what Celeste subtracts (data/build_universal_bank.py:310) -- is still computed
@@ -66,7 +81,12 @@ def _forward_512(model, read_layer, docs512, toks, device):
 
 
 def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
-    """Celeste's recipe (data/build_universal_bank.py:295-314, checklist items 30/34)."""
+    """Celeste's recipe (data/build_universal_bank.py:295-314, checklist items 30/34).
+
+    Returns (rows, unit dirs, RAW activations). `mu` is still loaded and still reported -- it is
+    the diagnostic anchor of the README -- but nothing here subtracts it any more: see the module
+    docstring's RAW STORAGE note.
+    """
     import torch
 
     base, root = args["base"], args["root"]
@@ -119,13 +139,21 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
         flush=True,
     )
 
-    rows, vecs = [], []
+    rows, vecs, acts = [], [], []
+    n_clamped = 0
     for i in np.flatnonzero(ok.numpy()):  # pool order; the pool is already a sorted random draw
         if len(rows) >= n:
             break
         r = pool[int(i)]
         p, span = int(p_all[i]), int(l_all[i])
-        ids = toks[r["offset"] + p - span + 1 : r["offset"] + p + 1]
+        # CLAMPED at the document start (D4, fixed 2026-09-21). `p >= REALACT_P_MIN = 16` and
+        # `span <= SPAN_MAX = 64`, so `p - span + 1` is negative on a short-p / long-L draw and the
+        # unclamped slice reached up to 45 tokens back into the PREVIOUS document of the flat token
+        # array -- 21 of 512 rows on 2026-09-16_v1. The activation was never affected (it is
+        # `x[int(i)]`, read from this document's own window at position p); only the shown and
+        # scored `span_text` was, which is what autointerp and the GCG corpus init consume.
+        lo = max(r["offset"], r["offset"] + p - span + 1)
+        ids = toks[lo : r["offset"] + p + 1]
         rows.append(
             {
                 "family": "realact",
@@ -137,12 +165,20 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
                 "p": p,
                 "L": span,
                 "act_norm": round(float(nrm[int(i)]), 3),
+                # The shown span, CLAMPED at the document start: `L_shown` is what the reader
+                # actually got, which is < L whenever the draw asked for more tokens than this
+                # document has before p.
+                "L_shown": int(r["offset"] + p + 1 - lo),
                 "span_text": tok.decode([int(t) for t in ids]),
             }
         )
-        vecs.append(torch.nn.functional.normalize(x[int(i)] - mu, dim=-1))
+        n_clamped += int(r["offset"] + p - span + 1 < r["offset"])
+        # RAW: act.f32 keeps X[p] as read, vecs.f16 is unit(X[p]). Nothing is centred here.
+        acts.append(x[int(i)].clone())
+        vecs.append(torch.nn.functional.normalize(x[int(i)], dim=-1))
     assert len(rows) == n, f"realact: only {len(rows)} of {n} targets survived the norm filter"
     od.write_array("mu_512.f32", mu_512, "float32")
+    print(f"[realact] {n_clamped}/{len(rows)} spans clamped at the document start (D4)", flush=True)
     od.section(
         "Methods",
         [
@@ -158,18 +194,26 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
             f"tokens;",
             f"- the SHOWN span is `L ~ U[{SPAN_MIN}, {SPAN_MAX}]` tokens long and ends at p: "
             f"`span_text = decode(toks[p-L+1 : p+1])`;",
-            "- the target vector is `unit(X[p] - mu)` with `mu` = `stats/mu.f32`, the 64/16-window "
-            "read-layer mean of pass A. That is the ONE centring in the whole pipeline and it "
-            "happens once, here (Tomáš, 2026-09-15); every cosine against this target afterwards "
-            "is UNCENTRED and goes through `common.score_tokens`;",
+            "- the STORED vector is the RAW activation `X[p]` (`act.f32`) with "
+            "`vecs.f16 = unit(X[p])`, UNCENTRED (Tomáš, 2026-09-21). No mean is subtracted at "
+            "construction any more: a run names the mean it wants and `common.dirs_for` derives "
+            "`unit(X[p] - mu)` at read time, so this set is the same file under every convention;",
             f"- a raw-norm filter (`> 1e-3` and `<= {NORM_FILTER_MULT}x` the presample median "
             f"{med:.1f}) is applied AT SELECTION ONLY (checklist item 34), never at scoring.",
         ],
     )
     od.note(
-        f"CENTRING: the realact vectors are `unit(X[p] - stats/mu.f32)` "
-        f"({C.stats_dir(base, root)}/mu.f32, ||mu||={mu.norm():.2f}). One rule, one subtraction, "
-        "at construction only."
+        f"CENTRING: NONE IS STORED. `act.f32` is the raw `X[p]` and `vecs.f16` is `unit(X[p])`. "
+        f"The mean is named per run (`--centering`, or the checkpoint's `input.centering`) and "
+        f"applied by `common.dirs_for`; `stats/mu.f32` ({C.stats_dir(base, root)}/mu.f32, "
+        f"||mu||={mu.norm():.2f}) is one of the names in config.yaml's `mus:` block, not the rule."
+    )
+    od.note(
+        f"span_text is CLAMPED at the document start (D4, 2026-09-21): {n_clamped} of {len(rows)} "
+        f"rows had `p - L + 1 < 0` and the unclamped slice would have reached into the PREVIOUS "
+        f"document. `L_shown` is the clamped length; `L` is the length the draw asked for. The "
+        f"activation is unaffected either way -- it is read at position p of this document's own "
+        f"512-token window."
     )
     od.note(
         f"mu_512.f32 [d] is a DIAGNOSTIC: the mean read-layer activation over all {mu_n} positions "
@@ -343,6 +387,120 @@ def _leakage(cfg, args, rows, vecs, od):
     return hits
 
 
+# `--re-derive`: how close the re-forwarded direction must sit to the one stored under the old
+# convention before the two are called the same draw. MEASURED basis: the old vecs.f16 is an f16
+# round trip of a fp32 unit vector (~1e-3 per component, ~1e-6 on the cosine), so 0.9999 is two
+# orders of magnitude above the storage noise and far below a genuinely different position.
+RE_DERIVE_COS = 0.9999
+# Fields of ids.jsonl that must reproduce EXACTLY. `span_text` is checked separately (the D4 clamp
+# legitimately changes it on the rows whose slice used to run off the document's front) and
+# `L_shown` did not exist before 2026-09-21.
+RE_DERIVE_EXACT = ("family", "id", "stratum", "doc", "part", "part_row", "p", "L", "act_norm")
+
+
+def _re_derive_check(cfg, args, old_set, rows, v, a, od):
+    """`--re-derive <old set>`: assert the new RAW draw IS the old one, re-forwarded.
+
+    The claim being checked is that nothing was re-SAMPLED. It holds by construction -- the whole
+    rng stream (`sel`, `p_all`, `l_all`, `ii`, `pp`, `targets.py:81-91`) is drawn before `mu` is
+    used for anything but a print, and the acceptance filter is on the RAW norm (`:114-115`) -- so
+    the same (doc, p, L) must come back. This function is what turns "by construction" into a
+    check, and it is the only thing standing between a re-derived set and a silently different one.
+
+    Three assertions:
+      1. every field of RE_DERIVE_EXACT is identical, row for row, including the row ORDER;
+      2. `span_text` is identical except on rows where `p - L + 1 < 0`, where the new text must be
+         a SUFFIX of the old one -- that is exactly what clamping at the document start does (D4);
+      3. `cos(dirs_for(new, centering=<the old set's own mean>), old vecs.f16) > RE_DERIVE_COS`,
+         i.e. re-centring the new raw rows under the old convention reproduces the old file.
+
+    The residual risk `targets.py:92`'s GPU median leaves is stated in the README, not asserted: a
+    boundary candidate could flip on a different H200 and the (doc, p, L) tuples would then differ.
+    That costs the re-forward, not a wrong number -- assertion 1 catches it loudly.
+    """
+    import numpy as np
+
+    base, root = args["base"], args["root"]
+    old_dir = C.heldout_dir(base, old_set, root)
+    assert os.path.exists(f"{old_dir}/ids.jsonl"), (
+        f"--re-derive {old_set}: no {old_dir}/ids.jsonl on {root}; there is nothing to reproduce"
+    )
+    old_rows = C.read_jsonl(f"{old_dir}/ids.jsonl")
+    assert len(old_rows) == len(rows), (
+        f"--re-derive {old_set}: the old set has {len(old_rows)} rows and this draw made "
+        f"{len(rows)} -- the two config entries do not describe the same draw"
+    )
+    bad = []
+    clamped, suffix_ok = 0, 0
+    for i, (new, old) in enumerate(zip(rows, old_rows, strict=True)):
+        for field in RE_DERIVE_EXACT:
+            if field in old and new.get(field) != old.get(field):
+                bad.append(f"row {i} {field}: {new.get(field)!r} != {old.get(field)!r}")
+        if "span_text" not in old:
+            continue
+        if new["span_text"] == old["span_text"]:
+            continue
+        if int(new.get("p", 0)) - int(new.get("L", 0)) + 1 < 0:
+            clamped += 1
+            suffix_ok += int(old["span_text"].endswith(new["span_text"]))
+        else:
+            bad.append(f"row {i} span_text changed on an UNCLAMPED row")
+    assert not bad, (
+        f"--re-derive {old_set}: the re-derived draw is not the old draw -- "
+        f"{len(bad)} mismatches, first 5: {bad[:5]}"
+    )
+    assert suffix_ok == clamped, (
+        f"--re-derive {old_set}: {clamped - suffix_ok} of {clamped} clamped rows' new span_text is "
+        f"not a suffix of the old one; the D4 clamp only ever REMOVES leading foreign tokens"
+    )
+
+    d = cfg["bases"][base]["d"]
+    old_v = C.read_array(f"{old_dir}/vecs.f16", "float16", (len(old_rows), d)).astype(np.float32)
+    old_v /= np.maximum(np.linalg.norm(old_v, axis=1, keepdims=True), 1e-12)
+    a_np = a.numpy().astype(np.float32)
+    per_fam = {}
+    worst = 1.0
+    for fam in sorted({r["family"] for r in rows}):
+        ix = np.array([i for i, r in enumerate(rows) if r["family"] == fam])
+        name = C.mu_of_family(cfg, old_set, fam)
+        mu = None if name in (C.NO_CENTRING, C.MU_UNKNOWN) else C.mu_named(cfg, base, name, root, old_dir)
+        redone = a_np[ix] - (mu[None, :] if mu is not None else 0.0)
+        redone = redone / np.maximum(np.linalg.norm(redone, axis=1, keepdims=True), 1e-12)
+        cos = np.einsum("nd,nd->n", redone, old_v[ix])
+        per_fam[fam] = {"mu": name, "n": int(len(ix)), "min_cos": round(float(cos.min()), 8)}
+        worst = min(worst, float(cos.min()))
+        assert float(cos.min()) > RE_DERIVE_COS, (
+            f"--re-derive {old_set}: re-centring the new act.f32 under the old set's own mean "
+            f"{name!r} does not reproduce its {fam} rows -- min cos {float(cos.min()):.6f} <= "
+            f"{RE_DERIVE_COS}. Either the forward moved or the old set's recorded mean is wrong."
+        )
+    od.write_json(
+        "re_derive.json",
+        {"old_set": old_set, "old_dir": old_dir, "rows": len(rows),
+         "spans_clamped": clamped, "per_family": per_fam, "min_cos": round(worst, 8)},
+    )
+    od.section(
+        "Re-derive",
+        [
+            f"This set is `{old_set}` RE-DERIVED, not re-sampled: the same config seed and the same "
+            "family order reproduce the same rng stream, and the acceptance filter is on the raw "
+            "norm, so the same (doc, p, L) comes back. What changed is the STORAGE -- `act.f32` "
+            "plus `vecs.f16 = unit(act)` instead of a direction with a mean already subtracted.",
+            "",
+            f"- every one of {list(RE_DERIVE_EXACT)} is identical row for row, in row order;",
+            f"- `span_text` is identical except on the {clamped} rows whose slice used to run off "
+            "the document's front (D4), where the new text is a suffix of the old one;",
+            f"- re-centring the new `act.f32` under each family's own OLD mean reproduces the old "
+            f"`vecs.f16` to min cos {worst:.8f} (> {RE_DERIVE_COS}): {per_fam}.",
+            "",
+            "NOT asserted: `targets.py`'s presample median is a GPU median, so a candidate sitting "
+            "exactly on the 10x norm boundary could flip on a different H200 and change the draw. "
+            "That would fail the first check loudly and cost one re-forward, not a wrong number.",
+        ],
+    )
+    return {"old_set": old_set, "spans_clamped": clamped, "min_cos": round(worst, 8), "per_family": per_fam}
+
+
 IMPORT_FAMS = ("realact", "random", "sae")  # FAMILY_ORDER restricted to what run1's cache holds
 
 
@@ -436,7 +594,27 @@ def import_run1(cfg, args):
                 "the 2026-09 pipeline from a 16-row slice of a 2026-09-03 eval cache.",
             ],
         )
+        od.write_json(
+            "storage.json",
+            {
+                "storage": "unit",
+                "mu_stored": None,
+                # Which mean run1's archived eval cache centred `realact_dirs` on is NOT recorded
+                # anywhere we hold, so it is labelled rather than asserted: common.dirs_for returns
+                # these rows with a warning and a README label instead of a number that claims a
+                # convention. random / sae were never centred at all.
+                "family_mu": {"realact": C.MU_UNKNOWN, "random": C.NO_CENTRING, "sae": C.NO_CENTRING},
+                "note": (
+                    "imported verbatim from run1's archived eval cache; no act.f32 exists, so these "
+                    "directions cannot be moved to another mean"
+                ),
+            },
+        )
         od.note("no mu_512.f32 and no leakage.jsonl here: neither is defined for an imported set")
+        od.note(
+            "STORAGE: `unit` with realact's mean UNKNOWN -- the archived cache records no centring "
+            "convention. common.dirs_for labels these rows instead of re-deriving them."
+        )
         od.note(f"source families present in the cache: {sorted(k[:-5] for k in es if k.endswith('_dirs'))}")
     return {"out": out, "rows": len(rows), "families": {f: n for f in IMPORT_FAMS}, "source": path}
 
@@ -452,6 +630,37 @@ def run(cfg, args):
     assert base, "product targets needs --base"
     spec = cfg["bases"][base]
     hspec = cfg["heldout"][set_name]
+    # `--re-derive <old>` re-forwards an existing set under the RAW storage contract instead of
+    # re-sampling it. It is a pure VERIFICATION flag here: the draw itself is the ordinary one, so
+    # the new config entry must describe the same draw as the old -- same seed, same families, same
+    # family sizes, same sae parameters -- or the rng streams part company and "the same rows" is
+    # a claim nobody checked.
+    re_derive = (args.get("re_derive") or "").strip()
+    if re_derive:
+        assert re_derive in cfg["heldout"], (
+            f"--re-derive {re_derive!r} is not a set in config.yaml ({sorted(cfg['heldout'])})"
+        )
+        assert re_derive != set_name, (
+            f"--re-derive {re_derive!r} into itself: give --set a NEW name (the old set is read, "
+            f"never rewritten -- infra/design.md §1)"
+        )
+        old = cfg["heldout"][re_derive]
+        same = ["seed", "sae_strata", "sae_min_fires"]
+        for field in same:
+            assert hspec.get(field) == old.get(field), (
+                f"--re-derive {re_derive}: heldout.{set_name}.{field} is {hspec.get(field)!r} but "
+                f"the old set's is {old.get(field)!r}; a re-derive must describe the SAME draw"
+            )
+        assert {f: s["n"] for f, s in hspec["families"].items()} == {
+            f: s["n"] for f, s in old["families"].items()
+        }, (
+            f"--re-derive {re_derive}: the families differ ({hspec['families']} vs "
+            f"{old['families']}); the draw order and sizes set the rng stream"
+        )
+        assert hspec.get("storage") == "raw", (
+            f"--re-derive writes a RAW set, so heldout.{set_name}.storage must be `raw`, not "
+            f"{hspec.get('storage')!r}"
+        )
     fams = C.families_for(cfg, set_name, base)
     seed = int(hspec["seed"])
     sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
@@ -477,19 +686,26 @@ def run(cfg, args):
     with C.outdir(out, args, inputs=inputs) as od:
         model, tok = C.load_base(cfg, base)
         sae = C.load_sae(C.sae_path(cfg, sae_keys[0]), spec["d"], device="cuda", dtype=torch.float32)
-        rows, vecs = [], []
+        rows, vecs, acts = [], [], []
         for fam in FAMILY_ORDER:  # FIXED order: it determines the rng stream
             if fam not in fams:
                 continue
             n = int(fams[fam]["n"])
             if fam == "realact":
-                r, v = _realact(cfg, args, model, tok, toks, docs, n, rng, od)
+                r, v, a = _realact(cfg, args, model, tok, toks, docs, n, rng, od)
             elif fam == "random":
                 r, v = _random(cfg, args, n, seed)
+                a = v  # not centrable: the act.f32 row IS the direction (module docstring)
             else:
                 r, v = _sae(cfg, args, sae, n, int(hspec["sae_strata"]), int(hspec["sae_min_fires"]), rng, od)
+                a = v
+            assert not C.family_centrable(cfg, fam) or a is not v, (
+                f"family {fam!r} is `centrable` in config.yaml but its draw returned the direction "
+                f"as its own raw activation; act.f32 would then be uncentrable"
+            )
             rows += r
             vecs += v
+            acts += list(a)
             print(f"[targets] {fam}: {len(r)} rows", flush=True)
         for i, row in enumerate(rows):
             row["row"] = i
@@ -502,14 +718,24 @@ def run(cfg, args):
             )
 
         v = torch.stack(vecs).float()
+        a = torch.stack(acts).float()
         nrm = v.norm(dim=-1)
         assert torch.allclose(nrm, torch.ones_like(nrm), atol=1e-5), (
             f"held-out vectors must be unit rows; got min {nrm.min():.6f} max {nrm.max():.6f}"
         )
+        assert a.shape == v.shape, f"act.f32 is {tuple(a.shape)} but vecs.f16 is {tuple(v.shape)}"
+        # The contract in one assert: vecs.f16 IS unit(act.f32), so nothing downstream has to
+        # trust the docstring. fp32 both sides; the f16 round trip happens after this.
+        cos_av = torch.nn.functional.cosine_similarity(a, v, dim=-1)
+        assert float(cos_av.min()) > 1 - 1e-5, (
+            f"vecs.f16 is not unit(act.f32) on every row: min cos {float(cos_av.min()):.6f}"
+        )
         hits = _leakage(cfg, args, rows, vecs, od)
         ordered = [{"row": r["row"], **{k: x for k, x in r.items() if k != "row"}} for r in rows]
         od.write_jsonl("ids.jsonl", ordered)
+        od.write_array("act.f32", a, "float32")
         od.write_array("vecs.f16", v, "float16")
+        od.write_json("storage.json", C.storage_record(cfg, set_name, sorted({r["family"] for r in rows})))
         od.write_jsonl("leakage.jsonl", hits)
         od.note(
             f"rebuild: `modal run precompute/modal_app.py --product targets --base {base} "
@@ -519,10 +745,19 @@ def run(cfg, args):
             f"draw order {FAMILY_ORDER} from ONE np.random.default_rng({seed}); the random family "
             f"uses a separate torch.Generator().manual_seed({seed}) (Celeste's convention)"
         )
+        redone = _re_derive_check(cfg, args, re_derive, rows, v, a, od) if re_derive else None
         od.note("vecs.f16 rows are unit in fp32 before the cast; the f16 round-trip is ~1e-3 off unit")
+        od.note(
+            "STORAGE: `raw` (storage.json). act.f32 [N, d] fp32 is the row's vector before any "
+            "mean was subtracted and vecs.f16 is unit(act); the centring mean is named per RUN "
+            "(common.dirs_for) and never stored. fp32 rather than f16 for act.f32 because f16 "
+            "costs ~1e-3 on a norm-90 vector and the exact-solve migration of a `storage: unit` "
+            "set needs better than that."
+        )
     return {
         "out": out,
         "rows": len(rows),
         "families": {f: sum(1 for r in rows if r["family"] == f) for f in FAMILY_ORDER},
         "leakage_hits": len(hits),
+        "re_derive": redone,
     }

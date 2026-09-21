@@ -35,8 +35,9 @@ DEFAULTS = {
     "score_name": "", "no_sae": False, "no_marker_check": False, "max_num_seqs": 0,
     "gpu_mem": 0.0, "throughput": "", "stock_hook": False, "eager": False,
     "engine": "hf", "ps_layers": "", "no_ps_floor": False, "ps_tag": "",
-    "rollouts_dir": "", "corpus_name": "", "subset": "", "subset": "", "amp": "",
+    "rollouts_dir": "", "corpus_name": "", "subset": "", "amp": "",
     "ps_prompt": "", "ps_rule": "", "ps_alpha": 0.0,
+    "centering": "", "re_derive": "",
 }
 
 
