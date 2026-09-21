@@ -94,7 +94,8 @@ def main() -> None:
     ap.add_argument("--sae", default="")
     ap.add_argument("--draw", default="", help="draw_sae2m | draw_sae131k | '' to reuse the set")
     ap.add_argument("--subset", default="", help="an agreed feature list the draw takes verbatim")
-    ap.add_argument("--corpus-name", default="", help="corpora/<name> instead of corpus/")
+    ap.add_argument("--corpus-name", default="train_parity_10m",
+                    help="search corpus; default = the 10M training-parity corpus (Tomas 2026-09-21: 10M, from the training data). '' = the old 16M corpus/")
     ap.add_argument("--n", type=int, default=4, help="rollouts per target")
     ap.add_argument("--rows", default="")
     ap.add_argument("--stages", default="draw,rollouts,score,centred,scan")

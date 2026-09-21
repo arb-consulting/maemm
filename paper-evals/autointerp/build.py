@@ -54,7 +54,8 @@ import time
 import numpy as np
 
 import precompute.common as C
-from precompute.rollouts_nla import extract_explanation
+from precompute.rollouts_nla import (explanation_body, explanation_token_mask,
+                                     extract_explanation)
 
 # The held-out families whose targets ARE SAE features, so a "the feature's own activation on
 # this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
@@ -611,11 +612,16 @@ def nla_description(raw: str) -> dict:
     rather than being dropped: a silently missing description would shrink arm B's feature set
     relative to every other arm, and the comparison is paired.
     """
-    body = extract_explanation(raw)
+    # explanation_body, not extract_explanation: the old fallback handed the judge the WHOLE raw
+    # decode -- opening tag and chat preamble included -- whenever the answer ran into max_new and
+    # never closed its tag (Juan, 2026-09-21). An unclosed answer now contributes everything after
+    # its opening tag; only a decode with no tag at all is passed whole, and says so.
+    body, status = explanation_body(raw)
     return {
-        "tag_found": body is not None,
+        "tag_found": status != "none",
+        "tag_status": status,
         "n_chars": len(raw),
-        "description": (body if body is not None else raw).strip(),
+        "description": body,
     }
 
 
@@ -1084,11 +1090,37 @@ def run(cfg, args):
             roll_pool = []
             seen_text: set[str] = set()
             n_dup_roll = 0
+            nla_status: dict[str, int] = {}
+            if is_nla:
+                # Rank NLA rollouts by their peak INSIDE the <explanation> body. Ranking on the
+                # whole decode can pick a rollout for an activation on a tag or preamble token,
+                # which the explainer is then not shown.
+                body_peaks = np.zeros_like(peaks)
+                for k in range(len(rids)):
+                    ok = rids[k] >= 0
+                    m, _ = explanation_token_mask(token_pieces(tok, rids[k][ok]))
+                    a_ok = np.asarray(acts[k][ok], dtype=np.float64)[np.asarray(m, dtype=bool)]
+                    a_ok = a_ok[np.isfinite(a_ok)]
+                    body_peaks[k] = float(a_ok.max()) if a_ok.size else 0.0
+                order = np.argsort(-body_peaks, kind="stable")
             for k in order.tolist():
                 keep = rids[k] >= 0
                 if not keep.any():
                     continue
-                e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate, mark)
+                if is_nla:
+                    # Show the explainer the verbalizer's ANSWER, not its scaffolding: the
+                    # tokens of the <explanation> body only, with their activation marks kept
+                    # aligned (Juan, 2026-09-21 -- judges were getting the full NLA output).
+                    ids_k, acts_k = rids[k][keep], acts[k][keep]
+                    m, status = explanation_token_mask(token_pieces(tok, ids_k))
+                    nla_status[status] = nla_status.get(status, 0) + 1
+                    m = np.asarray(m, dtype=bool)
+                    if not m.any():
+                        continue
+                    e = render_example(tok, ids_k[m], acts_k[m], peak, gate, mark)
+                    e["tag_status"] = status
+                else:
+                    e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate, mark)
                 if e["text"] in seen_text:
                     n_dup_roll += 1
                     continue
@@ -1246,6 +1278,9 @@ def run(cfg, args):
                 "pool_c4": len(c4_pool),
                 "pool_m": len(roll_pool),
                 "n_dup_rollouts": n_dup_roll,
+                # NLA arm only: how each shown rollout's <explanation> body was found
+                # (closed / unclosed = ran into max_new / none = no tag, shown whole).
+                "nla_tag_status": nla_status,
                 "pool_mdiv": len(pools["mdiv"]) if "mdiv" in pools else 0,
                 "pool_cand": len(cand_rows),
                 "pool_cand_gated": sum(1 for e in cand_rows if float(e["max_act"]) > gate),

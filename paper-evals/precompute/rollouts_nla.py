@@ -76,11 +76,12 @@ on every row it produced.
 **DIVERGENCES from the model card's reference script** (`scripts/show_nla_generations.py`),
 deliberate and recorded in every summary:
 
-  * it decodes GREEDILY at `max_new_tokens=200`; we SAMPLE at the checkpoint's own shipped
-    `generation_config.json` constants (`do_sample true, T 1.0, top_p 0.95, top_k 20` -- all four
-    asserted against that file by `check_sidecar`). `min_new 0` is OURS: the file has no such key
-    and the NLA answer is short, so a floor would only pad it. Neither greedy nor sampled is
-    marked canonical on the card, and `n` texts per target need sampling to differ at all;
+  * it decodes GREEDILY at `max_new_tokens=200`; we SAMPLE, with the pipeline's SHARED
+    `rollouts:` constants (T 1.0, top_p 1.0, top_k off) -- the same as every MAEMM arm. The
+    checkpoint's `generation_config.json` ships top_p 0.95 / top_k 20; that is recorded on every
+    summary but NOT used (Tomas + Juan 2026-09-21): it is not a convention anywhere, and using it
+    would make this column differ from the others in two ways at once. `n` texts per target need
+    sampling to differ at all, which is why not greedy;
   * **`enable_thinking=False`, which the reference does NOT pass.**
     `nla/utils/prompts.py:build_prompt_text:12` and `scripts/show_nla_generations.py` call
     `apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)` with no
@@ -166,6 +167,62 @@ PROMPT_NAME = "nla_av"
 # ---------------------------------------------------------------------------------------------
 # pure pieces -- no torch, no transformers, no volume; all of them covered by --selftest
 # ---------------------------------------------------------------------------------------------
+
+
+def explanation_token_mask(pieces: list[str]) -> tuple[list[bool], str]:
+    """Which tokens of an NLA decode fall inside its `<explanation>` BODY, and how it was found.
+
+    The mask any LLM-judge-facing consumer uses. Juan, 2026-09-21: some judges were being handed
+    the FULL NLA output -- chat preamble, the `<explanation>` tags themselves, anything after the
+    close -- rather than the verbalizer's answer. The tags are the NLA's output FORMAT, not
+    content; an LLM judge reading them is reading scaffolding no other arm has.
+
+    Token-level rather than a string slice, because the example arm renders per-token SAE
+    activation marks and the mask has to stay aligned with them. `pieces` is one decoded string
+    per token (autointerp.build.token_pieces). A token is kept iff it lies entirely inside the
+    body, so a token straddling a tag boundary is dropped rather than half-shown.
+
+    status:
+      "closed"   `<explanation>...</explanation>` both present -- the normal case
+      "unclosed" the opening tag but no close, i.e. the answer ran into max_new. Everything after
+                 the opening tag is kept. This is the case the old fallback got wrong: it handed
+                 the judge the ENTIRE raw decode, opening tag and preamble included.
+      "none"     no opening tag at all. Every token is kept and the status says so; there is
+                 nothing to cut on, and dropping the row would shrink this arm's feature set
+                 relative to the others in a paired comparison.
+
+    The cosine score is deliberately NOT affected: it is taken over the full decode by the one
+    scoring path every product shares (see `extract_explanation`).
+    """
+    text = "".join(pieces)
+    start = text.find(EXPLANATION_OPEN)
+    if start < 0:
+        return [True] * len(pieces), "none"
+    body_lo = start + len(EXPLANATION_OPEN)
+    close = text.find(EXPLANATION_CLOSE, body_lo)
+    body_hi, status = (close, "closed") if close >= 0 else (len(text), "unclosed")
+    mask, pos = [], 0
+    for p in pieces:
+        lo, hi = pos, pos + len(p)
+        mask.append(lo >= body_lo and hi <= body_hi)
+        pos = hi
+    return mask, status
+
+
+def explanation_body(text: str) -> tuple[str, str]:
+    """(body, status) for a whole NLA decode -- the string counterpart of the token mask.
+
+    Same three statuses. Replaces the old "the body, or ALL of it" fallback, which passed an
+    unclosed decode to the judge with its opening tag and preamble intact.
+    """
+    start = text.find(EXPLANATION_OPEN)
+    if start < 0:
+        return text.strip(), "none"
+    body_lo = start + len(EXPLANATION_OPEN)
+    close = text.find(EXPLANATION_CLOSE, body_lo)
+    if close < 0:
+        return text[body_lo:].strip(), "unclosed"
+    return text[body_lo:close].strip(), "closed"
 
 
 def extract_explanation(text: str) -> str | None:
@@ -466,28 +523,20 @@ def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> dic
     assert os.path.exists(gpath), f"no {gpath}: the shipped sampling constants are part of the recipe"
     with open(gpath) as fh:
         gen = json.load(fh)
-    samp = nla["sampling"]
-    # do_sample has no config counterpart -- we always sample -- but it is asserted here because
-    # the whole justification for sampling rather than decoding greedily like the reference script
-    # is that this is what the checkpoint shipped.
-    assert gen.get("do_sample") is True, (
-        f"{gpath} says do_sample={gen.get('do_sample')!r}: this product SAMPLES, and the reason it "
-        f"does instead of following the reference script's greedy decode is that the checkpoint "
-        f"shipped do_sample true"
-    )
-    for field in ("temperature", "top_p", "top_k"):
-        assert float(gen[field]) == float(samp[field]), (
-            f"{gpath} says {field}={gen[field]}, config.yaml nla.sampling.{field}={samp[field]}: "
-            f"we sample with the checkpoint's OWN constants, so the config may not drift from them"
-        )
-    # NOT asserted, because generation_config.json has no such key: nla.sampling.min_new is OURS
-    # (config.yaml says so), and so is enable_thinking=False.
+    # RECORDED, not used (Tomas + Juan 2026-09-21). The checkpoint ships top_p 0.95 / top_k 20 in
+    # its generation_config.json, but that is not a convention anywhere -- not the NLA paper, not
+    # the model card's reference script (which decodes greedily), not our pipeline. Sampling the
+    # NLA with its own truncation while every other arm samples the full distribution would make
+    # this column differ from the MAEMM columns in TWO ways at once. So the NLA arm samples with
+    # the SHARED `rollouts:` block like everything else; what the checkpoint shipped is printed
+    # and written to the summary so the choice is visible, not silent.
+    shipped = {k: gen.get(k) for k in ("do_sample", "temperature", "top_p", "top_k")}
     print(
         f"[nla] sidecar {path}: layer {ext['layer_index']}, d {ext['d_model']}, norm "
         f"{ext['norm']!r}, marker {tokens['injection_token_id']} between "
         f"({tokens['injection_left_neighbor_id']}, {tokens['injection_right_neighbor_id']}); "
-        f"generation_config do_sample={gen['do_sample']} T={gen['temperature']} "
-        f"top_p={gen['top_p']} top_k={gen['top_k']} (min_new {samp['min_new']} is ours)",
+        f"checkpoint ships {shipped}; NOT used -- the NLA arm samples with the shared "
+        f"rollouts: block like every other arm",
         flush=True,
     )
     return side
@@ -559,9 +608,9 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         "",
         "## Sampling",
         "",
-        f"- {nla['sampling']}. `do_sample`, `temperature`, `top_p` and `top_k` come from the "
-        "checkpoint's own `generation_config.json` and are asserted against it by "
-        "`rollouts_nla.check_sidecar`; `min_new` is OURS -- that file has no such key.",
+        f"- sampling: the SHARED rollouts: block (T {samp['temperature']}, top_p {samp['top_p']}, "
+        f"top_k {samp['top_k']}) as every MAEMM arm. The checkpoint ships top_p 0.95 / top_k 20 "
+        "in generation_config.json; recorded, not used.",
         f"- max_new {nla['max_new']}: the checkpoint's NATIVE length (Tomas 2026-09-21) -- the "
         f"card's own invocation is `--max-new-tokens {nla['card_max_new']}` and that is the "
         "reference script's default too. NOT the pipeline's `rollouts.max_new`, which every MAEMM "
@@ -643,7 +692,9 @@ def run(cfg, args):
         f"--max-new {max_new} exceeds this arm's scoring window nla.score_max_tokens "
         f"{score_max_length} minus the sink: the tail would never be scored"
     )
-    samp = nla["sampling"]
+    # The SHARED sampling constants -- the same T / top_p / top_k every MAEMM arm uses.
+    samp = {"temperature": rl["temperature"], "top_p": rl["top_p"], "top_k": rl["top_k"],
+            "min_new": rl["min_new"]}
     min_new = int(samp["min_new"])
     base_seed = int(rl["seed"])
     inj_layer, coef = int(spec["inject"]["layer"]), float(spec["inject"]["coef"])

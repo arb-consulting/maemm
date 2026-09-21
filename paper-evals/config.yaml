@@ -176,12 +176,9 @@ maemms:
         <concept>{injection_char}</concept>
 
         Please provide an explanation.
-      # The checkpoint's own generation_config.json (do_sample true), asserted against the file at
-      # run time so the config cannot drift from the weights. min_new 0 is OURS: the NLA answer is
-      # short and a floor would only pad it. The reference script (scripts/show_nla_generations.py)
-      # hard-codes GREEDY instead; neither is marked canonical on the card and we need n texts per
-      # target, so we sample.
-      sampling: {temperature: 1.0, top_p: 0.95, top_k: 20, min_new: 0}
+      # SAMPLING: the shared `rollouts:` block, like every MAEMM arm (Tomas + Juan 2026-09-21).
+      # The checkpoint ships top_p 0.95 / top_k 20 in generation_config.json; that is not a
+      # convention anywhere and is recorded on the summary but NOT used. No nla.sampling key.
       # Tomas 2026-09-21: the NLA arm generates at the checkpoint's NATIVE length. That is what the
       # model card's own invocation uses and what the verbalizer's <explanation> answers are shaped
       # like; cutting them at the pipeline's 64 would report this baseline on a fraction of its

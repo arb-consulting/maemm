@@ -35,7 +35,8 @@ and chose `replace` x2 over MAEMM's norm-matched `add` -- the base was never tra
 added direction. Those choices are carried over rather than re-screened (trial README §8.1); the
 target LAYER is the only axis swept here, because it is the one whose transfer is a relative-depth
 guess: the 8B's winner was layer **8 of 36 = 22.2%** depth, and the 27B has **64** layers, so
-`PS_LAYERS = (8, 14, 21)` = **12.5% / 21.9% / 32.8%** brackets it.
+8 / 14 / 21 = **12.5% / 21.9% / 32.8%** bracket it. The default sweep also carries **42**,
+the read layer every other method gets its activation from (see PS_LAYERS).
 
 **The floor shares its texts.** The floor arm generates `n` continuations of the prompt ONCE and
 writes one row per (direction, k) carrying the k-th shared text, because every direction must be
@@ -92,8 +93,12 @@ PROMPT_ID = "P2_description"
 P1_TEXT = "cat -> cat; 1135 -> 1135; hello -> hello; ? -> x"
 PROMPTS = {"P2_description": P2_TEXT, "P1_identity": P1_TEXT}
 # The 8B winner was layer 8 of 36 (22.2% depth) with `replace` at alpha 2. On the 27B's 64 layers
-# these are 12.5% / 21.9% / 32.8%: one below, one at, one above the 8B's relative depth.
-PS_LAYERS = (8, 14, 21)
+# 8 / 14 / 21 are 12.5% / 21.9% / 32.8%: one below, one at, one above the 8B's relative depth --
+# the PAPER's tuned regime. 42 is added (Tomas + Ari 2026-09-21) as the FAIR-INFORMATION cell: it is
+# the read layer, i.e. the layer every other method -- our MAEMMs and the NLA -- is handed its
+# activation from. One shared sweep over both means nobody can say we skipped the paper's tuned
+# mode, and nobody can say we gave Patchscopes less than we gave the others. Report every layer.
+PS_LAYERS = (8, 14, 21, 42)
 PS_ALPHA = 2.0
 PS_RULE = "replace"
 ENGINE = "hf-patchscope"
