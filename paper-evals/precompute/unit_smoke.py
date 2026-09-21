@@ -1451,6 +1451,51 @@ def check_set_on_disk():
             raise AssertionError("check accepted a `storage: raw` set with no act.f32")
 
 
+def check_csr_gate_floor():
+    """`sae_self._csr_at_argmax` tolerates the f16 STORAGE cast and nothing wider.
+
+    `score` selects CSR entries with `a > gate` in fp32 and stores `a` as float16. Round-to-
+    nearest puts every fp32 value just above the gate onto the f16 value NEAREST the gate, which
+    for the 2M checkpoint's gate 1.682811975479126 is 1.6826171875 -- BELOW it. A correct write
+    therefore reads back under the gate, and the original assert (`> gate`) failed on the cast.
+    MEASURED: it killed a paid `sae_self` on `rl-last16` x `2026-09-21_v3_sae2m` after the
+    forward, with 8,023 of 9,855,412 entries at that one value and no other value under the gate.
+
+    Both directions are the check: the storage floor must PASS, and a value a hair below it --
+    which no cast can produce, so it means the wrong dictionary or the wrong gate -- must FAIL.
+    """
+    import numpy as np
+
+    from autointerp.sae_self import _csr_at_argmax
+
+    gate = 1.682811975479126
+    floor = float(np.float16(gate))
+    assert floor < gate, "this check is vacuous unless float16(gate) really is below the gate"
+
+    with tempfile.TemporaryDirectory() as td:
+        def write(vals):
+            C.write_array(f"{td}/sae_off.i64", np.arange(len(vals) + 1, dtype=np.int64), "int64")
+            C.write_array(f"{td}/sae_idx.i32", np.full(len(vals), 7, dtype=np.int32), "int32")
+            C.write_array(f"{td}/sae_val.f16", np.asarray(vals, dtype=np.float16), "float16")
+
+        # what the cast really produces for activations just above the gate
+        stored = [float(np.float16(gate + d)) for d in (1e-6, 1e-5, 1e-4)]
+        assert set(stored) == {floor}, f"expected the cast to land on {floor}, got {stored}"
+        write(stored)
+        val, has = _csr_at_argmax(td, len(stored), 1, list(range(len(stored))), [7] * len(stored), gate)
+        assert has.all() and abs(float(val.min()) - floor) < 1e-9, (val, has)
+
+        # one f16 tick below the floor is NOT reachable by the cast: it must still trip
+        bad = float(np.nextafter(np.float16(floor), np.float16(0)))
+        write([floor, bad])
+        try:
+            _csr_at_argmax(td, 2, 1, [0, 1], [7, 7], gate)
+        except AssertionError as e:
+            assert "below float16" in str(e), f"wrong assert text: {e}"
+        else:
+            raise AssertionError("a CSR entry below the f16 storage floor was accepted")
+
+
 def check_heldout_v3_ours_block():
     """`heldout_v3 --block ours` copies a CENTRABLE family, and only out of a raw source.
 
@@ -1844,6 +1889,7 @@ CHECKS = [
     check_heldout_v3_recovery,
     check_set_on_disk,
     check_heldout_v3_ours_block,
+    check_csr_gate_floor,
     check_sae_column_reader,
     check_spawn_mirrors_main,
     check_return_arities,

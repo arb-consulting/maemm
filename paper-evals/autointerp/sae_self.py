@@ -156,8 +156,29 @@ def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, g
         if j < hi - lo and int(idx[lo + j]) == feat:
             out_has[i] = True
             out_val[i] = float(val[lo + j])
-    assert not out_has.any() or float(out_val[out_has].min()) > gate, (
-        "the stored CSR holds an entry at or below the gate, which score.py cannot have written"
+    # THE BOUND IS THE GATE AS FLOAT16, NOT THE GATE. `score` selects with `a > gate` in fp32
+    # (score.py:91) and then stores `a` as float16 (`sae_val.f16`). Round-to-nearest maps every
+    # fp32 value just above the gate onto the f16 value NEAREST the gate, which on this
+    # checkpoint is 1.6826171875 -- 1.95e-04 BELOW the fp32 gate 1.682811975479126. So a
+    # correctly written entry can read back at or under the gate, and comparing the stored f16
+    # against the fp32 gate fails on the storage cast rather than on anything score did.
+    #
+    # MEASURED 2026-09-21 on `rl-last16` x `2026-09-21_v3_sae2m`: 8,023 of 9,855,412 CSR entries
+    # (0.08%) sit at exactly 1.6826171875, and that is the ONLY value at or below the gate in the
+    # whole array -- one distinct value, which is the signature of a cast and not of a data error
+    # (a wrong dictionary or a wrong gate would give a spread). `sae_self` inspects only the
+    # target feature at the argmax, a few thousand of those ~10M entries, so whether the assert
+    # fires is luck: the same call passed on the old primary and on the NLA arm.
+    #
+    # The check still has teeth. Anything materially below the gate -- the wrong dictionary, the
+    # wrong gate, a misaligned CSR -- lands far under this bound and still trips it. What is
+    # given up is exactly the half-ulp of the storage format, which carries no information.
+    floor = float(np.float16(gate))
+    assert not out_has.any() or float(out_val[out_has].min()) >= floor, (
+        f"the stored CSR holds an entry below float16({gate:.12f}) = {floor:.10f}, which "
+        f"score.py cannot have written: it selects on `a > gate` in fp32 and stores a as f16, so "
+        f"the smallest value that can come back is the f16 nearest the gate. Got "
+        f"{float(out_val[out_has].min()):.10f}. A wrong dictionary or a wrong gate looks like this."
     )
     return out_val, out_has
 
