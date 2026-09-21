@@ -4103,3 +4103,56 @@ The bash retry of the 09-21 production run, unchanged in shape: retry only on a 
 network error, at most 3 times, stop loudly on anything else, and never retry an "already exists"
 (which is a product that LANDED). Self-tested on a deliberate bad `--maemm` before use — one
 attempt, loud stop, no container started.
+## 2026-09-21 — EPO on the 2M SAE: the run, and what it found
+
+`--mode epo --init random32 --rows <the 16> --seq-len 32`, 16 directions x 300 iterations,
+**14,373.5 s = 4.0 h, $18.1265, $1.1329/direction** — against the corrected projection of $19.45
+and the file's own recorded 934-1004 gpu-s/direction. Product:
+`base/qwen36-27b/gcg/2026-09-21_sae2m_64/sae/epo-random32/`.
+
+| quantity | value |
+|---|---|
+| mean final cosine to the encoder column | **0.0167** (from init 0.0072) |
+| per-direction finals | 0.0125 - 0.0396 |
+| mean pre-gate activation on the finals | **0.3803** |
+| gate | **1.682812** |
+| **finals that make their feature FIRE** | **0 of 48** (`frac_fired: 0.0`) |
+| peak activation, min / median / max | 0.0000 / 0.1070 / 1.6429 |
+
+**This is the reachability result the plan wanted, and it is a strong negative.** Four GPU-hours of
+evolutionary prompt optimisation against the encoder column of a 2M-feature SAE moved the cosine
+from 0.007 to 0.017 and produced **not one** 32-token string that makes its feature fire. The
+highest single peak, 1.6429, sits just under the gate. Whatever these features respond to, a
+random-init 32-token search does not find it — which bounds what any generated-text method can be
+expected to reach on this dictionary, and is consistent with every MAEMM arm sitting near chance
+on the 2M block.
+
+---
+
+## 2026-09-21 — NLA arm A reads the explanation body (Juan's review), before and after
+
+Arm B stripped the verbalizer's `<explanation>` tags and arm A did not, so the two NLA arms read
+different text from one rollout. Fixed in d95dd94; rebuilt under relative marking on both SAEs and
+rerun (**$1.3492 + $1.3764 = $2.7256**). `n_nla_body_missing` is **0 on both SAEs** — every rollout
+had a closed tag, so no feature fell back to the full decode.
+
+Paired per feature, 20,000-resample percentile bootstrap, `after - before`:
+
+| block | arm | scorer | before | after | Δ [95% CI] | moved/n |
+|---|---|---|---|---|---|---|
+| 2M | `NLA` | detection | 0.5227 | 0.5276 | +0.0049 [−0.0193, +0.0273] | 20/32 |
+| 2M | `NLA` | fuzzing | 0.5172 | 0.5164 | −0.0007 [−0.0184, +0.0156] | 18/32 |
+| 131k | `NLA` | detection | 0.6719 | 0.6500 | **−0.0219 [−0.0419, −0.0033]** | 17/30 |
+| 131k | `NLA` | fuzzing | 0.6216 | 0.6531 | **+0.0315 [+0.0050, +0.0606]** | 20/30 |
+| both | `NLA-desc`, `DOCMAX` | both | — | — | **+0.0000 [+0.0000, +0.0000]** | **0/n** |
+
+**The controls are exact**, which is what makes the rest readable: every arm that does not consume
+NLA rollout text is unchanged to the last digit on every feature, so only arm A moved.
+
+**On the 131k the two scorers move in OPPOSITE directions and both intervals exclude zero** —
+detection down 0.022, fuzzing up 0.032, on the same descriptions and the same test items. That is
+not noise and it is not explained here. The two scorers differ in what they show (`text` against
+`text_fuzz`, marks at the gate) and in their few-shot regime (detection has Delphi's three verbatim
+shots, fuzzing on `legacy` runs zero-shot), so a change in the explainer's INPUT can plausibly help
+one and hurt the other — but that is a hypothesis, not a finding. On the 2M neither interval clears
+zero. **Flagged as unresolved.**
