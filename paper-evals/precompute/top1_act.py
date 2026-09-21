@@ -93,11 +93,9 @@ def run(cfg, args):
     spec = cfg["bases"][base]
     read_layer, d = spec["read_layer"], spec["d"]
     batch_rows = int(args.get("batch") or BATCH)
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(sae_keys) == 1, f"base {base} has {len(sae_keys)} SAEs in config, expected exactly 1"
-    sae_key = sae_keys[0]
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 
-    ex_dir = f"{C.sae_dir(sae_key, root)}/examples"
+    ex_dir = C.sae_examples_dir(sae_key, set_name, root)
     out = f"{C.sae_dir(sae_key, root)}/top1_act/{set_name}"
     assert args.get("force") or not os.path.exists(out), (
         f"{out} already exists; refusing to overwrite without --force"

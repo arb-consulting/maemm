@@ -1304,13 +1304,22 @@ def run(cfg, args):
     )
 
     sae_ctx = None
-    if family == "sae":
-        sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-        assert len(sae_keys) == 1, (
-            f"base {base} has {len(sae_keys)} SAEs in config.yaml ({sae_keys}); the `sae` family's "
-            f"feature ids belong to exactly one of them"
+    if family in C.SAE_FAMILIES:
+        # WHICH dictionary the `sae` family's feature ids index: --sae, or the base's only SAE.
+        # A set carrying two dictionaries under one family label must also RESTRICT the rows --
+        # `--family sae --rows 0-7` would otherwise be the first eight rows of both, and a feature
+        # id of the other dictionary is a valid index into this one.
+        sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+        keyed = {r["row"] for r in C.sae_rows_of(rows_meta, sae_key, (family,))}
+        crossed = sorted(set(sel) - keyed)
+        assert not crossed, (
+            f"--family {family} --rows {args.get('rows') or 'all'} selected {len(crossed)} rows "
+            f"that are NOT features of --sae {sae_key} (first 8: {crossed[:8]}). This set carries "
+            f"dictionaries "
+            f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows_meta if r['family'] == family})}; "
+            f"give --rows the local range of the one you mean."
         )
-        sae_ctx = {"key": sae_keys[0], "feature_id": None}
+        sae_ctx = {"key": sae_key, "feature_id": None}
 
     init_ctx: dict = {}
     if a["init"] == "corpus":

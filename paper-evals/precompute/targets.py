@@ -262,7 +262,12 @@ def _training_features(cfg, base):
 
 
 def _sae(cfg, args, sae, n, strata, min_fires, rng, od):
-    """Density-stratified feature draw from the pass-A fire counts at the LARGEST corpus size."""
+    """Density-stratified feature draw from the pass-A fire counts at the LARGEST corpus size.
+
+    Every row carries `sae_key`, because a feature index means nothing without the dictionary it
+    indexes: id 4242 of the 131k `l42-1b` and of the 2M `sae2m` are unrelated directions, and both
+    are valid indices into the larger one. features/draw_sae2m.py set the precedent.
+    """
     base, root = args["base"], args["root"]
     sae_key = args["sae_key"]
     sdir = C.sae_dir(sae_key, root)
@@ -304,6 +309,7 @@ def _sae(cfg, args, sae, n, strata, min_fires, rng, od):
             rows.append(
                 {
                     "family": "sae",
+                    "sae_key": sae_key,
                     "id": int(fid),
                     "stratum": int(q),
                     "density": float(fires_g[fid] / scanned),
@@ -663,12 +669,14 @@ def run(cfg, args):
         )
     fams = C.families_for(cfg, set_name, base)
     seed = int(hspec["seed"])
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(sae_keys) == 1, f"base {base} has {len(sae_keys)} SAEs in config, expected exactly 1"
-    args["sae_key"] = sae_keys[0]
+    # WHICH SAE the `sae` family's feature ids belong to. `qwen36-27b` has carried two since
+    # sae2m; common.sae_key_for is the one rule (explicit --sae wins, a single-SAE base needs none,
+    # two SAEs and no flag is refused rather than guessed).
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    args["sae_key"] = sae_key
 
     toks, docs = C.load_corpus(base, root)
-    sizes_json = f"{C.sae_dir(sae_keys[0], root)}/sizes.json"
+    sizes_json = f"{C.sae_dir(sae_key, root)}/sizes.json"
     assert os.path.exists(sizes_json), (
         f"{sizes_json} is missing: run `--product stats --base {base}` first, the sae family is "
         f"drawn from its fire counts"
@@ -678,14 +686,19 @@ def run(cfg, args):
     out = C.heldout_dir(base, set_name, root)
     inputs = {
         "corpus": C.corpus_dir(base, root),
-        "sae": C.sae_dir(sae_keys[0], root),
+        "sae": C.sae_dir(sae_key, root),
         "mu (centring)": f"{C.stats_dir(base, root)}/mu.f32",
         "seed": seed,
         "families": {f: s["n"] for f, s in fams.items()},
     }
     with C.outdir(out, args, inputs=inputs) as od:
         model, tok = C.load_base(cfg, base)
-        sae = C.load_sae(C.sae_path(cfg, sae_keys[0]), spec["d"], device="cuda", dtype=torch.float32)
+        # ENCODER ONLY: the `sae` family's direction is unit(W_enc[:, f]) (common.sae_dirs) and the
+        # draw reads fire counts off the stats product; nothing here touches W_dec, which at 2^21
+        # features is another 43 GB in fp32.
+        sae = C.load_sae(
+            C.sae_path(cfg, sae_key), spec["d"], device="cuda", dtype=torch.float32, need_decoder=False
+        )
         rows, vecs, acts = [], [], []
         for fam in FAMILY_ORDER:  # FIXED order: it determines the rng stream
             if fam not in fams:

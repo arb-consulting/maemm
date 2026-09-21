@@ -341,20 +341,10 @@ def run(cfg, args):
     base, root = args["base"], args["root"]
     assert base, "product stats needs --base"
     spec = cfg["bases"][base]
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    # A base may carry more than one SAE since 2026-09-20 (qwen36-27b has l42-1b and the
-    # 2M sae2m). Pick with --sae; the single-SAE case keeps its old no-argument behaviour.
-    if args.get("sae"):
-        sae_key = args["sae"] if "/" in args["sae"] else f"{base}/{args['sae']}"
-        assert sae_key in sae_keys, (
-            f"--sae {args['sae']!r} is not an SAE of base {base}; have {sae_keys}"
-        )
-    else:
-        assert len(sae_keys) == 1, (
-            f"base {base} has {len(sae_keys)} SAEs in config ({sae_keys}); "
-            f"pass --sae to say which"
-        )
-        sae_key = sae_keys[0]
+    # ONE --sae syntax in the whole CLI: common.sae_key_for. The inline copy that lived here (and
+    # in scan.py) accepted a bare `sae2m` while every other product's --sae required the full
+    # `<base>/<name>` key -- two syntaxes for one flag, which is a thing a reader gets right once.
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 
     # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
     # ladder or window geometry is a different corpus, never an edit of one.

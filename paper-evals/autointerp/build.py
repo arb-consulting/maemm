@@ -63,7 +63,7 @@ from precompute.rollouts_nla import (explanation_body, explanation_token_mask,
 # encoder columns -- a different dictionary and a different draw, but the same KIND of target
 # (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
 # rather than collapsed to one name because a set can carry both and the labels are provenance.
-FAMILIES = ("sae", "sae2m_enc")
+FAMILIES = C.SAE_FAMILIES
 # Delphi lists at most this many activating tokens per example (facts §3, explainer.py).
 MAX_SHOWN_ACTS = 10
 BANDS = ("q0", "q1", "q2", "q3")
@@ -898,7 +898,7 @@ def run(cfg, args):
     # score._sae_for and sae_self._sae_rows: build reads THEIR outputs, so it must resolve the
     # same key they did or it would render examples for one dictionary from another's scan.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
-    ex_dir = f"{C.sae_dir(sae_key, root)}/examples"
+    ex_dir = C.sae_examples_dir(sae_key, set_name, root)
     # `scan`'s 16M product: `<feature>.jsonl` with the top-k AND the q-band rows, plus the
     # per-token activations of each. It does not exist for every SAE -- the 2M one would cost a
     # ~$9 scan to make -- and when it is absent BOTH things it feeds have to come from somewhere
@@ -929,10 +929,15 @@ def run(cfg, args):
     self_dir = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
 
     rows_meta = C.read_jsonl(f"{hdir}/ids.jsonl")
-    sae_rows = [r for r in rows_meta if r["family"] in FAMILIES]
+    # On the ROW's own sae_key, not on the family label -- see common.sae_rows_of. With two
+    # dictionaries under one `family: sae` label, the family-only filter renders the 131k arm from
+    # the 2M scan and nothing raises.
+    sae_rows = C.sae_rows_of(rows_meta, sae_key, FAMILIES, side="enc")
     assert sae_rows, (
-        f"{hdir}/ids.jsonl has no rows in any of the SAE families {FAMILIES}; it carries "
-        f"{sorted({r['family'] for r in rows_meta})}"
+        f"{hdir}/ids.jsonl has no encoder rows of dictionary {sae_key!r} in the SAE families "
+        f"{FAMILIES}; it carries families {sorted({r['family'] for r in rows_meta})} and "
+        f"dictionaries "
+        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows_meta if r['family'] in FAMILIES})}"
     )
     picked = draw_features(sae_rows, n_feat, feat_seed)
     if args.get("rows"):

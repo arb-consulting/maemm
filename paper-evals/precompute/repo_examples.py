@@ -270,16 +270,22 @@ def run(cfg, args):
     assert base, "product repo_examples needs --base"
     spec = cfg["bases"][base]
     read_layer, d = spec["read_layer"], spec["d"]
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(sae_keys) == 1, f"base {base} has {len(sae_keys)} SAEs in config, expected exactly 1"
-    sae_key = sae_keys[0]
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows_meta = C.read_jsonl(f"{src}/ids.jsonl")
     # `id` is the field targets.py writes for the sae family (the SAE feature id); `row` is the
     # index into vecs.f16. Both are read by name so a renamed field fails loudly here.
-    sel = [r for r in rows_meta if r["family"] == "sae"]
-    assert sel, f"{src}/ids.jsonl has no rows in the `sae` family; nothing to take repo windows for"
+    # Encoder rows of THIS dictionary only (common.sae_rows_of): the assert below compares
+    # vecs.f16 against unit(W_enc[:, f]) of `sae_key`, so a row belonging to another dictionary --
+    # or a `sae_side: dec` row, whose direction is a decoder row and not an encoder column --
+    # would fail it for a reason that is not a drift.
+    sel = C.sae_rows_of(rows_meta, sae_key, side="enc")
+    assert sel, (
+        f"{src}/ids.jsonl has no encoder rows of dictionary {sae_key!r}; nothing to take repo "
+        f"windows for (it carries dictionaries "
+        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows_meta if r['family'] in C.SAE_FAMILIES})})"
+    )
     feats = [int(r["id"]) for r in sel]
     assert len(set(feats)) == len(feats), "the sae family repeats a feature id"
     # The `sae` rows this product scores are not centrable at all (an encoder column has no mean),
@@ -327,9 +333,12 @@ def run(cfg, args):
     enc = C.sae_dirs(sae, feats).cpu()
     dot = (dirs_f * enc).sum(-1)
     dmax = float((dirs_f - enc).abs().max())
+    # Only `sae_side: enc` rows reach here (the selector above), which is what makes this
+    # comparison meaningful: a decoder row's direction is W_dec[f], not unit(W_enc[:, f]).
     assert float(dot.min()) > 1 - 1e-3, (
-        f"held-out vecs.f16 disagrees with unit(W_enc[:, f]) on at least one tested feature: "
-        f"min cosine {float(dot.min()):.6f} < 1 - 1e-3 (max |elementwise diff| {dmax:.2e})"
+        f"held-out vecs.f16 disagrees with unit(W_enc[:, f]) on at least one tested ENCODER "
+        f"feature of {sae_key}: min cosine {float(dot.min()):.6f} < 1 - 1e-3 (max |elementwise "
+        f"diff| {dmax:.2e})"
     )
 
     ids_t, acts_t, info = _load_windows(cfg, sae_key, tok, feats)

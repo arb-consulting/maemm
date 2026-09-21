@@ -172,19 +172,10 @@ def run(cfg, args):
     spec = cfg["bases"][base]
     read_layer, d = spec["read_layer"], spec["d"]
     batch_rows = int(args.get("batch") or 256)
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    # As stats.py: a base may carry more than one SAE since 2026-09-20. --sae picks.
-    if args.get("sae"):
-        sae_key = args["sae"] if "/" in args["sae"] else f"{base}/{args['sae']}"
-        assert sae_key in sae_keys, (
-            f"--sae {args['sae']!r} is not an SAE of base {base}; have {sae_keys}"
-        )
-    else:
-        assert len(sae_keys) == 1, (
-            f"base {base} has {len(sae_keys)} SAEs in config ({sae_keys}); "
-            f"pass --sae to say which"
-        )
-        sae_key = sae_keys[0]
+    # ONE --sae syntax in the whole CLI: common.sae_key_for, which takes a full `<base>/<name>`
+    # key and refuses a bare name. This file and stats.py each carried an inline copy that DID
+    # accept a bare `sae2m`, so the same flag meant two things depending on the product.
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 
     # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
     # ladder or window geometry is a different corpus, never an edit of one.
@@ -194,20 +185,32 @@ def run(cfg, args):
     cen_notes: list[str] = []
     rows, v, (t_doc, t_lo, t_hi) = _load_targets(cfg, args, notes=cen_notes)
     n = len(rows)
-    tested = [int(r["id"]) for r in rows if r["family"] == "sae"]
-    tested_row = [r["row"] for r in rows if r["family"] == "sae"]
+    # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
+    # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
+    # encoder, silently (common.sae_rows_of).
+    sae_sel = C.sae_rows_of(rows, sae_key)
+    tested = [int(r["id"]) for r in sae_sel]
+    tested_row = [r["row"] for r in sae_sel]
     n_feat = len(tested)
 
     out_scan = C.scan_dir(base, set_name, root)
-    out_ex = f"{C.sae_dir(sae_key, root)}/examples"
+    # KEYED BY SET (B9, 2026-09-21). `examples/` used to be keyed by SAE alone, so a second scan of
+    # the same dictionary against a different held-out set refused without --force and DESTROYED
+    # the first set's examples with it -- and the eval plan runs three scans on sae2m. The scan
+    # half was already set-keyed (C.scan_dir); this is the other half.
+    out_ex = C.sae_examples_dir(sae_key, set_name, root, write=True)
     for p in (out_scan, out_ex):
         assert args.get("force") or not os.path.exists(p), (
             f"{p} already exists; refusing to overwrite without --force"
         )
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
-                     need_decoder=False)  # W_dec is 43 GB at 2^21 features and unused here
+    # ENCODER ONLY (D3): everything below reads b_dec, W_enc, b_enc and threshold -- the tested
+    # columns at :200-201 and the gate. W_dec is 43 GB in fp32 at 2^21 features, which is the
+    # difference between fitting an H200 beside the 27B and not. stats.py:379 already had this.
+    sae = C.load_sae(
+        C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False
+    )
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
     w_enc = sae.W_enc[:, torch.as_tensor(tested, device="cuda")].contiguous() if n_feat else None

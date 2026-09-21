@@ -84,15 +84,29 @@ def _avg_rank(v):
     return ranks
 
 
-def _sae_key(cfg: dict, base: str) -> str:
+def _sae_key(cfg: dict, base: str, want: str = "") -> str:
+    """WHICH SAE of `base`: `--sae` when given, else the single one -- refusing to guess with two.
+
+    This is `common.sae_key_for`'s rule, restated rather than imported: this file is a standalone
+    `uv run` script with its own dependency block and no paper-evals on sys.path, so it reads
+    config.yaml with plain yaml and cannot call into precompute/. The message names the options.
+    """
     keys = [k for k in cfg["saes"] if k.split("/", 1)[0] == base]
-    assert len(keys) == 1, f"base {base} has {len(keys)} SAEs in config.yaml, expected exactly 1"
+    assert keys, f"base {base} has no SAE in config.yaml"
+    want = (want or "").strip()
+    if want:
+        assert want in keys, f"--sae {want!r} is not one of base {base}'s SAEs {sorted(keys)}"
+        return want
+    assert len(keys) == 1, (
+        f"base {base} has {len(keys)} SAEs in config.yaml ({sorted(keys)}), so nothing can pick "
+        f"one for you: pass --sae <base>/<name>"
+    )
     return keys[0]
 
 
-def _rows_for_base(vol: Vol, cfg: dict, base: str, tol: float) -> tuple[list[dict], dict]:
+def _rows_for_base(vol: Vol, cfg: dict, base: str, tol: float, sae_want: str = "") -> tuple[list[dict], dict]:
     """The CSV rows for one base, plus that base's own summary dict. Raises on any disagreement."""
-    sae = _sae_key(cfg, base)
+    sae = _sae_key(cfg, base, sae_want if sae_want.split("/", 1)[0] == base else "")
     sae_dir = f"base/{base}/sae/{sae.split('/', 1)[1]}"
     recs = vol.jsonl(f"{sae_dir}/top1_act/{SET}/top1_act.jsonl")
     assert recs, (
@@ -181,6 +195,7 @@ def main(
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
     data_dir: Annotated[Path | None, typer.Option(help="override reconstruction/data/<root-tag>")] = None,
     tol: Annotated[float, typer.Option(help="max relative examples-join vs forward disagreement")] = 5e-2,
+    sae: Annotated[str, typer.Option(help="which SAE, as `<base>/<name>`; needed when a base has two")] = "",
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ):
     cfg = yaml.safe_load((PAPER_EVALS / "config.yaml").read_text())
@@ -188,7 +203,7 @@ def main(
 
     rows, summaries = [], {}
     for base in BASES:
-        r, s = _rows_for_base(vol, cfg, base, tol)
+        r, s = _rows_for_base(vol, cfg, base, tol, sae)
         rows += r
         summaries[base] = s
 

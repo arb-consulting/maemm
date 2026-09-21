@@ -850,6 +850,41 @@ def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
     return keys[0]
 
 
+# The family labels whose target IS an SAE feature (row["id"] is a feature index). `sae` is what
+# every draw writes since 2026-09-21; `sae2m_enc` is the label the 2,000-row 2026-09-20 set carries
+# and is accepted for it rather than rewritten in place.
+SAE_FAMILIES = ("sae", "sae2m_enc")
+
+
+def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = ""):
+    """The rows of `rows` whose target is a feature of dictionary `sae_key`.
+
+    THE FAMILY LABEL IS NOT ENOUGH. Since 2026-09-21 a set may carry two dictionaries under one
+    `family: sae` label, told apart by the per-row `sae_key` that features/draw_sae2m.py writes --
+    and a feature index is meaningless without it: every id below 131,072 is a valid index into a
+    2^21 encoder, so selecting on the family alone looks up the 131k block's ids in the 2M
+    dictionary and scores 512 WRONG features with nothing raising. That is the failure this
+    function exists to make impossible.
+
+    `r.get("sae_key", sae_key) == sae_key` is a no-op on every set drawn before the field existed
+    (they carry one dictionary and no key), and correct on every set drawn after it.
+
+    `side` filters the encoder/decoder axis (`sae_side`, NOT draw_sae2m's `side`, which is the
+    fit/report split of OUR analysis and a different axis entirely). A row with no `sae_side`
+    predates decoder rows and counts as `enc`.
+    """
+    out = []
+    for r in rows:
+        if r["family"] not in families:
+            continue
+        if r.get("sae_key", sae_key) != sae_key:
+            continue
+        if side and r.get("sae_side", "enc") != side:
+            continue
+        out.append(r)
+    return out
+
+
 def stats_mu(cfg: dict, base: str, root: str = VOL):
     """`stats/mu.f32` [d] as a float32 numpy array -- OUR 64/16-window read-layer mean.
 
@@ -902,6 +937,32 @@ def scan_dir(base: str, set_name: str, root: str = VOL) -> str:
 def sae_dir(sae_key: str, root: str = VOL) -> str:
     base, name = split_key(sae_key, "sae")
     return f"{base_dir(base, root)}/sae/{name}"
+
+
+def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool = False) -> str:
+    """`<root>/base/<base>/sae/<sae>/examples/<set>` -- `scan`'s per-feature activation windows.
+
+    KEYED BY SET since 2026-09-21 (B9). It used to be `examples/` keyed by the SAE alone, so a
+    second `scan` of the same dictionary against a different held-out set refused without --force
+    and destroyed the first set's examples with it; the eval plan runs three scans on `sae2m`.
+
+    A READER (`write=False`) falls back to the legacy unkeyed directory when the set-keyed one does
+    not exist, so the products already on the volume stay readable and say which layout they found.
+    A WRITER always writes the set-keyed path.
+    """
+    keyed = f"{sae_dir(sae_key, root)}/examples/{set_name}"
+    if write:
+        return keyed
+    legacy = f"{sae_dir(sae_key, root)}/examples"
+    if not os.path.exists(keyed) and os.path.exists(f"{legacy}/tested.json"):
+        print(
+            f"[examples] {keyed} is absent; reading the LEGACY unkeyed {legacy} (written before "
+            f"2026-09-21, when examples/ gained a set component). Which set it was scanned against "
+            f"is not recorded in its path -- check its README.",
+            flush=True,
+        )
+        return legacy
+    return keyed
 
 
 def repo_examples_dir(sae_key: str, set_name: str, root: str = VOL) -> str:

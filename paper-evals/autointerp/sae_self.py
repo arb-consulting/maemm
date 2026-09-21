@@ -49,7 +49,7 @@ SCORE_ROWS = 256
 # encoder columns -- a different dictionary and a different draw, but the same KIND of target
 # (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
 # rather than collapsed to one name because a set can carry both and the labels are provenance.
-FAMILIES = ("sae", "sae2m_enc")
+FAMILIES = C.SAE_FAMILIES
 # Largest cosine gap at which a disagreement with the stored `argmax.i16` is accepted as
 # right-padding noise rather than a different run. MEASURED 2026-09-16 (see CHECK 1 below): the
 # real gaps are ~1e-5 while a genuinely different token is 1e-2 to 1e-1 away, so 1e-3 separates
@@ -101,23 +101,32 @@ class _SelfAct:
 
 
 def _sae_rows(cfg, args):
-    """(rows_meta, sae rows of the set, their feature ids, the SAE key)."""
+    """(rows_meta, sae rows of the set, their feature ids, the SAE key).
+
+    The selector filters on the ROW's own `sae_key`, not on the family label. A set can carry two
+    dictionaries under one `family: sae` label (features/draw_sae2m.py writes the key per row), and
+    every feature id below 131,072 is a VALID index into a 2^21 encoder -- so the family-only
+    filter would look the 131k block's ids up in the 2M dictionary and score 512 wrong features
+    with nothing raising. `common.sae_rows_of` is the rule, applied where the key is resolved.
+
+    Decoder rows are skipped: this stage cross-checks its activations against `vecs.f16`, which is
+    the ENCODER column, and the activation of feature f is its encoder readout whichever direction
+    was injected. The `sae_side: dec` block is scored by `score`, not here.
+    """
     base, root, set_name = args["base"], args["root"], args["heldout"]
     rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
-    sel = [r for r in rows if r["family"] in FAMILIES]
-    assert sel, (
-        f"held-out set {set_name!r} on {base} has no rows in any of the SAE families {FAMILIES}; "
-        f"it carries {sorted({r['family'] for r in rows})}"
-    )
     # WHICH SAE: `--sae` when the base carries more than one (qwen36-27b does, since sae2m).
     # common.sae_key_for is the same rule score._sae_for uses, so the stage and the scorer it
     # validates itself against cannot end up on different dictionaries.
-    return (
-        rows,
-        [r["row"] for r in sel],
-        [int(r["id"]) for r in sel],
-        C.sae_key_for(cfg, base, args.get("sae") or ""),
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    sel = C.sae_rows_of(rows, sae_key, FAMILIES, side="enc")
+    assert sel, (
+        f"held-out set {set_name!r} on {base} has no encoder rows of dictionary {sae_key!r} in the "
+        f"SAE families {FAMILIES}; it carries families "
+        f"{sorted({r['family'] for r in rows})} and dictionaries "
+        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows if r['family'] in FAMILIES})}"
     )
+    return rows, [r["row"] for r in sel], [int(r["id"]) for r in sel], sae_key
 
 
 def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, gate: float):
