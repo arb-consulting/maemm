@@ -970,9 +970,15 @@ def sae_key_for_rows(cfg: dict, base: str, rows, want: str = "") -> str:
     a dictionary (`draw_sae2m`, `sae_self`, `build`, `repo_examples`) still call `sae_key_for`
     directly, because for them an absent dictionary is a bad command line, not a shape of set.
     """
-    if not any(r.get("family") in SAE_FAMILIES for r in rows):
-        return ""
-    return sae_key_for(cfg, base, want)
+    # `rows` is a LIST of row dicts everywhere it is passed from (`read_jsonl` of ids.jsonl), but
+    # a couple of readers keep the same rows in a {row index: row} mapping. Accept either rather
+    # than make the caller remember which it is holding -- getting that wrong fails only inside
+    # the container, after the base model has been loaded.
+    if isinstance(rows, dict):
+        rows = rows.values()
+    return "" if not any(r.get("family") in SAE_FAMILIES for r in rows) else sae_key_for(
+        cfg, base, want
+    )
 
 
 def sae_key_for(cfg: dict, base: str, want: str = "") -> str:

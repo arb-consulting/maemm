@@ -2513,6 +2513,21 @@ def check_sae_key_for_rows():
     else:
         raise AssertionError("a set WITH sae rows must still refuse without --sae")
 
+    # and `score._sae_for` ACTUALLY CALLED, on both row shapes. The source check below would have
+    # passed while the call still died in the container on `.values()` of a list -- which is what
+    # happened, on the relaunch after the source check was added.
+    import precompute.score as S
+
+    for shape in ([{"family": "lang"}], {0: {"family": "lang"}}, None, []):
+        assert S._sae_for(cfg, {"base": "qwen36-27b"}, shape) == (None, ""), shape
+    assert S._sae_for(cfg, {"base": "qwen36-27b", "no_sae": True}, [{"family": "sae"}]) == (None, "")
+    try:
+        S._sae_for(cfg, {"base": "qwen36-27b"}, [{"family": "sae"}])
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("score._sae_for must still refuse a set WITH sae rows and no --sae")
+
     here = Path(__file__).resolve().parent
     for name in ("scan.py", "score.py"):
         src = (here / name).read_text()

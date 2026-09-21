@@ -205,7 +205,7 @@ def _sae_for(cfg, args, rows_meta=None):
     # when the set has none -- the OOD sets have no `sae` family at all, and every one of their
     # `score` calls died here after the base model load. `common.sae_key_for_rows` is the one
     # place that rule lives; `scan` takes it too.
-    key = C.sae_key_for_rows(cfg, base, (rows_meta or {}).values(), args.get("sae") or "")
+    key = C.sae_key_for_rows(cfg, base, rows_meta or [], args.get("sae") or "")
     if not key:
         print("[score] the set has no sae rows: no SAE loaded, no gate counts", flush=True)
         return None, ""
