@@ -1167,15 +1167,25 @@ def resolve_config(cfg, args):
     return a, lams, arm_name(mode, init, a["arm_suffix"])
 
 
-def _load_targets(cfg, args):
-    """(rows meta, [N, d] unit fp32 directions on the cpu) for the held-out set."""
+def _load_targets(cfg, args, notes=None):
+    """(rows meta, [N, d] unit fp32 directions on the cpu) for the held-out set.
+
+    The OBJECTIVE is still the uncentred cosine (module docstring) -- that half is untouched. What
+    is resolved here is the other half, the TARGET: `vecs.f16` stopped being a fixed object on
+    2026-09-21 (a raw set stores unit(act) and derives the rest), so the search's ceiling is
+    computed against whichever direction `--centering` names. This file has no `--maemm` in scope,
+    so on a raw set common.centering_for refuses rather than defaulting; on the legacy sets every
+    published gcg number reproduces because the set's own stored convention is the default.
+    """
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
     d_model = cfg["bases"][base]["d"]
     hdir = C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{hdir}/ids.jsonl")
-    vecs = C.read_array(f"{hdir}/vecs.f16", "float16", (len(rows), d_model))
+    centering, _ = C.centering_for(cfg, base, hdir, args, "", root, notes)
+    vecs = C.dirs_for(cfg, base, hdir, centering, root, notes)
+    assert vecs.shape == (len(rows), d_model), f"{hdir}: dirs_for returned {vecs.shape}"
     v = torch.as_tensor(np.asarray(vecs), dtype=torch.float32)
     v = torch.nn.functional.normalize(v, dim=-1)
     return rows, v
@@ -1207,7 +1217,8 @@ def run(cfg, args):
     a, lams, arm = resolve_config(cfg, args)
     read_layer = cfg["bases"][base]["read_layer"]
 
-    rows_meta, dirs = _load_targets(cfg, args)
+    cen_notes: list[str] = []
+    rows_meta, dirs = _load_targets(cfg, args, notes=cen_notes)
     # --rows indexes WITHIN the family, not the concatenated set: the held-out set lays the
     # families out end to end (realact 0-511, random 512-1023, sae 1024-1535 at 512 each), so
     # `--family sae --rows 0-7` is global rows 1024-1031. Every output row carries BOTH -- `row`
@@ -1363,6 +1374,7 @@ def run(cfg, args):
     all_traj: list[dict] = list(prior.get("trajectory.jsonl", []))
     runs: dict[str, dict] = {}
     with C.outdir(out_dir, args, inputs=inputs) as od:
+        C.note_convention(od, cen_notes)
         # Streamed, not buffered: an 8-direction epo run is ~20 GPU-minutes and a crash at
         # direction 7 must not throw away the six that finished (OutDir keeps the temp dir).
         # On --resume-from the carried streams are copied in byte for byte and appended to.

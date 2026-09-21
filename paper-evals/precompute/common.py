@@ -580,6 +580,90 @@ def storage_record(cfg: dict, set_name: str, families) -> dict:
     }
 
 
+def centering_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
+                  root: str = VOL, notes=None) -> tuple[str, str]:
+    """(centring name, where it came from) for this run. THE convention is never inferred silently.
+
+    Order, and nothing else:
+
+      1. `--centering` -- explicit, and when it disagrees with the checkpoint's own
+         `input.centering` it is recorded as a DEVIATION in the product README, not accepted quietly;
+      2. the MAEMM's `input.centering`, for the products that have a `--maemm` in scope;
+      3. the SET's own stored convention, for a legacy `storage: unit` / `dirs_only` set -- which is
+         what keeps every `scan` / `gcg` / `repo_examples` number measured between 2026-09-16 and
+         2026-09-21 reproducible to the digit;
+      4. refuse. A `storage: raw` set read by a product with no MAEMM (scan, gcg, patchscopes,
+         repo_examples) has no convention anywhere in scope, and defaulting it to raw would
+         silently re-point the corpus search baseline and the GCG ceiling at a different target
+         vector than every stored number. That is the one failure this whole layer exists to stop.
+    """
+    say = notes if notes is not None else []
+    want = (args.get("centering") or "").strip()
+    if want:
+        src = "--centering (explicit)"
+        if maemm_key:
+            own = input_centering(cfg, maemm_key)
+            if own != want:
+                line = (
+                    f"DEVIATION: --centering {want!r} overrides {maemm_key}'s own trained input "
+                    f"convention {own!r} (config.yaml maemms.{maemm_key}.input.centering). Every "
+                    f"number in this directory is read under {want!r}, not under what the "
+                    f"checkpoint was trained on."
+                )
+                print(f"[centering] {line}", flush=True)
+                say.append(line)
+                src = "--centering (OVERRIDE of input.centering)"
+        say.append(f"centering={want!r} from {src}")
+        return want, src
+    if maemm_key:
+        own = input_centering(cfg, maemm_key)
+        say.append(f"centering={own!r} from config.yaml maemms.{maemm_key}.input.centering")
+        return own, f"maemms.{maemm_key}.input.centering"
+    contract = set_storage(cfg, set_dir, root)
+    storage = contract["storage"]
+    assert storage != "raw", (
+        f"{set_dir} is `storage: raw` ({contract['source']}): its vecs.f16 is unit(act), UNCENTRED, "
+        f"and this product has no --maemm to take a convention from. Pass --centering <mu name>|"
+        f"{NO_CENTRING} -- base {base} declares {sorted(cfg['mus'].get(base, {}))}. Defaulting it "
+        f"would silently move this product's target vector away from every stored number."
+    )
+    if storage == "dirs_only":
+        say.append(
+            f"centering={NO_CENTRING!r} from the set's own contract ({contract['source']}): "
+            f"`storage: dirs_only`, nothing in it was ever centred"
+        )
+        return NO_CENTRING, f"set contract ({contract['source']})"
+    rows = read_jsonl(f"{set_dir.rstrip('/')}/ids.jsonl")
+    fams = sorted({r["family"] for r in rows if family_centrable(cfg, r["family"])})
+    name = os.path.basename(set_dir.rstrip("/"))
+    means = {mu_of_family(cfg, name, f) for f in fams} if name in cfg["heldout"] else set()
+    if not fams:
+        means = {NO_CENTRING}
+    if contract["mu_stored"] is not None:
+        means = {contract["mu_stored"]}
+    assert len(means) == 1, (
+        f"{set_dir} is `storage: unit` and its centrable families {fams} are stored under "
+        f"{sorted(means)} -- more than one convention, so there is no single default. Pass "
+        f"--centering and run the families that match it."
+    )
+    got = means.pop()
+    say.append(
+        f"centering={got!r} defaulted from the set's own stored convention ({contract['source']}); "
+        f"this set predates raw storage, so it can only be served at the mean it was built with"
+    )
+    return got, f"set contract ({contract['source']})"
+
+
+def note_convention(od, notes) -> None:
+    """Put the centring lines `centering_for` / `dirs_for` collected into a product's README.
+
+    Every product that reads a direction calls this. A README that does not say which mean its
+    numbers were read under is a README nobody can compare to another one.
+    """
+    for line in notes or []:
+        od.note(f"CENTRING: {line}")
+
+
 def dirs_for(cfg: dict, base: str, set_dir: str, centering: str, root: str = VOL, notes=None):
     """The direction every row of this set carries under `centering` -- the WHOLE [N, d] array.
 

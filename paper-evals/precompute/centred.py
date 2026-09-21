@@ -53,15 +53,20 @@ CHUNK = 4096
 NORM_FILTER_MULT = 10.0  # eval/eval_universal.py:71 -- 10x the row's nanmedian residual norm
 
 
-def _load_dirs(cfg, args):
-    """(rows_meta, dirs [N_set, d] fp32 UNIT) -- the same source `score` paired its rows with."""
+def _load_dirs(cfg, args, notes=None):
+    """(rows_meta, dirs [N_set, d] fp32 UNIT, source) -- the directions `score` paired its rows with.
+
+    Resolved through common.dirs_for at this run's centring, so the target this product compares a
+    centred activation against is the SAME object `score` compared the uncentred one against.
+    """
     base, root, set_name = args["base"], args["root"], args["heldout"]
     d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
-    v = C.read_array(f"{src}/vecs.f16", "float16", (len(rows), d)).astype(np.float32)
-    v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
-    return rows, v, src
+    centering, _ = C.centering_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    v = C.dirs_for(cfg, base, src, centering, root, notes)
+    assert v.shape == (len(rows), d), f"{src}: dirs_for returned {v.shape} for {len(rows)} rows"
+    return rows, np.asarray(v, dtype=np.float32), src
 
 
 def run(cfg, args):
@@ -103,7 +108,8 @@ def run(cfg, args):
         f"are [{n_t}, {n}, ...]"
     )
 
-    rows_meta, dirs, dirs_src = _load_dirs(cfg, args)
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_src = _load_dirs(cfg, args, notes=cen_notes)
     assert max(sel) < len(rows_meta), (
         f"{sdir}/rows.json names row {max(sel)} but {dirs_src}/ids.jsonl has {len(rows_meta)} rows"
     )
@@ -192,6 +198,7 @@ def run(cfg, args):
         "targets": f"{n_t} rows x n={n}",
     }
     with C.outdir(sdir, args, inputs=inputs, keep_existing=True) as od:
+        C.note_convention(od, cen_notes)
         od.write_array("cos_centred_best.f16", cos_c, "float16")
         od.write_array("cos_filtered_best.f16", cos_f, "float16")
         od.write_json("centred.json", summary)

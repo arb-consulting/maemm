@@ -50,21 +50,29 @@ MARKER_NORM_MIN_REL = 0.05
 BASE_CONTROL_NORM_TOL = 0.25
 
 
-def load_dirs(cfg, args, device: str = "cuda"):
-    """(rows, dirs [N, d] fp32 unit on `device`) of the held-out set, or of `--dirs-from <dir>`.
+def load_dirs(cfg, args, device: str = "cuda", notes=None):
+    """(rows, dirs [N, d] fp32 unit on `device`, source dir) of the held-out set or `--dirs-from`.
 
     rollouts_vllm asks for the cpu: the engine owns the GPU by the time it needs the directions.
+
+    The direction is DERIVED, never read: `common.dirs_for` applies the centring this run names,
+    which for a generator is the checkpoint's own `input.centering` (what it was TRAINED to
+    receive) unless `--centering` overrides it. Handing a MAEMM a direction under the wrong mean is
+    invisible in every output -- the rollouts look like rollouts -- so the convention is resolved
+    here, once, and written into the summary by the caller. `notes` collects the lines that say
+    which; rollouts_vllm:1007 (parity-greedy) and rollouts_nla:672 come through the same call.
     """
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
-    d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
     n = len(rows)
     assert n, f"{src}/ids.jsonl is empty"
-    v = C.read_array(f"{src}/vecs.f16", "float16", (n, d)).astype(np.float32)
-    dirs = torch.nn.functional.normalize(torch.from_numpy(v).to(device), dim=-1)
+    centering, _ = C.centering_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    v = C.dirs_for(cfg, base, src, centering, root, notes)
+    assert v.shape == (n, cfg["bases"][base]["d"]), f"{src}: dirs_for returned {v.shape} for {n} rows"
+    dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)).to(device), dim=-1)
     for i, r in enumerate(rows):
         assert r["row"] == i, f"{src}/ids.jsonl line {i} has row={r['row']}: rows must be 0..N-1 in order"
     return rows, dirs, src
@@ -257,7 +265,8 @@ def run(cfg, args):
         f"{path} already exists; refusing to overwrite without --force"
     )
 
-    rows_meta, dirs, dirs_src = load_dirs(cfg, args)
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_src = load_dirs(cfg, args, notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     print(
         f"[rollouts] {maemm} on {len(sel)} of {len(rows_meta)} targets x {n} rollouts "
@@ -388,6 +397,7 @@ def run(cfg, args):
         "weight sha256": sha["sha256"],
     }
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=os.path.exists(out_dir)) as od:
+        C.note_convention(od, cen_notes)
         od.write_jsonl(f"{set_name}.jsonl", out_rows)
         od.write_json(f"{set_name}.summary.json", summary)
         od.note(

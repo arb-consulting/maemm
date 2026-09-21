@@ -111,8 +111,14 @@ class _KeyReservoir:
             self.payload = cat_p.gather(1, i.unsqueeze(-1).expand(-1, -1, cat_p.shape[-1]))
 
 
-def _load_targets(cfg, args):
-    """(ids rows, V [N, d] unit fp32 on the gpu, realact mask tables)."""
+def _load_targets(cfg, args, notes=None):
+    """(ids rows, V [N, d] unit fp32 on the gpu, realact mask tables).
+
+    `scan` has no `--maemm` in scope at all, so the centring convention has to be told to it
+    (`--centering`) or taken from the set's own stored contract -- see common.centering_for. On a
+    legacy `storage: unit` set that resolves to the mean the set was built with, which reproduces
+    every corpus-search number measured between 2026-09-16 and 2026-09-21 exactly.
+    """
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
@@ -120,8 +126,10 @@ def _load_targets(cfg, args):
     hdir = C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{hdir}/ids.jsonl")
     n = len(rows)
-    v = C.read_array(f"{hdir}/vecs.f16", "float16", (n, d)).astype(np.float32)
-    v = torch.nn.functional.normalize(torch.from_numpy(v).cuda(), dim=-1)
+    centering, _ = C.centering_for(cfg, base, hdir, args, "", root, notes)
+    v = C.dirs_for(cfg, base, hdir, centering, root, notes)
+    assert v.shape == (n, d), f"{hdir}: dirs_for returned {v.shape} for {n} rows"
+    v = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)).cuda(), dim=-1)
     doc = torch.full((n,), -1, dtype=torch.int64)
     lo = torch.zeros(n, dtype=torch.int64)
     hi = torch.zeros(n, dtype=torch.int64)
@@ -183,7 +191,8 @@ def run(cfg, args):
     corpus_name = args.get("corpus_name") or ""
     toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
-    rows, v, (t_doc, t_lo, t_hi) = _load_targets(cfg, args)
+    cen_notes: list[str] = []
+    rows, v, (t_doc, t_lo, t_hi) = _load_targets(cfg, args, notes=cen_notes)
     n = len(rows)
     tested = [int(r["id"]) for r in rows if r["family"] == "sae"]
     tested_row = [r["row"] for r in rows if r["family"] == "sae"]
@@ -339,6 +348,7 @@ def run(cfg, args):
         "sizes": sizes,
     }
     with C.outdir(out_scan, args, inputs=inputs) as od:
+        C.note_convention(od, cen_notes)
         lines, n_dropped = [], 0
         for si_, size in enumerate(sizes):
             val, win, arg = snap_top[si_]
@@ -382,6 +392,7 @@ def run(cfg, args):
 
     ex_rows = 0
     with C.outdir(out_ex, args, inputs={**inputs, "sae": sae_key, "tested": n_feat}) as od:
+        C.note_convention(od, cen_notes)
         if n_feat:
             tv, tw, ta, tp = (
                 f_top.val.cpu().numpy(),

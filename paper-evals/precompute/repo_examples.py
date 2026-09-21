@@ -282,8 +282,16 @@ def run(cfg, args):
     assert sel, f"{src}/ids.jsonl has no rows in the `sae` family; nothing to take repo windows for"
     feats = [int(r["id"]) for r in sel]
     assert len(set(feats)) == len(feats), "the sae family repeats a feature id"
-    vecs = C.read_array(f"{src}/vecs.f16", "float16", (len(rows_meta), d)).astype(np.float32)
-    dirs_f = TF.normalize(torch.from_numpy(vecs[[r["row"] for r in sel]]), dim=-1)
+    # The `sae` rows this product scores are not centrable at all (an encoder column has no mean),
+    # so every centring resolves to the same vectors here -- but the resolution still goes through
+    # common.dirs_for, because that is what makes "the direction scored here is the SAME object the
+    # rollouts were scored against" a fact about one code path rather than about two readers of one
+    # file. On a `storage: raw` set with no --maemm in scope, --centering is required.
+    cen_notes: list[str] = []
+    centering, _ = C.centering_for(cfg, base, src, args, "", root, cen_notes)
+    vecs = C.dirs_for(cfg, base, src, centering, root, cen_notes)
+    assert vecs.shape == (len(rows_meta), d), f"{src}: dirs_for returned {vecs.shape}"
+    dirs_f = TF.normalize(torch.from_numpy(np.asarray(vecs)[[r["row"] for r in sel]]), dim=-1)
 
     out = C.repo_examples_dir(sae_key, set_name, root)
     assert args.get("force") or not os.path.exists(out), (
@@ -481,6 +489,7 @@ def run(cfg, args):
         "scored on": f"{spec['hf']} (clean base), read layer {read_layer}",
     }
     with C.outdir(out, args, inputs=inputs, provenance=info) as od:
+        C.note_convention(od, cen_notes)
         od.write_jsonl("repo_examples.jsonl", rows_out)
         od.write_jsonl("per_feature.jsonl", per_feature)
         od.write_json("summary.json", summary)

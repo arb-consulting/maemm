@@ -306,8 +306,13 @@ def run(cfg, args):
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows_meta = C.read_jsonl(f"{src}/ids.jsonl")
     d = cfg["bases"][base]["d"]
-    v = C.read_array(f"{src}/vecs.f16", "float16", (len(rows_meta), d)).astype(np.float32)
-    dirs = torch.nn.functional.normalize(torch.from_numpy(v), dim=-1)
+    # No `--maemm` in this product either: the direction it patches in is whatever `--centering`
+    # names, and on a `storage: raw` set common.centering_for refuses to pick one for it.
+    cen_notes: list[str] = []
+    centering, _ = C.centering_for(cfg, base, src, args, "", root, cen_notes)
+    v = C.dirs_for(cfg, base, src, centering, root, cen_notes)
+    assert v.shape == (len(rows_meta), d), f"{src}: dirs_for returned {v.shape}"
+    dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)), dim=-1)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     for cell in cells:
         out = patchscopes_dir(base, set_name, cell_name(cell, tag, rule, alpha, prompt_id), root)
@@ -354,7 +359,9 @@ def run(cfg, args):
             for s in range(0, n, gen_rows):
                 k = min(gen_rows, n - s)
                 seed = C.gen_seed_for(base_seed, sel[0], s, n)
-                new = _generate(model, tok, prompt, pos, torch.zeros(k, d), None, 0.0, rl, max_new, seed, rule)
+                new = _generate(
+                    model, tok, prompt, pos, torch.zeros(k, d), None, 0.0, rl, max_new, seed, rule
+                )
                 gen_tok += int(new.numel())
                 n_calls += 1
                 for g in new.tolist():
@@ -481,6 +488,7 @@ def run(cfg, args):
         # total to that point, not the cell's. The model load is charged to the FIRST cell, which is
         # where it is actually paid.
         with C.outdir(out, {**args, "t0": t0}, inputs=inputs) as od:
+            C.note_convention(od, cen_notes)
             od.write_jsonl("rollouts.jsonl", out_rows)
             od.write_json("rollouts.summary.json", summary)
             od.note(

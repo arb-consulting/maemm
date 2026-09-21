@@ -577,7 +577,8 @@ def run(cfg, args):
     prompt, mpos = C.prompt_ids(tok, spec["prompt"], cfg["bases"][base]["read_layer"])
     assert mpos == len(prompt) - 1, f"the marker must be the LAST prompt token, got {mpos} of {len(prompt)}"
     stop = _eos_from_files(cfg, base, tok)
-    rows_meta, dirs, dirs_src = load_dirs(cfg, args, device="cpu")
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_src = load_dirs(cfg, args, device="cpu", notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
 
     llm, info, lora_req, adapter = _engine_for(cfg, args, base, maemm, len(prompt), max_new, gpu_mem)
@@ -722,6 +723,7 @@ def run(cfg, args):
         "weight sha256": sha["sha256"],
     }
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=os.path.exists(out_dir)) as od:
+        C.note_convention(od, cen_notes)
         od.write_jsonl(f"{stem}.jsonl", out_rows)
         od.write_json(f"{stem}.summary.json", summary)
         od.note(

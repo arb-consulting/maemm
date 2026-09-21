@@ -720,7 +720,8 @@ def run(cfg, args):
         f"{path} already exists; refusing to overwrite without --force"
     )
 
-    rows_meta, dirs, dirs_src = rollouts_hf.load_dirs(cfg, args, device="cpu")
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_src = rollouts_hf.load_dirs(cfg, args, device="cpu", notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     u = dirs[sel].numpy().astype(np.float32)
     mu = C.stats_mu(cfg, base, root) if amp in ("mu", "exact") else None
@@ -925,6 +926,7 @@ def run(cfg, args):
     }
     keep = (not variant) and os.path.exists(out_dir)
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=keep) as od:
+        C.note_convention(od, cen_notes)
         od.write_jsonl(f"{stem}.jsonl", out_rows)
         od.write_json(summary_name, summary)
         od.note(
