@@ -3599,6 +3599,12 @@ primary −0.1989 / −0.1326, `NLA` −0.1389 / −0.1078, `NLA-desc` **−0.28
    detection is 0.5427 / 0.5760 / 0.4875 / **0.7198** across strata 0-3, so only the densest
    quartile behaves, on n = 8. The 2M numbers are a pilot result about the EVAL, not about the
    methods; the 131k block is the one that separates arms.
+   **How far that last claim goes, measured rather than asserted** (see the trend table): the
+   densest quartile's interval is [0.6177, 0.8240], which clears stratum 0's [0.5115, 0.5750] and
+   stratum 2's [0.4500, 0.5188] and MISSES stratum 1's [0.5406, 0.6198] by 0.0021. So "only the
+   densest quartile behaves" is right against the rarest and the middle quartiles and is NOT
+   resolved against its neighbour, on n = 8 a side. The permutation p of 5e-05 says the cut carries
+   information; it does not say the four cells are ordered, and ρ = +0.400 was already saying so.
 2. **The 2M fuzzing floor is 0.5344, not 0.5**, while its detection floor is 0.4836. A floor that
    is not at chance is a property of the negative marking on this dictionary and it makes every
    2M fuzzing number unreadable as an absolute. It is at 0.5008 on the 131k.
