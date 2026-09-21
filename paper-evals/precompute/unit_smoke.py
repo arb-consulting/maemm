@@ -1236,18 +1236,58 @@ def check_sae_key_selector():
         {"row": 1, "family": "sae", "sae_key": "b/two_m", "id": 11, "sae_side": "dec"},
         {"row": 2, "family": "sae", "sae_key": "b/one31k", "id": 10},
         {"row": 3, "family": "realact", "id": 99},
-        {"row": 4, "family": "sae2m_enc", "id": 12},
+        # the legacy family label, but KEYED -- the unkeyed case is its own block below
+        {"row": 4, "family": "sae2m_enc", "sae_key": "b/two_m", "id": 12},
     ]
     got = [r["row"] for r in C.sae_rows_of(rows, "b/two_m")]
     assert got == [0, 1, 4], f"sae_key filter picked {got}; the 131k row must not be in it"
     got = [r["row"] for r in C.sae_rows_of(rows, "b/one31k")]
-    assert got == [2, 4], f"sae_key filter picked {got} for the 131k dictionary"
+    assert got == [2], f"sae_key filter picked {got} for the 131k dictionary"
     got = [r["row"] for r in C.sae_rows_of(rows, "b/two_m", side="enc")]
     assert got == [0, 4], f"the side filter picked {got}; row 1 is a decoder row"
+
+    # UNKEYED ROWS -- the case that made the first version of this guard vacuous. Both production
+    # sets carry `sae_key` on no row, and `r.get("sae_key", sae_key)` defaulted each of them to
+    # match whatever was typed, so `--sae <the 2M> --set 2026-09-16_v1` selected all 512 of the
+    # 131k rows and every id was a valid 2^21 index. Three outcomes now, and the middle one is the
+    # only one that returns rows.
     unkeyed = [{"row": 0, "family": "sae", "id": 1}, {"row": 1, "family": "sae", "id": 2}]
-    assert [r["row"] for r in C.sae_rows_of(unkeyed, "anything/at-all")] == [0, 1], (
-        "the filter is not a no-op on a set drawn before sae_key existed"
+    try:
+        C.sae_rows_of(unkeyed, "b/two_m")
+    except AssertionError as e:
+        assert "declares no dictionary" in str(e) and "2 SAE rows" in str(e), (
+            f"wrong assert for an undeclared unkeyed set: {e}"
+        )
+    else:
+        raise AssertionError("sae_rows_of selected unkeyed rows with nothing declaring them")
+    try:
+        C.sae_rows_of(unkeyed, "b/two_m", declared="b/one31k")
+    except AssertionError as e:
+        assert "but this run asked for" in str(e), f"wrong assert for a declared mismatch: {e}"
+    else:
+        raise AssertionError("sae_rows_of selected unkeyed rows of the WRONG declared dictionary")
+    assert [r["row"] for r in C.sae_rows_of(unkeyed, "b/two_m", declared="b/two_m")] == [0, 1], (
+        "a set that DECLARES the dictionary asked for must still yield its unkeyed rows"
     )
+    # Mixed: keyed rows are judged by their own key, unkeyed ones by the declaration, and the
+    # result stays in row order.
+    mixed = unkeyed + [{"row": 2, "family": "sae", "sae_key": "b/one31k", "id": 3}]
+    assert [r["row"] for r in C.sae_rows_of(mixed, "b/two_m", declared="b/two_m")] == [0, 1]
+
+    # The declaration itself: storage.json wins, then the `heldout:` entry, then None.
+    cfg = C.load_config()
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td) / "2026-09-16_v1"
+        d.mkdir()
+        assert C.declared_sae_key(cfg, str(d)) == "qwen36-27b/l42-1b", (
+            "config.yaml must declare which dictionary 2026-09-16_v1's sae ids index"
+        )
+        with open(d / C.STORAGE_FILE, "w") as fh:
+            json.dump({"storage": "raw", "mu_stored": None, "sae_key": "qwen36-27b/sae2m"}, fh)
+        assert C.declared_sae_key(cfg, str(d)) == "qwen36-27b/sae2m", "storage.json must win"
+        bare = Path(td) / "nowhere"
+        bare.mkdir()
+        assert C.declared_sae_key(cfg, str(bare)) is None
 
 
 def check_family_kinds_table():

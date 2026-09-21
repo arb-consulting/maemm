@@ -280,7 +280,10 @@ def run(cfg, args):
     # vecs.f16 against unit(W_enc[:, f]) of `sae_key`, so a row belonging to another dictionary --
     # or a `sae_side: dec` row, whose direction is a decoder row and not an encoder column --
     # would fail it for a reason that is not a drift.
-    sel = C.sae_rows_of(rows_meta, sae_key, side="enc")
+    sel = C.sae_rows_of(
+        rows_meta, sae_key, side="enc",
+        declared=C.declared_sae_key(cfg, src, root), where=src,
+    )
     assert sel, (
         f"{src}/ids.jsonl has no encoder rows of dictionary {sae_key!r}; nothing to take repo "
         f"windows for (it carries dictionaries "

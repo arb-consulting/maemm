@@ -932,7 +932,10 @@ def run(cfg, args):
     # On the ROW's own sae_key, not on the family label -- see common.sae_rows_of. With two
     # dictionaries under one `family: sae` label, the family-only filter renders the 131k arm from
     # the 2M scan and nothing raises.
-    sae_rows = C.sae_rows_of(rows_meta, sae_key, FAMILIES, side="enc")
+    sae_rows = C.sae_rows_of(
+        rows_meta, sae_key, FAMILIES, side="enc",
+        declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
+    )
     assert sae_rows, (
         f"{hdir}/ids.jsonl has no encoder rows of dictionary {sae_key!r} in the SAE families "
         f"{FAMILIES}; it carries families {sorted({r['family'] for r in rows_meta})} and "

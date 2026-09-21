@@ -329,6 +329,11 @@ maemms:
 # A set written before these keys existed is described here, not rewritten in place.
 heldout:
   2026-09-16_v1:
+    # WHICH dictionary this set's `sae` feature ids index. Its rows predate the per-row `sae_key`
+    # field, so without this declaration `common.sae_rows_of` REFUSES them rather than matching
+    # whatever --sae was typed -- every one of these 512 ids is also a valid index into the 2M
+    # encoder, so the wrong answer is silent.
+    sae_key: qwen36-27b/l42-1b
     # Drawn 2026-09-16, BEFORE the raw-storage rule: its realact rows are stored already centred.
     storage: unit
     mu_stored: null           # not one mean for the whole set -- per family below
@@ -365,6 +370,7 @@ heldout:
     imported: true
     storage: raw
     mu_stored: null           # nothing stored is centred; --mu decides per run
+    sae_key: qwen36-27b/l42-1b  # also stamped per row by targets.py; declared here for readers
     seed: 20260916            # == 2026-09-16_v1, asserted
     families:
       realact: {n: 512}
@@ -400,6 +406,7 @@ heldout:
     imported: true
     storage: dirs_only        # 2,000 unit encoder columns; nothing here was ever centred
     mu_stored: null
+    sae_key: qwen36-27b/sae2m   # its rows carry no per-row sae_key; see 2026-09-16_v1 above
     seed: 20260920            # scan's reservoir generator seeds off this
     families:
       sae2m_enc: {n: 2000, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)

@@ -499,6 +499,10 @@ def _check_heldout_storage(cfg: dict, set_name: str, spec: dict) -> None:
         f"whole); an absent key and an explicit null are the same thing to yaml and must not be"
     )
     _check_mu_value(spec["mu_stored"], f"heldout[{set_name!r}].mu_stored", allow_unknown=True)
+    sk = spec.get("sae_key")
+    assert sk is None or sk in cfg["saes"], (
+        f"heldout {set_name!r}: sae_key {sk!r} is not an SAE in config.yaml ({sorted(cfg['saes'])})"
+    )
     fam_mu = spec.get("family_mu") or {}
     assert isinstance(fam_mu, dict), f"heldout {set_name!r}: family_mu must be a mapping"
     assert not fam_mu or storage == "unit", (
@@ -570,12 +574,16 @@ def set_storage(cfg: dict, set_dir: str, root: str = VOL) -> dict:
     }
 
 
-def storage_record(cfg: dict, set_name: str, families) -> dict:
+def storage_record(cfg: dict, set_name: str, families, sae_key: str = "") -> dict:
     """The `storage.json` a freshly drawn `storage: raw` set writes. See `set_storage`."""
     return {
         "storage": "raw",
         "mu_stored": None,
         "family_mu": {},
+        # Which dictionary this set's SAE feature ids index. Every row of a set drawn now also
+        # carries its own `sae_key`, so this is belt and braces -- but it is what
+        # `common.declared_sae_key` reads, and a set that loses its config entry keeps it.
+        "sae_key": sae_key,
         "families": {f: cfg["family_kinds"][f]["kind"] for f in families},
         "note": (
             "RAW STORAGE: act.f32 [N, d] holds the row's own vector before any mean was subtracted "
@@ -884,33 +892,84 @@ def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
 SAE_FAMILIES = ("sae", "sae2m_enc")
 
 
-def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = ""):
+def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = "", declared=None,
+                where: str = ""):
     """The rows of `rows` whose target is a feature of dictionary `sae_key`.
 
-    THE FAMILY LABEL IS NOT ENOUGH. Since 2026-09-21 a set may carry two dictionaries under one
-    `family: sae` label, told apart by the per-row `sae_key` that features/draw_sae2m.py writes --
-    and a feature index is meaningless without it: every id below 131,072 is a valid index into a
-    2^21 encoder, so selecting on the family alone looks up the 131k block's ids in the 2M
-    dictionary and scores 512 WRONG features with nothing raising. That is the failure this
-    function exists to make impossible.
+    THE FAMILY LABEL IS NOT ENOUGH. A set may carry two dictionaries under one `family: sae` label,
+    told apart by the per-row `sae_key` that features/draw_sae2m.py and targets.py write -- and a
+    feature index is meaningless without it: every id below 131,072 is a valid index into a 2^21
+    encoder, so selecting on the family alone looks up the 131k block's ids in the 2M dictionary
+    and scores wrong features with nothing raising.
 
-    `r.get("sae_key", sae_key) == sae_key` is a no-op on every set drawn before the field existed
-    (they carry one dictionary and no key), and correct on every set drawn after it.
+    AND A MISSING `sae_key` IS NOT A LICENCE. The first version of this function read
+    `r.get("sae_key", sae_key) == sae_key`, which defaults each unkeyed row to match WHATEVER was
+    typed -- so on the two sets that predate the field (2026-09-16_v1, 2026-09-20_sae2m_2k, which
+    carry it on no row at all) the guard was vacuous, and `--sae qwen36-27b/sae2m --set
+    2026-09-16_v1` selected all 512 of the 131k rows, every id a valid 2^21 index: exactly the
+    silent failure the guard is for, on the paper's own set. MEASURED against the real ids
+    2026-09-21.
+
+    So an unkeyed row is selectable only against a DECLARED dictionary: `declared` is the one SAE
+    the set says its feature ids index (`common.declared_sae_key`, from the set's storage.json or
+    its `heldout:` entry), and it must equal `sae_key`. An undeclared set refuses, naming the row
+    count, rather than answering a question nobody can check.
 
     `side` filters the encoder/decoder axis (`sae_side`, NOT draw_sae2m's `side`, which is the
     fit/report split of OUR analysis and a different axis entirely). A row with no `sae_side`
     predates decoder rows and counts as `enc`.
     """
-    out = []
+    out, unkeyed = [], 0
     for r in rows:
         if r["family"] not in families:
             continue
-        if r.get("sae_key", sae_key) != sae_key:
-            continue
         if side and r.get("sae_side", "enc") != side:
             continue
-        out.append(r)
+        own = r.get("sae_key")
+        if own is None:
+            unkeyed += 1
+            continue
+        if own == sae_key:
+            out.append(r)
+    if unkeyed:
+        assert declared, (
+            f"{where or 'this set'} has {unkeyed} SAE rows with no `sae_key` field and declares no "
+            f"dictionary for them, so which SAE their feature ids index is not recorded anywhere. "
+            f"Nothing here will assume it is --sae {sae_key!r}: every id below 131,072 is a valid "
+            f"index into a 2^21 encoder, so a wrong guess scores wrong features silently. Declare "
+            f"`sae_key:` on the set's `heldout:` entry (or re-draw it -- targets and draw_sae2m "
+            f"stamp it per row)."
+        )
+        assert declared == sae_key, (
+            f"{where or 'this set'} declares its {unkeyed} unkeyed SAE rows are features of "
+            f"{declared!r}, but this run asked for --sae {sae_key!r}. Refusing rather than "
+            f"selecting them: their ids index {declared!r} and mean something else in {sae_key!r}."
+        )
+        out.extend(
+            r for r in rows
+            if r["family"] in families
+            and r.get("sae_key") is None
+            and not (side and r.get("sae_side", "enc") != side)
+        )
+        out.sort(key=lambda r: r["row"])
     return out
+
+
+def declared_sae_key(cfg: dict, set_dir: str, root: str = VOL):
+    """The ONE dictionary a set says its unkeyed SAE feature ids index, or None.
+
+    `storage.json`'s `sae_key` first (what a set drawn after 2026-09-21 carries), then the set's
+    `heldout:` entry. It exists for the sets whose rows predate the per-row `sae_key` field; a set
+    whose rows carry their own needs none of this.
+    """
+    path = f"{set_dir.rstrip('/')}/{STORAGE_FILE}"
+    if os.path.exists(path):
+        with open(path) as fh:
+            rec = json.load(fh)
+        if rec.get("sae_key"):
+            return rec["sae_key"]
+    name = os.path.basename(set_dir.rstrip("/"))
+    return (cfg["heldout"].get(name) or {}).get("sae_key")
 
 
 def stats_mu(cfg: dict, base: str, root: str = VOL):

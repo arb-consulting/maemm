@@ -188,7 +188,10 @@ def run(cfg, args):
     # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
     # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
     # encoder, silently (common.sae_rows_of).
-    sae_sel = C.sae_rows_of(rows, sae_key)
+    sae_sel = C.sae_rows_of(
+        rows, sae_key, declared=C.declared_sae_key(cfg, C.heldout_dir(base, set_name, root), root),
+        where=C.heldout_dir(base, set_name, root),
+    )
     tested = [int(r["id"]) for r in sae_sel]
     tested_row = [r["row"] for r in sae_sel]
     n_feat = len(tested)

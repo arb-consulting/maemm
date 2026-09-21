@@ -119,7 +119,11 @@ def _sae_rows(cfg, args):
     # common.sae_key_for is the same rule score._sae_for uses, so the stage and the scorer it
     # validates itself against cannot end up on different dictionaries.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
-    sel = C.sae_rows_of(rows, sae_key, FAMILIES, side="enc")
+    hdir = C.heldout_dir(base, set_name, root)
+    sel = C.sae_rows_of(
+        rows, sae_key, FAMILIES, side="enc",
+        declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
+    )
     assert sel, (
         f"held-out set {set_name!r} on {base} has no encoder rows of dictionary {sae_key!r} in the "
         f"SAE families {FAMILIES}; it carries families "

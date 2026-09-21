@@ -1310,7 +1310,14 @@ def run(cfg, args):
         # `--family sae --rows 0-7` would otherwise be the first eight rows of both, and a feature
         # id of the other dictionary is a valid index into this one.
         sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
-        keyed = {r["row"] for r in C.sae_rows_of(rows_meta, sae_key, (family,))}
+        hdir = C.heldout_dir(base, set_name, root)
+        keyed = {
+            r["row"]
+            for r in C.sae_rows_of(
+                rows_meta, sae_key, (family,),
+                declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
+            )
+        }
         crossed = sorted(set(sel) - keyed)
         assert not crossed, (
             f"--family {family} --rows {args.get('rows') or 'all'} selected {len(crossed)} rows "

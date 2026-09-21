@@ -772,7 +772,10 @@ def run(cfg, args):
         od.write_jsonl("ids.jsonl", ordered)
         od.write_array("act.f32", a, "float32")
         od.write_array("vecs.f16", v, "float16")
-        od.write_json("storage.json", C.storage_record(cfg, set_name, sorted({r["family"] for r in rows})))
+        od.write_json(
+            "storage.json",
+            C.storage_record(cfg, set_name, sorted({r["family"] for r in rows}), sae_key),
+        )
         od.write_jsonl("leakage.jsonl", hits)
         od.note(
             f"rebuild: `modal run precompute/modal_app.py --product targets --base {base} "
