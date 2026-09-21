@@ -1322,6 +1322,49 @@ def check_exact_solve_roundtrip():
 
 
 
+
+def check_spawn_mirrors_main():
+    """`features/spawn.py`'s DEFAULTS and `modal_app.main`'s signature carry the SAME arguments.
+
+    D7. `spawn.py` calls the Modal function directly and so bypasses every assert in the
+    entrypoint; four knobs (ps_alpha, ps_prompt, ps_rule, subset) existed on one path and not the
+    other, which means a run launched the other way silently took a default nobody chose. This
+    parses modal_app.py with `ast` rather than importing it -- the CPU smoke has no `modal` -- and
+    compares the two key sets, so the drift fails here instead of on an H200.
+    """
+    import ast
+
+    here = Path(__file__).resolve().parent
+    fn = next(
+        n for n in ast.walk(ast.parse((here / "modal_app.py").read_text()))
+        if isinstance(n, ast.FunctionDef) and n.name == "main"
+    )
+    sig = {a.arg for a in fn.args.args} - {"product"}
+
+    # spawn.py imports `modal` at module scope and this smoke runs without it, so its two
+    # module-level literals are read with ast rather than by importing the module.
+    spawn_tree = ast.parse((here.parent / "features" / "spawn.py").read_text())
+    found = {}
+    for node in spawn_tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and target.id in ("DEFAULTS", "_LOCAL_ONLY"):
+                found[target.id] = ast.literal_eval(node.value)
+    assert sorted(found) == ["DEFAULTS", "_LOCAL_ONLY"], (
+        f"features/spawn.py no longer defines DEFAULTS and _LOCAL_ONLY as module-level literals "
+        f"(found {sorted(found)}); this check reads them without importing modal"
+    )
+    have = set(found["DEFAULTS"])
+    assert sig == have, (
+        f"features/spawn.py and precompute/modal_app.py:main have drifted -- only in main: "
+        f"{sorted(sig - have)}; only in spawn: {sorted(have - sig)}. Add it to both, or a run "
+        f"launched the other way takes a default nobody chose (D7)."
+    )
+    for name in found["_LOCAL_ONLY"]:
+        assert name in have, f"spawn._LOCAL_ONLY names {name!r}, which is not an argument"
+
+
+
 CHECKS = [
     check_config,
     check_paths,
@@ -1357,6 +1400,7 @@ CHECKS = [
     check_sae_key_selector,
     check_family_kinds_table,
     check_exact_solve_roundtrip,
+    check_spawn_mirrors_main,
     check_rollouts_nla_selftest,
 ]
 

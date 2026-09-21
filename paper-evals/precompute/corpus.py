@@ -53,7 +53,7 @@ def _go_online():
     assert not hfc.HF_HUB_OFFLINE, "failed to turn off huggingface_hub offline mode"
 
 
-def _doc_stream(dataset: str, path: str):
+def _doc_stream(dataset: str, path: str, revision: str):
     """Yield (row_index_in_part, text) for every non-empty document of one parquet part, in file
     order. `row_index_in_part` counts EVERY row, including the empty ones that are skipped, so it
     addresses the source file rather than our stream."""
@@ -61,8 +61,20 @@ def _doc_stream(dataset: str, path: str):
 
     # The direct-parquet route of eval/corpus_retrieval.py:196-199. Going through the repo's
     # declared configs would pick the whole `en` split; we want these two files, in this order.
+    # `hf://datasets/<repo>@<revision>/<path>` is the pinned form (D9). Without it the stream takes
+    # whatever `main` points at today, and every doc id, scan window and top-k list on the volume
+    # indexes into the exact bytes THIS build read -- a silent reorder upstream invalidates all of
+    # them with nothing raising. `arb/exp-ood`'s corpus.py:60 pins the same way.
+    assert revision, (
+        f"corpus.revision is empty in config.yaml: streaming {dataset} at whatever `main` points "
+        f"at today is the one unpinned input this branch has (D9). Put the dataset's commit sha "
+        f"there; `main` is accepted only as an explicit, recorded choice."
+    )
     ds = load_dataset(
-        "parquet", data_files={"train": f"hf://datasets/{dataset}/{path}"}, split="train", streaming=True
+        "parquet",
+        data_files={"train": f"hf://datasets/{dataset}@{revision}/{path}"},
+        split="train",
+        streaming=True,
     )
     for row_i, doc in enumerate(ds):
         text = ""
@@ -83,6 +95,7 @@ def _collect(cfg, budget, tok):
 
     files = cfg["corpus"]["files"]
     dataset = cfg["corpus"]["dataset"]
+    revision = cfg["corpus"].get("revision") or ""
     share = budget // len(files)
     docs, parts, max_len = [], [], 0
     for part_i, path in enumerate(files):
@@ -90,7 +103,7 @@ def _collect(cfg, budget, tok):
         want = budget - share * (len(files) - 1) if part_i == len(files) - 1 else share
         got, first_row, last_row, n_docs, n_flush = 0, None, None, 0, 0
         t0 = time.time()
-        stream = _doc_stream(dataset, path)
+        stream = _doc_stream(dataset, path, revision)
         while got < want:
             buf, rows = [], []
             for row_i, text in stream:
@@ -186,7 +199,14 @@ def run(cfg, args):
 
     out = C.corpus_dir(base, root)
     with C.outdir(
-        out, args, inputs={"base": base, "budget_tokens": budget, "files": cfg["corpus"]["files"]}
+        out,
+        args,
+        inputs={
+            "base": base,
+            "budget_tokens": budget,
+            "dataset": f"{cfg['corpus']['dataset']}@{cfg['corpus'].get('revision') or 'UNPINNED'}",
+            "files": cfg["corpus"]["files"],
+        },
     ) as od:
         od.write_array("tokens.i32", np.concatenate([docs[int(i)][2] for i in perm]), "int32")
         od.write_jsonl("docs.jsonl", rows)

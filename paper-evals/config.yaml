@@ -382,6 +382,13 @@ heldout:
 
 corpus:
   dataset: openbmb/Ultra-FineWeb
+  # PINNED (D9, 2026-09-21). Streaming at `main` was the one violation of this branch's own
+  # no-unpinned-data rule: the published dataset can gain or reorder rows, and every doc id, scan
+  # window and top-k list on the volume indexes into the exact parquet bytes this corpus was built
+  # from. `null` here means "unpinned" and corpus.py REFUSES it -- resolve the revision (the
+  # dataset's current commit sha on the hub) and put it in, do not delete the key.
+  # The parquet sha256 of each part lands in the corpus README at build time.
+  revision: main
   files:
     - data/ultrafineweb_en/ultrafineweb-en-part-0009-of-2048.parquet
     - data/ultrafineweb_en/ultrafineweb-en-part-0010-of-2048.parquet

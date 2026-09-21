@@ -23,6 +23,7 @@ each and the per-size statistics are cumulative snapshots taken at the crossings
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 
@@ -242,7 +243,28 @@ def _pass_a(model, cfg, args, toks, docs, sizes, sink, pad_id, sae, od_stats, od
     corpus_rate = total_tokens / max(elapsed, 1e-9)
 
     # ---- stats/ ----
-    od_stats.write_array("mu.f32", mu_by_size[-1], "float32")
+    # D5, the small way. `--force` used to reach OutDir.__enter__'s rmtree (common.py:1577) for
+    # BOTH output directories, so re-running `stats` to rebuild one SAE's counters destroyed
+    # `stats/` -- including the mu every centred number on the volume was computed against. The
+    # OutDir is now `keep_existing=True` (run(), below), and the mean itself is written only when
+    # it is absent: when one is already there, its sha is ASSERTED to match rather than replaced.
+    # The hazard becomes a check, which is the only version of this that is worth having.
+    mu_path = f"{C.stats_dir(args['base'], args['root'])}/mu.f32"
+    new_mu = np.ascontiguousarray(np.asarray(mu_by_size[-1]).astype("float32"))
+    if os.path.exists(mu_path):
+        old_sha = hashlib.sha256(open(mu_path, "rb").read()).hexdigest()
+        new_sha = hashlib.sha256(new_mu.tobytes()).hexdigest()
+        assert old_sha == new_sha, (
+            f"{mu_path} already exists and this pass computed a DIFFERENT mean "
+            f"(stored sha {old_sha[:16]}..., new {new_sha[:16]}...). Every centred number on this "
+            f"volume was read against the stored one, so it is not overwritten here. If the mean "
+            f"really must change, that is a new stats directory and a re-derive of every set."
+        )
+        od_stats.note(
+            f"mu.f32 was ALREADY present and is byte-identical to this pass's mean "
+            f"(sha256 {old_sha[:16]}...); it was not rewritten (D5)."
+        )
+    od_stats.write_array("mu.f32", new_mu, "float32")
     od_stats.write_array("mu_by_size.f32", mu_by_size, "float32")
     qjson = {
         "quantiles": NORM_QUANTILES,
@@ -357,12 +379,13 @@ def run(cfg, args):
         flush=True,
     )
 
-    # Fail before the model load if either output is in the way.
-    outs = [C.stats_dir(base, root), C.sae_dir(sae_key, root)]
-    for p in outs:
-        assert args.get("force") or not os.path.exists(p), (
-            f"{p} already exists; refusing to overwrite without --force"
-        )
+    # Fail before the model load if the SAE output is in the way. `stats/` is NOT in this list any
+    # more: it is `keep_existing` (D5), so a second run adds to it and asserts the mean rather than
+    # replacing the directory, and demanding --force for that would push the user into the flag
+    # that used to do the damage.
+    assert args.get("force") or not os.path.exists(C.sae_dir(sae_key, root)), (
+        f"{C.sae_dir(sae_key, root)} already exists; refusing to overwrite without --force"
+    )
 
     t_load = time.time()
     model, tok = C.load_base(cfg, base)
@@ -384,7 +407,11 @@ def run(cfg, args):
         "base_load_seconds": round(load_s, 1),
     }
     with (
-        C.outdir(C.stats_dir(base, root), args, inputs=inputs) as od_stats,
+        # keep_existing: `stats/` ACCUMULATES (mu.f32, mu_by_size.f32, resid_norm_quantiles.json,
+        # and mu_check's README section), and a --force meant for one SAE's counters must not take
+        # the mean down with it -- D5. `centred.py` uses the same mechanism and
+        # unit_smoke.check_outdir_keep_existing_and_section covers it.
+        C.outdir(C.stats_dir(base, root), args, inputs=inputs, keep_existing=True) as od_stats,
         C.outdir(C.sae_dir(sae_key, root), args, inputs={**inputs, "sae": sae_key}) as od_sae,
     ):
         passa = _pass_a(model, cfg, args, toks, docs, sizes, sink, pad_id, sae, od_stats, od_sae)

@@ -28,8 +28,13 @@ import modal
 APP = "maemm-paper-evals"
 CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
 
+# Argument names and defaults MIRROR `precompute/modal_app.py:main` exactly -- a spawned run is
+# the run `modal run` would have produced, and a parameter that exists on one path and not the
+# other is a knob that gets set by accident (D7). `precompute/unit_smoke.check_spawn_mirrors_main`
+# parses modal_app.py and asserts the two key sets are equal, so drift fails a CPU check rather
+# than silently taking a default on an H200.
 DEFAULTS = {
-    "base": "", "maemm": "", "sae": "", "heldout": "", "force": False, "root": "/vol",
+    "base": "", "maemm": "", "sae": "", "heldout": "", "set": "", "force": False, "root": "/vol",
     "tokens": 0, "batch": 0, "allow_short": False, "n": 0, "rows": "", "max_new": 0,
     "gen_rows": 0, "dirs_from": "", "import_run1": False, "rescore_texts": "",
     "score_name": "", "no_sae": False, "no_marker_check": False, "max_num_seqs": 0,
@@ -37,8 +42,15 @@ DEFAULTS = {
     "engine": "hf", "ps_layers": "", "no_ps_floor": False, "ps_tag": "",
     "rollouts_dir": "", "corpus_name": "", "subset": "", "amp": "",
     "ps_prompt": "", "ps_rule": "", "ps_alpha": 0.0,
+    "corpus": "",
     "mu": "", "re_derive": "",
+    "feature_split": "", "maxact_windows": "", "include": "",
+    "dry_run": False,
 }
+# Handled by spawn itself rather than passed through: --set is folded into --heldout here the way
+# modal_app.main folds it, and --dry-run has no meaning for a spawn (there is no container to not
+# start -- do not spawn it).
+_LOCAL_ONLY = ("set", "dry_run")
 
 
 def poll(call_id: str) -> None:
@@ -71,8 +83,15 @@ def main() -> None:
         return
     assert a.product, "--product is required unless --poll is given"
 
-    args = {k: getattr(a, k) for k in DEFAULTS}
+    args = {k: getattr(a, k) for k in DEFAULTS if k not in _LOCAL_ONLY}
+    args["heldout"] = a.heldout or a.set
     args["root"] = args["root"].rstrip("/") or "/vol"
+    # The same D6 guard modal_app.main applies: a product that WRITES a set is never given the
+    # live default. This path bypasses that entrypoint entirely, which is exactly how the hazard
+    # got here in the first place.
+    assert args["heldout"] or a.product not in ("targets", "draw_sae2m"), (
+        f"product {a.product!r} WRITES a held-out set, so it needs an explicit --set <name> (D6)"
+    )
     # The container has no checkout; modal_app records this in every README.
     args["repo_commit"] = _repo_commit()
     args["argv"] = sys.argv

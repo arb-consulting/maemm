@@ -290,6 +290,10 @@ PRODUCTS = {
 CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
 # Products that need --maemm.
 MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
+# Products that WRITE a held-out set. They must be told which by name -- D6. An omitted --set used
+# to resolve to `common.default_heldout(cfg)`, which is the LIVE set every table is built on, and
+# `--force` would then rmtree it. There is no safe default for "where do I write a new set".
+SET_WRITERS = ("targets", "draw_sae2m")
 
 
 def _run(product, args, gpu_label):
@@ -387,6 +391,16 @@ def main(
     # suffixes the patchscopes cell directory names, so a second run of the same layer at a
     # different rollout budget does not collide with the first (sweep bo 8 vs final bo 32)
     ps_tag: str = "",
+    # D7: these four steered patchscopes and the sae2m draw through features/spawn.py ONLY, which
+    # calls the Modal function directly and bypasses every assert in this entrypoint. A knob that
+    # can be set on one launch path and not on the other is a knob that gets set by accident.
+    ps_prompt: str = "",        # which patchscopes prompt (precompute/patchscopes.py PROMPTS)
+    ps_rule: str = "",          # replace | add -- how the direction enters the placeholder
+    ps_alpha: float = 0.0,      # the injection coefficient (0 = the module's own PS_ALPHA)
+    subset: str = "",           # draw_sae2m: a shared features.parquet taken as given, not re-drawn
+    feature_split: str = "",    # draw_sae2m: override the bundle's feature_split.parquet path
+    maxact_windows: str = "",   # draw_sae2m: override the bundle's 100k-window parquet path
+    include: str = "",          # draw_sae2m: a file of feature ids to force into the draw
     # score: read <dir>/rollouts.jsonl + <dir>/rollouts.summary.json and write <dir>/scores/
     # instead of a MAEMM's rollouts -- how a `patchscopes` cell reaches the one scoring path.
     rollouts_dir: str = "",
@@ -436,6 +450,14 @@ def main(
     # NOT sorted(cfg["heldout"])[-1]: a set registered here only so --set can name it (`imported:
     # true`, e.g. the sae2m draw) must not become every product's default. common.default_heldout.
     default = C.IMPORT_RUN1_SET if import_run1 else C.default_heldout(cfg)
+    # D6: a set WRITER is never given a default. `draw_sae2m` and `targets` create a directory and
+    # `--force` rmtrees what is there, so an omitted --set resolving to the live default set is one
+    # keystroke away from destroying the set the paper's tables are built on.
+    assert not (product in SET_WRITERS and not (set or heldout)), (
+        f"product {product!r} WRITES a held-out set, so it needs an explicit --set <name>: an "
+        f"omitted one would resolve to {default!r}, the live default set, and --force would "
+        f"replace it (D6). config.yaml declares {sorted(cfg['heldout'])}."
+    )
     set_name = set or heldout or default
     assert set_name in cfg["heldout"] or set_name == C.IMPORT_RUN1_SET, (
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])} and the only "
@@ -470,6 +492,13 @@ def main(
         "ps_layers": ps_layers,
         "no_ps_floor": no_ps_floor,
         "ps_tag": ps_tag,
+        "ps_prompt": ps_prompt,
+        "ps_rule": ps_rule,
+        "ps_alpha": ps_alpha,
+        "subset": subset,
+        "feature_split": feature_split,
+        "maxact_windows": maxact_windows,
+        "include": include,
         "rollouts_dir": rollouts_dir.rstrip("/"),
         "amp": amp,
         "mu": mu,

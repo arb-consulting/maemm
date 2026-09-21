@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 
 import numpy as np
 
@@ -77,14 +76,49 @@ def _bundle_corpus_peaks(args, eval_ids):
     return top.reindex(eval_ids).to_numpy(dtype=np.float32)
 
 
-def build(cfg, args):
-    import torch
+def _include_ids(args) -> np.ndarray:
+    """`--include <file>`: feature ids that MUST be in the draw, whatever the sample picks.
 
+    The eval plan needs her standard-eval 512 inside our stratified draw so the two blocks are
+    nested rather than merely comparable; `--stratified`/`--seed` cannot express that, and
+    `:93`'s max-abs-diff check against her 512 is a verification, not an inclusion mechanism.
+    Accepts a .parquet with a `feature_id` column, a .npy, or one id per line.
+    """
+    path = (args.get("include") or "").strip()
+    if not path:
+        return np.zeros(0, dtype=np.int64)
+    assert os.path.exists(path), f"--include {path}: no such file"
+    if path.endswith(".parquet"):
+        import pandas as pd
+
+        ids = pd.read_parquet(path)["feature_id"].to_numpy()
+    elif path.endswith(".npy"):
+        ids = np.load(path)
+    else:
+        with open(path) as fh:
+            ids = np.array([int(ln) for ln in fh if ln.strip()], dtype=np.int64)
+    ids = np.unique(np.asarray(ids).astype(np.int64))
+    assert ids.size, f"--include {path} lists no feature ids"
+    return ids
+
+
+def build(cfg, args):
     base, root = args["base"], args["root"]
-    sae_key = args["sae"] if "/" in args.get("sae", "") else f"{base}/{args.get('sae')}"
+    # ONE --sae syntax, the same rule every other product uses (common.sae_key_for): a full
+    # `<base>/<name>` key, or nothing at all when the base carries a single SAE. The old inline
+    # form turned a missing --sae into the literal key "<base>/None".
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
     spec = cfg["bases"][base]
-    set_name = args["heldout"] or time.strftime("%Y-%m-%d") + "_sae2m"
+    # D6: never a dated default. This product CREATES a set directory and `--force` rmtrees what
+    # is there; a name it made up is a name nobody can ask for twice.
+    set_name = args["heldout"]
+    assert set_name, (
+        "draw_sae2m writes a held-out set, so it needs an explicit --set <name> (D6). It used to "
+        "fall back to today's date, and through modal_app to the LIVE default set."
+    )
     out_dir = C.heldout_dir(base, set_name, root)
+    # Fail before the SAE load, as every other product does; C.outdir enforces the same rule again
+    # at write time (temp-and-rename, no half-written set).
     assert args.get("force") or not os.path.exists(out_dir), (
         f"{out_dir} already exists; refusing to overwrite without --force")
 
@@ -128,7 +162,9 @@ def build(cfg, args):
             "a subset feature is not on the eval side -- it would not be held out")
         side = sub["split"].to_numpy().astype(str)
         stratum = sub["stratum"].to_numpy().astype(int)
-        peak_by_id = dict(zip(sub["feature_id"].tolist(), sub["corpus_peak_1b"].tolist()))
+        peak_by_id = dict(
+            zip(sub["feature_id"].tolist(), sub["corpus_peak_1b"].tolist(), strict=True)
+        )
         strat_name, strat_source = "log10_corpus_peak_1B", f"subset {subset}"
         have_stats = False
         gated_full = None
@@ -148,22 +184,46 @@ def build(cfg, args):
         rank_stat = peaks_1b[keep].astype(np.float64)
     print(f"[draw] eval split {len(eval_ids):,} -> {len(eligible):,} eligible, "
           f"strata from {strat_source}", flush=True)
-    assert len(eligible) >= N_FEATURES, (
-        f"only {len(eligible)} eligible features, need {N_FEATURES}")
+    assert len(eligible) >= int(args.get("n") or N_FEATURES), (
+        f"only {len(eligible)} eligible features, need {int(args.get('n') or N_FEATURES)}")
 
-    rng = np.random.default_rng(DRAW_SEED)
-    drawn = np.sort(rng.choice(eligible, size=N_FEATURES, replace=False))
+    rng = np.random.default_rng(int(args.get("seed") or DRAW_SEED))
+    n_draw = int(args.get("n") or N_FEATURES)
+    forced = _include_ids(args)
+    if forced.size:
+        # The forced ids are taken as given and the SAMPLE fills the rest, drawn from the eligible
+        # pool with the forced ones removed so nothing is drawn twice. They must still be on the
+        # eval side, or the held-out claim dies for those rows.
+        assert np.isin(forced, eval_ids).all(), (
+            f"{int((~np.isin(forced, eval_ids)).sum())} of the {forced.size} --include features are "
+            f"not on Celeste's eval split, so they were TRAINED on and cannot be held out"
+        )
+        missing = forced[~np.isin(forced, eligible)]
+        assert args.get("allow_short") or not missing.size, (
+            f"{missing.size} of the {forced.size} --include features do not pass the eligibility "
+            f"rule (>= {MIN_FIRES} gated fires); pass --allow-short to include them anyway and "
+            f"have the shortfall recorded"
+        )
+        rest = eligible[~np.isin(eligible, forced)]
+        assert rest.size >= n_draw - forced.size, (
+            f"only {rest.size} eligible features outside the {forced.size} forced ones, need "
+            f"{n_draw - forced.size} more to reach n={n_draw}"
+        )
+        drawn = np.sort(np.concatenate([forced, rng.choice(rest, n_draw - forced.size, replace=False)]))
+        print(f"[draw] --include forced {forced.size} features; {n_draw - forced.size} sampled", flush=True)
+    else:
+        drawn = np.sort(rng.choice(eligible, size=n_draw, replace=False))
     assert np.isin(drawn, eval_ids).all(), "a drawn feature is not on the eval side"
 
     # Quartile of the stratification statistic, over the DRAWN set.
-    by_id = dict(zip(eligible.tolist(), rank_stat.tolist()))
+    by_id = dict(zip(eligible.tolist(), rank_stat.tolist(), strict=True))
     dens = np.log10(np.maximum(np.array([by_id[int(f)] for f in drawn]), 1e-6))
     cuts = np.quantile(dens, [0.25, 0.5, 0.75])
     stratum = np.searchsorted(cuts, dens, side="right")
 
-    side = np.where(rng.random(N_FEATURES) < FIT_FRACTION, "fit", "report")
+    side = np.where(rng.random(len(drawn)) < FIT_FRACTION, "fit", "report")
 
-    peak_by_id = dict(zip(eval_ids.tolist(), peaks_1b.tolist()))
+    peak_by_id = dict(zip(eval_ids.tolist(), peaks_1b.tolist(), strict=True))
     return _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
                    peak_by_id, strat_name, strat_source, have_stats, gated_full,
                    cuts, {"eligible": int(len(eligible))})
@@ -224,7 +284,12 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
 
 def run(cfg, args):
     set_name, out_dir, rows, vecs, meta = build(cfg, args)
-    inputs = {"sae": args.get("sae"), "subset": args.get("subset") or "(drawn)"}
+    inputs = {
+        "sae": meta["sae_key"],
+        "subset": args.get("subset") or "(drawn)",
+        "include": args.get("include") or "(none)",
+        "n": len(rows),
+    }
     with C.outdir(out_dir, args, inputs=inputs) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
