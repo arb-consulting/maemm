@@ -2774,10 +2774,11 @@ stratum 3) are the only ones any generated text drives to the gate reliably.
 
 ---
 
-## 2026-09-21 — branch `evals/pipeline`: the conventions layer (NOT RUN on the volume)
+## 2026-09-21 — branch `evals/pipeline`: the conventions layer
 
-Everything in this section is **local CPU only**. No Modal call was made, no volume path was
-written, nothing was launched. The one paid smoke below is DOCUMENTED, not executed.
+CPU work first, then the §1.6 paid smoke, which WAS run (11 H200 calls, **$1.89**). Everything the
+smoke wrote went under a NEW set name and new tagged stems; `2026-09-16_v1` and every existing
+product were read and not modified, and nothing was deleted.
 
 | date | item | command | wall | cost | result | discrepancies |
 |---|---|---|---|---|---|---|
@@ -2841,63 +2842,130 @@ two-arm reconciliation in SMOKES.md settles.
 its config entry). **Fix**: pass `--mu none` or `--mu base/{base}/stats/mu.f32` — which is exactly
 the two-arm reconciliation the smoke below runs.
 
-### The one paid smoke, when the branch is ready to run (§1.6, ≤ $5) — NOT LAUNCHED
+### The §1.6 paid smoke — RUN 2026-09-21, **$1.89 total**
 
-A 6-row scratch set (4 `realact` + 2 `sae`) at `storage: raw` through
-`targets → rollouts_{vllm,hf,nla} → score → sae_self` for both MAEMMs × both SAEs plus the NLA
-entry. Scaling the measured NLA smoke ($0.3185 / 32 rollouts at 200 tok, $0.23–0.36 per
-score/`sae_self` pass, 2026-09-21 rows above): **≈ $3.5, ~35 min**. Everything writes under a
-scratch root; nothing touches a live product.
+11 H200 calls under a $5 target / $8 cap. Everything wrote under a NEW set name; `2026-09-16_v1`
+and every existing product were read and not modified.
 
-```sh
-cd 2026-09-maemms && set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms
-R=/vol/runs/2026-09-21_conventions-smoke
-M=repo-maemm/paper-evals/precompute/modal_app.py
-RL16=qwen36-27b/2026-09-18_rl-last16-lr5e-7; OLD=qwen36-27b/2026-09-10_rl-8x2048-full
-NLA=qwen36-27b/2026-07-14_nla-av; S2M=qwen36-27b/sae2m; S131=qwen36-27b/l42-1b
+| step | product | wall | cost | outcome |
+|---|---|---|---|---|
+| — | `targets --re-derive` (1st try) | ~2 min | ~$0.25 est. | **FAILED**, my bug: see "the arity defect" below. Crashed before its own cost line |
+| 0 | `targets --re-derive 2026-09-16_v1 --set 2026-09-21_v1raw` | 155.8 s | $0.1964 | 1,536 rows, 45.3 MiB, all three re-derive checks passed |
+| 1 | `rollouts_hf` old primary `--mu none --run-tag mu-none` | 111.1 s | $0.1401 | 24 rollouts |
+| 2 | `rollouts_hf` old primary `--mu base/{base}/stats/mu.f32 --run-tag mu-stats` | 148.8 s | $0.1876 | 24 rollouts |
+| 3 | `rollouts_hf` `rl-last16` (config `mu:` = whiten_mu) | 160.0 s | $0.2018 | 24 rollouts |
+| 4 | `score` old primary, mu-none | 99.2 s | $0.1251 | no `cos_centred` (mu is none) |
+| 5 | `score` old primary, mu-stats | 78.7 s | $0.0992 | both cosines |
+| 6 | `score` `rl-last16` | 90.8 s | $0.1145 | both cosines |
+| 7 | `sae_self` `rl-last16`, normal path | 86.6 s | $0.1092 | 3/3 checks |
+| 8 | `rollouts_nla --amp exact` | 169.7 s | $0.2141 | writes the `--rollouts-dir` layout |
+| 9 | `score --rollouts-dir` (no `--maemm`) | 116.7 s | $0.1472 | **D11 prerequisite** |
+| 10 | `sae_self --rollouts-dir` (no `--maemm`) | 85.7 s | $0.1080 | **D11**, 3/3 checks |
 
-# 0. local gates, no container
-uv run repo-maemm/paper-evals/precompute/unit_smoke.py
-uvx modal run $M --product check --base qwen36-27b
-uvx modal run $M --product targets --base qwen36-27b --set <smoke-set> --root $R --dry-run
+HF rather than vLLM deliberately: 24 rollouts do not repay a 27B vLLM engine init.
 
-# 1. the set: raw storage, 4 realact + 2 sae. --set is REQUIRED (D6).
-uvx modal run $M --product targets --base qwen36-27b --sae $S2M --set <smoke-set> --root $R \
-    --allow-short
-# 2. rollouts: the mu comes from each checkpoint's own config `mu:`, never a flag
-uvx modal run $M --product rollouts_vllm --base qwen36-27b --maemm $RL16 --set <smoke-set> \
-    --root $R --n 4
-uvx modal run $M --product rollouts_vllm --base qwen36-27b --maemm $OLD  --set <smoke-set> \
-    --root $R --n 4
-uvx modal run $M --product rollouts_nla  --base qwen36-27b --maemm $NLA  --set <smoke-set> \
-    --root $R --n 4
-# 3. score: two cosines, and the SAE half on the sae rows only (the split of plan §2.5)
-for MM in $RL16 $OLD $NLA; do
-  uvx modal run $M --product score --base qwen36-27b --maemm $MM --set <smoke-set> --root $R \
-      --engine vllm --sae $S2M
-  uvx modal run $M --product score --base qwen36-27b --maemm $MM --set <smoke-set> --root $R \
-      --engine vllm --sae $S131 --score-name <smoke-set>__131k
-done
-# 4. sae_self on BOTH dictionaries -- the sae_key selector is what this proves
-uvx modal run repo-maemm/paper-evals/autointerp/modal_app.py --stage sae_self \
-    --base qwen36-27b --maemm $RL16 --set <smoke-set> --root $R --engine vllm --sae $S2M
-uvx modal run repo-maemm/paper-evals/autointerp/modal_app.py --stage sae_self \
-    --base qwen36-27b --maemm $RL16 --set <smoke-set> --root $R --engine vllm --sae $S131
+**`targets --re-derive`, the migration.** $0.1964 / 155.8 s against the plan's measured basis of
+$0.1864 / 147.8 s. `re_derive.json` on the volume:
+
+| family | mean it was re-centred under | n | min cos vs the old `vecs.f16` |
+|---|---|---|---|
+| realact | `/vol/base/qwen36-27b/stats/mu.f32` | 512 | **0.99999917** |
+| random | none | 512 | 0.99999923 |
+| sae | none | 512 | 0.99999928 |
+
+1,536 rows; every field of `(family, id, stratum, doc, part, part_row, p, L, act_norm)` identical
+row for row; `span_text` identical except the **21 clamped rows**, each new text a suffix of the
+old. So it is the same draw re-forwarded, not a re-sample, and D4 is the only textual difference.
+Two recorded facts confirmed en route: 21/512 clamped (the review's predicted count) and
+cos(mu_512, stats/mu) = **0.9773** against observations §2's 0.977; `‖stats/mu‖` = 67.9.
+
+### The two old-primary arms — what settles `mu: unknown`
+
+Same rows, same scorer, same target (`cos` is against `unit(act)` for both, because on a raw set
+the uncentred cosine's target does not depend on `--mu`). The ONLY difference is which direction
+the checkpoint was handed at generation. realact rows 0-3, n = 4:
+
+| row | `--mu none` mean_cos | `--mu stats_mu` mean_cos | `--mu none` bo_4 | `--mu stats_mu` bo_4 |
+|---|---|---|---|---|
+| 0 | 0.8089 | **0.8899** | 0.8615 | **0.8949** |
+| 1 | 0.8127 | **0.8608** | 0.8379 | **0.9303** |
+| 2 | **0.9314** | 0.8855 | **0.9423** | 0.9397 |
+| 3 | 0.9509 | **0.9594** | 0.9720 | **0.9705** |
+| **mean** | 0.8760 | **0.8989** | 0.9034 | **0.9339** |
+
+**`stats_mu` wins**: +0.023 mean_cos, +0.030 bo_4, and on 3 of 4 rows. That is the direction the
+record already pointed (Celeste's original convention was a centred target) and against Tomáš's
+recollection. **n = 4 rows × 4 rollouts is far too small to declare it**, so `config.yaml` keeps
+`mu: unknown` and this table is the evidence for widening the arms before it is changed.
+
+Internal consistency: the two `sae` rows score identically across the arms (0.0056 / 0.0684 to
+4 dp) — an encoder column is not centrable, so both arms injected the same vector for them.
+
+**The plan's §1.6 gate 2 cannot be evaluated by this run, and not only because of size.** The
+stored 0.5076 is `cos(h, unit(act − stats_mu))` — target centred, scorer raw, Celeste's asymmetry.
+On a `storage: raw` set `score` produces `cos` (neither side centred) and `cos_centred` (both), and
+**not** that third, asymmetric statistic. So the historical number is not reproducible from a raw
+set by any flag combination. Either the gate is restated against `cos_centred`, or a legacy set is
+kept for it, or `score` grows a third column. Flagged, not decided.
+
+### `cos_centred`, first numbers
+
+Written only when the run centres on something, which is the intended behaviour: the `--mu none`
+and NLA directories carry no `cos_centred.f16` at all, and `rows.json` records the mu path.
+
+| arm | mu recorded in `rows.json` | realact mean of `mean_cos_centred` |
+|---|---|---|
+| old primary, stats_mu | `/vol/base/qwen36-27b/stats/mu.f32` | 0.7724 |
+| `rl-last16`, whiten_mu | `/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy` | 0.7518 |
+
+Every `sae` row is absent from the centred aggregates (`n_centred` unset), never a one-sided
+number — the NaN rule holding on real data.
+
+### `sae_self`, both paths
+
+| path | argmax agreement | cos vs stored, max abs | CSR value / membership mismatches | csr_checked |
+|---|---|---|---|---|
+| `rl-last16`, normal | 8/8 | 1.5e-05 | 0 / 0 | true |
+| NLA, `--rollouts-dir` (**D11**) | 8/8 | 1.0e-03 | 0 / 0 | true |
+
+Both on the 131k dictionary, rows 1024-1025, features 341 and 845, gate 1.5846. The D11 path was
+exercised on real data because `rollouts_nla --amp <non-default>` already writes
+`rollouts.jsonl` + `rollouts.summary.json` into a variant directory — exactly the `--rollouts-dir`
+layout — so no extra producer was needed. Feature 845 fires on 4/4 `rl-last16` rollouts
+(mean peak 2.93 against corpus peak 6.96) and 2/4 NLA texts; feature 341 (corpus peak 44.7) fires
+on neither.
+
+### The arity defect, and what it cost
+
+The first `targets --re-derive` died after a 148 s H200 forward with
+
+```
+ValueError: not enough values to unpack (expected 3, got 2)
 ```
 
-Three gates, any of which stops the branch:
+`_realact` was given a third return value on this branch and its `return` statement was not
+updated. Nothing on CPU could see it — `targets.run` needs weights, a corpus and a GPU. ~$0.25,
+estimated from wall; the product crashed before its own cost line, and left a temp directory that
+the rerun cleaned up by itself. `unit_smoke.check_return_arities` now checks that class on CPU for
+the nine loaders this branch kept moving.
 
-1. **`rl-last16` marker/greedy** — clears the `config.yaml` UNVERIFIED flags (prompt `celeste27b`
-   assumed, `train_max_new` from the stale argv) before any paid run.
-2. **`cos_raw` reproduction** — the old primary within 0.01 of its stored `2026-09-16_v1` rows 0–7
-   value (0.5076). **Read the config note first**: that number was produced against a
-   `stats/mu.f32`-centred set while the entry now declares `mu: null`, so the reproduction has to
-   be run with `--mu base/{base}/stats/mu.f32` or the gate is comparing two different statistics.
-   `cos_centred` for `rl-last16` within 0.02 of the 64-smoke.
-3. **`sae_self` CSR cross-checks** — 0 mismatches on BOTH dictionaries, with the `sae_key`
-   selector proving it picked the right features. Also settle U3 here for ~$0.05:
-   `score --no-sae` over 2 sae rows, then `sae_self` the same two, to see whether the missing CSR
-   trips the check or makes it vacuous.
+A second defect surfaced the same way at step 2:
+
+```
+AssertionError: /vol/maemms/.../rollouts/2026-09-21_v1raw.jsonl already exists;
+refusing to overwrite without --force
+```
+
+`--run-tag` had been threaded through `rollouts_vllm`, `score` and `sae_self` but not
+`rollouts_hf`, whose stem IS the bare set name and which spelled the path directly instead of
+calling `rollout_stem`. Both old-primary arms therefore claimed one file, and only the
+pre-existing overwrite guard stood between the second and the first. Fixed there and in
+`rollouts_nla`'s matching branch.
+
+**Leftover to remove** (not deleted here; deletion was not in scope):
+`/vol/maemms/qwen36-27b/2026-09-10_rl-8x2048-full/rollouts/2026-09-21_v1raw.jsonl` +
+`.summary.json` — the first arm's output under the pre-fix untagged name. It is the `mu: none`
+arm, but its name does not say so; the tagged `…__mu-none.jsonl` beside it is the one to read.
 
 ### Run-scale decisions recorded 2026-09-21 (Tomáš), for the runbooks that follow
 

@@ -714,8 +714,12 @@ def run(cfg, args):
         stem, summary_name = "rollouts", "rollouts.summary.json"
     else:
         out_dir = C.rollouts_dir(maemm, root)
-        path = f"{out_dir}/{set_name}.jsonl"
-        stem, summary_name = set_name, f"{set_name}.summary.json"
+        # Through common.rollout_stem, like rollouts_hf and rollouts_vllm: the HF-shaped stem IS
+        # the bare set name, so spelling it here quietly ignored `--run-tag` and two runs of one
+        # checkpoint on one set differing only in --mu would both claim `<set>.jsonl`.
+        stem = C.rollout_stem(set_name, "hf", args.get("run_tag") or "")
+        path = f"{out_dir}/{stem}.jsonl"
+        summary_name = f"{stem}.summary.json"
     assert args.get("force") or not os.path.exists(path), (
         f"{path} already exists; refusing to overwrite without --force"
     )

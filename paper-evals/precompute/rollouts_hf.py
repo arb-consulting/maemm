@@ -260,7 +260,13 @@ def run(cfg, args):
     assert gen_rows > 0, f"--gen-rows must be positive, got {gen_rows}"
 
     out_dir = C.rollouts_dir(maemm, root)
-    path = f"{out_dir}/{set_name}.jsonl"
+    # THROUGH common.rollout_stem, not built here. The HF stem IS the bare set name, so this line
+    # used to spell it directly and quietly ignored `--run-tag` -- two runs of one checkpoint on
+    # one set differing only in --mu then both wrote `<set>.jsonl`, and only the "already exists"
+    # guard stood between the second and the first. rollouts_vllm goes through the helper; this is
+    # its sibling and now does too.
+    stem = C.rollout_stem(set_name, "hf", args.get("run_tag") or "")
+    path = f"{out_dir}/{stem}.jsonl"
     assert args.get("force") or not os.path.exists(path), (
         f"{path} already exists; refusing to overwrite without --force"
     )
@@ -398,10 +404,10 @@ def run(cfg, args):
     }
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=os.path.exists(out_dir)) as od:
         C.note_convention(od, cen_notes)
-        od.write_jsonl(f"{set_name}.jsonl", out_rows)
-        od.write_json(f"{set_name}.summary.json", summary)
+        od.write_jsonl(f"{stem}.jsonl", out_rows)
+        od.write_json(f"{stem}.summary.json", summary)
         od.note(
-            f"`{set_name}.jsonl`: one row per (target, rollout) -- row, family, k, text, ids "
+            f"`{stem}.jsonl`: one row per (target, rollout) -- row, family, k, text, ids "
             "(the GENERATED ids only, trimmed at the first stop token which is KEPT, "
             "rl/rl.py:82-90), n_tok, finished, engine, seed. `text` is decode(ids, "
             "skip_special_tokens=True). The prompt is NOT part of either field (checklist item 8)."
