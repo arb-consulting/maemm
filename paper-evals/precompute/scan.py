@@ -180,6 +180,7 @@ def run(cfg, args):
     # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
     # ladder or window geometry is a different corpus, never an edit of one.
     corpus_name = args.get("corpus_name") or ""
+    C.assert_corpus_geometry(cfg, corpus_name)  # H7: refuse a corpus we would cut at the wrong width
     toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     cen_notes: list[str] = []
@@ -196,12 +197,12 @@ def run(cfg, args):
     tested_row = [r["row"] for r in sae_sel]
     n_feat = len(tested)
 
-    out_scan = C.scan_dir(base, set_name, root)
+    out_scan = C.scan_dir(base, set_name, root, corpus_name)
     # KEYED BY SET (B9, 2026-09-21). `examples/` used to be keyed by SAE alone, so a second scan of
     # the same dictionary against a different held-out set refused without --force and DESTROYED
     # the first set's examples with it -- and the eval plan runs three scans on sae2m. The scan
     # half was already set-keyed (C.scan_dir); this is the other half.
-    out_ex = C.sae_examples_dir(sae_key, set_name, root, write=True)
+    out_ex = C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=corpus_name)
     for p in (out_scan, out_ex):
         assert args.get("force") or not os.path.exists(p), (
             f"{p} already exists; refusing to overwrite without --force"

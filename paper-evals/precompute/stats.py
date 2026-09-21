@@ -371,6 +371,7 @@ def run(cfg, args):
     # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
     # ladder or window geometry is a different corpus, never an edit of one.
     corpus_name = args.get("corpus_name") or ""
+    C.assert_corpus_geometry(cfg, corpus_name)  # H7: refuse a corpus we would cut at the wrong width
     toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     print(

@@ -95,7 +95,8 @@ def run(cfg, args):
     batch_rows = int(args.get("batch") or BATCH)
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 
-    ex_dir = C.sae_examples_dir(sae_key, set_name, root)
+    corpus_name = args.get("corpus_name") or ""
+    ex_dir = C.sae_examples_dir(sae_key, set_name, root, corpus_name=corpus_name)
     out = f"{C.sae_dir(sae_key, root)}/top1_act/{set_name}"
     assert args.get("force") or not os.path.exists(out), (
         f"{out} already exists; refusing to overwrite without --force"
@@ -106,12 +107,19 @@ def run(cfg, args):
     sizes = C.corpus_sizes(docs)
     size = sizes[-1]
     ids_rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
-    sae_rows = [r for r in ids_rows if r["family"] == "sae"]
-    assert sae_rows, f"held-out set {set_name} on {base} has no sae family"
+    # On the row's own sae_key, not the family label (H8; common.sae_rows_of). `:131` looks each
+    # `id` up in THIS encoder, and the branch created the exposure: before it, this product carried
+    # `assert len(sae_keys) == 1` and simply refused to run on a two-SAE base.
+    sae_rows = C.sae_rows_of(
+        ids_rows, sae_key, side="enc",
+        declared=C.declared_sae_key(cfg, C.heldout_dir(base, set_name, root), root),
+        where=C.heldout_dir(base, set_name, root),
+    )
+    assert sae_rows, f"held-out set {set_name} on {base} has no sae rows of {sae_key}"
     by_row = {r["row"]: r for r in sae_rows}
 
     top1 = {}
-    for r in C.read_jsonl(f"{C.scan_dir(base, set_name, root)}/topk.jsonl"):
+    for r in C.read_jsonl(f"{C.scan_dir(base, set_name, root, corpus_name)}/topk.jsonl"):
         if r["size"] == size and r["row"] in by_row:
             assert r["top"], f"row {r['row']} has an empty top-k at size {size}M"
             top1[r["row"]] = r["top"][0]
@@ -237,7 +245,7 @@ def run(cfg, args):
     }
 
     inputs = {
-        "scan": C.scan_dir(base, set_name, root),
+        "scan": C.scan_dir(base, set_name, root, corpus_name),
         "heldout": C.heldout_dir(base, set_name, root),
         "examples": ex_dir,
         "sae": sae_key,

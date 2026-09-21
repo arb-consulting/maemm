@@ -50,7 +50,13 @@ DEFAULTS = {
 # Handled by spawn itself rather than passed through: --set is folded into --heldout here the way
 # modal_app.main folds it, and --dry-run has no meaning for a spawn (there is no container to not
 # start -- do not spawn it).
-_LOCAL_ONLY = ("set", "dry_run")
+# `corpus` too: it is a KEY that must be resolved to a directory name before it is sent, and that
+# resolution lives in modal_app.main, which this file bypasses by design. Forwarding the key
+# unresolved left `corpus_name` empty and every spawned scan silently read the DEFAULT 16M corpus
+# while the operator believed they had scanned the training-range one -- precisely the
+# "memorised vs unseen text" confusion `corpus_key_name` exists to prevent, on the launch path
+# recommended for long runs (H6).
+_LOCAL_ONLY = ("set", "dry_run", "corpus")
 
 
 def poll(call_id: str) -> None:
@@ -85,6 +91,20 @@ def main() -> None:
 
     args = {k: getattr(a, k) for k in DEFAULTS if k not in _LOCAL_ONLY}
     args["heldout"] = a.heldout or a.set
+    if a.corpus:
+        # paper-evals/ is this file's parent; spawn is run as `python -m features.spawn` from it,
+        # but be explicit so a direct invocation resolves the same way.
+        from pathlib import Path as _P
+
+        sys.path.insert(0, str(_P(__file__).resolve().parent.parent))
+        import precompute.common as C
+
+        assert not a.corpus_name, (
+            f"pass --corpus {a.corpus!r} OR --corpus-name {a.corpus_name!r}, not both: the key "
+            f"resolves to the directory name and two sources for one value can only disagree"
+        )
+        args["corpus_name"] = C.corpus_key_name(C.load_config(), a.corpus)
+        print(f"[spawn] corpus {a.corpus} -> dir {args['corpus_name'] or 'corpus'}")
     args["root"] = args["root"].rstrip("/") or "/vol"
     # The same D6 guard modal_app.main applies: a product that WRITES a set is never given the
     # live default. This path bypasses that entrypoint entirely, which is exactly how the hazard

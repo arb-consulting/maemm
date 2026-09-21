@@ -119,10 +119,18 @@ def _rows_for_base(vol: Vol, cfg: dict, base: str, tol: float, sae_want: str = "
     ids = {r["row"]: r for r in (vol.jsonl(f"base/{base}/heldout/{SET}/ids.jsonl") or [])}
     assert ids, f"base/{base}/heldout/{SET}/ids.jsonl is missing"
     size = int(summary["corpus_size_m"])
+    # On the ROW's own sae_key where the set has one, not the family label alone (H8). This is a
+    # standalone `uv run` script with no paper-evals on sys.path, so it restates the rule rather
+    # than importing common.sae_rows_of: a row that names a different dictionary is skipped, and a
+    # set whose rows name none is accepted only because `sae` picked it (single-SAE base, or the
+    # --sae the caller typed) -- which is the same contract, stated where it is used.
+    id_key = {r["row"]: r.get("sae_key") for r in ids.values()}
     topk = {
         r["row"]: r["top"][0]
         for r in (vol.jsonl(f"base/{base}/scan/{SET}/topk.jsonl") or [])
-        if r["size"] == size and r["family"] == "sae"
+        if r["size"] == size
+        and r["family"] in ("sae", "sae2m_enc")
+        and id_key.get(r["row"], sae) == sae
     }
     assert topk, f"base/{base}/scan/{SET}/topk.jsonl has no sae rows at size {size}M"
 

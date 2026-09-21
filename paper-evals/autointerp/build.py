@@ -898,7 +898,7 @@ def run(cfg, args):
     # score._sae_for and sae_self._sae_rows: build reads THEIR outputs, so it must resolve the
     # same key they did or it would render examples for one dictionary from another's scan.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
-    ex_dir = C.sae_examples_dir(sae_key, set_name, root)
+    ex_dir = C.sae_examples_dir(sae_key, set_name, root, corpus_name=args.get("corpus_name") or "")
     # `scan`'s 16M product: `<feature>.jsonl` with the top-k AND the q-band rows, plus the
     # per-token activations of each. It does not exist for every SAE -- the 2M one would cost a
     # ~$9 scan to make -- and when it is absent BOTH things it feeds have to come from somewhere

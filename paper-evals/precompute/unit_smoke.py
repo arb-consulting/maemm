@@ -1553,6 +1553,58 @@ def check_every_set_writer_writes_the_contract():
 
 
 
+
+def check_corpus_axis():
+    """The corpus is an axis of a scan's OUTPUT PATH, of spawn's resolution, and of the refusal.
+
+    H5/H6/H7 in one check, all three of which were "declared but not wired":
+      * `scan_dir` / `sae_examples_dir` key by corpus as well as set, with "" resolving to today's
+        path so nothing on the volume moves -- the plan scans ONE set over TWO corpora and both
+        used to land on one directory, where the second destroys the first under --force;
+      * `features/spawn.py` resolves `--corpus` itself instead of forwarding the key unresolved,
+        which left `corpus_name` empty and every spawned scan silently on the default corpus;
+      * a corpus whose declared window geometry is not the one all eleven `windows_of` sites cut
+        at is REFUSED, not scanned at the wrong width under a README claiming the right one.
+    """
+    import ast
+
+    cfg = C.load_config()
+    assert C.scan_dir("b", "s") == C.scan_dir("b", "s", corpus_name="")
+    assert C.scan_dir("b", "s", corpus_name="cc").endswith("/scan/s__cc")
+    assert C.sae_examples_dir("b/x", "s", write=True, corpus_name="cc").endswith("/examples/s__cc")
+    assert C.sae_examples_dir("b/x", "s", write=True) != C.sae_examples_dir(
+        "b/x", "s", write=True, corpus_name="cc"
+    ), "two corpora must not share one examples directory"
+
+    assert C.corpus_key_of_dir(cfg, "") == "heldout16m", "the unnamed directory is the 16M corpus"
+    assert C.corpus_key_of_dir(cfg, "train_parity_10m") == "celeste-train10m"
+    assert C.corpus_key_of_dir(cfg, "nothing-like-this") == ""
+    assert C.assert_corpus_geometry(cfg, "") == (C.SCAN_BLOCK, C.SCAN_STRIDE)
+    try:
+        C.assert_corpus_geometry(cfg, "train_parity_10m")
+    except AssertionError as e:
+        assert "declares window 32/8" in str(e), f"wrong assert for a mismatched geometry: {e}"
+    else:
+        raise AssertionError(
+            "a corpus declaring 32/8 was accepted by a pipeline that cuts 64/16 everywhere"
+        )
+
+    spawn_src = (Path(__file__).resolve().parent.parent / "features" / "spawn.py").read_text()
+    local_only = next(
+        ast.literal_eval(n.value)
+        for n in ast.parse(spawn_src).body
+        if isinstance(n, ast.Assign)
+        and isinstance(n.targets[0], ast.Name)
+        and n.targets[0].id == "_LOCAL_ONLY"
+    )
+    assert "corpus" in local_only, (
+        "features/spawn.py forwards `corpus` to the container, where nothing reads it: the key "
+        "must be resolved to a directory name on the client, as modal_app.main does"
+    )
+    assert "corpus_key_name" in spawn_src, "spawn.py does not resolve --corpus to a directory"
+
+
+
 CHECKS = [
     check_config,
     check_paths,
@@ -1592,6 +1644,7 @@ CHECKS = [
     check_return_arities,
     check_centred_uses_one_mu,
     check_every_set_writer_writes_the_contract,
+    check_corpus_axis,
     check_rollouts_nla_selftest,
 ]
 

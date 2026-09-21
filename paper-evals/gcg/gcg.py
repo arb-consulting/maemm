@@ -1193,7 +1193,8 @@ def _load_targets(cfg, args, notes=None):
 
 def _load_scan_top(cfg, args, n_rows):
     """`{row: {size: [[doc, start, argmax, cos], ...]}}` from the scan's topk.jsonl."""
-    path = f"{C.scan_dir(args['base'], args['heldout'], args['root'])}/topk.jsonl"
+    cn = args.get("corpus_name") or ""
+    path = f"{C.scan_dir(args['base'], args['heldout'], args['root'], cn)}/topk.jsonl"
     import os
 
     assert os.path.exists(path), (
@@ -1378,7 +1379,7 @@ def run(cfg, args):
     if sae_ctx is not None:
         inputs["sae"] = f"{sae_ctx['key']} (gate {sae_ctx['sae'].threshold:.4f})"
     if a["init"] == "corpus":
-        inputs["scan"] = C.scan_dir(base, set_name, root)
+        inputs["scan"] = C.scan_dir(base, set_name, root, args.get("corpus_name") or "")
         inputs["corpus"] = C.corpus_dir(base, root)
     if resume_from:
         inputs["resumed_from"] = (

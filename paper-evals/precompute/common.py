@@ -78,6 +78,12 @@ IMPORT_RUN1_SET = "2026-09-03_run1-archive16"
 # Corpus scan geometry (checklist item 57: block size and stride are results-affecting, so they are
 # named once here and quoted in every README). The old retrieval baseline used BLOCK 64 / STRIDE 32
 # (eval/corpus_retrieval.py:89-91); ours is stride 16, i.e. 4x the coverage per token.
+# THE window geometry of every scan in this pipeline. It is a CONSTANT, not a default: eleven
+# `windows_of(` call sites across stats, scan, top1_act, sae_self, build and gcg reconstruct the
+# same window ids to join on, and they all take it from here. `corpora:` DECLARES a per-corpus
+# block/stride so a corpus built elsewhere (Ari's train_parity_10m, 32/8) is described honestly --
+# but declaring is not threading, and `assert_corpus_geometry` REFUSES such a corpus rather than
+# scanning it at 64/16 and writing a README that says 32/8. See H7 in CHANGES-pipeline.md.
 SCAN_BLOCK = 64
 SCAN_STRIDE = 16
 
@@ -1019,6 +1025,43 @@ def corpus_geometry(cfg: dict, key: str) -> tuple[int, int]:
     return int(spec["block"]), int(spec["stride"])
 
 
+def corpus_key_of_dir(cfg: dict, corpus_name: str) -> str:
+    """The `corpora:` key whose `dir` is `corpus_name` ("" = the original corpus/), or ""."""
+    want = corpus_name or "corpus"
+    for key, spec in cfg["corpora"].items():
+        if spec["dir"] == want:
+            return key
+    return ""
+
+
+def assert_corpus_geometry(cfg: dict, corpus_name: str) -> tuple[int, int]:
+    """Refuse a corpus whose declared window geometry this pipeline does not actually use.
+
+    H7. `corpora:` declares `block`/`stride` per corpus and `load_config` type-checks them, but
+    nothing threads them: all eleven `windows_of(` sites take SCAN_BLOCK/SCAN_STRIDE. Scanning
+    Ari's `train_parity_10m` (declared 32/8, and its own meta.json says 32/8) would therefore cut
+    64/16 windows while `scan` wrote a README asserting 64/16 -- two artefacts on the volume
+    contradicting each other, and a number silently not the one the config promises.
+
+    Threading it is a real change (every consumer reconstructs window ids to join on and would
+    have to read the producer's geometry rather than the constant). Until that is done the honest
+    behaviour is to STOP, which is what this does. Returns the pair when it is safe.
+    """
+    key = corpus_key_of_dir(cfg, corpus_name)
+    if not key:
+        return SCAN_BLOCK, SCAN_STRIDE
+    block, stride = corpus_geometry(cfg, key)
+    assert (block, stride) == (SCAN_BLOCK, SCAN_STRIDE), (
+        f"corpus {key!r} declares window {block}/{stride} but this pipeline cuts windows at "
+        f"{SCAN_BLOCK}/{SCAN_STRIDE} everywhere (common.SCAN_BLOCK; eleven windows_of call sites "
+        f"take it). Scanning it anyway would write a README claiming {SCAN_BLOCK}/{SCAN_STRIDE} "
+        f"over {block}/{stride} data and produce a number that is not the one config.yaml "
+        f"promises. Thread the geometry through every windows_of site first, or scan a corpus "
+        f"whose geometry matches."
+    )
+    return block, stride
+
+
 def corpus_dir(base: str, root: str = VOL, name: str = "") -> str:
     """`corpus/` by default; `corpora/<name>/` when a name is given.
 
@@ -1038,8 +1081,18 @@ def stats_dir(base: str, root: str = VOL) -> str:
     return f"{base_dir(base, root)}/stats"
 
 
-def scan_dir(base: str, set_name: str, root: str = VOL) -> str:
-    return f"{base_dir(base, root)}/scan/{set_name}"
+def scan_dir(base: str, set_name: str, root: str = VOL, corpus_name: str = "") -> str:
+    """`scan/<set>`, or `scan/<set>__<corpus>` when the scan is not over the default corpus.
+
+    H5: a scan is (set x corpus), and until 2026-09-21 the corpus axis did not exist so keying by
+    set alone was complete. This branch introduced `corpora:` and `--corpus`, and the eval plan
+    scans ONE set over TWO corpora (§2.5's celeste-train search baseline, §3.4's 16M autointerp
+    scan). Both resolved here to one path: the second refuses without --force and destroys the
+    first with it -- ~$6 and ~$14 of GPU, and the paper's comparison anchor. Empty resolves to
+    today's path, so nothing already on the volume moves.
+    """
+    suffix = f"__{corpus_name}" if corpus_name else ""
+    return f"{base_dir(base, root)}/scan/{set_name}{suffix}"
 
 
 def sae_dir(sae_key: str, root: str = VOL) -> str:
@@ -1047,7 +1100,8 @@ def sae_dir(sae_key: str, root: str = VOL) -> str:
     return f"{base_dir(base, root)}/sae/{name}"
 
 
-def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool = False) -> str:
+def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool = False,
+                     corpus_name: str = "") -> str:
     """`<root>/base/<base>/sae/<sae>/examples/<set>` -- `scan`'s per-feature activation windows.
 
     KEYED BY SET since 2026-09-21 (B9). It used to be `examples/` keyed by the SAE alone, so a
@@ -1058,7 +1112,10 @@ def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool =
     not exist, so the products already on the volume stay readable and say which layout they found.
     A WRITER always writes the set-keyed path.
     """
-    keyed = f"{sae_dir(sae_key, root)}/examples/{set_name}"
+    # The corpus axis too (H5): the examples of a feature are the windows it fires on IN A GIVEN
+    # CORPUS, so two corpora give two different answers for one (set, sae) and must not share a
+    # directory. Empty resolves to today's path.
+    keyed = f"{sae_dir(sae_key, root)}/examples/{set_name}" + (f"__{corpus_name}" if corpus_name else "")
     if write:
         return keyed
     legacy = f"{sae_dir(sae_key, root)}/examples"
