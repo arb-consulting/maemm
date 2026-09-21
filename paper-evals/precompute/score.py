@@ -160,7 +160,9 @@ def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MA
     is the protocol's SCORE_MAX_LENGTH for every arm but the NLA one."""
     import torch
 
-    keys = ["cos", "norm", "keep", "ids"] + (["cos_centred"] if dirs_centred is not None else [])
+    keys = ["cos", "norm", "keep", "ids"] + (
+        ["cos_centred", "cos_asym"] if dirs_centred is not None else []
+    )
     outs: dict[str, list] = {k: [] for k in keys}
     for s in range(0, len(texts), SCORE_ROWS):
         block = texts[s : s + SCORE_ROWS]
@@ -490,12 +492,20 @@ def run(cfg, args):
     # uncentred one: a max read at another statistic's argmax is not a max (that is the flaw
     # precompute/centred.py documents at its :36-38 and this replaces).
     best_c, arg_c = (None, None)
+    best_a, arg_a = (None, None)
     if fdirs_c is not None:
         keep_c = res["keep"] & ~torch.isnan(res["cos_centred"])
         best_c, arg_c = C.agg(torch.nan_to_num(res["cos_centred"], nan=-1.0), keep_c)
         empty_c = ~keep_c.any(dim=1)
         best_c = torch.where(empty_c, torch.full_like(best_c, float("nan")), best_c)
         arg_c = torch.where(empty_c, torch.full_like(arg_c, 0), arg_c) - 1
+        # the asymmetric cosine takes its OWN argmax over the SAME kept tokens, for the reason
+        # `cos_centred` does: a max read at another statistic's argmax is not a max.
+        keep_a = res["keep"] & ~torch.isnan(res["cos_asym"])
+        best_a, arg_a = C.agg(torch.nan_to_num(res["cos_asym"], nan=-1.0), keep_a)
+        empty_a = ~keep_a.any(dim=1)
+        best_a = torch.where(empty_a, torch.full_like(best_a, float("nan")), best_a)
+        arg_a = torch.where(empty_a, torch.full_like(arg_a, 0), arg_a) - 1
     elapsed = time.time() - t0
 
     N = len(sel)
@@ -515,6 +525,9 @@ def run(cfg, args):
     cos_c = None if best_c is None else res["cos_centred"].numpy().astype(np.float16).reshape(N, n, width)
     bestm_c = None if best_c is None else best_c.numpy().reshape(N, n)
     argmax_c = None if arg_c is None else arg_c.numpy().astype(np.int16).reshape(N, n)
+    cos_a = None if best_a is None else res["cos_asym"].numpy().astype(np.float16).reshape(N, n, width)
+    bestm_a = None if best_a is None else best_a.numpy().reshape(N, n)
+    argmax_a = None if arg_a is None else arg_a.numpy().astype(np.int16).reshape(N, n)
 
     per_target = []
     for i, r in enumerate(sel):
@@ -527,6 +540,8 @@ def run(cfg, args):
         # zero, not -1 -- for a row that has none.
         vals_c = [] if bestm_c is None else [v for v in bestm_c[i].tolist() if np.isfinite(v)]
         bo_c = C.best_of_k_means(vals_c, BO_KS) if len(vals_c) == n else {}
+        vals_a = [] if bestm_a is None else [v for v in bestm_a[i].tolist() if np.isfinite(v)]
+        bo_a = C.best_of_k_means(vals_a, BO_KS) if len(vals_a) == n else {}
         per_target.append(
             {
                 "row": r,
@@ -549,6 +564,19 @@ def run(cfg, args):
                         "max_cos_centred": round(float(np.max(vals_c)), 6),
                         "n_centred": len(vals_c),
                         **{f"bo_c_{k}": round(v, 6) for k, v in bo_c.items()},
+                    }
+                ),
+                # the ASYMMETRIC cosine: uncentred scorer against the centred target, which is
+                # what `scan` computes for a corpus window. The only one of the three that can be
+                # differenced against a corpus search (Tomáš 2026-09-21).
+                **(
+                    {}
+                    if not vals_a
+                    else {
+                        "mean_cos_asym": round(float(np.mean(vals_a)), 6),
+                        "max_cos_asym": round(float(np.max(vals_a)), 6),
+                        "n_asym": len(vals_a),
+                        **{f"bo_a_{k}": round(v, 6) for k, v in bo_a.items()},
                     }
                 ),
             }
@@ -590,6 +618,9 @@ def run(cfg, args):
         if cos_c is not None:
             od.write_array("cos_centred.f16", cos_c, "float16")
             od.write_array("argmax_centred.i16", argmax_c, "int16")
+        if cos_a is not None:
+            od.write_array("cos_asym.f16", cos_a, "float16")
+            od.write_array("argmax_asym.i16", argmax_a, "int16")
         od.write_array("best_act.f16", best_act, "float16")
         od.write_array("sae_idx.i32", sae_idx, "int32")
         od.write_array("sae_val.f16", sae_val, "float16")

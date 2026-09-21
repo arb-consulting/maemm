@@ -2384,7 +2384,8 @@ def check_ood_arm_table():
         for i in range(8):
             ids.append({"row": row, "arm": arm, "family": "lang", "doc": 1000 + row})
             wobble = 0.02 if i % 2 else -0.02
-            per_target[row] = {"bo_64": cen - 0.05 + wobble, "bo_c_64": cen + wobble}
+            per_target[row] = {"bo_64": cen - 0.05 + wobble, "bo_c_64": cen - 0.02 + wobble,
+                               "bo_a_64": cen + wobble}
             top1[(row, 1.0)] = CORPUS
             row += 1
     # one target of `a_ex` has NO scan cell: it must drop out of the pair, not score zero
@@ -2405,7 +2406,7 @@ def check_ood_arm_table():
 
     src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
     src.per_target = per_target
-    recs, skipped = od.arm_rows(ids, src, top1_by_arm, 1.0, True, boot_ci, R_outcome, None)
+    recs, skipped = od.arm_rows(ids, src, top1_by_arm, 1.0, "asym", boot_ci, R_outcome, None)
     assert not skipped, skipped
     got = {r["arm"]: r for r in recs}
     # a source centred on ANOTHER mean gets its cosines and NO delta: the two sides would be
@@ -2415,11 +2416,12 @@ def check_ood_arm_table():
     # centred on a mean nothing was scanned at. It must still yield one ROW PER ARM carrying the
     # cosines. Asserting the count first, because `for r in []` passes every check vacuously and
     # that is exactly how the first version of this shipped a table with no rows in it.
-    inc, _ = od.arm_rows(ids, src, {}, 1.0, True, boot_ci, R_outcome, None, comparable=False)
+    inc, _ = od.arm_rows(ids, src, {}, 1.0, "asym", boot_ci, R_outcome, None, comparable=False)
     assert len(inc) == 3, f"an incomparable source must still report every arm's cosines: {inc}"
     for r in inc:
         assert r["delta"] is None and r["ci_lo"] is None and r["outcome"] == "not comparable", r
-        assert r["bo64_centred"] is not None and r["bo64_raw"] is not None, r
+        assert r["bo64_asym"] is not None and r["bo64_centred"] is not None, r
+        assert r["bo64_raw"] is not None, r
         assert r["corpus_top1"] is None and r["win_frac"] is None, r
         assert r["n"] == 8, f"every target of the arm has a cosine: {r}"
     # and the mu spellings that must compare EQUAL / UNEQUAL
@@ -2441,7 +2443,7 @@ def check_ood_arm_table():
 
     # an arm whose own corpus was never scanned must be reported, never scored off another's
     partial = {k: v for k, v in top1_by_arm.items() if k != "a_rev"}
-    recs2, skipped2 = od.arm_rows(ids, src, partial, 1.0, True, boot_ci, R_outcome, None)
+    recs2, skipped2 = od.arm_rows(ids, src, partial, 1.0, "asym", boot_ci, R_outcome, None)
     assert [r["arm"] for r in recs2] == ["a_ex", "a_inc"], [r["arm"] for r in recs2]
     assert any("a_rev" in m and "own corpus" in m for m in skipped2), skipped2
     assert sorted(got) == ["a_ex", "a_inc", "a_rev"]
@@ -2452,10 +2454,11 @@ def check_ood_arm_table():
     # Δ is on the CENTRED cosine here (centred=True), so it is bo_c_64 - corpus, not bo_64 - corpus
     _close(got["a_ex"]["delta"], 0.70 - 0.50, tol=0.01, what="Δ uses the cosine it was asked for")
     _close(got["a_ex"]["bo64_raw"], 0.65, tol=0.01, what="the raw column is reported beside it")
+    _close(got["a_ex"]["bo64_centred"], 0.68, tol=0.01, what="and the centred one")
     # the same arms read on the RAW cosine: every Δ moves down 0.05, and `a_inc` becomes reversed
-    raw_recs, _ = od.arm_rows(ids, src, top1_by_arm, 1.0, False, boot_ci, R_outcome, None)
+    raw_recs, _ = od.arm_rows(ids, src, top1_by_arm, 1.0, "raw", boot_ci, R_outcome, None)
     raw = {r["arm"]: r for r in raw_recs}
-    _close(raw["a_ex"]["delta"], 0.15, tol=0.01, what="the raw Δ is 0.05 below the centred one")
+    _close(raw["a_ex"]["delta"], 0.15, tol=0.01, what="the raw Δ is 0.05 below the asym one")
     assert raw["a_inc"]["outcome"] == "reversed", (
         "reading the wrong cosine must change a verdict, or this fixture does not test the choice"
     )

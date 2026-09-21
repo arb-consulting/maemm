@@ -187,15 +187,21 @@ def load_ood_ids(vol: R.Vol, base: str, set_name: str) -> list[dict]:
     return rows
 
 
-def bo64_of(rec: dict, centred: bool) -> float | None:
-    """The unbiased best-of-64 of one target, in the asked-for cosine, or None when absent.
+# `score`'s three cosines, by the key its per_target.jsonl uses:
+#   asym     cos(h,      unit(act - mu))   THE SCAN'S CONVENTION -- the only one Δ can use
+#   centred  cos(h - mu, unit(act - mu))   the pipeline's symmetric headline
+#   raw      cos(h,      unit(act))        both sides uncentred
+BO64 = {"asym": "bo_a_64", "centred": "bo_c_64", "raw": "bo_64"}
 
-    `score` writes `bo_c_*` only when the run centred AND every rollout of the row was finite, so
-    absence here means "this run has no centred number for this row", which is a different fact
-    from a low one.
+
+def bo64_of(rec: dict, which: str) -> float | None:
+    """The unbiased best-of-64 of one target in one of the three cosines, or None when absent.
+
+    `score` writes `bo_c_*` and `bo_a_*` only when the run centred AND every rollout of the row
+    was finite, so absence means "this run has no such number for this row" -- a different fact
+    from a low one, and never filled with a zero.
     """
-    key = "bo_c_64" if centred else "bo_64"
-    v = rec.get(key)
+    v = rec.get(BO64[which])
     return None if v is None else float(v)
 
 
@@ -209,7 +215,7 @@ def arm_rows(
     src: R.Source,
     top1_by_arm: dict[str, dict[tuple[int, float], float]],
     size_m: float,
-    centred: bool,
+    which: str,
     boot_ci,
     outcome,
     control: dict[int, dict] | None,
@@ -229,7 +235,7 @@ def arm_rows(
         if comparable and not top1:
             skipped.append(f"arm `{arm}`: no scan of its own corpus, so no in-domain cell")
             continue
-        pairs, raw, cen, ctrl, corp, docs = [], [], [], [], [], []
+        pairs, raw, cen, asy, ctrl, corp, docs = [], [], [], [], [], [], []
         for r in rows:
             pt = src.per_target.get(int(r["row"]))
             if pt is None:
@@ -238,14 +244,15 @@ def arm_rows(
             # a bo64 per target, and reporting it is the whole point of the `comparable` split --
             # dropping the row entirely would turn "we cannot difference this" into "we measured
             # nothing", which are opposite findings.
-            raw.append(bo64_of(pt, False))
-            cen.append(bo64_of(pt, True))
+            raw.append(bo64_of(pt, "raw"))
+            cen.append(bo64_of(pt, "centred"))
+            asy.append(bo64_of(pt, "asym"))
             if control is not None and int(r["row"]) in control:
-                cb = bo64_of(control[int(r["row"])], centred)
+                cb = bo64_of(control[int(r["row"])], which)
                 if cb is not None:
                     ctrl.append(cb)
             c = top1.get((int(r["row"]), size_m))
-            m = bo64_of(pt, centred)
+            m = bo64_of(pt, which)
             if c is None or m is None:
                 continue
             corp.append(c)
@@ -279,7 +286,8 @@ def arm_rows(
             {
                 "arm": arm,
                 "family": rows[0]["family"],
-                "n": int(d.size) if comparable else len([x for x in cen if x is not None]),
+                "n": int(d.size) if comparable else len([x for x in asy if x is not None]),
+                "bo64_asym": _mean(asy),
                 "bo64_centred": _mean(cen),
                 "bo64_raw": _mean(raw),
                 "corpus_top1": float(np.mean(corp)) if corp else None,
@@ -475,7 +483,7 @@ def main(
                 f"that mean: " + ", ".join(f"`{a}`" for a in missing)
             )
         recs, skipped = arm_rows(
-            ids, src, top1_by_arm, size_m, src.centred, mod.boot_ci, mod.outcome, control,
+            ids, src, top1_by_arm, size_m, "asym", mod.boot_ci, mod.outcome, control,
             comparable=comparable,
         )
         notes += skipped
@@ -494,21 +502,22 @@ def main(
                       if r["code_like_top1_rate"] is not None else "—")
             )
         verdicts[src.label] = {r["arm"]: r["outcome"] for r in recs}
-        header = ["arm", "family", "n", "bo64 centred", "bo64 raw", f"corpus {size_m:g}M",
+        header = ["arm", "family", "n", "bo64 (asym)", f"corpus {size_m:g}M",
                   "control bo64", "Δ", "95% CI", "win", "outcome", "lang / code"]
         rows_md = [
-            [r["arm"], r["family"], r["n"], R.num(r["bo64_centred"]), R.num(r["bo64_raw"]),
+            [r["arm"], r["family"], r["n"], R.num(r["bo64_asym"]),
              R.num(r["corpus_top1"]), R.num(r["control_bo64"]),
              R.num(r["delta"]), f"[{R.num(r['ci_lo'], 3)}, {R.num(r['ci_hi'], 3)}]",
              R.num(r["win_frac"], 2), r["outcome"], lc]
             for r, lc in zip(recs, lang_col, strict=True)
         ]
-        csv_header = ["arm", "family", "n", "bo64_centred", "bo64_raw", "corpus_top1",
+        csv_header = ["arm", "family", "n", "bo64_asym", "bo64_centred", "bo64_raw", "corpus_top1",
                       "corpus_size_m", "control_bo64", "delta", "ci_lo", "ci_hi",
                       "se_clustered", "n_clusters", "win_frac", "outcome",
                       "lid_top1_rate", "lid_top4_rate", "code_like_top1_rate"]
         csv_rows = [
-            [r["arm"], r["family"], r["n"], r["bo64_centred"], r["bo64_raw"], r["corpus_top1"],
+            [r["arm"], r["family"], r["n"], r["bo64_asym"], r["bo64_centred"], r["bo64_raw"],
+             r["corpus_top1"],
              size_m, r["control_bo64"], r["delta"], r["ci_lo"], r["ci_hi"], r["se_clustered"],
              r["n_clusters"], r["win_frac"], r["outcome"], r["lid_top1_rate"],
              r["lid_top4_rate"], r["code_like_top1_rate"]]
@@ -518,9 +527,11 @@ def main(
             f"arms_{src.label.replace('/', '_').replace(':', '__').replace('@', '_at_')}",
             f"Arms — {src.label}"
             + ("" if src.centred else "  (this run centred on NOTHING: `--mu none`)"),
-            f"bo64 against the in-domain {size_m:g}M corpus search, paired per target. "
-            f"`bo64 centred` is `cos_centred` = cos(h - mu, unit(act - mu)); `bo64 raw` is `cos` "
-            f"= cos(h, unit(act)) on the same rollouts. The control column is "
+            f"bo64 against the in-domain {size_m:g}M corpus search, paired per target. BOTH "
+            f"SIDES ARE THE ASYMMETRIC CONVENTION -- `cos(h, unit(act - mu))`, uncentred scorer "
+            f"against the centred target -- which is what `scan` computes for a corpus window and "
+            f"what the paper's bo64 0.569 and corpus 0.351 are stated in. The symmetric cosines "
+            f"(`cos_centred`, `cos`) are in the CSV. The control column is "
             f"{'`' + ctrl_src.label + '`' if ctrl_src else 'absent'}. `lang / code` is the rate at "
             f"which the top-1 rollout comes back in the arm's own language (fastText lid218e), or "
             f"the code-like rate where fastText is not meaningful. **READ THE CONVENTION NOTE "

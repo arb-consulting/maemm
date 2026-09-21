@@ -2567,7 +2567,73 @@ def check_sae_key_for_rows():
             )
 
 
+def check_three_cosines():
+    """`cos`, `cos_centred` and `cos_asym` from one forward, each against its own definition.
+
+        cos          = cos(h,      unit(act))          both sides RAW
+        cos_centred  = cos(h - mu, unit(act - mu))     both sides CENTRED
+        cos_asym     = cos(h,      unit(act - mu))     the SCAN's convention
+
+    The third is the one a corpus search can be differenced against: `scan` scores every window as
+    `normalize(h) @ unit(act - mu)` (precompute/scan.py), and the paper's bo64 0.569 and corpus
+    0.351 are both stated in it. Before this column a `storage: raw` set could not produce it --
+    `dirs` is unit(act) there -- so a Δ mixed a doubly-centred MAEMM cosine with a singly-centred
+    corpus one, and its magnitude meant nothing even though its sign did.
+
+    Checked against an independent einsum on the SAME arrays, and required to DIFFER from the
+    other two: a `cos_asym` that equalled `cos` would be the bug this exists to prevent.
+    """
+    torch.manual_seed(20260921)
+    n, t, d = 3, 5, 16
+    h = torch.randn(n, t, d)
+    act = torch.randn(n, d)
+    mu = torch.randn(d) * 0.4
+    dirs = torch.nn.functional.normalize(act, dim=-1)
+    dirs_c = torch.nn.functional.normalize(act - mu, dim=-1)
+    f = torch.nn.functional.normalize
+    cos = torch.einsum("btd,bd->bt", f(h, dim=-1), dirs)
+    cos_c = torch.einsum("btd,bd->bt", f(h - mu, dim=-1), dirs_c)
+    cos_a = torch.einsum("btd,bd->bt", f(h, dim=-1), dirs_c)
+    # each against a hand-rolled reference, elementwise
+    for i in range(n):
+        for j in range(t):
+            hv, a = h[i, j], act[i]
+            u = lambda x: x / x.norm()  # noqa: E731
+            assert abs(float(cos[i, j]) - float(u(hv) @ u(a))) < 1e-5
+            assert abs(float(cos_c[i, j]) - float(u(hv - mu) @ u(a - mu))) < 1e-5
+            assert abs(float(cos_a[i, j]) - float(u(hv) @ u(a - mu))) < 1e-5
+    assert (cos - cos_a).abs().max() > 1e-3, "cos_asym must not collapse onto cos"
+    assert (cos_c - cos_a).abs().max() > 1e-3, "cos_asym must not collapse onto cos_centred"
+    # and the scan computes EXACTLY cos_asym: same expression, same operand order
+    src = (Path(__file__).resolve().parent / "scan.py").read_text()
+    assert "torch.nn.functional.normalize(h, dim=-1) @ v.T" in src, (
+        "scan.py no longer scores `normalize(h) @ v.T`; cos_asym is defined to match it and the "
+        "two must move together"
+    )
+    # AND the production expression itself, pinned by source. The arithmetic above is this
+    # module's own einsum, so mutating `common.score_block`'s `cos_a` line does not move it --
+    # that mutation SURVIVED the first version of this check. Scoring for real needs a model and
+    # a tokenizer, so the shipped formula is pinned textually instead: `h` UNCENTRED against the
+    # centred target. A source pin is weaker than an execution test and is here because the
+    # execution test is not affordable in this file; it catches exactly the regression that the
+    # einsum above cannot.
+    csrc = (Path(__file__).resolve().parent / "common.py").read_text()
+    assert 'cos_a = torch.einsum("btd,bd->bt", F.normalize(h.float(), dim=-1), dc)' in csrc, (
+        "common.score_block's cos_asym must be normalize(h) against the CENTRED target dc -- "
+        "`h.float() - mu_t` there would make it a second copy of cos_centred, and every Delta "
+        "built on it would silently be the mismatched one again"
+    )
+
+    # score.py must ask for the column whenever it asks for the centred one
+    ssrc = (Path(__file__).resolve().parent / "score.py").read_text()
+    assert '["cos_centred", "cos_asym"]' in ssrc, (
+        "score.py must request cos_asym alongside cos_centred: they share the `dirs_centred` "
+        "gate, and one without the other is a scores directory that cannot be differenced"
+    )
+
+
 CHECKS = [
+    check_three_cosines,
     check_sae_key_for_rows,
     check_scan_masks_on_label,
     check_config,

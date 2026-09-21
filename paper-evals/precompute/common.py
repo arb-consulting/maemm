@@ -2112,6 +2112,7 @@ def score_ids(
 
         cos          = einsum(normalize(h),      normalize(dirs))
         cos_centred  = einsum(normalize(h - mu), normalize(dirs_centred))
+        cos_asym     = einsum(normalize(h),      normalize(dirs_centred))   # the scan's convention
 
     -- the same residual, a second einsum, ~0 extra GPU time, and the two sides of the centred
     number are centred by the SAME mean. This function CANNOT derive `dirs_centred` itself: it is
@@ -2175,6 +2176,14 @@ def score_ids(
     }
     if want_centred:
         out["cos_centred"] = torch.full((n, score_width), float("nan"))
+        # THE ASYMMETRIC COSINE (Tomáš 2026-09-21): the scorer's side UNCENTRED against the
+        # CENTRED target. It is the convention `scan` uses for every corpus window
+        # (`normalize(h) @ unit(act - mu)`, precompute/scan.py) and the one the paper's bo64
+        # 0.569 and corpus 0.351 are both stated in, so it is the only one of the three that can
+        # be differenced against a corpus search. The legacy path produced it for free, because a
+        # `storage: unit` set's stored rows ARE unit(act - mu) and `dirs` was already the centred
+        # target; on a `storage: raw` set nothing did until this column.
+        out["cos_asym"] = torch.full((n, score_width), float("nan"))
     sink = sink_token_id(tok)
     pad = tok.pad_token_id if tok.pad_token_id is not None else sink
     with torch.no_grad():
@@ -2213,6 +2222,7 @@ def score_ids(
                 cos_c = torch.einsum(
                     "btd,bd->bt", F.normalize(h.float() - mu_t, dim=-1), dc
                 )
+                cos_a = torch.einsum("btd,bd->bt", F.normalize(h.float(), dim=-1), dc)
             t = ids.shape[1]
             assert t <= score_width, (
                 f"chunk width {t} exceeds this run's width {score_width}: truncation at "
@@ -2227,6 +2237,9 @@ def score_ids(
             if want_centred:
                 out["cos_centred"][s : s + b, :t] = torch.where(
                     keep, cos_c, torch.full_like(cos_c, float("nan"))
+                ).cpu()
+                out["cos_asym"][s : s + b, :t] = torch.where(
+                    keep, cos_a, torch.full_like(cos_a, float("nan"))
                 ).cpu()
     return out
 
