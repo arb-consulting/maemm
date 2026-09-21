@@ -956,6 +956,25 @@ def maemms_for(cfg: dict, base: str = "", computable_only: bool = True) -> list[
     return keys
 
 
+def sae_key_for_rows(cfg: dict, base: str, rows, want: str = "") -> str:
+    """`sae_key_for`, but "" when NO row of this set belongs to an SAE family.
+
+    A base with two dictionaries makes `sae_key_for` refuse without `--sae`, which is right when
+    the product is about to look feature ids up in one of them and wrong when the set has no
+    feature ids at all. The OOD sets have no `sae` family (`config.yaml`'s `heldout.*.families` is
+    empty for them and every row's family is its arm's), so demanding `--sae` there makes the
+    operator name a dictionary the run never reads -- and that name then lands in the product
+    README as though it meant something.
+
+    Products that read a SET and may meet one without SAE rows call this; products that are ABOUT
+    a dictionary (`draw_sae2m`, `sae_self`, `build`, `repo_examples`) still call `sae_key_for`
+    directly, because for them an absent dictionary is a bad command line, not a shape of set.
+    """
+    if not any(r.get("family") in SAE_FAMILIES for r in rows):
+        return ""
+    return sae_key_for(cfg, base, want)
+
+
 def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
     """WHICH SAE of `base`: `want` when given, else the single one -- asserting when there are two.
 

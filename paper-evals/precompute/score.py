@@ -180,7 +180,7 @@ def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MA
     return {k: torch.cat(v) for k, v in outs.items()}
 
 
-def _sae_for(cfg, args):
+def _sae_for(cfg, args, rows_meta=None):
     """(sae, key) for the base, or (None, '') when --no-sae. The gate is the checkpoint's own.
 
     `--sae <base>/<name>` picks WHICH SAE of the base, and is required as soon as the base has
@@ -200,7 +200,15 @@ def _sae_for(cfg, args):
     if args.get("no_sae"):
         return None, ""
     base = args["base"]
-    key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    # NO SAE ROWS, NO SAE. A base with two dictionaries makes `sae_key_for` refuse without
+    # `--sae`, which is right when feature ids are about to be looked up in one of them and wrong
+    # when the set has none -- the OOD sets have no `sae` family at all, and every one of their
+    # `score` calls died here after the base model load. `common.sae_key_for_rows` is the one
+    # place that rule lives; `scan` takes it too.
+    key = C.sae_key_for_rows(cfg, base, (rows_meta or {}).values(), args.get("sae") or "")
+    if not key:
+        print("[score] the set has no sae rows: no SAE loaded, no gate counts", flush=True)
+        return None, ""
     # ENCODER ONLY: `_Extra` gates on `common.sae_encode`, which reads b_dec, W_enc and b_enc and
     # never W_dec (grepped: nothing under paper-evals/ outside common.load_sae itself touches
     # W_dec). At 2^21 features W_dec is 43 GB in fp32, which is the difference between fitting an
@@ -412,7 +420,7 @@ def run(cfg, args):
     cen_notes: list[str] = []
     rows_meta, dirs, dirs_centred, mu, dirs_src = _load_dirs(cfg, args, cen_notes)
     model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY -- the MAEMM is never loaded here
-    sae, sae_key = _sae_for(cfg, args)
+    sae, sae_key = _sae_for(cfg, args, rows_meta)
 
     if args.get("rescore_texts"):
         return _rescore(

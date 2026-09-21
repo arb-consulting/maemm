@@ -27,6 +27,7 @@ exactly once. What this file covers of the prompt path is the assertion behaviou
 
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -2488,7 +2489,71 @@ def check_scan_masks_on_label():
         )
 
 
+def check_sae_key_for_rows():
+    """A set with no SAE rows must need no `--sae`, and every SET-READING product must use that.
+
+    `sae_key_for` refuses without `--sae` on a base with two dictionaries. That is right for a
+    product about to look feature ids up in one of them and wrong for a set that has none: the OOD
+    sets have no `sae` family, and `scan` and `score` each died on it AFTER the model load -- the
+    scan after its topk.jsonl had already been paid for and renamed into place.
+
+    The source half is the point: fixing `scan` and leaving `score` is how this cost two calls
+    rather than one, so the products that read a SET are required to use the rows-aware helper.
+    """
+    cfg = C.load_config()
+    assert C.sae_key_for_rows(cfg, "qwen36-27b", [{"family": "lang"}, {"family": "code"}]) == ""
+    assert C.sae_key_for_rows(cfg, "qwen36-27b", []) == "", "an empty set names no dictionary"
+    assert C.sae_key_for_rows(
+        cfg, "qwen36-27b", [{"family": "sae"}], "qwen36-27b/l42-1b"
+    ) == "qwen36-27b/l42-1b"
+    try:
+        C.sae_key_for_rows(cfg, "qwen36-27b", [{"family": "realact"}, {"family": "sae"}])
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("a set WITH sae rows must still refuse without --sae")
+
+    here = Path(__file__).resolve().parent
+    for name in ("scan.py", "score.py"):
+        src = (here / name).read_text()
+        assert "sae_key_for_rows(" in src, (
+            f"{name} reads a held-out set and must resolve its dictionary with "
+            f"`sae_key_for_rows`, not `sae_key_for`: a set with no sae rows would otherwise be "
+            f"refused for want of a --sae it has no use for"
+        )
+        assert not re.search(r"(?<!_rows)C\.sae_key_for\(", src), (
+            f"{name} still calls C.sae_key_for directly somewhere"
+        )
+    # and the examples notes must not be reachable with sae = None
+    scan_src = (here / "scan.py").read_text()
+    assert "_examples_notes(" in scan_src and "d_sae: int" in scan_src, (
+        "scan.py's examples notes read sae.d_sae; they belong in a function called only under "
+        "`if n_feat:`, or a set with no sae rows builds the f-string against None"
+    )
+    # `sae` is None when the set has no sae rows, so every read of `sae.d_sae` must sit under the
+    # `if n_feat:` guard. The two that do are pinned by shape; a third line would be a new one.
+    guarded = ("peak = C.read_array(", "_examples_notes(od, n_feat, sae.d_sae,")
+    seen_guard = 0
+    for ln in scan_src.split("\n"):
+        t = ln.strip()
+        if t.startswith("if n_feat:"):
+            seen_guard = len(ln) - len(t)
+        if "sae.d_sae" in t and not t.startswith(('"""', "#", "f\"", '"')):
+            assert t.startswith(guarded), (
+                f"scan.py reads `sae.d_sae` at an unguarded site: {t!r}. With no sae rows `sae` "
+                f"is None there, and the scan dies AFTER its topk.jsonl has been paid for."
+            )
+            # INDENTATION, not just shape: dedenting the call out of the `if n_feat:` it sits
+            # under is exactly the regression, and the line reads identically either way.
+            indent = len(ln) - len(t)
+            assert indent > seen_guard, (
+                f"`{t[:48]}...` is indented {indent} but the `if n_feat:` guarding it is at "
+                f"{seen_guard}: it is no longer inside the guard"
+            )
+
+
 CHECKS = [
+    check_sae_key_for_rows,
     check_scan_masks_on_label,
     check_config,
     check_paths,

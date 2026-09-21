@@ -243,15 +243,14 @@ def run(cfg, args):
 
     cen_notes: list[str] = []
     rows, v, masks = _load_targets(cfg, args, notes=cen_notes)
-    has_sae = any(r["family"] in C.SAE_FAMILIES for r in rows)
-    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "") if has_sae else ""
+    sae_key = C.sae_key_for_rows(cfg, base, rows, args.get("sae") or "")
     # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
     # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
     # encoder, silently (common.sae_rows_of).
     sae_sel = C.sae_rows_of(
         rows, sae_key, declared=C.declared_sae_key(cfg, C.heldout_dir(base, set_name, root), root),
         where=C.heldout_dir(base, set_name, root),
-    ) if has_sae else []
+    ) if sae_key else []
     tested = [int(r["id"]) for r in sae_sel]
     tested_row = [r["row"] for r in sae_sel]
 
@@ -621,27 +620,7 @@ def _scan_one(
                 "bytes": nbytes + path.stat().st_size,
             }
             od.write_json("tested.json", {"features": tested, "rows": tested_row, "sae": sae_key})
-        od.note(
-            f"one <feature>.jsonl per TESTED feature ({n_feat} of {sae.d_sae}), each with the top "
-            f"{SAE_TOP} windows by activation plus {SAE_PER_BIN} windows sampled from each of 4 "
-            "equal-width activation bins of (0, max_act] (max_act from the pass-A stats)"
-        )
-        od.note(
-            "`acts` is the per-token pre-gate activation of that window, f16-rounded, in window "
-            "order with the sink dropped and truncated to the window's `len`; `argmax` is the "
-            "position of the maximum within it; the window's TEXT is recoverable from "
-            "corpus/tokens.i32 at (doc, start, len)"
-        )
-        od.note(
-            f"_random256.jsonl: {SAE_RANDOM} windows sampled uniformly over ALL {w_global} windows "
-            "(one shared negative pool), each carrying the per-tested-feature MAX activation in the "
-            "column order of tested.json -- per-token activations are not stored for these"
-        )
-        od.note("examples are taken over the FULL corpus only; they are not snapshotted per size")
-        od.note(
-            "sampling: smallest-random-key reservoir (equivalent to reservoir sampling), torch "
-            f"generator seeded {cfg['heldout'][set_name]['seed']}"
-        )
+            _examples_notes(od, n_feat, sae.d_sae, w_global, cfg["heldout"][set_name]["seed"])
 
     return {
         "scan": out_scan,
@@ -694,6 +673,34 @@ class _NullOut:
 
     def __exit__(self, *a):
         return False
+
+
+def _examples_notes(od, n_feat: int, d_sae: int, w_global: int, seed) -> None:
+    """The `examples/` product's own notes. A FUNCTION because they read `sae.d_sae`, and they sat
+    outside the `if n_feat:` that guards every other SAE branch here -- so a scan of a set with no
+    SAE rows built the f-string against `sae = None` and died AFTER the scan had been paid for and
+    its topk.jsonl renamed into place."""
+    od.note(
+        f"one <feature>.jsonl per TESTED feature ({n_feat} of {d_sae}), each with the top "
+        f"{SAE_TOP} windows by activation plus {SAE_PER_BIN} windows sampled from each of 4 "
+        "equal-width activation bins of (0, max_act] (max_act from the pass-A stats)"
+    )
+    od.note(
+        "`acts` is the per-token pre-gate activation of that window, f16-rounded, in window "
+        "order with the sink dropped and truncated to the window's `len`; `argmax` is the "
+        "position of the maximum within it; the window's TEXT is recoverable from "
+        "corpus/tokens.i32 at (doc, start, len)"
+    )
+    od.note(
+        f"_random256.jsonl: {SAE_RANDOM} windows sampled uniformly over ALL {w_global} windows "
+        "(one shared negative pool), each carrying the per-tested-feature MAX activation in the "
+        "column order of tested.json -- per-token activations are not stored for these"
+    )
+    od.note("examples are taken over the FULL corpus only; they are not snapshotted per size")
+    od.note(
+        "sampling: smallest-random-key reservoir (equivalent to reservoir sampling), torch "
+        f"generator seeded {seed}"
+    )
 
 
 def _maybe_outdir(path, args, **kw):
