@@ -182,8 +182,19 @@ maemms:
       # hard-codes GREEDY instead; neither is marked canonical on the card and we need n texts per
       # target, so we sample.
       sampling: {temperature: 1.0, top_p: 0.95, top_k: 20, min_new: 0}
-      max_new: 64            # = rollouts.max_new; the scorer's 95-token window is the reason (README)
-      card_max_new: 200      # what the reference script uses; NOT scoreable unchanged, recorded only
+      # Tomas 2026-09-21: the NLA arm generates at the checkpoint's NATIVE length. That is what the
+      # model card's own invocation uses and what the verbalizer's <explanation> answers are shaped
+      # like; cutting them at the pipeline's 64 would report this baseline on a fraction of its
+      # output. It costs the arm its comparability on generation length with the MAEMM arms, which
+      # is stated wherever the number appears rather than hidden.
+      max_new: 200
+      # The re-encode truncation `score` uses FOR THIS ARM, carried to it on the rollouts summary
+      # (common.encode_for_score / score_width_of; every other arm stays at SCORE_MAX_LENGTH = 95).
+      # 256 leaves room for the 200 generated tokens plus the sink plus re-tokenization expansion
+      # -- a decoded rollout does not always re-encode to the same id count (README, checklist
+      # item 8). A cosine from this arm is therefore a max over a WIDER window than the others'.
+      score_max_tokens: 256
+      card_max_new: 200      # the reference script's own default and the card's invocation
       n: 4                   # texts per target, default; --n overrides
       amp: exact             # default input-amplitude convention; --amp overrides (writes a variant dir)
       amp_r: median          # r for `mu`/`raw` and the `exact` fallback: layer read_layer q[0.5] of stats/resid_norm_quantiles.json, or a number

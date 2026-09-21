@@ -94,19 +94,30 @@ deliberate and recorded in every summary:
     while the `-av` card is silent on it. The A/B -- the same rows under the reference's open
     `<think>` block -- is UNMEASURED. Recorded as `enable_thinking` in every summary and on the
     identity card so the choice is visible rather than implicit;
-  * `max_new` is 64, not 200: `SCORE_MAX_LENGTH` is 95 and `score.py` asserts no scored row reaches
-    it, so 200 tokens would be truncated by the scorer rather than scored. A sampled prefix does
-    not depend on the cap, so the paper's "first 64 tokens" row is exactly this. `nla.card_max_new`
-    records the 200 for the reader;
   * it generates one row at a time; we batch `gen_rows` rows per call, every row carrying the
     IDENTICAL prompt so the batch is rectangular and UNPADDED (asserted -- padding would move the
     marker away from its two required neighbours and the injection would land nowhere).
 
-**Out of scope here**, and named so nobody reads a missing number as a negative one: the card's own
-200-token generation (`--max-new-tokens 200` in the card's invocation, and the reference script's
-own default; it needs scorer changes, and `nla.card_max_new` records it without using it), and
-the AR critic -- the reconstruction / FVE half of the autoencoder, which is a second checkpoint and
-a second objective. Nothing in this file computes a cosine or an FVE.
+**LENGTH: this arm runs at the checkpoint's NATIVE 200 tokens, and is SCORED in a 256-token
+window** (Tomas, 2026-09-21). `nla.max_new` is 200 -- the card's own invocation
+(`--max-new-tokens 200`) and the reference script's default -- because the verbalizer's
+`<explanation>` answers are shaped for that length and reporting this baseline on the first 64
+tokens would report a fraction of its output. The pipeline's re-encode truncation is
+`common.SCORE_MAX_LENGTH` = 95, which would score LESS THAN HALF of such a text, so this arm
+carries its own: `nla.score_max_tokens` = 256 goes into the rollouts summary as `score_max_length`,
+`score` re-encodes at it (`common.encode_for_score(..., max_length)`) and records it in its
+`rows.json`, and `common.score_width_of` is how every reader of the stored arrays gets the width.
+256 rather than 201 leaves room for re-tokenization expansion -- a decoded rollout does not always
+re-encode to the same id count (README, checklist item 8).
+
+That is a STATED DEVIATION from the one protocol every other arm shares, and it costs two things
+that are named wherever the number appears rather than buried: a cosine from this arm is a max over
+a WIDER window than a MAEMM's, and its generation length is not the MAEMMs' 64. Both are
+properties of the baseline being somebody else's model at its own operating point.
+
+**Out of scope here**, and named so nobody reads a missing number as a negative one: the AR critic
+-- the reconstruction / FVE half of the autoencoder, which is a second checkpoint and a second
+objective. Nothing in this file computes a cosine or an FVE.
 """
 
 from __future__ import annotations
@@ -549,11 +560,17 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         f"- {nla['sampling']}. `do_sample`, `temperature`, `top_p` and `top_k` come from the "
         "checkpoint's own `generation_config.json` and are asserted against it by "
         "`rollouts_nla.check_sidecar`; `min_new` is OURS -- that file has no such key.",
-        f"- max_new {nla['max_new']} = `rollouts.max_new`, because `score.py` never scores past "
-        f"`common.SCORE_MAX_LENGTH` = {C.SCORE_MAX_LENGTH} tokens. The model card's reference "
-        f"script uses {nla['card_max_new']} GREEDY tokens instead (`--max-new-tokens "
-        f"{nla['card_max_new']}` in the card's own invocation, and the script's default); that "
-        "variant needs scorer changes and is OUT OF SCOPE here.",
+        f"- max_new {nla['max_new']}: the checkpoint's NATIVE length (Tomas 2026-09-21) -- the "
+        f"card's own invocation is `--max-new-tokens {nla['card_max_new']}` and that is the "
+        "reference script's default too. NOT the pipeline's `rollouts.max_new`, which every MAEMM "
+        "arm uses, so this arm's generation length is not comparable with theirs.",
+        f"- scored in a **{nla['score_max_tokens']}-token window**, not the pipeline's "
+        f"`common.SCORE_MAX_LENGTH` = {C.SCORE_MAX_LENGTH}: a 95-token cut would score less than "
+        f"half of a {nla['max_new']}-token answer. `rollouts_nla` puts it on the rollouts summary "
+        "as `score_max_length`, `score` re-encodes at it and writes it into its `rows.json`, and "
+        "`common.score_width_of` is how a reader gets the stored width. A cosine from this arm is "
+        "therefore a max over a WIDER window than every other arm's -- a stated deviation from the "
+        "one scoring protocol, not an oversight.",
         "",
         "## Input amplitude (`--amp`)",
         "",
@@ -616,9 +633,13 @@ def run(cfg, args):
     rl = cfg["rollouts"]
     n = int(args.get("n") or nla["n"])
     max_new = int(args.get("max_new") or nla["max_new"])
-    assert max_new <= int(rl["max_new"]), (
-        f"--max-new {max_new} exceeds rollouts.max_new {rl['max_new']}, which "
-        f"common.SCORE_MAX_LENGTH={C.SCORE_MAX_LENGTH} bounds: the tail would never be scored"
+    score_max_length = int(nla["score_max_tokens"])
+    # NOT bounded by rollouts.max_new: this arm carries its own scoring window (see the module
+    # docstring). The rule is the same one SCORE_MAX_LENGTH enforces everywhere else -- the
+    # window must hold the whole generation plus the sink -- applied to that window.
+    assert max_new <= score_max_length - 1, (
+        f"--max-new {max_new} exceeds this arm's scoring window nla.score_max_tokens "
+        f"{score_max_length} minus the sink: the tail would never be scored"
     )
     samp = nla["sampling"]
     min_new = int(samp["min_new"])
@@ -801,6 +822,11 @@ def run(cfg, args):
         "min_p": 0.0,
         "max_new": max_new,
         "min_new": min_new,
+        # `score` reads this off the summary and re-encodes at it instead of the protocol's
+        # SCORE_MAX_LENGTH, then records it in its own rows.json (common.score_width_of). It
+        # travels with the ROLLOUTS so the scorer cannot be pointed at a window this generation
+        # never agreed to.
+        "score_max_length": score_max_length,
         "gen_rows": gen_rows,
         "marker_norm_served": None if hn_served is None else round(hn_served, 4),
         "marker_norm_clean_base": None,
@@ -858,8 +884,9 @@ def run(cfg, args):
         od.note(
             f"sampling: the CHECKPOINT's own generation_config.json -- T={samp['temperature']} "
             f"top_p={samp['top_p']} top_k={samp['top_k']} min_p=0 min_new={min_new} "
-            f"max_new={max_new} (the model card's reference script decodes GREEDILY at "
-            f"{nla['card_max_new']} instead; see ../README.md), {n} texts per target, {gen_rows} "
+            f"max_new={max_new}, the CHECKPOINT'S NATIVE length (the reference script decodes "
+            f"GREEDILY at the same {nla['card_max_new']}; see ../README.md), {n} texts per target, "
+            f"{gen_rows} "
             "rows per generate call, all rows of a call sharing the identical prompt so the batch "
             "is UNPADDED (asserted -- padding moves the marker off its required neighbours)"
         )
@@ -890,6 +917,16 @@ def run(cfg, args):
         od.note(
             f"weights: {sha['path']} sha256 {sha['sha256']} "
             f"({sha.get('kind', 'streamed content hash')}); identity card in ../README.md"
+        )
+        od.note(
+            f"SCORING WINDOW: these rows carry `score_max_length` {score_max_length} in the "
+            f"summary, so `score` re-encodes them at {score_max_length} tokens instead of the "
+            f"pipeline's common.SCORE_MAX_LENGTH={C.SCORE_MAX_LENGTH} and writes [N, n, "
+            f"{score_max_length + 1}] arrays (common.score_width_of reads the width back). A "
+            f"{C.SCORE_MAX_LENGTH}-token cut would score less than half of a {max_new}-token "
+            f"answer. A cosine from this arm is therefore a max over a WIDER window than every "
+            f"other arm's -- a STATED deviation from the one scoring protocol, and the reason the "
+            f"generation length is not the MAEMMs' either."
         )
         od.note(
             f"`explanation`: the first <explanation>...</explanation> body (nla/schema.py:45-54), "

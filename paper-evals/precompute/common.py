@@ -189,6 +189,7 @@ NLA_KEYS = (
     "template",
     "sampling",
     "max_new",
+    "score_max_tokens",
     "card_max_new",
     "n",
     "amp",
@@ -227,7 +228,7 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
         assert isinstance(nla[field], str) and nla[field], (
             f"maemm {key!r}: nla.{field} must be a non-empty string, got {nla[field]!r}"
         )
-    for field in ("marker_id", "left_id", "right_id", "max_new", "card_max_new", "n"):
+    for field in ("marker_id", "left_id", "right_id", "max_new", "score_max_tokens", "card_max_new", "n"):
         assert isinstance(nla[field], int) and not isinstance(nla[field], bool) and nla[field] > 0, (
             f"maemm {key!r}: nla.{field} must be a positive int, got {nla[field]!r}"
         )
@@ -252,14 +253,23 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
         f"maemm {key!r}: nla.amp_r must be 'median' (layer read_layer's q[0.5] of "
         f"stats/resid_norm_quantiles.json) or a positive number, got {amp_r!r}"
     )
-    # The scorer's window is the binding constraint, exactly as it is for `rollouts.max_new`:
-    # SCORE_MAX_LENGTH = 95 and score.py asserts no scored row reaches it, so an NLA rollout may
-    # not be longer than the rollouts the rest of the pipeline is built around.
-    assert nla["max_new"] <= rollouts_max_new, (
-        f"maemm {key!r}: nla.max_new {nla['max_new']} exceeds rollouts.max_new {rollouts_max_new}, "
-        f"which SCORE_MAX_LENGTH={SCORE_MAX_LENGTH} bounds -- the tail of such a rollout would "
-        f"never be scored (nla.card_max_new records the checkpoint's own 200-token budget, which "
-        f"needs scorer changes and is out of scope)"
+    # The scorer's window is the binding constraint, exactly as SCORE_MAX_LENGTH is for
+    # `rollouts.max_new` -- but this arm brings its OWN window. `nla.score_max_tokens` is the
+    # re-encode truncation `score` uses for it (carried there on the rollouts summary), so the
+    # bound is against that rather than against the protocol's 95: a generation longer than the
+    # window it will be scored in has a tail nothing ever reads.
+    assert nla["max_new"] <= nla["score_max_tokens"] - 1, (
+        f"maemm {key!r}: nla.max_new {nla['max_new']} exceeds nla.score_max_tokens "
+        f"{nla['score_max_tokens']} - 1 -- the scoring window must leave room for the whole "
+        f"generation plus the sink at column 0, or the tail of a full-length rollout is never "
+        f"scored (the same rule SCORE_MAX_LENGTH={SCORE_MAX_LENGTH} enforces on rollouts.max_new "
+        f"= {rollouts_max_new} for every other arm)"
+    )
+    # Never NARROWER than the protocol: this key exists to widen the window for a model whose
+    # native output is long, not to cut an arm's text short and call it a protocol.
+    assert nla["score_max_tokens"] >= SCORE_MAX_LENGTH, (
+        f"maemm {key!r}: nla.score_max_tokens {nla['score_max_tokens']} is below the pipeline's "
+        f"SCORE_MAX_LENGTH={SCORE_MAX_LENGTH}; this key may only WIDEN the scoring window"
     )
     assert nla["card_max_new"] >= nla["max_new"], (
         f"maemm {key!r}: nla.card_max_new {nla['card_max_new']} is the budget the model card's "

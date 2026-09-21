@@ -61,8 +61,9 @@ prompt nor the marker, so `rollouts_nla` is its only generator and `rollouts_hf`
 and `parity_greedy` refuse it by name. Instead of `prompt` it carries `revision` (the 40-hex HF
 commit, asserted against the resolved snapshot directory) and an `nla:` block holding the
 checkpoint's own contract — `marker` / `marker_id` / `left_id` / `right_id`, the actor `template`
-verbatim, the shipped `sampling` — plus our four choices, `max_new` (≤ `rollouts.max_new`), `n`,
-`amp` and `amp_r`. Both key sets are CLOSED: every field is required, so a typo read as "absent"
+verbatim, the shipped `sampling` — plus our five choices, `max_new` (the checkpoint's native 200),
+`score_max_tokens` (the re-encode window this arm is scored in, ≥ `SCORE_MAX_LENGTH` and > `max_new`),
+`n`, `amp` and `amp_r`. Both key sets are CLOSED: every field is required, so a typo read as "absent"
 has no safe meaning. `rollouts_nla.check_sidecar` re-asserts the contract against the checkpoint's
 shipped `nla_meta.yaml` and `generation_config.json` at run time (and the CPU `check` product does
 it too), so the config cannot drift from the weights.
@@ -104,7 +105,9 @@ fixed here.
                    finished, engine, seed) + <set>.summary.json + README.md + index.json. This
                    directory ACCUMULATES sets (OutDir keep_existing); its README describes the most
                    recent run and index.json lists every set present.
-    scores/<set>/  cos.f16 [N, n, 96], norm.f16 [N, n, 96], argmax.i16 [N, n],
+    scores/<set>/  cos.f16 [N, n, T], norm.f16 [N, n, T], argmax.i16 [N, n],   T = 96 (the 95-token
+                   window + the sink) for every arm but the NLA one, which is 257; `rows.json`
+                   records `score_max_length` and `common.score_width_of` reads it back,
                    best_act.f16 [N, n, d], sae_idx.i32 / sae_val.f16 / sae_off.i64 (flat CSR),
                    per_target.jsonl, rows.json
     scores/<name>__rescore-<x>/  the --rescore-texts variant: FLAT cos.f16 / norm.f16 [M, 96],
@@ -140,7 +143,7 @@ allowed sidecar, so an array's length is never inferred from its file size).
 | `targets` | GPU | `base/<base>/heldout/<set>/` | the frozen draw: realact / random / sae (+ the empty `jlens` slot) |
 | `scan` | GPU | `base/<base>/scan/<set>/`, `sae/<sae>/examples/` | pass B: corpus-retrieval top-64 + cos quantiles per size, SAE examples |
 | `rollouts_hf` | GPU | `maemms/<base>/<maemm>/rollouts/` + that MAEMM's `README.md` | n rollouts per target through HF `generate` with the direction injected at the marker; the ONLY product that loads a MAEMM |
-| `rollouts_nla` | GPU | `maemms/<base>/<nla>/rollouts/` (or `.../variants/<set>__amp-<amp>/`) + that entry's `README.md` | the NLA activation-verbalizer BASELINE through the same HF `generate` path, with the verbalizer's own prompt and marker and `--amp` choosing what is injected; same row schema, `engine: "hf"`, `kind: "nla"`. The only generator a `type: nla` entry has |
+| `rollouts_nla` | GPU | `maemms/<base>/<nla>/rollouts/` (or `.../variants/<set>__amp-<amp>/`) + that entry's `README.md` | the NLA activation-verbalizer BASELINE through the same HF `generate` path, with the verbalizer's own prompt and marker and `--amp` choosing what is injected; same row schema, `engine: "hf"`, `kind: "nla"`. Generates at the checkpoint's native 200 tokens and carries `score_max_length` 256 to `score`. The only generator a `type: nla` entry has |
 | `score` | GPU | `maemms/<base>/<maemm>/scores/<set>/` | per-token cosine / norm on the CLEAN BASE, the argmax residual, the gated SAE features there, and the per-target aggregates. NEVER loads the MAEMM |
 | `rollouts_vllm` | GPU | `maemms/<base>/<maemm>/rollouts/` (stem `<set>__vllm`), `…/throughput/` | the same rollouts through a vLLM engine, one request per target with `n` samples; same row format, `engine: "vllm"`. `--throughput` measures generation tok/s instead |
 | `parity_greedy` | GPU | `maemms/<base>/<maemm>/parity/greedy-<set>/` | 8B only: the HF hook and the vLLM steering on the SAME greedy decode, plus the teacher-forced logprob gap and an unsteered control |
@@ -203,6 +206,15 @@ and commits the volume when it is done.
   re-tokenize to the same number of ids (a 64-token rollout cut mid-word re-encodes to 65), so
   `kept <= max_new` is NOT a valid bound and the text round trip is reported as a rate, not
   asserted.
+- **The scoring window is 95 tokens for every arm but one** (`common.SCORE_MAX_LENGTH`). The NLA
+  baseline generates at its checkpoint's native **200** and is scored at **256**: its rollouts
+  summary carries `score_max_length`, `score` re-encodes at that and records it in `rows.json`,
+  and `common.score_width_of(sdir)` is how anything reshaping a stored `cos.f16` gets the width
+  (never the constant). `common.encode_for_score` / `score_ids` / `score_tokens` take `max_length`
+  and default to the protocol, so every other caller — `gcg` (whose objective is DEFINED on the
+  95-token bound), `repo_examples`, `sae_self`, `score` — is bit-identical to before. A cosine
+  from the NLA arm is a max over a wider window than a MAEMM's, which is stated wherever it is
+  reported.
 - **SAE gate**: "fired" is the checkpoint's learned BatchTopK `threshold` (6.936 for the 8B
   adamkarvonen trainer_2 SAE, **1.5846** for the 131k 27B `l42-1b` one, MEASURED by every
   `stats` run that loads it; the 1.654 this file carried until 2026-09-16 is not the value in
@@ -444,12 +456,27 @@ so `bases.<base>.marker_norm_base` is not a comparable number. What proves these
 the pinned `revision`, asserted against the resolved snapshot's directory name, and the
 index+sizes sha256. The summary says so in those words.
 
-**Out of scope, so a missing number is not read as a negative one:** the card's own **200**-token
-generation (`--max-new-tokens 200` in its invocation, and the reference script's own default — we
-generate at 64 = `rollouts.max_new`, because `SCORE_MAX_LENGTH` is 95 and `score` asserts no
-scored row reaches it; `nla.card_max_new` records the 200 without using it), and the AR critic —
-the reconstruction / FVE half of the autoencoder, a second checkpoint and a second objective.
-Nothing in `rollouts_nla` computes a cosine or an FVE.
+**200 generated tokens, a 256-token scoring window** (Tomáš, 2026-09-21). `nla.max_new` is **200**,
+the checkpoint's native length — the card's own invocation (`--max-new-tokens 200`) and the
+reference script's default. The pipeline's re-encode truncation is `common.SCORE_MAX_LENGTH` = 95,
+which would score **less than half** of such an answer, so this arm carries its own window:
+`nla.score_max_tokens` = **256** goes into the rollouts summary as `score_max_length`, `score`
+re-encodes at it and writes `[N, n, 257]` arrays plus `score_max_length` in `rows.json`, and
+`common.score_width_of` is how every reader gets the width. 256 rather than 201 leaves room for
+re-tokenization expansion (a decoded rollout does not always re-encode to the same id count —
+checklist item 8). `load_config` enforces both halves: `nla.max_new ≤ nla.score_max_tokens − 1`
+(room for the whole generation plus the sink) and `nla.score_max_tokens ≥ SCORE_MAX_LENGTH` (the
+key may only **widen** the window, never cut an arm's text short and call it a protocol).
+
+This is a **stated deviation** from the single 95-token scoring protocol, and it costs two things
+named wherever the numbers appear rather than buried: this arm's cosine is a max over a **wider**
+window than a MAEMM's, and its generation length is not the MAEMMs' 64. Both follow from the
+baseline being somebody else's model run at its own operating point; scoring it at 95 would have
+traded a comparability caveat for a measurement of less than half its output.
+
+**Out of scope, so a missing number is not read as a negative one:** the AR critic — the
+reconstruction / FVE half of the autoencoder, a second checkpoint and a second objective. Nothing
+in `rollouts_nla` computes a cosine or an FVE.
 
 ## The SAE repo's own examples (`repo_examples`)
 
