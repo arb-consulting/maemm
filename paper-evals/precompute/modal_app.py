@@ -427,6 +427,9 @@ def main(
     # (common.rollout_stem). rollouts_* write `<set>__<engine>__<tag>.jsonl` and `score` reads it
     # back; without it the second run replaces the first's file outright, mid-comparison.
     run_tag: str = "",
+    # score: name a RE-SCORE of the same rollouts, so the first result is kept. `--run-tag`
+    # selects a different rollouts FILE; this one only names the scores directory.
+    score_tag: str = "",
     no_sae: bool = False,
     no_marker_check: bool = False,
     max_num_seqs: int = 0,
@@ -552,6 +555,7 @@ def main(
         "rescore_texts": rescore_texts,
         "score_name": score_name,
         "run_tag": run_tag,
+        "score_tag": score_tag,
         "no_sae": no_sae,
         "no_marker_check": no_marker_check,
         "max_num_seqs": max_num_seqs,
@@ -629,6 +633,11 @@ def main(
         assert product == "ood_selfcheck", (
             f"--stages selects which halves of `ood_selfcheck` run (readers,covariates on CPU; "
             f"nll on the GPU); it means nothing to product {product!r}"
+        )
+    if score_tag:
+        assert product == "score", (
+            f"--score-tag names a re-score's output directory and is a `score` flag; it means "
+            f"nothing to product {product!r}"
         )
     if with_set:
         # A `--with-set` bank is resolved by the SAME `--mu` as the primary set, and `dirs_for`

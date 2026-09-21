@@ -1393,6 +1393,10 @@ def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf
     six of eval 1's arms went into the paper's own CSV as HF when they were vLLM. Any future tool
     joining a rollout to its score by tag inherits the same trap. Writers are canonical from here.
 
+    `tag` IS TWO AXES JOINED, not one -- build it with `score_tag_of(args)`, never by hand. Both
+    `evals/pipeline` and `evals/pipeline-ood` gave this function a `tag` in this position within a
+    day of each other and meant DIFFERENT things by it; see `score_tag_of`.
+
     A READER (the default) falls back to the legacy `<set>__<tag>__<engine>` spelling when the
     canonical path is absent and the legacy one is there, exactly as `sae_examples_dir` does for
     its own rename, so the products already on the volume stay readable. Only `engine != "hf"`
@@ -1412,6 +1416,33 @@ def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf
         )
         return legacy
     return canonical
+
+
+def score_tag_of(args: dict) -> str:
+    """The tag component of a scores directory: the run tag, the score tag, or both.
+
+    TWO ORTHOGONAL AXES, and BOTH have to reach the name or one of them silently overwrites the
+    other's product:
+
+      `--run-tag`   selects which rollouts FILE is scored (`rollout_stem`'s third component).
+                    Two run tags scored under one convention are two different inputs.
+      `--score-tag` names only the OUTPUT: the same rollouts file scored again under a second
+                    convention, a second mean, or for a column the first run did not have --
+                    `cos_asym` is why it exists. Pointing `--run-tag` at a re-score instead sends
+                    `score` looking for a `<set>__<engine>__<tag>.jsonl` that is not there, which
+                    is how the mu-stats arm failed on 2026-09-21.
+
+    Joined RUN FIRST, because the rollouts file is the outer object: every score of one rollouts
+    file sorts together. `results.common.parse_scores_dir` returns the joined string as one tag,
+    which is what it did before either axis existed and is all any reader has ever needed.
+
+    `evals/pipeline` and `evals/pipeline-ood` each gave `scores_dir` a `tag` parameter in the same
+    position, with the same name, meaning these two different things; the rebase that met them
+    could have kept either one alone and lost the other's products with no error anywhere.
+    """
+    run = (args.get("run_tag") or "").strip()
+    score = (args.get("score_tag") or "").strip()
+    return "__".join(t for t in (run, score) if t)
 
 
 # ---------------------------------------------------------------------------------------------

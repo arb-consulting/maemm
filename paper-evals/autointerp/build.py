@@ -1008,7 +1008,7 @@ def run(cfg, args):
         f"(base, set) first, or pass --allow-short to build a knowingly short test set"
     )
     hdir = C.heldout_dir(base, set_name, root)
-    sdir = C.scores_dir(maemm, set_name, root, engine, args.get("run_tag") or "")
+    sdir = C.scores_dir(maemm, set_name, root, engine, C.score_tag_of(args))
     self_dir = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
 
     rows_meta = C.read_jsonl(f"{hdir}/ids.jsonl")

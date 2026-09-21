@@ -79,7 +79,7 @@ def run(cfg, args):
     engine = args.get("engine") or "hf"
     d = cfg["bases"][base]["d"]
 
-    sdir = C.scores_dir(maemm, set_name, root, engine, args.get("run_tag") or "")
+    sdir = C.scores_dir(maemm, set_name, root, engine, C.score_tag_of(args))
     assert os.path.exists(sdir), (
         f"no scores at {sdir}: run `--product score --maemm {maemm} --set {set_name} "
         f"--engine {engine}` first (this product only reads what score.py stored)"
