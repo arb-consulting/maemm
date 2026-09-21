@@ -472,19 +472,39 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     assert "sae2m_enc" in B.FAMILIES and "sae" in B.FAMILIES, B.FAMILIES
     hdir = Path(C.heldout_dir(base, "selfcheck_fam", str(tmp)))
     hdir.mkdir(parents=True, exist_ok=True)
+    sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][-1]
+    # Rows carry their own `sae_key`, the way targets.py and features/draw_sae2m.py stamp it since
+    # 2026-09-21. Before the conventions layer this fixture left the field off and the filter still
+    # answered; `common.sae_rows_of` now refuses an unkeyed SAE row that no set declares, so the
+    # unkeyed fixture made this check die on the guard instead of exercising the family filter.
     C.write_jsonl(hdir / "ids.jsonl", [
         {"row": 0, "family": "realact", "id": "doc1:p2:L3"},
-        {"row": 1, "family": "sae2m_enc", "id": 4242},
+        {"row": 1, "family": "sae2m_enc", "id": 4242, "sae_key": sae_key},
         {"row": 2, "family": "random", "id": "g0"},
-        {"row": 3, "family": "sae2m_enc", "id": 777},
+        {"row": 3, "family": "sae2m_enc", "id": 777, "sae_key": sae_key},
     ])
-    sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][-1]
     rows, sae_rows, feats, key = SS._sae_rows(
         cfg, {"base": base, "root": str(tmp), "heldout": "selfcheck_fam", "sae": sae_key}
     )
     assert sae_rows == [1, 3] and feats == [4242, 777], (sae_rows, feats)
     assert key == sae_key, f"--sae was not honoured: {key}"
     assert len(rows) == 4, "the full ids.jsonl must come back, not only the SAE rows"
+
+    # And the guard itself, on the same fixture: an SAE row with NO `sae_key`, in a set that
+    # declares none, must refuse rather than default to whatever `--sae` was typed. This is the
+    # path that silently scored 512 wrong features on 2026-09-16_v1 before the layer landed.
+    C.write_jsonl(hdir / "ids.jsonl", [
+        {"row": 0, "family": "realact", "id": "doc1:p2:L3"},
+        {"row": 1, "family": "sae2m_enc", "id": 4242},
+    ])
+    try:
+        SS._sae_rows(
+            cfg, {"base": base, "root": str(tmp), "heldout": "selfcheck_fam", "sae": sae_key}
+        )
+    except AssertionError as exc:
+        assert "no `sae_key` field" in str(exc), f"refused for the wrong reason: {exc}"
+    else:
+        raise AssertionError("an unkeyed SAE row in an undeclared set was selected, not refused")
 
     # (b) arm B's description: tags stripped, whole text when the tag never closed.
     txt = "blah <explanation>\n  neurons that fire on dates \n</explanation> tail"
