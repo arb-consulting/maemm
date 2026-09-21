@@ -2709,3 +2709,65 @@ no difference (0.0206 vs 0.0209). Eight rows is a smoke, not an estimate.
 
 Not run: `sae_self` -- the v1 rows 0-7 are realact, and the sae2m_2k rows carry family `sae2m_enc`,
 which `sae_self.FAMILY = "sae"` skips (Ari's label; not changed here).
+
+## NLA at 200 tokens, the 2M-SAE autointerp smoke, and the activation smoke (2026-09-21, `arb/nla`)
+
+Decisions applied (Tomáš 2026-09-21): NLA generates at its native `max_new` 200, T=1, and is scored
+in a 256-token window (`score_max_length` carried in the rollouts summary; every other arm stays at
+95); `nla.amp` default is `raw`. All smoke outputs live under `--root /vol/tmp/nla-smoke` (first 8
+2M features + the 131k set) and `/vol/tmp/nla-smoke-x` (8 more 2M features); inputs were copied
+there file by file (`modal volume cp` has no `-r` on this V1 volume), nothing under `/vol/base` or
+`/vol/maemms` was written. HF cache stays at `/vol/hf`.
+
+| date | item | command (abbreviated) | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-21 | `rollouts_nla` 2M rows 0,1,4-6,8-10 x 4 @ 200 tok, amp raw / exact | `--product rollouts_nla ... --set 2026-09-20_sae2m_2k --root /vol/tmp/nla-smoke --rows 0,1,4-6,8-10 --n 4 [--amp exact]` | 252.6 / 248.9 s | $0.3185 / $0.3139 | eos rate 0.97, `</explanation>` closed on 31/32, mean 182 tok, 240 gen tok/s | 240 tok/s at 200 tokens vs 134 at 64: the 64-token runs were load-dominated |
+| 2026-09-21 | `score` NLA raw (`--sae sae2m`, encoder-only) / exact variant | `--product score --maemm <nla> --engine hf --sae qwen36-27b/sae2m ...` / `--rollouts-dir .../variants/...__amp-exact` | 185.5 / 229.7 s | $0.2339 / $0.2896 | T=257, 0/32 rows at the 256 truncation; mean cos raw 0.0293, bo4 0.0342 | the 2M SAE encoder-only (43 GB) + base fit the H200 |
+| 2026-09-21 | `random_pool` / `examples_4m` sae2m (2000 features each) | `autointerp --stage random_pool` / `--stage examples_4m` | 195.9 / 1501.9 s | $0.2470 / $1.8940 | 2048 windows; 4M prefix 237,980 windows, top-128 per feature | `--rows` restricts nothing in these two stages (all 2000 tested features are encoded); the cost is the corpus forward either way |
+| 2026-09-21 | `sae_self` NLA / rl-last16 on the 8 2M rows | `autointerp --stage sae_self --maemm <key> --engine hf --sae qwen36-27b/sae2m --rows ...` | 285.7 / 232.7 s | $0.3602 / $0.2934 | argmax 32/32, CSR checks 0 mismatches; fire fraction 0.125 / 0.094 | FIRST attempt died: `sae_self` assumed `score` covered the whole set (`reshape 32 into (2000,4)`); fixed in `34d1104` |
+| 2026-09-21 | `build` C4 + NLA, 8 features (CPU) | `--stage build --arms C4,NLA --allow-short --build-dir 2026-09-21_build ...` | 18.9 s | $0 | 8 features; positives from `examples_4m` (no scan `examples/` for sae2m, `f1ffa07`); `n_short_draw1` 7, min 10 positives | first attempt died on the missing `examples/2323.jsonl` |
+| 2026-09-21 | `run` detection, arms C4 / NLA / NLA-desc (CPU + API) | `--stage run --build-dir 2026-09-21_build --run-dir 2026-09-21_nla-smoke --arms C4,NLA,NLA-desc --scorers detection --path sync` | 34.9 s | **API $0.62** (16 explainer + 162 detection calls) | table below | — |
+| 2026-09-21 | activation smoke extras: NLA 131k (16 v1 sae rows) rollouts/score/sae_self; rl-last16 2M score + sae_self (2 roots); NLA-x rollouts/score/sae_self; `examples_4m` root x | 11 launches | — | **$4.25** | tables below | root x exists only because a second `rollouts_nla --rows` run into the same `rollouts/<set>.jsonl` would have replaced the first 8 rows (the product writes one file per set, it does not merge) |
+
+GPU spend of this section: **$7.6** (follow-on cap $15; activation-smoke extras $4.25 of its $10);
+cumulative `arb/nla` GPU ≈ $8.9 incl. the $0.11 wasted rl-last16 v1 score of 09-20. API $0.62.
+
+### Detection balanced accuracy, 8 features of the 2M SAE (rows 0,1,4-6,8-10 of `2026-09-20_sae2m_2k`)
+
+| arm | what the scorer judges with | mean bal. acc | median | TPR | TNR |
+|---|---|---|---|---|---|
+| C4 (reference: 16 corpus top windows of the 4M prefix → explainer) | Sonnet explanation | 0.477 | 0.487 | 0.35 | 0.61 |
+| NLA (A: 4 NLA texts, peak-marked → explainer) | Sonnet explanation | 0.499 | 0.500 | 0.02 | 0.98 |
+| NLA-desc (B: the NLA text itself, best-firing rollout) | NLA text | 0.503 | 0.500 | 0.01 | 1.00 |
+
+Per feature (C4 / NLA / NLA-desc): 2323 .425/.5/.5, 2386 .475/.475/.525, 7784 .508/.567/.5,
+9083 .45/.5/.5, 10750 .533/.475/.5, 11663 .5/.5/.5, 14719 .5/.5/.5, 15367 .425/.475/.5.
+**Every arm is at chance, the corpus reference included.** The C4 explainer describes these
+features as "highly predictable continuation tokens / function words" (2323, 9083) -- the 2M
+features drawn here (≥ 200 gated fires at 16M, i.e. the sparse end) read as position/predictability
+features that no 16-example description separates from zero-activation windows; arms A and B say
+"no" to nearly everything (TNR ≈ 1, TPR ≈ 0). This smoke therefore does NOT discriminate the two
+NLA modes; it says the test itself has no headroom on this feature draw. Positives are also weak:
+`examples_4m` peaks are 0.54-1.0 of the 16M `max_act`, 7 of 8 features short of 20 positives.
+
+### Activation smoke: raw peak of the target feature, median over features
+
+| SAE (set) | source | median peak / corpus peak | features firing |
+|---|---|---|---|
+| 2M `sae2m` (2k set, 16 features) | rl-last16 rollouts (n=4, 64 tok) | **0.32** | 4/16 |
+| | NLA texts (n=4, 200 tok, raw) | **0.33** | 5/16 |
+| | corpus top-16 windows, 4M prefix | 0.83 | 16/16 |
+| 131k `l42-1b` (v1, 16 sae rows) | old primary rollouts (n=64) | 1.05 | 16/16 |
+| | old primary, first 4 rollouts | **0.95** | 15/16 |
+| | NLA texts (n=4, 200 tok, raw) | **0.53** | 14/16 |
+| | corpus top-16 windows, 16M docmax | 1.00 | 16/16 |
+
+Corpus peak = `sae/<sae>/max_act.f16` (16M). On the 131k SAE a MAEMM at n=4 reaches the corpus
+peak (0.95) and the NLA half of it (0.53); on the 2M SAE BOTH sit at a third of the peak and fire
+on a quarter of the features, while the corpus search itself only reaches 0.83 on a 4M prefix. The
+~26%-of-peak is therefore not specific to the MAEMM: an independently trained verbalizer lands at
+the same place on the 2M dictionary and at 2x that on the 131k one. Caveat: 4M-prefix corpus on
+the 2M side biases its corpus ratio DOWN, i.e. the MAEMM/NLA ratios are, if anything, flattered.
+Per-feature tables: `reconstruction/act_smoke.py --data <mirror>` output, kept in the session
+scratchpad (act_smoke-2m.md, act_smoke-131k.md); the 2M rows with peaks ≥ 8 (1635672, 1944579,
+stratum 3) are the only ones any generated text drives to the gate reliably.
