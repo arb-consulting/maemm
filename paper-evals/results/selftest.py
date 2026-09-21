@@ -2411,11 +2411,17 @@ def check_ood_arm_table():
     # a source centred on ANOTHER mean gets its cosines and NO delta: the two sides would be
     # angles to different target vectors (measured on the real set: cos 0.977 between the means,
     # median 0.969 between unit(act - mu), which is the size of the effect itself)
-    inc, _ = od.arm_rows(ids, src, top1_by_arm, 1.0, True, boot_ci, R_outcome, None,
-                         comparable=False)
+    # NOT comparable AND no scan at all at that mean -- the real shape of the case: a checkpoint
+    # centred on a mean nothing was scanned at. It must still yield one ROW PER ARM carrying the
+    # cosines. Asserting the count first, because `for r in []` passes every check vacuously and
+    # that is exactly how the first version of this shipped a table with no rows in it.
+    inc, _ = od.arm_rows(ids, src, {}, 1.0, True, boot_ci, R_outcome, None, comparable=False)
+    assert len(inc) == 3, f"an incomparable source must still report every arm's cosines: {inc}"
     for r in inc:
         assert r["delta"] is None and r["ci_lo"] is None and r["outcome"] == "not comparable", r
-        assert r["bo64_centred"] is not None, "the cosines are still reported"
+        assert r["bo64_centred"] is not None and r["bo64_raw"] is not None, r
+        assert r["corpus_top1"] is None and r["win_frac"] is None, r
+        assert r["n"] == 8, f"every target of the arm has a cosine: {r}"
     # and the mu spellings that must compare EQUAL / UNEQUAL
     assert od.C_resolve_mu("base/{base}/stats/mu.f32", "B") == od.C_resolve_mu(
         "/vol/base/B/stats/mu.f32", "B"

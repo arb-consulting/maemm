@@ -226,37 +226,44 @@ def arm_rows(
         # top-1 in all 23 scans and only ONE of them is in its domain -- the rest are the
         # cross-domain cells. Flattening them into one {row: cos} map silently mixed the two.
         top1 = top1_by_arm.get(arm) or {}
-        if not top1:
+        if comparable and not top1:
             skipped.append(f"arm `{arm}`: no scan of its own corpus, so no in-domain cell")
             continue
         pairs, raw, cen, ctrl, corp, docs = [], [], [], [], [], []
         for r in rows:
             pt = src.per_target.get(int(r["row"]))
+            if pt is None:
+                continue
+            # THE COSINES DO NOT NEED THE CORPUS. A source with no scan at its own mean still has
+            # a bo64 per target, and reporting it is the whole point of the `comparable` split --
+            # dropping the row entirely would turn "we cannot difference this" into "we measured
+            # nothing", which are opposite findings.
+            raw.append(bo64_of(pt, False))
+            cen.append(bo64_of(pt, True))
+            if control is not None and int(r["row"]) in control:
+                cb = bo64_of(control[int(r["row"])], centred)
+                if cb is not None:
+                    ctrl.append(cb)
             c = top1.get((int(r["row"]), size_m))
-            if pt is None or c is None:
-                continue
             m = bo64_of(pt, centred)
-            if m is None:
+            if c is None or m is None:
                 continue
+            corp.append(c)
             pairs.append(m - c)
             # the cluster label of the KEPT pair, collected here rather than sliced off the arm's
             # rows afterwards: a target the scan has no cell for drops out, and a positional slice
             # would then label the survivors with their neighbours' documents.
             docs.append(r.get("doc", ("row", int(r["row"]))))
-            raw.append(bo64_of(pt, False))
-            cen.append(bo64_of(pt, True))
-            corp.append(c)
-            if control is not None and int(r["row"]) in control:
-                cb = bo64_of(control[int(r["row"])], centred)
-                if cb is not None:
-                    ctrl.append(cb)
-        if len(pairs) < 2:
+        if comparable and len(pairs) < 2:
             skipped.append(
                 f"arm `{arm}`: {len(pairs)} paired targets (needs > 1) -- its own scan cell at "
                 f"{size_m}M or the score rows are missing"
             )
             continue
-        d = np.asarray(pairs, dtype=float)
+        if not cen and not raw:
+            skipped.append(f"arm `{arm}`: no scored rows for this source")
+            continue
+        d = np.asarray(pairs, dtype=float) if pairs else np.zeros(0)
         # Δ IS ONLY MEANINGFUL WHEN BOTH SIDES SCORE AGAINST THE SAME TARGET VECTOR. The scan
         # centres on the mean it was given; a checkpoint's rollouts are scored on the mean IT
         # declares. When those differ the two cosines are angles to two different directions and
@@ -272,10 +279,10 @@ def arm_rows(
             {
                 "arm": arm,
                 "family": rows[0]["family"],
-                "n": int(d.size),
+                "n": int(d.size) if comparable else len([x for x in cen if x is not None]),
                 "bo64_centred": _mean(cen),
                 "bo64_raw": _mean(raw),
-                "corpus_top1": float(np.mean(corp)),
+                "corpus_top1": float(np.mean(corp)) if corp else None,
                 "control_bo64": _mean(ctrl) if ctrl else None,
                 "delta": mean,
                 "ci_lo": lo,
@@ -437,7 +444,7 @@ def main(
             "**inconclusive** (CI covers zero -- a failure to reject, not a finding of no "
             "generalisation), **reversed** (CI below zero).",
             "",
-            R.env_hint(),
+            f"Run under `MODAL_PROFILE={R.env_hint()}`.",
         ],
     )
 
@@ -512,11 +519,12 @@ def main(
             f"Arms — {src.label}"
             + ("" if src.centred else "  (this run centred on NOTHING: `--mu none`)"),
             f"bo64 against the in-domain {size_m:g}M corpus search, paired per target. "
-            f"`bo64 centred` is `cos_centred`, the headline where the run centred; `bo64 raw` is "
-            f"the uncentred cosine of the same rollouts. The control column is "
+            f"`bo64 centred` is `cos_centred` = cos(h - mu, unit(act - mu)); `bo64 raw` is `cos` "
+            f"= cos(h, unit(act)) on the same rollouts. The control column is "
             f"{'`' + ctrl_src.label + '`' if ctrl_src else 'absent'}. `lang / code` is the rate at "
             f"which the top-1 rollout comes back in the arm's own language (fastText lid218e), or "
-            f"the code-like rate where fastText is not meaningful.",
+            f"the code-like rate where fastText is not meaningful. **READ THE CONVENTION NOTE "
+            f"BELOW BEFORE COMPARING Δ WITH THE DESIGN'S +0.218.**",
             header, rows_md, csv_header=csv_header, csv_rows=csv_rows,
         )
 
@@ -543,18 +551,26 @@ def main(
 
     # the English in-distribution reference, recomputed from the frozen 2026-09-16 scan by the one
     # script that owns it (R1: own-document corpus hits excluded, so the margin is like-for-like)
+    # The English reference. `stats_ood.english_reference` returns, per corpus size:
+    #   {n, top1_all, top1_noown, n_noown, own_is_top1, no_noown_candidate}
+    # -- it does NOT carry a bo64 or a margin, so the margin is formed here against the paper's
+    # frozen English bo64 and that constant is named in the caption rather than hidden in a sum.
+    EN_BO64 = 0.569   # design §0, the paper's 512-target English best-of-64
     ref = mod.english_reference(vol, base=base)
     if ref:
         o.table(
             "english_reference", "English in-distribution reference (review R1)",
-            "The paper's own-domain margin with OWN-DOCUMENT corpus windows EXCLUDED, recomputed "
-            "from `scan/2026-09-16_v1/topk.jsonl`. The OOD corpora contain no target documents "
-            "(design §2), so this is the like-for-like reference; the paper's frozen 0.371 counts "
-            "the target's own document and stays in its own table.",
-            ["size (M)", "corpus top-1", "bo64", "margin"],
-            [[k, R.num(v.get("corpus")), R.num(v.get("bo64")), R.num(v.get("margin"))]
-             for k, v in sorted((ref.get("by_size") or ref).items(), key=lambda kv: str(kv[0]))
-             if isinstance(v, dict)],
+            f"Recomputed from `scan/2026-09-16_v1/topk.jsonl`. `top1 (no own doc)` EXCLUDES corpus "
+            f"windows from the target's own document; the OOD corpora contain no target documents "
+            f"(design §2), so that is the like-for-like reference, and the paper's frozen 0.371 at "
+            f"4M counts the own document and stays in its own table. The margin is "
+            f"{EN_BO64} (the paper's English bo64, design §0) minus that column.",
+            ["size (M)", "n", "top1 (all)", "top1 (no own doc)", "margin vs bo64 "
+             f"{EN_BO64}", "own doc IS top-1", "no non-own candidate"],
+            [[k, v["n"], R.num(v["top1_all"]), R.num(v["top1_noown"]),
+              R.num(EN_BO64 - v["top1_noown"]) if v["n_noown"] else None,
+              v["own_is_top1"], v["no_noown_candidate"]]
+             for k, v in sorted(ref.items(), key=lambda kv: float(kv[0]))],
         )
     else:
         notes.append("the English reference scan is not on this root: no `en_ref` row")
@@ -564,6 +580,42 @@ def main(
             + ", ".join(sorted(english))
         )
 
+    o.section(
+        "\n".join([
+            "### The cosine convention, and what Δ here is and is not",
+            "",
+            "`scan` scores a corpus window as `normalize(h) @ v` with `v = unit(act - mu)`: the "
+            "corpus activation UNCENTRED against a CENTRED target (precompute/scan.py; design §4, "
+            "'uncentred cosine in the scan'). That is the paper's convention and it is unchanged "
+            "-- the English reference below reproduces the design's R1 numbers to the digit "
+            "(0.3137 / 0.3511 / 0.3851 at 1/4/16M, own document top-1 on 114 of 512 targets at "
+            "4M).",
+            "",
+            "`score` on this branch emits two SYMMETRIC cosines instead: `cos` = "
+            "cos(h, unit(act)) and `cos_centred` = cos(h - mu, unit(act - mu)). Neither is "
+            "`cos(h, unit(act - mu))`, the asymmetric number the paper's bo64 0.569 is, and on a "
+            "`storage: raw` set there is no flag that produces it -- the legacy path got it for "
+            "free because a `storage: unit` set's stored rows ARE `unit(act - mu)`, so `dirs` was "
+            "already the centred target.",
+            "",
+            "Consequences, stated rather than smoothed:",
+            "",
+            "- the CORPUS side of every Δ is exactly the paper's; the MAEMM side is not, so the "
+            "MAGNITUDE of Δ here is not comparable with the design's English margin of +0.218 "
+            "(4M) or +0.256 (1M), and neither is bo64 comparable with 0.569;",
+            "- the pre-registered claim is a per-arm SIGN ('the best of 64 rollouts aligns more "
+            "closely than the best corpus window'), and a sign is testable under any one "
+            "convention applied to both sides of the comparison -- which is why the verdicts are "
+            "reported and the margins are labelled;",
+            "- both cosines are in the CSV, so the arms can be re-read under either without "
+            "re-running anything on the GPU.",
+            "",
+            "Closing this properly means one of: `score` gaining the asymmetric cosine on a raw "
+            "set, or the scan centring its corpus activations to match `cos_centred`. The second "
+            "invalidates the frozen English reference; the first does not. Not decided here.",
+            "",
+        ])
+    )
     for n in notes:
         o.note(n)
     path = o.finish([])
