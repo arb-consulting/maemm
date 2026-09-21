@@ -276,6 +276,20 @@ heldout:
     families:
       sae2m_enc: {n: 2000, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
 
+  # The 131k-SAE counterpart of the 2,000-feature 2M set, drawn by
+  # features/draw_sae131k.py from pool_heldout/sae.parquet (13,107 features the EARLIER
+  # chains held out). Same shape and same 80/20 column, so the only difference between
+  # the two sets is the dictionary -- which is what makes the contrast measurable.
+  # Its held-out claim is WEAKER than the 2M set's and says so per row: it was
+  # established against the earlier chains, and near-duplication against the 1.85M 2M
+  # features the v2 checkpoint trained on is not established.
+  2026-09-21_sae131k_2k:
+    seed: 20260921
+    families:
+      sae: {n: 2000}
+    sae_min_fires: 20
+    sae_strata: 4
+
 corpus:
   dataset: openbmb/Ultra-FineWeb
   files:
