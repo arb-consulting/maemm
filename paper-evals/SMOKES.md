@@ -4156,3 +4156,48 @@ not noise and it is not explained here. The two scorers differ in what they show
 shots, fuzzing on `legacy` runs zero-shot), so a change in the explainer's INPUT can plausibly help
 one and hurt the other — but that is a hypothesis, not a finding. On the 2M neither interval clears
 zero. **Flagged as unresolved.**
+
+### The EPO arm, measured
+
+`finals.jsonl` stores only SCALAR sae fields and `build._epo_arm` needs per-token `acts`, so the
+finals were repackaged as a rollouts dir and taken through D11's validated path rather than a
+second forward: `infra/2026-09-21_epo-as-rollouts.py` (packager) then `score --rollouts-dir`
+(**$0.2610**) then `sae_self --rollouts-dir` (**$0.2458**, argmax 48/48, CSR 0 mismatches,
+`fire_fraction_mean 0.0`) then `infra/2026-09-21_epo-strings.py` (converter). Build
+`2026-09-21_e2-2m-epo`, run the same, **API $1.2070**.
+
+**16 features x 3 strings = 1,536 tokens, and the highest single per-token activation is 1.6514
+against a gate of 1.6828.** Not one token of the entire EPO output reaches the gate. 21 of the 48
+blocks (43.8 %) are unmarked even under relative marking, and 3 of 16 features have every block
+unmarked.
+
+| arm | detection | fuzzing |
+|---|---|---|
+| `DOCMAX` (these 16 features) | 0.5646 | 0.6146 |
+| `DOCMAX-draw2` | 0.5762 | 0.6132 |
+| `DOCMAX-judge2` | 0.5578 | 0.5979 |
+| **`E` (EPO)** | **0.4891** | **0.5138** |
+| `R-shuffled` (floor) | 0.4885 | 0.5487 |
+
+**`E` is the floor.** 0.4891 against the floor's 0.4885 on detection — a difference of 0.0006 — and
+BELOW the floor on fuzzing. An explanation written from four GPU-hours of optimised text carries no
+more information about the feature than another feature's description picked at random. That is the
+reachability ceiling stated as a scored number rather than an activation statistic, and it is worth
+more in the table than "not run".
+
+Note the 16 features are the EPO subset, so this block's `DOCMAX` (0.5646) is not the 32-feature
+`DOCMAX` (0.5815); the floor and the corpus arm are re-measured on the same 16 and are the right
+comparison.
+
+**Two defects found on this path**, both fixed, both of the same shape -- a crash after the product
+was already committed, which makes a complete run report failure:
+* `score.py` computed `fam_mean[f"{fam}_bo{n}"]` for an `n` outside `BO_KS = (1,2,4,8,16,32,64)`.
+  EPO's grid width is 3. Fixed to report the largest recorded best-of at or below `n`.
+* The rollouts summary must carry `engine`, `n`, `seed`, `max_new` and `weight_sha256`
+  (`score.py:34`); the packager discovered the last two by failing, one launch each. An EPO string
+  has no checkpoint behind it, so `weight_sha256` carries that fact rather than a borrowed hash.
+
+**Known gap, not fixed:** `build.json`'s `marking_counts` does not cover the `E` arm, because the
+counter sits inside the `for name in arm_names` loop and the EPO hook appends its row after it. The
+E-arm block counts above come from reading the arm rows' own examples
+(`scratchpad/census.py`), which is the same quantity read from the product.
