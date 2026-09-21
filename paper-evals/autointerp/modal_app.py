@@ -18,6 +18,7 @@ The key is never printed, never written to the volume and never put in a README:
 from the environment and only ever records token counts and dollars.
 """
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -214,7 +215,14 @@ def main(
     shots: int = 0,
     probe_features: int = 0,
     timeout_s: float = 0.0,
+    # CONTAINER-SIDE, and only for `--stage run`: it prints the request shapes this run would send
+    # (from the build already on the volume) and returns. It still STARTS A CONTAINER.
     dry_run: bool = False,
+    # LOCAL: run every assert above, print what would be sent, and return WITHOUT `.remote()` --
+    # what `precompute/modal_app.py --dry-run` does. It is a second flag rather than a reuse of
+    # `dry_run` because that name is already taken here by the container-side meaning above, and
+    # silently changing it would turn a stage-`run` dry run into a no-op.
+    dry_launch: bool = False,
 ):
     """One autointerp stage. `--stage sae_self|build|run`.
 
@@ -311,6 +319,11 @@ def main(
         f"[launch] autointerp {stage} base={base} maemm={maemm or '-'} set={set_name} "
         f"root={args['root']} on {label} commit={args['repo_commit'][:8]}"
     )
+    if dry_launch:
+        # Every assert above has run; what is printed is exactly the dict `.remote()` would carry.
+        print("[dry-launch] no container started; args below are what would be sent")
+        print(json.dumps(args, indent=1, sort_keys=True, default=str))
+        return
     res = fn.remote(stage, args)
     print(f"[done] {res['stage']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")
     print(f"       {res['result']}")
