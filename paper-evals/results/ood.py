@@ -174,7 +174,7 @@ def arm_rows(
         by_arm.setdefault(r["arm"], []).append(r)
     recs, skipped = [], []
     for arm, rows in by_arm.items():
-        pairs, raw, cen, ctrl, corp = [], [], [], [], []
+        pairs, raw, cen, ctrl, corp, docs = [], [], [], [], [], []
         for r in rows:
             pt = src.per_target.get(int(r["row"]))
             c = top1.get((int(r["row"]), size_m))
@@ -184,6 +184,10 @@ def arm_rows(
             if m is None:
                 continue
             pairs.append(m - c)
+            # the cluster label of the KEPT pair, collected here rather than sliced off the arm's
+            # rows afterwards: a target the scan has no cell for drops out, and a positional slice
+            # would then label the survivors with their neighbours' documents.
+            docs.append(r.get("doc", ("row", int(r["row"]))))
             raw.append(bo64_of(pt, False))
             cen.append(bo64_of(pt, True))
             corp.append(c)
@@ -199,7 +203,7 @@ def arm_rows(
             continue
         d = np.asarray(pairs, dtype=float)
         mean, lo, hi = boot_ci(d)
-        _, se_cl, _, n_clust = R.cluster_bootstrap(d, [r["row"] for r in rows][: d.size])
+        _, se_cl, _, n_clust = R.cluster_bootstrap(d, docs)
         recs.append(
             {
                 "arm": arm,

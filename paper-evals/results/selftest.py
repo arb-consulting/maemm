@@ -2328,6 +2328,100 @@ def check_autointerp_cuts_catch_a_defect():
         t = _trend(res, "stratum", "cut/RARE", "detection")
         _close(t["spread"], 0.0, 1e-12, what="every stratum now holds two of the eight high values")
         assert t["p_perm"] == 1.0, t
+def _ood():
+    """`results/ood.py` without its lazy `stats_ood` import, which needs fasttext and polars."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parent / "ood.py"
+    spec = importlib.util.spec_from_file_location("results_ood", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_ood_scan_key():
+    """`scan/<set>[__<corpus>[__<M>m]]` parsed back to (corpus, bound), including the one shape
+    that was ambiguous before the key carried the corpus label: a size-bounded scan of the base's
+    OWN corpus. `<set>__4m` would have read as "a corpus whose directory is 4m"."""
+    od = _ood()
+    S = "2026-09-21_ood_q1"
+
+    def one(name):
+        if name == S:
+            return ("", None)
+        m = od.SCAN_RE.match(name)
+        return None if not m or m.group("set") != S else (
+            m.group("corpus"), float(m.group("mb")) if m.group("mb") else None
+        )
+
+    assert one(S) == ("", None), "the unbounded English scan keeps the bare set name"
+    assert one(f"{S}__tha_Thai") == ("tha_Thai", None)
+    assert one(f"{S}__tha_Thai__1m") == ("tha_Thai", 1.0)
+    # the shape the fix exists for: the base's own corpus, bounded. `corpus` is the label, `4m`
+    # the bound -- not a corpus called `4m` with no bound.
+    assert one(f"{S}__corpus__4m") == ("corpus", 4.0)
+    assert one(f"{S}__train_parity_10m") == ("train_parity_10m", None), (
+        "a corpus directory ending in `m` is not a size suffix"
+    )
+    assert one("2026-09-18_ood_v1__tha_Thai") is None, "another set's scan is not this set's"
+
+
+def check_ood_arm_table():
+    """`arm_rows` on three hand-built arms, one per outcome of the R9 three-state verdict.
+
+    The estimator is INJECTED (that is why `arm_rows` takes it), so this checks the pairing, the
+    drop rule and the verdict wiring against numbers written out here -- not a bootstrap against
+    itself. `exceeds` is +0.20 on every target, `reversed` is -0.20, `inconclusive` straddles.
+    """
+    od = _ood()
+    ids, per_target, top1 = [], {}, {}
+    CORPUS = 0.50
+    # the CENTRED bo64 of each arm; the raw one sits 0.05 below it, so a table that read the wrong
+    # cosine would not merely shift the mean, it would change the verdict of `a_inc`.
+    plan = {"a_ex": 0.70, "a_rev": 0.30, "a_inc": 0.50}
+    row = 0
+    for arm, cen in plan.items():
+        for i in range(8):
+            ids.append({"row": row, "arm": arm, "family": "lang", "doc": 1000 + row})
+            wobble = 0.02 if i % 2 else -0.02
+            per_target[row] = {"bo_64": cen - 0.05 + wobble, "bo_c_64": cen + wobble}
+            top1[(row, 1.0)] = CORPUS
+            row += 1
+    # one target of `a_ex` has NO scan cell: it must drop out of the pair, not score zero
+    del top1[(0, 1.0)]
+
+    def boot_ci(d):
+        m = float(np.mean(d))
+        h = 3.0 * float(np.std(d, ddof=1)) / math.sqrt(d.size) if d.size > 1 else 1.0
+        return m, m - h, m + h
+
+    src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
+    src.per_target = per_target
+    recs, skipped = od.arm_rows(ids, src, top1, 1.0, True, boot_ci, R_outcome, None)
+    assert not skipped, skipped
+    got = {r["arm"]: r for r in recs}
+    assert sorted(got) == ["a_ex", "a_inc", "a_rev"]
+    assert got["a_ex"]["n"] == 7, f"the target with no scan cell must drop: {got['a_ex']['n']}"
+    assert got["a_ex"]["outcome"] == "exceeds" and got["a_ex"]["win_frac"] == 1.0
+    assert got["a_rev"]["outcome"] == "reversed" and got["a_rev"]["win_frac"] == 0.0
+    assert got["a_inc"]["outcome"] == "inconclusive", got["a_inc"]
+    # Δ is on the CENTRED cosine here (centred=True), so it is bo_c_64 - corpus, not bo_64 - corpus
+    _close(got["a_ex"]["delta"], 0.70 - 0.50, tol=0.01, what="Δ uses the cosine it was asked for")
+    _close(got["a_ex"]["bo64_raw"], 0.65, tol=0.01, what="the raw column is reported beside it")
+    # the same arms read on the RAW cosine: every Δ moves down 0.05, and `a_inc` becomes reversed
+    raw_recs, _ = od.arm_rows(ids, src, top1, 1.0, False, boot_ci, R_outcome, None)
+    raw = {r["arm"]: r for r in raw_recs}
+    _close(raw["a_ex"]["delta"], 0.15, tol=0.01, what="the raw Δ is 0.05 below the centred one")
+    assert raw["a_inc"]["outcome"] == "reversed", (
+        "reading the wrong cosine must change a verdict, or this fixture does not test the choice"
+    )
+    # every target of an arm is its own pool document, so clustering is a no-op and must SAY so
+    assert got["a_ex"]["n_clusters"] == got["a_ex"]["n"]
+
+
+def R_outcome(lo, hi):
+    """`reconstruction/stats_ood.outcome`, restated here so the selftest needs no polars."""
+    return "exceeds" if lo > 0 else ("reversed" if hi < 0 else "inconclusive")
 
 
 CHECKS = [
@@ -2363,6 +2457,8 @@ CHECKS = [
     check_autointerp_trend_verdict,
     check_autointerp_cut_render,
     check_autointerp_cuts_catch_a_defect,
+    check_ood_scan_key,
+    check_ood_arm_table,
 ]
 
 
