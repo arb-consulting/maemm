@@ -621,16 +621,34 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     else:
         raise AssertionError("an unkeyed SAE row in an undeclared set was selected, not refused")
 
-    # (b) arm B's description: tags stripped, whole text when the tag never closed.
+    # (b) arm B's description: tags stripped, and the three tag states NAMED.
+    #
+    # UPDATED in the 2026-09-21 rebase, deliberately. `nla_description` now goes through
+    # `rollouts_nla.explanation_body` (Ari, bdb0705) instead of `extract_explanation`, which
+    # changes what an UNCLOSED answer contributes and adds `tag_status`. The old expectations
+    # here -- `tag_found: False` and the whole raw decode as the description -- are exactly the
+    # behaviour that change removed, so they are rewritten rather than relaxed: an answer that ran
+    # into max_new is still an answer, and handing the judge its opening tag and chat preamble was
+    # the defect (Juan's review).
     txt = "blah <explanation>\n  neurons that fire on dates \n</explanation> tail"
     hit = B.nla_description(txt)
     assert hit == {
         "tag_found": True,
+        "tag_status": "closed",
         "n_chars": len(txt),
         "description": "neurons that fire on dates",
     }, hit
-    miss = B.nla_description("  <explanation>never closed  ")
-    assert miss["tag_found"] is False and miss["description"] == "<explanation>never closed", miss
+    raw_unclosed = "  <explanation>never closed  "
+    miss = B.nla_description(raw_unclosed)
+    assert miss["tag_status"] == "unclosed" and miss["tag_found"] is True, miss
+    assert miss["description"] == "never closed", (
+        f"an unclosed answer must contribute what follows its OPENING tag, not the raw decode: "
+        f"{miss['description']!r}")
+    assert "<explanation>" not in miss["description"], (
+        "the opening tag reached the judge -- this is the exact defect explanation_body replaced")
+    none = B.nla_description("no tags here")
+    assert none["tag_status"] == "none" and none["tag_found"] is False, none
+    assert none["description"] == "no tags here", none
     assert B.nla_description("")["description"] == "", "an empty rollout gives an empty description"
 
     # ...and the CHOICE: the highest sae_self peak wins, which is also arm A's first example.

@@ -232,7 +232,7 @@ def load_config(path: str | Path | None = None) -> dict:
             # The NLA verbalizer builds its OWN prompt from the checkpoint's sidecar (its marker
             # is not our MARKER and is not the last prompt token), so the `prompt in PROMPTS`
             # assert below does not apply to it and `nla:` is validated instead.
-            _check_nla(key, spec, max_new)
+            _check_nla(key, spec, cfg["rollouts"])
         else:
             assert spec.get("prompt") in PROMPTS, (
                 f"maemm {key!r}: prompt {spec.get('prompt')!r} is not one of {sorted(PROMPTS)}"
@@ -271,17 +271,22 @@ def load_config(path: str | Path | None = None) -> dict:
     return cfg
 
 
-# Exactly the keys a `type: nla` entry's `nla:` block carries, and the keys of its `sampling:`
-# sub-block. Both are closed sets: a typo (`max_nev: 96`) in a block whose every field steers an
-# H200 run would otherwise be read as "the field is absent", and every field here is required, so
-# "absent" has no safe meaning.
+# Exactly the keys a `type: nla` entry's `nla:` block carries. A closed set: a typo
+# (`max_nev: 96`) in a block whose every field steers an H200 run would otherwise be read as
+# "the field is absent", and every field here is required, so "absent" has no safe meaning.
+#
+# `sampling` LEFT the block on 2026-09-21 (Ari's bdb0705, Tomas + Juan): temperature / top_p /
+# top_k / min_new are now the shared `rollouts:` values every MAEMM arm generates under, so the
+# NLA arm cannot carry its own. This tuple and config.yaml were on opposite sides of that change
+# when the branches met -- main's config had already dropped the key while main's `NLA_KEYS` still
+# demanded it, so `load_config` raised on EVERY command, NLA or not. Reconciled here in main's
+# direction, which is the team decision.
 NLA_KEYS = (
     "marker",
     "marker_id",
     "left_id",
     "right_id",
     "template",
-    "sampling",
     "max_new",
     "score_max_tokens",
     "card_max_new",
@@ -289,10 +294,11 @@ NLA_KEYS = (
     "amp",
     "amp_r",
 )
+# What the SHARED `rollouts:` block must carry for the NLA arm to generate under it.
 NLA_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "min_new")
 
 
-def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
+def _check_nla(key: str, spec: dict, rollouts: dict) -> None:
     """Validate one `type: nla` maemms entry. Called from load_config, never at use site.
 
     Everything here is a fact about the CHECKPOINT (ceselder/qwen3.6-27b-nla-av's nla_meta.yaml
@@ -330,15 +336,18 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
         f"maemm {key!r}: nla.template must carry the sidecar's `{{injection_char}}` placeholder -- "
         f"that is where the marker token, and so the injected direction, goes"
     )
-    samp = nla["sampling"]
-    assert isinstance(samp, dict) and sorted(samp) == sorted(NLA_SAMPLING_KEYS), (
-        f"maemm {key!r}: nla.sampling must carry exactly {list(NLA_SAMPLING_KEYS)}, got {sorted(samp)}"
+    # The arm generates under the SHARED block, so that is what has to be well-formed for it.
+    # The guard did not go away when `nla.sampling` did -- it moved to the block that replaced it.
+    missing_s = sorted(set(NLA_SAMPLING_KEYS) - set(rollouts))
+    assert not missing_s, (
+        f"maemm {key!r} is a `type: nla` arm and generates under the shared `rollouts:` block, "
+        f"which is missing {missing_s} -- it must carry {list(NLA_SAMPLING_KEYS)}"
     )
-    assert float(samp["temperature"]) > 0 and 0 < float(samp["top_p"]) <= 1, (
-        f"maemm {key!r}: nla.sampling temperature must be > 0 and top_p in (0, 1], got {samp}"
+    assert float(rollouts["temperature"]) > 0 and 0 < float(rollouts["top_p"]) <= 1, (
+        f"maemm {key!r}: rollouts.temperature must be > 0 and top_p in (0, 1], got {rollouts}"
     )
-    assert int(samp["top_k"]) >= 0 and int(samp["min_new"]) >= 0, (
-        f"maemm {key!r}: nla.sampling top_k and min_new must be >= 0, got {samp}"
+    assert int(rollouts["top_k"]) >= 0 and int(rollouts["min_new"]) >= 0, (
+        f"maemm {key!r}: rollouts.top_k and min_new must be >= 0, got {rollouts}"
     )
     assert nla["amp"] in AMP_MODES, f"maemm {key!r}: nla.amp {nla['amp']!r} is not one of {list(AMP_MODES)}"
     amp_r = nla["amp_r"]
@@ -357,7 +366,7 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
         f"{nla['score_max_tokens']} - 1 -- the scoring window must leave room for the whole "
         f"generation plus the sink at column 0, or the tail of a full-length rollout is never "
         f"scored (the same rule SCORE_MAX_LENGTH={SCORE_MAX_LENGTH} enforces on rollouts.max_new "
-        f"= {rollouts_max_new} for every other arm)"
+        f"= {rollouts['max_new']} for every other arm)"
     )
     # Never NARROWER than the protocol: this key exists to widen the window for a model whose
     # native output is long, not to cut an arm's text short and call it a protocol.

@@ -443,7 +443,24 @@ heldout:
   # established against the earlier chains, and near-duplication against the 1.85M 2M
   # features the v2 checkpoint trained on is not established.
   2026-09-21_sae131k_2k:
+    # NOT THE DEFAULT SET. `imported:` reads "nameable, never the default" (common.default_heldout)
+    # rather than "drawn elsewhere" -- `2026-09-21_sae2m_64` above carries it and was drawn on
+    # `evals/sae-smoke64`, in this repo. Without it this key sorts last among the non-imported
+    # sets and becomes the default of every product called without `--set`, moving them off
+    # `2026-09-16_v1`, which is the set the paper's tables are built on. On main alone that was
+    # invisible, because main has no results driver pinned to a set; here it is not.
+    # OPEN for Ari: if the 131k set IS meant to be the new default, this line is the one to
+    # delete, and `results/sanity.yaml` has to move with it.
+    imported: true
     seed: 20260921
+    # The storage contract, added when this entry (Ari's, main bdb0705) met this branch's schema.
+    # `draw_sae131k` writes `unit(W_enc[:, f])` per row and no activations, exactly as the 2M draw
+    # does, so it is `dirs_only` on a null mean like its sibling. `_check_heldout_storage` refuses
+    # a set without it, and refused this one -- correctly: nothing could have served these rows at
+    # a centring, because nothing said what they were stored as.
+    storage: dirs_only
+    mu_stored: null
+    sae_key: qwen36-27b/l42-1b   # its rows carry the full key too; this is belt and braces
     families:
       sae: {n: 2000}
     sae_min_fires: 20
