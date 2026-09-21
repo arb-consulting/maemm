@@ -8,12 +8,14 @@ One BLOCK per set directory, because a set directory carries ONE storage contrac
 for all N rows). The blocks of eval 1 do not share one: her realact rows become RAW (see below),
 her `realact_long` rows are unit directions centred on a mean nobody holds a file for, her `bsf`
 and `jlens` rows are subspace bases that were never centred at all, and the controls are copied
-raw. Four contracts, four directories, one config entry group named `2026-09-21_v3_*`.
+raw. One config entry group named `2026-09-21_v3_*`, one directory per block.
 
     --block realact       her 512 realact rows, RECOVERED TO RAW (below)     storage: raw
     --block realact_long  her 512 realact_long rows, as shipped              storage: unit
     --block subspace      her 512 bsf + 512 jlens rows, as shipped           storage: dirs_only
     --block ctrl          rows of an existing set, copied with provenance    storage: raw
+    --block ours          OUR realact rows, copied from a raw set + our own  storage: raw
+                          exclusion list -- the internal sanity block
 
 The 2M dictionary block is NOT here: it is a draw, and `features/draw_sae2m.py --sides enc,dec`
 is the tool that makes it.
@@ -69,12 +71,26 @@ import precompute.common as C
 # not carry (it pins torch/numpy/transformers only). They are imported where they are used so
 # `recover_raw` -- the one piece of this module with a CPU selftest -- stays importable there.
 
-BLOCKS = ("realact", "realact_long", "subspace", "ctrl")
+BLOCKS = ("realact", "realact_long", "subspace", "ctrl", "ours")
 
 # Her 7-gram coverage exclusion for the realact block, read off the volume rather than retyped:
 # `features/ngram_overlap.py --side hers --n 7` writes it, and the threshold is its own.
 EXCLUDE_JSON = "/vol/shared/ngram-overlap/hers_n7.exclude.json"
 EXCLUDE_SOURCE = "heldout/eval_directions_v3/realact.parquet"
+
+# OUR OWN 512 realact rows' exclusion, for `--block ours`. These are indices into the v1 realact
+# draw (`2026-09-16_v1` rows 0-511, re-derived into `2026-09-21_v1raw` rows 0-511 by
+# `targets --re-derive`, which asserts the draw is identical row for row -- so an index into one
+# is an index into the other). The criterion is DIFFERENT from her block's: these six spans are
+# FULLY REPRODUCED in her v2 training text at 13-gram granularity, measured by the 2026-09-18
+# `infra/check_v2_targets_overlap.py` run over OUR corpus -- which is the instrument that works
+# for our targets (their spans come from our corpus; it is void for hers, see the set README of
+# `2026-09-21_v3_realact`). Recorded in `infra/2026-09-20_v2-overlap-ngrams.md` and
+# `observations.md` §1, and typed here because no `.exclude.json` for our side was ever written
+# to the volume. They are NOT indices into her block and must never be applied to it (plan §2.1).
+OURS_EXCLUDE = (38, 45, 101, 318, 393, 446)
+OURS_CRITERION = ("fully reproduced in her v2 training text at n=13, "
+                  "infra/check_v2_targets_overlap.py 2026-09-18 over our 16M corpus")
 
 SUBSPACE_FAMILIES = ("bsf", "jlens")
 
@@ -293,24 +309,39 @@ def _block_shipped(cfg, args, families, storage: str, notes: list[str]):
     return rows, np.concatenate(vecs, axis=0), contract, {}
 
 
-def _block_ctrl(cfg, args, notes: list[str]):
-    """A row range of an EXISTING set, copied with its provenance. Nothing is re-drawn."""
+def _block_ctrl(cfg, args, notes: list[str], block: str = "ctrl",
+                allow_centrable: bool = False, exclude=()):
+    """A row range of an EXISTING set, copied with its provenance. Nothing is re-drawn.
+
+    `--block ctrl` copies NON-CENTRABLE families only. `--block ours` (allow_centrable) copies a
+    centrable family too, which is sound for exactly one reason and is asserted rather than
+    assumed: the SOURCE is `storage: raw` with `mu_stored: null`, so its `act.f32` is the
+    activation before any mean was subtracted and carries no centring convention at all. Copying
+    those bytes forward under the same raw contract therefore states no more and no less than the
+    source does -- `--mu` still decides per run, exactly as it does on the source set. A `storage:
+    unit` source is refused above for both blocks, because there the stored direction IS a
+    statement about a mean and the copy would inherit it silently.
+    """
     src = args.get("dirs_from") or ""
     assert src, (
-        "--block ctrl copies rows out of an existing set: pass --dirs-from <that set's "
+        f"--block {block} copies rows out of an existing set: pass --dirs-from <that set's "
         "directory> and --rows <range>. It never re-draws, because a re-draw is a different "
         "sample under the same name.")
     src_name = os.path.basename(src.rstrip("/"))
     contract = C.set_storage(cfg, src, args["root"])
     assert contract["storage"] == "raw", (
-        f"{src} is `storage: {contract['storage']}` ({contract['source']}); --block ctrl copies "
-        f"the RAW contract forward, and a stored unit direction has no act.f32 to copy.")
+        f"{src} is `storage: {contract['storage']}` ({contract['source']}); --block {block} "
+        f"copies the RAW contract forward, and a stored unit direction has no act.f32 to copy.")
+    assert not contract.get("mu_stored"), (
+        f"{src} is `storage: raw` but declares `mu_stored: {contract.get('mu_stored')!r}`; raw "
+        f"means nothing was subtracted, so the two cannot both be true and the copy would carry "
+        f"a centring convention nobody stated.")
 
     src_rows = [json.loads(ln) for ln in open(f"{src}/ids.jsonl")]
     d = int(cfg["bases"][args["base"]]["d"])
     act = C.read_array(f"{src}/act.f32", "float32", (len(src_rows), d))
     want = C.parse_rows(args.get("rows") or "", len(src_rows))
-    assert want, "--block ctrl needs --rows: copying a whole set is a rename, not a block"
+    assert want, f"--block {block} needs --rows: copying a whole set is a rename, not a block"
 
     rows = []
     for j, i in enumerate(want):
@@ -322,7 +353,7 @@ def _block_ctrl(cfg, args, notes: list[str]):
         rows.append(r)
     fams = sorted({r["family"] for r in rows})
     for f in fams:
-        assert not C.family_centrable(cfg, f), (
+        assert allow_centrable or not C.family_centrable(cfg, f), (
             f"family {f!r} is centrable, and a copied block carries no statement about which "
             f"mean its act.f32 was measured under beyond the source set's. Copy non-centrable "
             f"families only, or re-derive.")
@@ -341,6 +372,48 @@ def _block_ctrl(cfg, args, notes: list[str]):
         f"provenance survives the renumbering. `act.f32` and `vecs.f16` are the source's own "
         f"bytes for those rows -- this is a copy, and the source is not modified."
     )
+    centrable = [f for f in fams if C.family_centrable(cfg, f)]
+    if centrable:
+        notes.append(
+            f"CENTRABLE families copied: {centrable}. Sound because the source is `storage: raw` "
+            f"with `mu_stored: null` -- its `act.f32` is the activation before any mean was "
+            f"subtracted, so these bytes carry no centring convention and `--mu` decides per run "
+            f"exactly as it does on `{src_name}`. A `storage: unit` source is refused."
+        )
+    extra = {}
+    if exclude:
+        excluded = sorted(int(i) for i in exclude)
+        pos = {int(r["src_row"]): j for j, r in enumerate(rows)}
+        missing = [i for i in excluded if i not in pos]
+        assert not missing, (
+            f"exclusion rows {missing} are not inside the copied range {args['rows']} of "
+            f"{src_name}: an index that does not land in this block cannot be excluded from it")
+        for i in excluded:
+            r = rows[pos[i]]
+            r["excluded"] = True
+            r["exclude_reason"] = OURS_CRITERION
+        for r in rows:
+            r.setdefault("excluded", False)
+        extra["exclusions.json"] = {
+            "block": block,
+            "rows_total": len(rows),
+            # indices into THIS block, which equal the source indices whenever --rows starts at 0
+            "excluded_rows": [pos[i] for i in excluded],
+            "excluded_src_rows": excluded,
+            "n_headline": len(rows) - len(excluded),
+            "criterion": OURS_CRITERION,
+            "n_gram": 13,
+            "source": f"{src_name} (typed constant features.heldout_v3.OURS_EXCLUDE)",
+            "computed_over": "our own v1 realact draw, not hers",
+            "note": ("rows are KEPT in their source order so every arm pairs; the tables drop "
+                     "these. These indices are into OUR 512 and must never be applied to "
+                     "`2026-09-21_v3_realact`, whose own 26 come from a different instrument."),
+        }
+        notes.append(
+            f"EXCLUSIONS frozen here, applied downstream: {len(excluded)} of {len(rows)} rows "
+            f"{excluded}, headline n = {len(rows) - len(excluded)}. Criterion: {OURS_CRITERION}. "
+            f"See exclusions.json."
+        )
     return rows, act[np.asarray(want)], {
         "storage": "raw",
         "mu_stored": None,
@@ -349,8 +422,11 @@ def _block_ctrl(cfg, args, notes: list[str]):
         "sae_key": sae_key,
         "note": (f"RAW STORAGE, copied from {src_name} rows {args['rows']}: act.f32 holds each "
                  f"row's own vector before any mean was subtracted, and vecs.f16 is unit(act). "
-                 f"Every family here is non-centrable, so the two are the same direction."),
-    }, {}
+                 + ("Every family here is non-centrable, so the two are the same direction."
+                    if not centrable else
+                    f"The centrable families {centrable} keep the raw contract: `unit(act)` is "
+                    f"what a reader gets with no --mu, and `unit(act - mu)` with one.")),
+    }, extra
 
 
 # --------------------------------------------------------------------------- the product
@@ -377,8 +453,15 @@ def build(cfg, args):
         rows, arr, contract, extra = _block_shipped(
             cfg, args, list(SUBSPACE_FAMILIES), "dirs_only", notes)
         storage = "dirs_only"
+    elif block == "ctrl":
+        rows, arr, contract, extra = _block_ctrl(cfg, args, notes, block="ctrl")
+        storage = "raw"
     else:
-        rows, arr, contract, extra = _block_ctrl(cfg, args, notes)
+        # OUR realact sanity block: the same rows the paper's v1 tables were built on, carried
+        # into the v3 layout so the headline (hers) has an internal control drawn by us, under
+        # our own exclusion list. Centrable, and copied only because the source is raw.
+        rows, arr, contract, extra = _block_ctrl(
+            cfg, args, notes, block="ours", allow_centrable=True, exclude=OURS_EXCLUDE)
         storage = "raw"
 
     assert [r["row"] for r in rows] == list(range(len(rows))), "rows are not 0..N-1"
@@ -419,7 +502,7 @@ def run(cfg, args):
             f"rebuild: `modal run precompute/modal_app.py --product heldout_v3 --base "
             f"{args['base']} --block {block} --set {set_name} --root {args['root']}"
             + (f" --dirs-from {args['dirs_from']} --rows {args['rows']}"
-               if block == "ctrl" else "")
+               if block in ("ctrl", "ours") else "")
             + f"` at repo commit {args.get('repo_commit', '?')[:12]}"
         )
         od.note(f"IMPORTED / COPIED, NOT DRAWN. Snapshot `{bundle.SNAPSHOT}`, base "

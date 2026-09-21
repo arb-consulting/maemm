@@ -444,7 +444,7 @@ heldout:
   # ---------------------------------------------------------------------------------------
   # EVAL 1 (faithfulness): the frozen v3 target blocks, 2026-09-21.
   #
-  # ONE logical set in FOUR directories, because a directory carries ONE storage contract
+  # ONE logical set in SIX directories, because a directory carries ONE storage contract
   # (`common.set_storage` returns a single `storage` kind and `dirs_for` branches on it once for
   # all N rows) and these blocks genuinely do not share one. They are `--set`-ed separately and
   # read together; row order within each block is FROZEN so every arm pairs.
@@ -453,6 +453,7 @@ heldout:
   #   2026-09-21_v3_realact_long  her 512 realact_long, as shipped      unit (family_mu unknown)
   #   2026-09-21_v3_subspace   her 512 bsf + 512 jlens, as shipped      dirs_only
   #   2026-09-21_v3_ctrl       random + sae(131k), copied from v1raw    raw
+  #   2026-09-21_v3_ours       our 512 realact, copied from v1raw       raw
   #   2026-09-21_v3_sae2m      2M enc + dec, drawn                      dirs_only
   #
   # `imported: true` on every one, for the reason the sets above carry it: `sorted()[-1]` would
@@ -522,6 +523,27 @@ heldout:
     families:
       random: {n: 512, bases: [qwen36-27b]}
       sae:    {n: 512, bases: [qwen36-27b]}
+
+  # OUR OWN 512 realact rows, the eval-1 SANITY block: `2026-09-21_v1raw` rows 0-511 copied
+  # forward (`heldout_v3 --block ours`), which are `2026-09-16_v1`'s realact draw re-forwarded
+  # under the raw contract by `targets --re-derive` -- the same targets every v1 table in the
+  # paper was built on. It is the internal control the HEADLINE (her 512) is read beside: same
+  # pipeline, same checkpoints, same n, targets drawn by us rather than by her.
+  #
+  # A centrable family in a COPIED block, which `--block ctrl` refuses: allowed here because the
+  # source is `storage: raw` with `mu_stored: null`, so `act.f32` is the activation before any
+  # mean was subtracted and the copy inherits no centring convention. `--mu` decides per run.
+  #
+  # EXCLUSIONS, in the set's own `exclusions.json` and NOT applied: the six spans fully
+  # reproduced in her v2 training text at n=13 (rows 38, 45, 101, 318, 393, 446), headline
+  # n = 506. A DIFFERENT criterion and a DIFFERENT instrument from her block's 26 -- those are
+  # indices into HER 512 and the two lists must never be crossed (plan §2.1).
+  2026-09-21_v3_ours:
+    imported: true
+    storage: raw
+    mu_stored: null           # nothing stored is centred; --mu decides per run
+    families:
+      realact: {n: 512, bases: [qwen36-27b]}
 
   # OUR 2M-SAE block: 512 features, density-stratified over the eligible eval-split pool at seed
   # 20260921, with the 64 of `2026-09-21_sae2m_64` FORCED IN (`--include`) so the activation

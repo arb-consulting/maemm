@@ -1451,6 +1451,78 @@ def check_set_on_disk():
             raise AssertionError("check accepted a `storage: raw` set with no act.f32")
 
 
+def check_heldout_v3_ours_block():
+    """`heldout_v3 --block ours` copies a CENTRABLE family, and only out of a raw source.
+
+    Four properties, each of which was a live way to get eval 1's sanity block wrong:
+      * the copy is byte-for-byte -- `act.f32` of the copied rows IS the source's, so the
+        `--block ours` set and `2026-09-21_v1raw` are the same targets and not a re-draw;
+      * `src_row` survives the renumbering, which is what makes an exclusion index typed against
+        the v1 draw meaningful in the new block;
+      * the six exclusions land on the rows they name and are RECORDED, not applied (the row
+        count is unchanged, so every arm still pairs);
+      * `--block ctrl` still REFUSES a centrable family, and `ours` still refuses a `storage:
+        unit` source. The permission is the raw contract, not the block name.
+    """
+    import numpy as np
+
+    from features import heldout_v3
+
+    cfg = _conv_cfg()
+    n_src = 24
+    rows_src = [{"row": i, "family": "realact", "id": 1000 + i, "act_norm": 90.0 + i}
+                for i in range(n_src)]
+    act = np.random.default_rng(7).normal(size=(n_src, D)).astype(np.float32) * 30.0
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        src = root / "base" / "tb" / "heldout" / "v1raw"
+        _write_set(src, rows_src, act, {"storage": "raw", "mu_stored": None, "family_mu": {}})
+        args = {"base": "tb", "root": str(root), "dirs_from": str(src), "rows": "0-15"}
+
+        notes: list[str] = []
+        rows, arr, contract, extra = heldout_v3._block_ctrl(
+            cfg, args, notes, block="ours", allow_centrable=True, exclude=(3, 11))
+        assert len(rows) == 16 and contract["storage"] == "raw", (len(rows), contract)
+        assert np.array_equal(arr, act[:16]), "the copy is not the source's own act.f32 bytes"
+        assert [r["src_row"] for r in rows] == list(range(16)), "src_row did not survive the copy"
+        exc = extra["exclusions.json"]
+        assert exc["excluded_rows"] == [3, 11] and exc["n_headline"] == 14, exc
+        assert [r["row"] for r in rows if r["excluded"]] == [3, 11], "excluded flags are on the wrong rows"
+        assert sum(r["excluded"] for r in rows) == 2 and len(rows) == 16, (
+            "exclusions were APPLIED, not recorded: the block must keep all its rows so the arms pair")
+
+        # an exclusion index outside the copied range is a typo, not a silent no-op
+        try:
+            heldout_v3._block_ctrl(cfg, args, [], block="ours", allow_centrable=True, exclude=(3, 99))
+        except AssertionError as e:
+            assert "not inside the copied range" in str(e), f"wrong assert: {e}"
+        else:
+            raise AssertionError("an exclusion index outside the block was accepted")
+
+        # the permission is the CONTRACT: `ctrl` still refuses a centrable family ...
+        try:
+            heldout_v3._block_ctrl(cfg, args, [], block="ctrl")
+        except AssertionError as e:
+            assert "is centrable" in str(e), f"wrong assert for ctrl on a centrable family: {e}"
+        else:
+            raise AssertionError("--block ctrl copied a centrable family")
+
+        # ... and `ours` refuses a source whose stored rows are already centred. (Mutating the
+        # contract assert away makes this go red on the SECOND guard instead -- a `storage: unit`
+        # set has no act.f32 to open -- which is red either way, and the message names the file.)
+        unit_src = root / "base" / "tb" / "heldout" / "v1unit"
+        vecs = act / np.linalg.norm(act, axis=1, keepdims=True)
+        _write_set(unit_src, rows_src, None, {"storage": "unit", "mu_stored": None,
+                                              "family_mu": {"realact": "mu.f32"}}, vecs=vecs)
+        try:
+            heldout_v3._block_ctrl(cfg, {**args, "dirs_from": str(unit_src)}, [],
+                                   block="ours", allow_centrable=True, exclude=())
+        except AssertionError as e:
+            assert "has no act.f32 to copy" in str(e), f"wrong assert for a unit source: {e}"
+        else:
+            raise AssertionError("--block ours copied out of a `storage: unit` set")
+
+
 def check_sae_column_reader():
     """`draw_sae2m._columns` is `common.load_sae`'s two matrices, sliced instead of cast whole.
 
@@ -1771,6 +1843,7 @@ CHECKS = [
     check_exact_solve_roundtrip,
     check_heldout_v3_recovery,
     check_set_on_disk,
+    check_heldout_v3_ours_block,
     check_sae_column_reader,
     check_spawn_mirrors_main,
     check_return_arities,
