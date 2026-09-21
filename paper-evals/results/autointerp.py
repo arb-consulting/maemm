@@ -779,7 +779,8 @@ def pairing_check(contrast: dict, ref_label: str) -> dict:
 
 
 def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, seed: int,
-            strata: bool, peak_strata: bool = True) -> dict:
+            strata: bool, peak_strata: bool = True,
+            vs_runs: dict[str, str] | None = None, vs_label: str = "") -> dict:
     """Everything the tables and figures are built from. Never raises on a missing run directory."""
     assert runs, (
         "at least one `--run <label>=<run_dir>` is required: eval 2's arms live in one run "
@@ -929,6 +930,35 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
             notes.append(f"no magnitude-quartile table: {len(peak_of)} of the block's features "
                          f"carry a `corpus_peak`, and four are needed to cut quartiles at all")
 
+    # --- the same arms from a SECOND set of run directories, paired per feature ---------------
+    versus: list[dict] = []
+    for label, run_dir in (vs_runs or {}).items():
+        got, _b, why = load_run(vol, label, run_dir)
+        if why:
+            missing.append(f"`{label}` ({vs_label or 'vs'}): {why}")
+            continue
+        for (key, scorer), cell in index_rows(got).items():
+            mine = by_cell.get((key, scorer))
+            if not mine:
+                continue
+            a, b = values_of(cell), values_of(mine)
+            if not a or not b:
+                continue
+            pd = paired_diff(a, b)
+            mean, lo, hi = boot_ci(pd["d"], boot, seed)
+            versus.append({
+                "arm": key.label, "run": key.run, "arm_name": key.arm, "scorer": scorer,
+                "vs_run_dir": run_dir, "base_run_dir": runs.get(key.run, ""),
+                "mean": mean, "lo": lo, "hi": hi,
+                "base_mean": float(np.mean(list(b.values()))),
+                "vs_mean": float(np.mean(list(a.values()))),
+                "win_frac": float(np.mean(pd["d"] > 0)) if len(pd["d"]) else float("nan"),
+                "n_zero": int(np.sum(pd["d"] == 0)),
+                "n_paired": pd["n_paired"], "n_vs": pd["n_a"], "n_base": pd["n_b"],
+                "complete": pd["complete"],
+            })
+    versus.sort(key=lambda x: (order.get(x["run"], 99), x["arm_name"], x["scorer"]))
+
     record, record_absent = draw_record(vol, builds)
     notes += record_absent
 
@@ -937,6 +967,7 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
         "arms": arms, "scorers": scorers, "colours": colours, "ref": ref_key,
         "cells": cells, "contrasts": contrasts, "strata": strat_rows, "checks": checks,
         "peak_strata": peak_rows, "peak_cuts": peak_cuts, "trends": trends, "record": record,
+        "versus": versus, "vs_runs": vs_runs or {}, "vs_label": vs_label,
         "n_features": len({int(r["feature"]) for r in rows}),
         "missing": missing, "notes": notes, "boot": boot, "seed": seed, "n_rows": len(rows),
     }
@@ -1343,8 +1374,13 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
          f"LOWER BOUND whenever refusals are non-random, and here they are exactly that — the "
          f"refused features are the ones whose rollout text the API declined to describe, not a "
          f"random eleven. It is deliberately kept OUT of the paired contrasts, the cut views and "
-         f"the trend table: a convention must not propagate into a statistic that reads as "
-         f"measurement. An arm with no refusals has one row and no `refusal=chance` sibling."),
+         f"the trend table, out of `support`, out of the figures and out of the paired difference "
+         f"against a second build: **a convention must not propagate into a statistic that reads "
+         f"as measurement.** It reaches `results.json` under `bal_acc_chance.*` so a `--sanity` "
+         f"gate names the convention it means rather than resolving against whichever row was "
+         f"written last. An arm with no refusals has ONE row and no `refusal=chance` sibling, and "
+         f"the imputed row's own n is survivors + refused — NOT the feature count, because a "
+         f"feature whose `bal_acc` is null was never measured and stays out of both rows."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
     # --- paired contrasts ---------------------------------------------------------------------
@@ -1380,6 +1416,44 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
          f"de-paired in silence. `win frac` is the fraction of shared features with a positive "
          f"difference, reported because the outcome is bimodal and a mean alone misleads."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)
+
+    # --- the same arms under a second build, paired per feature ---------------------------------
+    if res["versus"]:
+        vsl = res["vs_label"] or "vs"
+        head = ["arm", "run", "scorer", "n paired", f"{vsl} mean", "base mean",
+                f"mean Δ ({vsl} − base) [95% CI]", "win frac", "unchanged"]
+        csv_head = ["sae", "arm", "run", "arm_name", "scorer", "vs_label", "base_run_dir",
+                    "vs_run_dir", "n_paired", "n_base", "n_vs", "base_mean", "vs_mean",
+                    "mean_diff", "lo", "hi", "win_frac", "n_unchanged", "complete"]
+        rows, csv_rows = [], []
+        for x in res["versus"]:
+            rows.append([x["arm_name"], x["run"], x["scorer"], x["n_paired"],
+                         R.num(x["vs_mean"]), R.num(x["base_mean"]),
+                         ci(x["mean"], x["lo"], x["hi"], signed=True), R.num(x["win_frac"], 3),
+                         f"{x['n_zero']}/{x['n_paired']}"])
+            csv_rows.append([res["sae"], x["arm"], x["run"], x["arm_name"], x["scorer"], vsl,
+                             x["base_run_dir"], x["vs_run_dir"], x["n_paired"], x["n_base"],
+                             x["n_vs"], round(x["base_mean"], 6), round(x["vs_mean"], 6),
+                             round(x["mean"], 6), round(x["lo"], 6), round(x["hi"], 6),
+                             round(x["win_frac"], 6), x["n_zero"], x["complete"]])
+        out.table(
+            "versus", f"Paired difference against a second build — `{vsl}`",
+            (f"The SAME arms scored under a second set of run directories, differenced PER "
+             f"FEATURE and not as two means. The builds share their test sets, so every feature "
+             f"appears on both sides and the pairing is exact; the interval is the paired "
+             f"percentile bootstrap over the shared features ({res['boot']} resamples, seed "
+             f"{res['seed']}). The sign is `{vsl} − base`, so a positive number means the second "
+             f"build scored higher.\n\n"
+             f"**An interval that spans zero is the result, not a failure to find one.** A bare "
+             f"difference of −0.0095 and a difference of −0.0095 whose interval runs from −0.03 "
+             f"to +0.01 say different things, and at this scale the second is usually what the "
+             f"data supports. `unchanged` counts the features whose score did not move AT ALL "
+             f"between the builds: an arm the second build cannot reach — one that consumes no "
+             f"generated text — has every feature unchanged and a difference of exactly zero, "
+             f"which is the control that tells a real null from a broken pairing. `win frac` is "
+             f"the fraction of shared features that improved, reported because a mean near zero "
+             f"can hide a split outcome."),
+            head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
     # --- the two cut views, and the trend verdict over them -------------------------------------
     record = ("\n\nWhat the cut IS, quoted from each set's own draw record on the volume rather "
@@ -1661,6 +1735,11 @@ def main(
     label: Annotated[str, typer.Option(help="block label for the tables (default: the SAE key)")] = "",
     ref: Annotated[str, typer.Option(help="reference arm of the paired contrasts, `<arm>` or "
                                           "`<run label>/<arm>`")] = "DOCMAX",
+    vs: Annotated[list[str] | None, typer.Option(
+        "--vs", help="`<label>=<run_dir>` for a SECOND build of the same arms, paired per "
+                     "feature against --run; labels must match --run's")] = None,
+    vs_label: Annotated[str, typer.Option(help="what the second build is called in the table, "
+                                               "e.g. `relative`")] = "",
     strata: Annotated[bool, typer.Option(help="per-rarity-stratum table (works on either SAE)")] = True,
     peak_strata: Annotated[bool, typer.Option(
         help="per-activation-magnitude-quartile table, a POST-HOC cut of the analysed "
@@ -1686,7 +1765,13 @@ def main(
         "and this driver joins them, e.g. `--run rl-last16=<dir> --run old-primary=<dir>`")
     mirror = data or (R.HERE / "data" / (root.replace("/", "_") or "vol"))
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
-    res = analyse(vol, runs, sae, ref, boot, seed, strata, peak_strata)
+    vs_runs = parse_runs(vs)
+    unknown = [k for k in vs_runs if k not in runs]
+    assert not unknown, (
+        f"--vs label(s) {unknown} have no --run counterpart ({', '.join(runs) or 'none'}): the "
+        f"second build is paired against the first BY LABEL, so a label that names no base run "
+        f"has nothing to be differenced against")
+    res = analyse(vol, runs, sae, ref, boot, seed, strata, peak_strata, vs_runs, vs_label)
     # One block per SAE: the driver is invoked once per SAE and must not overwrite the other's
     # tables, so the slug comes from the SAE key (or `--label`) and never from the output root.
     slug = (sae or label or "autointerp").replace("/", "_")
@@ -1701,6 +1786,8 @@ def main(
         f"`{res['root']}`, mirror `{vol.local}`",
         f"- command: `{' '.join(sys.argv)}`",
         "- runs: " + ", ".join(f"`{k}` = `{v}`" for k, v in runs.items()),
+        *([f"- second build (`{vs_label or 'vs'}`), paired per feature: "
+           + ", ".join(f"`{k}` = `{v}`" for k, v in vs_runs.items())] if vs_runs else []),
         f"- reference arm: `{res['ref'].label if res['ref'] else '(unresolved)'}`",
         f"- intervals: percentile bootstrap over FEATURES, {boot} resamples, seed {seed}",
     ]
@@ -1718,6 +1805,7 @@ def main(
             "cells": res["cells"], "contrasts": res["contrasts"], "strata": res["strata"],
             "peak_strata": res["peak_strata"], "peak_cuts": res["peak_cuts"],
             "trends": res["trends"], "draw_record": res["record"], "min_cell": MIN_CELL,
+            "versus": res["versus"], "vs_runs": vs_runs, "vs_label": vs_label,
             "checks": res["checks"], "sanity": sanity,
             "stats": [{"scorer": k[0], "arm": k[1], "stratum": k[2], "metric": k[3], "value": v}
                       for k, v in sorted(reg.items(), key=lambda kv: [str(x) for x in kv[0]])],

@@ -731,10 +731,10 @@ def write_autointerp_runs(root: Path, sae: str = AI_SAE) -> None:
 def _ai_analyse(root: Path, **kw):
     vol = R.Vol("", root, offline=True, quiet=True)
     opts = {"runs": dict(AI_RUNS), "sae": AI_SAE, "ref": "DOCMAX", "boot": 2000, "seed": 1,
-            "strata": True, "peak_strata": True}
+            "strata": True, "peak_strata": True, "vs_runs": None, "vs_label": ""}
     opts.update(kw)
     return vol, A.analyse(vol, opts["runs"], opts["sae"], opts["ref"], opts["boot"], opts["seed"],
-                          opts["strata"], opts["peak_strata"])
+                          opts["strata"], opts["peak_strata"], opts["vs_runs"], opts["vs_label"])
 
 
 def _ai_cell(res, arm: str, scorer: str, convention: str = "dropped") -> dict:
@@ -883,6 +883,111 @@ def check_autointerp_refusals_and_conventions():
         # And with no count there is no imputed row to build: one row per arm.
         assert len([c for c in res["cells"] if c["scorer"] == "detection"
                     and c["arm"] == "rl16/NLA"]) == 1
+
+
+def check_autointerp_versus_second_build():
+    """The same arms under a SECOND build, differenced per feature rather than as two means.
+
+    THE CONTROL IS THE POINT. A build that changes only how generated text is marked cannot touch
+    an arm that consumes no generated text, so such an arm must come back with a difference of
+    EXACTLY zero on every feature. That is what tells a genuine null from a pairing that silently
+    fell apart: a broken pairing also produces small numbers, and only the exact-zero control
+    distinguishes the two. Here `DOCMAX` is the untouched arm and `M` is the moved one.
+
+    The per-feature difference is not the difference of the means whenever the two sides cover
+    different features, which is why `paired_diff` is reused rather than the means subtracted.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        # A second build: DOCMAX byte-identical (the control), M shifted by +0.125 on every
+        # feature, under its own run directories.
+        vs = {}
+        for run, run_dir in AI_RUNS.items():
+            vs_dir = run_dir + "-second"
+            vs[run] = vs_dir
+            d = root / f"runs/{vs_dir}/summary"
+            d.mkdir(parents=True, exist_ok=True)
+            src = root / f"runs/{run_dir}/summary/scores.jsonl"
+            with open(d / "scores.jsonl", "w") as fh:
+                proto = None
+                for ln in src.read_text().splitlines():
+                    r = json.loads(ln)
+                    if r["arm"] == "M" and r["bal_acc"] is not None:
+                        r["bal_acc"] = r["tpr"] = r["tnr"] = r["bal_acc"] + 0.125
+                    if r["arm"] == "NLA" and r["scorer"] == "detection":
+                        proto = r
+                    fh.write(json.dumps(r) + "\n")
+                # The second build RECOVERS a feature the first lacked -- `rl16/NLA` has three of
+                # four, and here the fourth is scored. This is the case that separates a PAIRED
+                # difference from a difference of two means: the pairing is the three shared
+                # features and is exactly 0, while the two arms' own means differ by +0.0729
+                # because one is over three features and the other over four.
+                if proto is not None:
+                    fh.write(json.dumps({**proto, "feature": 13, "bal_acc": 0.75,
+                                         "tpr": 0.75, "tnr": 0.75, "acc": 0.75}) + "\n")
+        _vol, res = _ai_analyse(root, vs_runs=vs, vs_label="second")
+        by = {(x["arm"], x["scorer"]): x for x in res["versus"]}
+        # The untouched arm: every feature identical, so the difference is exactly zero, the
+        # interval is degenerate and `unchanged` is the whole set.
+        c = by[("rl16/DOCMAX", "detection")]
+        assert (c["mean"], c["lo"], c["hi"]) == (0.0, 0.0, 0.0), c
+        assert (c["n_zero"], c["n_paired"]) == (4, 4), c
+        assert c["win_frac"] == 0.0 and c["complete"] is True, c
+        # The moved arm: +0.125 on every feature it has.
+        m = by[("rl16/M", "detection")]
+        _close(m["mean"], 0.125, 1e-12)
+        assert (m["win_frac"], m["n_zero"]) == (1.0, 0), m
+        _close(m["vs_mean"] - m["base_mean"], 0.125, 1e-12)
+        # PAIRED, not two means. `old/M` fuzzing has a null on feature 13 on BOTH sides, so the
+        # pairing is three features and the arm's own mean is over three -- but an arm that
+        # covered different features either side would make the two differ, which is the case
+        # `paired_diff` exists for and which the n columns make visible.
+        om = by[("old/M", "fuzzing")]
+        assert (om["n_paired"], om["n_base"], om["n_vs"]) == (3, 3, 3), om
+        _close(om["mean"], 0.125, 1e-12)
+        # THE PAIRED DIFFERENCE IS NOT THE DIFFERENCE OF THE MEANS. `rl16/NLA` gains a fourth
+        # feature in the second build: the three it shares with the first are unchanged, so the
+        # paired difference is EXACTLY zero, while the arms' own means differ by +0.0729 because
+        # they are taken over different feature counts. A driver that subtracted the means would
+        # report an improvement that no feature actually made.
+        nla = by[("rl16/NLA", "detection")]
+        assert (nla["n_paired"], nla["n_base"], nla["n_vs"]) == (3, 3, 4), nla
+        assert nla["complete"] is False, nla
+        _close(nla["mean"], 0.0, 1e-12, what="the three shared features did not move")
+        assert (nla["n_zero"], nla["win_frac"]) == (3, 0.0), nla
+        _close(nla["vs_mean"] - nla["base_mean"], 2.125 / 4 - 1.375 / 3, 1e-12)
+        assert abs((nla["vs_mean"] - nla["base_mean"]) - nla["mean"]) > 0.07, nla
+        # A second build that does not carry an arm at all simply has no row for it, rather than
+        # a zero difference that would read as "unchanged".
+        assert not [x for x in res["versus"] if x["arm"] == "old/NLA"]
+
+        # It renders, with the control row's exact zero visible in the table.
+        o = R.Out(root / "out", "selftest — versus", ["- synthetic"])
+        md = A.render(res, o, [], []).read_text()
+        blk = md.split("### Paired difference against a second build")[1].split("###")[0]
+        assert "spans zero is the result" in blk, blk[:400]
+        doc = next(ln for ln in blk.splitlines()
+                   if ln.startswith("| DOCMAX | rl16 | detection |"))
+        assert "+0.0000 [+0.0000, +0.0000]" in doc and doc.rstrip().endswith("| 4/4 |"), doc
+        assert (root / "out" / "versus.csv").exists()
+
+    # No `--vs` at all: no table, no rows, and nothing else changes.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root)
+        assert res["versus"] == []
+        o = R.Out(root / "out", "x", ["-"])
+        assert "Paired difference against a second build" not in A.render(res, o, [], []).read_text()
+
+    # An absent second run directory is REPORTED, never silently paired against nothing.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root, vs_runs={"rl16": "2026-09-22_nope"}, vs_label="second")
+        assert res["versus"] == []
+        assert any("nope" in m for m in res["missing"]), res["missing"]
 
 
 def check_autointerp_estimators():
@@ -1886,6 +1991,7 @@ CHECKS = [
     # eval 2 -- `results/autointerp.py`
     check_autointerp_reader,
     check_autointerp_refusals_and_conventions,
+    check_autointerp_versus_second_build,
     check_autointerp_estimators,
     check_autointerp_pairing_is_intersection,
     check_autointerp_catches_a_defect,
