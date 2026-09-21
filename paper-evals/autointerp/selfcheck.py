@@ -542,11 +542,14 @@ def check_nla_arms(cfg, tmp: Path, base: str):
         {"row": 2, "family": "random", "id": "g0"},
         {"row": 3, "family": "sae2m_enc", "id": 777, "sae_key": sae_key},
     ])
-    rows, sae_rows, feats, key = SS._sae_rows(
+    rows, sae_rows, feats, key, side = SS._sae_rows(
         cfg, {"base": base, "root": str(tmp), "heldout": "selfcheck_fam", "sae": sae_key}
     )
     assert sae_rows == [1, 3] and feats == [4242, 777], (sae_rows, feats)
     assert key == sae_key, f"--sae was not honoured: {key}"
+    # These fixture rows carry no `sae_side`, which reads as `enc` -- the shape every set drawn
+    # before 2026-09-21 has, and the shape `--sae-side` must leave untouched.
+    assert side == "enc", f"the default side moved to {side!r}"
     assert len(rows) == 4, "the full ids.jsonl must come back, not only the SAE rows"
 
     # And the guard itself, on the same fixture: an SAE row with NO `sae_key`, in a set that

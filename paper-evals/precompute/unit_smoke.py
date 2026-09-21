@@ -1612,6 +1612,89 @@ def check_sae_column_reader():
     assert '"sae_side": sd' in src, "draw_sae2m emits no sae_side field"
 
 
+def check_sae_self_side_flag():
+    """`--sae-side` reaches `sae_self`'s row selector, refuses everywhere else, and moves the path.
+
+    The gap it closes is eval 1's: `_sae_rows` pinned `side="enc"`, so the 512 `sae_side: dec`
+    rows of `2026-09-21_v3_sae2m` had cosines from `score` and no activation metric at all
+    (SMOKES.md 2026-09-21, "three things the results run must not get wrong", item 2). Four
+    things have to hold and each is its own failure:
+
+      1. the default is `enc`, bit-for-bit the selection this stage has always made -- every
+         product on the volume was written under it and none of them may move;
+      2. `dec` selects the OTHER block, not both and not the same one;
+      3. the three corpus-side stages in that file refuse a non-default side rather than
+         quietly writing a decoder row's numbers to the encoder row's path;
+      4. `dec` writes to `sae_self__dec`, so the decoder run cannot land on the encoder product
+         eval 1 already paid $0.4 for. This is checked on the SOURCE, because the only other way
+         to see it is to run a 27B forward.
+    """
+    from autointerp.sae_self import sae_side_of
+
+    rows = [
+        {"row": 0, "family": "sae", "sae_key": "b/two_m", "id": 10, "sae_side": "enc"},
+        {"row": 1, "family": "sae", "sae_key": "b/two_m", "id": 11, "sae_side": "enc"},
+        {"row": 2, "family": "sae", "sae_key": "b/two_m", "id": 10, "sae_side": "dec"},
+        {"row": 3, "family": "sae", "sae_key": "b/two_m", "id": 11, "sae_side": "dec"},
+        # predates the field: reads as `enc` and must stay in the default selection
+        {"row": 4, "family": "sae", "sae_key": "b/two_m", "id": 12},
+    ]
+    assert sae_side_of({}, "sae_self") == "enc", "an unset --sae-side must default to enc"
+    assert sae_side_of({"sae_side": ""}, "build") == "enc", "an EMPTY side is the default, not a request"
+
+    # THROUGH `_sae_rows`, not through `sae_rows_of` -- an earlier version of this check called
+    # the selector directly and stayed green under the mutation that matters most, `_sae_rows`
+    # pinning `side="enc"` and ignoring the flag it was just given. The fixture is a real set
+    # directory under a temp root, because `_sae_rows` resolves the dictionary and the
+    # declaration off disk.
+    from autointerp.sae_self import _sae_rows
+
+    cfg = C.load_config()
+    base, sae_key = "qwen36-27b", "qwen36-27b/sae2m"
+    with tempfile.TemporaryDirectory() as td:
+        hdir = Path(C.heldout_dir(base, "fixture_sides", td))
+        hdir.mkdir(parents=True)
+        C.write_jsonl(hdir / "ids.jsonl", [{**r, "sae_key": sae_key} for r in rows])
+        with open(hdir / C.STORAGE_FILE, "w") as fh:
+            json.dump({"storage": "dirs_only", "mu_stored": None, "sae_key": sae_key}, fh)
+        args = {"base": base, "root": td, "heldout": "fixture_sides", "sae": sae_key}
+        _meta, sel, feats, key, side = _sae_rows(cfg, args, "sae_self")
+        assert (sel, feats, key, side) == ([0, 1, 4], [10, 11, 12], sae_key, "enc"), (
+            f"the DEFAULT selection moved: {sel} / {feats} / {side}. Every sae_self product on "
+            f"the volume was written under it and none of them may change meaning.")
+        _meta, sel, feats, key, side = _sae_rows(cfg, {**args, "sae_side": "dec"}, "sae_self")
+        assert (sel, feats, side) == ([2, 3], [10, 11], "dec"), (
+            f"--sae-side dec selected {sel} / {feats} / {side}: it must be the decoder block "
+            f"alone, and `_sae_rows` must PASS the side on rather than pinning `enc`.")
+
+    for stage in ("random_pool", "examples_4m", "examples_docmax", "build"):
+        try:
+            sae_side_of({"sae_side": "dec"}, stage)
+        except AssertionError as e:
+            assert "is a `sae_self` flag" in str(e), f"wrong refusal for stage {stage}: {e}"
+        else:
+            raise AssertionError(f"stage {stage} accepted --sae-side dec; only sae_self may ask for it")
+    try:
+        sae_side_of({"sae_side": "encoder"}, "sae_self")
+    except AssertionError as e:
+        assert "must be `enc` or `dec`" in str(e), f"wrong refusal for a bad side: {e}"
+    else:
+        raise AssertionError("sae_side_of accepted a side that is neither enc nor dec")
+
+    # The side is part of the product PATH, and `enc` keeps the historical name exactly.
+    src = (Path(__file__).resolve().parent.parent / "autointerp/sae_self.py").read_text()
+    assert 'side_suffix = "" if side == "enc" else f"__{side}"' in src, (
+        "sae_self no longer puts the side in the product path: a `dec` run would --force over "
+        "the `enc` product on the same scores directory")
+    assert 'out = f"{sdir}/sae_self{side_suffix}{args.get(\'out_suffix\') or \'\'}"' in src, (
+        "the side suffix is not in `out`")
+    # And the decoder half must NOT be scored against the re-derived encoder column, which is a
+    # different vector from the one its rollouts were generated with.
+    assert 'if side == "enc":' in src and "C.dirs_for(cfg, base, hdir, None, root" in src, (
+        "sae_self does not read the SET's stored vecs for a decoder row: `common.sae_dirs` is "
+        "unit(W_enc[:, f]) and CHECK 1 would fire on the direction, not on the run")
+
+
 def check_sae_column_slice_is_the_dictionary():
     """`load_sae_columns` gives `sae_encode`/`sae_dirs` exactly what the full load would.
 
@@ -1802,7 +1885,7 @@ RETURN_ARITY = {
     ("precompute/scan.py", "_load_targets"): 3,
     ("precompute/centred.py", "_load_dirs"): 4,
     ("gcg/gcg.py", "_load_targets"): 2,
-    ("autointerp/sae_self.py", "_sae_rows"): 4,
+    ("autointerp/sae_self.py", "_sae_rows"): 5,
     ("precompute/common.py", "mu_for"): 2,
 }
 
@@ -2023,6 +2106,7 @@ CHECKS = [
     check_heldout_v3_ours_block,
     check_csr_gate_floor,
     check_sae_column_reader,
+    check_sae_self_side_flag,
     check_spawn_mirrors_main,
     check_autointerp_main_forwards_every_flag,
     check_sae_column_slice_is_the_dictionary,

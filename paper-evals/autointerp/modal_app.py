@@ -173,6 +173,11 @@ def main(
     # WHICH SAE of the base: required once a base carries more than one (qwen36-27b does, since
     # sae2m). sae_self, build and chain all resolve it through common.sae_key_for.
     sae: str = "",
+    # WHICH SIDE of the dictionary `sae_self` works on: `enc` (default, every set before
+    # 2026-09-21 and every product already on the volume) or `dec`, the `unit(W_dec[f])` half of a
+    # `draw_sae2m --sides enc,dec` set. `sae_self` ONLY -- build/scan/repo_examples keep the
+    # enc-only filter, and the three corpus-side stages here refuse it (sae_self.sae_side_of).
+    sae_side: str = "",
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
     rows: str = "",
@@ -276,6 +281,11 @@ def main(
         )
     if stage == "chain" and maemm2:
         assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
+    if sae_side:
+        # Checked LOCALLY as well as container-side, so a typo does not cost a container start.
+        from autointerp.sae_self import sae_side_of
+
+        sae_side_of({"sae_side": sae_side}, stage)
     if sae:
         assert sae in cfg["saes"], f"unknown --sae {sae!r}, want one of {sorted(cfg['saes'])}"
         assert C.split_key(sae, "sae")[0] == base, f"sae {sae!r} is not on base {base!r}"
@@ -286,6 +296,7 @@ def main(
         "base": base,
         "maemm": maemm,
         "sae": sae,
+        "sae_side": sae_side,
         "heldout": set_name,
         "rows": rows,
         "root": root.rstrip("/") or VOL,

@@ -100,8 +100,32 @@ class _SelfAct:
         self.arg[g : g + b] = torch.where(has, arg - 1, torch.full_like(arg, -1)).cpu()
 
 
-def _sae_rows(cfg, args):
-    """(rows_meta, sae rows of the set, their feature ids, the SAE key).
+def sae_side_of(args, stage: str) -> str:
+    """The `sae_side` half of the set this call works on: `enc` (the default) or `dec`.
+
+    ONLY `sae_self` may ask for `dec`. The flag exists because eval 1 needs the activation metric
+    on the decoder block of `2026-09-21_v3_sae2m` (plan §2.3: "the activation of feature `f` is its
+    encoder readout whichever direction was injected"), and the enc-only filter at `_sae_rows` was
+    the one gap SMOKES.md's eval-1 section names. `build`, `scan` and `repo_examples` share
+    `common.sae_rows_of`'s `side=` and are deliberately NOT given this flag: their products are
+    keyed on a feature, not on a direction, so a decoder row there would be a second copy of the
+    same feature under the same path. The other three stages in THIS file (`random_pool`,
+    `examples_4m`, `examples_docmax`) are corpus-side for the same reason, so they refuse it
+    loudly rather than silently ignoring it.
+    """
+    side = str(args.get("sae_side") or "enc")
+    assert side in ("enc", "dec"), f"--sae-side must be `enc` or `dec`, got {side!r}"
+    assert side == "enc" or stage == "sae_self", (
+        f"--sae-side {side!r} is a `sae_self` flag and stage {stage!r} does not take it. That "
+        f"stage's product is keyed on the FEATURE, not on which of the dictionary's two columns "
+        f"was injected, so a decoder row would rewrite the encoder row's own path with the same "
+        f"feature's numbers. Drop --sae-side, or run `--stage sae_self`."
+    )
+    return side
+
+
+def _sae_rows(cfg, args, stage: str = "sae_self"):
+    """(rows_meta, sae rows of the set, their feature ids, the SAE key, the side).
 
     The selector filters on the ROW's own `sae_key`, not on the family label. A set can carry two
     dictionaries under one `family: sae` label (features/draw_sae2m.py writes the key per row), and
@@ -109,11 +133,14 @@ def _sae_rows(cfg, args):
     filter would look the 131k block's ids up in the 2M dictionary and score 512 wrong features
     with nothing raising. `common.sae_rows_of` is the rule, applied where the key is resolved.
 
-    Decoder rows are skipped: this stage cross-checks its activations against `vecs.f16`, which is
-    the ENCODER column, and the activation of feature f is its encoder readout whichever direction
-    was injected. The `sae_side: dec` block is scored by `score`, not here.
+    The side defaults to `enc` and every caller but `sae_self --sae-side dec` gets exactly the
+    selection this function has always made -- a row with no `sae_side` reads as `enc` in
+    `sae_rows_of`, so a pre-2026-09-21 set is unaffected. See `sae_side_of` for who may ask for
+    the other half and why; `run` handles the one consequence, which is that a decoder row's
+    stored direction is NOT the encoder column this stage cross-checks against.
     """
     base, root, set_name = args["base"], args["root"], args["heldout"]
+    side = sae_side_of(args, stage)
     rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
     # WHICH SAE: `--sae` when the base carries more than one (qwen36-27b does, since sae2m).
     # common.sae_key_for is the same rule score._sae_for uses, so the stage and the scorer it
@@ -121,16 +148,17 @@ def _sae_rows(cfg, args):
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
     hdir = C.heldout_dir(base, set_name, root)
     sel = C.sae_rows_of(
-        rows, sae_key, FAMILIES, side="enc",
+        rows, sae_key, FAMILIES, side=side,
         declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
     )
     assert sel, (
-        f"held-out set {set_name!r} on {base} has no encoder rows of dictionary {sae_key!r} in the "
+        f"held-out set {set_name!r} on {base} has no {side} rows of dictionary {sae_key!r} in the "
         f"SAE families {FAMILIES}; it carries families "
-        f"{sorted({r['family'] for r in rows})} and dictionaries "
-        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows if r['family'] in FAMILIES})}"
+        f"{sorted({r['family'] for r in rows})}, dictionaries "
+        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows if r['family'] in FAMILIES})} and "
+        f"sides {sorted({r.get('sae_side', 'enc') for r in rows if r['family'] in FAMILIES})}"
     )
-    return rows, [r["row"] for r in sel], [int(r["id"]) for r in sel], sae_key
+    return rows, [r["row"] for r in sel], [int(r["id"]) for r in sel], sae_key, side
 
 
 def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, gate: float):
@@ -230,7 +258,7 @@ def run(cfg, args):
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     engine = args.get("engine") or "vllm"
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, side = _sae_rows(cfg, args, "sae_self")
     sel = [r for r in C.parse_rows(args.get("rows", ""), len(rows_meta)) if r in set(sae_rows)]
     assert sel, (
         f"--rows {args.get('rows', '')!r} selected none of the {len(sae_rows)} {'/'.join(FAMILIES)} rows "
@@ -285,11 +313,31 @@ def run(cfg, args):
     # an H200 beside the 27B (features/CHANGES.md fix 2, made there for `stats`).
     sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False)
     gate = float(sae.threshold)
-    dirs = C.sae_dirs(sae, row_feats).cpu()
+    # THE DIRECTION IS THE ONE THE ROLLOUT WAS GENERATED FROM, AND ONLY ON THE ENCODER SIDE IS
+    # THAT THE ENCODER COLUMN. For `sae_side: enc` (every set before 2026-09-21, and the default)
+    # `sae_dirs` is both the direction and a cross-check: re-deriving unit(W_enc[:, f]) from the
+    # dictionary and reproducing `score`'s stored cosine with it proves the set's `vecs.f16` IS
+    # that column. A `sae_side: dec` row was injected with `unit(W_dec[f])`, so the encoder column
+    # would reproduce nothing and CHECK 1 would fire on a direction mismatch rather than on
+    # anything about the run. There the directions are READ from the set's own `vecs.f16` through
+    # `common.dirs_for` (which enforces the storage contract), and the encoder-column cross-check
+    # is the one thing this side gives up -- named in `checks`, not silently dropped. Plan §2.3,
+    # "the `vecs.f16` cross-check skipped (§1.5)"; features/draw_sae2m.py says the same in the
+    # set's own README. The ACTIVATION is unaffected either way: `_SelfAct` reads W_enc/b_enc for
+    # the row's feature whatever was injected, which is the metric this product exists for.
+    dir_notes: list[str] = []
+    if side == "enc":
+        dirs = C.sae_dirs(sae, row_feats).cpu()
+        dirs_from = f"common.sae_dirs -- unit(W_enc[:, f]) of {sae_key}, re-derived"
+    else:
+        hdir = C.heldout_dir(base, set_name, root)
+        all_dirs = C.dirs_for(cfg, base, hdir, None, root, notes=dir_notes)
+        dirs = torch.as_tensor(np.asarray([all_dirs[r] for r in sel], dtype=np.float32))
+        dirs_from = f"{hdir}/vecs.f16 via common.dirs_for -- the stored `sae_side: dec` rows"
     extra = _SelfAct(sae, row_feats, len(flat), width)
     print(
-        f"[sae_self] {len(sel)} sae targets x {n} rollouts = {len(flat)} rows, gate {gate:.4f}, "
-        f"scoring window {max_length} (T={width})",
+        f"[sae_self] {len(sel)} sae/{side} targets x {n} rollouts = {len(flat)} rows, "
+        f"gate {gate:.4f}, scoring window {max_length} (T={width}); directions: {dirs_from}",
         flush=True,
     )
     t0 = time.time()
@@ -372,6 +420,24 @@ def run(cfg, args):
     )
 
     checks = {
+        "sae_side": side,
+        "dirs_from": dirs_from,
+        # The one check this product does NOT make on a decoder row, stated where a reader of
+        # `sae_self.json` will see it rather than only in the code.
+        **(
+            {}
+            if side == "enc"
+            else {
+                "encoder_column_crosscheck": (
+                    "SKIPPED on `sae_side: dec`: CHECK 1 and the cosine comparison below used the "
+                    "SET's stored vecs.f16 (unit(W_dec[f])), which is the direction the rollout "
+                    "was generated from, so they still test that this pass and `score` are the "
+                    "same run -- but they no longer also prove the stored vector is the encoder "
+                    "column, which is what they do on the `enc` side. The activation metric is "
+                    "unaffected: it is feature f's ENCODER readout whichever column was injected."
+                )
+            }
+        ),
         "argmax_agreement": f"{arg_agree}/{arg_total}",
         "argmax_mismatches": arg_total - arg_agree,
         "argmax_mismatch_worst_cos_gap": round(worst_tie, 8),
@@ -422,15 +488,21 @@ def run(cfg, args):
     # `--out-suffix` keeps a 2-feature shakeout out of the canonical path (score.py's
     # `--score-name` does the same job): the full run then writes `sae_self/` with nothing to
     # --force over.
-    out = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
+    # THE SIDE IS PART OF THE PATH, not of `--out-suffix`. The two halves of a `--sides enc,dec`
+    # set are different rows of the same scores directory, so without this the decoder run would
+    # `--force` over the encoder product that eval 1 already paid for. `enc` keeps the historical
+    # name exactly, so every existing product and every reader of it is untouched.
+    side_suffix = "" if side == "enc" else f"__{side}"
+    out = f"{sdir}/sae_self{side_suffix}{args.get('out_suffix') or ''}"
     inputs = {
         "rollouts": rpath,
         "scores": sdir,
         "engine": engine,
         "maemm": maemm or f"(none: --rollouts-dir {rdir})",
         "sae": sae_key,
+        "sae_side": side,
         "gate": gate,
-        "targets": f"{N} of {len(sae_rows)} {'/'.join(FAMILIES)} rows",
+        "targets": f"{N} of {len(sae_rows)} {'/'.join(FAMILIES)} `{side}` rows",
         "n": n,
     }
     # The checks run BEFORE the product is written, so a failed check never renames a bad product
@@ -492,9 +564,22 @@ def run(cfg, args):
             f"1,536 targets and this pass batches only the 512 sae rows, so the two runs' "
             f"SCORE_CHUNK right-padding widths differ -- checklist item 11. CHECK 2, cosine: "
             f"max |ours - stored cos.f16| = {cos_max_abs:.2e} over "
-            f"every kept token (the directions here are `common.sae_dirs`, i.e. what `targets` "
-            f"drew, so this reproduces the stored cosine and not merely something like it)."
+            f"every kept token (the directions here are {dirs_from}, so this reproduces the "
+            f"stored cosine and not merely something like it)."
         )
+        if side != "enc":
+            od.note(
+                f"`sae_side: {side}`. The {N} rows are the DECODER half of the set, and their "
+                f"directions were READ from the set's vecs.f16 rather than re-derived from the "
+                f"dictionary, because unit(W_dec[f]) is what was injected. So the encoder-column "
+                f"cross-check does not apply here (plan §2.3 / §1.5, and the set's own README "
+                f"says the same); CHECK 1 and the cosine check still hold this pass and `score` "
+                f"to the same run. The activation is unchanged in kind -- relu of the ENCODER "
+                f"readout of feature f -- which is why the metric is comparable to the `enc` "
+                f"block's row for row: row i here and row i of `sae_self/` are the same feature."
+            )
+        for note in dir_notes:
+            od.note(f"directions: {note}")
         od.note(
             f"CHECKS 2 and 3 index OUR activations at the STORED argmax (the token the CSR was "
             f"measured at), so they are exact whatever CHECK 1 found. The stored CSR at that "
@@ -604,7 +689,7 @@ def run_random_pool(cfg, args):
     seed = int(args.get("pool_seed") or ac["random_pool_seed"])
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "random_pool")
     n_feat = len(feats)
     toks, docs = C.load_corpus(base, root)
     wins = enumerate_windows(docs)
@@ -778,7 +863,7 @@ def run_examples_4m(cfg, args):
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     batch_rows = int(args.get("batch") or EX4M_BATCH)
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_4m")
     n_feat = len(feats)
     toks, docs = C.load_corpus(base, root)
     sizes = C.corpus_sizes(docs)
@@ -998,7 +1083,7 @@ def run_examples_docmax(cfg, args):
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     batch_rows = int(args.get("batch") or EX4M_BATCH)
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_docmax")
     n_feat = len(feats)
     toks, docs = C.load_corpus(base, root)
     print(f"[examples_docmax] {len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each",

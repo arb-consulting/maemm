@@ -144,10 +144,26 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
     Per feature, `peaks_of` gives one peak activation per rollout; `best_of_k_means` turns those
     into the same disjoint-group best-of-k the cosine side reports, and every ratio divides by
     that feature's own `corpus_peak` as `sae_self` recorded it (our 16M `max_act`).
+
+    WHICH PRODUCT: `sae_self` writes the encoder half to `sae_self/` (its name since the stage
+    existed) and any other side to `sae_self__<side>/`, because both halves of a `--sides enc,dec`
+    set live in ONE scores directory. So a `sae_side: dec` family is read from `sae_self__dec`
+    and, if that is absent, from `sae_self` -- where the row filter below finds none of its rows
+    and the family is reported missing. The fallback therefore cannot report the encoder block's
+    numbers under a decoder label; it exists so a set with no side field at all still reads.
     """
-    meta, act = R.load_sae_self(vol, f"{src.scores_rel}/sae_self")
+    rel = f"{src.scores_rel}/sae_self"
+    meta, act = (None, "")
+    if fam.sae_side and fam.sae_side != "enc":
+        rel = f"{src.scores_rel}/sae_self__{fam.sae_side}"
+        meta, act = R.load_sae_self(vol, rel)
+        if meta is None:
+            rel = f"{src.scores_rel}/sae_self"
+            meta, act = (None, "")
+    if meta is None:
+        meta, act = R.load_sae_self(vol, rel)
     if meta is None or isinstance(act, str):
-        return [], [], {"absent": act if isinstance(act, str) else f"{src.scores_rel}/sae_self"}
+        return [], [], {"absent": act if isinstance(act, str) else rel}
     gate = float(meta["gate"])
     stored = {int(p["row"]): p for p in meta.get("per_target", [])}
     want = set(rows)
@@ -179,9 +195,9 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
             "fired_any": bool(peaks.max() > gate),
         })
     check = {"rows": len(feats), "n_mismatches": mism, "worst_excess": round(worst, 6),
-             "gate": gate, "product": f"{src.scores_rel}/sae_self"}
+             "gate": gate, "product": rel}
     if not feats:
-        return [], [], {"absent": f"{src.scores_rel}/sae_self carries none of this family's rows"}
+        return [], [], {"absent": f"{rel} carries none of this family's rows"}
 
     def agg(sub: list[dict], stratum) -> dict:
         ks = sorted({k for f in sub for k in f["ratio"]})

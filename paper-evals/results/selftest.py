@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -394,6 +395,90 @@ def check_round_trip():
         assert cos_chk.get("rows", 0) >= 8 and cos_chk["n_mismatches"] == 0, cos_chk
         sae_chk = [c for c in res["checks"] if c["kind"] == "sae_self"][0]
         assert sae_chk["n_mismatches"] == 0, sae_chk
+
+
+def check_sae_side_reads_its_own_product():
+    """A `--sides enc,dec` set: each side reads ITS OWN `sae_self` product, or is reported missing.
+
+    Both halves of such a set live in ONE scores directory, so `sae_self` writes the encoder half
+    to `sae_self/` (its historical name) and the decoder half to `sae_self__dec/`. The failure this
+    pins is the quiet one: a driver that read `sae_self/` for both would print the ENCODER block's
+    activations under the decoder label, and nothing in the numbers would say so -- on the real set
+    the card's 0.344 / 0.416 pair would come back 0.344 / 0.344 and read as a finding.
+
+    The fixture gives the two products deliberately DIFFERENT peaks, so an equal answer is a
+    failure rather than a coincidence, and then deletes the decoder product and requires the family
+    to be reported missing instead of falling back onto the encoder's numbers.
+    """
+    ids = [
+        {"row": 0, "family": "sae", "sae_key": "B/sae-one", "sae_side": "enc", "stratum": 0, "id": "f100"},
+        {"row": 1, "family": "sae", "sae_key": "B/sae-one", "sae_side": "enc", "stratum": 1, "id": "f200"},
+        {"row": 2, "family": "sae", "sae_key": "B/sae-one", "sae_side": "dec", "stratum": 0, "id": "f100"},
+        {"row": 3, "family": "sae", "sae_key": "B/sae-one", "sae_side": "dec", "stratum": 1, "id": "f200"},
+    ]
+    # corpus peak 4.0 on every row, so the ratios are the peaks / 4 and hand-checkable.
+    peaks = {0: [1.0] * 4, 1: [1.0] * 4, 2: [2.0] * 4, 3: [2.0] * 4}
+    cfg = {**CFG, "heldout": {**CFG["heldout"],
+                              "SS": {"base": BASE, "sae_key": "B/sae-one",
+                                     "families": {"sae": {"n": 4}}}}}
+
+    def write(root: Path) -> Path:
+        hd = root / f"base/{BASE}/heldout/SS"
+        hd.mkdir(parents=True, exist_ok=True)
+        with open(hd / "ids.jsonl", "w") as fh:
+            for r in ids:
+                fh.write(json.dumps(r) + "\n")
+        (hd / "storage.json").write_text(json.dumps({"storage": "dirs_only", "sae_key": "B/sae-one"}))
+        d = root / f"maemms/{BASE}/ckpt-one/scores/SS__arm-a"
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "per_target.jsonl", "w") as fh:
+            for r in range(4):
+                fh.write(json.dumps({"row": r, "family": "sae", "n": N_ROLLOUTS, "mean_cos": 0.0625,
+                                     "max_cos": 0.0625, "bo_1": 0.0625, "bo_4": 0.0625}) + "\n")
+        (d / "rows.json").write_text(json.dumps(
+            {"rows": [0, 1, 2, 3], "n": N_ROLLOUTS, "families": ["sae"] * 4,
+             "score_max_length": WIDTH - 1, "mu": None}))
+        (d / "index.json").write_text(json.dumps({"per_target.jsonl": {"kind": "jsonl", "rows": 4}}))
+        for name, rows_ in (("sae_self", [0, 1]), ("sae_self__dec", [2, 3])):
+            sd = d / name
+            sd.mkdir(exist_ok=True)
+            np.stack([_block(peaks[r]) for r in rows_]).astype(np.float16).tofile(sd / "sae_self.f16")
+            (sd / "sae_self.json").write_text(json.dumps({
+                "rows": rows_, "features": [100, 200], "n": N_ROLLOUTS, "width": WIDTH,
+                "gate": SAE_GATE, "checks": {"argmax_ok": True, "sae_side": name[-3:]},
+                "per_target": [{"row": r, "feature": 100 + 100 * (r % 2), "n": N_ROLLOUTS,
+                                "corpus_peak": 4.0, "mean_peak_act": peaks[r][0],
+                                "max_peak_act": peaks[r][0]} for r in rows_],
+            }))
+        return d
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        d = write(root)
+        vol = R.Vol("", root, offline=True, quiet=True)
+        res = F.analyse(vol, cfg, "SS", "", 400, 1, True, 8.0)
+        fams = sorted({a["family"] for a in res["sae"]})
+        assert fams == ["sae/sae-one/dec", "sae/sae-one/enc"], fams
+        enc = _stat(res, "sae/sae-one/enc", "ckpt-one:arm-a", "ratio.bo1.median")
+        dec = _stat(res, "sae/sae-one/dec", "ckpt-one:arm-a", "ratio.bo1.median")
+        _close(enc, 0.25, 1e-9, what="the enc family reads sae_self/ -- peaks 1.0 over corpus 4.0")
+        _close(dec, 0.5, 1e-9, what="the dec family reads sae_self__dec/ -- peaks 2.0 over corpus 4.0")
+        # And each check names the product it actually opened, so the table's provenance is real.
+        products = sorted(c["product"] for c in res["checks"] if c["kind"] == "sae_self")
+        assert products == [f"maemms/{BASE}/ckpt-one/scores/SS__arm-a/sae_self",
+                            f"maemms/{BASE}/ckpt-one/scores/SS__arm-a/sae_self__dec"], products
+
+    # The decoder product removed: MISSING, never the encoder's numbers under the decoder label.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        d = write(root)
+        shutil.rmtree(d / "sae_self__dec")
+        vol = R.Vol("", root, offline=True, quiet=True)
+        res = F.analyse(vol, cfg, "SS", "", 400, 1, True, 8.0)
+        fams = sorted({a["family"] for a in res["sae"]})
+        assert fams == ["sae/sae-one/enc"], f"the dec family was answered from another product: {fams}"
+        joined = " ".join(res["missing"])
+        assert "sae/sae-one/dec" in joined and "sae_self" in joined, joined
 
 
 def check_second_sae_needs_no_code():
@@ -1982,6 +2067,7 @@ CHECKS = [
     check_cluster_bootstrap,
     check_round_trip,
     check_second_sae_needs_no_code,
+    check_sae_side_reads_its_own_product,
     check_missing_sources_are_listed_not_zeroed,
     check_sources_filter,
     check_reader_check_catches_a_defect,
