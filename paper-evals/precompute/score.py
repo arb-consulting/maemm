@@ -659,5 +659,14 @@ def run(cfg, args):
     for fam in sorted({r["family"] for r in per_target}):
         sub = [r for r in per_target if r["family"] == fam]
         fam_mean[fam] = round(float(np.mean([r["mean_cos"] for r in sub])), 5)
-        fam_mean[f"{fam}_bo{n}"] = round(float(np.mean([r[f"bo_{n}"] for r in sub])), 5)
+        # `bo_k` exists only for k in BO_KS, and n need not be one of them: a product whose grid
+        # width is 3 -- which is what `gcg --mode epo`'s pop gives when its finals are repackaged
+        # through --rollouts-dir -- has no `bo_3`, and this line raised KeyError AFTER the product
+        # was already committed, so the run reported failure on a complete directory. Report the
+        # largest recorded best-of at or below n instead, and name which one it is.
+        k_bo = max((k for k in BO_KS if k <= n), default=0)
+        if k_bo:
+            fam_mean[f"{fam}_bo{k_bo}"] = round(
+                float(np.mean([r[f"bo_{k_bo}"] for r in sub])), 5
+            )
     return {"out": out, "engine": engine, "targets": N, "n": n, "rows": len(flat), "family_means": fam_mean}
