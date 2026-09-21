@@ -3051,3 +3051,272 @@ to `len(drawn)` with the assert beside it; the run above reports 413 + 99 = 512.
 **New on the volume, all new paths:** the five `base/qwen36-27b/heldout/2026-09-21_v3_*`
 directories, and `shared/eval1/2026-09-21_sae2m_64_feature_ids.txt` (the `--include` list, so the
 draw is reproducible from the volume rather than from a scratchpad).
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: EVAL 1 (faithfulness), the production run
+
+Every arm of plan §2.2 on the six `2026-09-21_v3_*` blocks. **39 GPU calls, $51.22**, plus ~$1.95
+sunk (below). Largest single call $6.53 against a $30 per-call cap; total against a $75 stage cap.
+Nothing on the volume was deleted, replaced or rewritten: every product is a new path, `--force`
+was never passed, and the two old-primary arms are kept side by side as the evidence they are.
+
+`--product unit` in the image ran green (44/44) before the first launch, per this file's own rule.
+
+### Step 0 — the "ours" sanity block, $0
+
+`heldout_v3 --block ours` (new) copied `2026-09-21_v1raw` rows 0-511 into
+`base/qwen36-27b/heldout/2026-09-21_v3_ours`: our own realact draw, the one every v1 table was
+built on, in the v3 layout. 512 rows, 15.2 MiB, `storage: raw`, CPU, $0. `check` opens all six v3
+sets `ok`.
+
+Verified against the source off the stored bytes, not from the run's own log: `act.f32` is
+**byte-identical** on all 512 rows (max |d| exactly 0.0), `src_row == row`, ids/doc/p match
+`2026-09-21_v1raw` row for row. `exclusions.json` freezes rows 38, 45, 101, 318, 393, 446 --
+**headline n = 506** -- recorded, not applied.
+
+### Estimate vs actual, per call
+
+Estimates were made from this file's own bases before each launch, as asked. The vLLM rollout
+basis is item 23 ($4.5046 / 98,304 rollouts); `score`'s was ambiguous and is resolved below.
+
+| call | product | set | rows x n | est $ | actual $ | wall |
+|---|---|---|---|---|---|---|
+| A1 | `rollouts_vllm` rl-last16 | `_realact` | 512 x 64 | 1.50 | **2.1051** | 1669.3 s |
+| A2 | `rollouts_vllm` rl-last16 | `_ours` | 512 x 64 | 2.10 | **2.0613** | 1634.5 s |
+| A3 | `rollouts_vllm` rl-last16 | `_realact_long` | 512 x 64 | 2.10 | **2.1883** | 1735.2 s |
+| A4 | `rollouts_vllm` rl-last16 | `_subspace` | 1024 x 64 | 3.90 | **3.8020** | 3014.8 s |
+| A5 | `rollouts_vllm` rl-last16 | `_ctrl` | 1024 x 64 | 3.90 | **3.0659** | 2431.1 s |
+| A6 | `rollouts_vllm` rl-last16 | `_sae2m` | 1024 x 64 | 3.90 | **3.0362** | 2407.5 s |
+| B1 | `rollouts_vllm` old, `--mu none` | `_realact` | 512 x 64 | 1.50 | **1.9727** | 1564.3 s |
+| B2 | `rollouts_vllm` old, `--mu stats` | `_realact` | 512 x 64 | 1.97 | **2.2150** | 1756.4 s |
+| B3 | `rollouts_vllm` old, `--mu none` | `_ours` | 512 x 64 | 1.97 | **1.8258** | 1447.8 s |
+| B4 | `rollouts_vllm` old, `--mu stats` | `_ours` | 512 x 64 | 1.97 | **2.0973** | 1663.1 s |
+| B5 | `rollouts_vllm` old, `--mu none` | `_ctrl` | 1024 x 64 | 3.90 | **2.6351** | 2089.5 s |
+| B6 | `rollouts_vllm` old, `--mu none` | `_sae2m` | 1024 x 64 | 3.90 | **2.6743** | 2120.6 s |
+| C1 | `rollouts_nla` | `_realact` | 512 x 4 | 0.45 | **1.7980** | 1425.7 s |
+| C2 | `rollouts_nla` | `_ctrl` | 1024 x 4 | 3.46 | **2.8509** | 2260.6 s |
+| C3 | `rollouts_nla` | `_sae2m` | 1024 x 4 | 2.85 | **2.6856** | 2129.5 s |
+| — | `score` x 14 | all | — | ~0.36 ea | **0.146 – 0.661** | 116 – 393 s |
+| — | `sae_self` x 6 | `_ctrl`, `_sae2m` | — | ~0.40 ea | **0.154 – 0.417** | 122 – 330 s |
+| D | `examples_docmax` 2M | `_sae2m` | 512 feat | 7.50 | **6.5295** | 5177.6 s |
+
+**The one estimate that was badly wrong was the NLA's**, by 4x on C1 ($0.45 est, $1.80 actual).
+The basis available was $0.3185 / 32 rollouts at 64 tokens, load-dominated; at 200 tokens and
+512 targets the generation dominates instead and the measured rate is **1.55 rollouts/s** (C1),
+rising to 2.04 (C2) and 1.92 (C3) as more targets amortise the load. Use ~1.9 rollouts/s, not the
+load-dominated datum, for any future NLA sizing. Everything else landed within ~30%, and the
+1024-target vLLM calls came in 22-32% UNDER estimate because the linear basis over-charges the
+engine init when it is amortised over twice the rollouts.
+
+**`score`'s two conflicting bases, resolved.** This file carried 195 rows/s (item 25, the full v1
+run) and 20.5 rows/s (the `sae_smoke64` runs). The first is right at production scale: A-score-realact
+did 32,768 rows in 281.8 s total, $0.3553, i.e. ~195 rows/s once the ~110 s model load is taken
+out. The `sae_smoke64` figure is a small-batch artefact (1,024 rows), not a property of the SAE:
+the 131k and 2M runs there were equally slow. **The 2M dictionary costs ~60% more than the 131k
+per row at scale** ($0.6403 vs $0.4138 on 65,536 rows), not 10x.
+
+### The summary table, for the results run to be checked against
+
+Read off the products with a scratch reader; nothing here is recomputed from rollouts. Exclusions
+APPLIED in this table (realact n = 486, ours n = 506); every other block is its full n. `bo64` is
+`bo_4` for the NLA arm, which has n = 4 and must never carry a bo64 column.
+
+## Cosines — mean (bo1) / bo8 / bo64, per source x set x family
+
+| source | set | family | n | mean cos_raw | bo8 raw | bo64 raw | mean cos_ctr | bo8 ctr | bo64 ctr |
+|---|---|---|---|---|---|---|---|---|---|
+| rl-last16 | realact | realact | 486 | 0.8860 | 0.9168 | 0.9301 | 0.7590 |   --   |   --   |
+| rl-last16 | ours | realact | 506 | 0.8884 | 0.9197 | 0.9330 | 0.7668 |   --   |   --   |
+| rl-last16 | realact_long | realact_long | 512 | 0.4360 | 0.4856 | 0.5094 | 0.6991 |   --   |   --   |
+| rl-last16 | subspace | bsf | 512 | 0.3177 | 0.3552 | 0.3778 |   --   |   --   |   --   |
+| rl-last16 | subspace | jlens | 512 | 0.1058 | 0.1197 | 0.1293 |   --   |   --   |   --   |
+| rl-last16 | ctrl | random | 512 | 0.0338 | 0.0412 | 0.0464 |   --   |   --   |   --   |
+| rl-last16 | ctrl | sae | 512 | 0.1136 | 0.1374 | 0.1532 |   --   |   --   |   --   |
+| rl-last16 | sae2m | sae | 1024 | 0.0584 | 0.0699 | 0.0783 |   --   |   --   |   --   |
+| old mu-none | realact | realact | 486 | 0.8830 | 0.9142 | 0.9278 |   --   |   --   |   --   |
+| old mu-none | ours | realact | 506 | 0.8870 | 0.9162 | 0.9294 |   --   |   --   |   --   |
+| old mu-none | ctrl | random | 512 | 0.0280 | 0.0365 | 0.0427 |   --   |   --   |   --   |
+| old mu-none | ctrl | sae | 512 | 0.1299 | 0.1554 | 0.1720 |   --   |   --   |   --   |
+| old mu-none | sae2m | sae | 1024 | 0.0545 | 0.0670 | 0.0757 |   --   |   --   |   --   |
+| old mu-stats | realact | realact | 486 | 0.8881 | 0.9188 | 0.9322 | 0.7713 |   --   |   --   |
+| old mu-stats | ours | realact | 506 | 0.8905 | 0.9221 | 0.9344 | 0.7768 |   --   |   --   |
+| NLA n=4 | realact | realact | 486 | 0.8075 |   --   | 0.8424 |   --   |   --   |   --   |
+| NLA n=4 | ctrl | random | 512 | 0.0308 |   --   | 0.0351 |   --   |   --   |   --   |
+| NLA n=4 | ctrl | sae | 512 | 0.0879 |   --   | 0.1043 |   --   |   --   |   --   |
+| NLA n=4 | sae2m | sae | 1024 | 0.0516 |   --   | 0.0589 |   --   |   --   |   --   |
+
+## SAE — median peak/corpus_peak and median fire fraction (sae_self)
+
+
+| source | dictionary | features | med bo1 ratio | med bo_n ratio | med fire frac | features firing |
+|---|---|---|---|---|---|---|
+| rl-last16 | 131k l42-1b | 512 | 0.719 | 0.958 | 1.000 | 0.932 |
+| rl-last16 | 2M sae2m | 512 | 0.239 | 0.544 | 0.047 | 0.777 |
+| old mu-none | 131k l42-1b | 512 | 0.803 | 1.032 | 1.000 | 0.943 |
+| old mu-none | 2M sae2m | 512 | 0.095 | 0.403 | 0.000 | 0.402 |
+| NLA n=4 | 131k l42-1b | 512 | 0.505 | 0.619 | 1.000 | 0.799 |
+| NLA n=4 | 2M sae2m | 512 | 0.233 | 0.325 | 0.000 | 0.246 |
+
+`med bo1 ratio` is the median over features of `mean_peak_act / corpus_peak`, `med bo_n ratio` of
+`max_peak_act / corpus_peak` (n = 64, or 4 for NLA), `corpus_peak` being our 16M `max_act.f16` --
+never her 1B peak. `med fire frac` is the median over features of the fraction of that source's
+own rollouts in which the target feature clears the gate 1.682812; `features firing` is the share
+of features that fire at all.
+
+**Cross-check against `sae_smoke64` (64 features, n = 16, a different draw).** 2M bo1: rl-last16
+0.239 here vs 0.233 there; old primary 0.095 vs 0.102; NLA 0.233 vs 0.242. 131k bo1: rl-last16
+0.719 vs 0.76; old primary 0.803 vs 0.83; NLA 0.505 vs 0.51. The 512-feature run reproduces the
+64-feature smoke on all six cells. The structural claim reproduces too: every generated source
+sits at a third to a half of the corpus peak on the 2M dictionary and at 0.6-1.0 on the 131k one,
+and rl-last16 beats the old primary on the 2M SAE while trailing it on the 131k.
+
+### What the cosine table says
+
+The three realact arms are within 0.005 of each other on her block and on ours -- rl-last16
+0.8860 / 0.8884, old primary at its winning mean 0.8881 / 0.8905, i.e. the two checkpoints are
+not separated by this statistic at n = 486. The NLA arm sits ~0.08 below them at 0.8075. The
+controls behave: `random` 0.028-0.034, `jlens` 0.106, `bsf` 0.318, the 2M dictionary rows 0.052-0.058.
+
+`realact_long` is the one striking row: **cos_raw 0.4360 but cos_centred 0.6991**, the only family
+where the centred number is far ABOVE the raw one. That is the `family_mu: unknown` block being
+read at `whiten_mu` -- the mean those rows carry is `mu_long` and nobody holds the file, so the
+centred column there is "centred on a mean that is not the rows' own" and is a labelled number,
+not a comparable one. It is in the product README, and the results run must not put it in a
+column beside the realact centred numbers without that label.
+
+### The old primary's `mu`, SETTLED
+
+Two arms, same rows (`2026-09-21_v3_realact`), same scorer, n = 486 x 64 rollouts:
+
+| statistic | `--mu none` | `--mu stats_mu` | delta | 95% CI, doc-clustered bootstrap (10k) | rows won |
+|---|---|---|---|---|---|
+| mean_cos | 0.8830 | **0.8881** | +0.0051 | [+0.0030, +0.0072] | 322/486 (66.3%) |
+| bo_8 | 0.9142 | **0.9188** | +0.0046 | [+0.0030, +0.0062] | 324/486 (66.7%) |
+| bo_64 | 0.9278 | **0.9322** | +0.0044 | [+0.0026, +0.0061] | 334/486 (68.7%) |
+
+`stats_mu` wins on every statistic and on two thirds of rows individually; the paired bootstrap
+over the 425 distinct documents (61 of the 486 rows share one) excludes zero in all three.
+`config.yaml` now declares `mu: base/{base}/stats/mu.f32`, replacing `unknown`. Run tags
+`mu-none` / `mu-stats`; both arms stay on the volume.
+
+The effect is SMALL (~0.005 cosine) and that is part of the finding. The §1.6 smoke's n = 4 x 4
+table read +0.023 and 3-of-4 rows; at n = 486 x 64 the SIGN holds and the SIZE does not. It also
+confirms the record (Celeste's original convention was a centred target) against the eval plan's
+§1.1/§2.2 `none`, which came from a recollection.
+
+Still NOT evaluated: the plan's reproduction gate ("cos_raw within 0.01 of 0.5076"). Unchanged
+from the §1.6 note -- the stored 0.5076 is the asymmetric `cos(h, unit(act - stats_mu))`, which
+`score` does not produce from a raw set under any flag combination.
+
+### Search baseline: `interim-16M`, because Ari's 10M corpus has never been scanned
+
+Inspected read-only. `base/qwen36-27b/corpora/train_parity_10m/` EXISTS -- 10,004,614 tokens,
+11,809 documents, ladder [1.25, 2.5, 5, 10], window 32/8 -- and carries only `tokens.i32`,
+`meta.json`, `docs.jsonl`, `README.md`. **There is no scan over it:** `base/qwen36-27b/scan/` holds
+only `2026-09-16_v1`, `2026-09-18_ood_v1`, `2026-09-20_sae2m_2k`, none corpus-suffixed, and neither
+`sae/*/examples/` nor `examples_docmax/` has a `__train_parity_10m` directory. So nothing under the
+`celeste-train10m` key is consumable by `sae_self` or `score`, and the question of layout does not
+arise.
+
+**And it could not be produced in this stage even if wanted**: `common.assert_corpus_geometry`
+REFUSES that corpus, because it declares 32/8 while the pipeline cuts 64/16 at all eleven
+`windows_of` sites (H7, declared and deliberately not threaded). **So the corpus-geometry threading
+IS needed for the plan's §2.4 search baseline** -- saying so, as the brief asked, rather than
+threading it here.
+
+The interim row instead, labelled `interim-16M` and NOT comparable to a training-split number:
+
+* **131k**: the existing `sae/l42-1b/examples_docmax/2026-09-16_v1` covers **512 / 512** of
+  `_ctrl`'s sae feature ids (checked against its `tested.json`). $0, no run.
+* **2M**: nothing existed for the 512-feature set, so `examples_docmax` was run once --
+  18,813 docs, 512 features, 5177.6 s, **$6.5295**, against the $6.46 / 5,123 s of the 64-feature
+  run. The corpus forward dominates and 8x the features cost ~1%, as predicted.
+
+### Product paths, for the results run
+
+    <RL16> = maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    <OLD>  = maemms/qwen36-27b/2026-09-10_rl-8x2048-full
+    <NLA>  = maemms/qwen36-27b/2026-07-14_nla-av
+
+| arm | rollouts | scores | sae_self |
+|---|---|---|---|
+| rl-last16, all six sets | `<RL16>/rollouts/2026-09-21_v3_<blk>__vllm.jsonl` | `<RL16>/scores/2026-09-21_v3_<blk>__vllm/` | `_ctrl`, `_sae2m` only |
+| old primary, `mu-none` | `<OLD>/rollouts/2026-09-21_v3_<blk>__vllm__mu-none.jsonl` | `<OLD>/scores/2026-09-21_v3_<blk>__mu-none__vllm/` | `_ctrl`, `_sae2m` |
+| old primary, `mu-stats` | `…__mu-stats.jsonl`, `_realact` + `_ours` only | `…__mu-stats__vllm/` | — |
+| NLA, n = 4 | `<NLA>/rollouts/2026-09-21_v3_<blk>.jsonl` | `<NLA>/scores/2026-09-21_v3_<blk>/` | `_ctrl`, `_sae2m` |
+| search, interim-16M | — | `base/qwen36-27b/sae/l42-1b/examples_docmax/2026-09-16_v1/` (131k) and `base/qwen36-27b/sae/sae2m/examples_docmax/2026-09-21_v3_sae2m/` (2M) | — |
+
+`<blk>` is one of `realact ours realact_long subspace ctrl sae2m`. n = 64 everywhere but the NLA
+arm's 4. `sae_self` lives under each scores directory as `sae_self/sae_self.json`.
+
+### Three things the results run must not get wrong
+
+1. **`per_target.jsonl` has NO centred best-of-k.** It carries `mean_cos_centred`,
+   `max_cos_centred` and `n_centred` only -- there is no `bo_8_centred` / `bo_64_centred`, so the
+   centred bo-k columns of plan §2.3 have to come from `cos_centred.f16` directly
+   (`common.best_of_k_means` over the [N, n, T] max per rollout). The raw cosine has the full
+   `bo_1..bo_64` ladder.
+2. **`sae_self` measured only the ENCODER half of `_sae2m`.** `sae_rows_of(..., side="enc")` at
+   `sae_self.py:124` filters the 1,024 rows to the 512 `sae_side: enc` ones, so rows 512-1023 (the
+   decoder side) have COSINES from `score` but no activation metric. Plan §2.3 wants them
+   ("the activation of feature `f` is its encoder readout whichever direction was injected") and
+   the card's 0.416 dec gate needs them. NOT fixed here -- `side=` is a shared selector used by
+   `build`, `scan` and `repo_examples` too, and changing it late, against a schema the results run
+   is being written to, is a worse risk than naming it. Cost to close: one flag plus ~$0.4 x 3.
+3. **`realact_long`'s centred column is read at the wrong mean** (see above) and `_subspace` /
+   `_ctrl` / `_sae2m` have no centred column at all, by the NaN rule -- non-centrable families are
+   absent from the centred aggregates, never a one-sided number.
+
+### Deviations from the brief, and what pays for each
+
+1. **`rl-last16` ran on vLLM, not HF.** The brief called HF the proven path. At this scale it is
+   not affordable: the measured 27B HF rate is 5.33 rollouts/s (this file's engine-choice table),
+   so rl-last16's 294,912 rollouts would be ~15.4 h and **~$70** on HF against the **$16.25** the
+   six vLLM calls actually cost. vLLM is the same served-weights path the old primary's existing
+   v1 products came from, and the marker and injection checks ran on every call (`cos` 0.999991,
+   `norm_ratio` 0.999891 on A1). The brief's own "HF is fine if cheaper" clause, answered: it is
+   4x more expensive, so vLLM for both.
+2. **The old primary's second arm was NOT run on `_ctrl` and `_sae2m`.** The brief asked for two
+   arms there. It would be a bit-identical duplicate: both families of `_ctrl` are
+   `centrable: false`, `_sae2m` is `dirs_only`, and `dirs_for` subtracts a mean from centrable
+   rows only. VERIFIED on the real bytes, not argued -- `_ctrl`'s own `act.f32` and
+   `stats/mu.f32` off the volume, 1,024 rows, `--mu none` vs `--mu stats_mu`: **bit-identical,
+   max |d| exactly 0.0, 0 of 1024 rows centrable.** The §1.6 smoke saw the same thing in its
+   scores. Saved ~$8.2; the `mu-none` products ARE the `mu-stats` products for those rows.
+3. **`examples_docmax` is a step-4 cost, not a step-3 one.** The brief put the 16M corpus peaks
+   under step 3, from `examples_docmax`. `sae_self` does not read that product -- it takes
+   `corpus_peak` from `sae/<sae>/max_act.f16` (`sae_self.py:383`), which is full-dictionary
+   (2,097,152 entries for sae2m, confirmed in its `index.json`) and was already on the volume for
+   both dictionaries. So no docmax was needed for the ratios; it was run for the SEARCH row.
+
+### Sunk cost, ~$1.95, and the two failures behind it
+
+**~$1.45 -- three H200 containers killed by a local network drop, `--detach` notwithstanding.**
+A1/B1/C1 were launched with `modal run --detach` under `setsid`. A host network outage killed the
+local clients (`TimeoutError: [Errno 110] Connect call failed ('54.80.13.45', 443)`) and Modal then
+cancelled the in-flight inputs ~60 s later -- `Received a cancellation signal while processing
+input`, `Aborting 31460 requests`, engines torn down mid-generation. Both vLLM engines had just
+finished a 270-313 s init. **This is README.md:1004's warning reproduced with `--detach` ON: the
+flag keeps the APP alive, it does not keep the INPUT alive when the client process dies.**
+Nothing partial landed (temp-and-rename), no product directory was touched, and the three calls
+were relaunched cleanly.
+
+Fixed for the rest of the stage by moving the retry OUT of the modal client, into bash: the
+launcher re-runs a call that died on a client-side network error, up to 3 times, and STOPS loudly
+on anything else. Retrying is safe because `OutDir` refuses to overwrite an existing product
+without `--force`, so a retry after a run that actually finished fails on "already exists" (which
+the launcher detects and does not retry) rather than destroying it. The launcher was self-tested
+on a deliberate bad argument before use -- one attempt, loud stop, no container started -- which
+caught a real bug in its first version (variables did not survive into the `setsid` subshell).
+
+**~$0.50 -- one `sae_self` killed after its forward by the f16-vs-fp32 gate assert.** Its own
+section and commit; the fix is `check_csr_gate_floor` and the rerun cost $0.3776.
+
+### Local checks
+
+`uv run paper-evals/precompute/unit_smoke.py` -- **45/45** (43 at the start of this stage; +1 for
+the `ours` block, +1 for the CSR gate floor), and `nla-selftest` 5 -> 6. Mutation batteries run
+on every check added: 5/5 on `check_heldout_v3_ours_block`, 3/3 on `_selftest_amp_storage`,
+3/3 on `check_csr_gate_floor` -- the last including the original `> gate`, which reproduces the
+production failure on CPU.
