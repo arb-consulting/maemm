@@ -3711,6 +3711,42 @@ tmp/sae-smoke64/runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}/
 tmp/sae-smoke64/runs/e2-cache-{2m,131k}/
 ```
 
+### CORRECTION to 6190857's commit message: seven separating measurements, not one
+
+`6190857` says the 2M `DOCMAX` detection row "remains the only `separates` row in either block".
+**It is not.** That was true of the table as it stood at `--boot 2000` under an α/32 divisor;
+the same commit loosened BOTH — 20,000 resamples resolve p below the old floor, and the divisor
+became α/16 — and the regenerated table was not re-read. The 2M block has **17 separating rows
+carrying SEVEN distinct measurements**; the 131k still has **zero**.
+
+| view | arm | scorer | spread | widest cell CI | ρ | verdict |
+|---|---|---|---|---|---|---|
+| stratum | `DOCMAX` | detection | 0.2323 | 0.206 | 0.400 | separates |
+| stratum | `DOCMAX-draw2` | detection | 0.2219 | 0.177 | 0.400 | separates |
+| stratum | `DOCMAX-judge2` | detection | 0.2312 | 0.235 | 0.400 | separates, **CI-WIDE** |
+| peak | `DOCMAX` | detection | 0.2240 | 0.178 | 1.000 | separates |
+| peak | `DOCMAX-judge2` | detection | 0.2563 | 0.184 | 0.800 | separates |
+| peak | `M` (old primary) | detection | 0.1375 | 0.181 | 0.800 | separates, **CI-WIDE** |
+| peak | `M` (old primary) | fuzzing | 0.1167 | 0.161 | 1.000 | separates, **CI-WIDE** |
+
+This is better news than "one row" and it should be restated rather than quietly fixed: the
+top-stratum detection effect survives `DOCMAX-draw2` and `DOCMAX-judge2`, which are a second test
+draw and a second judge — the two robustness arms, and the two things that would have exposed it
+as a scoring artefact. But **seven is not seven independent confirmations**: the DOCMAX family
+shares its explanations and differs only in draw and judge, and the rarity and magnitude views are
+confounded (5 of the 8 top-rarity features are also top-peak). One effect, seen three ways, on two
+correlated axes.
+
+**Three of the seven fail the table's own CI rule** — the widest per-cell interval is at least as
+large as the spread, so the cells overlap and a corrected p does not rescue them (the permutation
+null asks whether the CUT is informative, not whether the cells are separately estimable). That
+rule lived only in the caption; it is now in the `verdict` column as `CI-WIDE`, because the two
+rows it disqualifies are `M` on the old primary — the ONLY MAEMM arm anywhere in either block to
+separate, and therefore the single most tempting number in the table to over-read. **Four
+measurements survive both bars, and all four are the DOCMAX family on detection.**
+
+---
+
 ### 2026-09-21 — EPO on the 2M SAE: the OOM is fixed, and the 16 directions are launched
 
 The OOM of the first shakeout was `gcg.py:1359` loading the whole dictionary on the device to

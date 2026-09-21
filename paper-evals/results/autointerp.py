@@ -1036,7 +1036,17 @@ def trend_table(res: dict, out: R.Out) -> None:
             if not math.isfinite(p):
                 verdict = "not estimable"
             elif p <= bonf:
-                verdict = f"separates (p ≤ α/{n_look})"
+                # THE CI RULE, IN THE VERDICT AND NOT ONLY IN THE CAPTION. A spread narrower than
+                # the widest per-cell interval is a spread between two estimates that overlap, and
+                # a p below the corrected alpha does not rescue it -- the permutation null asks
+                # whether the CUT is informative, not whether the cells are separately estimable.
+                # The caption has always said so; a reader who reads the verdict column and not the
+                # caption was getting the opposite impression, which is how the two `M` rows of the
+                # 2M peak view (spreads 0.1375 and 0.1167 against cell intervals 0.181 and 0.161)
+                # came to look like the one MAEMM arm that separated.
+                wide = (math.isfinite(t["widest_ci"]) and math.isfinite(t["spread"])
+                        and t["widest_ci"] >= t["spread"])
+                verdict = (f"separates (p ≤ α/{n_look}){', CI-WIDE' if wide else ''}")
             elif p <= ALPHA:
                 verdict = "uncorrected only"
             else:
@@ -1075,9 +1085,7 @@ def trend_table(res: dict, out: R.Out) -> None:
          f"(ρ near ±1) from *one cell differs* (a large spread at a middling ρ), which the spread "
          f"alone cannot tell apart.\n\n"
          f"`verdict` corrects for the multiplicity this table itself creates, over the DISTINCT "
-         f"measurements rather than the printed rows -- a corpus arm that three run directories "
-         f"replayed from one shared cache is one look, not three, and its rows are identical here "
-         f"to the last digit. `separates` means "
+         f"measurements rather than the printed rows. `separates` means "
          f"p ≤ α/(DISTINCT measurements in that view), α = {ALPHA:g} -- distinct, because a corpus "
          f"arm that several `--run` labels replayed from one shared cache is ONE look and its rows "
          f"here are identical to the last digit. It is still not a full account of the "
