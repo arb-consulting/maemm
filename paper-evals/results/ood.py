@@ -58,7 +58,11 @@ import typer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import precompute.common as PC  # noqa: E402
 import results.common as R  # noqa: E402
+
+# R7's regex classifier, the one definition shared by both layers (precompute/common.py:2883).
+code_like = PC.code_like
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -213,6 +217,32 @@ def load_ood_ids(vol: R.Vol, base: str, set_name: str) -> list[dict]:
 BO64 = {"asym": "bo_a_64", "centred": "bo_c_64", "raw": "bo_64"}
 
 
+ROLLOUTS_RE = re.compile(r"^- rollouts: (\S+)$", re.M)
+
+
+def rollouts_rel_of(vol: R.Vol, src: R.Source) -> str | None:
+    """The rollouts file this scores directory actually read, from its OWN README.
+
+    NOT reconstructed from the directory name. `--score-tag` makes the scores directory name
+    differ from the rollouts stem on purpose -- `…/scores/<set>__vllm__asym` scores
+    `…/rollouts/<set>__vllm.jsonl` -- and `parse_scores_dir` cannot tell a score tag from a run
+    tag, so rebuilding the stem sends the language-id half looking for a file that was never
+    written. It would then report "lid not run" and the R3 column would be empty on exactly the
+    sources that are tabulated.
+    """
+    p = vol.get(f"{src.scores_rel}/README.md")
+    if p is None:
+        return None
+    m = ROLLOUTS_RE.search(p.read_text())
+    if not m:
+        return None
+    rel = m.group(1)
+    for pre in ("/vol/", "vol/", "/"):
+        if rel.startswith(pre):
+            return rel[len(pre):]
+    return rel
+
+
 def has_asym(src: R.Source) -> bool:
     """Does this scores directory carry the asymmetric cosine at all?
 
@@ -348,12 +378,19 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
     NLLB labels that count as this arm's language, and `null` there says fastText is not
     meaningful for it -- the code and maths arms, which report the `code_like` regex rate instead.
     """
-    stem = f"{set_name}__{src.engine}" if src.engine != "hf" else set_name
-    if src.run_tag:
-        stem += f"__{src.run_tag}"
-    texts = mod.rollout_texts(vol, src.base, src.maemm, set_name, stem)
-    if not texts:
-        return {}, f"no rollout texts at maemms/{src.maemm}/rollouts/{stem}.jsonl: lid not run"
+    rel = rollouts_rel_of(vol, src)
+    if rel is None:
+        return {}, f"`{src.scores_rel}/README.md` does not name its rollouts file: lid not run"
+    # Read the path the README gave, directly. `stats_ood.rollout_texts` composes
+    # `maemms/{base}/{maemm}/...` from its own arguments, and `src.maemm` is the CONFIG KEY --
+    # `<base>/<name>` -- so handing it that doubles the base and the fetch silently returns
+    # nothing. One path, from the producer, is the whole point of reading the README.
+    rows = vol.jsonl(rel)
+    if not rows:
+        return {}, f"no rollout texts at {rel}: lid not run"
+    texts: dict[int, list[str]] = {}
+    for r in rows:
+        texts.setdefault(int(r["row"]), []).append(r.get("text", ""))
     model = mod.load_lid(lid_model)
     arms = cfg["ood_arms"]
     out: dict[str, dict] = {}
@@ -365,7 +402,7 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
     for arm, items in per_arm.items():
         want = items[0][1]
         if want is None:
-            rates = [1.0 if mod.code_like(t[0]) else 0.0 for t, _ in items]
+            rates = [1.0 if code_like(t[0]) else 0.0 for t, _ in items]
             out[arm] = {"lid_top1_rate": None, "lid_top4_rate": None,
                         "code_like_top1_rate": float(np.mean(rates))}
             continue
