@@ -456,6 +456,59 @@ def check_followup_arms(cfg, tmp: Path, base: str, set_name: str):
           f"{first['calls_this_call']}, crossfam arms {sorted(xarms)}, base summary untouched")
 
 
+def check_nla_body_tokens():
+    """Arm A must show the `<explanation>` BODY, with the activations kept ALIGNED to it.
+
+    Juan's review point: arm B stripped the verbalizer's tags and arm A did not, so the two NLA
+    arms read different text from one rollout and only B read the description. The risk in fixing
+    it is an ALIGNMENT one -- a body selected by character offsets and activations selected by
+    token index are two different things, and a mask that is off by one silently attributes the
+    wrong token's activation to the wrong word.
+
+    The mask is `rollouts_nla.explanation_token_mask`, the ONE slicer every judge-facing consumer
+    shares (Ari, bdb0705). This branch's own `nla_body_tokens` was dropped in the 2026-09-21
+    rebase: it returned a boolean rather than the three statuses, and on an UNCLOSED tag it fell
+    back to the whole decode -- handing the judge the opening tag and the preamble, which is the
+    defect the fix was for. The unclosed case below is what pins that difference.
+    """
+    import autointerp.build as B
+    from precompute.rollouts_nla import explanation_token_mask
+
+    class _Tok:
+        """One char per token id, so a character offset IS a token index and the mapping is
+        checkable by hand rather than by trusting the function under test."""
+        def decode(self, ids, **kw):
+            return "".join(chr(int(i)) for i in ids)
+
+    tok = _Tok()
+    text = "pre<explanation>BODY</explanation>post"
+    ids = [ord(c) for c in text]
+    acts = [float(i) for i in range(len(ids))]
+    mask, status = explanation_token_mask(B.token_pieces(tok, ids))
+    assert status == "closed", status
+    kept = [i for i, m in enumerate(mask) if m]
+    assert "".join(chr(ids[i]) for i in kept) == "BODY", "".join(chr(ids[i]) for i in kept)
+    # The activations must be the SAME NUMBERS the full rollout carried at those positions --
+    # selected in place, never recomputed and never re-indexed from zero.
+    lo = text.index("BODY")
+    assert [acts[i] for i in kept] == [float(lo + j) for j in range(4)], [acts[i] for i in kept]
+
+    # An UNCLOSED tag keeps everything AFTER the opening tag -- not the whole decode, which is
+    # what the dropped `nla_body_tokens` fallback did.
+    bad = "pre<explanation>never closed"
+    b_mask, b_status = explanation_token_mask(B.token_pieces(tok, [ord(c) for c in bad]))
+    assert b_status == "unclosed", b_status
+    assert "".join(c for c, m in zip(bad, b_mask) if m) == "never closed", \
+        "".join(c for c, m in zip(bad, b_mask) if m)
+
+    # NO tag at all keeps every token and says so, rather than dropping the feature and
+    # shrinking this arm relative to the others in a paired comparison.
+    none = "no tags here at all"
+    n_mask, n_status = explanation_token_mask(B.token_pieces(tok, [ord(c) for c in none]))
+    assert n_status == "none" and all(n_mask), (n_status, n_mask)
+    print("  nla body: tags stripped, activations aligned in place, unclosed/none stated")
+
+
 def check_relative_marking():
     """The generated-text fallback: marks when the gate marks nothing, never otherwise.
 
@@ -772,6 +825,7 @@ def main() -> int:
         check_gate(cfg, tmp, base, set_name)
         check_run_both_paths(cfg, tmp, base, set_name)
         check_followup_arms(cfg, tmp, base, set_name)
+        check_nla_body_tokens()
         check_relative_marking()
         check_nla_arms(cfg, tmp, base)
         check_scores_subset(tmp)

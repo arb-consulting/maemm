@@ -1715,6 +1715,46 @@ def check_sae_self_side_flag():
         "unit(W_enc[:, f]) and CHECK 1 would fire on the direction, not on the run")
 
 
+def check_nla_arm_a_reads_the_body():
+    """`build.run`'s rollout loop calls `explanation_token_mask` under `is_nla` -- the WIRING.
+
+    `autointerp/selfcheck.check_nla_body_tokens` pins what the mask returns, and a mutation that
+    deleted the call site entirely stayed GREEN against it: a covered function reached by nothing
+    is the same as no fix at all. That mutation was the fifth of this session to come back green
+    and the fifth to mean a mis-aimed test, so the call site gets its own check. `ast` rather than
+    a run, because the branch needs a real NLA build on the volume to execute.
+
+    The function named here is Ari's shared slicer (`precompute/rollouts_nla`), which the
+    2026-09-21 rebase kept over this branch's own `nla_body_tokens`; the check is on the WIRING,
+    so it stays valid whichever of the two reaches the call site -- rename it and it goes red.
+    """
+    import ast
+
+    src = (Path(__file__).resolve().parent.parent / "autointerp" / "build.py").read_text()
+    tree = ast.parse(src)
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "run")
+    guarded = False
+    for node in ast.walk(fn):
+        if not isinstance(node, ast.If):
+            continue
+        test = node.test
+        if not (isinstance(test, ast.Name) and test.id == "is_nla"):
+            continue
+        if any(isinstance(c, ast.Call)
+               and isinstance(c.func, ast.Name)
+               and c.func.id == "explanation_token_mask"
+               for c in ast.walk(node)):
+            guarded = True
+    assert guarded, (
+        "build.run has no `if is_nla:` branch calling `explanation_token_mask`. Arm A would then "
+        "show the explainer the FULL decode -- `<explanation>` tags and any preamble -- while arm "
+        "B shows the stripped body, which is the defect Juan's review found: two NLA arms reading "
+        "different text from one rollout, only one of them reading the description."
+    )
+    print("  build.run: arm A's rollout pool is sliced to the explanation body")
+
+
 def check_sae_column_slice_is_the_dictionary():
     """`load_sae_columns` gives `sae_encode`/`sae_dirs` exactly what the full load would.
 
@@ -2129,6 +2169,7 @@ CHECKS = [
     check_sae_self_side_flag,
     check_spawn_mirrors_main,
     check_autointerp_main_forwards_every_flag,
+    check_nla_arm_a_reads_the_body,
     check_sae_column_slice_is_the_dictionary,
     check_gcg_never_loads_the_full_dictionary,
     check_return_arities,

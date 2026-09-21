@@ -1497,6 +1497,8 @@ def run(cfg, args):
                 "n_dup_rollouts_total": sum(f.get("n_dup_rollouts", 0) for f in feat_table),
                 "n_shown_exceeding_corpus_peak": n_exceed_peak,
                 "rollout_mark": rollout_mark,
+                # Arm A rollouts whose `<explanation>` never closed, so the full decode was shown.
+                "n_nla_body_missing": n_nla_body_missing,
                 # Per arm: how many blocks each marking rule produced, and how many reached the
                 # explainer with NOTHING marked. The last number is the one to read against a
                 # gate-marked build of the same features.
