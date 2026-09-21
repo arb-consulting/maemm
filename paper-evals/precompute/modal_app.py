@@ -369,6 +369,12 @@ def main(
     batch: int = 0,
     allow_short: bool = False,
     n: int = 0,
+    # draw_sae2m: force n/4 features from each quartile of the eligible pool instead of drawing
+    # uniformly and labelling the quartiles afterwards, and (--seed) override its DRAW_SEED. A
+    # stratified set is a SMOKE set -- its "all" mean is over four equal quartiles, not over the
+    # dictionary -- so it always gets a set name of its own.
+    stratified: bool = False,
+    seed: int = 0,
     rows: str = "",
     max_new: int = 0,
     gen_rows: int = 0,
@@ -478,6 +484,8 @@ def main(
         "batch": batch,
         "allow_short": allow_short,
         "n": n,
+        "stratified": stratified,
+        "seed": seed,
         "rows": rows,
         "max_new": max_new,
         "gen_rows": gen_rows,
@@ -540,6 +548,13 @@ def main(
             f"means nothing to product {product!r}"
         )
         assert amp in C.AMP_MODES, f"--amp must be one of {list(C.AMP_MODES)}, got {amp!r}"
+    # Same reason as --amp: a draw flag handed to a product that ignores it would run the wrong
+    # draw silently, and --dry-run is where that should cost nothing.
+    if stratified or seed:
+        assert product == "draw_sae2m", (
+            f"--stratified/--seed are `draw_sae2m` flags (how the target set is sampled) and mean "
+            f"nothing to product {product!r}"
+        )
     # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
     # MAEMM_PRODUCTS call that must be allowed without --maemm.
     if product in MAEMM_PRODUCTS and not (product == "score" and rollouts_dir):

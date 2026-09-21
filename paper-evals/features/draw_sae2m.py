@@ -3,6 +3,10 @@
     python -m features.spawn --product draw_sae2m --base qwen36-27b \
         --sae qwen36-27b/sae2m --gpu cpu
 
+    python -m features.spawn --product draw_sae2m --base qwen36-27b \
+        --sae qwen36-27b/sae2m --set 2026-09-21_sae2m_64 --n 64 --stratified \
+        --root /vol/tmp/sae-smoke64 --gpu cpu
+
 Writes the shape the rest of the pipeline already reads:
 
     <root>/base/<base>/heldout/<set>/
@@ -24,6 +28,27 @@ chosen on `fit` without touching the numbers reported from `report`.
 Stratification is RECORDED, not sampled: the draw is uniform over eligible features and
 each row carries its fire-count quartile. A stratified draw would force equal quartiles
 and make the overall mean unrepresentative of the dictionary.
+
+`--stratified` (with `--n`) asks for exactly that forced draw, and is for a SMOKE, not for
+a reported mean. `--n 64 --stratified` takes 16 features from each quartile of the eligible
+pool, because a uniform 64 lands almost entirely in the middle of the density distribution
+and a smoke that never touches the rare tail cannot see the effect the tail has. Two things
+follow and are recorded rather than assumed away:
+
+* the cuts are the quartiles of the ELIGIBLE POOL, not of the drawn set. With n/4 drawn per
+  stratum the drawn set's own quartiles ARE the stratum boundaries, so cutting on them would
+  define the strata by the answer. `meta["cuts_over"]` says which was used.
+* any mean over a stratified draw is a mean over a REWEIGHTED dictionary. Per-stratum rows
+  are the honest read; the "all" row is a mean over four equal quartiles, not over the SAE.
+
+READING THE STATS. `precompute/stats.py` writes `sizes.json` (sizes, learned gate, d_sae)
+beside `fire_counts.i64` / `max_act.f16` / `mean_when_active.f16`. The 2M SAE's stats
+directory on the volume does NOT have it -- it carries only the OutDir sidecar `index.json`,
+whose `fire_counts.i64` entry records the [F, n_sizes, 2] shape. Both layouts are read for a
+stratified draw and the shape comes from whichever file is there; it is never assumed,
+because `fire_counts.i64` is a headerless buffer and a wrong F reshapes it into a different,
+equally plausible-looking table instead of failing. The UNIFORM draw still keys on
+`sizes.json` alone, deliberately -- see `_read_sae_stats`.
 
 FAMILY LABEL (fixed 2026-09-21). These rows are stamped `family: "sae"`, the label every
 downstream product filters on, with the dictionary named separately per row in `sae_key`.
@@ -60,29 +85,118 @@ def _eval_split_ids(cfg, args) -> np.ndarray:
     return np.sort(ids)
 
 
-def _bundle_corpus_peaks(args, eval_ids):
+def _bundle_corpus_peaks(args, eval_ids, required: bool = True):
     """Corpus peak per eval feature from Celeste's 1.0B scan, aligned to `eval_ids`.
 
     The rank-0 window activation IS the shipped corpus_peak -- verified exactly on all
     512 standard-eval features (max abs diff 0.000000).
+
+    `required=False` returns None instead of raising when the bundle's 100k-window parquet is
+    not under `--root`. A stratified draw cuts on OUR 16M fire counts and carries the 1.0B peak
+    as a column only, so it must not die for want of a table it measures nothing with; the
+    uniform draw takes its eligibility AND its strata from that table and cannot proceed
+    without it.
     """
     import pandas as pd
 
     path = args.get("maxact_windows") or (
         f"{args['root']}/data/celeste-v2-2026-09-17/heldout/"
         f"eval_2m_features_100k_windows.parquet")
+    if not required and not os.path.exists(path):
+        print(f"[draw] no 1.0B window table at {path}; rows carry corpus_peak_1b: null",
+              flush=True)
+        return None
     win = pd.read_parquet(path, columns=["feature_id", "rank", "act"])
     top = win[win["rank"] == 0].set_index("feature_id")["act"]
     return top.reindex(eval_ids).to_numpy(dtype=np.float32)
 
 
+def _read_sae_stats(sae_stats: str, index_fallback: bool):
+    """(gated fires at the LARGEST corpus size [F], max activation [F]), or (None, None).
+
+    `fires[:, -1, 1]` is the gated count at the last of `corpus.sizes` -- 16M -- which is the
+    axis config.yaml's `sae_strata` names. The last axis of `fire_counts.i64` is (raw, gated).
+
+    Two layouts carry the same arrays. `precompute/stats.py` writes `sizes.json` (sizes,
+    threshold, d_sae); the 2M SAE's stats pass shipped only the OutDir sidecar `index.json`,
+    which records every array's dtype and shape. `index_fallback` turns the second one on.
+
+    It is OFF for the uniform draw ON PURPOSE. That draw's rule is frozen -- the sets already on
+    the volume were written under "sizes.json, else the bundle's 1.0B peaks" -- and reading the
+    2M SAE's index.json for it would silently move both its eligibility rule (fires >= MIN_FIRES
+    instead of peak > 0) and its strata axis (16M density instead of 1.0B peak) without a flag
+    saying so. A stratified draw has no such history and needs the fire counts by definition,
+    so it reads either layout.
+    """
+    sizes_path, index_path = f"{sae_stats}/sizes.json", f"{sae_stats}/index.json"
+    if os.path.exists(sizes_path):
+        with open(sizes_path) as fh:
+            sizes_meta = json.load(fh)
+        assert sizes_meta["threshold"] > 0, "stats recorded no gate"
+        shape = (int(sizes_meta["d_sae"]), len(sizes_meta["sizes"]), 2)
+    elif index_fallback and os.path.exists(index_path):
+        with open(index_path) as fh:
+            index = json.load(fh)
+        assert "fire_counts.i64" in index, (
+            f"{index_path} names no fire_counts.i64, so the shape of "
+            f"{sae_stats}/fire_counts.i64 is unknown -- it is a headerless buffer and there is "
+            f"nothing else to recover F and n_sizes from")
+        shape = tuple(int(x) for x in index["fire_counts.i64"]["shape"])
+        assert len(shape) == 3 and shape[2] == 2, (
+            f"{index_path} says fire_counts.i64 is {list(shape)}; expected [F, n_sizes, 2]")
+    else:
+        return None, None
+    fires = C.read_array(f"{sae_stats}/fire_counts.i64", "int64", shape)
+    max_act = C.read_array(f"{sae_stats}/max_act.f16", "float16",
+                           (shape[0],)).astype(np.float32)
+    return fires[:, -1, 1], max_act
+
+
+def _stratified_draw(eligible, rank_stat, n, rng):
+    """(drawn, stratum, cuts, pool sizes): n / N_STRATA features from EACH quartile of the pool.
+
+    The quartiles are of `log10(rank_stat)` over the whole ELIGIBLE POOL, so the cuts describe
+    the dictionary and not the sample. `searchsorted(..., side="right")` puts a value sitting
+    exactly on a cut in the upper stratum; that is not cosmetic here, because fire counts are
+    integers and their log10 ties heavily, so a cut frequently IS an attained value.
+
+    Both returned arrays are sorted by feature id, so `ids.jsonl` stays in id order as it is for
+    a uniform draw and `stratum` still lines up row for row.
+    """
+    assert n % N_STRATA == 0, (
+        f"--stratified draws n/{N_STRATA} per stratum, so --n {n} must be divisible by "
+        f"{N_STRATA}")
+    per = n // N_STRATA
+    dens = np.log10(rank_stat)
+    assert np.isfinite(dens).all(), (
+        f"log10 of the stratum statistic is not finite on every eligible feature -- eligibility "
+        f"is fires >= {MIN_FIRES}, so this means the eligibility filter did not run")
+    cuts = np.quantile(dens, [0.25, 0.5, 0.75])
+    pool_stratum = np.searchsorted(cuts, dens, side="right")
+    picks, strata, pool_n = [], [], []
+    for s in range(N_STRATA):
+        cand = eligible[pool_stratum == s]
+        pool_n.append(int(len(cand)))
+        assert len(cand) >= per, (
+            f"stratum {s} of the eligible pool holds {len(cand)} features but the draw needs "
+            f"{per}: the quartile cuts {[float(c) for c in cuts]} collapsed onto each other, "
+            f"which is what happens when one fire count is attained by more than a quarter of "
+            f"the pool")
+        picks.append(rng.choice(cand, size=per, replace=False))
+        strata.append(np.full(per, s, dtype=int))
+    drawn = np.concatenate(picks)
+    stratum = np.concatenate(strata)
+    order = np.argsort(drawn)
+    return drawn[order], stratum[order], cuts, pool_n
+
+
 def _include_ids(args) -> np.ndarray:
     """`--include <file>`: feature ids that MUST be in the draw, whatever the sample picks.
 
-    The eval plan needs her standard-eval 512 inside our stratified draw so the two blocks are
-    nested rather than merely comparable; `--stratified`/`--seed` cannot express that, and
-    `:93`'s max-abs-diff check against her 512 is a verification, not an inclusion mechanism.
-    Accepts a .parquet with a `feature_id` column, a .npy, or one id per line.
+    The eval plan needs her standard-eval 512 inside our draw so the two blocks are NESTED rather
+    than merely comparable, and `--stratified`/`--seed` cannot express that: they choose how the
+    sample is spread, not what it must contain. Accepts a .parquet with a `feature_id` column, a
+    .npy, or one id per line.
     """
     path = (args.get("include") or "").strip()
     if not path:
@@ -117,10 +231,13 @@ def build(cfg, args):
         "fall back to today's date, and through modal_app to the LIVE default set."
     )
     out_dir = C.heldout_dir(base, set_name, root)
-    # Fail before the SAE load, as every other product does; C.outdir enforces the same rule again
-    # at write time (temp-and-rename, no half-written set).
     assert args.get("force") or not os.path.exists(out_dir), (
         f"{out_dir} already exists; refusing to overwrite without --force")
+
+    n = int(args.get("n") or N_FEATURES)
+    stratified = bool(args.get("stratified"))
+    seed = int(args.get("seed") or DRAW_SEED)
+    assert n > 0, f"--n must be positive, got {n}"
 
     # Eligibility and strata come from our own corpus scan when it exists, and from
     # Celeste's 1.0B-token scan when it does not. The fallback is not a degraded mode:
@@ -130,20 +247,20 @@ def build(cfg, args):
     # is already known to fire, and the >= MIN_FIRES gate is satisfied before we compute
     # anything. Fire counts on OUR corpus are a better stratification axis and get
     # joined in as a column when the stats pass lands -- they are not a prerequisite.
+    # NOTE `--root` moves the INPUTS too, not only the output: the stats are read from
+    # <root>/base/<base>/sae/<sae>/ and the bundle from <root>/data/celeste-v2-2026-09-17/,
+    # because C.sae_dir and the bundle paths below are all root-relative. A draw under a smoke
+    # root needs those files copied under it.
     sae_stats = C.sae_dir(sae_key, root)
-    have_stats = os.path.exists(f"{sae_stats}/sizes.json")
+    gated_full, max_act = _read_sae_stats(sae_stats, index_fallback=stratified)
+    have_stats = gated_full is not None
     if have_stats:
-        with open(f"{sae_stats}/sizes.json") as fh:
-            sizes_meta = json.load(fh)
-        n_sizes, f_sae = len(sizes_meta["sizes"]), sizes_meta["d_sae"]
-        fires = C.read_array(f"{sae_stats}/fire_counts.i64", "int64", (f_sae, n_sizes, 2))
-        gated_full = fires[:, -1, 1]
-        max_act = C.read_array(f"{sae_stats}/max_act.f16", "float16",
-                               (f_sae,)).astype(np.float32)
-        assert sizes_meta["threshold"] > 0, "stats recorded no gate"
         strat_name, strat_source = "log10_gated_fires_16M", "our 16M corpus scan"
     else:
-        gated_full, max_act = None, None
+        assert not stratified, (
+            f"--stratified cuts on gated fires at 16M and {sae_stats} carries neither "
+            f"sizes.json nor an index.json naming fire_counts.i64, so there is nothing to "
+            f"stratify on. Under --root {root!r} the stats are read from that path")
         strat_name, strat_source = "log10_corpus_peak_1B", "Celeste's 1.0B-token scan"
         print("[draw] no stats pass for this SAE yet; using the bundle's corpus peaks "
               "for eligibility and strata", flush=True)
@@ -156,25 +273,27 @@ def build(cfg, args):
     if subset:
         import pandas as pd
 
+        assert not stratified and not args.get("n"), (
+            "--subset takes its draw AS GIVEN -- that is the whole point of a shared subset -- "
+            "so --n and --stratified have nothing to act on here")
         sub = pd.read_parquet(subset)
         drawn = sub["feature_id"].to_numpy()
         assert np.isin(drawn, eval_ids).all(), (
             "a subset feature is not on the eval side -- it would not be held out")
         side = sub["split"].to_numpy().astype(str)
         stratum = sub["stratum"].to_numpy().astype(int)
-        peak_by_id = dict(
-            zip(sub["feature_id"].tolist(), sub["corpus_peak_1b"].tolist(), strict=True)
-        )
+        peak_by_id = dict(zip(sub["feature_id"].tolist(), sub["corpus_peak_1b"].tolist(),
+                              strict=True))
         strat_name, strat_source = "log10_corpus_peak_1B", f"subset {subset}"
         have_stats = False
         gated_full = None
         meta_extra = {"subset": subset, "eligible": int(len(sub))}
         cuts = []
         return _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
-                       peak_by_id, strat_name, strat_source, have_stats, gated_full,
+                       peak_by_id, strat_name, strat_source, have_stats, gated_full, None,
                        cuts, meta_extra)
 
-    peaks_1b = _bundle_corpus_peaks(args, eval_ids)
+    peaks_1b = _bundle_corpus_peaks(args, eval_ids, required=not stratified)
     if have_stats:
         eligible = eval_ids[(gated_full[eval_ids] >= MIN_FIRES) & (max_act[eval_ids] > 0)]
         rank_stat = gated_full[eligible].astype(np.float64)
@@ -184,55 +303,79 @@ def build(cfg, args):
         rank_stat = peaks_1b[keep].astype(np.float64)
     print(f"[draw] eval split {len(eval_ids):,} -> {len(eligible):,} eligible, "
           f"strata from {strat_source}", flush=True)
-    assert len(eligible) >= int(args.get("n") or N_FEATURES), (
-        f"only {len(eligible)} eligible features, need {int(args.get('n') or N_FEATURES)}")
+    assert len(eligible) >= n, f"only {len(eligible)} eligible features, need {n}"
 
-    rng = np.random.default_rng(int(args.get("seed") or DRAW_SEED))
-    n_draw = int(args.get("n") or N_FEATURES)
+    rng = np.random.default_rng(seed)
     forced = _include_ids(args)
     if forced.size:
-        # The forced ids are taken as given and the SAMPLE fills the rest, drawn from the eligible
-        # pool with the forced ones removed so nothing is drawn twice. They must still be on the
-        # eval side, or the held-out claim dies for those rows.
+        # Taken as given; the SAMPLE fills the rest from the eligible pool with them removed, so
+        # nothing is drawn twice. They must still be on the eval side or the held-out claim dies
+        # for those rows, and they must be ELIGIBLE or the shortfall is recorded rather than
+        # silently accepted.
         assert np.isin(forced, eval_ids).all(), (
-            f"{int((~np.isin(forced, eval_ids)).sum())} of the {forced.size} --include features are "
-            f"not on Celeste's eval split, so they were TRAINED on and cannot be held out"
+            f"{int((~np.isin(forced, eval_ids)).sum())} of the {forced.size} --include features "
+            f"are not on Celeste's eval split, so they were TRAINED on and cannot be held out"
         )
         missing = forced[~np.isin(forced, eligible)]
         assert args.get("allow_short") or not missing.size, (
             f"{missing.size} of the {forced.size} --include features do not pass the eligibility "
-            f"rule (>= {MIN_FIRES} gated fires); pass --allow-short to include them anyway and "
-            f"have the shortfall recorded"
+            f"rule; pass --allow-short to include them anyway and have it recorded"
         )
-        rest = eligible[~np.isin(eligible, forced)]
-        assert rest.size >= n_draw - forced.size, (
-            f"only {rest.size} eligible features outside the {forced.size} forced ones, need "
-            f"{n_draw - forced.size} more to reach n={n_draw}"
-        )
-        drawn = np.sort(np.concatenate([forced, rng.choice(rest, n_draw - forced.size, replace=False)]))
-        print(f"[draw] --include forced {forced.size} features; {n_draw - forced.size} sampled", flush=True)
+        assert n >= forced.size, f"--include lists {forced.size} features but --n is {n}"
+        # Their stratification statistic has to be captured BEFORE they leave the pool, or the
+        # stratum column below is computed from a table they are no longer in.
+        stat_of = dict(zip(eligible.tolist(), rank_stat.tolist(), strict=True))
+        forced_stat = np.array([stat_of[int(f)] for f in forced], dtype=np.float64)
+        eligible_mask = ~np.isin(eligible, forced)
+        eligible, rank_stat = eligible[eligible_mask], rank_stat[eligible_mask]
+        n = n - forced.size
+        print(f"[draw] --include forces {forced.size}; {n} sampled from the rest", flush=True)
+    if stratified:
+        drawn, stratum, cuts, pool_n = _stratified_draw(eligible, rank_stat, n, rng)
+        if forced.size:
+            # The forced ids get their stratum from the SAME cuts, so the column means one thing
+            # across the whole set. `_stratified_draw` returned the cuts it used.
+            f_stat = np.log10(np.maximum(forced_stat, 1e-6))
+            drawn = np.concatenate([drawn, forced])
+            stratum = np.concatenate([stratum, np.searchsorted(cuts, f_stat, side="right")])
+            order = np.argsort(drawn)
+            drawn, stratum = drawn[order], stratum[order]
+        meta_extra = {"eligible": int(len(eligible)), "cuts_over": "eligible_pool",
+                      "per_stratum": n // N_STRATA, "eligible_per_stratum": pool_n}
     else:
-        drawn = np.sort(rng.choice(eligible, size=n_draw, replace=False))
+        drawn = np.sort(np.concatenate([forced, rng.choice(eligible, size=n, replace=False)]))
+
+        # Quartile of the stratification statistic, over the DRAWN set.
+        by_id = dict(zip(eligible.tolist(), rank_stat.tolist(), strict=True))
+        dens = np.log10(np.maximum(np.array([by_id[int(f)] for f in drawn]), 1e-6))
+        cuts = np.quantile(dens, [0.25, 0.5, 0.75])
+        stratum = np.searchsorted(cuts, dens, side="right")
+        meta_extra = {"eligible": int(len(eligible)), "cuts_over": "drawn_set"}
     assert np.isin(drawn, eval_ids).all(), "a drawn feature is not on the eval side"
 
-    # Quartile of the stratification statistic, over the DRAWN set.
-    by_id = dict(zip(eligible.tolist(), rank_stat.tolist(), strict=True))
-    dens = np.log10(np.maximum(np.array([by_id[int(f)] for f in drawn]), 1e-6))
-    cuts = np.quantile(dens, [0.25, 0.5, 0.75])
-    stratum = np.searchsorted(cuts, dens, side="right")
+    side = np.where(rng.random(n) < FIT_FRACTION, "fit", "report")
 
-    side = np.where(rng.random(len(drawn)) < FIT_FRACTION, "fit", "report")
-
-    peak_by_id = dict(zip(eval_ids.tolist(), peaks_1b.tolist(), strict=True))
+    # The 16M peak is a column of a STRATIFIED draw only. The uniform draw's row schema is
+    # frozen -- the 2k set on the volume and every consumer of it were written against it -- so
+    # it gains no field, even on a root where max_act.f16 was just read for eligibility.
+    peak16 = max_act if stratified else None
+    peak_by_id = (None if peaks_1b is None
+                  else dict(zip(eval_ids.tolist(), peaks_1b.tolist(), strict=True)))
     return _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
-                   peak_by_id, strat_name, strat_source, have_stats, gated_full,
-                   cuts, {"eligible": int(len(eligible))})
+                   peak_by_id, strat_name, strat_source, have_stats, gated_full, peak16,
+                   cuts, {**meta_extra, "n": int(len(drawn)), "seed": seed,
+                          "stratified": stratified})
 
 
 def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
-            peak_by_id, strat_name, strat_source, have_stats, gated_full, cuts,
+            peak_by_id, strat_name, strat_source, have_stats, gated_full, peak16, cuts,
             meta_extra):
-    """Encoder columns for `drawn`, plus the rows the pipeline reads."""
+    """Encoder columns for `drawn`, plus the rows the pipeline reads.
+
+    `peak_by_id` None means no 1.0B window table was read (the column is written as null rather
+    than as a 0, which would read as "never fires"); `peak16` None means the row schema does not
+    carry the 16M corpus peak, which is the uniform draw's frozen shape.
+    """
     import torch
 
     sae = C.load_sae(C.sae_path(cfg, sae_key), spec["d"], device="cpu",
@@ -243,7 +386,7 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
 
     rows = []
     for i, fid in enumerate(drawn):
-        rows.append({
+        row = {
             "row": i,
             # `sae`, NOT `sae2m_enc` (fixed 2026-09-21). The family label is a SELECTOR, not a
             # description: precompute/scan.py, top1_act.py, repo_examples.py, gcg/gcg.py,
@@ -264,8 +407,15 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
             "heldout_kind": "feature_id",
             "stratum_stat": strat_name,
             "gated_fires": int(gated_full[fid]) if have_stats else None,
-            "corpus_peak_1b": float(peak_by_id.get(int(fid), float("nan"))),
-        })
+            "corpus_peak_1b": (None if peak_by_id is None
+                               else float(peak_by_id.get(int(fid), float("nan")))),
+        }
+        if peak16 is not None:
+            # The 16M corpus peak, which is the denominator every ratio in the activation
+            # smokes is taken against (`sae/<sae>/max_act.f16`). `corpus_peak_1b` above is a
+            # DIFFERENT quantity on a different corpus and the two are never interchangeable.
+            row["corpus_peak_16m"] = round(float(peak16[fid]), 4)
+        rows.append(row)
     meta = {
         # The dictionary these feature ids index. It is on every ROW too (`sae_key`), because a
         # row can outlive the directory it was written in; here so a reader of the README and of
@@ -284,19 +434,14 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
 
 def run(cfg, args):
     set_name, out_dir, rows, vecs, meta = build(cfg, args)
-    inputs = {
-        "sae": meta["sae_key"],
-        "subset": args.get("subset") or "(drawn)",
-        "include": args.get("include") or "(none)",
-        "n": len(rows),
-    }
+    inputs = {"sae": args.get("sae"), "subset": args.get("subset") or "(drawn)"}
     with C.outdir(out_dir, args, inputs=inputs) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
         # THE STORAGE CONTRACT (H4). Without it `common.set_storage` refuses the set outright and
         # somebody has to hand-write a `heldout:` entry -- which is exactly why 2026-09-20_sae2m_2k
-        # needed one. `dirs_only`: these rows are unit encoder columns, they were never centred and
-        # there is nothing to centre them on, so no `--mu` applies to them at all.
+        # needed one. `dirs_only`: these rows are unit encoder columns, never centred and not
+        # centrable, so no `--mu` applies to them at all.
         od.write_json(
             "storage.json",
             {
@@ -321,6 +466,18 @@ def run(cfg, args):
             f"rewritten; autointerp still accepts that label for them."
         )
         od.note(f"strata: {meta['stratum_stat']} from {meta['stratum_source']}")
+        if meta.get("stratified"):
+            od.note(
+                f"STRATIFIED draw, seed {meta['seed']}: {meta['per_stratum']} features from each "
+                f"of the {N_STRATA} quartiles of the ELIGIBLE POOL ({meta['eligible']:,} "
+                f"features), cuts on {meta['stratum_stat']} at "
+                f"{[round(c, 4) for c in meta['cuts']]}, pool sizes "
+                f"{meta['eligible_per_stratum']}. The cuts are the POOL's quartiles, not the "
+                f"drawn set's: at an equal count per stratum the drawn set's quartiles are the "
+                f"stratum boundaries by construction. Any mean over these rows is a mean over "
+                f"four equally-weighted quartiles, NOT over the dictionary -- report per "
+                f"stratum."
+            )
         od.note(f"{meta['n_fit']} train/fit, {meta['n_report']} test/report -- BOTH "
                 f"halves are unseen by the MAEMM; this splits our analysis, not the "
                 f"model's training")

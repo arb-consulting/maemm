@@ -45,6 +45,11 @@ DEFAULTS = {
     "corpus": "",
     "mu": "", "re_derive": "",
     "feature_split": "", "maxact_windows": "", "include": "",
+    # draw_sae2m: n/4 per quartile of the eligible pool rather than a uniform draw, and the
+    # draw's seed (0 = the module's DRAW_SEED). This path BYPASSES modal_app.main, so the
+    # "--stratified belongs to draw_sae2m" assert there does not run -- naming the wrong product
+    # here simply hands a product a key it ignores.
+    "stratified": False, "seed": 0,
     "dry_run": False,
 }
 # Handled by spawn itself rather than passed through: --set is folded into --heldout here the way

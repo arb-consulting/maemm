@@ -425,6 +425,33 @@ heldout:
     sae_min_fires: 20
     sae_strata: 4
 
+  # The 2M side of the activation smoke (reconstruction/sae_smoke64.py): 64 features, 16 from
+  # each quartile of log10(gated fires at 16M) over the ELIGIBLE POOL (fires >= sae_min_fires and
+  # max_act > 0), drawn by `features/draw_sae2m.py --n 64 --stratified` at seed 20260920 (its
+  # DRAW_SEED; `--seed` overrides). The cuts and the per-quartile pool sizes are in the set's own
+  # README on the volume.
+  #
+  # STRATIFIED, so a mean over all 64 rows is a mean over four equally-weighted quartiles and NOT
+  # over the dictionary -- the smoke reports per stratum and the "all" row is a convenience. The
+  # standard 2k/40k draws stay uniform-with-recorded-quartiles for exactly this reason.
+  #
+  # `imported: true` for the same reason as the 2k set above: it is declared here only so
+  # `--set 2026-09-21_sae2m_64` gets past modal_app.main's "set_name in cfg['heldout']" assert,
+  # and `common.default_heldout` must keep returning `2026-09-16_v1`, the set the paper's tables
+  # are built on. The family is `sae` (not `sae2m_enc`): this set is drawn AFTER the 2026-09-21
+  # fix, so it carries the label every consumer filters on, with the dictionary in each row's
+  # `sae_key`.
+  2026-09-21_sae2m_64:
+    imported: true
+    # The storage contract, added when this entry met the 2026-09-21 schema (it was drawn on
+    # `evals/sae-smoke64`, before it existed). Its rows DO carry a per-row `sae_key`, so the
+    # declaration below is belt and braces rather than the thing that makes them selectable.
+    storage: dirs_only
+    mu_stored: null
+    sae_key: qwen36-27b/sae2m
+    families:
+      sae: {n: 64, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
+
 corpus:
   dataset: openbmb/Ultra-FineWeb
   # PINNED (D9, 2026-09-21). Streaming at `main` was the one violation of this branch's own
