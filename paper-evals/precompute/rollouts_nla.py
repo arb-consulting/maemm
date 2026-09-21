@@ -48,6 +48,13 @@ the uncentred `X[p]`. Adding `mu` back tilts the direction, and HOW FAR it tilts
 size of the `u` component relative to `||mu||` = 67.93 on this base. So the amplitude is not a
 no-op after all: it is the mixing ratio. `--amp` names the convention:
 
+**Since 2026-09-21 this is contract-dependent, and `mu`/`exact` are REFUSED on a raw set**
+(`check_amp_storage`). The sentence above describes a `storage: unit` set, where the stored row is
+`unit(X[p] - mu)`. On a `storage: raw` set -- every `2026-09-21_v3_*` block with an act.f32 --
+`dirs_for` returns `unit(X[p])` at the NLA's `mu: null`, so the direction is ALREADY the one the
+verbalizer was trained on and there is nothing to add back. There `raw` is not a compromise, it
+is the right answer, and its amplitude is a true no-op (the hook normalises `v`).
+
     raw     x = r*u          THE DEFAULT (Tomas, 2026-09-21). The direction the SCORER's target
                              is, fed as is; no mu anywhere. It is also what every MAEMM arm is
                              injected with, so the NLA column is read against them on the same
@@ -234,6 +241,36 @@ def extract_explanation(text: str) -> str | None:
     """
     m = EXPLANATION_RE.search(text)
     return m.group(1).strip() if m else None
+
+
+def check_amp_storage(amp: str, storage: str) -> None:
+    """`--amp mu` and `--amp exact` are the UN-CENTRING variants: they are wrong on a raw set.
+
+    Both build `x = mu + c*u`, which is only "the uncentred activation" when `u` is a CENTRED
+    direction -- `unit(act - mu)`, which is what every set drawn before 2026-09-21 stored. On a
+    `storage: raw` set `common.dirs_for` returns `u = unit(act)` at the NLA's `mu: null`, already
+    uncentred, so adding `mu` a second time tilts the direction away from the activation instead
+    of recovering it. Nothing downstream can see that: `x` still has a plausible norm and the
+    hook still normalises it, so the run produces ordinary-looking rollouts of the WRONG vector.
+
+    `raw` is correct under both contracts and is the default, so this refuses rather than
+    silently picking: on a raw set the direction IS the activation's and no reconstruction is
+    called for; on a centred set `mu`/`exact` remain the way to undo the centring.
+
+    (`raw`'s AMPLITUDE is not a correctness question on either contract: the hook is
+    `h_p + ||h_p|| * v/||v||`, so it normalises `v` and the scale never reaches the model.
+    MEASURED 2026-09-21 on the 512 `2026-09-21_v3_realact` rows: scaling by each row's own
+    `act_norm` instead of the corpus median `r` moves what the hook feeds the model by
+    max 1.2e-07 -- one float32 ulp -- at min cos 0.99999982. So the two are the same run.)
+    """
+    if amp in ("mu", "exact") and storage == "raw":
+        raise AssertionError(
+            f"--amp {amp!r} on a `storage: raw` set: both reconstruct an uncentred activation as "
+            f"`mu + c*u` from a CENTRED direction, but a raw set's rows already are "
+            f"`unit(act)` (common.dirs_for at the NLA's `mu: null`), so this would add `mu` to an "
+            f"already-uncentred direction and tilt it. Use `--amp raw`, which is the default and "
+            f"is correct here; `mu`/`exact` are for a `storage: unit` set that carries a mean."
+        )
 
 
 def build_inputs(u: np.ndarray, rows_meta: list[dict], mu: np.ndarray | None, amp: str, r: float):
@@ -724,6 +761,8 @@ def run(cfg, args):
         f"{path} already exists; refusing to overwrite without --force"
     )
 
+    check_amp_storage(amp, C.set_storage(cfg, C.heldout_dir(base, set_name, root), root)["storage"])
+
     cen_notes: list[str] = []
     rows_meta, dirs, dirs_src = rollouts_hf.load_dirs(cfg, args, device="cpu", notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
@@ -1051,6 +1090,20 @@ class _StubTok:
         return "".join(chr(i) for i in ids if not (skip_special_tokens and i in (0, 3)))
 
 
+def _selftest_amp_storage():
+    """`mu`/`exact` are refused on a raw set and allowed on a centred one; `raw` always passes."""
+    for amp in ("mu", "exact"):
+        try:
+            check_amp_storage(amp, "raw")
+        except AssertionError as e:
+            assert "already-uncentred" in str(e), f"wrong refusal text for {amp}: {e}"
+        else:
+            raise AssertionError(f"--amp {amp} was accepted on a `storage: raw` set")
+        check_amp_storage(amp, "unit")   # still the right tool on the contract it was written for
+    for storage in ("raw", "unit", "dirs_only"):
+        check_amp_storage("raw", storage)
+
+
 def _selftest_build_inputs():
     rng = np.random.default_rng(20260920)
     d, n = 64, 24
@@ -1273,6 +1326,7 @@ def _selftest_rows_from_generation():
 
 
 SELFTESTS = (
+    _selftest_amp_storage,
     _selftest_build_inputs,
     _selftest_extract_explanation,
     _selftest_resolve_r,
