@@ -382,8 +382,15 @@ def base_dir(base: str, root: str = VOL) -> str:
     return f"{root}/base/{base}"
 
 
-def corpus_dir(base: str, root: str = VOL) -> str:
-    return f"{base_dir(base, root)}/corpus"
+def corpus_dir(base: str, root: str = VOL, name: str = "") -> str:
+    """`corpus/` by default; `corpora/<name>/` when a name is given.
+
+    A new size ladder or window geometry is a NEW corpus, never an edit of the existing
+    one: docs.jsonl carries each document's size_tag and every stored scan window and
+    top-k list indexes into that exact tokens.i32, so rebuilding in place silently
+    invalidates all of them.
+    """
+    return f"{base_dir(base, root)}/corpora/{name}" if name else f"{base_dir(base, root)}/corpus"
 
 
 def heldout_dir(base: str, set_name: str, root: str = VOL) -> str:
@@ -509,12 +516,12 @@ def size_tag_of(cum_before: int, n_tok: int, sizes: list[int]) -> int:
     the total budget) is clamped to the largest size; corpus.py counts and reports those.
     """
     for s in sizes:
-        if cum_before + n_tok <= s * 1_000_000:
+        if cum_before + n_tok <= round(s * 1_000_000):
             return s
     return sizes[-1]
 
 
-def load_corpus(base: str, root: str = VOL):
+def load_corpus(base: str, root: str = VOL, name: str = ""):
     """(tokens, docs) for a built corpus: a read-only int32 memmap and the docs.jsonl rows.
 
     The memmap is never randomly indexed across the whole file by the passes -- they walk documents
@@ -522,7 +529,7 @@ def load_corpus(base: str, root: str = VOL):
     """
     import numpy as np
 
-    d = corpus_dir(base, root)
+    d = corpus_dir(base, root, name)
     docs = read_jsonl(f"{d}/docs.jsonl")
     toks = np.memmap(f"{d}/tokens.i32", dtype=np.int32, mode="r")
     assert docs, f"{d}/docs.jsonl is empty"
@@ -531,9 +538,15 @@ def load_corpus(base: str, root: str = VOL):
     return toks, docs
 
 
-def corpus_sizes(docs: list[dict]) -> list[int]:
-    """The nested sizes actually present in a built corpus, ascending (a smoke has fewer)."""
-    return sorted({int(r["size_tag"]) for r in docs})
+def corpus_sizes(docs: list[dict]) -> list[float]:
+    """The nested sizes actually present in a built corpus, ascending (a smoke has fewer).
+
+    Sizes are MILLIONS of tokens and may be FRACTIONAL: the 2026-09-20 ladder is
+    1.25 / 2.5 / 5 / 10, for parity with training, which saw 9-10M activations. Integers
+    stay integral so an existing 1/2/4/8/16 corpus reads back unchanged.
+    """
+    out = sorted({float(r["size_tag"]) for r in docs})
+    return [int(s) if float(s).is_integer() else s for s in out]
 
 
 def quantiles_from_hist(counts, qs, lo: float = -1.0, hi: float = 1.0):
