@@ -194,7 +194,8 @@ def run(cfg, args):
         )
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
+                     need_decoder=False)  # W_dec is 43 GB at 2^21 features and unused here
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
     w_enc = sae.W_enc[:, torch.as_tensor(tested, device="cuda")].contiguous() if n_feat else None

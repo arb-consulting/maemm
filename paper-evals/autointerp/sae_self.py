@@ -166,7 +166,8 @@ def run(cfg, args):
     row_feats = [feat_of[x["row"]] for x in flat]
 
     model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY, exactly as `score`
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
+                     need_decoder=False)  # W_dec is 43 GB at 2^21 features and unused here
     gate = float(sae.threshold)
     dirs = C.sae_dirs(sae, row_feats).cpu()
     extra = _SelfAct(sae, row_feats, len(flat))
@@ -458,7 +459,8 @@ def run_random_pool(cfg, args):
     print(f"[random_pool] {n_win} of {len(wins)} windows, {n_feat} features, seed {seed}", flush=True)
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
+                     need_decoder=False)  # W_dec is 43 GB at 2^21 features and unused here
     gate = float(sae.threshold)
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
@@ -633,7 +635,8 @@ def run_examples_4m(cfg, args):
     )
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
+                     need_decoder=False)  # W_dec is 43 GB at 2^21 features and unused here
     gate = float(sae.threshold)
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
@@ -843,7 +846,8 @@ def run_examples_docmax(cfg, args):
           flush=True)
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
+                     need_decoder=False)  # W_dec is 43 GB at 2^21 features and unused here
     gate = float(sae.threshold)
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink

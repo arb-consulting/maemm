@@ -177,7 +177,11 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
     for i, fid in enumerate(drawn):
         rows.append({
             "row": i,
-            "family": "sae2m_enc",
+            # "sae", not "sae2m_enc": scan, sae_self, top1_act, repo_examples and gcg
+            # all dispatch on this tag and look for "sae". Which SAE it is comes from
+            # --sae / the set README, not from the family name. (Tomas 2026-09-20.)
+            "family": "sae",
+            "sae_key": "sae2m",
             "id": int(fid),
             "stratum": int(stratum[i]),
             "side": str(side[i]),

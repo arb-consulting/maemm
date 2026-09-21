@@ -125,7 +125,12 @@ def cell_name(layer: int | None, tag: str = "", rule: str = PS_RULE,
     says which it is, and every cell's own `rollouts.summary.json` carries `n`/`bo` regardless.
     """
     if layer is None:
-        base = FLOOR_CELL
+        # The floor generates continuations of THE PROMPT, so it is prompt-specific and
+        # its name must say which. Without this every prompt's floor collides on one
+        # directory and the last run silently becomes everyone's matched floor --
+        # measured 2026-09-20, when a P1 run overwrote two P2 floors (mean_n_tok 64.0
+        # against 60.0, which is how it was caught).
+        base = FLOOR_CELL if prompt_id == PROMPT_ID else f"{FLOOR_CELL}-{prompt_id.split('_')[0].lower()}"
     else:
         pfx = "p2" if prompt_id == PROMPT_ID else prompt_id.split("_")[0].lower()
         base = f"{pfx}-L{layer}-{rule}{alpha:g}"
