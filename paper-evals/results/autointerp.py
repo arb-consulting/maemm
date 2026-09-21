@@ -1057,25 +1057,34 @@ def trend_verdict(p: float, bonf: float, n_look: int, widest_ci: float, spread: 
     `top_cell_separation` above -- namely whether the highest cell's interval clears every other
     cell's. The two are independent and come apart in both directions in this eval's own data, so
     neither may be read off the other. Both are appended; an undecidable separation prints nothing.
+
+    It rides on EVERY verdict, not only `separates`, because that is where it earns its place: the
+    2M rarity `DOCMAX` FUZZING row does not separate and its top cell overlaps all three of its
+    neighbours, which says "nothing here" far more plainly than its p of 0.089, and four rows of
+    the 2M block are `uncorrected only` with their cells nonetheless resolved.
     """
     if not math.isfinite(p):
         verdict = "not estimable"
     elif p <= bonf:
         wide = (math.isfinite(widest_ci) and math.isfinite(spread) and widest_ci >= spread)
         verdict = f"separates (p ≤ α/{n_look}){', CI-WIDE' if wide else ''}"
-        # The SECOND qualifier, answering the question the first does not. Both are appended and
-        # neither replaces `separates`: the permutation p is a statement about the cut, `CI-WIDE`
-        # about precision, and this about whether the cells are resolved from each other. An
-        # undecidable one prints nothing rather than either verdict.
-        if sep and sep.get("disjoint") is True:
-            verdict += ", DISJOINT"
-        elif sep and sep.get("disjoint") is False:
-            verdict += (", OVERLAP: "
-                        + ", ".join(str(b) for b in sep["overlaps"]))
     elif p <= ALPHA:
         verdict = "uncorrected only"
     else:
         verdict = "no separation"
+    # The SECOND qualifier, on EVERY row rather than only the separating ones, because the
+    # resolution question is most interesting exactly where the p is unimpressive: a row whose top
+    # cell overlaps all three of its neighbours is a cleaner "nothing here" than a p of 0.089, and
+    # a row that fails the multiplicity correction while its cells ARE resolved is a tension a
+    # reader should see rather than have to reconstruct from the CSV. It QUALIFIES whatever the p
+    # said and never competes with it; an undecidable separation prints nothing at all.
+    #
+    # `CI-WIDE` deliberately stays on `separates` alone: it exists to stop a small p being read as
+    # precision, and there is no small p on the other branches for it to qualify.
+    if sep and sep.get("disjoint") is True:
+        verdict += ", DISJOINT"
+    elif sep and sep.get("disjoint") is False:
+        verdict += ", OVERLAP: " + ", ".join(str(b) for b in sep["overlaps"])
     if dropped:
         verdict += f" — {len(dropped)} cell(s) dropped: {', '.join(dropped)}"
     return verdict
@@ -1179,8 +1188,13 @@ def trend_table(res: dict, out: R.Out) -> None:
          f"neighbours), while the 2M rarity `DOCMAX` detection row is not CI-WIDE and yet "
          f"OVERLAPS, its top interval meeting stratum 1's by about 0.002. `OVERLAP` means 'not "
          f"resolved here', never 'no effect': non-overlapping intervals imply a difference, "
-         f"overlapping ones do not imply its absence. Both flags are carried for every row in "
-         f"`trends.csv`, including the rows that do not separate.\n\n"
+         f"overlapping ones do not imply its absence. `DISJOINT`/`OVERLAP` is printed on EVERY "
+         f"row, not only the separating ones — it qualifies whatever the p said rather than "
+         f"competing with it, and it is most useful where the p is unimpressive: a top cell that "
+         f"overlaps all three of its neighbours says 'nothing here' more plainly than a p of "
+         f"0.089. `CI-WIDE` stays on `separates` alone, because it exists to stop a small p being "
+         f"read as precision and the other branches have no small p to qualify. Both are in "
+         f"`trends.csv` for every row.\n\n"
          f"A cell below {MIN_CELL} features is excluded from all three statistics and named in the "
          f"verdict; `cells` is how many of the row's cells were used."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)

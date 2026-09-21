@@ -1501,6 +1501,31 @@ def check_autointerp_top_cell_separation():
     assert A.trend_verdict(0.0001, 0.003, 16, 0.10, 0.25, [],
                            {"disjoint": None, "top": None, "overlaps": [], "why": "x"}) == \
         "separates (p ≤ α/16)"
+
+    # THE PLACEMENT: the qualifier rides on EVERY verdict, not only `separates`. This is where it
+    # earns its place -- a row whose top cell overlaps all three neighbours says "nothing here"
+    # more plainly than its p, and a row that fails the multiplicity correction while its cells ARE
+    # resolved is a tension the verdict column should show rather than bury in the CSV.
+    overlap_all = A.top_cell_separation([cell(0, 0.50, 0.45, 0.62), cell(1, 0.52, 0.46, 0.63),
+                                         cell(2, 0.51, 0.45, 0.62), cell(3, 0.59, 0.52, 0.66)])
+    assert (overlap_all["disjoint"], overlap_all["overlaps"]) == (False, [0, 1, 2]), overlap_all
+    assert A.trend_verdict(0.0886, 0.003, 16, 0.15, 0.1146, [], overlap_all) == \
+        "no separation, OVERLAP: 0, 1, 2"
+    assert A.trend_verdict(0.014, 0.003, 16, 0.12, 0.12, [], wide_disjoint) == \
+        "uncorrected only, DISJOINT"
+    # `CI-WIDE` does NOT spread with it: it exists to stop a small p being read as precision, and
+    # a row with no small p has nothing for it to qualify. Both of these have widest_ci >= spread.
+    assert "CI-WIDE" not in A.trend_verdict(0.014, 0.003, 16, 0.30, 0.12, [], wide_disjoint)
+    assert "CI-WIDE" not in A.trend_verdict(0.9, 0.003, 16, 0.30, 0.12, [], overlap_all)
+    # Order is fixed: the p's verdict, then CI-WIDE, then the resolution, then the dropped cells.
+    assert A.trend_verdict(0.0001, 0.003, 16, 0.30, 0.25, ["3 (n=2)"], overlap_all) == \
+        "separates (p ≤ α/16), CI-WIDE, OVERLAP: 0, 1, 2 — 1 cell(s) dropped: 3 (n=2)"
+    # The two really are independent: a non-estimable p does not suppress a resolution that IS
+    # computable. The pair cannot arise from real cells -- both go undecidable below two usable
+    # cells -- but coupling them here would reintroduce exactly the dependence this flag exists to
+    # break, so the function is pinned to keep them apart.
+    assert A.trend_verdict(float("nan"), 0.003, 16, 0.10, 0.25, [], wide_disjoint) == \
+        "not estimable, DISJOINT"
     # And the qualifier rides along with the dropped-cell note in the documented order.
     assert A.trend_verdict(0.0001, 0.003, 16, 0.10, 0.25, ["3 (n=2)"], wide_disjoint) == \
         "separates (p ≤ α/16), DISJOINT — 1 cell(s) dropped: 3 (n=2)"
