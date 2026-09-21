@@ -224,7 +224,11 @@ def run(cfg, args):
     # ONE --sae syntax in the whole CLI: common.sae_key_for, which takes a full `<base>/<name>`
     # key and refuses a bare name. This file and stats.py each carried an inline copy that DID
     # accept a bare `sae2m`, so the same flag meant two things depending on the product.
-    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    #
+    # Resolved only when the SET HAS SAE ROWS. A base with two dictionaries makes `sae_key_for`
+    # refuse without `--sae`, and an OOD set has no sae family at all -- so demanding one there
+    # would make the operator name a dictionary this scan never reads, and the choice would then
+    # sit in the product README as if it meant something.
     # WHICH CORPORA, as directory names already resolved from `corpora:` keys on the client
     # (modal_app.main). NOT filtered for empties: "" is the base's own English `corpus/`, so
     # `--corpus heldout16m,ood_tha_Thai` arrives as ",ood_tha_Thai" and means both of them.
@@ -236,13 +240,15 @@ def run(cfg, args):
 
     cen_notes: list[str] = []
     rows, v, masks = _load_targets(cfg, args, notes=cen_notes)
+    has_sae = any(r["family"] in C.SAE_FAMILIES for r in rows)
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "") if has_sae else ""
     # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
     # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
     # encoder, silently (common.sae_rows_of).
     sae_sel = C.sae_rows_of(
         rows, sae_key, declared=C.declared_sae_key(cfg, C.heldout_dir(base, set_name, root), root),
         where=C.heldout_dir(base, set_name, root),
-    )
+    ) if has_sae else []
     tested = [int(r["id"]) for r in sae_sel]
     tested_row = [r["row"] for r in sae_sel]
 
@@ -282,8 +288,10 @@ def run(cfg, args):
     # ENCODER ONLY (D3): everything below reads b_dec, W_enc, b_enc and threshold -- the tested
     # columns at :200-201 and the gate. W_dec is 43 GB in fp32 at 2^21 features, which is the
     # difference between fitting an H200 beside the 27B and not. stats.py:379 already had this.
-    sae = C.load_sae(
-        C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False
+    sae = (
+        C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
+                   need_decoder=False)
+        if tested else None
     )
     out = {}
     for cname, label, out_scan, out_ex in plans:
@@ -327,8 +335,10 @@ def _scan_one(
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
     w_enc = sae.W_enc[:, torch.as_tensor(tested, device="cuda")].contiguous() if n_feat else None
     b_enc = sae.b_enc[torch.as_tensor(tested, device="cuda")] if n_feat else None
-    peak = C.read_array(f"{C.sae_dir(sae_key, root)}/max_act.f16", "float16", (sae.d_sae,))
-    peak_t = torch.from_numpy(peak[tested].astype(np.float32)).cuda() if n_feat else None
+    peak_t = None
+    if n_feat:
+        peak = C.read_array(f"{C.sae_dir(sae_key, root)}/max_act.f16", "float16", (sae.d_sae,))
+        peak_t = torch.from_numpy(peak[tested].astype(np.float32)).cuda()
     print(
         f"[scan] {n} targets ({n_feat} tested sae features, {n_masked_rows} own-document masks), "
         f"{len(docs)} docs, sizes {sizes}",
