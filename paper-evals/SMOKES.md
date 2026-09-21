@@ -2771,3 +2771,91 @@ the 2M side biases its corpus ratio DOWN, i.e. the MAEMM/NLA ratios are, if anyt
 Per-feature tables: `reconstruction/act_smoke.py --data <mirror>` output, kept in the session
 scratchpad (act_smoke-2m.md, act_smoke-131k.md); the 2M rows with peaks ≥ 8 (1635672, 1944579,
 stratum 3) are the only ones any generated text drives to the gate reliably.
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: the conventions layer (NOT RUN on the volume)
+
+Everything in this section is **local CPU only**. No Modal call was made, no volume path was
+written, nothing was launched. The one paid smoke below is DOCUMENTED, not executed.
+
+| date | item | command | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-21 | unit smoke after the conventions layer | `uv run paper-evals/precompute/unit_smoke.py` | 2.6 s | $0 | **36/36 checks passed** (29 before; +6 for the layer, +1 for the spawn/main mirror) | — |
+| 2026-09-21 | mutation battery on the six new checks | four deliberate defects injected one at a time, smoke re-run | ~40 s | $0 | 4/4 caught, each by the check that owns it | see below |
+
+Mutations and what fired, so the checks are known to be capable of red:
+
+| mutation | check that failed | message |
+|---|---|---|
+| `dirs_for` subtracts mu from EVERY row, not only the centrable ones | `check_storage_contract` | `row 2 (random) under mu: max \|d\| 4.81e-02 -- a non-centrable row was treated as the other` |
+| the centred einsum drops `- mu` (one-sided cosine) | `check_two_cosines` | `cos_centred differs from the direct einsum` |
+| `sae_rows_of` ignores the row's `sae_key` | `check_sae_key_selector` | `sae_key filter picked [0, 1, 2, 4]; the 131k row must not be in it` |
+| the `storage: unit` mismatch assert is disabled | `check_unit_set_refuses` | `dirs_for served a 'storage: unit' set under the WRONG mean` |
+
+### The one paid smoke, when the branch is ready to run (§1.6, ≤ $5) — NOT LAUNCHED
+
+A 6-row scratch set (4 `realact` + 2 `sae`) at `storage: raw` through
+`targets → rollouts_{vllm,hf,nla} → score → sae_self` for both MAEMMs × both SAEs plus the NLA
+entry. Scaling the measured NLA smoke ($0.3185 / 32 rollouts at 200 tok, $0.23–0.36 per
+score/`sae_self` pass, 2026-09-21 rows above): **≈ $3.5, ~35 min**. Everything writes under a
+scratch root; nothing touches a live product.
+
+```sh
+cd 2026-09-maemms && set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms
+R=/vol/runs/2026-09-21_conventions-smoke
+M=repo-maemm/paper-evals/precompute/modal_app.py
+RL16=qwen36-27b/2026-09-18_rl-last16-lr5e-7; OLD=qwen36-27b/2026-09-10_rl-8x2048-full
+NLA=qwen36-27b/2026-07-14_nla-av; S2M=qwen36-27b/sae2m; S131=qwen36-27b/l42-1b
+
+# 0. local gates, no container
+uv run repo-maemm/paper-evals/precompute/unit_smoke.py
+uvx modal run $M --product check --base qwen36-27b
+uvx modal run $M --product targets --base qwen36-27b --set <smoke-set> --root $R --dry-run
+
+# 1. the set: raw storage, 4 realact + 2 sae. --set is REQUIRED (D6).
+uvx modal run $M --product targets --base qwen36-27b --sae $S2M --set <smoke-set> --root $R \
+    --allow-short
+# 2. rollouts: the mu comes from each checkpoint's own config `mu:`, never a flag
+uvx modal run $M --product rollouts_vllm --base qwen36-27b --maemm $RL16 --set <smoke-set> \
+    --root $R --n 4
+uvx modal run $M --product rollouts_vllm --base qwen36-27b --maemm $OLD  --set <smoke-set> \
+    --root $R --n 4
+uvx modal run $M --product rollouts_nla  --base qwen36-27b --maemm $NLA  --set <smoke-set> \
+    --root $R --n 4
+# 3. score: two cosines, and the SAE half on the sae rows only (the split of plan §2.5)
+for MM in $RL16 $OLD $NLA; do
+  uvx modal run $M --product score --base qwen36-27b --maemm $MM --set <smoke-set> --root $R \
+      --engine vllm --sae $S2M
+  uvx modal run $M --product score --base qwen36-27b --maemm $MM --set <smoke-set> --root $R \
+      --engine vllm --sae $S131 --score-name <smoke-set>__131k
+done
+# 4. sae_self on BOTH dictionaries -- the sae_key selector is what this proves
+uvx modal run repo-maemm/paper-evals/autointerp/modal_app.py --stage sae_self \
+    --base qwen36-27b --maemm $RL16 --set <smoke-set> --root $R --engine vllm --sae $S2M
+uvx modal run repo-maemm/paper-evals/autointerp/modal_app.py --stage sae_self \
+    --base qwen36-27b --maemm $RL16 --set <smoke-set> --root $R --engine vllm --sae $S131
+```
+
+Three gates, any of which stops the branch:
+
+1. **`rl-last16` marker/greedy** — clears the `config.yaml` UNVERIFIED flags (prompt `celeste27b`
+   assumed, `train_max_new` from the stale argv) before any paid run.
+2. **`cos_raw` reproduction** — the old primary within 0.01 of its stored `2026-09-16_v1` rows 0–7
+   value (0.5076). **Read the config note first**: that number was produced against a
+   `stats/mu.f32`-centred set while the entry now declares `mu: null`, so the reproduction has to
+   be run with `--mu base/{base}/stats/mu.f32` or the gate is comparing two different statistics.
+   `cos_centred` for `rl-last16` within 0.02 of the 64-smoke.
+3. **`sae_self` CSR cross-checks** — 0 mismatches on BOTH dictionaries, with the `sae_key`
+   selector proving it picked the right features. Also settle U3 here for ~$0.05:
+   `score --no-sae` over 2 sae rows, then `sae_self` the same two, to see whether the missing CSR
+   trips the check or makes it vacuous.
+
+### Run-scale decisions recorded 2026-09-21 (Tomáš), for the runbooks that follow
+
+| eval | size | note |
+|---|---|---|
+| autointerp | **32 features per SAE** | `--n-feat 32`; down from the 256/128 of the 09-21 plan |
+| GCG/EPO | **16 directions** | `--rows` a 16-row slice; EPO measured ~870 s per 27B direction |
+| patchscopes | **Ari's implementation (7f3b511)** | do not write another one |
+| OOD | **1/4 of the design's size** | scales the design's ≈$88 accordingly |

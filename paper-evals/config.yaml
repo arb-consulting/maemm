@@ -472,6 +472,11 @@ autointerp:
   n_neg: 20                     # test negatives, zero-activation windows of the shared _random256
   corpus_prefix_m: 4            # the "cheap corpus" nested size, in MILLIONS of tokens
   pilot_features: 64            # 16 per density quartile
+  # RUN SCALE (Tomáš, 2026-09-21): the eval runs at **32 features per SAE** for now -- passed as
+  # `--n-feat 32` on the `build` stage, not a key here, because it is a per-run choice and not a
+  # protocol constant. The 09-21 plan's 256 (2M) + 128 (131k) is superseded. Companion decisions,
+  # recorded in SMOKES.md's runbook: GCG/EPO at 16 directions, patchscopes on Ari's implementation
+  # (7f3b511, do not write another), OOD at 1/4 of the design's size.
   feat_seed: 1234
   shuffle_seed: 20260916        # test-item order and the C4M mix; per feature, so arms stay paired
   concurrency: 32
