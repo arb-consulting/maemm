@@ -1444,6 +1444,68 @@ def check_autointerp_trend_statistics():
     assert math.isnan(A.spread_perm_p(np.array([0.5, 0.75]), np.array([0, 0]), 100, 1))
 
 
+def check_autointerp_top_cell_separation():
+    """Whether the top cell's interval clears every other cell's -- the question `CI-WIDE` does not
+    answer, at every boundary, and in BOTH directions against `CI-WIDE`.
+
+    The two flags are independent, and this eval's own data has both crossings: a row that is
+    CI-WIDE and disjoint (a wide interval sitting entirely above its neighbours) and a row that is
+    not CI-WIDE and yet overlaps. A reader who took either for the other would be wrong about the
+    2M headline row, so the cross cases are pinned here rather than left to the real data, which
+    can change under a re-run.
+    """
+    def cell(b, mean, lo, hi):
+        return {"stratum": b, "mean": mean, "lo": lo, "hi": hi, "n": 8, "short": False}
+
+    # Disjoint: the top's LOWER bound clears every other UPPER bound.
+    r = A.top_cell_separation([cell(0, 0.50, 0.45, 0.55), cell(1, 0.52, 0.48, 0.56),
+                               cell(2, 0.51, 0.47, 0.55), cell(3, 0.80, 0.70, 0.90)])
+    assert (r["disjoint"], r["top"], r["overlaps"]) == (True, 3, []), r
+    # One neighbour reaching INTO the top interval spoils it, and is named.
+    r = A.top_cell_separation([cell(0, 0.50, 0.45, 0.55), cell(1, 0.60, 0.50, 0.72),
+                               cell(2, 0.51, 0.47, 0.55), cell(3, 0.80, 0.70, 0.90)])
+    assert (r["disjoint"], r["top"], r["overlaps"]) == (False, 3, [1]), r
+    # Touching exactly is NOT disjoint: the rule is a strict `>`, so a shared endpoint overlaps.
+    r = A.top_cell_separation([cell(0, 0.50, 0.45, 0.70), cell(3, 0.80, 0.70, 0.90)])
+    assert (r["disjoint"], r["overlaps"]) == (False, [0]), r
+    r = A.top_cell_separation([cell(0, 0.50, 0.45, 0.6999), cell(3, 0.80, 0.70, 0.90)])
+    assert r["disjoint"] is True, r
+    # Two cells tied at the top are two cells: the second one overlaps the first by definition,
+    # and a `max` that collapsed them by value would report a disjoint row.
+    r = A.top_cell_separation([cell(0, 0.50, 0.45, 0.55), cell(3, 0.80, 0.70, 0.90),
+                               cell(2, 0.80, 0.70, 0.90)])
+    assert (r["disjoint"], r["overlaps"]) == (False, [2]), r
+    # UNDECIDABLE, never optimistic. A cell of one feature has no interval, and NaN compares false
+    # against everything -- which would read as DISJOINT if it were not caught.
+    r = A.top_cell_separation([cell(0, 0.50, float("nan"), float("nan")),
+                               cell(3, 0.80, 0.70, 0.90)])
+    assert r["disjoint"] is None and "no estimable interval" in r["why"], r
+    r = A.top_cell_separation([cell(3, 0.80, 0.70, 0.90)])
+    assert r["disjoint"] is None and "nothing to be disjoint from" in r["why"], r
+    # Cells the trend statistics excluded are not here to be compared against.
+    r = A.top_cell_separation([cell(None, 0.99, 0.98, 1.0), cell(0, 0.50, 0.45, 0.55),
+                               cell(3, 0.80, 0.70, 0.90)])
+    assert (r["disjoint"], r["top"]) == (True, 3), r
+
+    # THE TWO CROSSINGS, in the verdict string. Neither flag may be read off the other.
+    wide_disjoint = A.top_cell_separation([cell(0, 0.50, 0.49, 0.51), cell(3, 0.62, 0.54, 0.72)])
+    assert wide_disjoint["disjoint"] is True
+    assert A.trend_verdict(0.001, 0.003, 16, 0.18, 0.1375, [], wide_disjoint) == \
+        "separates (p ≤ α/16), CI-WIDE, DISJOINT"
+    narrow_overlap = A.top_cell_separation([cell(1, 0.576, 0.5406, 0.6198),
+                                            cell(3, 0.7198, 0.6177, 0.8240)])
+    assert narrow_overlap["disjoint"] is False
+    assert A.trend_verdict(0.0001, 0.003, 16, 0.206, 0.2323, [], narrow_overlap) == \
+        "separates (p ≤ α/16), OVERLAP: 1"
+    # An undecidable separation prints NEITHER word rather than guessing one.
+    assert A.trend_verdict(0.0001, 0.003, 16, 0.10, 0.25, [],
+                           {"disjoint": None, "top": None, "overlaps": [], "why": "x"}) == \
+        "separates (p ≤ α/16)"
+    # And the qualifier rides along with the dropped-cell note in the documented order.
+    assert A.trend_verdict(0.0001, 0.003, 16, 0.10, 0.25, ["3 (n=2)"], wide_disjoint) == \
+        "separates (p ≤ α/16), DISJOINT — 1 cell(s) dropped: 3 (n=2)"
+
+
 def check_autointerp_trend_verdict():
     """Every branch of the verdict cell, at its boundaries, including `CI-WIDE`.
 
@@ -1499,7 +1561,9 @@ def check_autointerp_trend_verdict():
         # one run directory, so nothing here is a cache replay and nothing deduplicates.
         assert "α/10" in tre, tre[:400]
         rare = next(ln for ln in tre.splitlines() if ln.startswith("| stratum | RARE | cut | det"))
-        assert rare.rstrip().endswith("| separates (p ≤ α/10) |"), rare
+        # RARE's cells are each constant, so every interval is degenerate at its own value and
+        # the top one (0.75) clears the others (0.5) outright.
+        assert rare.rstrip().endswith("| separates (p ≤ α/10), DISJOINT |"), rare
         # RARE's cells are each constant, so their intervals are degenerate and the flag is off --
         # which is the case that proves the flag is computed and not simply always appended.
         assert "CI-WIDE" not in rare, rare
@@ -1684,6 +1748,7 @@ CHECKS = [
     check_autointerp_short_cells_are_reported,
     check_autointerp_null_bal_acc_is_never_filled_from_acc,
     check_autointerp_trend_statistics,
+    check_autointerp_top_cell_separation,
     check_autointerp_trend_verdict,
     check_autointerp_cut_render,
     check_autointerp_cuts_catch_a_defect,

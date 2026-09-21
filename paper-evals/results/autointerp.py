@@ -479,6 +479,41 @@ def cut_cells(by_cell: dict[tuple[Arm, str], dict[int, dict]], arms: list[Arm],
     return out
 
 
+def top_cell_separation(cells: list[dict]) -> dict:
+    """Is the HIGHEST cell's interval disjoint from every other cell's in the same row?
+
+    THE QUESTION `CI-WIDE` DOES NOT ANSWER. That flag compares a width to a difference and says
+    whether few features are carrying the effect; it says nothing about whether the cells are
+    resolved from one another, and the two come apart in both directions in this eval's own data.
+    The 2M peak `M` detection row is CI-WIDE and disjoint (a wide interval sitting entirely above
+    its neighbours); the 2M rarity `DOCMAX` detection row is not CI-WIDE and yet OVERLAPS, its top
+    interval meeting stratum 1's by about 0.002. A reader who took either flag for the other would
+    be wrong about the headline row.
+
+    Disjoint means the top cell's LOWER bound clears every other cell's UPPER bound -- a
+    deliberately strict reading, and a conservative one: non-overlapping percentile intervals imply
+    a difference, while overlapping ones do not imply its absence, so `OVERLAP` is "not resolved
+    here", never "no effect".
+
+    Undecidable rather than optimistic wherever an interval is missing: a cell of one feature has
+    no interval (`boot_ci` returns NaN rather than a zero-width one), and a NaN compares false
+    against everything, which would read as DISJOINT if it were not caught here.
+    """
+    usable = [c for c in cells if c.get("stratum") is not None]
+    if len(usable) < 2:
+        return {"disjoint": None, "top": None, "overlaps": [],
+                "why": f"{len(usable)} cell(s): nothing to be disjoint from"}
+    if not all(math.isfinite(float(c["lo"])) and math.isfinite(float(c["hi"])) for c in usable):
+        return {"disjoint": None, "top": None, "overlaps": [],
+                "why": "at least one cell has no estimable interval"}
+    top = max(usable, key=lambda c: float(c["mean"]))
+    # By IDENTITY, not by value: two cells tied at the top are two cells, and the second one
+    # belongs in `overlaps` -- which is exactly what a tie means.
+    others = [c for c in usable if c is not top]
+    overlaps = [c["stratum"] for c in others if not float(top["lo"]) > float(c["hi"])]
+    return {"disjoint": not overlaps, "top": top["stratum"], "overlaps": overlaps, "why": ""}
+
+
 def trend_rows(by_cell: dict[tuple[Arm, str], dict[int, dict]], arms: list[Arm],
                scorers: list[str], bucket_of: dict[int, int], cells: list[dict], view: str,
                n_perm: int, seed: int) -> list[dict]:
@@ -534,7 +569,7 @@ def trend_rows(by_cell: dict[tuple[Arm, str], dict[int, dict]], arms: list[Arm],
                 "widest_ci": max((c["hi"] - c["lo"] for c in used
                                   if math.isfinite(c["hi"]) and math.isfinite(c["lo"])),
                                  default=float("nan")),
-                "spread": spread, "rho": rho,
+                "spread": spread, "rho": rho, "sep": top_cell_separation(used),
                 # The cell means themselves, so the multiplicity count below can tell a DUPLICATED
                 # measurement from an independent one. Under a shared `--cache-dir` the corpus arms
                 # of two run directories are the same calls replayed, and their rows are identical
@@ -1002,7 +1037,7 @@ def cut_table(res: dict, out: R.Out, view: str, name: str, title: str, caption: 
 
 
 def trend_verdict(p: float, bonf: float, n_look: int, widest_ci: float, spread: float,
-                  dropped: list[str]) -> str:
+                  dropped: list[str], sep: dict | None = None) -> str:
     """The verdict cell of one trend row: what survives, at what correction, with what caveat.
 
     A pure function of six numbers so it can be unit-tested at its boundaries -- it decides what a
@@ -1017,12 +1052,26 @@ def trend_verdict(p: float, bonf: float, n_look: int, widest_ci: float, spread: 
     clears all three while its width (0.181) exceeds the spread (0.1375). The flag is there to stop
     a reader taking a small p as precision; deciding what it means is the reader's job, which is
     why it is appended to `separates` rather than replacing it.
+
+    `DISJOINT` / `OVERLAP` is the SECOND qualifier and answers a different question --
+    `top_cell_separation` above -- namely whether the highest cell's interval clears every other
+    cell's. The two are independent and come apart in both directions in this eval's own data, so
+    neither may be read off the other. Both are appended; an undecidable separation prints nothing.
     """
     if not math.isfinite(p):
         verdict = "not estimable"
     elif p <= bonf:
         wide = (math.isfinite(widest_ci) and math.isfinite(spread) and widest_ci >= spread)
         verdict = f"separates (p ≤ α/{n_look}){', CI-WIDE' if wide else ''}"
+        # The SECOND qualifier, answering the question the first does not. Both are appended and
+        # neither replaces `separates`: the permutation p is a statement about the cut, `CI-WIDE`
+        # about precision, and this about whether the cells are resolved from each other. An
+        # undecidable one prints nothing rather than either verdict.
+        if sep and sep.get("disjoint") is True:
+            verdict += ", DISJOINT"
+        elif sep and sep.get("disjoint") is False:
+            verdict += (", OVERLAP: "
+                        + ", ".join(str(b) for b in sep["overlaps"]))
     elif p <= ALPHA:
         verdict = "uncorrected only"
     else:
@@ -1047,7 +1096,10 @@ def trend_table(res: dict, out: R.Out) -> None:
             "rank ρ", "perm p", "verdict"]
     csv_head = ["sae", "view", "arm", "run", "arm_name", "scorer", "n_cells", "n_cells_all",
                 "n_min", "widest_ci", "spread", "rho", "p_perm", "n_perm", "seed",
-                "bonferroni_alpha", "verdict", "cells_dropped"]
+                "bonferroni_alpha", "verdict", "cells_dropped",
+                # Carried for EVERY row, not only the separating ones: a reader checking whether a
+                # cut resolved its cells should not have to clear a significance bar first.
+                "top_cell", "top_disjoint", "overlaps", "disjoint_why"]
     rows, csv_rows = [], []
     for view, mine in per_view.items():
         if not mine:
@@ -1064,7 +1116,8 @@ def trend_table(res: dict, out: R.Out) -> None:
         bonf = ALPHA / n_look
         for t in mine:
             p = t["p_perm"]
-            verdict = trend_verdict(p, bonf, n_look, t["widest_ci"], t["spread"], t["dropped"])
+            verdict = trend_verdict(p, bonf, n_look, t["widest_ci"], t["spread"], t["dropped"],
+                                    t["sep"])
             rows.append([view, t["arm_name"], t["run"], t["scorer"],
                          f"{t['n_cells']}/{t['n_cells_all']}", t["n_min"],
                          R.num(t["widest_ci"], 3), R.num(t["spread"], 4), R.num(t["rho"], 3),
@@ -1072,7 +1125,9 @@ def trend_table(res: dict, out: R.Out) -> None:
             csv_rows.append([res["sae"], view, t["arm"], t["run"], t["arm_name"], t["scorer"],
                              t["n_cells"], t["n_cells_all"], t["n_min"], round(t["widest_ci"], 6),
                              round(t["spread"], 6), round(t["rho"], 6), round(p, 6), res["boot"],
-                             res["seed"], round(bonf, 6), verdict, "; ".join(t["dropped"])])
+                             res["seed"], round(bonf, 6), verdict, "; ".join(t["dropped"]),
+                             t["sep"]["top"], t["sep"]["disjoint"],
+                             " ".join(str(b) for b in t["sep"]["overlaps"]), t["sep"]["why"]])
     sizes = sorted({t["n_min"] for t in res["trends"]})
     span = f"{sizes[0]}" if len(sizes) < 2 else f"{sizes[0]}–{sizes[-1]}"
     out.table(
@@ -1114,6 +1169,18 @@ def trend_table(res: dict, out: R.Out) -> None:
          f"neighbouring means of 0.484, 0.506 and 0.494 while its width exceeds the spread. Read "
          f"`CI-WIDE` as 'few features are carrying this', and go to the view's CSV for the "
          f"intervals themselves.\n\n"
+         f"**`CI-WIDE` and `DISJOINT`/`OVERLAP` answer different questions and neither implies "
+         f"the other.** `CI-WIDE` is about PRECISION: the cells are individually estimated less "
+         f"tightly than the difference claimed between them. `DISJOINT` is about RESOLUTION: the "
+         f"highest cell's interval clears every other cell's upper bound, so those cells are "
+         f"separated by the intervals and not only by the permutation null; `OVERLAP` names the "
+         f"cells that spoil it. They come apart in both directions here — the 2M peak `M` "
+         f"detection row is CI-WIDE **and** disjoint (a wide interval sitting entirely above its "
+         f"neighbours), while the 2M rarity `DOCMAX` detection row is not CI-WIDE and yet "
+         f"OVERLAPS, its top interval meeting stratum 1's by about 0.002. `OVERLAP` means 'not "
+         f"resolved here', never 'no effect': non-overlapping intervals imply a difference, "
+         f"overlapping ones do not imply its absence. Both flags are carried for every row in "
+         f"`trends.csv`, including the rows that do not separate.\n\n"
          f"A cell below {MIN_CELL} features is excluded from all three statistics and named in the "
          f"verdict; `cells` is how many of the row's cells were used."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)
