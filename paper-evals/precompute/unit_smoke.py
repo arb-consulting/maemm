@@ -1612,6 +1612,55 @@ def check_sae_column_reader():
     assert '"sae_side": sd' in src, "draw_sae2m emits no sae_side field"
 
 
+def check_autointerp_main_forwards_every_flag():
+    """Every `autointerp/modal_app.main` parameter reaches the container, or is named local-only.
+
+    The same defect class D7 found on the precompute path, on the autointerp one: a flag can be
+    added to the entrypoint signature and not to the `args` dict it builds, and then it parses,
+    type-checks, appears in `--help`, and is silently dropped. MEASURED 2026-09-21: that is exactly
+    what `--floor-source-arm` did on its first run -- the operator passed it, the container never
+    saw it, and the run took the config default instead. Nothing raised; the only trace was a
+    stdout line saying the fallback had fired when it should not have.
+
+    `ast` rather than an import: this smoke runs on CPU without `modal`, and modal_app.py decorates
+    at module scope.
+    """
+    import ast
+
+    here = Path(__file__).resolve().parent.parent / "autointerp"
+    tree = ast.parse((here / "modal_app.py").read_text())
+    fn = next(
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == "main"
+    )
+    sig = {a.arg for a in fn.args.args}
+    # The dict literal assigned to `args` inside main -- the thing that crosses to the container.
+    forwarded = set()
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            t = node.targets[0]
+            if isinstance(t, ast.Name) and t.id == "args" and isinstance(node.value, ast.Dict):
+                forwarded |= {k.value for k in node.value.keys if isinstance(k, ast.Constant)}
+    assert forwarded, "autointerp/modal_app.main no longer builds `args` as a dict literal"
+    # Handled by the entrypoint itself rather than sent: `stage` selects the function, `set` and
+    # `heldout` are folded into one `heldout` key, and `dry_launch` returns before any `.remote()`.
+    local_only = {"stage", "set", "heldout", "dry_launch"}
+    missing = sorted(sig - forwarded - local_only)
+    assert not missing, (
+        f"autointerp/modal_app.main takes {missing} but never puts them in `args`, so passing one "
+        f"on the command line changes nothing and the stage takes its default. Add it to the dict, "
+        f"or to this check's `local_only` with the reason."
+    )
+    # Provenance the entrypoint ADDS rather than takes: the commit the image was built from and
+    # the literal command line. They are in `args` on purpose and are not flags.
+    stale = sorted(forwarded - sig - {"repo_commit", "argv"})
+    assert not stale, (
+        f"`args` forwards {stale}, which are not parameters of main -- a flag that can never be set"
+    )
+    print(f"  autointerp/modal_app: {len(sig)} flags, {len(forwarded)} forwarded, "
+          f"{len(local_only)} local-only")
+
+
 def check_spawn_mirrors_main():
     """`features/spawn.py`'s DEFAULTS and `modal_app.main`'s signature carry the SAME arguments.
 
@@ -1892,6 +1941,7 @@ CHECKS = [
     check_csr_gate_floor,
     check_sae_column_reader,
     check_spawn_mirrors_main,
+    check_autointerp_main_forwards_every_flag,
     check_return_arities,
     check_centred_uses_one_mu,
     check_every_set_writer_writes_the_contract,

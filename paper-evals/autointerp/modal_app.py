@@ -308,6 +308,7 @@ def main(
         "maemm2": maemm2,
         "model": model,
         "scorers": scorers,
+        "floor_source_arm": floor_source_arm,
         "path": path,
         "concurrency": concurrency,
         "max_cost_usd": max_cost_usd,
