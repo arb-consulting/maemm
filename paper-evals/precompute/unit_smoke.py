@@ -303,9 +303,18 @@ def check_score_ids_is_score_tokens():
         "encode_for_score does not reproduce the protocol's ids (blank substitution / truncation)"
     )
 
-    a = C.score_tokens(model, tok, texts, dirs, read_layer, sbatch=2, device="cpu")
-    b = C.score_ids(model, tok, by_hand, dirs, read_layer, sbatch=2, device="cpu")
-    for k in ("cos", "norm", "keep", "ids"):
+    # The centred pair goes through BOTH paths here, so the equivalence check covers `cos_centred`
+    # too: adding a second cosine to score_ids without adding it to this key set would let the text
+    # and id paths drift on it silently, which is the one thing this check exists to prevent.
+    dirs_c = torch.randn(len(texts), D)
+    mu = torch.randn(D)
+    a = C.score_tokens(
+        model, tok, texts, dirs, read_layer, sbatch=2, device="cpu", dirs_centred=dirs_c, mu=mu
+    )
+    b = C.score_ids(
+        model, tok, by_hand, dirs, read_layer, sbatch=2, device="cpu", dirs_centred=dirs_c, mu=mu
+    )
+    for k in ("cos", "norm", "keep", "ids", "cos_centred"):
         same = torch.equal(torch.nan_to_num(a[k], nan=-12345.0), torch.nan_to_num(b[k], nan=-12345.0))
         assert same, (
             f"score_tokens and score_ids disagree on `{k}`: max |d| "
@@ -1013,6 +1022,306 @@ def check_rollouts_nla_selftest():
     assert len(names) == len(rollouts_nla.SELFTESTS), f"only {len(names)} nla selftests ran"
 
 
+
+# ---------------------------------------------------------------------------------------------
+# the 2026-09-21 conventions layer: a mu is a file, a set states its storage, a dictionary is
+# named per row. Each check builds its own fixture on disk and compares against a numpy reference.
+# ---------------------------------------------------------------------------------------------
+
+
+def _conv_cfg(d=D):
+    """A minimal cfg for the storage/centring helpers: they read bases[b].d and family_kinds only."""
+    return {
+        "bases": {"tb": {"d": d}},
+        "family_kinds": {
+            "realact": {"centrable": True, "kind": "activation"},
+            "random": {"centrable": False, "kind": "synthetic"},
+            "sae": {"centrable": False, "kind": "dictionary"},
+        },
+        "heldout": {},
+        "modal": {"archive": "/nonexistent-archive"},
+    }
+
+
+def _write_set(dirpath: Path, rows, act, storage: dict, vecs=None):
+    """A held-out set on disk: ids.jsonl, act.f32 (raw sets), vecs.f16 and storage.json."""
+    import numpy as np
+
+    dirpath.mkdir(parents=True, exist_ok=True)
+    C.write_jsonl(dirpath / "ids.jsonl", rows)
+    if act is not None:
+        C.write_array(dirpath / "act.f32", act, "float32")
+    if vecs is None:
+        vecs = act / np.maximum(np.linalg.norm(act, axis=1, keepdims=True), 1e-12)
+    C.write_array(dirpath / "vecs.f16", vecs, "float16")
+    with open(dirpath / C.STORAGE_FILE, "w") as fh:
+        json.dump(storage, fh)
+    return vecs
+
+
+def check_storage_contract():
+    """`dirs_for` on a RAW set: unit(act) at mu=none, unit(act - mu) where the family is centrable.
+
+    The reference is numpy, computed from the same act.f32 but with the mean subtracted by hand,
+    and the non-centrable rows are asserted IDENTICAL under both means -- which is the property
+    that makes `centering: none` a no-op on an encoder column rather than a special case at seven
+    call sites.
+    """
+    import numpy as np
+
+    cfg = _conv_cfg()
+    rng = np.random.default_rng(0)
+    fams = ["realact", "realact", "random", "sae"]
+    act = rng.normal(size=(4, D)).astype(np.float32) * 30.0
+    rows = [{"row": i, "family": f, "id": i} for i, f in enumerate(fams)]
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        sdir = root / "base" / "tb" / "heldout" / "s1"
+        _write_set(sdir, rows, act, {"storage": "raw", "mu_stored": None, "family_mu": {}})
+        mu = rng.normal(size=(D,)).astype(np.float32) * 3.0
+        mupath = root / "mu.f32"
+        C.write_array(mupath, mu, "float32")
+
+        got_raw = C.dirs_for(cfg, "tb", str(sdir), None, str(root))
+        want_raw = act / np.linalg.norm(act, axis=1, keepdims=True)
+        assert np.abs(got_raw - want_raw).max() < 1e-6, (
+            f"dirs_for at mu=none is not unit(act): max |d| {np.abs(got_raw - want_raw).max():.2e}"
+        )
+
+        got_c = C.dirs_for(cfg, "tb", str(sdir), str(mupath), str(root))
+        cen = act - mu[None, :]
+        want_c = cen / np.linalg.norm(cen, axis=1, keepdims=True)
+        for i, fam in enumerate(fams):
+            want = want_c[i] if fam == "realact" else want_raw[i]
+            assert np.abs(got_c[i] - want).max() < 1e-6, (
+                f"row {i} ({fam}) under mu: max |d| {np.abs(got_c[i] - want).max():.2e} -- a "
+                f"{'centrable' if fam == 'realact' else 'non-centrable'} row was treated as the other"
+            )
+        assert np.array_equal(got_c[2:], got_raw[2:]), (
+            "the non-centrable rows moved between mu=none and mu=<file>; nothing may be subtracted "
+            "from an encoder column or a Gaussian draw"
+        )
+        # A raw set with no act.f32 is a broken set, not a set to guess about.
+        (sdir / "act.f32").unlink()
+        try:
+            C.dirs_for(cfg, "tb", str(sdir), None, str(root))
+        except AssertionError as e:
+            assert "has no act.f32" in str(e), f"wrong assert for a raw set with no act.f32: {e}"
+        else:
+            raise AssertionError("dirs_for served a `storage: raw` set that has no act.f32")
+
+
+def check_unit_set_refuses():
+    """A stored `unit` set is served at ITS mean, refuses another, and LABELS an unknown one.
+
+    The three outcomes are the whole design: a known mismatch is a wrong number waiting to happen
+    and must raise; a match is the legacy path that has to keep reproducing every number measured
+    before 2026-09-21; an `unknown` mean is Celeste's imported families, which are run as shipped
+    with a label rather than refused (plan §1.4).
+    """
+    import numpy as np
+
+    cfg = _conv_cfg()
+    rng = np.random.default_rng(1)
+    rows = [{"row": 0, "family": "realact", "id": 0}, {"row": 1, "family": "sae", "id": 1}]
+    v = rng.normal(size=(2, D)).astype(np.float32)
+    v /= np.linalg.norm(v, axis=1, keepdims=True)
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        mu_a, mu_b = root / "a.f32", root / "b.f32"
+        for path in (mu_a, mu_b):
+            C.write_array(path, rng.normal(size=(D,)).astype(np.float32), "float32")
+
+        sdir = root / "known"
+        _write_set(sdir, rows, None, {"storage": "unit", "mu_stored": None,
+                                      "family_mu": {"realact": str(mu_a), "sae": None}}, vecs=v)
+        got = C.dirs_for(cfg, "tb", str(sdir), str(mu_a), str(root))
+        assert np.abs(got - v).max() < 1e-3, "the set's own mean must return the stored rows"
+        try:
+            C.dirs_for(cfg, "tb", str(sdir), str(mu_b), str(root))
+        except AssertionError as e:
+            assert "cannot be re-centred" in str(e), f"wrong assert for a mismatched mean: {e}"
+        else:
+            raise AssertionError("dirs_for served a `storage: unit` set under the WRONG mean")
+
+        udir = root / "unknown"
+        _write_set(udir, rows, None, {"storage": "unit", "mu_stored": None,
+                                      "family_mu": {"realact": C.MU_UNKNOWN, "sae": None}}, vecs=v)
+        notes: list[str] = []
+        got = C.dirs_for(cfg, "tb", str(udir), str(mu_b), str(root), notes)
+        assert np.abs(got - v).max() < 1e-3, "an `unknown` mean must still return the stored rows"
+        assert any(C.MU_UNKNOWN in n and "realact" in n for n in notes), (
+            f"an `unknown` family must be LABELLED into the product README, got notes {notes}"
+        )
+
+        # A directory with neither a storage.json nor a config entry has no stated contract.
+        bare = root / "bare"
+        bare.mkdir()
+        C.write_jsonl(bare / "ids.jsonl", rows)
+        try:
+            C.set_storage(cfg, str(bare), str(root))
+        except AssertionError as e:
+            assert "carries no storage.json" in str(e), f"wrong assert for an undeclared dir: {e}"
+        else:
+            raise AssertionError("set_storage invented a contract for a directory that states none")
+
+
+def check_two_cosines():
+    """`score_ids` with both tensors: `cos` unchanged, `cos_centred` equal to a direct einsum.
+
+    Bit-identity of `cos` is the load-bearing half -- gcg.py and sae_self.py call without the
+    keywords and their numbers must not move by an ulp -- and the centred half is checked against
+    hidden states read out of the model independently, not against the same code path.
+    """
+    model, tok = tiny_model(), FakeTok()
+    read_layer = 2
+    texts = ["abcde", "xy"]
+    dirs, dirs_c = torch.randn(2, D), torch.randn(2, D)
+    mu = torch.randn(D) * 0.3
+
+    plain = C.score_tokens(model, tok, texts, dirs, read_layer, sbatch=1, device="cpu")
+    both = C.score_tokens(
+        model, tok, texts, dirs, read_layer, sbatch=1, device="cpu", dirs_centred=dirs_c, mu=mu
+    )
+    assert "cos_centred" not in plain, "a caller that asked for one cosine got two"
+    for k in ("cos", "norm", "keep", "ids"):
+        same = torch.equal(
+            torch.nan_to_num(plain[k], nan=-12345.0), torch.nan_to_num(both[k], nan=-12345.0)
+        )
+        assert same, f"asking for cos_centred moved `{k}`; the first cosine must be bit-identical"
+
+    ids0 = torch.tensor([[SINK, *tok.ids_of("abcde")]])
+    with torch.no_grad():
+        hs = (
+            model(input_ids=ids0, attention_mask=torch.ones_like(ids0), output_hidden_states=True)
+            .hidden_states[read_layer + 1]
+            .float()
+        )
+    want = torch.einsum(
+        "btd,bd->bt",
+        torch.nn.functional.normalize(hs - mu, dim=-1),
+        torch.nn.functional.normalize(dirs_c[0:1], dim=-1),
+    )[0]
+    got = both["cos_centred"][0, 1:6]
+    assert torch.allclose(got, want[1:6], atol=1e-5), (
+        f"cos_centred differs from the direct einsum by {(got - want[1:6]).abs().max():.2e}"
+    )
+    # A NaN direction row (a non-centrable family) must come back NaN, never a one-sided number.
+    dirs_nan = dirs_c.clone()
+    dirs_nan[1] = float("nan")
+    out = C.score_tokens(
+        model, tok, texts, dirs, read_layer, sbatch=1, device="cpu", dirs_centred=dirs_nan, mu=mu
+    )
+    assert torch.isnan(out["cos_centred"][1][out["keep"][1]]).all(), (
+        "a NaN row of dirs_centred produced a number; a non-centrable family must stay NaN"
+    )
+    # The two keywords are a pair.
+    try:
+        C.score_ids(model, tok, [[3, 4]], dirs[:1], read_layer, device="cpu", mu=mu)
+    except AssertionError as e:
+        assert "TOGETHER or neither" in str(e), f"wrong assert for mu without dirs_centred: {e}"
+    else:
+        raise AssertionError("score_ids accepted mu with no dirs_centred")
+
+
+def check_sae_key_selector():
+    """A two-dictionary ids.jsonl selects only the asked-for `sae_key`, and only encoder rows.
+
+    Selecting on the family label alone is not a near miss: every feature id below 131,072 is a
+    valid index into a 2^21 encoder, so the wrong rows would be scored silently. The unkeyed case
+    is asserted to be a no-op, because every set drawn before the field existed relies on that.
+    """
+    rows = [
+        {"row": 0, "family": "sae", "sae_key": "b/two_m", "id": 10, "sae_side": "enc"},
+        {"row": 1, "family": "sae", "sae_key": "b/two_m", "id": 11, "sae_side": "dec"},
+        {"row": 2, "family": "sae", "sae_key": "b/one31k", "id": 10},
+        {"row": 3, "family": "realact", "id": 99},
+        {"row": 4, "family": "sae2m_enc", "id": 12},
+    ]
+    got = [r["row"] for r in C.sae_rows_of(rows, "b/two_m")]
+    assert got == [0, 1, 4], f"sae_key filter picked {got}; the 131k row must not be in it"
+    got = [r["row"] for r in C.sae_rows_of(rows, "b/one31k")]
+    assert got == [2, 4], f"sae_key filter picked {got} for the 131k dictionary"
+    got = [r["row"] for r in C.sae_rows_of(rows, "b/two_m", side="enc")]
+    assert got == [0, 4], f"the side filter picked {got}; row 1 is a decoder row"
+    unkeyed = [{"row": 0, "family": "sae", "id": 1}, {"row": 1, "family": "sae", "id": 2}]
+    assert [r["row"] for r in C.sae_rows_of(unkeyed, "anything/at-all")] == [0, 1], (
+        "the filter is not a no-op on a set drawn before sae_key existed"
+    )
+
+
+def check_family_kinds_table():
+    """Every family of every configured held-out set has a `family_kinds:` entry, and the two
+    `mus`-free invariants hold: `centrable` iff `kind: activation`, and no mu value is a bare name.
+
+    load_config asserts these at load; this check states them over the REAL config so a new set or
+    family added without its declaration fails here rather than at the first GPU call.
+    """
+    cfg = C.load_config()
+    for set_name, spec in cfg["heldout"].items():
+        for fam in spec["families"]:
+            assert fam in cfg["family_kinds"], f"heldout {set_name} family {fam} has no family_kinds"
+        for fam, mu in (spec.get("family_mu") or {}).items():
+            assert mu is None or mu == C.MU_UNKNOWN or str(mu).endswith(C.MU_SUFFIXES), (
+                f"heldout {set_name} family_mu[{fam}] = {mu!r} is not null, {C.MU_UNKNOWN!r} or a "
+                f"{'/'.join(C.MU_SUFFIXES)} path -- a mu is a FILE, never a name"
+            )
+    for fam, fspec in cfg["family_kinds"].items():
+        assert fspec["centrable"] == (fspec["kind"] == "activation"), fam
+    for key, spec in cfg["maemms"].items():
+        if "mu" in spec:
+            assert spec["mu"] is None or str(spec["mu"]).endswith(C.MU_SUFFIXES), (
+                f"maemms[{key}].mu = {spec['mu']!r} is not null or a file path"
+            )
+    # Resolution: `{base}` expands, a relative path takes --root, an absolute one does not.
+    assert C.resolve_mu_path("base/{base}/stats/mu.f32", "qq", "/r") == "/r/base/qq/stats/mu.f32"
+    assert C.resolve_mu_path("/abs/mu.npy", "qq", "/r") == "/abs/mu.npy"
+    for bad in ("stats_mu", "base/x/mu.bin", ""):
+        try:
+            C._check_mu_value(bad, "test", allow_unknown=False)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"_check_mu_value accepted {bad!r}, which is not a mu file")
+
+
+def check_exact_solve_roundtrip():
+    """`rollouts_nla.build_inputs(amp="exact")` recovers the RAW activation from a centred unit
+    direction plus its stored `act_norm` -- the migration tool for an imported `storage: unit` set.
+
+    Reference is the activation it was built from, not the solve restated: given act and mu, the
+    row carries u = unit(act - mu) and act_norm = ||act||, and the solve must return act itself.
+    """
+    import numpy as np
+
+    from precompute import rollouts_nla
+
+    rng = np.random.default_rng(7)
+    d = 64
+    mu = rng.normal(size=(d,)).astype(np.float64) * 2.0
+    act = rng.normal(size=(3, d)).astype(np.float64) * 40.0
+    u = (act - mu) / np.linalg.norm(act - mu, axis=1, keepdims=True)
+    rows = [{"act_norm": round(float(np.linalg.norm(a)), 3)} for a in act]
+    x, info = rollouts_nla.build_inputs(u.astype(np.float32), rows, mu.astype(np.float32), "exact", 1.0)
+    cos = np.einsum("nd,nd->n", x, act) / (
+        np.linalg.norm(x, axis=1) * np.linalg.norm(act, axis=1)
+    )
+    assert cos.min() > 1 - 1e-4, f"the exact solve did not recover act: min cos {cos.min():.6f}"
+    nrm = np.linalg.norm(x, axis=1)
+    assert np.abs(nrm - np.linalg.norm(act, axis=1)).max() < 1e-2, (
+        f"||x|| != the stored act_norm: max |d| {np.abs(nrm - np.linalg.norm(act, axis=1)).max():.2e}"
+    )
+    assert all(r["amp_used"] == "exact" and r["fallback"] is None for r in info), (
+        f"a row fell back instead of solving: {info}"
+    )
+    # A row with no act_norm (an encoder column) has nothing to solve for and must SAY so.
+    x2, info2 = rollouts_nla.build_inputs(
+        u[:1].astype(np.float32), [{"act_norm": None}], mu.astype(np.float32), "exact", 1.0
+    )
+    assert info2[0]["fallback"] == "no_act_norm", info2
+
+
+
 CHECKS = [
     check_config,
     check_paths,
@@ -1042,6 +1351,12 @@ CHECKS = [
     check_maemms_for,
     check_strip_repo_sink,
     check_sae_key_for,
+    check_storage_contract,
+    check_unit_set_refuses,
+    check_two_cosines,
+    check_sae_key_selector,
+    check_family_kinds_table,
+    check_exact_solve_roundtrip,
     check_rollouts_nla_selftest,
 ]
 

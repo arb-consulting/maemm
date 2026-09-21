@@ -96,19 +96,63 @@ class _Extra:
         self.val.append(a[r[order], f[order]].cpu().numpy().astype(np.float16))
 
 
-def _load_dirs(cfg, args):
-    """(rows, dirs [N, d] fp32 unit on the cpu, source dir) -- the same source rollouts_hf used."""
+def _load_dirs(cfg, args, notes=None):
+    """(rows, dirs, dirs_centred, mu, source dir) -- the two target tensors of the two cosines.
+
+    `dirs` is the target of `cos` (the historical, uncentred-scorer number) and `dirs_centred` the
+    target of `cos_centred`, both [N, d] fp32 unit on the cpu:
+
+      * on a `storage: raw` set, `dirs` is unit(act) and `dirs_centred` is unit(act - mu), derived
+        from the one act.f32 at read time;
+      * on a legacy `storage: unit` set there is no act.f32 to derive from, so BOTH are the stored
+        direction -- which is exactly right: the stored row already IS unit(act - mu) for that
+        set's own mean, so `cos` reproduces every number measured before 2026-09-21 to the digit
+        and `cos_centred` is that same target with the SCORER's side centred too.
+
+    Rows of a family that is not `centrable` (config.yaml `family_kinds:`) are NaN in
+    `dirs_centred`, so `cos_centred` is NaN for them rather than a one-sided number: an encoder
+    column, a Gaussian draw and a subspace basis have no mean, and cos(h - mu, encoder column)
+    measures the activation moving while the target stands still.
+
+    `mu` is None when this run centres on nothing, and then there is no second cosine at all.
+    """
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
     d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
-    v = C.read_array(f"{src}/vecs.f16", "float16", (len(rows), d)).astype(np.float32)
-    return rows, torch.nn.functional.normalize(torch.from_numpy(v), dim=-1), src
+    mu_val, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    contract = C.set_storage(cfg, src, root)
+    # On a raw set the uncentred target is unit(act); on a legacy set it is the stored row, whose
+    # own mean this run has already been asserted to match.
+    raw_mu = None if contract["storage"] == "raw" else mu_val
+    v = C.dirs_for(cfg, base, src, raw_mu, root, notes)
+    assert v.shape == (len(rows), d), f"{src}: dirs_for returned {v.shape} for {len(rows)} rows"
+    dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)), dim=-1)
+
+    mu = C.load_mu(cfg, base, mu_val, root)
+    if mu is None:
+        (notes if notes is not None else []).append(
+            "no centred cosine in this directory: this run centres on nothing (mu=none), so "
+            "cos_centred would be the uncentred number under another name"
+        )
+        return rows, dirs, None, None, src
+    vc = np.array(C.dirs_for(cfg, base, src, mu_val, root, notes), dtype=np.float32, copy=True)
+    not_centrable = [i for i, r in enumerate(rows) if not C.family_centrable(cfg, r["family"])]
+    vc[not_centrable] = np.nan
+    (notes if notes is not None else []).append(
+        f"cos_centred: both sides centred on {C.mu_label(mu_val, base, root)}; "
+        f"{len(not_centrable)} of {len(rows)} rows are NaN there because their family is not "
+        f"`centrable` (an encoder column / a Gaussian draw / a subspace basis has no mean, so a "
+        f"one-sided cos(h - mu, v) is not a centred number and is not reported as one)"
+    )
+    dirs_centred = torch.from_numpy(vc)
+    return rows, dirs, dirs_centred, torch.from_numpy(mu), src
 
 
-def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MAX_LENGTH):
+def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MAX_LENGTH,
+               dirs_centred=None, mu=None):
     """common.score_tokens over `texts` in SCORE_ROWS slices, concatenated. `extra` sees every
     chunk's residual (its row offsets are shifted back to the global row index here).
 
@@ -116,7 +160,8 @@ def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MA
     is the protocol's SCORE_MAX_LENGTH for every arm but the NLA one."""
     import torch
 
-    outs: dict[str, list] = {"cos": [], "norm": [], "keep": [], "ids": []}
+    keys = ["cos", "norm", "keep", "ids"] + (["cos_centred"] if dirs_centred is not None else [])
+    outs: dict[str, list] = {k: [] for k in keys}
     for s in range(0, len(texts), SCORE_ROWS):
         block = texts[s : s + SCORE_ROWS]
         out = C.score_tokens(
@@ -127,6 +172,8 @@ def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MA
             read_layer,
             on_chunk=(lambda i, h, cos, keep, ids, off=s: extra(off + i, h, cos, keep, ids)),
             max_length=max_length,
+            dirs_centred=None if dirs_centred is None else dirs_centred[s : s + len(block)],
+            mu=mu,
         )
         for k in outs:
             outs[k].append(out[k])
@@ -282,7 +329,7 @@ def _check_scored_is_generation(
     return bad
 
 
-def _rescore(cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, dirs_src):
+def _rescore(cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, dirs_src, notes=None):
     """`--rescore-texts`: score an arbitrary jsonl of {row, text} against the set's directions."""
     import torch
 
@@ -310,6 +357,7 @@ def _rescore(cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, d
         "sae": sae_key or "(not used)",
     }
     with C.outdir(out, args, inputs=inputs) as od:
+        C.note_convention(od, notes)
         bad = _check_scored_is_generation(res, texts, tok, C.SCORE_MAX_LENGTH - 1, od)
         od.write_array("cos.f16", res["cos"], "float16")
         od.write_array("norm.f16", res["norm"], "float16")
@@ -361,12 +409,15 @@ def run(cfg, args):
     )
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
 
-    rows_meta, dirs, dirs_src = _load_dirs(cfg, args)
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_centred, mu, dirs_src = _load_dirs(cfg, args, cen_notes)
     model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY -- the MAEMM is never loaded here
     sae, sae_key = _sae_for(cfg, args)
 
     if args.get("rescore_texts"):
-        return _rescore(cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, dirs_src)
+        return _rescore(
+            cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, dirs_src, cen_notes
+        )
 
     engine = args.get("engine") or "hf"
     if rdir:
@@ -416,12 +467,26 @@ def run(cfg, args):
     flat = [by_row[r][k] for r in sel for k in range(n)]
     texts = [x["text"] for x in flat]
     fdirs = torch.stack([dirs[x["row"]] for x in flat])
+    fdirs_c = None if dirs_centred is None else torch.stack([dirs_centred[x["row"]] for x in flat])
     gate = float(sae.threshold) if sae is not None else 0.0
     extra = _Extra(sae, d, len(flat), gate)
     print(f"[score] {len(sel)} targets x {n} rollouts = {len(flat)} rows on the clean base", flush=True)
     t0 = time.time()
-    res = _score_all(model, tok, texts, fdirs, read_layer, extra, max_length=max_length)
+    res = _score_all(
+        model, tok, texts, fdirs, read_layer, extra, max_length=max_length,
+        dirs_centred=fdirs_c, mu=mu,
+    )
     best, _ = C.agg(res["cos"], res["keep"])
+    # The centred max is taken over the SAME kept tokens but at its OWN argmax, not at the
+    # uncentred one: a max read at another statistic's argmax is not a max (that is the flaw
+    # precompute/centred.py documents at its :36-38 and this replaces).
+    best_c, arg_c = (None, None)
+    if fdirs_c is not None:
+        keep_c = res["keep"] & ~torch.isnan(res["cos_centred"])
+        best_c, arg_c = C.agg(torch.nan_to_num(res["cos_centred"], nan=-1.0), keep_c)
+        empty_c = ~keep_c.any(dim=1)
+        best_c = torch.where(empty_c, torch.full_like(best_c, float("nan")), best_c)
+        arg_c = torch.where(empty_c, torch.full_like(arg_c, 0), arg_c) - 1
     elapsed = time.time() - t0
 
     N = len(sel)
@@ -438,6 +503,9 @@ def run(cfg, args):
         f"CSR is inconsistent: {len(sae_idx)} feature entries but the offsets end at {sae_off[-1]}"
     )
     bestm = best.numpy().reshape(N, n)
+    cos_c = None if best_c is None else res["cos_centred"].numpy().astype(np.float16).reshape(N, n, width)
+    bestm_c = None if best_c is None else best_c.numpy().reshape(N, n)
+    argmax_c = None if arg_c is None else arg_c.numpy().astype(np.int16).reshape(N, n)
 
     per_target = []
     for i, r in enumerate(sel):
@@ -445,6 +513,11 @@ def run(cfg, args):
         lens = [by_row[r][k]["n_tok"] for k in range(n)]
         fin = [by_row[r][k]["finished"] for k in range(n)]
         bo = C.best_of_k_means(vals, BO_KS)
+        # `cos_centred` is NaN for a non-centrable family and for a rollout with no kept token, so
+        # the centred aggregates are computed over the finite entries only and are absent -- not
+        # zero, not -1 -- for a row that has none.
+        vals_c = [] if bestm_c is None else [v for v in bestm_c[i].tolist() if np.isfinite(v)]
+        bo_c = C.best_of_k_means(vals_c, BO_KS) if len(vals_c) == n else {}
         per_target.append(
             {
                 "row": r,
@@ -459,6 +532,16 @@ def run(cfg, args):
                 "eos_rate": round(float(np.mean(fin)), 4),
                 "n_sae_gated": int(counts[i * n : (i + 1) * n].sum()),
                 **{f"bo_{k}": round(v, 6) for k, v in bo.items()},
+                **(
+                    {}
+                    if not vals_c
+                    else {
+                        "mean_cos_centred": round(float(np.mean(vals_c)), 6),
+                        "max_cos_centred": round(float(np.max(vals_c)), 6),
+                        "n_centred": len(vals_c),
+                        **{f"bo_c_{k}": round(v, 6) for k, v in bo_c.items()},
+                    }
+                ),
             }
         )
 
@@ -474,6 +557,7 @@ def run(cfg, args):
         "n": n,
     }
     with C.outdir(out, args, inputs=inputs) as od:
+        C.note_convention(od, cen_notes)
         bad = _check_scored_is_generation(
             res,
             texts,
@@ -487,6 +571,9 @@ def run(cfg, args):
         od.write_array("cos.f16", cos, "float16")
         od.write_array("norm.f16", nrm, "float16")
         od.write_array("argmax.i16", argmax, "int16")
+        if cos_c is not None:
+            od.write_array("cos_centred.f16", cos_c, "float16")
+            od.write_array("argmax_centred.i16", argmax_c, "int16")
         od.write_array("best_act.f16", best_act, "float16")
         od.write_array("sae_idx.i32", sae_idx, "int32")
         od.write_array("sae_val.f16", sae_val, "float16")
@@ -502,6 +589,12 @@ def run(cfg, args):
                 # reader takes the width from the DIRECTORY (common.score_width_of) instead of
                 # from a module constant that a later arm may not share.
                 "score_max_length": max_length,
+                # Which mean the centred cosine used, as the path it was read from, or null when
+                # this directory has no cos_centred.f16 at all. A reader takes the convention from
+                # HERE rather than from a config entry that may have moved since.
+                "mu": None if mu is None else C.mu_label(
+                    C.mu_for(cfg, base, dirs_src, args, maemm, root)[0], base, root
+                ),
             },
         )
         od.note(
@@ -520,6 +613,16 @@ def run(cfg, args):
                 f"window than every other arm's."
             )
         )
+        if cos_c is not None:
+            od.note(
+                "`cos_centred.f16` [N, n, T] is the SECOND cosine from the SAME forward: "
+                "cos(unit(h - mu), unit(act - mu)), both sides centred on the mean this run named, "
+                "against `cos.f16`'s uncentred scorer. `argmax_centred.i16` is its OWN argmax among "
+                "the scored tokens -- not the uncentred one -- because a max read at another "
+                "statistic's argmax is not a max. Rows whose family is not `centrable` "
+                "(config.yaml `family_kinds:`) are NaN in both, never a one-sided number, and so "
+                "are rows with no kept token."
+            )
         od.note(
             "`argmax.i16` indexes the SCORED tokens (0 = the first generated token; the sink is "
             "already dropped), and is -1 for a row with no kept token; `best_act.f16` is the "
