@@ -356,10 +356,13 @@ def run(cfg, args):
         )
         sae_key = sae_keys[0]
 
-    toks, docs = C.load_corpus(base, root)
+    # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
+    # ladder or window geometry is a different corpus, never an edit of one.
+    corpus_name = args.get("corpus_name") or ""
+    toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     print(
-        f"[stats] corpus {C.corpus_dir(base, root)}: {len(docs)} docs, {len(toks)} tokens, sizes {sizes}",
+        f"[stats] corpus {C.corpus_dir(base, root, corpus_name)}: {len(docs)} docs, {len(toks)} tokens, sizes {sizes}",
         flush=True,
     )
 
@@ -383,7 +386,7 @@ def run(cfg, args):
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
 
     inputs = {
-        "corpus": C.corpus_dir(base, root),
+        "corpus": C.corpus_dir(base, root, corpus_name),
         "corpus_tokens": int(len(toks)),
         "sizes": sizes,
         "read_layer": spec["read_layer"],

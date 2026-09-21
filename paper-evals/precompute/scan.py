@@ -178,7 +178,10 @@ def run(cfg, args):
         )
         sae_key = sae_keys[0]
 
-    toks, docs = C.load_corpus(base, root)
+    # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
+    # ladder or window geometry is a different corpus, never an edit of one.
+    corpus_name = args.get("corpus_name") or ""
+    toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     rows, v, (t_doc, t_lo, t_hi) = _load_targets(cfg, args)
     n = len(rows)
@@ -329,7 +332,7 @@ def run(cfg, args):
     assert len(wdoc) == w_global, f"window table {len(wdoc)} != {w_global} forwarded windows"
 
     inputs = {
-        "corpus": C.corpus_dir(base, root),
+        "corpus": C.corpus_dir(base, root, corpus_name),
         "heldout": C.heldout_dir(base, set_name, root),
         "targets": n,
         "windows": int(w_global),

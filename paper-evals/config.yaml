@@ -188,6 +188,18 @@ heldout:
     sae_min_fires: 20       # counted with the SAE's learned gate, not raw act > 0
     sae_strata: 4           # rarity quartiles of the corpus fire count
 
+  # The shared 2,000-feature set (Ari 2026-09-20). Built by features/draw_sae2m.py from
+  # shared/sae2m-2k/features.parquet, NOT drawn here: the point of a shared subset is that
+  # everyone scores the same features. Every one comes from Celeste's seed-2026 `eval`
+  # split, so none was trained on; the 80/20 train/test column in that file splits OUR
+  # analysis, not the model's training.
+  2026-09-20_sae2m_2k:
+    seed: 20260920
+    families:
+      sae: {n: 2000}
+    sae_min_fires: 20       # satisfied before the draw: her 1.0B scan reports 0 dead features
+    sae_strata: 4           # recorded per row as log10 corpus-peak quartiles, not sampled
+
 corpus:
   dataset: openbmb/Ultra-FineWeb
   files:

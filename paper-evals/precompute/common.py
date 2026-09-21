@@ -351,7 +351,7 @@ def size_tag_of(cum_before: int, n_tok: int, sizes: list[int]) -> int:
     return sizes[-1]
 
 
-def load_corpus(base: str, root: str = VOL):
+def load_corpus(base: str, root: str = VOL, name: str = ""):
     """(tokens, docs) for a built corpus: a read-only int32 memmap and the docs.jsonl rows.
 
     The memmap is never randomly indexed across the whole file by the passes -- they walk documents
@@ -359,7 +359,7 @@ def load_corpus(base: str, root: str = VOL):
     """
     import numpy as np
 
-    d = corpus_dir(base, root)
+    d = corpus_dir(base, root, name)
     docs = read_jsonl(f"{d}/docs.jsonl")
     toks = np.memmap(f"{d}/tokens.i32", dtype=np.int32, mode="r")
     assert docs, f"{d}/docs.jsonl is empty"
