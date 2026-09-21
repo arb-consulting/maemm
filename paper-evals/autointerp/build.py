@@ -54,6 +54,7 @@ import time
 import numpy as np
 
 import precompute.common as C
+from precompute.rollouts_nla import extract_explanation
 
 # The held-out families whose targets ARE SAE features, so a "the feature's own activation on
 # this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
@@ -70,6 +71,15 @@ CENTRE32_LEN = 32
 # Delphi's explainer highlight threshold, FETCHED 2026-09-17 from `explainers/explainer.py`
 # @4fea06e: `threshold: float = 0.3`, applied as `max(activations) * self.threshold`.
 DELPHI_MARK_FRAC = 0.3
+
+# The NLA arm's example count = config.yaml's `nla.n`. Kept as a constant here because ARM_SPECS
+# is a literal table and a 4 in it would look like a typo beside the 16s.
+NLA_N = 4
+# The arm whose examples ARE the MAEMM's / verbalizer's rollouts, by rollout source. An `nla`
+# entry may only be built into "NLA": the others are named in the paper as MAEMM arms and a
+# verbalizer's text under the label `M` would be a mislabelled number, not a variant.
+ROLLOUT_ARMS_NOT_NLA = ("M", "M-div", "C4M", "C16M16", "M-N8", "M-N32")
+NLA_ARM = "NLA"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -486,6 +496,12 @@ ARM_SPECS = {
     # trigram Jaccard, then quantile sampling across the peak-activation range (Delphi's
     # `train_type: "quantiles"` analogue) instead of the top 16.
     "M-div": (None, 0, "mdiv", 16),
+    # The NLA arm (Tomas, 2026-09-21). Same shape as M -- rollouts rendered with their per-token
+    # activation marks from `sae_self` -- but the rollout source is the NLA VERBALIZER, so it is a
+    # different arm and never a relabelled M. n = 4 because that is `nla.n`: the verbalizer answers
+    # at 200 tokens and four samples per target is what the budget buys, so this arm is NOT
+    # matched-N against C4/C16 (16) and the build README says so on every run.
+    NLA_ARM: (None, 0, "m", NLA_N),
     # Descriptive pilot points only (amendment A9: N = 16 is fixed a priori, not selected).
     "C16-N8": ("c16", 8, None, 0),
     "M-N8": (None, 0, "m", 8),
@@ -495,6 +511,48 @@ ARM_SPECS = {
 # are scorer-only pseudo-arms that `run.py` adds: F reuses another feature's description, and
 # C16-draw2 reuses C16's own description on the second, disjoint test draw (amendments A6, A7).
 FULL_ARMS = ("C16", "C4", "M", "C4M", "C32", "C16M16")
+
+
+def check_arm_maemm(arm_names, maemm: str, maemm_type: str) -> bool:
+    """True iff `--maemm` is the NLA verbalizer. Asserts that the arms asked for match what it is.
+
+    An `nla` entry's rollouts may only build the "NLA" arm. `M`, `C4M`, `C16M16` and the
+    descriptive M points are named in the paper as the MAEMM's arms, and filling them from a
+    verbalizer would produce a correctly-shaped, WRONGLY-LABELLED number that nothing downstream
+    could detect -- the rows look identical, only their provenance differs. The converse is the
+    same mistake mirrored, so asking for "NLA" with a MAEMM is refused too.
+    """
+    is_nla = maemm_type == "nla"
+    if is_nla:
+        bad = [a for a in arm_names if a in ROLLOUT_ARMS_NOT_NLA]
+        assert not bad, (
+            f"--maemm {maemm!r} is a `type: nla` entry (the activation verbalizer), so its "
+            f"rollouts may only build the {NLA_ARM!r} arm; {bad} are the MAEMM rollout arms and "
+            f"would be mislabelled. Drop them, or point --maemm at a MAEMM."
+        )
+    else:
+        assert NLA_ARM not in arm_names, (
+            f"arm {NLA_ARM!r} asks for the activation verbalizer's rollouts but --maemm {maemm!r} "
+            f"is type {maemm_type!r}; point --maemm at the `type: nla` entry"
+        )
+    return is_nla
+
+
+def nla_description(raw: str) -> dict:
+    """Arm B's description from ONE NLA rollout's raw text: the <explanation> body, or all of it.
+
+    The tags are the verbalizer's output FORMAT, not content, so they are stripped with the same
+    regex `rollouts_nla` records its per-row `explanation` with -- one extractor, not two. A
+    rollout that never closed its tag contributes its whole text and says so (`tag_found: false`)
+    rather than being dropped: a silently missing description would shrink arm B's feature set
+    relative to every other arm, and the comparison is paired.
+    """
+    body = extract_explanation(raw)
+    return {
+        "tag_found": body is not None,
+        "n_chars": len(raw),
+        "description": (body if body is not None else raw).strip(),
+    }
 
 
 def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str = "gate"):
@@ -809,6 +867,21 @@ def run(cfg, args):
         assert picked, (
             f"--rows {args['rows']!r} selected none of the {len(sae_rows)} {'/'.join(FAMILIES)} rows"
         )
+    is_nla = check_arm_maemm(arm_names, maemm, cfg["maemms"][maemm]["type"])
+    # Arm B ("the NLA text IS the description") needs the rollout's OWN text, not the rendered,
+    # activation-marked example the explainer sees, so it comes from the rollouts file rather than
+    # from sae_self's re-encoded ids. NOTE this is the DEFAULT-amp rollouts directory: an `--amp`
+    # variant lands in maemms/<base>/<nla>/variants/ and neither sae_self nor this stage reads
+    # from there, so an amp sweep needs its own (rollouts -> score -> sae_self -> build) chain.
+    nla_text: dict[tuple[int, int], str] = {}
+    if is_nla:
+        rpath = C.rollouts_path(maemm, set_name, root, engine)
+        assert os.path.exists(rpath), (
+            f"no rollouts at {rpath}: the NLA arms need the verbalizer's own texts, and this is "
+            f"the same file `sae_self` measured its activations on"
+        )
+        nla_text = {(int(x["row"]), int(x["k"])): x["text"] for x in C.read_jsonl(rpath)}
+    nla_desc_rows: list[dict] = []
     print(f"[build] {len(picked)} features, arms {arm_names}", flush=True)
 
     tok = AutoTokenizer.from_pretrained(C.snapshot(cfg, cfg["bases"][base]["hf"]))
@@ -951,6 +1024,31 @@ def run(cfg, args):
             pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool,
                      "mdiv": diversify(roll_pool, 16, float(ac.get("mdiv_jaccard", 0.5)))}
 
+            # ---- arm B's description: the NLA text itself, no explainer call ----------------
+            # The verbalizer wrote FOUR answers for this feature; the one to use is the one that
+            # actually drove the feature, i.e. the rollout with the highest sae_self peak -- the
+            # same ordering the NLA arm's examples are ranked by, so arm A's first example and
+            # arm B's description come from the same rollout. The `<explanation>` tags are the
+            # verbalizer's output format, not content, so they are stripped with the SAME regex
+            # rollouts_nla records `explanation` with; a rollout that never closed its tag
+            # contributes its whole text and says so (`tag_found: false`) rather than being
+            # dropped, because a missing description would silently shrink arm B's feature set.
+            if is_nla:
+                # `order` is the rollouts sorted by DESCENDING sae_self peak, so order[0] is the
+                # answer that actually drove the feature -- and it is the same rollout arm A shows
+                # first, so the two arms' inputs come from one text rather than two.
+                k_best = int(order[0]) if len(order) else -1
+                raw = nla_text.get((r["row"], k_best), "")
+                nla_desc_rows.append(
+                    {
+                        "feature": feat,
+                        "row": r["row"],
+                        "k": k_best,
+                        "peak": round(float(peaks[k_best]) if k_best >= 0 else 0.0, 4),
+                        **nla_description(raw),
+                    }
+                )
+
             # ---- arms -------------------------------------------------------------------
             arm_rows = []
             shown_windows: list[dict] = []
@@ -1082,6 +1180,28 @@ def run(cfg, args):
             C.write_jsonl(od.file(f"{feat}.jsonl"), [meta, *arm_rows, *test_rows])
             feat_table.append({k: v for k, v in meta.items() if k != "kind"})
 
+        if is_nla:
+            od.write_jsonl("nla_desc.jsonl", nla_desc_rows)
+            n_tagged = sum(1 for x in nla_desc_rows if x["tag_found"])
+            n_empty_desc = sum(1 for x in nla_desc_rows if not x["description"])
+            od.note(
+                f"`nla_desc.jsonl` is arm B's input: for each feature, the NLA rollout with the "
+                f"HIGHEST sae_self peak activation, with its <explanation> tags stripped -- the "
+                f"description that arm scores WITHOUT any explainer call. {n_tagged} of "
+                f"{len(nla_desc_rows)} carried a closed tag (the rest contribute their whole "
+                f"text, flagged `tag_found: false`); {n_empty_desc} are empty and `run` scores no "
+                f"arm for those features. `run --arms ...,NLA-desc` picks the arm up from this "
+                f"file; `build` itself has no such arm."
+            )
+            od.note(
+                f"ARM PROVENANCE: rollout source = the NLA VERBALIZER `{maemm}` "
+                f"({cfg['maemms'][maemm].get('hf', '?')}), n = {NLA_N} texts per feature at "
+                f"nla.max_new {cfg['maemms'][maemm]['nla']['max_new']}. The NLA arm is therefore "
+                f"NOT matched-N against C4/C16 (16 examples each) and its texts are ~3x longer; "
+                f"both differences are properties of the baseline at its own operating point and "
+                f"neither is corrected for here. The MAEMM rollout arms "
+                f"({', '.join(ROLLOUT_ARMS_NOT_NLA)}) are REFUSED with an `nla` --maemm."
+            )
         od.write_json("features.json", {"features": feat_table})
         od.write_json(
             "build.json",
@@ -1111,6 +1231,8 @@ def run(cfg, args):
                 "random_pool": pool.path,
                 "random_pool_windows": pool.n_win,
                 "arms": {a: ARM_SPECS[a] for a in arm_names},
+                "rollout_source": ("nla-verbalizer" if is_nla else "maemm"),
+                "nla_desc": ("nla_desc.jsonl" if is_nla else "(not an nla maemm)"),
                 "epo_strings": args.get("epo_strings") or "(E arm not run: hook only)",
                 "mean_marked_fraction": round(float(np.mean(mark_frac)) if mark_frac else 0.0, 4),
                 "token_join_mismatches": f"{join_bad}/{join_total}",

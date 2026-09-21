@@ -56,6 +56,10 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 # The comparisons the design names, as (label, arm_a, arm_b) meaning a - b. The first three are
 # the headline; the matched-N pair is amendment A8; the N points are descriptive only (A9).
+# An arm absent from a run is SKIPPED, not an error: `paired()` returns empty arrays when either
+# side is missing from the frame and every consumer does `if not len(d): continue`. That is what
+# lets one CONTRASTS table serve a MAEMM run (no NLA arms) and an NLA run (no M arms) without
+# either of them carrying a row of NaNs. VERIFIED 2026-09-21, not changed.
 CONTRASTS = [
     ("substitution", "M", "C16"),
     ("enrichment", "C4M", "C4"),
@@ -63,6 +67,14 @@ CONTRASTS = [
     ("matched-N enrichment", "C16M16", "C32"),
     ("corpus N: 8 - 16 (descriptive)", "C16-N8", "C16"),
     ("corpus N: 32 - 16 (descriptive)", "C32", "C16"),
+    # The NLA baseline (Tomas, 2026-09-21), present only in an NLA run. `NLA` is the verbalizer's
+    # rollouts as explainer examples; `NLA-desc` is the verbalizer's own text used AS the
+    # description, with no explainer call. Both are read against the cheap-corpus arm C4, which is
+    # the reference arm an NLA run builds (`scan`'s 16M `examples/` does not exist for sae2m).
+    # NOTE neither is matched-N against C4: the NLA arm shows 4 examples to C4's 16.
+    ("NLA vs cheap corpus", "NLA", "C4"),
+    ("NLA text as description vs cheap corpus", "NLA-desc", "C4"),
+    ("NLA text as description vs NLA examples", "NLA-desc", "NLA"),
     ("maemm N: 8 - 16 (descriptive)", "M-N8", "M"),
     ("maemm N: 32 - 16 (descriptive)", "M-N32", "M"),
 ]

@@ -989,6 +989,20 @@ def run(cfg, args):
     # of a different rarity" from what that floor measures. PROJECTED on the pilot's 64 features
     # for C16 and M: 2 x 64 x 8 detection calls at the measured $0.00302 = ~$3.1.
     crossfam_arms = [a for a in (args.get("crossfam") or "").split(",") if a]
+    # Arm B of the NLA smoke (Tomas, 2026-09-21): "the NLA text IS the description". A
+    # SCORER-ONLY pseudo-arm exactly like `R-shuffled` / `C16-judge2` -- no explainer call, the
+    # description comes from the build's `nla_desc.jsonl` -- and it is detection-scored on the
+    # IDENTICAL draw-1 items every other arm sees, which is what makes it comparable with the
+    # explainer arms rather than a separate experiment. It exists iff the build wrote that file,
+    # so a MAEMM build never grows it and `--arms` naming it on such a build is a no-op with a
+    # printed reason rather than an error.
+    nla_desc_arm = "NLA-desc"
+    nla_desc_path = f"{build_dir}/nla_desc.jsonl"
+    nla_desc: dict[int, str] = {}
+    if os.path.exists(nla_desc_path):
+        nla_desc = {
+            int(x["feature"]): (x["description"] or "").strip() for x in C.read_jsonl(nla_desc_path)
+        }
 
     run_name = args.get("run_dir") or f"{time.strftime('%Y-%m-%d')}_autointerp-{base.split('-')[-1]}"
     run_root = f"{root}/runs/{run_name}"
@@ -1165,6 +1179,29 @@ def run(cfg, args):
     print(f"[run] explained {len(expl_rows)} (feature, arm) pairs, {n_empty} empty, "
           f"{n_trunc} truncated-and-retried, ${explain_cost:.4f}", flush=True)
 
+    # Arm B is SEEDED, not explained: its description was written by the verbalizer, so it enters
+    # `expl` beside the explainer answers and everything after this point treats it as an ordinary
+    # description. A feature whose NLA text was empty (no rollout, or an empty answer) gets no
+    # entry and is simply not scored for this arm -- the same way an empty explainer answer drops
+    # its (feature, arm) pair, and counted here so the drop is visible rather than inferred.
+    n_nla_desc = 0
+    if nla_desc:
+        for feat in feats:
+            text = nla_desc.get(feat, "")
+            if text:
+                expl[(feat, nla_desc_arm)] = text
+                n_nla_desc += 1
+            expl_rows.append({
+                "feature": feat, "arm": nla_desc_arm, "n_examples": 0, "explanation": text,
+                "ok": bool(text), "refused": False, "stop_reason": "seeded-from-build",
+                "raw_len": len(text), "usage": {},
+            })
+        print(f"[run] {nla_desc_arm}: {n_nla_desc} of {len(feats)} descriptions seeded from "
+              f"{nla_desc_path} (NO explainer call)", flush=True)
+    elif nla_desc_arm in arm_names:
+        print(f"[run] --arms names {nla_desc_arm} but {nla_desc_path} does not exist (this build "
+              f"is not an NLA build); the arm is skipped", flush=True)
+
     perm = derangement(feats, int(ac["shuffle_seed"]))
     strat_of = {f: int(fmeta[f]["stratum"]) for f in feats}
     perm_q = derangement_within(feats, strat_of, int(ac["shuffle_seed"]) + 7)
@@ -1188,6 +1225,8 @@ def run(cfg, args):
         for src in crossfam_arms:
             if perm_q[feat] != feat and expl.get((perm_q[feat], src)):
                 plan.append((f"X{src}-q", expl.get((perm_q[feat], src), ""), t1))
+        if expl.get((feat, nla_desc_arm)):
+            plan.append((nla_desc_arm, expl[(feat, nla_desc_arm)], t1))
         if expl.get((feat, floor_src)):
             # The JUDGE-ONLY floor: the same description on the SAME draw-1 items. Its job key
             # differs from C16's, so the cache treats it as a separate call and it really is a

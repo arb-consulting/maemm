@@ -456,6 +456,74 @@ def check_followup_arms(cfg, tmp: Path, base: str, set_name: str):
           f"{first['calls_this_call']}, crossfam arms {sorted(xarms)}, base summary untouched")
 
 
+def check_nla_arms(cfg, tmp: Path, base: str):
+    """The three NLA decisions that have no other local test: family filter, arm guard, arm B.
+
+    None of these can be reached through `synth_build`, which fabricates a build directory and so
+    starts one stage downstream of everything here. They are checked at the functions instead --
+    which is why those functions exist rather than being inline in `build.run` / `sae_self.run`.
+    """
+    import numpy as np
+
+    import autointerp.sae_self as SS
+
+    # (a) the family filter keeps Ari's `sae2m_enc` label beside `sae`, and `--sae` is honoured.
+    assert set(B.FAMILIES) == set(SS.FAMILIES), "build and sae_self must agree on the families"
+    assert "sae2m_enc" in B.FAMILIES and "sae" in B.FAMILIES, B.FAMILIES
+    hdir = Path(C.heldout_dir(base, "selfcheck_fam", str(tmp)))
+    hdir.mkdir(parents=True, exist_ok=True)
+    C.write_jsonl(hdir / "ids.jsonl", [
+        {"row": 0, "family": "realact", "id": "doc1:p2:L3"},
+        {"row": 1, "family": "sae2m_enc", "id": 4242},
+        {"row": 2, "family": "random", "id": "g0"},
+        {"row": 3, "family": "sae2m_enc", "id": 777},
+    ])
+    sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][-1]
+    rows, sae_rows, feats, key = SS._sae_rows(
+        cfg, {"base": base, "root": str(tmp), "heldout": "selfcheck_fam", "sae": sae_key}
+    )
+    assert sae_rows == [1, 3] and feats == [4242, 777], (sae_rows, feats)
+    assert key == sae_key, f"--sae was not honoured: {key}"
+    assert len(rows) == 4, "the full ids.jsonl must come back, not only the SAE rows"
+
+    # (b) arm B's description: tags stripped, whole text when the tag never closed.
+    txt = "blah <explanation>\n  neurons that fire on dates \n</explanation> tail"
+    hit = B.nla_description(txt)
+    assert hit == {
+        "tag_found": True,
+        "n_chars": len(txt),
+        "description": "neurons that fire on dates",
+    }, hit
+    miss = B.nla_description("  <explanation>never closed  ")
+    assert miss["tag_found"] is False and miss["description"] == "<explanation>never closed", miss
+    assert B.nla_description("")["description"] == "", "an empty rollout gives an empty description"
+
+    # ...and the CHOICE: the highest sae_self peak wins, which is also arm A's first example.
+    peaks = np.array([0.4, 3.1, 1.2, 0.0])
+    order = np.argsort(-peaks, kind="stable")
+    texts = {0: "<explanation>a</explanation>", 1: "<explanation>b</explanation>",
+             2: "<explanation>c</explanation>", 3: "<explanation>d</explanation>"}
+    k_best = int(order[0])
+    assert k_best == 1, f"argsort(-peaks) must put the highest peak first, got {order.tolist()}"
+    assert B.nla_description(texts[k_best])["description"] == "b", "the peak rollout must be chosen"
+
+    # (c) the arm/maemm guard, both directions.
+    assert B.check_arm_maemm(["C4", "NLA"], "b/nla", "nla") is True
+    assert B.check_arm_maemm(["C4", "C16", "M"], "b/maemm", "full") is False
+    for arms, mtype, needle in (
+        (["C4", "M"], "nla", "may only build"),
+        (["C4", "C16M16"], "nla", "may only build"),
+        (["C4", "NLA"], "full", "point --maemm at the `type: nla` entry"),
+    ):
+        try:
+            B.check_arm_maemm(arms, "b/x", mtype)
+        except AssertionError as e:
+            assert needle in str(e), f"arms {arms} type {mtype}: wrong assert fired: {e}"
+        else:
+            raise AssertionError(f"check_arm_maemm accepted arms {arms} with a {mtype} maemm")
+    print("[selfcheck] NLA arms OK: FAMILIES filter, nla_description, check_arm_maemm")
+
+
 def check_chain(cfg, tmp: Path, base: str, set_name: str):
     """The chain's whole control flow, with docmax already present and the API stubbed.
 
@@ -508,6 +576,7 @@ def main() -> int:
         check_gate(cfg, tmp, base, set_name)
         check_run_both_paths(cfg, tmp, base, set_name)
         check_followup_arms(cfg, tmp, base, set_name)
+        check_nla_arms(cfg, tmp, base)
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE

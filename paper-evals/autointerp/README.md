@@ -131,11 +131,36 @@ and `--model` / `--scorers` / `--path` / `--concurrency` / `--max-cost-usd` / `-
 | `R-shuffled` | **the interpretability floor** (A6): this feature's test set scored with a *different* feature's C16 description, under a fixed derangement. Scorer calls only |
 | `C16-judge2` | **the judge-only null**: C16's own description on the SAME draw-1 items, scored a second time. Scorer calls only |
 | `C16-draw2` | **the draw null** (A7): C16's own description on the second, disjoint test draw — judge *and* test-set-draw variation. Scorer calls only |
+| `NLA` | **the NLA baseline, arm A** (Tomáš 2026-09-21): top-4 of the activation VERBALIZER's rollouts by peak target-feature activation, rendered exactly as `M` is. `--maemm` must be a `type: nla` entry, and such an entry REFUSES `M`/`M-div`/`C4M`/`C16M16`/`M-N8`/`M-N32` — a verbalizer's text under one of those labels is a wrongly-labelled number, not a variant |
+| `NLA-desc` | **the NLA baseline, arm B**: the verbalizer's own text IS the description, with its `<explanation>` tags stripped — **no explainer call at all**. A scorer-only pseudo-arm like `R-shuffled`, detection-scored on the identical draw-1 items. `build` writes `nla_desc.jsonl` (the rollout with the highest `sae_self` peak per feature, which is also arm A's first example); `run` seeds it from there |
 | `E` | **NOT RUN**, hook only — see below |
 
 The full run scores `C16, C4, M, C4M, C32, C16M16, R-shuffled, C16-judge2, C16-draw2` on both
 scorers. `R-shuffled` should sit at 0.5; the gap between the two nulls is the test-set-draw half of
 the noise, and the draw null is the threshold every contrast is read against.
+
+### The NLA baseline (arms `NLA`, `NLA-desc`)
+
+Two arms, one question each: does the NLA verbalizer's text **as examples** describe a feature as
+well as corpus examples do (`NLA`), and is the verbalizer's text **already a description** without
+an explainer in the loop (`NLA-desc`)? The reference arm is **`C4`**, not `C16`: `scan`'s 16M
+`examples/` does not exist for the 2M SAE and costs ~$9 to make, so the corpus side of an NLA run
+is the 4M-prefix top-16. State that wherever the contrast is named — it is a cheaper corpus arm
+than the MAEMM runs are read against.
+
+Four things about these arms are NOT corrected for, and are recorded on every build instead:
+
+- **not matched-N.** `NLA` shows 4 examples (`nla.n`) against C4's 16.
+- **not matched-length.** The verbalizer generates at its native 200 tokens.
+- **detection only.** Fuzzing asks whether a *marking* is correct, which a description-only arm
+  has no bearing on.
+- **default-amp rollouts only.** `--amp` variants land in `maemms/<base>/<nla>/variants/`, and
+  neither `sae_self` nor `build` reads from there; an amp sweep needs its own
+  rollouts → score → sae_self → build chain.
+
+`examples_docmax` is optional (`use_docmax`): without it the positive pool is the stored q-bands
+alone, `--allow-short` is required, and the per-feature `n_pos` shortfalls are recorded in
+`build.json` (`n_short_draw1`, `n_empty_draw2`) rather than raising.
 
 ## What is implemented, and what is not
 
