@@ -140,9 +140,9 @@ The six new ones were each run against a deliberately broken variant; the mutati
 | ~~D11~~ | **Done.** See "D11" below. |
 | **The §1.6 four-cell local selftest** (old primary, rl-last16) × (131k, 2M) + NLA through `targets → rollouts → score → sae_self` on a tiny synthetic set | The existing selftest pattern does not reach it: `rollouts_*` and `sae_self` load real weights and require CUDA, and there is no fixture for a MAEMM. What IS covered on CPU is every piece those four cells would exercise in `common`: the storage contract, both cosines, the `sae_key` selector, the exact-solve migration. The cell matrix itself is the paid smoke documented in `SMOKES.md`. |
 | **`centred.py` dropping its own einsum** (§1.3) | `score` now writes the honest per-token centred cosine, so `centred.py`'s `cos_centred_best` — a max read at the UNCENTRED argmax — is redundant where `cos_centred.f16` exists. It still computes its own. Should become: read `cos_centred.f16` when present, keep `cos_filtered_best` always. |
-| **`features/heldout_v2.py` getting the `OutDir` treatment** (§1.4) and its docstring correction | Untouched. |
+| **`features/heldout_v2.py` getting the `OutDir` treatment** (§1.4) and its docstring correction | Untouched — **superseded for eval 1** by `features/heldout_v3.py`, which is an `OutDir`-backed Modal product (`--product heldout_v3`) rather than a local script, and which imports the families `heldout_v2` never reached (`realact_long`, `bsf`, `jlens`) plus a copy path for another set's rows. `heldout_v2` itself is still local-only and still overwrites its `--out` without a `--force`. |
 | **`corpus_arm_dir` from `arb/exp-ood`**, the OOD rebase (§4.2), the `evals/sae-smoke64` merge | Not in scope here. Ari's `--corpus-name` + the new `corpora:` block cover the search-baseline need for evals 1–2. |
-| **The exact-solve migration of Celeste's 512 realact rows** (§1.4) | The tool is checked (`check_exact_solve_roundtrip`) but the migration was not run, and U1 is unsettled: whether her `pool_act_norm` is `‖act‖` or `‖act − whiten_mu‖`. The whole migration is valid only for the former. |
+| ~~**The exact-solve migration of Celeste's 512 realact rows** (§1.4)~~ | **Done, 2026-09-21.** U1 is settled at $0: `pool_act_norm` is `‖act‖`. `features/heldout_v3.py --block realact` ran the migration; `unit(act.f32 − whiten_mu)` reproduces her shipped `direction` at min cos 1.0000000000 over all 512, read back off the volume. Three rows (26, 32, 360) have two positive roots and are flagged `exact_ambiguous`, not resolved. See `features/README.md` and `SMOKES.md`. |
 | **Resolving `corpus.revision`** | Pinned to the literal `main` with the mechanism in place and empty refused. The dataset's commit sha still has to be looked up and put there. |
 | **H7's actual threading** | Per-corpus `block`/`stride` is declared and now REFUSED when it differs, rather than honoured. Doing it properly means every consumer (`top1_act`, `sae_self` ×3, `build`, `gcg`, `mu_diag`) reading the producer's recorded geometry instead of `common.SCAN_BLOCK`, because they reconstruct window ids to join on. Eleven call sites; a half-applied thread silently misaligns joins, which is worse than the refusal. **Blocks scanning `celeste-train10m` through our `scan`** — the plan's §2.4 search baseline. |
 | **Ruff on Ari's new files** | `features/{corpus_train_parity,doc_dedup,ngram_overlap,registry}.py` carry pre-existing `B905`/`E702` findings. Not touched, so not fixed. |
@@ -167,6 +167,27 @@ All eight findings fixed, one commit each, each with a CPU check where one is po
 The reviewer also confirmed, independently: B3/B4 closed, no double-centring path, `dirs_for`'s
 unit branch bit-identical on the real 1536×5120 array, re-derive cannot damage its source, and the
 cherry-picks lost nothing.
+
+## 2026-09-21, second chunk: the eval-1 frozen target blocks
+
+`features/heldout_v3.py` (new product), `draw_sae2m --sides enc,dec`, and `check` opening the set
+directories it used to only name. Five set directories on the volume, `$0.131`, all of it the 2M
+draw; `features/README.md` carries the layout, the rebuild commands and the U1 evidence, and
+`SMOKES.md` the run record. Two defects were found in the process, both on paths eval 1 runs:
+
+* `draw_sae2m` drew the fit/report `side` column at the POST-`--include` `n`, so
+  `--n 512 --stratified --include <64 ids>` built 448 labels for 512 features and indexed off the
+  end. Nothing had ever run that combination — the 64-set is the source of the include list, not
+  a consumer of it.
+* `sae_side` was read by `common.sae_rows_of`, `repo_examples` and `sae_self`, and **written by
+  nothing**. `draw_sae2m --sides` is now its writer; a row without the field still reads as `enc`,
+  so no existing set moves.
+
+Deviations from plan §2.1, recorded: the set is FIVE directories rather than one (a directory
+carries one storage contract and these blocks do not share one — the brief allowed this), and it
+omits §2.1's "ours" realact sanity block (rows 512-1023) and her `sae2m_enc`/`sae2m_dec` blocks,
+which the brief did not ask for. The 131k `sae` block comes in via `--block ctrl` from
+`2026-09-21_v1raw` rather than being redrawn.
 
 ## Deviations from the plan, recorded
 

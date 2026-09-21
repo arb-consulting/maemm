@@ -898,6 +898,67 @@ def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
 SAE_FAMILIES = ("sae", "sae2m_enc")
 
 
+def check_set_on_disk(cfg, base, set_name, fams, root):
+    """A configured held-out set, opened rather than named. Absent is fine; WRONG is not.
+
+    `check` used to print the `heldout:` entry's family list and stop there, so a set whose rows
+    on the volume disagreed with its declaration -- the failure that made `2026-09-20_sae2m_2k`'s
+    `families:` line wrong for a day -- was invisible to the cheap gate and surfaced in a GPU
+    product instead. Each set is either NOT on this root (skipped, because a smoke root carries
+    two sets and the config declares twelve) or checked against what it declares.
+    """
+    import json
+    import os
+
+    d = heldout_dir(base, set_name, root)
+    out = {"dir": d, "status": "absent", "detail": "not on this root"}
+    if not os.path.isdir(d):
+        return out
+    try:
+        contract = set_storage(cfg, d, root)            # refuses a set that states none
+        rows = [json.loads(ln) for ln in open(f"{d}/ids.jsonl", encoding="utf-8")]
+        assert rows, f"{d}/ids.jsonl is empty"
+        assert [r["row"] for r in rows] == list(range(len(rows))), (
+            f"{d}/ids.jsonl rows are not 0..{len(rows) - 1}")
+        # Every family present must be declared, or `family_centrable` / `dirs_for` refuse later.
+        present: dict[str, int] = {}
+        for r in rows:
+            present[r["family"]] = present.get(r["family"], 0) + 1
+            family_centrable(cfg, r["family"])
+        want = {f: int(s["n"]) for f, s in fams.items() if s.get("status") != "empty"}
+        assert present == want, (
+            f"{d}: ids.jsonl carries {present} but config.yaml `heldout.{set_name}.families` "
+            f"declares {want}. One of the two is wrong, and every family-keyed product reads "
+            f"the config one.")
+        # The storage contract, against the files that have to exist under it.
+        has_act = os.path.exists(f"{d}/act.f32")
+        assert has_act == (contract["storage"] == "raw"), (
+            f"{d} is `storage: {contract['storage']}` ({contract['source']}) and act.f32 is "
+            f"{'present' if has_act else 'absent'}: a raw set derives every direction from it, "
+            f"and nothing else may carry one.")
+        idx_path = f"{d}/index.json"
+        if os.path.exists(idx_path):
+            idx = json.loads(open(idx_path, encoding="utf-8").read())
+            for name in ("vecs.f16",) + (("act.f32",) if has_act else ()):
+                shape = (idx.get(name) or {}).get("shape")
+                assert shape == [len(rows), int(cfg["bases"][base]["d"])], (
+                    f"{d}/{name} is {shape}, expected {[len(rows), cfg['bases'][base]['d']]}")
+        # An SAE row's dictionary must be nameable: per row, or declared for the set (H1).
+        sae_rows = [r for r in rows if r["family"] in SAE_FAMILIES]
+        if sae_rows and not all(r.get("sae_key") for r in sae_rows):
+            declared = contract.get("sae_key") or cfg["heldout"][set_name].get("sae_key")
+            assert declared, (
+                f"{d} has {sum(1 for r in sae_rows if not r.get('sae_key'))} SAE rows with no "
+                f"`sae_key` and neither storage.json nor the `heldout:` entry declares one; "
+                f"`common.sae_rows_of` refuses them, and every 131k id is also a valid 2M id")
+        out.update(status="ok", detail=(f"{len(rows)} rows {present}, storage "
+                                        f"{contract['storage']} ({contract['source']})"))
+    except (AssertionError, KeyError, OSError, ValueError) as e:
+        out.update(status="FAILED", detail=f"{type(e).__name__}: {e}")
+        raise
+    return out
+
+
 def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = "", declared=None,
                 where: str = ""):
     """The rows of `rows` whose target is a feature of dictionary `sae_key`.

@@ -222,6 +222,7 @@ def product_check(cfg, args):
                 }
 
     heldout = sorted(cfg["heldout"])
+    report["heldout"] = {}
     for set_name in heldout:
         for base in bases:
             fams = C.families_for(cfg, set_name, base)
@@ -233,6 +234,9 @@ def product_check(cfg, args):
                 ),
                 flush=True,
             )
+            rec = C.check_set_on_disk(cfg, base, set_name, fams, args.get("root") or C.VOL)
+            report["heldout"][f"{base}/{set_name}"] = rec
+            print(f"[check]   {rec['status']}: {rec['detail']}", flush=True)
     print(
         f"[check] scoring: max_length={C.SCORE_MAX_LENGTH} chunk={C.SCORE_CHUNK} "
         f"width={C.SCORE_WIDTH} rollouts.max_new={cfg['rollouts']['max_new']}",

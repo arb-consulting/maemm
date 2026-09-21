@@ -1404,6 +1404,53 @@ def check_heldout_v3_recovery():
         raise AssertionError("recover_raw accepted a row the solve cannot reach")
 
 
+def check_set_on_disk():
+    """`modal_app._check_set_on_disk` opens a set and reconciles it with its declaration.
+
+    Three outcomes, because `check` is the cheap gate in front of every GPU run: a set that is
+    not on this root is SKIPPED (a smoke root carries two of the twelve declared sets, and
+    failing on the other ten would make the gate useless), a set that agrees with its config
+    entry passes, and a set that disagrees FAILS here rather than inside a family-keyed product
+    an hour into an H200.
+    """
+    import numpy as np
+
+    cfg = _conv_cfg()
+    cfg["heldout"]["s1"] = {"storage": "raw", "mu_stored": None,
+                            "families": {"realact": {"n": 2}, "random": {"n": 2}}}
+    fams = cfg["heldout"]["s1"]["families"]
+    rows = [{"row": i, "family": f, "id": i}
+            for i, f in enumerate(["realact", "realact", "random", "random"])]
+    act = np.random.default_rng(1).normal(size=(4, D)).astype(np.float32) * 30.0
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        assert C.check_set_on_disk(cfg, "tb", "s1", fams, str(root))["status"] == "absent"
+        sdir = root / "base" / "tb" / "heldout" / "s1"
+        _write_set(sdir, rows, act, {"storage": "raw", "mu_stored": None, "family_mu": {}})
+        got = C.check_set_on_disk(cfg, "tb", "s1", fams, str(root))
+        assert got["status"] == "ok", got
+        assert "storage raw" in got["detail"], got
+
+        # The failure this exists for: the rows on the volume disagree with the declaration.
+        cfg["heldout"]["s1"]["families"]["random"]["n"] = 3
+        try:
+            C.check_set_on_disk(cfg, "tb", "s1", {**fams}, str(root))
+        except AssertionError as e:
+            assert "declares" in str(e), f"wrong assert for a count mismatch: {e}"
+        else:
+            raise AssertionError("check accepted a set whose rows disagree with its config entry")
+        cfg["heldout"]["s1"]["families"]["random"]["n"] = 2
+
+        # A raw set must carry act.f32, and only a raw set may.
+        (sdir / "act.f32").unlink()
+        try:
+            C.check_set_on_disk(cfg, "tb", "s1", fams, str(root))
+        except AssertionError as e:
+            assert "act.f32 is absent" in str(e), f"wrong assert for a raw set with no act: {e}"
+        else:
+            raise AssertionError("check accepted a `storage: raw` set with no act.f32")
+
+
 def check_sae_column_reader():
     """`draw_sae2m._columns` is `common.load_sae`'s two matrices, sliced instead of cast whole.
 
@@ -1723,6 +1770,7 @@ CHECKS = [
     check_family_kinds_table,
     check_exact_solve_roundtrip,
     check_heldout_v3_recovery,
+    check_set_on_disk,
     check_sae_column_reader,
     check_spawn_mirrors_main,
     check_return_arities,

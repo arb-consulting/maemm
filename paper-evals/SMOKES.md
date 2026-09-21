@@ -2975,3 +2975,79 @@ arm, but its name does not say so; the tagged `…__mu-none.jsonl` beside it is 
 | GCG/EPO | **16 directions** | `--rows` a 16-row slice; EPO measured ~870 s per 27B direction |
 | patchscopes | **Ari's implementation (7f3b511)** | do not write another one |
 | OOD | **1/4 of the design's size** | scales the design's ≈$88 accordingly |
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: the eval-1 frozen target blocks
+
+Five set directories built, **$0.131 total**, all of it the 2M draw. Everything wrote under a NEW
+set name; nothing on the volume was deleted, replaced or rewritten. `--product unit` inside the
+image (42/42, the image's own selfcheck) ran before the first launch, and `--product check` after
+the last.
+
+| date | item | command (abbreviated) | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-21 | unit smoke, local, after the v3 writers | `uv run paper-evals/precompute/unit_smoke.py` | 3.0 s | $0 | **43/43** (40 before; +3 for the recovery, the column reader and the set check) | — |
+| 2026-09-21 | mutation battery on the three new checks | six deliberate defects, one at a time | ~2 min | $0 | **6/6 caught**, each by the check that owns it | table below |
+| 2026-09-21 | `unit` in the image | `--product unit` | 21.8 s | ~$0 | 42/42 (before the set check landed) | — |
+| 2026-09-21 | `heldout_v3 --block realact` | `--product heldout_v3 --base qwen36-27b --block realact --set 2026-09-21_v3_realact` | 57.5 s | ~$0 | 512 rows, 15.3 MiB, raw; 0 solve fallbacks | 3 rows ambiguous — below |
+| 2026-09-21 | `heldout_v3 --block realact_long` | `… --block realact_long --set 2026-09-21_v3_realact_long` | 47.4 s | ~$0 | 512 rows, 5.1 MiB, `unit` + `family_mu: unknown` | — |
+| 2026-09-21 | `heldout_v3 --block subspace` | `… --block subspace --set 2026-09-21_v3_subspace` | 57.6 s | ~$0 | 1,024 rows (bsf 512 + jlens 512), 10.3 MiB, `dirs_only` | — |
+| 2026-09-21 | `heldout_v3 --block ctrl` | `… --block ctrl --set 2026-09-21_v3_ctrl --dirs-from …/2026-09-21_v1raw --rows 512-1535` | 5.5 s | ~$0 | 1,024 rows (random 512 + sae 512), 30.2 MiB, raw, each row carrying `src_set`/`src_row` | — |
+| 2026-09-21 | `draw_sae2m --sides enc,dec` | `--product draw_sae2m --sae qwen36-27b/sae2m --set 2026-09-21_v3_sae2m --n 512 --stratified --seed 20260921 --sides enc,dec --include <the 64>` | 103.7 s | **$0.1308** | 1,024 rows = 512 features × {enc, dec}, paired row for row; the 64 of `2026-09-21_sae2m_64` nested; 128 per stratum; 413 fit / 99 report | cuts IDENTICAL to the 64-draw's; eligible 99,882 = 99,946 − the 64 forced out of the pool |
+| 2026-09-21 | `check`, now opening the directories | `--product check --base qwen36-27b` | 24.0 s | ~$0 | all five v3 sets `ok`, plus `2026-09-16_v1` and `2026-09-21_v1raw`; `2026-09-21_sae2m_64` correctly `absent` (it lives under `/vol/tmp/sae-smoke64`) | — |
+| 2026-09-21 | her 512 through `infra/check_v2_targets_overlap.py` | a driver reusing its `analyse` primitives on her `pool_target_text` | ~1 min | ~$0 | **void, and reported as void** — see below | — |
+
+### U1, settled at $0: her `pool_act_norm` is `‖act‖`
+
+Numbers and the three readings are in `features/README.md`. Short form: her own pool mint
+statistic is 91.2669 against the 512's median 90.48; our layer-42 residual-norm quantiles are
+76.38 / 93.26 / 109.26 against her 75.21 / 90.48 / 105.67, where the other reading would put her
+MEDIAN activation above our 95th percentile; and a mu-orthogonal residual at ‖act‖ 90.48 has
+‖act−mu‖ 60.52 against the solve's 59.95. **Branch (a): raw recoverable, no re-forward, $0.**
+
+Read back off the bytes on the volume: `‖act.f32‖` vs her `pool_act_norm` **max |d| 2.4e-05**, and
+`unit(act.f32 − whiten_mu)` vs her shipped `direction` **min cos 1.0000000000** over all 512.
+
+**Rows 26, 32 and 360** have `pool_act_norm < ‖mu‖` and `mu·u < 0`, so both roots are positive and
+two raw activations meet the constraint. The larger is taken and the row is flagged
+`exact_ambiguous`. It cannot move anything read at her own mean; it can move `act.f32` itself.
+
+### The overlap run the brief asked for, and why its answer is not usable
+
+`infra/check_v2_targets_overlap.py` answers "is this span reproduced in her training text" by
+looking each span n-gram up in **our** corpus's distinct-n-gram table and then indexing the
+per-file masks by that key. For our own 512 that is free — their spans come from our corpus, and
+the script asserts `span_shingles_missing_interior_clean == 0`. For **her** 512 it is the
+question, and the answer is no: **13 of 9,303** of her span 13-grams (0.1397%) are in our key set,
+so a hit is barely reachable and a zero would mean "unmeasured", not "not reproduced". It flags
+one fully reproduced row (166), which is in Ari's 26 anyway.
+
+The instrument that does answer it for her block is Ari's `features/ngram_overlap.py --side hers`,
+which shingles her training parquets directly. Its output
+(`/vol/shared/ngram-overlap/hers_n7.exclude.json`) is the 26, coverage ≥ 0.05 at n=7, of which
+3 are fully covered (108, 166, 307). **Headline n = 486.**
+
+### The mutation battery
+
+| mutation | check that failed | message |
+|---|---|---|
+| `_columns` returns the ENCODER for the `dec` side | `check_sae_column_reader` | `the decoder side is not unit(W_dec[f]): max \|d\| 9.426e-01` |
+| `_columns` rescales the encoder side by 1+1e-7 | `check_sae_column_reader` | `the sliced encoder side is not bit-identical to load_sae's: max \|d\| 1.192e-07` |
+| `draw_sae2m` stops emitting `sae_side` | `check_sae_column_reader` | `draw_sae2m emits no sae_side field` |
+| `recover_raw` drops the fallback assert | `check_heldout_v3_recovery` | `‖act‖ != the stored norm: max \|d\| 1.384e+01` — the second guard catches it, which is why the check accepts either |
+| `recover_raw` drops BOTH guards | `check_heldout_v3_recovery` | `recover_raw accepted a row the solve cannot reach` |
+| `check_set_on_disk` stops reconciling the family counts | `check_set_on_disk` | `check accepted a set whose rows disagree with its config entry` |
+| `check_set_on_disk` stops requiring `act.f32` under a raw contract | `check_set_on_disk` | `check accepted a 'storage: raw' set with no act.f32` |
+
+### The `--include` side-column defect, found on eval 1's own command
+
+`draw_sae2m.build` drew the fit/report `side` column at `rng.random(n)` **after** the `--include`
+branch subtracts the forced count from `n`. `--n 512 --stratified --include <64 ids>` therefore
+built 448 labels for 512 features and `_finish`'s `side[i]` walked off the end. Nothing had run
+that combination before — the 64-set is the SOURCE of the include list, not a user of it. Fixed
+to `len(drawn)` with the assert beside it; the run above reports 413 + 99 = 512.
+
+**New on the volume, all new paths:** the five `base/qwen36-27b/heldout/2026-09-21_v3_*`
+directories, and `shared/eval1/2026-09-21_sae2m_64_feature_ids.txt` (the `--include` list, so the
+draw is reproducible from the volume rather than from a scratchpad).
