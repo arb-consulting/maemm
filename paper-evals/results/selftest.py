@@ -2424,6 +2424,14 @@ def check_ood_arm_table():
         "base/{base}/stats/mu.f32", "B"
     )
     assert od.C_resolve_mu(None, "B") == "none"
+    # the README line every scan writes, which is how a scan's mean is read back
+    assert od.MU_RE.search(
+        "## Notes\n\n- CENTRING: mu=/vol/base/B/stats/mu.f32 from --mu (explicit)\n"
+    ).group(1) == "/vol/base/B/stats/mu.f32"
+    assert od.MU_RE.search("- CENTRING: directions derived from /x at mu=/y: unit(act - mu)") is None, (
+        "only the `mu=<path> from <source>` line names the run's mean; the derivation line "
+        "mentions a mu too and must not be mistaken for it"
+    )
 
     # an arm whose own corpus was never scanned must be reported, never scored off another's
     partial = {k: v for k, v in top1_by_arm.items() if k != "a_rev"}

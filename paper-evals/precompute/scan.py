@@ -260,6 +260,14 @@ def run(cfg, args):
     # different number from the full one, and `<set>__4m` alone could not be told apart from the
     # scan of a corpus whose directory is literally `4m`.
     sub = len(corpora) > 1 or bool(max_size) or any(corpora)
+    # THE THIRD AXIS, as `rollout_stem` has it: two scans of one (set, corpus) that differ only in
+    # `--mu` are different experiments, and the targets they score against are different vectors
+    # (MEASURED on 2026-09-21_ood_q1: stats/mu.f32 and whiten_mu agree at cos 0.977 and put
+    # unit(act - mu) a median cos 0.969 apart). Without a tag the second would refuse on "already
+    # exists" -- or, with --force, destroy the first. Empty for every scan run so far, so no
+    # existing path moves.
+    tag = (args.get("run_tag") or "").strip()
+    assert "/" not in tag and " " not in tag, f"--run-tag {tag!r} must be a bare name suffix"
     plans = []
     for raw in corpora:
         # `--corpus heldout16m` already resolves to the empty directory name on the client
@@ -269,6 +277,8 @@ def run(cfg, args):
         cname = "" if raw == "corpus" else raw
         label = cname or "corpus"
         key = (label + (f"__{max_size}m" if max_size else "")) if sub else ""
+        if tag:
+            key = f"{key}__{tag}" if key else tag
         out_scan = C.scan_dir(base, set_name, root, key)
         # The SAE examples are a product of a scan whose SET has sae targets. An OOD scan has none,
         # so it writes no examples/ -- and must not, because that directory is shared.

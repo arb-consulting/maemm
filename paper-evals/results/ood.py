@@ -120,6 +120,25 @@ def C_corpus_dir(cfg: dict, arm: str) -> str:
     return (spec or {}).get("dir") or arm
 
 
+MU_RE = re.compile(r"^- CENTRING: mu=(\S+) from ", re.M)
+
+
+def scan_mu_of(vol: R.Vol, base: str, scan_dir: str) -> str | None:
+    """The mean a scan centred its targets on, from the scan's OWN README.
+
+    `common.note_convention` writes `- CENTRING: mu=<path> from <source>` as the first note of
+    every product that resolves one, so the mean is recorded by the producer rather than inferred
+    from a directory name -- which is the difference between a number that is comparable and a
+    number that is merely next to another one. The FIRST such line is the `--set` set's; a scan
+    with `--with-set` adds one per extra bank.
+    """
+    p = vol.get(f"base/{base}/scan/{scan_dir}/README.md")
+    if p is None:
+        return None
+    m = MU_RE.search(p.read_text())
+    return m.group(1) if m else None
+
+
 def scan_dirs_of(vol: R.Vol, base: str, set_name: str) -> dict[str, tuple[str, float | None]]:
     """{scan directory -> (corpus directory name, the M-token bound or None)} for this set.
 
@@ -337,10 +356,6 @@ def main(
         float, typer.Option(help="the corpus size in M tokens the claim is read at (0 = the "
                                  "largest every arm's scan actually carries)")
     ] = 0.0,
-    scan_mu: Annotated[
-        str, typer.Option(help="the mean the in-domain scans centred their targets on; a source "
-                               "that declares a different one gets its cosines but no Δ")
-    ] = "base/{base}/stats/mu.f32",
     root: Annotated[str, typer.Option(help="a volume-relative root prefix")] = "",
     out: Annotated[Path | None, typer.Option(help="output directory")] = None,
     data_dir: Annotated[Path | None, typer.Option(help="the local mirror")] = None,
@@ -371,29 +386,39 @@ def main(
 
     # the scans of this set, and the size cell the claim is read at
     scans = scan_dirs_of(vol, base, set_name)
-    top1_by_corpus = {c: scan_top1(vol, base, d, set_name) for d, (c, _) in scans.items() if c}
-    english = {d: scan_top1(vol, base, d, set_name) for d, (c, _) in scans.items() if not c}
+    # {(corpus dir, resolved mu) -> {(row, size) -> top-1}}. A scan is (set x corpus x MEAN): the
+    # same corpus scanned under two centrings gives two different sets of numbers, and only the
+    # one matching a checkpoint's own mean can be differenced against that checkpoint.
+    top1_by_corpus: dict[tuple[str, str], dict] = {}
+    english: dict[str, dict] = {}
+    scan_mus: dict[str, str] = {}
+    for d, (c, _) in scans.items():
+        mu_here = C_resolve_mu(scan_mu_of(vol, base, d), base)
+        scan_mus[d] = mu_here
+        if c:
+            top1_by_corpus[(c, mu_here)] = scan_top1(vol, base, d, set_name)
+        else:
+            english[d] = scan_top1(vol, base, d, set_name)
     assert top1_by_corpus, (
         f"no in-domain scan for {set_name} under base/{base}/scan/: every Δ below is "
         f"MAEMM minus corpus search, so there is no table without one"
     )
-    sizes = sorted({sz for t in top1_by_corpus.values() for _, sz in t})  # noqa: E501
+    sizes = sorted({sz for t in top1_by_corpus.values() for _, sz in t})
     if size:
         assert size in sizes, f"--size {size} is not among the scanned sizes {sizes}"
         size_m = size
     else:
         # the largest size EVERY in-domain scan carries: a per-arm mix of sizes is not one table.
-        common = set.intersection(*({sz for _, sz in t} for t in top1_by_corpus.values()))
+        common = set.intersection(*({sz for _, sz in t} for t in top1_by_corpus.values() if t))
         assert common, f"the in-domain scans share no corpus size: {sizes}"
         size_m = max(common)
 
     # {arm -> its OWN corpus's {(row, size) -> top-1}}. The corpus directory of arm `a` is
     # `corpora[f"ood_{a}"].dir`, which is `a` itself for every arm declared in `ood_arms:`.
     dir_of_arm = {a: C_corpus_dir(cfg, a) for a in {r["arm"] for r in ids}}
-    top1_by_arm = {a: top1_by_corpus.get(d, {}) for a, d in dir_of_arm.items()}
-    missing = sorted(a for a, t in top1_by_arm.items() if not t)
-    if missing:
-        notes.append("arms with no scan of their own corpus: " + ", ".join(f"`{a}`" for a in missing))
+    notes.append(
+        "scans read: " + ", ".join(f"`{d}` at mu={scan_mus[d]}" for d in sorted(scan_mus))
+    )
 
     ctrl_src = next((s for s in usable if s.role == "control"), None)
     control = ctrl_src.per_target if ctrl_src else None
@@ -416,20 +441,31 @@ def main(
         ],
     )
 
-    want_mu = C_resolve_mu(scan_mu, base)
     verdicts: dict[str, dict[str, str]] = {}
     for src in usable:
         if src.role == "control":
             continue
         got_mu = C_resolve_mu(src.mu, base)
-        comparable = got_mu == want_mu
+        # THE SCAN AT THIS SOURCE'S OWN MEAN, arm by arm. Not "the scan", and not the one named on
+        # the command line: a checkpoint trained on whiten_mu is differenced against the whiten_mu
+        # scan and the old primary against the stats_mu one, from the same table.
+        top1_by_arm = {a: top1_by_corpus.get((d, got_mu), {}) for a, d in dir_of_arm.items()}
+        comparable = any(top1_by_arm.values())
+        missing = sorted(a for a, t in top1_by_arm.items() if not t)
         if not comparable:
+            have = sorted({m for _, m in top1_by_corpus})
             notes.append(
-                f"source `{src.label}` centres on {got_mu} while the in-domain scans centre on "
-                f"{want_mu}: its bo64 and the corpus top-1 are angles to DIFFERENT target "
-                f"vectors, so its cosines are reported and Δ is not. On this set the two means "
-                f"agree at cos 0.977 and put unit(act - mu) a median cos 0.969 apart, which is "
-                f"the size of the effect being measured, not a rounding difference."
+                f"source `{src.label}` centres on {got_mu} and NO in-domain scan was run at that "
+                f"mean (scans present at: {have}). Its bo64 columns are reported and Δ is not: "
+                f"differencing it against a scan at another mean would subtract two angles to two "
+                f"DIFFERENT target vectors. On this set stats/mu.f32 and whiten_mu agree at cos "
+                f"0.977 and put unit(act - mu) a median cos 0.969 apart -- the size of the effect "
+                f"being measured, not a rounding difference."
+            )
+        elif missing:
+            notes.append(
+                f"source `{src.label}` (mu={got_mu}): arms with no scan of their own corpus at "
+                f"that mean: " + ", ".join(f"`{a}`" for a in missing)
             )
         recs, skipped = arm_rows(
             ids, src, top1_by_arm, size_m, src.centred, mod.boot_ci, mod.outcome, control,
