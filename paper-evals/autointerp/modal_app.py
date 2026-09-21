@@ -221,6 +221,10 @@ def main(
     crossfam: str = "",
     centre32: bool = False,
     mark: str = "",
+    # `gate` (default, reproduces every earlier run) | `relative`: when a GENERATED-TEXT block has
+    # no token above the SAE gate, mark at >= 0.5 x that block's own peak instead of leaving it
+    # bare. Corpus arms are never affected. See build.render_example's rel_fallback.
+    rollout_mark: str = "",
     fuzz_marks: str = "",
     fuzz_protocol: str = "",
     shots: int = 0,
@@ -318,6 +322,7 @@ def main(
         "crossfam": crossfam,
         "centre32": centre32,
         "mark": mark,
+        "rollout_mark": rollout_mark,
         "fuzz_marks": fuzz_marks,
         "fuzz_protocol": fuzz_protocol,
         "shots": shots,

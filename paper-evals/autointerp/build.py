@@ -71,6 +71,7 @@ BANDS = ("q0", "q1", "q2", "q3")
 CENTRE32_LEN = 32
 # Delphi's explainer highlight threshold, FETCHED 2026-09-17 from `explainers/explainer.py`
 # @4fea06e: `threshold: float = 0.3`, applied as `max(activations) * self.threshold`.
+REL_MARK_FRAC = 0.5   # the relative fallback's fraction of a block's own peak
 DELPHI_MARK_FRAC = 0.3
 
 # The NLA arm's example count = config.yaml's `nla.n`. Kept as a constant here because ARM_SPECS
@@ -164,7 +165,8 @@ def centre_on_peak(ids, acts, width: int = CENTRE32_LEN):
     return ids[lo : lo + width], [float(x) for x in a[lo : lo + width]]
 
 
-def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate") -> dict:
+def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate",
+                   rel_fallback: bool = False) -> dict:
     """One rendered explainer example from an id list and its per-token pre-gate activations.
 
     TWO MARKING RULES, and the published run used the first. FETCHED 2026-09-17 from Delphi
@@ -186,24 +188,85 @@ def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate")
     """
     pieces = token_pieces(tok, ids)
     a = [float(x) for x in acts]
-    quant = [quant_act(x, peak) for x in a]
+    # A NON-FINITE ACTIVATION MAKES THE WHOLE BLOCK UNMARKABLE, and does it HERE rather than in
+    # the marking branch below, because `quant_act` raises on NaN and +inf (int(ceil(inf))) and
+    # would take the process down before any guard in that branch could run. `sae_self` writes NaN
+    # outside `keep` and every caller slices by `keep`, so this should be unreachable -- which is
+    # the reason to make it a stated outcome instead of a crash: if it ever does arrive, a block
+    # that says "nothing marked here" is recoverable and a traceback in the middle of a paid build
+    # is not.
+    finite = all(math.isfinite(x) for x in a)
+    quant = [quant_act(x, peak) if math.isfinite(x) else 0 for x in a]
+    if not finite:
+        return {
+            "text": "".join(pieces),
+            "text_marked": "".join(pieces),
+            "activations": [],
+            "n_marked": 0,
+            "peak_act": 0.0,
+            "marking": "unmarkable",
+            "block_peak": 0.0,
+            "peak_frac": None,
+            "n_tok": len(pieces),
+            "join_ok": "".join(pieces) == tok.decode([int(i) for i in ids]),
+        }
     if mark == "delphi":
+        marking = "delphi"
         thr = max(a) * DELPHI_MARK_FRAC if a else 0.0
         marks = [x > thr for x in a]
         shown = [(pieces[i], quant[i]) for i in range(len(pieces)) if marks[i]][:MAX_SHOWN_ACTS]
     else:
         marks = [x > gate for x in a]
+        marking = "gate"
+        # THE RELATIVE FALLBACK (Tomas, 2026-09-21), for the GENERATED-TEXT arms only.
+        # `mark="gate"` marks a token iff it clears the SAE's learned gate, which is the paper's
+        # own fire rule -- and on the 2M dictionary a MAEMM rollout frequently clears it nowhere,
+        # so the block reaches the explainer as bare `Example n:` lines with no `<<>>` and no
+        # `Activations:` line at all. MEASURED 2026-09-21 on the 32-feature pilot: 15/32 of
+        # rl-last16's blocks, 23/32 of the old primary's and 26/32 of NLA's, against 0/32 for
+        # every corpus arm. One explainer answer opens "there's no explicit token
+        # highlighting/activation data provided" and is recorded as an ordinary explanation, so
+        # the arm was being scored on a description written from unmarked text.
+        #
+        # When nothing clears the gate, mark relative to THIS BLOCK's own peak instead. That is
+        # Delphi's rule in shape (`mark="delphi"` uses 0.3 x the example's own max) at a stricter
+        # fraction. It is a FALLBACK, not a replacement: a block with anything above the gate is
+        # marked exactly as before, so this cannot move a block that was already fine.
+        #
+        # The corpus arms never take this path -- they are passed `rel_fallback=False` -- because
+        # their peak IS the corpus peak by construction and a corpus window that fires nowhere is
+        # a real fact about the feature, not a rendering failure.
+        if rel_fallback and not any(marks):
+            pk = max(a) if a else 0.0
+            if math.isfinite(pk) and pk > 0:
+                # `>=`, not `>`: at the fraction's own boundary the peak token itself must mark,
+                # and with rel_frac = 0.5 a two-token block at (pk, pk/2) marks both.
+                marks = [x >= REL_MARK_FRAC * pk for x in a]
+                marking = "relative"
+            else:
+                # A block whose peak is <= 0 or non-finite stays UNMARKED and is counted. There is
+                # no fraction of zero that marks anything, and marking everything would be worse
+                # than marking nothing: it would tell the explainer the feature fires everywhere.
+                marking = "unmarkable"
         shown = sorted(
             ((pieces[i], quant[i], a[i]) for i in range(len(pieces)) if marks[i]),
             key=lambda t: -t[2],
         )[:MAX_SHOWN_ACTS]
         shown = [(t, n) for t, n, _ in shown]
+    block_peak = float(max(acts)) if len(acts) else 0.0
     return {
         "text": "".join(pieces),
         "text_marked": marked_text(pieces, marks),
         "activations": shown,
         "n_marked": int(sum(marks)),
-        "peak_act": round(float(max(acts)) if len(acts) else 0.0, 4),
+        "peak_act": round(block_peak, 4),
+        # Provenance of the marking, per block, so a reader can see WHICH rule produced a block and
+        # how weak it was: `marking` is gate | relative | unmarkable | delphi, `peak_frac` is this
+        # block's peak as a fraction of the feature's 16M corpus peak (the quantisation
+        # denominator), which is the number that says how far below the corpus this text sits.
+        "marking": marking,
+        "block_peak": round(block_peak, 4),
+        "peak_frac": round(block_peak / peak, 4) if peak > 0 else None,
         "n_tok": len(pieces),
         "join_ok": "".join(pieces) == tok.decode([int(i) for i in ids]),
     }
@@ -633,7 +696,8 @@ def nla_description(raw: str) -> dict:
     }
 
 
-def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str = "gate"):
+def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str = "gate",
+             rel_fallback: bool = False):
     """The E arm's documented hook: per-feature EPO / GCG strings as a fourth example source.
 
     NOT RUN in the pilot (design §8: at the measured ~$1.09 per 27B epo target, 512 features is
@@ -659,7 +723,8 @@ def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str =
         assert len(s["ids"]) == len(s["acts"]), (
             f"{path}, feature {feature}, string {i}: {len(s['ids'])} ids but {len(s['acts'])} acts"
         )
-        e = render_example(tok, s["ids"], s["acts"], peak, gate, mark)
+        e = render_example(tok, s["ids"], s["acts"], peak, gate, mark,
+                           rel_fallback=rel_fallback)
         out.append({**e, "src": "epo", "k": i})
     return out
 
@@ -887,6 +952,17 @@ def run(cfg, args):
     gate_positives = bool(ac["gate_consistent_positives"])
     centre32 = bool(args.get("centre32"))
     mark = str(args.get("mark") or "gate")
+    # WHICH ARMS GET THE RELATIVE FALLBACK. `gate` (default) reproduces every run made before
+    # 2026-09-21 byte for byte; `relative` turns it on for the GENERATED-TEXT arms -- the MAEMM
+    # rollouts, the NLA rollouts and the EPO strings -- and never for the corpus arms, whose peak
+    # IS the corpus peak and whose unmarked blocks are a fact about the feature rather than a
+    # rendering failure. A flag and not a new default, because the published 512-feature run and
+    # the 32-feature gate-marked pilot must both stay reproducible from their command lines.
+    rollout_mark = str(args.get("rollout_mark") or "gate")
+    assert rollout_mark in ("gate", "relative"), (
+        f"--rollout-mark must be gate or relative, got {rollout_mark!r}"
+    )
+    rel_fallback = rollout_mark == "relative"
     assert mark in ("gate", "delphi"), f"--mark must be 'gate' or 'delphi', got {mark!r}"
     fuzz_marks = str(args.get("fuzz_marks") or "contiguous")
     assert fuzz_marks in ("contiguous", "scattered", "delphi"), (
@@ -1022,6 +1098,10 @@ def run(cfg, args):
     join_bad = 0
     join_total = 0
     n_exceed_peak = 0
+    # PER ARM, how its blocks were marked. `unmarked` is the count this whole fallback exists to
+    # drive to zero: a block the explainer saw with no `<<>>` and no `Activations:` line at all.
+    # Counted for EVERY build, gate-marked or relative, so the two are comparable side by side.
+    mark_counts: dict[str, dict[str, int]] = {}
     build_name = args.get("build_dir") or time.strftime("%Y-%m-%d") + "_build"
     out_dir = f"{C.base_dir(base, root)}/autointerp/{set_name}/{build_name}"
 
@@ -1133,10 +1213,12 @@ def run(cfg, args):
                     m = np.asarray(m, dtype=bool)
                     if not m.any():
                         continue
-                    e = render_example(tok, ids_k[m], acts_k[m], peak, gate, mark)
+                    e = render_example(tok, ids_k[m], acts_k[m], peak, gate, mark,
+                                       rel_fallback=rel_fallback)
                     e["tag_status"] = status
                 else:
-                    e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate, mark)
+                    e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate, mark,
+                                       rel_fallback=rel_fallback)
                 if e["text"] in seen_text:
                     n_dup_roll += 1
                     continue
@@ -1202,7 +1284,15 @@ def run(cfg, args):
                 if cn and mn:
                     rng_arm.shuffle(picks)
                 shown_windows += [p for p in picks if p["src"] == "corpus"]
+                mc = mark_counts.setdefault(
+                    name, {"blocks": 0, "gate": 0, "relative": 0, "unmarkable": 0,
+                           "delphi": 0, "unmarked": 0}
+                )
                 for p in picks:
+                    mc["blocks"] += 1
+                    mc[p.get("marking", "gate")] = mc.get(p.get("marking", "gate"), 0) + 1
+                    if not p["n_marked"]:
+                        mc["unmarked"] += 1
                     mark_frac.append(p["n_marked"] / max(1, p["n_tok"]))
                     join_total += 1
                     join_bad += 0 if p["join_ok"] else 1
@@ -1219,14 +1309,16 @@ def run(cfg, args):
                                 k: v
                                 for k, v in p.items()
                                 if k in ("src", "k", "window", "doc", "start", "len", "size_tag",
-                                         "max_act", "n_marked", "n_tok")
+                                         "max_act", "n_marked", "n_tok",
+                                         "marking", "block_peak", "peak_frac")
                             }
                             for p in picks
                         ],
                     }
                 )
             if args.get("epo_strings"):
-                picks = _epo_arm(args["epo_strings"], feat, tok, peak, gate, mark)
+                picks = _epo_arm(args["epo_strings"], feat, tok, peak, gate, mark,
+                                 rel_fallback=rel_fallback)
                 arm_rows.append(
                     {"kind": "arm", "arm": "E", "n": len(picks), "block": exemplar_block(picks),
                      "examples": [{"src": "epo", "k": p["k"], "n_marked": p["n_marked"],
@@ -1404,6 +1496,11 @@ def run(cfg, args):
                 ),
                 "n_dup_rollouts_total": sum(f.get("n_dup_rollouts", 0) for f in feat_table),
                 "n_shown_exceeding_corpus_peak": n_exceed_peak,
+                "rollout_mark": rollout_mark,
+                # Per arm: how many blocks each marking rule produced, and how many reached the
+                # explainer with NOTHING marked. The last number is the one to read against a
+                # gate-marked build of the same features.
+                "marking_counts": mark_counts,
                 "n_shown_examples": join_total,
                 "min_pos_draw1": min((f["draw1"]["n_pos"] for f in feat_table), default=0),
                 "min_pos_draw2": min((f["draw2"]["n_pos"] for f in feat_table), default=0),

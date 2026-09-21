@@ -456,6 +456,65 @@ def check_followup_arms(cfg, tmp: Path, base: str, set_name: str):
           f"{first['calls_this_call']}, crossfam arms {sorted(xarms)}, base summary untouched")
 
 
+def check_relative_marking():
+    """The generated-text fallback: marks when the gate marks nothing, never otherwise.
+
+    The defect it exists for is silent -- a block with no token above the gate reaches the
+    explainer as bare `Example n:` lines, the explainer answers topically anyway, and `run.py`
+    records an ordinary explanation. Nothing raised; the arm was simply scored on a description
+    written from unmarked text. So every branch is pinned here, including the ones that must NOT
+    fire, because a fallback that also rewrites healthy blocks is a worse bug than the one it fixes.
+    """
+    import autointerp.build as B
+
+    class _Tok:
+        """`token_pieces` decodes ONE id at a time; that is the whole interface needed here."""
+        def decode(self, ids):
+            return "".join(f"t{int(i)}" for i in ids)
+
+    tok, gate, peak = _Tok(), 1.5, 10.0
+    ids = [1, 2, 3, 4]
+
+    # (a) something clears the gate: the fallback must not touch it, either way round.
+    hot = [0.2, 2.0, 0.1, 0.3]
+    a = B.render_example(tok, ids, hot, peak, gate, rel_fallback=False)
+    b = B.render_example(tok, ids, hot, peak, gate, rel_fallback=True)
+    assert a["n_marked"] == b["n_marked"] == 1, (a["n_marked"], b["n_marked"])
+    assert a["text_marked"] == b["text_marked"], "the fallback rewrote a block the gate marked"
+    assert b["marking"] == "gate", b["marking"]
+
+    # (b) nothing clears the gate: OFF leaves it bare, ON marks at >= 0.5 x the block's own peak.
+    cold = [0.10, 0.80, 0.40, 0.39]           # peak 0.8, half 0.40 -> marks 0.80 and 0.40, not 0.39
+    off = B.render_example(tok, ids, cold, peak, gate, rel_fallback=False)
+    on = B.render_example(tok, ids, cold, peak, gate, rel_fallback=True)
+    assert off["n_marked"] == 0 and off["marking"] == "gate", (off["n_marked"], off["marking"])
+    assert not off["activations"], "an unmarked block must have an empty Activations line"
+    assert on["n_marked"] == 2, f"expected the peak and the half-peak token: {on['n_marked']}"
+    assert on["marking"] == "relative", on["marking"]
+    assert on["block_peak"] == 0.8, on["block_peak"]
+    assert on["peak_frac"] == 0.08, on["peak_frac"]      # 0.8 / 10.0, the corpus peak
+
+    # (c) the boundary is INCLUSIVE: a token exactly at half the peak marks.
+    edge = B.render_example(tok, [1, 2], [1.0, 0.5], peak, gate, rel_fallback=True)
+    assert edge["n_marked"] == 2, f"0.5 x peak must mark: {edge['n_marked']}"
+
+    # (d) a peak of zero or a non-finite one is UNMARKABLE, never all-marked. Marking everything
+    # would tell the explainer the feature fires on every token, which is worse than silence.
+    # +inf as well as NaN: both crash `quant_act`'s int(ceil(...)) if they reach it, and both are
+    # guarded in TWO places (the hoisted `finite` check and the `isfinite(pk)` one), so neither
+    # alone going missing changes the answer here -- which is the point of checking both values.
+    for bad, what in (([0.0, 0.0], "all zero"), ([float("nan"), 0.0], "NaN"),
+                      ([float("inf"), 0.0], "+inf")):
+        r = B.render_example(tok, [1, 2], bad, peak, gate, rel_fallback=True)
+        assert r["n_marked"] == 0, f"{what}: marked {r['n_marked']} tokens"
+        assert r["marking"] == "unmarkable", f"{what}: {r['marking']}"
+
+    # (e) `--mark delphi` is a different rule and the fallback must not shadow it.
+    d = B.render_example(tok, ids, cold, peak, gate, mark="delphi", rel_fallback=True)
+    assert d["marking"] == "delphi", d["marking"]
+    print("  relative marking: gate untouched, fallback fires only when bare, 0/NaN unmarkable")
+
+
 def check_nla_arms(cfg, tmp: Path, base: str):
     """The three NLA decisions that have no other local test: family filter, arm guard, arm B.
 
@@ -710,6 +769,7 @@ def main() -> int:
         check_gate(cfg, tmp, base, set_name)
         check_run_both_paths(cfg, tmp, base, set_name)
         check_followup_arms(cfg, tmp, base, set_name)
+        check_relative_marking()
         check_nla_arms(cfg, tmp, base)
         check_scores_subset(tmp)
         check_corpus_fallback()
