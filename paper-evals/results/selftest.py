@@ -1287,7 +1287,9 @@ def check_autointerp_short_cells_are_reported():
         _close(tq["spread"], 0.125, 1e-12, what="(6*0.5 + 2*1.0)/8 − 0.5")
         # Both counters reach the checks table, per view, with the cells named.
         ck = {c["who"]: c for c in res["checks"] if c["kind"] == "cells"}
-        assert (ck["stratum"]["n_short"], ck["stratum"]["n_thin"]) == (2, 0), ck["stratum"]
+        # NOPOS's eight rarity cells are under-filled (6 of 8) without being short, which is what
+        # separates the two counters; PARTIAL's two stratum-3 cells are the short ones.
+        assert (ck["stratum"]["n_short"], ck["stratum"]["n_thin"]) == (2, 8), ck["stratum"]
         assert ck["stratum"]["short_cells"] == ["cut/PARTIAL/detection stratum 3 (n=2)",
                                                 "cut/PARTIAL/fuzzing stratum 3 (n=2)"], ck
         assert (ck["peak"]["n_short"], ck["peak"]["n_thin"]) == (0, 6), ck["peak"]
@@ -1297,6 +1299,72 @@ def check_autointerp_short_cells_are_reported():
         # not one, and the check table is where a reader looks when a cell is short.
         assert all(" quartile " in c for c in ck["peak"]["thin_cells"]), ck["peak"]["thin_cells"]
         assert all(" stratum " in c for c in ck["stratum"]["short_cells"]), ck["stratum"]
+
+
+def check_autointerp_null_bal_acc_is_never_filled_from_acc():
+    """A feature with no positives is DROPPED from its cell, never filled from the `acc` beside it.
+
+    This is the one failure mode in the cut tables that would not look like a defect. Every other
+    way of losing a feature makes a cell smaller, which the n shows; this one offers a populated,
+    plausible, HIGH number in the next column over (`acc` = 0.9 on the real 131k rows, `tnr` = 0.95
+    on one of them) and a reader that reached for it would print a near-perfect cell for a feature
+    whose balanced accuracy was never computable. The assertions below separate the three possible
+    behaviours: the correct one (n drops, mean unchanged), imputing chance (n stays 8) and reading
+    `acc` (mean moves toward 0.9).
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        _vol, res = _cut_analyse(root)
+        for scorer in ("detection", "fuzzing"):
+            # Every rarity stratum loses its two magnitude-quartile-0 features: n = 6, and the
+            # mean is the surviving 0.5s. 0.6 would be `acc` averaged in; 8 would be imputation.
+            for stratum in range(4):
+                c = _cut(res, "strata", "cut/NOPOS", scorer, stratum)
+                assert c["n"] == 6, (c, "a dropped feature must shrink the cell, not be imputed")
+                _close(c["mean"], 0.5, 1e-12, what="the six features that WERE measured")
+            # On the magnitude cut the whole of quartile 0 is unmeasurable, so that cell does not
+            # exist -- it renders as an em dash and is not a 0.9, a 0.5 or a zero.
+            assert not [c for c in res["peak_strata"] if c["arm"] == "cut/NOPOS"
+                        and c["scorer"] == scorer and c["stratum"] == 0]
+            for q in (1, 2, 3):
+                c = _cut(res, "peak_strata", "cut/NOPOS", scorer, q)
+                assert (c["n"], c["mean"]) == (8, 0.5), c
+        # The headline cell counts the loss rather than hiding it: 32 rows, 24 usable.
+        head = _ai_cell(res, "cut/NOPOS", "detection")
+        assert (head["n_rows"], head["n_features"], head["n_no_metric"]) == (32, 24, 8), head
+        # The reader check is not tripped by any of this: a row with no `tpr` has no identity to
+        # compare, and `tnr`/`acc` of 0.9 are in range. An unmeasurable feature is not a defect.
+        for chk in [c for c in res["checks"] if c["kind"] == "reader"]:
+            assert chk["n_mismatches"] == 0, chk
+        # A cut cell that is ABSENT for one arm and present for its neighbours is reported: the
+        # trend row for NOPOS is computed on three cells where every other arm has four.
+        t = _trend(res, "peak", "cut/NOPOS", "detection")
+        assert (t["n_cells"], t["n_cells_all"]) == (3, 3), t
+        ck = {c["who"]: c for c in res["checks"] if c["kind"] == "cells"}
+        assert ck["peak"]["n_absent"] == 2, ck["peak"]
+        assert ck["peak"]["absent_cells"] == ["cut/NOPOS/detection quartile 0",
+                                              "cut/NOPOS/fuzzing quartile 0"], ck["peak"]
+        assert ck["stratum"]["n_absent"] == 0, ck["stratum"]
+
+    # `density` is NOT the field either cut reads. It is null for every feature of a `draw_sae2m`
+    # set -- the 2M block carries `fire_fraction` and `corpus_peak` and nothing else -- so a
+    # magnitude split that reached for it would come back empty on the PRIMARY SAE and quietly
+    # build its quartiles out of a single bucket. Pinned on the field map rather than on the
+    # file's text, because the caption names `density` in order to say it is not used.
+    assert A.VIEW_FIELD == {A.STRATUM_VIEW: "stratum", A.PEAK_VIEW: "corpus_peak"}, A.VIEW_FIELD
+    # And the 2M shape end to end: rows whose `density` is null everywhere still cut both views.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        p = root / f"runs/{AI_CUT_RUNS['cut']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        for r in recs:
+            r["density"] = None
+        p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+        _vol, res = _cut_analyse(root)
+        assert res["peak_cuts"] == AI_CUT_QUARTILE_CUTS, res["peak_cuts"]
+        _close(_cut(res, "strata", "cut/RARE", "detection", 3)["mean"], 0.75, 1e-12)
 
 
 def check_autointerp_trend_statistics():
@@ -1504,6 +1572,7 @@ CHECKS = [
     # eval 2's cut views -- the rarity strata and the post-hoc magnitude quartiles
     check_autointerp_cut_views,
     check_autointerp_short_cells_are_reported,
+    check_autointerp_null_bal_acc_is_never_filled_from_acc,
     check_autointerp_trend_statistics,
     check_autointerp_cut_render,
     check_autointerp_cuts_catch_a_defect,

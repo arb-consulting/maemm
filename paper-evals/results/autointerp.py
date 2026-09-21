@@ -535,6 +535,11 @@ def trend_rows(by_cell: dict[tuple[Arm, str], dict[int, dict]], arms: list[Arm],
                                   if math.isfinite(c["hi"]) and math.isfinite(c["lo"])),
                                  default=float("nan")),
                 "spread": spread, "rho": rho,
+                # The cell means themselves, so the multiplicity count below can tell a DUPLICATED
+                # measurement from an independent one. Under a shared `--cache-dir` the corpus arms
+                # of two run directories are the same calls replayed, and their rows are identical
+                # here to the last digit.
+                "_means": tuple(round(float(m), 12) for m in means),
                 "p_perm": spread_perm_p(np.array(vals, dtype=float), np.array(labs, dtype=int),
                                         n_perm, seed) if len(used) >= 2 else float("nan"),
                 "dropped": [f"{c['stratum']} (n={c['n']})" for c in dropped],
@@ -1016,13 +1021,22 @@ def trend_table(res: dict, out: R.Out) -> None:
     for view, mine in per_view.items():
         if not mine:
             continue
-        bonf = ALPHA / len(mine)
+        # HOW MANY LOOKS THIS TABLE ACTUALLY TAKES. Not `len(mine)`: eval 2's three run directories
+        # per SAE were launched with one shared `--cache-dir`, so every corpus arm's row appears
+        # once per run label with byte-identical numbers -- 32 rows carrying 16 measurements. A
+        # Bonferroni divisor of 32 would be correcting for the same look three times, which is not
+        # conservatism, it is a wrong statement about what was done. Rows are deduplicated on
+        # (arm name, scorer, the cell means), which is exactly what "the same measurement" means
+        # here; under separate caches the means differ and the count rises on its own.
+        seen = {(t["arm_name"], t["scorer"], t["_means"]) for t in mine}
+        n_look = len(seen)
+        bonf = ALPHA / n_look
         for t in mine:
             p = t["p_perm"]
             if not math.isfinite(p):
                 verdict = "not estimable"
             elif p <= bonf:
-                verdict = f"separates (p ≤ α/{len(mine)})"
+                verdict = f"separates (p ≤ α/{n_look})"
             elif p <= ALPHA:
                 verdict = "uncorrected only"
             else:
@@ -1060,7 +1074,10 @@ def trend_table(res: dict, out: R.Out) -> None:
          f"this design can reach 0.05 on it. It is printed to separate *rises across the cut* "
          f"(ρ near ±1) from *one cell differs* (a large spread at a middling ρ), which the spread "
          f"alone cannot tell apart.\n\n"
-         f"`verdict` corrects for the multiplicity this table itself creates: `separates` means "
+         f"`verdict` corrects for the multiplicity this table itself creates, over the DISTINCT "
+         f"measurements rather than the printed rows -- a corpus arm that three run directories "
+         f"replayed from one shared cache is one look, not three, and its rows are identical here "
+         f"to the last digit. `separates` means "
          f"p ≤ α/(rows of that view), α = {ALPHA:g}. That divisor is CONSERVATIVE in one direction "
          f"and not in the other — the rows are far from independent (the same features, and the "
          f"corpus arms re-scored under several `--run` labels are near-copies of one measurement), "
@@ -1192,7 +1209,9 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
              f"post-ReLU activation over every scanned position, which `build.py` reads from that "
              f"array (not from the set's `ids.jsonl`, whose column for it is `corpus_peak_16m` on "
              f"a `draw_sae2m` set and `max_act` on a `targets` one) and `run.py` copies onto every "
-             f"score row as `corpus_peak`. "
+             f"score row as `corpus_peak`. It is the ONLY magnitude field read here: `density` "
+             f"(gated fires ÷ scanned positions) is null on every row of a `draw_sae2m` set, so a "
+             f"split that reached for it would come back empty on the 2M block. "
              f"**This is a POST-HOC split of the {res['n_features']} features this block analysed, "
              f"not a stratification the draw controlled.** The rarity strata above were balanced "
              f"by construction — the draw took an equal number of features from each quartile of "
