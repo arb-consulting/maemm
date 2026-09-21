@@ -102,6 +102,28 @@ also means the draft's Table 7 ("entire generated span") is wrong. `prompt`,
 rather than assumed: F 2,097,152, k 64, gate 1.682811975479126, EV 0.711, L0 67.45,
 0 dead features, 100% fired over 20.0M eval tokens.
 
+---
+
+## Fixed 2026-09-21: `draw_sae2m` stamped a family nothing selects on
+
+`draw_sae2m.py` wrote `family: "sae2m_enc"` on every row. That label is honest and
+useless: the family field is a **selector**, and `precompute/scan.py`,
+`top1_act.py`, `repo_examples.py`, `gcg/gcg.py`, `score.py`'s per-family means and
+autointerp's `sae_self` / `build` all filter `family == "sae"`. So the 2,000-row set
+was invisible to every one of them, and the first use of it had to teach each
+consumer to accept a second label rather than simply working.
+
+The draw now emits `family: "sae"` and a new per-row `sae_key` (the config key of the
+dictionary, e.g. `qwen36-27b/sae2m`), which is the distinction the old label was
+carrying — and carries it somewhere nothing filters on by accident. `id` alone was
+always ambiguous: feature 4242 of the 131k `l42-1b` and of the 2M `sae2m` are
+unrelated directions.
+
+**The 2k set on the volume is NOT rewritten in place.** It keeps `sae2m_enc`, the
+read-time acceptance in `sae_self.py` / `build.py` stays for it, and its `heldout:`
+config entry still says `families: {sae2m_enc: ...}` because that is what exists. A
+re-draw carries `sae` and its config entry must say so.
+
 ## Runs
 
 | run | result |

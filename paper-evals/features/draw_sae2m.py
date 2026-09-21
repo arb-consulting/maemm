@@ -6,7 +6,8 @@
 Writes the shape the rest of the pipeline already reads:
 
     <root>/base/<base>/heldout/<set>/
-        ids.jsonl   one row per target: row, family, id (feature id), stratum, side, ...
+        ids.jsonl   one row per target: row, family ("sae"), sae_key (which dictionary),
+                    id (feature id), stratum, side, ...
         vecs.f16    [N, d] unit rows, row i is ids.jsonl line i
         README.md   the draw, the eligibility rule, and how the split is held out
 
@@ -23,6 +24,13 @@ chosen on `fit` without touching the numbers reported from `report`.
 Stratification is RECORDED, not sampled: the draw is uniform over eligible features and
 each row carries its fire-count quartile. A stratified draw would force equal quartiles
 and make the overall mean unrepresentative of the dictionary.
+
+FAMILY LABEL (fixed 2026-09-21). These rows are stamped `family: "sae"`, the label every
+downstream product filters on, with the dictionary named separately per row in `sae_key`.
+The first draw used `family: "sae2m_enc"`, which no consumer selected on, so the set was
+invisible to `scan`, `top1_act`, `repo_examples`, `gcg`, `score`'s per-family means and
+autointerp until each was taught to accept the second label. The 2k set already on the
+volume keeps its old label and that acceptance stays; a re-draw carries `sae`.
 """
 from __future__ import annotations
 
@@ -177,7 +185,19 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
     for i, fid in enumerate(drawn):
         rows.append({
             "row": i,
-            "family": "sae2m_enc",
+            # `sae`, NOT `sae2m_enc` (fixed 2026-09-21). The family label is a SELECTOR, not a
+            # description: precompute/scan.py, top1_act.py, repo_examples.py, gcg/gcg.py,
+            # score.py's per-family means and autointerp's sae_self/build all filter
+            # `family == "sae"`, so a set stamped with anything else is invisible to every one of
+            # them -- which is why the first 2k draw had to be given read-time acceptance in each
+            # consumer instead of simply working. WHICH dictionary a row belongs to is a separate
+            # question and now has its own field.
+            "family": "sae",
+            # The config key of the SAE this feature index refers to. `id` alone is ambiguous
+            # across dictionaries: feature 4242 of the 131k `l42-1b` and of the 2M `sae2m` are
+            # unrelated directions, and before this field the only thing telling them apart was
+            # the family label that nothing selected on.
+            "sae_key": sae_key,
             "id": int(fid),
             "stratum": int(stratum[i]),
             "side": str(side[i]),
@@ -187,6 +207,10 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
             "corpus_peak_1b": float(peak_by_id.get(int(fid), float("nan"))),
         })
     meta = {
+        # The dictionary these feature ids index. It is on every ROW too (`sae_key`), because a
+        # row can outlive the directory it was written in; here so a reader of the README and of
+        # the returned dict does not have to open ids.jsonl to find out.
+        "sae_key": sae_key,
         "n_fit": int((side == "fit").sum() + (side == "train").sum()),
         "n_report": int((side == "report").sum() + (side == "test").sum()),
         "gate": float(sae.threshold),
@@ -204,7 +228,15 @@ def run(cfg, args):
     with C.outdir(out_dir, args, inputs=inputs) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
-        od.note(f"{len(rows)} sae2m_enc targets, all from Celeste's eval split")
+        od.note(
+            f"{len(rows)} targets, all from Celeste's eval split. `family` is **sae** -- the "
+            f"label every consumer selects on (scan, top1_act, repo_examples, gcg, score's "
+            f"per-family means, autointerp's sae_self and build) -- and the dictionary is named "
+            f"per row in `sae_key` ({meta['sae_key']!r}), because a feature index means nothing "
+            f"without "
+            f"it. Sets drawn before 2026-09-21 carry `family: sae2m_enc` instead and are NOT "
+            f"rewritten; autointerp still accepts that label for them."
+        )
         od.note(f"strata: {meta['stratum_stat']} from {meta['stratum_source']}")
         od.note(f"{meta['n_fit']} train/fit, {meta['n_report']} test/report -- BOTH "
                 f"halves are unseen by the MAEMM; this splits our analysis, not the "

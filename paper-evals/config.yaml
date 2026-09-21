@@ -265,8 +265,12 @@ heldout:
   # `2026-09-16_v1` off the tables. `common.default_heldout` takes the latest NON-imported set
   # instead, and every entrypoint uses it.
   #
-  # KNOWN, not fixed here: the family label is `sae2m_enc`, not `sae`, so `autointerp`'s sae_self
-  # stage and every `family == "sae"` filter in the pipeline skip these rows.
+  # The family label here is `sae2m_enc` because that is what the rows ON THE VOLUME carry, and
+  # this file describes what exists. `features/draw_sae2m.py` was fixed on 2026-09-21 to emit
+  # `family: "sae"` -- the label every consumer actually filters on -- with the dictionary named
+  # per row in a new `sae_key` field; the 2k set below predates that and is NOT rewritten in
+  # place, so autointerp keeps accepting the old label for it (FAMILIES in sae_self.py/build.py).
+  # A RE-DRAW carries `sae` and its config entry must say `families: {sae: ...}`.
   2026-09-20_sae2m_2k:
     imported: true
     families:
