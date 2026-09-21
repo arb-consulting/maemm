@@ -60,7 +60,10 @@ where its inputs are there and printed as `absent` with the reason where they ar
       ratios are quoted. On the 2M side that peak is the `corpus_peak_1b` column the stratified
       draw already writes into `ids.jsonl` (rank-0 window of `eval_2m_features_100k_windows`,
       which reproduces `eval_2m_features_512`'s shipped `corpus_peak` exactly), or `--peaks-1b`.
-      On the 131k side it is the SAE repo's own shipped max-acts peak, from `repo_examples`.
+      On the 131k side it is the SAE repo's own shipped max-acts peak, from `repo_examples`,
+      which is a PROXY and not her number -- so whether it is even on our activation scale is
+      measured there too, and where it is not the verdict says the denominator differs rather
+      than naming a pipeline defect.
   (2) A READER CHECK on the old primary's existing v1 product: `sae_self.json`'s own `per_target`
       (`max_peak_act`, `fire_fraction`, `corpus_peak`) against this script's recomputation from
       `sae_self.f16` for the same rows. These must agree EXACTLY -- both are the same reduction
@@ -106,6 +109,11 @@ BO_KS = (1, 4, 16)
 # entry for at their argmax token, which is the gate count the reader check quotes.
 COS_KEYS = ("mean_cos", "max_cos", "bo_4", "bo_16")
 SCORE_KEYS = COS_KEYS + ("n_sae_gated", "n")
+
+# How close to 1 the prior denominator's scale must be for a ratio against it to be read as the
+# prior work's own statistic. Outside this band the two are not the same quantity and the
+# difference is about the denominator, not about the pipeline -- the verdict says which.
+SCALE_OK = (0.9, 1.1)
 
 # How many standard errors of OUR OWN mean a prior result may sit away before it is flagged.
 # Stated with every flag, because the band ignores the prior result's own sampling error and the
@@ -268,6 +276,11 @@ SPECS = [
         # max over windows IS the repo's per-feature peak; `per_feature.jsonl` carries only
         # `repo_mean_peak`, the MEAN over the shipped windows, which is smaller and inflates every
         # ratio taken against it.
+        #
+        # `per_feature.jsonl` is wanted even when repo_examples.jsonl supplies the peaks, because
+        # it is the only file carrying OUR peak (`mean_peak_act`) and the REPO's (`repo_mean_peak`)
+        # over the same windows -- which is the scale between the two conventions, and the open
+        # `norm_factor` question in paper-evals/README.md means it cannot be assumed to be 1.
         "alt_peak": {
             "label": "repo_max_act",
             "what": "the SAE repo's own shipped max-activating windows, as repo_examples "
@@ -456,6 +469,54 @@ def load_alt_peaks(data: Path, spec: dict) -> tuple[dict | None, str]:
     return None, (
         f"neither {d}/repo_examples.jsonl (preferred: max of `repo_peak`) nor "
         f"{d}/per_feature.jsonl is in the mirror")
+
+
+def load_alt_scale(data: Path, spec: dict) -> dict:
+    """Is the prior work's denominator on OUR activation scale? Measured, not assumed.
+
+    A ratio against someone else's corpus peak is only comparable with their published one if
+    their peak is the same KIND of number ours is. For the 131k SAE that is an OPEN question in
+    paper-evals/README.md -- whether the shipped max-acts file folds the SAE's `norm_factor` --
+    and `repo_examples` is exactly the measurement of it: over the repo's OWN windows it stores
+    `mean_peak_act` (our re-scored peak) beside `repo_mean_peak` (the value the repo shipped for
+    the same windows), so their ratio IS the scale between the two conventions.
+
+    Returns {"applicable", "median", "q1", "q3", "n", "how"}. `applicable` is False where the
+    prior denominator is the prior work's own measurement rather than a proxy -- her
+    `corpus_peak_1b` column is her number, not a stand-in for it, so there is nothing to scale.
+    """
+    alt = spec.get("alt_peak") or {}
+    if alt.get("kind") != "repo_examples":
+        return {"applicable": False, "median": None, "q1": None, "q3": None, "n": 0,
+                "how": "the prior work's own measurement, not a proxy -- no scale to check"}
+    d = alt["dir"].format(set=spec["set"])
+    p, _root = resolve(data, roots_for(spec), f"{d}/per_feature.jsonl")
+    if p is None:
+        return {"applicable": True, "median": None, "q1": None, "q3": None, "n": 0,
+                "how": f"UNMEASURED: {d}/per_feature.jsonl is not in the mirror, and it is the "
+                       f"only file carrying our peak and the repo's over the SAME windows"}
+    vals = []
+    for r in read_jsonl(p):
+        ours, theirs = r.get("mean_peak_act"), r.get("repo_mean_peak")
+        # A feature whose repo windows are all dead divides by zero and says nothing about scale.
+        if ours is None or not theirs:
+            continue
+        vals.append(float(ours) / float(theirs))
+    if not vals:
+        return {"applicable": True, "median": None, "q1": None, "q3": None, "n": 0,
+                "how": f"UNMEASURED: {d}/per_feature.jsonl carries no feature with both "
+                       f"`mean_peak_act` and a non-zero `repo_mean_peak`"}
+    v = np.asarray(vals, dtype=float)
+    return {
+        "applicable": True,
+        "median": round(float(np.median(v)), 4),
+        "q1": round(float(np.quantile(v, 0.25)), 4),
+        "q3": round(float(np.quantile(v, 0.75)), 4),
+        "n": len(vals),
+        "how": f"median `mean_peak_act` / `repo_mean_peak` over {len(vals)} features of "
+               f"{d}/per_feature.jsonl -- our re-scored peak against the repo's own stored value, "
+               f"on the repo's own windows",
+    }
 
 
 def load_peaks_1b(path: str) -> dict[int, float]:
@@ -674,6 +735,9 @@ def collect(spec: dict, data: Path, want_rows: set[int] | None, peaks_1b: str = 
         "what": (alt or {}).get("what"),
         "how": alt_how,
         "n_features": None if alt_peaks is None else len(alt_peaks),
+        # Whether that denominator is on our activation scale at all -- measured from the one
+        # product that has both conventions on the same windows.
+        "scale": load_alt_scale(data, spec),
     }
 
     # ---- the rows to report ------------------------------------------------------------------
@@ -960,9 +1024,30 @@ def compare(block: dict) -> dict:
             row["n_alt"] = len(alt_vals)
             # The comparable number is the one taken against HER denominator; the flag follows it
             # whenever it exists, and falls back to ours with that said in the verdict.
+            scale = block["alt_peak"].get("scale") or {}
+            row["scale"] = scale
+            row["denominator_label"] = "ours (÷ her peak)"
             if alt_vals:
                 row.update(_flag(row["ours_vs_their_peak"], card["value"], alt_vals))
                 row["flag_basis"] = "her denominator"
+                # A ratio against a PROXY denominator is only her statistic if the proxy is on
+                # our scale. Where it is not -- or where nothing measured it -- the disagreement
+                # is about the denominator and must not be reported as a pipeline verdict. The
+                # difference and the z stay, because the reader still wants to see them.
+                if scale.get("applicable"):
+                    med = scale.get("median")
+                    ok = med is not None and SCALE_OK[0] <= med <= SCALE_OK[1]
+                    if not ok:
+                        shown = "unmeasured" if med is None else f"scale {med:.3f}"
+                        row["denominator_label"] = f"÷ repo peak ({shown}, unverified)"
+                        why = ("scale unmeasured" if med is None else "denominator scale differs")
+                        row["verdict"] = (
+                            f"CHECK — {why}, not a pipeline verdict"
+                            if row["verdict"].startswith("CHECK")
+                            else f"{row['verdict']} — on an unverified denominator scale")
+                        row["flag_basis"] = (
+                            f"a PROXY for her denominator, whose scale against ours is "
+                            f"{'unmeasured' if med is None else f'{med:.3f}'}")
             else:
                 row["flag_basis"] = "OUR 16M denominator (hers is not in the mirror)"
         else:
@@ -1166,7 +1251,36 @@ def render_comparison(blocks: list[dict]) -> list[str]:
             ]
             if card["note"]:
                 lines += [card["note"], ""]
-            head = ["statistic", "ours (÷ 16M max_act)", "ours (÷ her peak)", "hers", "Δ", "z",
+            scale = card.get("scale") or {}
+            if scale.get("applicable"):
+                med = scale.get("median")
+                sent = (
+                    "**Her 1.0B-scan corpus peak for this SAE is not in our data.** The proxy "
+                    "is the SAE repo's own shipped max-activating windows, and whether those are "
+                    "on our activation scale is an OPEN question in `paper-evals/README.md` "
+                    "(does the shipped max-acts file fold the SAE's `norm_factor`), so "
+                    "`repo_examples` measured it: ")
+                if med is None:
+                    sent += f"{scale['how']}."
+                else:
+                    sent += (
+                        f"the median of our `mean_peak_act` over the repo's own stored "
+                        f"`repo_mean_peak`, on the repo's own windows, is **{med:.3f}** "
+                        f"(IQR {scale['q1']:.3f}–{scale['q3']:.3f} over {scale['n']} features).")
+                    if not SCALE_OK[0] <= med <= SCALE_OK[1]:
+                        sent += (
+                            f" That is outside {SCALE_OK[0]:g}–{SCALE_OK[1]:g}, so the two "
+                            f"conventions are not the same quantity: the `÷ repo peak` column "
+                            f"below is NOT comparable with a published `norm_act`, and the "
+                            f"verdict is about the denominator rather than about the pipeline.")
+                    else:
+                        sent += (
+                            f" That is inside {SCALE_OK[0]:g}–{SCALE_OK[1]:g}, so the repo's "
+                            f"peaks and ours are on one scale and the `÷ repo peak` column is "
+                            f"read as her statistic.")
+                lines += [sent, ""]
+            head = ["statistic", "ours (÷ 16M max_act)",
+                    card.get("denominator_label", "ours (÷ her peak)"), "hers", "Δ", "z",
                     "verdict"]
             stat_label = (f"`{card['ours_key']}` median" if "ours_vs_their_peak" in card
                           else f"`{card['ours_key']}` (a mean over features)")
@@ -1728,6 +1842,87 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
         pk, how = load_alt_peaks(data, rspec)
         assert pk[100] == 5.0 and how.startswith("max of `repo_peak`"), (pk[100], how)
 
+        # ---- the denominator's SCALE, which decides what a card disagreement means -------------
+        # `t/sae` takes its prior peak from ids.jsonl -- her own column, not a proxy -- so there
+        # is nothing to scale and the wording must stay as it was.
+        assert block["alt_peak"]["scale"]["applicable"] is False, block["alt_peak"]["scale"]
+        assert c131["denominator_label"] == "ours (÷ her peak)", c131
+        assert "denominator scale" not in c131["verdict"], c131
+
+        def _repo_scale(mult):
+            """Rewrite per_feature.jsonl so our peak sits `mult` times the repo's stored one.
+
+            Feature 199 is DEAD on the repo's own windows (`repo_mean_peak` 0): it must be
+            dropped from the scale rather than divided by, and it must not count towards `n`.
+            """
+            (rd / "per_feature.jsonl").write_text("".join(
+                json.dumps({"feature": f, "repo_mean_peak": v / 8,
+                            "mean_peak_act": (v / 8) * mult}) + "\n"
+                for f, v in cpeaks.items())
+                + json.dumps({"feature": 199, "repo_mean_peak": 0.0,
+                              "mean_peak_act": 3.0}) + "\n")
+            rb = collect(rspec, data, None)
+            rb["aggregate"] = aggregate(rb)
+            return rb, compare({**rb, "sae": "qwen36-27b/l42-1b"})["card"]
+
+        on_scale, card_ok = _repo_scale(1.0)
+        sc = on_scale["alt_peak"]["scale"]
+        assert sc["applicable"] and sc["median"] == 1.0 and sc["n"] == 4, sc
+        assert sc["q1"] == 1.0 and sc["q3"] == 1.0, sc
+        assert card_ok["denominator_label"] == "ours (÷ her peak)", card_ok
+        assert "denominator scale" not in card_ok["verdict"], card_ok
+        # the peaks still come from repo_examples.jsonl: the scale file does not supply them
+        assert card_ok["alt_peak_how"].startswith("max of `repo_peak`"), card_ok
+
+        off_scale, card_off = _repo_scale(1.85)
+        sc = off_scale["alt_peak"]["scale"]
+        assert sc["median"] == 1.85 and not SCALE_OK[0] <= sc["median"] <= SCALE_OK[1], sc
+        assert card_off["denominator_label"] == "÷ repo peak (scale 1.850, unverified)", card_off
+        # this fixture's prior value happens to land inside the band, so the AGREEMENT is the one
+        # that gets qualified -- an off-scale denominator makes a match coincidental too
+        assert card_off["verdict"] == "consistent — on an unverified denominator scale", card_off
+        assert "possible pipeline defect" not in card_off["verdict"], card_off
+        # the number and its z are NOT suppressed -- only what the verdict claims changes
+        assert card_off["ours_vs_their_peak"] == card_ok["ours_vs_their_peak"], card_off
+        assert card_off["z"] == card_ok["z"], (card_off["z"], card_ok["z"])
+
+        # and the branch that matters: a prior value far outside the band must NOT come back as
+        # "possible pipeline defect" while the denominator is unverified
+        far = dict(CARD["qwen36-27b/l42-1b"], value=20.0)
+        CARD["t/far"] = far
+        try:
+            hit = compare({**off_scale, "sae": "t/far"})["card"]
+            assert hit["z"] > FLAG_Z, hit
+            assert hit["verdict"] == "CHECK — denominator scale differs, not a pipeline verdict", hit
+            on = compare({**on_scale, "sae": "t/far"})["card"]
+            assert on["verdict"] == "CHECK — possible pipeline defect", on
+        finally:
+            del CARD["t/far"]
+        md_off = render([{**off_scale, "comparison": compare(
+            {**off_scale, "sae": "qwen36-27b/l42-1b"})}])
+        for needle in ("not in our data", "norm_factor", "1.850", "IQR",
+                       "÷ repo peak (scale 1.850, unverified)"):
+            assert needle in md_off, f"the scale sentence is missing {needle!r}"
+
+        # nothing measured it: the same downgrade, because an unvalidated denominator cannot
+        # support a defect claim either
+        (rd / "per_feature.jsonl").unlink()
+        blind = collect(rspec, data, None)
+        blind["aggregate"] = aggregate(blind)
+        sc = blind["alt_peak"]["scale"]
+        assert sc["applicable"] and sc["median"] is None and "UNMEASURED" in sc["how"], sc
+        card_blind = compare({**blind, "sae": "qwen36-27b/l42-1b"})["card"]
+        assert card_blind["denominator_label"] == "÷ repo peak (unmeasured, unverified)", card_blind
+        assert card_blind["verdict"].endswith("on an unverified denominator scale"), card_blind
+        CARD["t/far"] = far
+        try:
+            hit_blind = compare({**blind, "sae": "t/far"})["card"]
+            assert hit_blind["verdict"] == (
+                "CHECK — scale unmeasured, not a pipeline verdict"), hit_blind
+        finally:
+            del CARD["t/far"]
+        _repo_scale(1.0)  # leave the fixture on-scale for anything after this
+
         # a gate disagreement between two products of the "same" SAE must be refused
         _write_sae_self(data / "maemms/r/scores/S/sae_self", [0, 1], 16, 3, 99.0,
                         np.zeros((2, 16, 3)))
@@ -1741,8 +1936,9 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
         "[sae_smoke64] selftest OK: root search and a pinned source, bo1/bo4/bo16 by hand, "
         "k > n skipped not clamped, n_first truncation, the ranked corpus source, absent vs "
         "zero, cosines in the JSON and not the result tables, per-stratum aggregates, --rows, "
-        "the gate guard, both alt-peak readers, --peaks-1b, the card flag basis, the "
-        "non-comparable act_smoke row and a reader-check mismatch reported as a defect"
+        "the gate guard, both alt-peak readers, the prior denominator's measured SCALE and the "
+        "verdict downgrade it forces, --peaks-1b, the card flag basis, the non-comparable "
+        "act_smoke row and a reader-check mismatch reported as a defect"
     )
 
 

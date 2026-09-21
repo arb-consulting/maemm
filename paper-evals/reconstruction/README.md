@@ -49,6 +49,17 @@ maxed over a feature's shipped windows. `per_feature.jsonl` from the same direct
 as a fallback, but it carries only `repo_mean_peak`, a MEAN over those windows and not a peak,
 so every ratio taken against it is inflated and the section says so where it is used.
 
+**Mirror `per_feature.jsonl` as well, even when `repo_examples.jsonl` is there.** Her 1.0B-scan
+peak for the 131k SAE is not in our data at all; the repo's shipped max-acts are a PROXY, and
+whether they are even on our activation scale is an open question in `paper-evals/README.md`
+(whether the shipped file folds the SAE's `norm_factor`). `per_feature.jsonl` is the only file
+carrying our re-scored peak (`mean_peak_act`) beside the repo's own stored value
+(`repo_mean_peak`) over the SAME windows, so their per-feature ratio IS that scale. The card
+block reports its median and IQR; outside 0.9–1.1, or unmeasured, the `÷ repo peak` column is
+labelled `unverified` and the verdict becomes *"denominator scale differs, not a pipeline
+verdict"* instead of naming a defect — the difference and its z are still printed. The 2M side
+needs none of this: `corpus_peak_1b` is her own measurement, not a stand-in for it.
+
     uv run paper-evals/reconstruction/sae_smoke64.py --selftest
     uv run paper-evals/reconstruction/sae_smoke64.py --data ~/mirror \
         --rows <the 64 sae rows of 2026-09-16_v1> --out out/sae_smoke64.md
