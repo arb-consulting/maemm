@@ -102,6 +102,13 @@ cd /home/gavento/dev/mimir/2026-09-maemms
    --stage sae_self --base qwen36-27b --maemm qwen36-27b/2026-09-10_rl-8x2048-full --set 2026-09-16_v1)
 ```
 
+**`--sae <base>/<name>` is REQUIRED on a base that carries more than one SAE.** `qwen36-27b` has
+since `sae2m` landed, so `sae_self`, `build` and `chain` all resolve the key through
+`common.sae_key_for`, which takes `--sae` or refuses to guess — `chain` used to take whichever key
+came first in `config.yaml`. The SAE is also loaded **encoder-only** everywhere on this path
+(`load_sae(..., need_decoder=False)`): nothing here reads `W_dec`, and at 2^21 features it is
+another 43 GB in fp32 that does not fit an H200 beside the 27B.
+
 Flags: `--rows` restricts the targets (`common.parse_rows`, global row numbering, so the `sae`
 family is 1024-1535) and OVERRIDES the stratified draw in `build`; `--out-suffix` keeps a shakeout
 out of the canonical path; `--n-windows` / `--pool-seed` belong to `random_pool`, `--prefix-m` to

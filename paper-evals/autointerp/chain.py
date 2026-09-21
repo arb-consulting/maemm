@@ -141,8 +141,9 @@ def _sub(args: dict, **over) -> dict:
 def wait_for_docmax(cfg, args, st: Status) -> str:
     """Block until `examples_docmax` has landed on the volume, reloading to see other containers."""
     base, root, set_name = args["base"], args["root"], args["heldout"]
-    keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    path = f"{C.sae_dir(keys[0], root)}/examples_docmax/{set_name}"
+    # keys[0] silently picked the first of a base's SAEs, which since sae2m is a coin flip on
+    # qwen36-27b; common.sae_key_for takes --sae or asserts, like every other site.
+    path = f"{C.sae_dir(C.sae_key_for(cfg, base, args.get('sae') or ''), root)}/examples_docmax/{set_name}"
     marker = f"{path}/tested.json"
     reload_ = args.get("on_reload")
     t0 = time.time()

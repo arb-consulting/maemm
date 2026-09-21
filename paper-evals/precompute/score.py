@@ -141,29 +141,30 @@ def _sae_for(cfg, args):
     `score` could not run on that base at all -- the single-SAE assert below fired before any
     argument could say which to use. With one SAE the flag is optional and the assert is unchanged.
 
-    NOTE `--sae qwen36-27b/sae2m` will OOM an H200 and is not the way to score an sae2m set: this
-    product loads the FULL SAE in fp32 (`load_sae`'s default `need_decoder=True`), which at 2^21
-    features is 43 GB per weight matrix, 86 GB beside the 27B's ~52 GB of 141 GB available
-    (features/CHANGES.md, fix 2). `--no-sae` is the path for those sets; the cosine, the norms and
-    the argmax -- everything the tables read -- do not involve the SAE at all.
+    The SAE is loaded ENCODER-ONLY (`need_decoder=False`). Nothing on the scoring path reads
+    `W_dec`: the gating goes through `common.sae_encode`, which is b_dec, W_enc and b_enc. At
+    2^21 features W_dec is another 43 GB in fp32, and 86 GB beside the 27B's ~52 GB does not fit
+    an H200's 141 (features/CHANGES.md fix 2 made the same change for `stats`). `--no-sae` is
+    still there for a run that wants no SAE features at all; the cosine, the norms and the argmax
+    -- everything the tables read -- do not involve the SAE either way.
     """
     import torch
 
     if args.get("no_sae"):
         return None, ""
     base = args["base"]
-    keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    want = (args.get("sae") or "").strip()
-    if want:
-        assert want in keys, f"--sae {want!r} is not one of base {base}'s SAEs {sorted(keys)}"
-        key = want
-    else:
-        assert len(keys) == 1, (
-            f"base {base} has {len(keys)} SAEs in config ({sorted(keys)}), so `score` cannot pick "
-            f"one: pass --sae <key>, or --no-sae"
-        )
-        key = keys[0]
-    sae = C.load_sae(C.sae_path(cfg, key), cfg["bases"][base]["d"], device="cuda", dtype=torch.float32)
+    key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    # ENCODER ONLY: `_Extra` gates on `common.sae_encode`, which reads b_dec, W_enc and b_enc and
+    # never W_dec (grepped: nothing under paper-evals/ outside common.load_sae itself touches
+    # W_dec). At 2^21 features W_dec is 43 GB in fp32, which is the difference between fitting an
+    # H200 beside the 27B and not -- the same fix features/CHANGES.md item 2 made for `stats`.
+    sae = C.load_sae(
+        C.sae_path(cfg, key),
+        cfg["bases"][base]["d"],
+        device="cuda",
+        dtype=torch.float32,
+        need_decoder=False,
+    )
     return sae, key
 
 

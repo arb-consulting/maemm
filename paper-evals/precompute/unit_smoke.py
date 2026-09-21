@@ -907,6 +907,38 @@ def check_maemms_for():
     assert set(per_base) | set(C.maemms_for(cfg, "qwen36-27b", computable_only=False)) == set(all_keys)
 
 
+def check_sae_key_for():
+    """WHICH SAE of a base: explicit wins, unknown is refused, and two SAEs refuse to be guessed.
+
+    The last one is the whole point. `qwen36-27b` carries two since `sae2m`, and every call site
+    used to write `keys[0]` or `assert len(keys) == 1` by hand -- one silently picking whichever
+    came first in config.yaml, the others simply unable to run. A silent fallback here is
+    invisible in every product's output, so it is asserted directly rather than through a product.
+    """
+    cfg = C.load_config()
+    two = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == "qwen36-27b"]
+    one = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == "qwen3-8b"]
+    assert len(two) == 2 and len(one) == 1, (
+        f"this check needs a two-SAE base and a one-SAE base; config has {two} and {one}"
+    )
+    assert C.sae_key_for(cfg, "qwen3-8b") == one[0], "a single-SAE base needs no --sae"
+    for k in two:
+        assert C.sae_key_for(cfg, "qwen36-27b", k) == k, "an explicit --sae must be honoured"
+    try:
+        C.sae_key_for(cfg, "qwen36-27b")
+    except AssertionError as e:
+        assert "pass --sae" in str(e), f"wrong assert fired for an ambiguous base: {e}"
+    else:
+        raise AssertionError("sae_key_for GUESSED between two SAEs instead of refusing")
+    for bad in ("qwen36-27b/nope", one[0]):
+        try:
+            C.sae_key_for(cfg, "qwen36-27b", bad)
+        except AssertionError as e:
+            assert "is not one of" in str(e), f"wrong assert fired for --sae {bad!r}: {e}"
+        else:
+            raise AssertionError(f"sae_key_for accepted --sae {bad!r} on qwen36-27b")
+
+
 def check_strip_repo_sink():
     """The 8B sink strip: column 0 leaves the ids AND the activations, or nothing does.
 
@@ -1009,6 +1041,7 @@ CHECKS = [
     check_rename_lora_keys,
     check_maemms_for,
     check_strip_repo_sink,
+    check_sae_key_for,
     check_rollouts_nla_selftest,
 ]
 

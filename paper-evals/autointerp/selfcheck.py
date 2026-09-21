@@ -382,7 +382,7 @@ def check_gate(cfg, tmp: Path, base: str, set_name: str):
 
 def base_args(tmp: Path, base: str, set_name: str, build_dir: str, run_dir: str) -> dict:
     return {
-        "base": base, "heldout": set_name, "root": str(tmp), "maemm": "stub/maemm",
+        "base": base, "heldout": set_name, "root": str(tmp), "maemm": "stub/maemm", "sae": "",
         "build_dir": build_dir, "run_dir": run_dir, "arms": "", "rows": "", "force": True,
         "argv": ["selfcheck"], "repo_commit": "selfcheck", "gpu": "CPU", "usd_per_s": 0.0,
         "t0": time.time(), "max_cost_usd": 1000.0, "stop_above_usd": 1000.0, "approved": True,
@@ -457,9 +457,16 @@ def check_followup_arms(cfg, tmp: Path, base: str, set_name: str):
 
 
 def check_chain(cfg, tmp: Path, base: str, set_name: str):
-    """The chain's whole control flow, with docmax already present and the API stubbed."""
+    """The chain's whole control flow, with docmax already present and the API stubbed.
+
+    The SAE key is passed explicitly and the marker is written under THAT key: since the base
+    carries two SAEs, `chain.wait_for_docmax` resolves through `common.sae_key_for`, which refuses
+    to guess. This check would previously have written the marker under whichever key came first
+    in config.yaml and watched the chain look for it under the same accident.
+    """
     keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    dm = Path(C.sae_dir(keys[0], str(tmp))) / "examples_docmax" / set_name
+    sae_key = keys[-1]  # not keys[0]: deliberately NOT the one a silent fallback would pick
+    dm = Path(C.sae_dir(sae_key, str(tmp))) / "examples_docmax" / set_name
     dm.mkdir(parents=True, exist_ok=True)
     (dm / "tested.json").write_text("{}")
     chain_dir = "selfcheck_chain"
@@ -467,7 +474,7 @@ def check_chain(cfg, tmp: Path, base: str, set_name: str):
         synth_build(tmp, base, set_name, f"{chain_dir}_{tag}", list(range(300, 300 + n_feat)))
     args = base_args(tmp, base, set_name, "", "")
     args.update({"chain_dir": chain_dir, "maemm": "stub/maemm", "maemm2": "stub/maemm2",
-                 "on_commit": None, "on_reload": None})
+                 "sae": sae_key, "on_commit": None, "on_reload": None})
     res = CH.run(cfg, args)
     assert res["status"] == "done", f"chain did not finish: {res}"
     status = json.loads((tmp / "runs" / chain_dir / "STATUS.json").read_text())

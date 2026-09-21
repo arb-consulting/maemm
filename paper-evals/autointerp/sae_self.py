@@ -109,9 +109,15 @@ def _sae_rows(cfg, args):
         f"held-out set {set_name!r} on {base} has no rows in any of the SAE families {FAMILIES}; "
         f"it carries {sorted({r['family'] for r in rows})}"
     )
-    keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(keys) == 1, f"base {base} has {len(keys)} SAEs in config, expected exactly 1"
-    return rows, [r["row"] for r in sel], [int(r["id"]) for r in sel], keys[0]
+    # WHICH SAE: `--sae` when the base carries more than one (qwen36-27b does, since sae2m).
+    # common.sae_key_for is the same rule score._sae_for uses, so the stage and the scorer it
+    # validates itself against cannot end up on different dictionaries.
+    return (
+        rows,
+        [r["row"] for r in sel],
+        [int(r["id"]) for r in sel],
+        C.sae_key_for(cfg, base, args.get("sae") or ""),
+    )
 
 
 def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, gate: float):
@@ -185,7 +191,10 @@ def run(cfg, args):
     width = C.score_width_of(sdir)
     max_length = width - 1
     model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY, exactly as `score`
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
+    # and nothing reads W_dec, which at 2^21 features is another 43 GB in fp32 and does not fit
+    # an H200 beside the 27B (features/CHANGES.md fix 2, made there for `stats`).
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False)
     gate = float(sae.threshold)
     dirs = C.sae_dirs(sae, row_feats).cpu()
     extra = _SelfAct(sae, row_feats, len(flat), width)
@@ -483,7 +492,10 @@ def run_random_pool(cfg, args):
     print(f"[random_pool] {n_win} of {len(wins)} windows, {n_feat} features, seed {seed}", flush=True)
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
+    # and nothing reads W_dec, which at 2^21 features is another 43 GB in fp32 and does not fit
+    # an H200 beside the 27B (features/CHANGES.md fix 2, made there for `stats`).
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False)
     gate = float(sae.threshold)
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
@@ -658,7 +670,10 @@ def run_examples_4m(cfg, args):
     )
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
+    # and nothing reads W_dec, which at 2^21 features is another 43 GB in fp32 and does not fit
+    # an H200 beside the 27B (features/CHANGES.md fix 2, made there for `stats`).
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False)
     gate = float(sae.threshold)
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
@@ -868,7 +883,10 @@ def run_examples_docmax(cfg, args):
           flush=True)
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32)
+    # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
+    # and nothing reads W_dec, which at 2^21 features is another 43 GB in fp32 and does not fit
+    # an H200 beside the 27B (features/CHANGES.md fix 2, made there for `stats`).
+    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False)
     gate = float(sae.threshold)
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink

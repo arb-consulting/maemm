@@ -328,6 +328,27 @@ def maemms_for(cfg: dict, base: str = "", computable_only: bool = True) -> list[
     return keys
 
 
+def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
+    """WHICH SAE of `base`: `want` when given, else the single one -- asserting when there are two.
+
+    `qwen36-27b` has carried two SAEs since `sae2m` landed (`l42-1b` at 131k and `sae2m` at 2^21),
+    and every "the base's SAE" site in this repo was written as `assert len(keys) == 1`. That
+    assert is right when nothing says which, and wrong as a way of choosing, so the choice is
+    made here once and the message names the options rather than the count.
+    """
+    keys = [k for k in cfg["saes"] if split_key(k, "sae")[0] == base]
+    assert keys, f"base {base!r} has no SAE in config.yaml"
+    want = (want or "").strip()
+    if want:
+        assert want in keys, f"--sae {want!r} is not one of base {base}'s SAEs {sorted(keys)}"
+        return want
+    assert len(keys) == 1, (
+        f"base {base} has {len(keys)} SAEs in config ({sorted(keys)}), so nothing can pick one "
+        f"for you: pass --sae <key>"
+    )
+    return keys[0]
+
+
 def stats_mu(cfg: dict, base: str, root: str = VOL):
     """`stats/mu.f32` [d] as a float32 numpy array -- the ONE centring mean (README "Methods").
 

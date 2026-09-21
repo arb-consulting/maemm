@@ -169,6 +169,9 @@ def main(
     stage: str,
     base: str = "qwen36-27b",
     maemm: str = "",
+    # WHICH SAE of the base: required once a base carries more than one (qwen36-27b does, since
+    # sae2m). sae_self, build and chain all resolve it through common.sae_key_for.
+    sae: str = "",
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
     rows: str = "",
@@ -245,12 +248,16 @@ def main(
         assert maemm, f"stage {stage} needs --maemm (the rollouts its M arms read)"
     if stage == "chain" and maemm2:
         assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
+    if sae:
+        assert sae in cfg["saes"], f"unknown --sae {sae!r}, want one of {sorted(cfg['saes'])}"
+        assert C.split_key(sae, "sae")[0] == base, f"sae {sae!r} is not on base {base!r}"
     if maemm:
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
     args = {
         "base": base,
         "maemm": maemm,
+        "sae": sae,
         "heldout": set_name,
         "rows": rows,
         "root": root.rstrip("/") or VOL,

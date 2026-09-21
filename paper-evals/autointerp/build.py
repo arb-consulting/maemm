@@ -766,9 +766,10 @@ def run(cfg, args):
         f"changing N means editing them, not this number"
     )
 
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(sae_keys) == 1, f"base {base} has {len(sae_keys)} SAEs in config, expected exactly 1"
-    sae_key = sae_keys[0]
+    # `--sae` when the base carries more than one (qwen36-27b does). Same rule as
+    # score._sae_for and sae_self._sae_rows: build reads THEIR outputs, so it must resolve the
+    # same key they did or it would render examples for one dictionary from another's scan.
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
     ex_dir = f"{C.sae_dir(sae_key, root)}/examples"
     # Amendment A3: C4 reads the 4M prefix's OWN top-128, not the 4M-prefix members of the 16M
     # ranking (median 14 candidates after dedup, fewer than 16 on 38 of 64 pilot features).
