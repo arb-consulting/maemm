@@ -94,6 +94,21 @@ def _stats_ood():
 SCAN_RE = re.compile(r"^(?P<set>.+?)__(?P<corpus>[^_].*?)(?:__(?P<mb>[0-9.]+)m)?$")
 
 
+def C_resolve_mu(mu, base: str) -> str:
+    """A `mu:` value as one comparable string. `{base}` expands; None/none is the literal "none"."""
+    if mu is None or str(mu).strip().lower() in ("", "none", "null"):
+        return "none"
+    t = str(mu).strip().replace("{base}", base)
+    # config spells a mu RELATIVE to --root ("base/<base>/stats/mu.f32"); `score` records the
+    # ABSOLUTE path it actually read ("/vol/base/..."). Same file, two spellings, and comparing
+    # them raw would call every source incomparable.
+    for pre in ("/vol/", "vol/", "/"):
+        if t.startswith(pre):
+            t = t[len(pre):]
+            break
+    return t
+
+
 def C_corpus_dir(cfg: dict, arm: str) -> str:
     """The corpus DIRECTORY of an OOD arm, through `corpora:` -- never the arm id by assumption.
 
@@ -179,6 +194,7 @@ def arm_rows(
     boot_ci,
     outcome,
     control: dict[int, dict] | None,
+    comparable: bool = True,
 ) -> tuple[list[dict], list[str]]:
     """One record per arm: both cosines, the corpus cell, Δ with its CI, and the verdict."""
     by_arm: dict[str, list[dict]] = {}
@@ -222,8 +238,17 @@ def arm_rows(
             )
             continue
         d = np.asarray(pairs, dtype=float)
-        mean, lo, hi = boot_ci(d)
-        _, se_cl, _, n_clust = R.cluster_bootstrap(d, docs)
+        # Δ IS ONLY MEANINGFUL WHEN BOTH SIDES SCORE AGAINST THE SAME TARGET VECTOR. The scan
+        # centres on the mean it was given; a checkpoint's rollouts are scored on the mean IT
+        # declares. When those differ the two cosines are angles to two different directions and
+        # their difference is not a margin -- so the cosines are still reported and Δ is not.
+        # MEASURED on this set: stats/mu.f32 and whiten_mu agree at cos 0.977, which puts
+        # unit(act - mu) a median cos 0.969 apart over the 368 targets -- the same order as the
+        # effects being measured, not a rounding difference.
+        mean, lo, hi = boot_ci(d) if comparable else (None, None, None)
+        _, se_cl, _, n_clust = (
+            R.cluster_bootstrap(d, docs) if comparable else (None, None, None, len(set(docs)))
+        )
         recs.append(
             {
                 "arm": arm,
@@ -236,10 +261,11 @@ def arm_rows(
                 "delta": mean,
                 "ci_lo": lo,
                 "ci_hi": hi,
+                "comparable": comparable,
                 "se_clustered": se_cl,
                 "n_clusters": n_clust,
-                "win_frac": float((d > 0).mean()),
-                "outcome": outcome(lo, hi),
+                "win_frac": float((d > 0).mean()) if comparable else None,
+                "outcome": outcome(lo, hi) if comparable else "not comparable",
             }
         )
     recs.sort(key=lambda r: (r["family"], r["arm"]))
@@ -311,6 +337,10 @@ def main(
         float, typer.Option(help="the corpus size in M tokens the claim is read at (0 = the "
                                  "largest every arm's scan actually carries)")
     ] = 0.0,
+    scan_mu: Annotated[
+        str, typer.Option(help="the mean the in-domain scans centred their targets on; a source "
+                               "that declares a different one gets its cosines but no Δ")
+    ] = "base/{base}/stats/mu.f32",
     root: Annotated[str, typer.Option(help="a volume-relative root prefix")] = "",
     out: Annotated[Path | None, typer.Option(help="output directory")] = None,
     data_dir: Annotated[Path | None, typer.Option(help="the local mirror")] = None,
@@ -386,12 +416,24 @@ def main(
         ],
     )
 
+    want_mu = C_resolve_mu(scan_mu, base)
     verdicts: dict[str, dict[str, str]] = {}
     for src in usable:
         if src.role == "control":
             continue
+        got_mu = C_resolve_mu(src.mu, base)
+        comparable = got_mu == want_mu
+        if not comparable:
+            notes.append(
+                f"source `{src.label}` centres on {got_mu} while the in-domain scans centre on "
+                f"{want_mu}: its bo64 and the corpus top-1 are angles to DIFFERENT target "
+                f"vectors, so its cosines are reported and Δ is not. On this set the two means "
+                f"agree at cos 0.977 and put unit(act - mu) a median cos 0.969 apart, which is "
+                f"the size of the effect being measured, not a rounding difference."
+            )
         recs, skipped = arm_rows(
-            ids, src, top1_by_arm, size_m, src.centred, mod.boot_ci, mod.outcome, control
+            ids, src, top1_by_arm, size_m, src.centred, mod.boot_ci, mod.outcome, control,
+            comparable=comparable,
         )
         notes += skipped
         lids: dict[str, dict] = {}

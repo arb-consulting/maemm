@@ -2408,6 +2408,23 @@ def check_ood_arm_table():
     recs, skipped = od.arm_rows(ids, src, top1_by_arm, 1.0, True, boot_ci, R_outcome, None)
     assert not skipped, skipped
     got = {r["arm"]: r for r in recs}
+    # a source centred on ANOTHER mean gets its cosines and NO delta: the two sides would be
+    # angles to different target vectors (measured on the real set: cos 0.977 between the means,
+    # median 0.969 between unit(act - mu), which is the size of the effect itself)
+    inc, _ = od.arm_rows(ids, src, top1_by_arm, 1.0, True, boot_ci, R_outcome, None,
+                         comparable=False)
+    for r in inc:
+        assert r["delta"] is None and r["ci_lo"] is None and r["outcome"] == "not comparable", r
+        assert r["bo64_centred"] is not None, "the cosines are still reported"
+    # and the mu spellings that must compare EQUAL / UNEQUAL
+    assert od.C_resolve_mu("base/{base}/stats/mu.f32", "B") == od.C_resolve_mu(
+        "/vol/base/B/stats/mu.f32", "B"
+    ), "config's relative spelling and score's absolute one are the same file"
+    assert od.C_resolve_mu("/vol/archive/x/whiten_mu.npy", "B") != od.C_resolve_mu(
+        "base/{base}/stats/mu.f32", "B"
+    )
+    assert od.C_resolve_mu(None, "B") == "none"
+
     # an arm whose own corpus was never scanned must be reported, never scored off another's
     partial = {k: v for k, v in top1_by_arm.items() if k != "a_rev"}
     recs2, skipped2 = od.arm_rows(ids, src, partial, 1.0, True, boot_ci, R_outcome, None)
