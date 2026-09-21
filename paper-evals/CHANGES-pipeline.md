@@ -144,9 +144,29 @@ The six new ones were each run against a deliberately broken variant; the mutati
 | **`corpus_arm_dir` from `arb/exp-ood`**, the OOD rebase (§4.2), the `evals/sae-smoke64` merge | Not in scope here. Ari's `--corpus-name` + the new `corpora:` block cover the search-baseline need for evals 1–2. |
 | **The exact-solve migration of Celeste's 512 realact rows** (§1.4) | The tool is checked (`check_exact_solve_roundtrip`) but the migration was not run, and U1 is unsettled: whether her `pool_act_norm` is `‖act‖` or `‖act − whiten_mu‖`. The whole migration is valid only for the former. |
 | **Resolving `corpus.revision`** | Pinned to the literal `main` with the mechanism in place and empty refused. The dataset's commit sha still has to be looked up and put there. |
+| **H7's actual threading** | Per-corpus `block`/`stride` is declared and now REFUSED when it differs, rather than honoured. Doing it properly means every consumer (`top1_act`, `sae_self` ×3, `build`, `gcg`, `mu_diag`) reading the producer's recorded geometry instead of `common.SCAN_BLOCK`, because they reconstruct window ids to join on. Eleven call sites; a half-applied thread silently misaligns joins, which is worse than the refusal. **Blocks scanning `celeste-train10m` through our `scan`** — the plan's §2.4 search baseline. |
 | **Ruff on Ari's new files** | `features/{corpus_train_parity,doc_dedup,ngram_overlap,registry}.py` carry pre-existing `B905`/`E702` findings. Not touched, so not fixed. |
 
 ---
+
+## The 2026-09-21 independent review (`infra/2026-09-21_pipeline-branch-review.md`)
+
+All eight findings fixed, one commit each, each with a CPU check where one is possible.
+
+| # | what it was | fix | check |
+|---|---|---|---|
+| H1 | `r.get("sae_key", sae_key)` defaulted every UNKEYED row to match whatever `--sae` was typed. Both production sets carry the field on no row, so `--sae <2M> --set 2026-09-16_v1` selected all 512 of the 131k rows, every id a valid 2^21 index — the silent failure the guard exists to stop, on the paper's own set | an unkeyed row is selectable only against a DECLARED dictionary (`declared_sae_key`, from `storage.json` then the `heldout:` entry); undeclared or mismatched refuses, naming the row count. `sae_key:` declared on all three pre-field sets | `check_sae_key_selector`, three outcomes + resolution order |
+| H2 | `centred.py` resolved the TARGET through the run's mu and hardcoded `stats_mu` for the ACTIVATION side, so every `rl-last16` run compared two different means and `centred.json` named the wrong one; at `--mu none` on a raw set it was a one-sided cosine | `_load_dirs` returns the mu, the activation side loads it, the summary names it, and `--mu none` refuses rather than writing a one-sided number under a centred name | `check_centred_uses_one_mu` (ast) |
+| H3 | `od_sae` lacked `keep_existing`, and `sae_dir` is the parent of `examples/`, `examples_4m/`, `examples_docmax/`, `random_pool/`, `repo_examples/`, `top1_act/` — so `stats --force` deleted every scan and autointerp product under that dictionary | `keep_existing=True`, and the pre-flight guard moves from the directory to the four arrays `stats` owns | covered by the existing `check_outdir_keep_existing_and_section` |
+| H4 | `draw_sae2m` and `heldout_v2` wrote no `storage.json`, so their sets were born unreadable — falsifying this branch's own "every set drawn after 2026-09-21 writes it" | both write it (`dirs_only` / `unit` with per-family means) | `check_every_set_writer_writes_the_contract` (ast, all three drawing tools) |
+| H5 | `scan_dir` / `sae_examples_dir` keyed by set, not corpus; the plan's §2.5 and §3.4 scan one set over two corpora and collide | both take `corpus_name`, empty resolving to today's path; readers follow | `check_corpus_axis` |
+| H6 | `spawn.py` forwarded `--corpus` unresolved, so a spawned scan silently used the default corpus | `corpus` joins `_LOCAL_ONLY` and spawn resolves it | `check_corpus_axis` |
+| H7 | per-corpus `block`/`stride` declared, validated, and read by nothing — a scan of Ari's 32/8 corpus would cut 64/16 under a README claiming 64/16 | **the reviewer's second option**: `assert_corpus_geometry` REFUSES such a corpus in `scan`/`stats`; the false comment is corrected. Threading is NOT done — see below | `check_corpus_axis` (the refusal) |
+| H8 | `top1_act` and `corpus_top1_activation` still selected on the family label | both filter on the row's own key | covered by H1's check for the shared helper |
+
+The reviewer also confirmed, independently: B3/B4 closed, no double-centring path, `dirs_for`'s
+unit branch bit-identical on the real 1536×5120 array, re-derive cannot damage its source, and the
+cherry-picks lost nothing.
 
 ## Deviations from the plan, recorded
 
