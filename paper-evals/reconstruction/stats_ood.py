@@ -789,10 +789,13 @@ def tables(
     root_tag: Annotated[str, typer.Option(help="smoke | full")] = "full",
     set_name: Annotated[str, typer.Option("--set", help="the OOD held-out set")] = OOD_SET,
     base: Annotated[str, typer.Option()] = BASE,
-    maemm: Annotated[str, typer.Option(help="the primary MAEMM")] = "2026-09-10_rl-8x2048-full",
-    control: Annotated[str, typer.Option(help="the untrained-base control")] = (
-        "2026-09-16_base-control"
-    ),
+    # REQUIRED, and resolved through `cfg["maemms"]` below. They were Python defaults naming one
+    # checkpoint generation; the eval now runs BOTH (the old primary and `rl-last16`), so a default
+    # here would silently label one generation's numbers with the other's name (eval plan §4.3.4).
+    maemm: Annotated[
+        str, typer.Option(help="the MAEMM to tabulate, e.g. 2026-09-18_rl-last16-lr5e-7")
+    ] = ...,
+    control: Annotated[str, typer.Option(help="the untrained-base control")] = ...,
     stem: Annotated[str, typer.Option(help="the scores subdirectory")] = "",
     lid: Annotated[bool, typer.Option(help="run fastText lid.176 on the rollouts (review R3)")] = True,
     lid_model: Annotated[Path | None, typer.Option(help="lid.176.bin")] = None,
@@ -806,6 +809,12 @@ def tables(
     """The per-arm tables, strata, chance levels and examples."""
     with open(CONFIG) as fh:
         cfg = yaml.safe_load(fh)
+    for label, key in (("--maemm", maemm), ("--control", control)):
+        full = key if "/" in key else f"{base}/{key}"
+        assert full in cfg["maemms"], (
+            f"{label} {key!r} is not a checkpoint in config.yaml; the names under base {base!r} "
+            f"are {sorted(k.split('/', 1)[1] for k in cfg['maemms'] if k.startswith(base + '/'))}"
+        )
     vol = _vol(root_tag, fetch, refetch, quiet, modal_cmd, data_dir)
     res = build_tables(
         vol,

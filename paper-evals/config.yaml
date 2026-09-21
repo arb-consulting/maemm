@@ -645,6 +645,30 @@ heldout:
     n_per_arm: 64
     arms: all               # `all` = every key of ood_arms, in config order; or an explicit list
     families: {}
+  # ----------------------------------------------------------------------------------------------
+  # THE QUARTER-SCALE RUN (2026-09-21, Tomáš: "OOD = 1/4 of the design's size").
+  #
+  # 16 targets per arm instead of 64, all 23 arms. This is an exact PREFIX of `2026-09-18_ood_v1`,
+  # not a different draw: `corpus --arm` writes a 320-document pool whose size is the constant
+  # `corpus.POOL_N`, independent of n; `targets` draws p and L for all 320 pool rows from
+  # `arm_rng(arm, seed)` BEFORE it selects any, and then takes the first n survivors of the
+  # raw-norm filter in pool order. Same seed and same corpus/pool boundary therefore give
+  # row i of this set == row i of the 64-target set, for i < 16, arm by arm. Topping up to the
+  # design's 64 later re-draws these 16 identically rather than invalidating them.
+  #
+  # It is a NEW set name rather than a smaller `2026-09-18_ood_v1`, because `targets` writes a set
+  # directory whole: reusing the name would need --force, which would rewrite the pilot's
+  # directory and orphan the scan/rollout/score row indices that point into it.
+  2026-09-21_ood_q1:
+    imported: true
+    storage: raw
+    mu_stored: null
+    seed: 20260918          # the design's seed, unchanged -- that is what makes it a prefix
+    kind: ood
+    n_per_arm: 16
+    arms: all
+    families: {}
+
   # The R5 variant: same documents, same draw, p moved to the last token of its unit (wordend on
   # the 12 spaced-script and code arms) or to the last byte piece of its character (charend on the
   # 4 unspaced arms, and only where the token at p is a partial character). `ids.jsonl` records
