@@ -168,14 +168,17 @@ def _load_targets(cfg, args, notes=None):
         if r["family"] == "realact":
             doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
             mask_corpus.append("corpus")  # realact targets come from the base's own English corpus
-        elif r.get("arm"):
-            # an OOD row: `doc` indexes the arm's OWN in-domain corpus. Targets are drawn from
-            # rows the corpus build did not consume (design §2), so the mask is empty in practice
-            # -- it is written anyway, so that the invariant is the code's and not a comment's.
-            doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
-            mask_corpus.append(C.corpus_key_name(cfg, f"ood_{r['arm']}") or "corpus")
         else:
-            mask_corpus.append("")  # nothing to mask: the target's document is in no corpus here
+            # Nothing to mask. An OOD target carries `pool_i`, not `doc`: its document comes from
+            # the arm's TARGET POOL, which is the rows the corpus build did not consume (design
+            # §2), so it is not in that corpus -- or in any other -- and there is no window of it
+            # to exclude. A `random` or `sae` row has no document at all.
+            assert "doc" not in r or r["family"] == "realact", (
+                f"row {i} of set {r['set']} has a `doc` field but family {r['family']!r}, so "
+                f"nobody here knows which corpus that index belongs to; give it a mask_corpus "
+                f"label rather than letting it search its own document"
+            )
+            mask_corpus.append("")
     return rows, V, (doc, lo, hi, mask_corpus)
 
 
