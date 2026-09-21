@@ -2347,12 +2347,8 @@ def check_ood_scan_key():
     S = "2026-09-21_ood_q1"
 
     def one(name):
-        if name == S:
-            return ("", None)
-        m = od.SCAN_RE.match(name)
-        return None if not m or m.group("set") != S else (
-            m.group("corpus"), float(m.group("mb")) if m.group("mb") else None
-        )
+        got = od.parse_scan_dir(name, S)
+        return None if got is None else (got[0], got[1])
 
     assert one(S) == ("", None), "the unbounded English scan keeps the bare set name"
     assert one(f"{S}__tha_Thai") == ("tha_Thai", None)
@@ -2364,6 +2360,13 @@ def check_ood_scan_key():
         "a corpus directory ending in `m` is not a size suffix"
     )
     assert one("2026-09-18_ood_v1__tha_Thai") is None, "another set's scan is not this set's"
+    # THE TAGGED SHAPE -- a second scan of one (set, corpus) under a different centring mean.
+    # A regex with two optional trailing groups reads this as a corpus literally called
+    # `tha_Thai__1m__mu-whiten`, which makes the whole whiten pass invisible.
+    assert one(f"{S}__tha_Thai__1m__mu-whiten") == ("tha_Thai", 1.0)
+    assert od.parse_scan_dir(f"{S}__tha_Thai__1m__mu-whiten", S)[2] == "mu-whiten"
+    assert one(f"{S}__corpus__4m__mu-whiten") == ("corpus", 4.0)
+    assert od.parse_scan_dir(f"{S}__tha_Thai", S) == ("tha_Thai", None, "")
 
 
 def check_ood_arm_table():

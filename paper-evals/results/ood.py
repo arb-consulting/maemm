@@ -91,7 +91,7 @@ def _stats_ood():
     return mod
 
 
-SCAN_RE = re.compile(r"^(?P<set>.+?)__(?P<corpus>[^_].*?)(?:__(?P<mb>[0-9.]+)m)?$")
+SIZE_RE = re.compile(r"^([0-9.]+)m$")
 
 
 def C_resolve_mu(mu, base: str) -> str:
@@ -139,24 +139,43 @@ def scan_mu_of(vol: R.Vol, base: str, scan_dir: str) -> str | None:
     return m.group(1) if m else None
 
 
-def scan_dirs_of(vol: R.Vol, base: str, set_name: str) -> dict[str, tuple[str, float | None]]:
-    """{scan directory -> (corpus directory name, the M-token bound or None)} for this set.
+def parse_scan_dir(name: str, set_name: str) -> tuple[str, float | None, str] | None:
+    """(corpus dir, the M-token bound or None, the run tag) for a scan of `set_name`, or None.
 
-    The pipeline keys a scan by (set, corpus): `scan/<set>` is the base's own English corpus
-    unbounded, `scan/<set>__<corpus>` another corpus, and `__<M>m` on top when the scan stopped at
-    a nested prefix (`precompute/scan.py`, `common.scan_dir`). The OOD branch's pre-rebase layout
-    was `scan/<set>/<corpus>-<M>m/`; sets drawn before the rebase still carry it and are read by
-    `reconstruction/stats_ood.py`, not here -- this file reads only what this pipeline writes.
+    `common.scan_dir` writes `scan/<set>` for the one unbounded scan of the base's own corpus and
+    `scan/<set>__<key>` otherwise, where `<key>` is `<corpus label>[__<M>m][__<tag>]`
+    (precompute/scan.py). SPLIT, not matched: a regex with two optional trailing groups reads
+    `…__ces_Latn__1m__mu-whiten` as one corpus called `ces_Latn__1m__mu-whiten`, and the whole
+    whiten pass then goes missing -- the reader reports "no scan at that mean" and withholds every
+    Δ, which looks exactly like the scans never having run. No corpus directory contains `__`, so
+    splitting on it is unambiguous.
+
+    The OOD branch's pre-rebase layout was `scan/<set>/<corpus>-<M>m/`; sets drawn before the
+    rebase still carry it and are read by `reconstruction/stats_ood.py`, not here.
     """
+    if name == set_name:
+        return ("", None, "")
+    if not name.startswith(set_name + "__"):
+        return None
+    parts = [p for p in name[len(set_name) + 2 :].split("__") if p]
+    if not parts:
+        return None
+    corpus, rest = parts[0], parts[1:]
+    mb = None
+    if rest:
+        m = SIZE_RE.match(rest[0])
+        if m:
+            mb, rest = float(m.group(1)), rest[1:]
+    return (corpus, mb, "__".join(rest))
+
+
+def scan_dirs_of(vol: R.Vol, base: str, set_name: str) -> dict[str, tuple[str, float | None]]:
+    """{scan directory -> (corpus directory name, the M-token bound or None)} for this set."""
     out: dict[str, tuple[str, float | None]] = {}
     for d in vol.ls(f"base/{base}/scan"):
-        if d == set_name:
-            out[d] = ("", None)
-            continue
-        m = SCAN_RE.match(d)
-        if m and m.group("set") == set_name:
-            mb = m.group("mb")
-            out[d] = (m.group("corpus"), float(mb) if mb else None)
+        got = parse_scan_dir(d, set_name)
+        if got is not None:
+            out[d] = (got[0], got[1])
     return out
 
 
