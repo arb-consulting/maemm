@@ -124,6 +124,24 @@ def sae_side_of(args, stage: str) -> str:
     return side
 
 
+def stored_dirs_of(all_dirs, flat):
+    """[len(flat), d] -- ONE stored direction per FLAT (target, rollout) row, in `flat`'s order.
+
+    `common.score_tokens` pairs `dirs[i]` with `texts[i]`, and `texts` is the [N x n] rollout grid
+    flattened row-major -- so a per-TARGET array of directions is 512 rows against 32,768 texts.
+    The encoder branch never had to think about this because `sae_dirs(sae, row_feats)` is already
+    indexed by flat row; the decoder branch reads the set's [N_set, d] array and has to expand it.
+
+    MEASURED THE EXPENSIVE WAY 2026-09-21, ~$0.4 over three containers: indexing `sel` instead of
+    `flat` got through the base load, the SAE load and the direction read, and died inside the
+    scorer with `256 id lists but 0 directions: the scorer pairs them by row`. Nothing on CPU
+    could see it while the expansion was an inline comprehension, which is why it is a function.
+    """
+    import numpy as np
+
+    return np.asarray([all_dirs[x["row"]] for x in flat], dtype=np.float32)
+
+
 def _sae_rows(cfg, args, stage: str = "sae_self"):
     """(rows_meta, sae rows of the set, their feature ids, the SAE key, the side).
 
@@ -332,8 +350,13 @@ def run(cfg, args):
     else:
         hdir = C.heldout_dir(base, set_name, root)
         all_dirs = C.dirs_for(cfg, base, hdir, None, root, notes=dir_notes)
-        dirs = torch.as_tensor(np.asarray([all_dirs[r] for r in sel], dtype=np.float32))
+        dirs = torch.as_tensor(stored_dirs_of(all_dirs, flat))
         dirs_from = f"{hdir}/vecs.f16 via common.dirs_for -- the stored `sae_side: dec` rows"
+    assert len(dirs) == len(flat), (
+        f"{len(dirs)} directions for {len(flat)} rollout texts on the `{side}` side: "
+        f"common.score_tokens pairs them by row, so this must be one direction PER FLAT "
+        f"(target, rollout) row and not one per target"
+    )
     extra = _SelfAct(sae, row_feats, len(flat), width)
     print(
         f"[sae_self] {len(sel)} sae/{side} targets x {n} rollouts = {len(flat)} rows, "

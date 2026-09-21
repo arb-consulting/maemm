@@ -1681,6 +1681,26 @@ def check_sae_self_side_flag():
     else:
         raise AssertionError("sae_side_of accepted a side that is neither enc nor dec")
 
+    # ONE DIRECTION PER FLAT ROLLOUT ROW. `common.score_tokens` pairs `dirs[i]` with `texts[i]`
+    # over the flattened [N, n] grid, and the encoder branch gets this for free because
+    # `sae_dirs(sae, row_feats)` is already indexed that way. The decoder branch reads the set's
+    # [N_set, d] array and has to EXPAND it, and the first version indexed the targets instead --
+    # 512 directions for 32,768 texts. That cost ~$0.4 over three H200 containers, because it got
+    # through the base load, the SAE load and the direction read before the scorer's own pairing
+    # assert fired. Nothing here needs a GPU.
+    import numpy as np
+
+    from autointerp.sae_self import stored_dirs_of
+
+    all_dirs = np.arange(12, dtype=np.float32).reshape(4, 3)   # set rows 0..3, d = 3
+    flat = [{"row": r, "k": k} for r in (2, 0) for k in range(3)]   # 2 targets x 3 rollouts
+    got = stored_dirs_of(all_dirs, flat)
+    assert got.shape == (6, 3), (
+        f"stored_dirs_of gave {got.shape} for {len(flat)} rollout texts: it must be one direction "
+        f"PER FLAT (target, rollout) row, not one per target")
+    assert np.array_equal(got, np.stack([all_dirs[2]] * 3 + [all_dirs[0]] * 3)), (
+        f"stored_dirs_of did not keep `flat`'s own order:\n{got}")
+
     # The side is part of the product PATH, and `enc` keeps the historical name exactly.
     src = (Path(__file__).resolve().parent.parent / "autointerp/sae_self.py").read_text()
     assert 'side_suffix = "" if side == "enc" else f"__{side}"' in src, (
