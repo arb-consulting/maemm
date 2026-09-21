@@ -528,6 +528,55 @@ def _covariate(row: dict, *names: str):
     return None
 
 
+def check_corpus_source(arm_names, use_examples: bool, ex_dir: str, sae_key: str, prefix_m: int) -> str:
+    """The label for where test POSITIVES come from. Asserts no arm needs a pool that is absent.
+
+    `scan`'s 16M `examples/<feature>.jsonl` carries both the top-k the C16 arms show AND the
+    q-band rows the positive draw uses. It does not exist for every SAE -- the 2M one would cost
+    a ~$9 scan -- and the two halves fail differently when it is missing. The positive pool has an
+    honest substitute (`examples_4m`, band-labelled here, which is what this returns). A C16 arm
+    does NOT: filling it from the 4M prefix would put a quarter of the corpus behind the C16
+    label, so it is refused by name instead.
+    """
+    need_c16 = sorted({a for a in arm_names if ARM_SPECS[a][0] == "c16"})
+    assert use_examples or not need_c16, (
+        f"arms {need_c16} show corpus windows from `scan`'s 16M examples, and there is no "
+        f"{ex_dir}/tested.json: run `--product scan` for sae {sae_key!r} first, or drop those "
+        f"arms (C4 reads `examples_4m`, which is present). Nothing is guessed from the "
+        f"{prefix_m}M prefix in their place -- a C16 arm filled from a quarter of the corpus "
+        f"would carry the C16 label and not be C16."
+    )
+    if use_examples:
+        return "examples/ (scan, 16M)"
+    return f"examples_4m (the {prefix_m}M prefix; scan's examples/ is absent)"
+
+
+def candidate_rows(ex_rows, ex4_rows, doc_rows, peak: float, use_examples: bool) -> list[dict]:
+    """The test set's positive / near-miss candidates, band-labelled and deduplicated by window.
+
+    With `scan`'s examples/ present this is its stored `q0..q3` rows plus the document-diverse
+    pool; its `top` rows are NOT candidates, because they are what the arms SHOW. Without it there
+    are no stored bands at all, so `examples_4m`'s rows become the pool -- band-labelled by
+    `band_of`, exactly as the document-diverse rows already are, so a `q2` row means the same
+    thing whichever product it came from. `examples_4m` writes only `kind: "top"` rows
+    (`sae_self.run_examples_4m`: the top 128 by peak), so all of them are eligible; what keeps an
+    arm's own example out of its own test set is the document-level disjointness rule (A4), not
+    the row's kind.
+
+    First writer of a window wins, which is why the order is bands, then 4M, then docmax: a row
+    that scan already binned keeps scan's own label.
+    """
+    out = [dict(e) for e in ex_rows if e["kind"] in BANDS]
+    seen = {int(e["window"]) for e in out}
+    extra = ([] if use_examples else list(ex4_rows)) + list(doc_rows)
+    for e in extra:
+        if int(e["window"]) in seen:
+            continue
+        seen.add(int(e["window"]))
+        out.append({**e, "kind": band_of(float(e["max_act"]), peak)})
+    return out
+
+
 def check_arm_maemm(arm_names, maemm: str, maemm_type: str) -> bool:
     """True iff `--maemm` is the NLA verbalizer. Asserts that the arms asked for match what it is.
 
@@ -844,6 +893,13 @@ def run(cfg, args):
     # same key they did or it would render examples for one dictionary from another's scan.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
     ex_dir = f"{C.sae_dir(sae_key, root)}/examples"
+    # `scan`'s 16M product: `<feature>.jsonl` with the top-k AND the q-band rows, plus the
+    # per-token activations of each. It does not exist for every SAE -- the 2M one would cost a
+    # ~$9 scan to make -- and when it is absent BOTH things it feeds have to come from somewhere
+    # else: the C16 arms (which then simply cannot be built) and the test set's positive pool
+    # (which falls back to the 4M-prefix `examples_4m` below, band-labelled the same way the
+    # document-diverse pool already is).
+    use_examples = os.path.exists(f"{ex_dir}/tested.json")
     # Amendment A3: C4 reads the 4M prefix's OWN top-128, not the 4M-prefix members of the 16M
     # ranking (median 14 candidates after dedup, fewer than 16 on 38 of 64 pilot features).
     ex4_dir = f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}"
@@ -881,6 +937,13 @@ def run(cfg, args):
         picked = [r for r in sae_rows if r["row"] in want]
         assert picked, (
             f"--rows {args['rows']!r} selected none of the {len(sae_rows)} {'/'.join(FAMILIES)} rows"
+        )
+    positive_source = check_corpus_source(arm_names, use_examples, ex_dir, sae_key, prefix_m)
+    if not use_examples:
+        print(
+            f"[build] no {ex_dir}/tested.json: the positive pool and the band labels come from "
+            f"`examples_4m` ({prefix_m}M prefix) instead, and no C16 arm can be built",
+            flush=True,
         )
     is_nla = check_arm_maemm(arm_names, maemm, cfg["maemms"][maemm]["type"])
     # Arm B ("the NLA text IS the description") needs the rollout's OWN text, not the rendered,
@@ -964,28 +1027,25 @@ def run(cfg, args):
             rng_arm = random.Random(shuffle_seed + feat)
             rng_test = random.Random(shuffle_seed + feat + 1_000_003)
             rng_mark = random.Random(shuffle_seed + feat + 2_000_003)
-            ex_rows = C.read_jsonl(f"{ex_dir}/{feat}.jsonl")
-            for e in ex_rows:
-                assert e["row"] == r["row"], f"{ex_dir}/{feat}.jsonl row {e['row']} != {r['row']}"
+            ex_rows = []
+            if use_examples:
+                ex_rows = C.read_jsonl(f"{ex_dir}/{feat}.jsonl")
+                for e in ex_rows:
+                    assert e["row"] == r["row"], f"{ex_dir}/{feat}.jsonl row {e['row']} != {r['row']}"
+            ex4_rows = C.read_jsonl(f"{ex4_dir}/{feat}.jsonl")
+            for e in ex4_rows:
+                assert e["row"] == r["row"], f"{ex4_dir}/{feat}.jsonl row {e['row']} != {r['row']}"
 
             # ---- corpus pools -----------------------------------------------------------
+            # C16 is scan's 16M top-k. With no examples/ there is none, and check_corpus_source
+            # has already refused any arm that would have shown it, so an empty pool here can
+            # only mean "no C16 arm asked for one".
             tops = sorted(
                 (e for e in ex_rows if e["kind"] == "top"), key=lambda e: -float(e["max_act"])
             )
             c16_pool = dedup(tops)
-            # Positive / near-miss candidates: the stored q-bands PLUS the document-diverse pool,
-            # deduplicated by window id, every row carrying the band label `scan.py`'s own formula
-            # gives it. The `top` rows are NOT candidates -- they are what the arms show -- except
-            # through the explicit fallback tier below.
-            cand_rows = [dict(e) for e in ex_rows if e["kind"] in BANDS]
-            seen_w = {int(e["window"]) for e in cand_rows}
-            if use_docmax:
-                for e in C.read_jsonl(f"{exdoc_dir}/{feat}.jsonl"):
-                    if int(e["window"]) in seen_w:
-                        continue
-                    seen_w.add(int(e["window"]))
-                    cand_rows.append({**e, "kind": band_of(float(e["max_act"]), peak)})
-            ex4_rows = C.read_jsonl(f"{ex4_dir}/{feat}.jsonl")
+            doc_rows = C.read_jsonl(f"{exdoc_dir}/{feat}.jsonl") if use_docmax else []
+            cand_rows = candidate_rows(ex_rows, ex4_rows, doc_rows, peak, use_examples)
             c4_pool = dedup(
                 sorted(ex4_rows, key=lambda e: -float(e["max_act"]))
             )
@@ -1248,7 +1308,12 @@ def run(cfg, args):
                 "nearmiss_source": nearmiss_source,
                 "gate_consistent_positives": gate_positives,
                 "allow_top_fallback": allow_top_fallback,
+                "examples": ex_dir if use_examples else "(absent -- no scan examples/ for this SAE)",
                 "examples_4m": ex4_dir,
+                # WHERE THE TEST POSITIVES CAME FROM. Not a detail: a 4M-prefix pool searches a
+                # quarter of the text a 16M one does, so a positive drawn from it is drawn from a
+                # weaker pool, and the same feature's numbers are not comparable across the two.
+                "positive_source": positive_source,
                 "examples_docmax": exdoc_dir if use_docmax else "(absent -- test set is short)",
                 "random_pool": pool.path,
                 "random_pool_windows": pool.n_win,

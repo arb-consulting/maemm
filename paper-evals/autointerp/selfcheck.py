@@ -535,6 +535,55 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maemm")
 
 
+def check_corpus_fallback():
+    """A SAE with no `scan` examples/ still builds C4 + NLA; a C16 request refuses by name.
+
+    `examples/<feature>.jsonl` is scan's 16M product and does not exist for the 2M SAE (~$9 to
+    make). MEASURED 2026-09-21 on the volume: `--arms C4,NLA` died with
+    `FileNotFoundError: .../sae/sae2m/examples/2323.jsonl` after the feature list was already
+    printed. The two halves of that file fail differently -- the positive pool has an honest
+    substitute, a C16 arm does not -- which is what these two checks pin.
+    """
+    # (a) the refusal: any arm whose corpus source is "c16", named, with the scan product named.
+    for arms in (["C16", "NLA"], ["C4", "C32"], ["C4M", "C16M16"]):
+        try:
+            B.check_corpus_source(arms, False, "/v/sae/x/examples", "b/x", 4)
+        except AssertionError as e:
+            assert "run `--product scan`" in str(e) and "examples/tested.json" in str(e), e
+            assert all(a in str(e) for a in arms if B.ARM_SPECS[a][0] == "c16"), (
+                f"the refusal must NAME the offending arms: {e}"
+            )
+        else:
+            raise AssertionError(f"check_corpus_source accepted {arms} with no scan examples/")
+    # ...and the arms that need no c16 pool go through, with the source recorded.
+    src = B.check_corpus_source(["C4", "NLA", "M"], False, "/v/sae/x/examples", "b/x", 4)
+    assert src == "examples_4m (the 4M prefix; scan's examples/ is absent)", src
+    assert B.check_corpus_source(["C16", "C4"], True, "/v/e", "b/x", 4) == "examples/ (scan, 16M)"
+
+    # (b) the pool: with examples/ present the 4M rows are NOT candidates (they are what C4
+    # shows); without it they are, band-labelled exactly as the docmax rows are.
+    def row(w, act, kind):
+        return {"row": 0, "kind": kind, "window": w, "doc": w, "start": 0, "len": 4,
+                "max_act": act, "argmax": 0, "acts": [act, 0, 0, 0]}
+
+    peak = 8.0
+    ex = [row(1, 8.0, "top"), row(2, 7.0, "top"), row(3, 2.0, "q0"), row(4, 5.0, "q2")]
+    ex4 = [row(1, 8.0, "top"), row(5, 6.0, "top")]          # window 1 is already in ex
+    doc = [row(6, 3.0, "docmax"), row(4, 5.0, "docmax")]    # window 4 is already a band row
+
+    with_scan = B.candidate_rows(ex, ex4, doc, peak, True)
+    assert [c["window"] for c in with_scan] == [3, 4, 6], with_scan
+    assert [c["kind"] for c in with_scan] == ["q0", "q2", "q1"], with_scan
+    assert all(c["window"] != 5 for c in with_scan), "examples_4m rows are C4's, not candidates"
+
+    without = B.candidate_rows([], ex4, doc, peak, False)
+    assert [c["window"] for c in without] == [1, 5, 6, 4], without
+    # bands recomputed from max_act against the corpus peak, scan.py:257's own formula
+    assert [c["kind"] for c in without] == ["q3", "q2", "q1", "q2"], without
+    assert all(c["acts"] for c in without), "a candidate must keep its per-token activations"
+    print("[selfcheck] corpus fallback OK: c16 refused by name, examples_4m pool band-labelled")
+
+
 def check_scores_subset(tmp: Path):
     """A `scores/` directory written by `score --rows` holds the SELECTED targets only.
 
@@ -643,6 +692,7 @@ def main() -> int:
         check_followup_arms(cfg, tmp, base, set_name)
         check_nla_arms(cfg, tmp, base)
         check_scores_subset(tmp)
+        check_corpus_fallback()
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE

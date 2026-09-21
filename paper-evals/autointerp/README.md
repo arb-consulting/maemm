@@ -162,6 +162,15 @@ Four things about these arms are NOT corrected for, and are recorded on every bu
 alone, `--allow-short` is required, and the per-feature `n_pos` shortfalls are recorded in
 `build.json` (`n_short_draw1`, `n_empty_draw2`) rather than raising.
 
+**`scan`'s `examples/` is optional too, and its two halves fail differently.** That file carries
+both the top-k the C16 arms show and the `q0..q3` rows the positive draw uses, and it does not
+exist for the 2M SAE (a ~$9 scan). The positive pool has an honest substitute and falls back to
+`examples_4m`, band-labelled by the same `scan.py:257` formula the document-diverse pool already
+goes through — `build.json` records `positive_source`, because a 4M-prefix pool searches a quarter
+of the text a 16M one does and positives drawn from it are not comparable with a 16M build's. A
+**C16 arm has no substitute** and is refused by name: filling it from the 4M prefix would put a
+quarter of the corpus behind the C16 label. So an NLA run is `--arms C4,NLA(,NLA-desc)`.
+
 ## What is implemented, and what is not
 
 **Implemented and run**: all five stages and `stats.py`.
