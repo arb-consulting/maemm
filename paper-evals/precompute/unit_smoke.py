@@ -1423,7 +1423,7 @@ RETURN_ARITY = {
     ("precompute/patchscopes.py", "_patch_check"): 3,
     ("precompute/rollouts_hf.py", "load_dirs"): 3,
     ("precompute/scan.py", "_load_targets"): 3,
-    ("precompute/centred.py", "_load_dirs"): 3,
+    ("precompute/centred.py", "_load_dirs"): 4,
     ("gcg/gcg.py", "_load_targets"): 2,
     ("autointerp/sae_self.py", "_sae_rows"): 4,
     ("precompute/common.py", "mu_for"): 2,
@@ -1487,6 +1487,41 @@ def check_return_arities():
 
 
 
+
+def check_centred_uses_one_mu():
+    """`centred.py` centres BOTH sides of its cosine on the run's mu, and names it.
+
+    Structural, with `ast`, because the product itself needs a scores directory and a GPU run in
+    front of it. It encodes what went wrong: `_load_dirs` resolved the TARGET through `--mu` while
+    `:116` hardcoded `C.stats_mu`, so every `rl-last16` run compared `best_act - stats_mu` against
+    `unit(act - whiten_mu)` and `centred.json` recorded the stats path either way. Two means, one
+    name, and reconstruction/stats.py reads the result into the paper tables.
+    """
+    import ast
+
+    src = (Path(__file__).resolve().parent / "centred.py").read_text()
+    tree = ast.parse(src)
+    calls = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr in ("stats_mu", "stats_dir")
+    ]
+    assert not calls, (
+        f"precompute/centred.py calls {[c.func.attr for c in calls]} at line(s) "
+        f"{[c.lineno for c in calls]}: the mean is the RUN's (common.mu_for -> load_mu), never one "
+        f"named in this file, or the two sides of cos_centred_best part company again"
+    )
+    assert "C.load_mu(cfg, base, mu_val, root)" in src, (
+        "centred.py no longer loads the run's own mu for the activation side"
+    )
+    assert 'C.mu_label(mu_val, base, root)' in src, (
+        "centred.json must NAME the mean both sides used; reconstruction/stats.py reads this "
+        "directory and a reader has to be able to tell two runs apart"
+    )
+
+
+
 CHECKS = [
     check_config,
     check_paths,
@@ -1524,6 +1559,7 @@ CHECKS = [
     check_exact_solve_roundtrip,
     check_spawn_mirrors_main,
     check_return_arities,
+    check_centred_uses_one_mu,
     check_rollouts_nla_selftest,
 ]
 
