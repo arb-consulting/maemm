@@ -3705,7 +3705,7 @@ tmp/sae-smoke64/runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}/
 tmp/sae-smoke64/runs/e2-cache-{2m,131k}/
 ```
 
-### 2026-09-21 — EPO on the 2M SAE: the OOM is fixed, and the 300-iteration run is NOT affordable
+### 2026-09-21 — EPO on the 2M SAE: the OOM is fixed, and the 16 directions are launched
 
 The OOM of the first shakeout was `gcg.py:1359` loading the whole dictionary on the device to
 record one feature's activation. Fixed in 4d02915 (`common.load_sae_columns`); the same shakeout
@@ -3721,32 +3721,46 @@ now runs.
       device, no decoder; activation is RECORDED on the finals, never optimised
 ```
 
-**The 16 approved directions were not launched.** The shakeout's own timing says what they cost,
-and it is not the ≈$17 every document has carried: 10 iterations of 255 candidates took **162 GPU-s
-of search** (24 cand/s at steady state, ~10.6 s/iteration) on top of ~140 s of startup. At the
-mode's default `--iters 300`:
+#### A wrong projection, corrected before it cost anything — and how to read a 10-iteration trace
 
-| `--iters` | s/direction | 16 directions | cost at H200 $4.54/h |
-|---|---|---|---|
-| **300 (default)** | 4,860 | **21.6 h** | **$98** |
-| 150 | 2,430 | 10.8 h | $49 |
-| 100 | 1,620 | 7.2 h | $33 |
-| 80 | 1,296 | 5.8 h | $26 |
-| ~67 | 1,082 | 4.8 h | $22 (the cap, exactly) |
+The first reading of that shakeout divided its 162 s of search by its 10 iterations, got 16.2
+s/iteration, projected `--iters 300` at 4,860 s/direction, and concluded that 16 directions cost
+**$98** against a $22 cap. **That was wrong**, and it contradicted this file's own measured rate
+(`:591` "epo ~76-82 cand/s, 934-1004 gpu-s per direction"; `:2322` "~870 s/direction,
+$1.10/direction"), which should have been the signal to re-derive rather than to conclude.
 
-Against a **$22 cap** that is a 4.5× breach at the default, and 21.6 h also exceeds the gcg
-container's own 9 h timeout, so the run could not complete in one call regardless of money. The
-stale figure is traceable: SMOKES.md:591 and `gcg/README.md:700` record "~870 s per 27B direction",
-which is ~82 iterations at this measured rate, not 300 — so every "$35 / 32 dirs" and "≈$17 / 16
-dirs" downstream of it is a per-direction number from a different configuration, not from a
-300-iteration EPO on the 2M dictionary.
+The error: a 10-iteration run is mostly NOT iterations. The four tracked timers are cumulative per
+direction, and the trace decomposes as
 
-**This needs a decision, not a default**, because the two ways to fit the cap trade different
-things: 16 directions at `--iters 80` (≈$26, still over) or `~67` (≈$22) changes the METHOD — EPO
-at a quarter of its iterations is a different optimiser, and the plan's reachability-ceiling claim
-rests on the search converging; or 5 directions at the full 300 iterations (≈$20) keeps the method
-and drops to 5 of the 32 features. The shakeout's own trace is the evidence either way: best cos
-moved 0.0006 → 0.0173 over 10 iterations and was still climbing.
+| component | cost | how often |
+|---|---|---|
+| Triton autotune, inside iteration 0 (`grad 67s` of 85 s) | ~85 s | once per CONTAINER |
+| the four tracked components, steady state | **3.0 s/iteration** | per iteration |
+| the finals + CHECK block (`exact_cos` twice + `mean_nll`) | ~50 s | once per DIRECTION |
+| container start, model load, alphabet, SAE load | ~140 s | once per container |
+
+so a direction is `300 × 3.0 + 50 = 950 s`, not `300 × 16.2`. At 10 iterations the two
+once-per-direction costs ARE the run; at 300 they are 5 % of it. 950 s/direction lands inside the
+934-1004 gpu-s this file already recorded, from an independent measurement.
+
+**16 directions = 140 + 85 + 16 × 950 = 15,425 s = 4.28 h = $19.45**, inside the $22 cap and
+inside the gcg container's 9 h timeout. Launched:
+
+```
+modal run --detach gcg/modal_app.py --base qwen36-27b --mode epo --init random32 \
+    --set 2026-09-21_sae2m_64 --root /vol/tmp/sae-smoke64 --family sae --sae qwen36-27b/sae2m \
+    --mu none --rows 3,5,6,9,10,13,21,23,30,34,42,47,52,56,57,59 --seq-len 32
+```
+
+The 16 rows are the EPO subset of the analysed 32 — 4 per density stratum, `draw_features(the 32,
+n_feat=16, seed=20260921)` — so the E arm covers half the features of every other arm and the
+paired contrasts against it are a REDUCED PAIRING by construction, not by loss.
+Output: `…/gcg/2026-09-21_sae2m_64/sae/epo-random32/`.
+
+**The lesson worth keeping**: this product prints `eta ... min/dir` from its own steady-state rate,
+and at iteration 9 of 10 it said `eta 0.0 min/dir` — i.e. the shakeout never produced an eta for a
+300-iteration direction at all. A shakeout sized to prove a command line runs is not sized to
+measure throughput, and the two must not be read off one trace.
 
 **Leftovers, not deleted:** `…/gcg/2026-09-21_sae2m_64/sae/epo-random32-shakeout.tmp-2026-09-21`
 (the OOMed first attempt) and `…/sae/epo-random32-shakeout2` (the successful one).
