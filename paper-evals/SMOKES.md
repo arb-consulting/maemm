@@ -3920,3 +3920,186 @@ runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}-rel/
 ```
 All new paths, under the same shared caches; nothing was deleted or overwritten. Rerun API cost
 **$3.5838** ($3.0198 + $0.5640); eval-2 API total **$23.9982** of the $30 cap over 12 runs.
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: the RESULTS pass (eval 1's tables), and the dec half
+
+Merge of `evals/pipeline-autointerp` (which carries `evals/pipeline-results`) into
+`evals/pipeline`, eval 1's three flagged gaps closed, and `results/faithfulness/` produced and
+COMMITTED. GPU **$1.2041 landed + ~$1.13 sunk ≈ $2.33** against a $5 cap; everything else is read
+off the 09-21 production run's $51.22. Nothing on the volume was deleted, replaced or rewritten:
+the only writes are three NEW `sae_self__dec/` product directories, and `--force` was never passed.
+
+| date | item | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|
+| 2026-09-21 | merge `evals/pipeline-autointerp` | — | $0 | one conflict, `SMOKES.md`; both 09-21 sections kept in order. `unit_smoke` 48/48, `results/selftest` 26/26, `autointerp/selfcheck` green, ruff clean on the touched trees | `config.yaml` and `autointerp/selfcheck.py` auto-merged; the brief expected them to conflict |
+| 2026-09-21 | `sae_self --sae-side dec`, FIRST attempt (3 H200) | ~230-330 s each | **~$1.13 sunk** | **FAILED**, my bug: see "the pairing defect" below | crashed after the base load, the SAE load and the direction read |
+| 2026-09-21 | `sae_self --sae-side dec`, rl-last16 x `_sae2m` | 339.3 s | **$0.4279** | 512 dec targets x 64, argmax **32768/32768**, cos max abs diff vs stored 2.31e-04, CSR 0 value / 0 membership mismatches over 6,340 entries, fire_fraction_mean 0.2266 | — |
+| 2026-09-21 | `sae_self --sae-side dec`, old primary mu-none | 386.9 s | **$0.4880** | argmax **32768/32768**, cos 2.38e-04, CSR 0/0 over 5,116 entries, fire_fraction_mean 0.1645 | — |
+| 2026-09-21 | `sae_self --sae-side dec`, NLA n=4 | 228.5 s | **$0.2882** | argmax **2048/2048**, cos 1.22e-04, CSR 0/0 over 352 entries, fire_fraction_mean 0.2070 | — |
+| 2026-09-21 | `results/faithfulness.py`, six blocks, COLD | ~75 min | $0 | 6 blocks, 18 headline rows, 12 figures, 25 gates pass / 2 FLAG / 1 no verdict / 194 absent; 119 MB mirrored | wall is dominated by `modal volume ls` in source discovery (~20 subprocesses per block), not by the data |
+| 2026-09-21 | the same, `--no-fetch` off the warm mirror | ~50 s | $0 | **every numeric CSV byte-identical**, `headline.csv` included | the only `tables.md` differences are two deliberate gate edits made between the runs, plus the `command:` line |
+| 2026-09-21 | `results/selftest.py` after the pass | 3 s | $0 | **30/30** (26 before; +4) | — |
+| 2026-09-21 | `precompute/unit_smoke.py` | 3 s | $0 | **49/49** (48 after the merge; +1) | — |
+
+### The `--sae-side` flag, and what it is NOT
+
+`_sae_rows` pinned `side="enc"`, so the 512 `sae_side: dec` rows of `2026-09-21_v3_sae2m` had
+cosines from `score` and no activation metric at all — item 2 of this file's own "three things the
+results run must not get wrong". `--sae-side` is a `sae_self` flag and nothing else's: `build`,
+`scan` and `repo_examples` share `common.sae_rows_of`'s `side=` and keep the enc-only filter
+(their products are keyed on the FEATURE, not on which column was injected), and the three
+corpus-side stages in `sae_self.py` refuse it loudly. Default `enc`, so every product already on
+the volume keeps its meaning byte for byte.
+
+Two consequences, both handled rather than hoped:
+
+* a `dec` row was generated from `unit(W_dec[f])`, so `common.sae_dirs` would reproduce nothing
+  and CHECK 1 would fire on the DIRECTION instead of on the run. The directions there are read
+  from the set's own `vecs.f16` through `common.dirs_for`. What is given up is the
+  encoder-column cross-check — exactly what plan §2.3 means by "the `vecs.f16` cross-check
+  skipped" — and it is named in `checks` and in the product's notes, not silently dropped. The
+  ACTIVATION is unaffected: `_SelfAct` reads W_enc/b_enc for the row's feature whichever column
+  was injected.
+* both halves share ONE scores directory, so the side is part of the product PATH
+  (`sae_self__dec`) and a decoder run cannot land on the encoder product eval 1 already paid for.
+
+### The pairing defect, and what it cost
+
+```
+AssertionError: 256 id lists but 0 directions: the scorer pairs them by row
+```
+
+`common.score_tokens` pairs `dirs[i]` with `texts[i]` over the FLATTENED [N, n] rollout grid. The
+encoder branch gets that for free because `sae_dirs(sae, row_feats)` is already indexed per flat
+row; the new decoder branch read the set's [N_set, d] array and indexed the TARGETS — 512
+directions for 32,768 texts. It got through the base load, the SAE load and the direction read
+before the scorer's own assert fired, on three containers at once.
+
+Fixed as `sae_self.stored_dirs_of`, a FUNCTION rather than an inline comprehension, precisely so a
+CPU check can hold it (`unit_smoke.check_sae_self_side_flag` gives it a 2-target x 3-rollout grid
+and requires [6, d] in `flat`'s own order; 2/2 mutations caught). An immediate
+`len(dirs) == len(flat)` assert sits beside the branch as well. The siblings check out:
+`run_random_pool`, `run_examples_4m` and `run_examples_docmax` are the only other `_sae_rows`
+callers and none of them calls `score_tokens`.
+
+### The decoder half, measured
+
+`sae_self__dec` beside each arm's `sae_self`, same 512 features, paired row for row. Ratios are
+median over features of peak / OUR 16M `max_act`; `item fired` is the mean over features of the
+fraction of that source's own rollouts above the gate 1.682812.
+
+| source | side | bo1 med | bo8 med | bo64 med | item fired | feat firing |
+|---|---|---|---|---|---|---|
+| rl-last16 | enc | 0.2390 | 0.4094 | 0.5437 | 0.1948 | 0.7773 |
+| rl-last16 | **dec** | **0.2709** | **0.4519** | **0.5806** | **0.2265** | **0.8164** |
+| old primary mu-none | enc | 0.0946 | 0.2586 | 0.4026 | 0.1281 | 0.4023 |
+| old primary mu-none | **dec** | **0.1337** | **0.3151** | **0.4533** | **0.1645** | **0.5273** |
+| NLA n=4 | enc | 0.2334 | — | — | 0.1489 | 0.2461 |
+| NLA n=4 | **dec** | **0.2773** | — | — | **0.2070** | **0.3379** |
+
+**The decoder direction drives the SAME feature harder than its own encoder column, on all three
+checkpoints and on every statistic.** Her card says the same thing in the same direction (0.416
+decoder against 0.344 encoder). The enc column reproduces this file's 09-21 SAE table exactly
+(0.2390 / 0.0946 / 0.2334 against the recorded 0.239 / 0.095 / 0.233), which is what makes the
+dec column readable beside it.
+
+### Item 1 of "three things the results run must not get wrong" was TOO STRONG
+
+That note says `per_target.jsonl` has no centred best-of-k. It does on the realact blocks: `score`
+writes `bo_c_<k>` whenever EVERY one of the n rollouts kept a centred token (`score.py:521`,
+`if len(vals_c) == n`), and on `_realact`, `_ours` and `_realact_long` every row qualifies. The
+driver recomputes the whole centred ladder from `cos_centred.f16` anyway — one estimator, one
+array — and the stored values become a CHECK: **3,584 comparisons per arm, 0 mismatches, worst
+excess -2.4e-04**. So the columns that were em dashes in the 09-21 summary table are real:
+
+| source | block | bo1 ctr | bo8 ctr | bo64 ctr |
+|---|---|---|---|---|
+| rl-last16 | `_realact` (n=486) | 0.7590 | 0.8221 | 0.8498 |
+| old primary mu-stats | `_realact` (n=486) | 0.7713 | 0.8317 | 0.8589 |
+| rl-last16 | `_ours` (n=506) | 0.7668 | 0.8300 | 0.8573 |
+| old primary mu-stats | `_ours` (n=506) | 0.7768 | 0.8402 | 0.8649 |
+| rl-last16 | `_realact_long` (512) | 0.6991 | 0.7669 | 0.7970 |
+
+**The centred gap between the two checkpoints is ~0.012 where the raw gap is ~0.002** — six times
+larger, and in the same direction (the old primary ahead). The raw column alone does not show it.
+The estimator for the NaN case is stated where it is used: the group max is over its FINITE draws
+and an all-NaN group leaves the average, which reduces exactly to `score`'s when nothing is NaN;
+positions are KEPT, because compacting the survivors first regroups them into a different
+statistic that agrees at bo1 and differs everywhere else.
+
+### Two reader defects found on the real directory names
+
+1. **`parse_scores_dir` required the engine part to come FIRST.**
+   `2026-09-21_v3_sae2m__mu-none__vllm` — which is what `score --score-name <set>__<tag> --engine
+   vllm` writes, because `scores_dir` takes no tag of its own — read as engine `hf` with the tag
+   `mu-none__vllm`. Six of eval 1's arms would have carried "hf" in the paper's own CSV. Fixed to
+   find the engine part wherever it is; both orders pinned in the selftest.
+2. **A sanity gate had no way to name its block.** The v1raw four-row smoke's centred 0.7518
+   resolved against `2026-09-21_v3_realact`'s 512-row 0.7609 and FLAGged — a flag that said
+   nothing about the mu, which is the only thing a flag is supposed to mean. `set:` added; the
+   eight v1raw-only gates now name their block and are quietly `absent` elsewhere.
+
+Also: a bare `rl-8x2048-full` selector matched ONE source on v1raw and TWO on every eval-1 set, so
+five gates would have resolved `absent (matched 2 of the sources)` and silently not run. Every
+old-primary gate now names its arm.
+
+### Exclusions are read, not retyped
+
+Each v3 block carries its own `exclusions.json`. `_realact` drops 26 rows (Ari's `ngram_overlap
+--side hers`, coverage >= 0.05 at n=7, over HER parquets) and `_ours` drops 6 (fully reproduced in
+her v2 text at n=13, over our 16M corpus) — two instruments over two corpora, and the files say so.
+The driver applies them, so the tables are the paper's own n = 486 / 506. The drop happens in ONE
+place, the family map, so the mean, the row count, the document-cluster count, the centred ladder,
+the sanity registry, the CSVs and the figures lose those rows TOGETHER; a mean over 486 printed
+beside a cluster count over 512 is the failure that has no symptom. `--no-exclusions` gives the
+other view and turns eight gates red, by design.
+
+### The sanity block: 25 pass, 2 FLAG, 1 no verdict, 194 absent
+
+Every cell of this file's own 09-21 summary table reproduces to 4 dp by an independent reader on
+the paper's own n: rl-last16 realact 0.8860 / 0.9168 / 0.9301 at n = 486 over **425 documents**,
+the old primary 0.8830 (mu-none) and 0.8881 / 0.9322 (mu-stats), NLA 0.8075, `ours` 0.8884 at
+n = 506, realact_long 0.4360, bsf 0.3177, jlens 0.1058, random 0.0338, and the SAE medians
+0.7185 (131k) / 0.2390 (2M enc) / 0.0946 (old primary) / 0.2334 (NLA).
+
+**Both FLAGs are Celeste's card firing rates on the 2M dictionary, and they miss the same way.**
+`fired.item` 0.1948 (enc) against her 0.344 and 0.2265 (dec) against her 0.416 — ~0.15-0.19 low on
+both, at tol 0.08. The enc/dec RATIO reproduces (1.16 here, 1.21 on the card), and our own
+`sae_smoke64` read 0.220 for the same arm on a 64-feature draw, which is where our number sits. So
+this points at a different denominator or a different rollout protocol rather than a wrong mu.
+**NOT RESOLVED; flagged, which is what the block is for.**
+
+The one `no verdict` is her 131k `norm_act` 0.824 against our 0.8256, declared `compare: false`
+because her ratio divides by a 1.0B-token corpus peak and ours by our 16M `max_act`. They land
+within 0.002 of each other, and that near-agreement is NOT evidence of anything — it is why the
+gate issues no verdict rather than a wide-tolerance pass.
+
+The SMOKES `sae2m / sae` pooled cosine row (0.0584 at n = 1024) has NO gate and cannot have one:
+plan §2.3 keeps SAE-target cosines out of every markdown table, so `stat_registry` holds no
+`cos_raw` for a dictionary family and such a gate would be `absent` forever. Per-row numbers are
+in each block's `sae_cosines.csv`.
+
+### Products, and what is committed
+
+New on the volume, all new paths, nothing else touched:
+
+```
+maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7/scores/2026-09-21_v3_sae2m__vllm/sae_self__dec/
+maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/2026-09-21_v3_sae2m__mu-none__vllm/sae_self__dec/
+maemms/qwen36-27b/2026-07-14_nla-av/scores/2026-09-21_v3_sae2m/sae_self__dec/
+```
+
+`paper-evals/results/faithfulness/` is no longer gitignored and IS committed (2.6 MB, 66 files):
+`tables.md` over all six blocks, one subdirectory per block with its own tables and CSVs, and 12
+figures as PDF (vector, for the paper) plus PNG at 140 dpi. It is the paper's numbers, and a
+number the paper cites has to be in the history and readable without $51 of GPU and a Modal token.
+Copied with a header to `infra/2026-09-21_faithfulness-tables.md`.
+
+### The detached launcher, reused
+
+The bash retry of the 09-21 production run, unchanged in shape: retry only on a client-side
+network error, at most 3 times, stop loudly on anything else, and never retry an "already exists"
+(which is a product that LANDED). Self-tested on a deliberate bad `--maemm` before use — one
+attempt, loud stop, no container started.
