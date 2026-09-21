@@ -1612,6 +1612,89 @@ def check_sae_column_reader():
     assert '"sae_side": sd' in src, "draw_sae2m emits no sae_side field"
 
 
+def check_sae_column_slice_is_the_dictionary():
+    """`load_sae_columns` gives `sae_encode`/`sae_dirs` exactly what the full load would.
+
+    The slice exists because `gcg --mode epo --sae qwen36-27b/sae2m` OOMed an H200 loading a
+    43 GB W_dec it never reads. The risk it introduces is an INDEX one -- a column slice whose
+    `W_enc[:, 0]` is feature 0 of the slice and feature 125750 of the dictionary -- and that
+    failure is silent: a wrong encoder column still produces a plausible activation. So this
+    builds a tiny SAE checkpoint, loads it both ways, and requires the two to agree BIT FOR BIT
+    on the features the slice holds, plus a refusal on one it does not.
+    """
+    import torch
+
+    d, f_all = 6, 11
+    g = torch.Generator().manual_seed(4242)
+    W = torch.randn(f_all, d, generator=g)          # nn.Linear stores [out, in]
+    Wd = torch.nn.functional.normalize(torch.randn(f_all, d, generator=g), dim=1)
+    ck = {"encoder.weight": W, "decoder.weight": Wd.T.contiguous(),
+          "encoder.bias": torch.randn(f_all, generator=g),
+          "bias": torch.randn(d, generator=g), "threshold": torch.tensor(1.25)}
+    with tempfile.TemporaryDirectory() as td:
+        path = str(Path(td) / "sae.pt")
+        torch.save(ck, path)
+        want = [7, 2, 9]
+        full = C.load_sae(path, d, need_decoder=False)
+        part = C.load_sae_columns(path, d, want)
+        assert part.d_sae == f_all, f"a slice must still report the dictionary width: {part.d_sae}"
+        assert part.n_cols == len(want), part.n_cols
+        assert part.W_dec is None, "the slice must not carry a decoder"
+        h = torch.randn(5, d, generator=g)
+        for ids in ([7], [9, 2], want):
+            a_full = C.sae_encode(full, h, ids)
+            a_part = C.sae_encode(part, h, ids)
+            assert torch.equal(a_full, a_part), (
+                f"sae_encode disagrees on {ids}: max |d| "
+                f"{float((a_full - a_part).abs().max()):.3e} -- the slice is indexing the wrong "
+                f"columns"
+            )
+            assert torch.equal(C.sae_dirs(full, ids), C.sae_dirs(part, ids)), (
+                f"sae_dirs disagrees on {ids}"
+            )
+        assert torch.equal(full.b_dec, part.b_dec), "b_dec must come across whole"
+        try:
+            C.sae_encode(part, h, [3])
+        except AssertionError as exc:
+            assert "does not hold feature" in str(exc), f"refused for the wrong reason: {exc}"
+        else:
+            raise AssertionError(
+                "a feature outside the slice was encoded, not refused -- which is the silent "
+                "wrong-column failure this whole check exists for"
+            )
+
+
+def check_gcg_never_loads_the_full_dictionary():
+    """`gcg/gcg.py` calls `load_sae_columns`, never `load_sae`.
+
+    The product reads ONE encoder column per direction and its objective is a cosine to a
+    direction off `vecs.f16`, so a full load is 43 GB of W_dec (at 2^21, fp32) that nothing
+    touches -- and on the 2M dictionary it is not a waste but a hard OOM at setup. `ast` over the
+    source rather than a grep, so a call spelled `C.load_sae(...)` inside a branch this smoke
+    never runs is still caught on CPU instead of on an H200 four hours in.
+    """
+    import ast
+
+    src = (Path(__file__).resolve().parent.parent / "gcg" / "gcg.py").read_text()
+    called = set()
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Call):
+            fn = node.func
+            name = (fn.attr if isinstance(fn, ast.Attribute)
+                    else fn.id if isinstance(fn, ast.Name) else "")
+            if name in ("load_sae", "load_sae_columns"):
+                called.add(name)
+    assert "load_sae" not in called, (
+        "gcg/gcg.py calls `load_sae`, which moves the WHOLE dictionary to the device including "
+        "W_dec (43 GB in fp32 at 2^21 features). It reads one encoder column per direction: use "
+        "`load_sae_columns`. This is the call that OOMed an H200 at setup on --sae qwen36-27b/sae2m."
+    )
+    assert "load_sae_columns" in called, (
+        "gcg/gcg.py no longer loads any SAE -- if the activation block was removed, remove this "
+        "check with it rather than leaving it green on nothing"
+    )
+
+
 def check_autointerp_main_forwards_every_flag():
     """Every `autointerp/modal_app.main` parameter reaches the container, or is named local-only.
 
@@ -1942,6 +2025,8 @@ CHECKS = [
     check_sae_column_reader,
     check_spawn_mirrors_main,
     check_autointerp_main_forwards_every_flag,
+    check_sae_column_slice_is_the_dictionary,
+    check_gcg_never_loads_the_full_dictionary,
     check_return_arities,
     check_centred_uses_one_mu,
     check_every_set_writer_writes_the_contract,

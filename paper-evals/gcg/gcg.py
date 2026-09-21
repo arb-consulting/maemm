@@ -1356,14 +1356,25 @@ def run(cfg, args):
     w_e32 = input_embeddings(model).weight.detach().float()
 
     if sae_ctx is not None:
-        sae_ctx["sae"] = C.load_sae(
-            C.sae_path(cfg, sae_ctx["key"]), cfg["bases"][base]["d"], device=str(dev),
+        # ONLY THE COLUMNS THIS RUN READS. The activation block below calls `common.sae_encode` on
+        # one feature per direction, i.e. `relu((h - b_dec) @ W_enc[:, f] + b_enc[f])`, and the
+        # objective is the cosine to a direction that came off `vecs.f16` -- so W_dec is never
+        # touched here and neither are the other 2^21 - len(sel) encoder columns. Loading the whole
+        # dictionary in fp32 on the device cost 43 GB of W_dec alone and OOMed an H200 at setup on
+        # `--sae qwen36-27b/sae2m` (MEASURED 2026-09-21: the fp32 unembedding's 4.74 GiB could not
+        # be allocated with 135.55 GiB in use), for a matrix no line of this product reads.
+        # `load_sae_columns` reads the encoder on the CPU and moves only the slice; `sae_encode`
+        # still takes DICTIONARY ids, so nothing downstream changes meaning.
+        want = sorted({int(rows_meta[r]["id"]) for r in sel})
+        sae_ctx["sae"] = C.load_sae_columns(
+            C.sae_path(cfg, sae_ctx["key"]), cfg["bases"][base]["d"], want, device=str(dev),
             dtype=torch.float32,
         )
         print(
             f"[gcg] sae {sae_ctx['key']}: {sae_ctx['sae'].d_sae} features, learned gate "
-            f"{sae_ctx['sae'].threshold:.4f} -- activation is RECORDED on the finals, never "
-            f"optimised (the objective stays the cosine to the encoder column)",
+            f"{sae_ctx['sae'].threshold:.4f} -- {sae_ctx['sae'].n_cols} encoder column(s) on the "
+            f"device, no decoder; activation is RECORDED on the finals, never optimised (the "
+            f"objective stays the cosine to the encoder column)",
             flush=True,
         )
 

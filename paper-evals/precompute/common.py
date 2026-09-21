@@ -2159,10 +2159,16 @@ def best_of_k_means(vals, ks) -> dict[int, float]:
 class BatchTopKSAE:
     """W_enc [d, F], W_dec [F, d], b_enc [F], b_dec [d], threshold: the learned BatchTopK gate."""
 
-    def __init__(self, W_enc, W_dec, b_enc, b_dec, threshold):
+    def __init__(self, W_enc, W_dec, b_enc, b_dec, threshold, col_of=None, d_sae_full=0):
         self.W_enc, self.W_dec, self.b_enc, self.b_dec = W_enc, W_dec, b_enc, b_dec
         self.threshold = threshold
-        self.d_in, self.d_sae = W_enc.shape
+        self.d_in, self.n_cols = W_enc.shape
+        # A COLUMN SLICE carries the map from the dictionary's feature id to its column here, and
+        # still reports the dictionary's true size as `d_sae` -- a slice that called itself a
+        # 16-feature SAE would make every "2097152 features" line a lie. `col_of is None` is the
+        # whole dictionary, where the two indices coincide.
+        self.col_of = col_of
+        self.d_sae = d_sae_full or self.n_cols
 
 
 def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None, need_decoder: bool = True):
@@ -2219,19 +2225,88 @@ def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None, need_deco
     return sae
 
 
+def _sae_cols(sae: BatchTopKSAE, feature_ids) -> list[int]:
+    """Dictionary feature ids -> column numbers of THIS object's W_enc.
+
+    Identity for a full dictionary; the slice's own map for one from `load_sae_columns`, which
+    refuses an id it does not hold rather than returning some other feature's column. Shared by
+    `sae_encode` and `sae_dirs` so the two cannot come to mean different things by one id.
+    """
+    ids = [int(f) for f in feature_ids]
+    if sae.col_of is None:
+        return ids
+    missing = sorted({f for f in ids if f not in sae.col_of})
+    assert not missing, (
+        f"this SAE is a {sae.n_cols}-column slice of a {sae.d_sae}-feature dictionary and does "
+        f"not hold feature(s) {missing[:8]}; it holds {sorted(sae.col_of)[:8]}"
+        f"{'...' if len(sae.col_of) > 8 else ''}. Load the columns you mean -- nothing here will "
+        f"reinterpret a feature id as a column number."
+    )
+    return [sae.col_of[f] for f in ids]
+
+
 def sae_encode(sae: BatchTopKSAE, h, feature_ids):
-    """mxf/sae.py:27-31: pre-topk post-ReLU activations relu((x - b_dec) @ W_enc[:,f] + b_enc[f])."""
+    """mxf/sae.py:27-31: pre-topk post-ReLU activations relu((x - b_dec) @ W_enc[:,f] + b_enc[f]).
+
+    `feature_ids` are always the DICTIONARY's ids, whether `sae` is the whole dictionary or a
+    column slice from `load_sae_columns`. The slice translates them through its own `col_of` and
+    refuses an id it does not hold, so a caller cannot get a different feature's activation by
+    handing a local index to one object and a global id to the other -- which is the only way this
+    optimisation could have gone wrong silently.
+    """
     import torch
 
-    idx = torch.as_tensor(feature_ids, device=sae.W_enc.device)
+    ids = _sae_cols(sae, feature_ids)
+    idx = torch.as_tensor(ids, device=sae.W_enc.device)
     return torch.relu((h - sae.b_dec) @ sae.W_enc[:, idx] + sae.b_enc[idx])
 
 
-def sae_dirs(sae: BatchTopKSAE, feature_ids):
-    """mxf/sae.py:33-36: the `sae` family target is the UNIT ENCODER COLUMN unit(W_enc[:, f])."""
+def load_sae_columns(path: str, d_model: int, feature_ids, device: str = "cpu", dtype=None):
+    """The SAE restricted to `feature_ids`: everything `sae_encode` reads, nothing else.
+
+    `relu((h - b_dec) @ W_enc[:, f] + b_enc[f])` needs one column of W_enc per feature, one entry
+    of b_enc, all of b_dec, and the gate. A caller that wants the activation of SIXTEEN features
+    of a 2^21 dictionary does not need the other 2,097,136 columns and certainly does not need
+    W_dec -- which is 43 GB in fp32 at that width, and is what made `gcg --mode epo --sae
+    qwen36-27b/sae2m` OOM an H200 at setup (MEASURED 2026-09-21: the fp32 unembedding's 4.74 GiB
+    could not be allocated with 135.55 GiB already in use).
+
+    The full encoder is read on the CPU and only the slice is moved, so the device never holds the
+    dictionary. The returned object is an ordinary BatchTopKSAE carrying `col_of`, so `sae_encode`
+    still takes dictionary ids and `d_sae` still reports the dictionary's true width.
+    """
     import torch
 
-    idx = torch.as_tensor(feature_ids, device=sae.W_enc.device)
+    ids = [int(f) for f in feature_ids]
+    assert ids, "load_sae_columns needs at least one feature id"
+    dup = sorted({f for f in ids if ids.count(f) > 1})
+    assert not dup, f"duplicate feature ids {dup[:8]} -- the column map would be ambiguous"
+    full = load_sae(path, d_model, device="cpu", dtype=dtype, need_decoder=False)
+    bad = sorted({f for f in ids if not 0 <= f < full.d_sae})
+    assert not bad, f"feature ids {bad[:8]} are outside the {full.d_sae}-feature dictionary {path}"
+    idx = torch.as_tensor(ids)
+    return BatchTopKSAE(
+        full.W_enc[:, idx].contiguous().to(device),
+        None,
+        full.b_enc[idx].contiguous().to(device),
+        full.b_dec.to(device),
+        full.threshold,
+        col_of={f: i for i, f in enumerate(ids)},
+        d_sae_full=full.d_sae,
+    )
+
+
+def sae_dirs(sae: BatchTopKSAE, feature_ids):
+    """mxf/sae.py:33-36: the `sae` family target is the UNIT ENCODER COLUMN unit(W_enc[:, f]).
+
+    Sibling of `sae_encode` and indexes W_enc the same way, so it takes DICTIONARY ids on a column
+    slice too. Without this the two functions would disagree about what an id means on the same
+    object, which is worse than either convention.
+    """
+    import torch
+
+    ids = _sae_cols(sae, feature_ids)
+    idx = torch.as_tensor(ids, device=sae.W_enc.device)
     return torch.nn.functional.normalize(sae.W_enc[:, idx].T, dim=-1)
 
 
