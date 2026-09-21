@@ -1522,6 +1522,37 @@ def check_centred_uses_one_mu():
 
 
 
+
+def check_every_set_writer_writes_the_contract():
+    """Every tool that DRAWS a held-out set writes its `storage.json`.
+
+    `common.set_storage` refuses a directory that states no contract, and `common.py`'s own
+    docstring promises "every set drawn after 2026-09-21 writes it" while the `set_storage` error
+    tells the reader to "re-draw the set, which writes the contract itself". Both were false for
+    `features/draw_sae2m.py` and `features/heldout_v2.py`, which wrote `ids.jsonl` and `vecs.f16`
+    and nothing else -- so a set from either tool was born unreadable and needed a hand-written
+    config entry that nothing told the author to write. `ast` keeps the promise honest.
+    """
+    import ast
+
+    root = Path(__file__).resolve().parent.parent
+    for rel in ("precompute/targets.py", "features/draw_sae2m.py", "features/heldout_v2.py"):
+        src = (root / rel).read_text()
+        assert C.STORAGE_FILE in src, (
+            f"{rel} draws a held-out set but never writes {C.STORAGE_FILE}: common.set_storage "
+            f"will refuse every set it produces, and the advice 'the draw writes the contract "
+            f"itself' is false for it"
+        )
+        # and the value has to be one of the declared kinds, not a free-text guess
+        kinds = {
+            n.value
+            for n in ast.walk(ast.parse(src))
+            if isinstance(n, ast.Constant) and n.value in C.STORAGE_KINDS
+        }
+        assert kinds, f"{rel} writes {C.STORAGE_FILE} but names no storage kind from {list(C.STORAGE_KINDS)}"
+
+
+
 CHECKS = [
     check_config,
     check_paths,
@@ -1560,6 +1591,7 @@ CHECKS = [
     check_spawn_mirrors_main,
     check_return_arities,
     check_centred_uses_one_mu,
+    check_every_set_writer_writes_the_contract,
     check_rollouts_nla_selftest,
 ]
 

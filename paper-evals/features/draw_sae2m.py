@@ -293,6 +293,24 @@ def run(cfg, args):
     with C.outdir(out_dir, args, inputs=inputs) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
+        # THE STORAGE CONTRACT (H4). Without it `common.set_storage` refuses the set outright and
+        # somebody has to hand-write a `heldout:` entry -- which is exactly why 2026-09-20_sae2m_2k
+        # needed one. `dirs_only`: these rows are unit encoder columns, they were never centred and
+        # there is nothing to centre them on, so no `--mu` applies to them at all.
+        od.write_json(
+            "storage.json",
+            {
+                "storage": "dirs_only",
+                "mu_stored": None,
+                "family_mu": {},
+                "families": {"sae": "dictionary"},
+                "sae_key": meta["sae_key"],
+                "note": (
+                    "unit(W_enc[:, f]) encoder columns: never centred, not centrable "
+                    "(config.yaml family_kinds), so every --mu is a no-op on them"
+                ),
+            },
+        )
         od.note(
             f"{len(rows)} targets, all from Celeste's eval split. `family` is **sae** -- the "
             f"label every consumer selects on (scan, top1_act, repo_examples, gcg, score's "

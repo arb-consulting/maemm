@@ -379,12 +379,18 @@ def run(cfg, args):
         flush=True,
     )
 
-    # Fail before the model load if the SAE output is in the way. `stats/` is NOT in this list any
-    # more: it is `keep_existing` (D5), so a second run adds to it and asserts the mean rather than
-    # replacing the directory, and demanding --force for that would push the user into the flag
-    # that used to do the damage.
-    assert args.get("force") or not os.path.exists(C.sae_dir(sae_key, root)), (
-        f"{C.sae_dir(sae_key, root)} already exists; refusing to overwrite without --force"
+    # Neither output directory is in a pre-flight "refusing to overwrite" list any more: both are
+    # `keep_existing` (D5 for stats/, H3 for sae/<name>/), so a second run ADDS to them and the
+    # arrays this product owns are guarded per FILE below rather than by deleting the parent.
+    # Demanding --force for an accumulating directory only pushes the user into the flag that used
+    # to do the damage. The four arrays `stats` owns under sae/<name>/ are named here so the
+    # per-file guard and this comment cannot drift apart.
+    sae_own = ("fire_counts.i64", "max_act.f16", "mean_when_active.f16", "sizes.json")
+    clash = [f for f in sae_own if os.path.exists(f"{C.sae_dir(sae_key, root)}/{f}")]
+    assert args.get("force") or not clash, (
+        f"{C.sae_dir(sae_key, root)} already holds {clash}, which THIS product owns; pass --force "
+        f"to recompute them. Everything else in that directory -- examples/, examples_4m/, "
+        f"examples_docmax/, random_pool/, repo_examples/, top1_act/ -- is kept either way (H3)."
     )
 
     t_load = time.time()
@@ -412,7 +418,16 @@ def run(cfg, args):
         # the mean down with it -- D5. `centred.py` uses the same mechanism and
         # unit_smoke.check_outdir_keep_existing_and_section covers it.
         C.outdir(C.stats_dir(base, root), args, inputs=inputs, keep_existing=True) as od_stats,
-        C.outdir(C.sae_dir(sae_key, root), args, inputs={**inputs, "sae": sae_key}) as od_sae,
+        # keep_existing HERE TOO (H3). `sae_dir` is not a leaf: `examples/<set>`, `examples_4m/`,
+        # `examples_docmax/`, `random_pool/`, `repo_examples/` and `top1_act/` all live inside it,
+        # written by scan, sae_self and top1_act. D5 gave `stats/` this treatment and left its
+        # strictly LARGER sibling on the default, so `stats --force` -- meant to rebuild one SAE's
+        # fire counters -- rmtree'd every scan and autointerp product under that dictionary.
+        # Reproduced by the reviewer. The blast radius GREW on this branch: keying examples/ by
+        # set (B9) put three sets' examples where one used to be.
+        C.outdir(
+            C.sae_dir(sae_key, root), args, inputs={**inputs, "sae": sae_key}, keep_existing=True
+        ) as od_sae,
     ):
         passa = _pass_a(model, cfg, args, toks, docs, sizes, sink, pad_id, sae, od_stats, od_sae)
     return {"pass_a": passa, "base_load_seconds": round(load_s, 1)}

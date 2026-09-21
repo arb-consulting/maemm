@@ -139,11 +139,39 @@ def main() -> None:
         for r in rows:
             fh.write(json.dumps(r) + "\n")
     vecs.astype(np.float16).tofile(out / "vecs.f16")
+    # THE STORAGE CONTRACT (H4). Without it `common.set_storage` refuses this set and every
+    # product that reads a direction stops at it. The families imported here arrive ALREADY
+    # CENTRED on Celeste's own mean and this side of the bundle records no path for it, so the
+    # honest value is `unknown`: `common.dirs_for` then returns those rows AS SHIPPED, with a
+    # warning and a label that travels into the reading product's README, instead of pretending
+    # they can be re-derived. A family that is not centrable at all (an encoder column, a
+    # subspace basis, a Gaussian draw) gets null -- see config.yaml `family_kinds:`.
+    fam_mu = {
+        fam: (None if fam in ("random", "sae", "sae2m_enc", "bsf", "jlens") else "unknown")
+        for fam in args.families
+    }
+    (out / "storage.json").write_text(
+        json.dumps(
+            {
+                "storage": "unit",
+                "mu_stored": None,
+                "family_mu": fam_mu,
+                "note": (
+                    "imported from Celeste's bundle: stored unit directions, no act.f32, so they "
+                    "cannot be moved to another mean. `unknown` means the mean they carry is not "
+                    "one this repo holds a file for."
+                ),
+            },
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
     (out / "README.md").write_text(readme(rows, vecs, args.families), encoding="utf-8")
 
     print(f"{out}")
     print(f"  ids.jsonl  {len(rows)} rows")
     print(f"  vecs.f16   {vecs.shape} float16")
+    print(f"  storage.json  unit, family_mu={fam_mu}")
     for fam in args.families:
         n = sum(1 for r in rows if r["family"] == fam)
         print(f"    {fam:16s} {n:5d}  heldout_kind={layout.heldout_kind(fam)}")
