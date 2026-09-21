@@ -213,6 +213,16 @@ def load_ood_ids(vol: R.Vol, base: str, set_name: str) -> list[dict]:
 BO64 = {"asym": "bo_a_64", "centred": "bo_c_64", "raw": "bo_64"}
 
 
+def has_asym(src: R.Source) -> bool:
+    """Does this scores directory carry the asymmetric cosine at all?
+
+    A directory scored before `cos_asym` existed has only the two symmetric columns. It is not
+    wrong, it is SUPERSEDED by the `--score-tag asym` re-score of the same rollouts, and reporting
+    it as a table of skipped arms would read as a failure rather than as an older product.
+    """
+    return any("bo_a_64" in r for r in src.per_target.values())
+
+
 def bo64_of(rec: dict, which: str) -> float | None:
     """The unbiased best-of-64 of one target in one of the three cosines, or None when absent.
 
@@ -454,8 +464,14 @@ def main(
         "scans read: " + ", ".join(f"`{d}` at mu={scan_mus[d]}" for d in sorted(scan_mus))
     )
 
-    ctrl_src = next((s for s in usable if s.role == "control"), None)
+    # The control column must come from a directory that HAS the asymmetric cosine, or the column
+    # is silently empty beside a Δ that is stated in it.
+    ctrls = [s for s in usable if s.role == "control"]
+    ctrl_src = next((s for s in ctrls if has_asym(s)), None) or (ctrls[0] if ctrls else None)
     control = ctrl_src.per_target if ctrl_src else None
+    for s_ in ctrls:
+        if s_ is not ctrl_src:
+            notes.append(f"control `{s_.label}` not used: superseded by `{ctrl_src.label}`")
 
     o = R.Out(
         out_dir,
@@ -476,8 +492,18 @@ def main(
     )
 
     verdicts: dict[str, dict[str, str]] = {}
+    superseded = [
+        s_ for s_ in usable
+        if s_.role != "control" and not has_asym(s_)
+        and any(o.maemm == s_.maemm and has_asym(o) for o in usable)
+    ]
+    for s_ in superseded:
+        notes.append(
+            f"source `{s_.label}` was scored before `cos_asym` existed and is superseded by the "
+            f"`--score-tag asym` re-score of the SAME rollouts; not tabulated"
+        )
     for src in usable:
-        if src.role == "control":
+        if src.role == "control" or src in superseded:
             continue
         got_mu = C_resolve_mu(src.mu, base)
         # THE SCAN AT THIS SOURCE'S OWN MEAN, arm by arm. Not "the scan", and not the one named on
