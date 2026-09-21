@@ -51,7 +51,7 @@ IMPORT_RUN1_SET = "2026-09-03_run1-archive16"
 # Corpus scan geometry (checklist item 57: block size and stride are results-affecting, so they are
 # named once here and quoted in every README). The old retrieval baseline used BLOCK 64 / STRIDE 32
 # (eval/corpus_retrieval.py:89-91); ours is stride 16, i.e. 4x the coverage per token.
-SCAN_BLOCK = 64
+SCAN_BLOCK = 64   # default window; `corpus.block` in config.yaml overrides per corpus
 SCAN_STRIDE = 16
 
 # mxf/prompts.py:8-15, verbatim except the read layer, which the template names in words and which
@@ -224,8 +224,15 @@ def base_dir(base: str, root: str = VOL) -> str:
     return f"{root}/base/{base}"
 
 
-def corpus_dir(base: str, root: str = VOL) -> str:
-    return f"{base_dir(base, root)}/corpus"
+def corpus_dir(base: str, root: str = VOL, name: str = "") -> str:
+    """`corpus/` by default; `corpora/<name>/` when a name is given.
+
+    A new size ladder or window geometry is a NEW corpus, never an edit of the existing
+    one: docs.jsonl carries each document's size_tag, and every stored scan window and
+    top-k list indexes into that exact tokens.i32. Rebuilding in place silently
+    invalidates all of them.
+    """
+    return f"{base_dir(base, root)}/corpora/{name}" if name else f"{base_dir(base, root)}/corpus"
 
 
 def heldout_dir(base: str, set_name: str, root: str = VOL) -> str:
@@ -339,7 +346,7 @@ def size_tag_of(cum_before: int, n_tok: int, sizes: list[int]) -> int:
     the total budget) is clamped to the largest size; corpus.py counts and reports those.
     """
     for s in sizes:
-        if cum_before + n_tok <= s * 1_000_000:
+        if cum_before + n_tok <= round(s * 1_000_000):
             return s
     return sizes[-1]
 
@@ -361,9 +368,15 @@ def load_corpus(base: str, root: str = VOL):
     return toks, docs
 
 
-def corpus_sizes(docs: list[dict]) -> list[int]:
-    """The nested sizes actually present in a built corpus, ascending (a smoke has fewer)."""
-    return sorted({int(r["size_tag"]) for r in docs})
+def corpus_sizes(docs: list[dict]) -> list[float]:
+    """The nested sizes actually present in a built corpus, ascending (a smoke has fewer).
+
+    Sizes are MILLIONS of tokens and may be fractional: the 2026-09-20 ladder is
+    1.25 / 2.5 / 5 / 10, chosen for parity with training, which saw 9-10M activations.
+    Integers stay integers so 1/2/4/8/16 corpora read back unchanged.
+    """
+    out = sorted({float(r["size_tag"]) for r in docs})
+    return [int(s) if float(s).is_integer() else s for s in out]
 
 
 def quantiles_from_hist(counts, qs, lo: float = -1.0, hi: float = 1.0):
