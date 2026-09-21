@@ -55,7 +55,13 @@ import numpy as np
 
 import precompute.common as C
 
-FAMILY = "sae"
+# The held-out families whose targets ARE SAE features, so a "the feature's own activation on
+# this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
+# 2026-09-16_v1); `sae2m_enc` is the label Ari's `features/draw_sae2m.py` writes for the 2M-SAE
+# encoder columns -- a different dictionary and a different draw, but the same KIND of target
+# (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
+# rather than collapsed to one name because a set can carry both and the labels are provenance.
+FAMILIES = ("sae", "sae2m_enc")
 # Delphi lists at most this many activating tokens per example (facts §3, explainer.py).
 MAX_SHOWN_ACTS = 10
 BANDS = ("q0", "q1", "q2", "q3")
@@ -787,7 +793,11 @@ def run(cfg, args):
     self_dir = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
 
     rows_meta = C.read_jsonl(f"{hdir}/ids.jsonl")
-    sae_rows = [r for r in rows_meta if r["family"] == FAMILY]
+    sae_rows = [r for r in rows_meta if r["family"] in FAMILIES]
+    assert sae_rows, (
+        f"{hdir}/ids.jsonl has no rows in any of the SAE families {FAMILIES}; it carries "
+        f"{sorted({r['family'] for r in rows_meta})}"
+    )
     picked = draw_features(sae_rows, n_feat, feat_seed)
     if args.get("rows"):
         # --rows OVERRIDES the stratified draw rather than intersecting it: a shakeout asks for
@@ -795,7 +805,9 @@ def run(cfg, args):
         # pick" (MEASURED 2026-09-16: --rows 1024-1025 quietly built one feature).
         want = set(C.parse_rows(args["rows"], len(rows_meta)))
         picked = [r for r in sae_rows if r["row"] in want]
-        assert picked, f"--rows {args['rows']!r} selected none of the {FAMILY} rows"
+        assert picked, (
+            f"--rows {args['rows']!r} selected none of the {len(sae_rows)} {'/'.join(FAMILIES)} rows"
+        )
     print(f"[build] {len(picked)} features, arms {arm_names}", flush=True)
 
     tok = AutoTokenizer.from_pretrained(C.snapshot(cfg, cfg["bases"][base]["hf"]))

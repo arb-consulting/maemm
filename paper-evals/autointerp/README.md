@@ -17,7 +17,7 @@ Everything under `autointerp/` imports only `precompute/common.py`, two private 
 
 | stage | where | writes | notes |
 |---|---|---|---|
-| `sae_self` | GPU | `maemms/<base>/<maemm>/scores/<set>__<engine>/sae_self/` | P1: the target feature's PER-TOKEN pre-gate activation on its own 64 rollouts, for the 512 `sae` targets. Self-validating against the stored `cos.f16`, `argmax.i16` and SAE CSR |
+| `sae_self` | GPU | `maemms/<base>/<maemm>/scores/<set>__<engine>/sae_self/` | P1: the target feature's PER-TOKEN pre-gate activation on its own 64 rollouts, for the SAE-family targets (`sae`, and `sae2m_enc` for the 2M dictionary — `FAMILIES` in `sae_self.py`/`build.py`). Self-validating against the stored `cos.f16`, `argmax.i16` and SAE CSR |
 | `random_pool` | GPU | `base/<base>/sae/<sae>/random_pool/<set>/` | P1 (A5): 2048 random corpus windows encoded for every tested feature, per-token, sparse. Replaces scan's 256-window `_random256` |
 | `examples_4m` | GPU | `base/<base>/sae/<sae>/examples_4m/<set>/` | P1 (A3): the C4 arm's OWN top-128 over the 4M nested prefix |
 | `build` | CPU | `base/<base>/autointerp/<set>/<date>_build/` | P2: the rendered example sets per arm and the two test draws, one jsonl per feature. Loads no model except the tokenizer |

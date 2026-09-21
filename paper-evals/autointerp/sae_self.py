@@ -11,7 +11,8 @@ its own MAEMM rollouts.
 
 `score`'s stored SAE arrays are a CSR at the ARGMAX TOKEN ONLY (precompute/score.py:8-9, 80-82):
 all 131k features, gated, one token per rollout. An autointerp example set needs the opposite cut
--- ONE feature, every token -- so this product makes it, for the `sae` family only (512 of the
+-- ONE feature, every token -- so this product makes it, for the SAE families only (`sae`, and
+Ari's `sae2m_enc` label for the 2M dictionary -- see FAMILIES below; 512 of the
 set's 1,536 targets), at one thirtieth of the rows a full per-token CSR would cost.
 
 It is `score` minus the CSR: the SAME clean-base forward through `common.score_tokens`, the same
@@ -42,7 +43,13 @@ import precompute.common as C
 # Rows handed to common.score_tokens per call, as precompute/score.py:50. It re-chunks internally
 # at common.SCORE_CHUNK, so this only bounds the fp32 residual the callback sees at once.
 SCORE_ROWS = 256
-FAMILY = "sae"
+# The held-out families whose targets ARE SAE features, so a "the feature's own activation on
+# this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
+# 2026-09-16_v1); `sae2m_enc` is the label Ari's `features/draw_sae2m.py` writes for the 2M-SAE
+# encoder columns -- a different dictionary and a different draw, but the same KIND of target
+# (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
+# rather than collapsed to one name because a set can carry both and the labels are provenance.
+FAMILIES = ("sae", "sae2m_enc")
 # Largest cosine gap at which a disagreement with the stored `argmax.i16` is accepted as
 # right-padding noise rather than a different run. MEASURED 2026-09-16 (see CHECK 1 below): the
 # real gaps are ~1e-5 while a genuinely different token is 1e-2 to 1e-1 away, so 1e-3 separates
@@ -97,8 +104,11 @@ def _sae_rows(cfg, args):
     """(rows_meta, sae rows of the set, their feature ids, the SAE key)."""
     base, root, set_name = args["base"], args["root"], args["heldout"]
     rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
-    sel = [r for r in rows if r["family"] == FAMILY]
-    assert sel, f"held-out set {set_name!r} on {base} has no {FAMILY!r} family rows"
+    sel = [r for r in rows if r["family"] in FAMILIES]
+    assert sel, (
+        f"held-out set {set_name!r} on {base} has no rows in any of the SAE families {FAMILIES}; "
+        f"it carries {sorted({r['family'] for r in rows})}"
+    )
     keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
     assert len(keys) == 1, f"base {base} has {len(keys)} SAEs in config, expected exactly 1"
     return rows, [r["row"] for r in sel], [int(r["id"]) for r in sel], keys[0]
@@ -142,7 +152,7 @@ def run(cfg, args):
     rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
     sel = [r for r in C.parse_rows(args.get("rows", ""), len(rows_meta)) if r in set(sae_rows)]
     assert sel, (
-        f"--rows {args.get('rows', '')!r} selected none of the {len(sae_rows)} {FAMILY} rows "
+        f"--rows {args.get('rows', '')!r} selected none of the {len(sae_rows)} {'/'.join(FAMILIES)} rows "
         f"({sae_rows[0]}..{sae_rows[-1]})"
     )
     feat_of = dict(zip(sae_rows, feats, strict=True))
@@ -292,7 +302,7 @@ def run(cfg, args):
         "maemm": maemm,
         "sae": sae_key,
         "gate": gate,
-        "targets": f"{N} of {len(sae_rows)} {FAMILY} rows",
+        "targets": f"{N} of {len(sae_rows)} {'/'.join(FAMILIES)} rows",
         "n": n,
     }
     # The checks run BEFORE the product is written, so a failed check never renames a bad product
