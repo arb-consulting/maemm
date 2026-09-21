@@ -7,11 +7,15 @@
         --sae qwen36-27b/sae2m --set 2026-09-21_sae2m_64 --n 64 --stratified \
         --root /vol/tmp/sae-smoke64 --gpu cpu
 
+    python -m features.spawn --product draw_sae2m --base qwen36-27b \
+        --sae qwen36-27b/sae2m --set 2026-09-21_v3_sae2m --n 512 --stratified \
+        --seed 20260921 --sides enc,dec --include <64 ids> --gpu h200
+
 Writes the shape the rest of the pipeline already reads:
 
     <root>/base/<base>/heldout/<set>/
         ids.jsonl   one row per target: row, family ("sae"), sae_key (which dictionary),
-                    id (feature id), stratum, side, ...
+                    sae_side (enc | dec), id (feature id), stratum, side, ...
         vecs.f16    [N, d] unit rows, row i is ids.jsonl line i
         README.md   the draw, the eligibility rule, and how the split is held out
 
@@ -238,6 +242,15 @@ def build(cfg, args):
     stratified = bool(args.get("stratified"))
     seed = int(args.get("seed") or DRAW_SEED)
     assert n > 0, f"--n must be positive, got {n}"
+    # `--sides enc` (the default, and every set drawn before 2026-09-21) or `--sides enc,dec`.
+    # The DRAW is over features and does not depend on this: the same ids, the same strata and
+    # the same fit/report labels are emitted once per side, so `--sides enc,dec` is the one-side
+    # set with a second block appended, never a different sample.
+    sides = tuple(x.strip() for x in str(args.get("sides") or "enc").split(",") if x.strip())
+    assert sides and len(set(sides)) == len(sides) and set(sides) <= set(SIDES), (
+        f"--sides {args.get('sides')!r}: give a comma-separated subset of {list(SIDES)} with no "
+        f"repeats (default 'enc')"
+    )
 
     # Eligibility and strata come from our own corpus scan when it exists, and from
     # Celeste's 1.0B-token scan when it does not. The fallback is not a degraded mode:
@@ -353,7 +366,13 @@ def build(cfg, args):
         meta_extra = {"eligible": int(len(eligible)), "cuts_over": "drawn_set"}
     assert np.isin(drawn, eval_ids).all(), "a drawn feature is not on the eval side"
 
-    side = np.where(rng.random(n) < FIT_FRACTION, "fit", "report")
+    # `len(drawn)`, NOT `n`: the `--include` branch above SUBTRACTS the forced count from `n`
+    # (that is how many are still to be sampled) and then concatenates the forced ids back into
+    # `drawn`. Drawing the side column at `n` therefore made it SHORTER than the draw whenever
+    # --include was used, and `_finish`'s `side[i]` walked off the end -- on exactly the
+    # `--n 512 --stratified --include <64>` command eval 1 is built with. Found 2026-09-21.
+    side = np.where(rng.random(len(drawn)) < FIT_FRACTION, "fit", "report")
+    assert len(side) == len(drawn), f"{len(side)} side labels for {len(drawn)} drawn features"
 
     # The 16M peak is a column of a STRATIFIED draw only. The uniform draw's row schema is
     # frozen -- the 2k set on the volume and every consumer of it were written against it -- so
@@ -364,66 +383,135 @@ def build(cfg, args):
     return _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
                    peak_by_id, strat_name, strat_source, have_stats, gated_full, peak16,
                    cuts, {**meta_extra, "n": int(len(drawn)), "seed": seed,
-                          "stratified": stratified})
+                          "stratified": stratified, "sides": sides})
+
+
+SIDES = ("enc", "dec")
+
+
+def _columns(path: str, d_model: int, drawn, sides):
+    """(`{side: [n, d] unit fp32}`, gate, F) for `drawn`, from ONE read of the checkpoint.
+
+    `common.load_sae` casts the WHOLE of `W_enc` (and, with `need_decoder`, `W_dec`) to fp32
+    before anything is selected. At 2^21 features each matrix is 43 GB in fp32 on top of the
+    ~86 GB the `torch.load` already holds, so asking for the decoder side through it roughly
+    doubles a peak that is already the reason `need_decoder=False` exists. We need at most
+    `len(drawn)` columns of each, so they are sliced in the checkpoint's own dtype and cast
+    after -- peak stays at the load itself.
+
+    BIT-IDENTICAL to the old path on the encoder side, and `unit_smoke.check_sae_column_reader`
+    pins that against `common.load_sae` on a synthetic checkpoint: `load_sae` builds
+    `W_enc = encoder.weight.to(fp32).T`, so `W_enc[:, drawn].T` IS `encoder.weight[drawn]` cast
+    to fp32, which is what this returns. `decoder.weight` is `[d, F]` (nn.Linear stores
+    `[out, in]` and the decoder maps F -> d), so its feature `f` is the COLUMN `[:, f]`.
+    """
+    import torch
+
+    params = torch.load(path, map_location="cpu", weights_only=False)
+    enc_w, dec_w = params.get("encoder.weight"), params.get("decoder.weight")
+    assert enc_w is not None, f"SAE {path}: no encoder.weight (keys: {sorted(params)})"
+    F, d = int(enc_w.shape[0]), int(enc_w.shape[1])
+    assert d == d_model, f"SAE {path}: d_in {d} != base d_model {d_model}"
+    assert F > int(max(drawn)), f"feature id {max(drawn)} outside F={F}"
+    raw_thr = params.get("threshold")
+    assert raw_thr is not None, (
+        f"SAE {path} has no 'threshold' buffer; the fire gate would be undefined "
+        f"(checkpoint keys: {sorted(params)})"
+    )
+    gate = float(raw_thr.item() if hasattr(raw_thr, "item") else raw_thr)
+    assert gate > 0, f"SAE {path}: threshold {gate} must be > 0"
+
+    idx = torch.as_tensor(np.asarray(drawn, dtype=np.int64))
+    out = {}
+    for sd in sides:
+        if sd == "enc":
+            v = enc_w[idx].to(torch.float32)
+        else:
+            assert dec_w is not None, (
+                f"SAE {path}: --sides asks for 'dec' but the checkpoint has no decoder.weight "
+                f"(keys: {sorted(params)})"
+            )
+            assert tuple(dec_w.shape) == (d, F), (
+                f"SAE {path}: decoder.weight is {tuple(dec_w.shape)}, expected [d, F] = {(d, F)}"
+            )
+            v = dec_w[:, idx].T.contiguous().to(torch.float32)
+        assert v.shape == (len(drawn), d), f"{sd}: {tuple(v.shape)} != {(len(drawn), d)}"
+        out[sd] = torch.nn.functional.normalize(v, dim=-1)
+    del params, enc_w, dec_w
+    return out, gate, F
 
 
 def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
             peak_by_id, strat_name, strat_source, have_stats, gated_full, peak16, cuts,
             meta_extra):
-    """Encoder columns for `drawn`, plus the rows the pipeline reads.
+    """One block of rows per requested SIDE of the dictionary, plus the pipeline's arrays.
 
     `peak_by_id` None means no 1.0B window table was read (the column is written as null rather
     than as a 0, which would read as "never fires"); `peak16` None means the row schema does not
     carry the 16M corpus peak, which is the uniform draw's frozen shape.
+
+    With `--sides enc,dec` the SAME drawn features appear twice, in the same order, as two
+    contiguous blocks distinguished by the row's `sae_side`. The pairing is what makes the
+    encoder/decoder comparison exact; `common.sae_rows_of(..., side=)` is what selects one of
+    them, and a row with no `sae_side` still reads as `enc` there, so the single-side shape is
+    unchanged.
     """
     import torch
 
-    sae = C.load_sae(C.sae_path(cfg, sae_key), spec["d"], device="cpu",
-                     dtype=torch.float32, need_decoder=False)
-    assert sae.d_sae > int(max(drawn)), f"feature id {max(drawn)} outside F={sae.d_sae}"
-    vecs = torch.nn.functional.normalize(
-        sae.W_enc[:, torch.as_tensor(np.asarray(drawn))].T.contiguous(), dim=-1)
+    sides = tuple(meta_extra.pop("sides"))
+    cols, gate, d_sae = _columns(C.sae_path(cfg, sae_key), spec["d"], drawn, sides)
+    vecs = torch.cat([cols[sd] for sd in sides], dim=0)
 
     rows = []
-    for i, fid in enumerate(drawn):
-        row = {
-            "row": i,
-            # `sae`, NOT `sae2m_enc` (fixed 2026-09-21). The family label is a SELECTOR, not a
-            # description: precompute/scan.py, top1_act.py, repo_examples.py, gcg/gcg.py,
-            # score.py's per-family means and autointerp's sae_self/build all filter
-            # `family == "sae"`, so a set stamped with anything else is invisible to every one of
-            # them -- which is why the first 2k draw had to be given read-time acceptance in each
-            # consumer instead of simply working. WHICH dictionary a row belongs to is a separate
-            # question and now has its own field.
-            "family": "sae",
-            # The config key of the SAE this feature index refers to. `id` alone is ambiguous
-            # across dictionaries: feature 4242 of the 131k `l42-1b` and of the 2M `sae2m` are
-            # unrelated directions, and before this field the only thing telling them apart was
-            # the family label that nothing selected on.
-            "sae_key": sae_key,
-            "id": int(fid),
-            "stratum": int(stratum[i]),
-            "side": str(side[i]),
-            "heldout_kind": "feature_id",
-            "stratum_stat": strat_name,
-            "gated_fires": int(gated_full[fid]) if have_stats else None,
-            "corpus_peak_1b": (None if peak_by_id is None
-                               else float(peak_by_id.get(int(fid), float("nan")))),
-        }
-        if peak16 is not None:
-            # The 16M corpus peak, which is the denominator every ratio in the activation
-            # smokes is taken against (`sae/<sae>/max_act.f16`). `corpus_peak_1b` above is a
-            # DIFFERENT quantity on a different corpus and the two are never interchangeable.
-            row["corpus_peak_16m"] = round(float(peak16[fid]), 4)
-        rows.append(row)
+    for sd in sides:
+        for i, fid in enumerate(drawn):
+            row = {
+                "row": len(rows),
+                # `sae`, NOT `sae2m_enc` (fixed 2026-09-21). The family label is a SELECTOR, not a
+                # description: precompute/scan.py, top1_act.py, repo_examples.py, gcg/gcg.py,
+                # score.py's per-family means and autointerp's sae_self/build all filter
+                # `family == "sae"`, so a set stamped with anything else is invisible to every one of
+                # them -- which is why the first 2k draw had to be given read-time acceptance in each
+                # consumer instead of simply working. WHICH dictionary a row belongs to is a separate
+                # question and now has its own field.
+                "family": "sae",
+                # The config key of the SAE this feature index refers to. `id` alone is ambiguous
+                # across dictionaries: feature 4242 of the 131k `l42-1b` and of the 2M `sae2m` are
+                # unrelated directions, and before this field the only thing telling them apart was
+                # the family label that nothing selected on.
+                "sae_key": sae_key,
+                # WHICH SIDE of the dictionary this row's vector is: `unit(W_enc[:, f])` or
+                # `unit(W_dec[f])`. `common.sae_rows_of(..., side=)` selects on it and defaults a
+                # row without it to "enc", so pre-2026-09-21 sets keep their meaning. It is NOT the
+                # `side` field below, which is our fit/report analysis split.
+                "sae_side": sd,
+                "id": int(fid),
+                "stratum": int(stratum[i]),
+                "side": str(side[i]),
+                "heldout_kind": "feature_id",
+                "stratum_stat": strat_name,
+                "gated_fires": int(gated_full[fid]) if have_stats else None,
+                "corpus_peak_1b": (None if peak_by_id is None
+                                   else float(peak_by_id.get(int(fid), float("nan")))),
+            }
+            if peak16 is not None:
+                # The 16M corpus peak, which is the denominator every ratio in the activation
+                # smokes is taken against (`sae/<sae>/max_act.f16`). `corpus_peak_1b` above is a
+                # DIFFERENT quantity on a different corpus and the two are never interchangeable.
+                row["corpus_peak_16m"] = round(float(peak16[fid]), 4)
+            rows.append(row)
     meta = {
         # The dictionary these feature ids index. It is on every ROW too (`sae_key`), because a
         # row can outlive the directory it was written in; here so a reader of the README and of
         # the returned dict does not have to open ids.jsonl to find out.
         "sae_key": sae_key,
+        # Per SIDE of the dictionary: the fit/report split is a property of the FEATURE, so a
+        # two-side draw carries each label twice and the set's row count is len(sides) x n.
+        "sides": list(sides),
+        "d_sae": int(d_sae),
         "n_fit": int((side == "fit").sum() + (side == "train").sum()),
         "n_report": int((side == "report").sum() + (side == "test").sum()),
-        "gate": float(sae.threshold),
+        "gate": gate,
         "stratum_stat": strat_name,
         "stratum_source": strat_source,
         "cuts": [float(c) for c in cuts],
@@ -450,9 +538,11 @@ def run(cfg, args):
                 "family_mu": {},
                 "families": {"sae": "dictionary"},
                 "sae_key": meta["sae_key"],
+                "sae_sides": meta["sides"],
                 "note": (
-                    "unit(W_enc[:, f]) encoder columns: never centred, not centrable "
-                    "(config.yaml family_kinds), so every --mu is a no-op on them"
+                    "unit dictionary columns -- unit(W_enc[:, f]) on an `sae_side: enc` row, "
+                    "unit(W_dec[f]) on a `dec` one: never centred, not centrable (config.yaml "
+                    "family_kinds), so every --mu is a no-op on them"
                 ),
             },
         )
@@ -481,6 +571,18 @@ def run(cfg, args):
         od.note(f"{meta['n_fit']} train/fit, {meta['n_report']} test/report -- BOTH "
                 f"halves are unseen by the MAEMM; this splits our analysis, not the "
                 f"model's training")
-        od.note(f"gate {meta['gate']}; vecs are unit(W_enc[:, f]) in fp32 before the cast")
+        od.note(f"gate {meta['gate']}; F = {meta['d_sae']:,}; vecs are unit dictionary columns "
+                f"in fp32 before the cast")
+        if len(meta["sides"]) > 1:
+            od.note(
+                f"BOTH SIDES of the dictionary, {len(rows) // len(meta['sides'])} features x "
+                f"{meta['sides']} = {len(rows)} rows, in that block order and PAIRED row for row "
+                f"within a block: row i and row i + {len(rows) // len(meta['sides'])} are the "
+                f"encoder and decoder column of the SAME feature. Select one with "
+                f"`common.sae_rows_of(..., side=)`, which reads each row's `sae_side`. The "
+                f"activation metric is the same on both (the activation of feature f is its "
+                f"ENCODER readout whichever direction was injected); the `vecs.f16` cross-check "
+                f"in sae_self does not apply to a decoder row."
+            )
     print(json.dumps({"set": set_name, "dir": out_dir, **meta}, indent=1), flush=True)
     return {"product": "draw_sae2m", "set": set_name, **meta}

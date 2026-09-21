@@ -49,7 +49,11 @@ DEFAULTS = {
     # draw's seed (0 = the module's DRAW_SEED). This path BYPASSES modal_app.main, so the
     # "--stratified belongs to draw_sae2m" assert there does not run -- naming the wrong product
     # here simply hands a product a key it ignores.
-    "stratified": False, "seed": 0,
+    # `--sides enc` | `enc,dec`: which side(s) of the dictionary become rows (paired blocks
+    # tagged `sae_side`). Draw-shaping like the two above, and on the same bypass caveat.
+    "stratified": False, "seed": 0, "sides": "",
+    # heldout_v3: which block of the eval-1 v3 set to write.
+    "block": "",
     "dry_run": False,
 }
 # Handled by spawn itself rather than passed through: --set is folded into --heldout here the way

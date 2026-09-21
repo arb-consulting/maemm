@@ -262,6 +262,13 @@ def _draw_sae2m(cfg, args):
     return importlib.import_module("features.draw_sae2m").run(cfg, args)
 
 
+def _heldout_v3(cfg, args):
+    """features/heldout_v3.py -- one block of the eval-1 v3 set, imported or copied."""
+    import importlib
+
+    return importlib.import_module("features.heldout_v3").run(cfg, args)
+
+
 PRODUCTS = {
     "check": product_check,
     "unit": product_unit,
@@ -282,18 +289,21 @@ PRODUCTS = {
     "top1_act": _script("top1_act"),
     "draw_sae2m": _draw_sae2m,
     "draw_sae131k": _draw_sae131k,
+    "heldout_v3": _heldout_v3,
 }
 # `corpus` is CPU AND the only product that goes to the network: the Ultra-FineWeb parquet parts
 # are not in the volume's HF cache, so corpus.py flips HF_HUB_OFFLINE off for itself. `mu_check`
 # reads two [d] vectors off the volume and does one dot product.
 # `centred` is CPU too: it only re-reads the arrays `score` already wrote (best_act, cos, norm).
-CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
+# `heldout_v3` neither forwards nor loads a model: it reads Celeste's frozen parquets off the
+# volume, solves a 512x5120 quadratic in numpy, or copies a row range out of an existing set.
+CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred", "heldout_v3")
 # Products that need --maemm.
 MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
 # Products that WRITE a held-out set. They must be told which by name -- D6. An omitted --set used
 # to resolve to `common.default_heldout(cfg)`, which is the LIVE set every table is built on, and
 # `--force` would then rmtree it. There is no safe default for "where do I write a new set".
-SET_WRITERS = ("targets", "draw_sae2m")
+SET_WRITERS = ("targets", "draw_sae2m", "heldout_v3")
 
 
 def _run(product, args, gpu_label):
@@ -375,6 +385,13 @@ def main(
     # dictionary -- so it always gets a set name of its own.
     stratified: bool = False,
     seed: int = 0,
+    # draw_sae2m: which SIDE(S) of the dictionary become rows. "enc" (the default and every set
+    # drawn before 2026-09-21) or "enc,dec", which emits the SAME features twice as two paired
+    # blocks tagged `sae_side`. It does not change the draw.
+    sides: str = "",
+    # heldout_v3: WHICH block of the eval-1 v3 set this call writes. One block per set
+    # directory, because a directory carries one storage contract.
+    block: str = "",
     rows: str = "",
     max_new: int = 0,
     gen_rows: int = 0,
@@ -486,6 +503,8 @@ def main(
         "n": n,
         "stratified": stratified,
         "seed": seed,
+        "sides": sides,
+        "block": block,
         "rows": rows,
         "max_new": max_new,
         "gen_rows": gen_rows,
@@ -550,10 +569,14 @@ def main(
         assert amp in C.AMP_MODES, f"--amp must be one of {list(C.AMP_MODES)}, got {amp!r}"
     # Same reason as --amp: a draw flag handed to a product that ignores it would run the wrong
     # draw silently, and --dry-run is where that should cost nothing.
-    if stratified or seed:
+    if block:
+        assert product == "heldout_v3", (
+            f"--block is a `heldout_v3` flag (which block of the v3 set to write) and means "
+            f"nothing to product {product!r}")
+    if stratified or seed or sides:
         assert product == "draw_sae2m", (
-            f"--stratified/--seed are `draw_sae2m` flags (how the target set is sampled) and mean "
-            f"nothing to product {product!r}"
+            f"--stratified/--seed/--sides are `draw_sae2m` flags (how the target set is sampled "
+            f"and which dictionary sides become rows) and mean nothing to product {product!r}"
         )
     # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
     # MAEMM_PRODUCTS call that must be allowed without --maemm.

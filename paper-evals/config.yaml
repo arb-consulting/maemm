@@ -441,6 +441,107 @@ heldout:
   # are built on. The family is `sae` (not `sae2m_enc`): this set is drawn AFTER the 2026-09-21
   # fix, so it carries the label every consumer filters on, with the dictionary in each row's
   # `sae_key`.
+  # ---------------------------------------------------------------------------------------
+  # EVAL 1 (faithfulness): the frozen v3 target blocks, 2026-09-21.
+  #
+  # ONE logical set in FOUR directories, because a directory carries ONE storage contract
+  # (`common.set_storage` returns a single `storage` kind and `dirs_for` branches on it once for
+  # all N rows) and these blocks genuinely do not share one. They are `--set`-ed separately and
+  # read together; row order within each block is FROZEN so every arm pairs.
+  #
+  #   2026-09-21_v3_realact    her 512 realact, RECOVERED TO RAW        raw
+  #   2026-09-21_v3_realact_long  her 512 realact_long, as shipped      unit (family_mu unknown)
+  #   2026-09-21_v3_subspace   her 512 bsf + 512 jlens, as shipped      dirs_only
+  #   2026-09-21_v3_ctrl       random + sae(131k), copied from v1raw    raw
+  #   2026-09-21_v3_sae2m      2M enc + dec, drawn                      dirs_only
+  #
+  # `imported: true` on every one, for the reason the sets above carry it: `sorted()[-1]` would
+  # otherwise make one of these the default of every product that omits --set, silently moving
+  # `2026-09-16_v1` off the paper's tables. Drop the flag deliberately, in its own commit, when
+  # v3 is adopted as the default.
+
+  # HER 512 realact rows, the eval-1 HEADLINE block. Imported from Celeste's v2 bundle
+  # (`heldout/eval_directions_v3/realact.parquet`, snapshot celeste-v2-2026-09-17) and recovered
+  # from `unit(act - whiten_mu)` + `pool_act_norm` back to the RAW activation by the exact solve
+  # (`rollouts_nla.build_inputs(amp="exact")`). That is valid because her `pool_act_norm` is
+  # `||act||`, settled 2026-09-21 -- see the set's own `recovery.json` and README for the three
+  # readings, and `features/heldout_v3.py`'s docstring. Consequence: `vecs.f16` here is
+  # `unit(act)`, UNCENTRED, and her shipped direction is what `dirs_for(mu=<whiten_mu>)` returns.
+  # So `rl-last16` (whose `mu:` IS that file) runs this block with no --mu and no deviation.
+  #
+  # EXCLUSIONS are recorded in the set's `exclusions.json`, not applied: 26 of 512 rows at
+  # `ngram_overlap --side hers --n 7` coverage >= 0.05, headline n = 486. All 512 rows stay so
+  # every arm pairs; the tables drop them.
+  2026-09-21_v3_realact:
+    imported: true
+    storage: raw
+    mu_stored: null           # nothing stored is centred; --mu decides per run
+    families:
+      realact: {n: 512, bases: [qwen36-27b]}
+
+  # HER 512 realact_long rows, AS SHIPPED. Centred on `mu_long` -- the mean over all collected
+  # long-context activations, computed on the fly in `eval/build_ctx_eval.py:47-54` from
+  # `MAEMM_ACTS_LONG` (/root/pmx/bsf27b/acts_long) and NEVER WRITTEN TO A FILE. It is not
+  # `whiten_mu`: over these rows cos(direction, whiten_mu) has mean -0.0618 and
+  # ||mean(direction)|| is 0.1216, against -0.0198 / 0.0615 on realact. So `unknown` is the
+  # honest value and the rows are returned as shipped with a label -- nothing here re-centres
+  # them, and the file to ask Celeste for is that mean (or the acts_long dump it comes from).
+  # `rl-last16` ONLY; the old primary and NLA skip it (marked not runnable without raw).
+  2026-09-21_v3_realact_long:
+    imported: true
+    storage: unit
+    mu_stored: null           # per family below
+    family_mu:
+      realact_long: unknown
+    families:
+      realact_long: {n: 512, bases: [qwen36-27b]}
+
+  # HER bsf + jlens subspace bases, AS SHIPPED. Neither is an activation, so neither has a mean
+  # to subtract (config.yaml `family_kinds`) and every --mu is a no-op on them. `rl-last16` only,
+  # same labelling as the block above.
+  2026-09-21_v3_subspace:
+    imported: true
+    storage: dirs_only
+    mu_stored: null
+    families:
+      bsf:   {n: 512, bases: [qwen36-27b]}
+      jlens: {n: 512, bases: [qwen36-27b]}
+
+  # OUR controls, COPIED (not re-drawn) out of `2026-09-21_v1raw` rows 512-1535: the 512 Gaussian
+  # `random` rows and the 512 131k-SAE `sae` rows, with each row keeping its own fields plus
+  # `src_set`/`src_row`. Both families are non-centrable, so `act.f32` and `vecs.f16` are the same
+  # direction and the raw contract carries forward unchanged. The source set is not modified.
+  # `sae_key` is declared because every one of those 131k feature ids is ALSO a valid index into
+  # the 2M encoder (H1) -- the rows carry no per-row key, so this line is what makes them
+  # selectable at all.
+  2026-09-21_v3_ctrl:
+    imported: true
+    storage: raw
+    mu_stored: null
+    sae_key: qwen36-27b/l42-1b
+    families:
+      random: {n: 512, bases: [qwen36-27b]}
+      sae:    {n: 512, bases: [qwen36-27b]}
+
+  # OUR 2M-SAE block: 512 features, density-stratified over the eligible eval-split pool at seed
+  # 20260921, with the 64 of `2026-09-21_sae2m_64` FORCED IN (`--include`) so the activation
+  # smoke's rows are nested inside the eval set rather than merely comparable. BOTH SIDES of the
+  # dictionary: rows 0-511 are `sae_side: enc` (unit(W_enc[:, f])) and rows 512-1023 are
+  # `sae_side: dec` (unit(W_dec[f])), the SAME features in the SAME order, so row i and row
+  # i+512 are one feature's two directions. The decoder half is what the 0.416 card gate needs.
+  # STRATIFIED, so a mean over all rows is a mean over four equally-weighted quartiles and NOT
+  # over the dictionary -- report per stratum.
+  2026-09-21_v3_sae2m:
+    imported: true
+    storage: dirs_only
+    mu_stored: null
+    sae_key: qwen36-27b/sae2m
+    seed: 20260921
+    families:
+      sae: {n: 1024, bases: [qwen36-27b]}   # 512 features x {enc, dec}
+    sae_min_fires: 20
+    sae_strata: 4
+
   2026-09-21_sae2m_64:
     imported: true
     # The storage contract, added when this entry met the 2026-09-21 schema (it was drawn on

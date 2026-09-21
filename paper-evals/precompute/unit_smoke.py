@@ -26,6 +26,7 @@ exactly once. What this file covers of the prompt path is the assertion behaviou
 """
 
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -1367,6 +1368,86 @@ def check_exact_solve_roundtrip():
 
 
 
+def check_heldout_v3_recovery():
+    """`features/heldout_v3.recover_raw` returns the ACTIVATION, and refuses when it cannot.
+
+    Its whole claim is that a row stored as `unit(act - mu)` plus `||act||` is recoverable, so
+    the reference here is the activation it was built from -- never the solve restated. Two
+    outcomes are pinned: the recovery and its two identities on a solvable draw, and the
+    REFUSAL on a row whose norm is unreachable on the line `mu + R*u`, because silently keeping
+    such a row would put a `mu`-shaped vector into `act.f32` under a raw contract.
+    """
+    import numpy as np
+
+    from features import heldout_v3
+
+    rng = np.random.default_rng(11)
+    d = 64
+    mu = rng.normal(size=(d,)).astype(np.float64) * 2.0
+    act = rng.normal(size=(5, d)).astype(np.float64) * 40.0
+    u = (act - mu) / np.linalg.norm(act - mu, axis=1, keepdims=True)
+    a = np.linalg.norm(act, axis=1)
+    x, info, ident = heldout_v3.recover_raw(u.astype(np.float32), a, mu.astype(np.float32))
+    cos = np.einsum("nd,nd->n", x, act) / (np.linalg.norm(x, axis=1) * np.linalg.norm(act, axis=1))
+    assert cos.min() > 1 - 1e-4, f"recover_raw did not return act: min cos {cos.min():.6f}"
+    assert ident["min_cos_to_shipped"] > 1 - 1e-6 and ident["max_abs_norm_error"] < 1e-3, ident
+    assert all(r["fallback"] is None for r in info), info
+    # `||mu||` here is 2*sqrt(d) ~ 16; a row claiming ||act|| = 1e-3 is not on that line at all.
+    try:
+        heldout_v3.recover_raw(u[:1].astype(np.float32), np.array([1e-3]), mu.astype(np.float32))
+    except AssertionError as e:
+        # Either guard is a valid refusal -- the fallback count, or the ||act|| identity that
+        # catches the `mu`-shaped vector the fallback would otherwise hand back. Both have to
+        # go for a row to get through, which is what the mutation battery in SMOKES.md removes.
+        assert "fell back" in str(e) or "the stored norm" in str(e), f"wrong refusal: {e}"
+    else:
+        raise AssertionError("recover_raw accepted a row the solve cannot reach")
+
+
+def check_sae_column_reader():
+    """`draw_sae2m._columns` is `common.load_sae`'s two matrices, sliced instead of cast whole.
+
+    The encoder side has to be BIT-IDENTICAL or the 2M sets drawn before and after this change
+    are not comparable; the decoder side has to be the feature's COLUMN of `decoder.weight`
+    (nn.Linear stores `[out, in]`, so the decoder that maps F -> d is `[d, F]`) -- transposing
+    the wrong way gives `d` rows of length F that still normalise, and would be silent.
+    """
+    import numpy as np
+    import torch
+
+    from features import draw_sae2m
+
+    rng = np.random.default_rng(3)
+    F, d = 37, 8
+    enc = torch.tensor(rng.normal(size=(F, d)), dtype=torch.float32)   # encoder.weight [F, d]
+    dec = torch.tensor(rng.normal(size=(d, F)), dtype=torch.float32)   # decoder.weight [d, F]
+    dec = dec / dec.norm(dim=0, keepdim=True)                          # load_sae asserts unit rows
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "ae.pt")
+        torch.save({"encoder.weight": enc, "decoder.weight": dec,
+                    "encoder.bias": torch.zeros(F), "bias": torch.zeros(d),
+                    "threshold": torch.tensor(1.5)}, path)
+        drawn = np.array([0, 5, 36, 12], dtype=np.int64)
+        cols, gate, d_sae = draw_sae2m._columns(path, d, drawn, ("enc", "dec"))
+        assert (gate, d_sae) == (1.5, F), (gate, d_sae)
+        sae = C.load_sae(path, d, device="cpu", dtype=torch.float32, need_decoder=True)
+        want_enc = torch.nn.functional.normalize(
+            sae.W_enc[:, torch.as_tensor(drawn)].T.contiguous(), dim=-1)
+        assert torch.equal(cols["enc"], want_enc), (
+            "the sliced encoder side is not bit-identical to load_sae's: "
+            f"max |d| {float((cols['enc'] - want_enc).abs().max()):.3e}")
+        want_dec = torch.nn.functional.normalize(sae.W_dec[torch.as_tensor(drawn)], dim=-1)
+        assert torch.allclose(cols["dec"], want_dec, atol=1e-6), (
+            "the decoder side is not unit(W_dec[f]): "
+            f"max |d| {float((cols['dec'] - want_dec).abs().max()):.3e}")
+        # and the two sides are genuinely different vectors, so a copy-paste would be caught
+        assert float((cols["enc"] * cols["dec"]).sum(1).abs().max()) < 0.99, (
+            "enc and dec came out collinear on a random checkpoint -- one side is a copy")
+    # A row emitted by the draw must SAY which side it is, or sae_rows_of defaults it to enc.
+    src = (Path(__file__).resolve().parent.parent / "features/draw_sae2m.py").read_text()
+    assert '"sae_side": sd' in src, "draw_sae2m emits no sae_side field"
+
+
 def check_spawn_mirrors_main():
     """`features/spawn.py`'s DEFAULTS and `modal_app.main`'s signature carry the SAME arguments.
 
@@ -1536,7 +1617,8 @@ def check_every_set_writer_writes_the_contract():
     import ast
 
     root = Path(__file__).resolve().parent.parent
-    for rel in ("precompute/targets.py", "features/draw_sae2m.py", "features/heldout_v2.py"):
+    for rel in ("precompute/targets.py", "features/draw_sae2m.py", "features/heldout_v2.py",
+                "features/heldout_v3.py"):
         src = (root / rel).read_text()
         assert C.STORAGE_FILE in src, (
             f"{rel} draws a held-out set but never writes {C.STORAGE_FILE}: common.set_storage "
@@ -1640,6 +1722,8 @@ CHECKS = [
     check_sae_key_selector,
     check_family_kinds_table,
     check_exact_solve_roundtrip,
+    check_heldout_v3_recovery,
+    check_sae_column_reader,
     check_spawn_mirrors_main,
     check_return_arities,
     check_centred_uses_one_mu,
