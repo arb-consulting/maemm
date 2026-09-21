@@ -2459,7 +2459,37 @@ def check_span_in_corpus():
     assert not _span_in_corpus(np.array([1, 2], dtype=np.int32), np.array([1, 2, 3], dtype=np.int32))
 
 
+def check_scan_masks_on_label():
+    """`scan` must key the own-document mask on the corpus LABEL, never on `cname`.
+
+    A target's `mask_corpus` says which corpus its `doc` indexes. The base's own English corpus is
+    `cname == ""` and `label == "corpus"`, so a comparison against `cname` matches nothing for a
+    realact target in a scan of that corpus and every one of them loses its own-document mask --
+    silently, and in the direction that INFLATES the corpus-search baseline, which is the effect
+    review R1 of the OOD design exists to remove. Checked on the source because the function needs
+    a corpus, a set and a GPU to run, and the invariant is one token wide.
+    """
+    import re
+
+    src = (Path(__file__).resolve().parent / "scan.py").read_text()
+    m = re.search(r"keep_mask = torch\.tensor\(\[mc == (\w+) for mc in mask_corpus\]", src)
+    assert m, "scan.py no longer builds keep_mask from mask_corpus in the expected shape"
+    assert m.group(1) == "label", (
+        f"scan.py compares mask_corpus against {m.group(1)!r}; it must be `label` "
+        f"(= cname or 'corpus'), or the base's own corpus never matches its own targets"
+    )
+    # and nothing may append a label that could be empty for a corpus that HAS one
+    appends = re.findall(r"mask_corpus\.append\((.+?)\)\s*(?:#|$)", src, re.M)
+    assert appends, "scan.py no longer appends to mask_corpus"
+    for a in appends:
+        assert a.strip() in ('""', '"corpus"') or "or \"corpus\"" in a, (
+            f"mask_corpus.append({a.strip()}) can yield an empty label for a corpus that has one; "
+            f'append `... or "corpus"` so it is comparable with the scan\'s own label'
+        )
+
+
 CHECKS = [
+    check_scan_masks_on_label,
     check_config,
     check_paths,
     check_read_hook,

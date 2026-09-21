@@ -173,7 +173,7 @@ def _load_targets(cfg, args, notes=None):
             # rows the corpus build did not consume (design §2), so the mask is empty in practice
             # -- it is written anyway, so that the invariant is the code's and not a comment's.
             doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
-            mask_corpus.append(C.corpus_key_name(cfg, f"ood_{r['arm']}"))
+            mask_corpus.append(C.corpus_key_name(cfg, f"ood_{r['arm']}") or "corpus")
         else:
             mask_corpus.append("")  # nothing to mask: the target's document is in no corpus here
     return rows, V, (doc, lo, hi, mask_corpus)
@@ -306,8 +306,11 @@ def _scan_one(
     read_layer = cfg["bases"][base]["read_layer"]
     n, n_feat = len(rows), len(tested)
     t_doc_c, t_lo_c, t_hi_c, mask_corpus = masks
-    # the own-document mask applies only to targets whose OWN corpus is the one being scanned
-    keep_mask = torch.tensor([mc == cname for mc in mask_corpus], dtype=torch.bool)
+    # The own-document mask applies only to targets whose OWN corpus is the one being scanned.
+    # Compared on the LABEL, not on `cname`: the base's own English corpus is `cname == ""` and
+    # `label == "corpus"`, and comparing on cname silently dropped the mask for every realact
+    # target in a scan of that corpus -- which is the own-document inflation review R1 is about.
+    keep_mask = torch.tensor([mc == label for mc in mask_corpus], dtype=torch.bool)
     t_doc = torch.where(keep_mask, t_doc_c, torch.full_like(t_doc_c, -1)).cuda()
     t_lo, t_hi = t_lo_c.cuda(), t_hi_c.cuda()
     n_masked_rows = int(keep_mask.sum())
