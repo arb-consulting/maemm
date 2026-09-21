@@ -4,6 +4,12 @@ Written 2026-09-21. This is the shared store for the MAEMM / Exemplifier paper's
 evaluations. If you are an agent or a person who has just been pointed at this volume,
 read this file and then `paper/README.md`.
 
+**The inventory is GENERATED, not in this file.** `INVENTORY.md` beside this one lists
+every model, target set, corpus, SAE product, rollout, score and baseline that exists
+right now, with each set's selection rule pulled from its own README. Regenerate it
+with `python -m features.inventory --put`; do not hand-edit it. This file is the part
+that changes slowly: layout, conventions, and what will bite you.
+
 **The one thing to understand first:** this volume holds products keyed by *type*
 (`scan/`, `gcg/`, `maemms/<m>/rollouts/`), which is right for producing them and useless
 for finding them. `paper/<section>/README.md` indexes each paper experiment — what
@@ -290,8 +296,49 @@ The configuration inherited from the 8B screen is confirmed correct for the 27B.
 the SAE column sits **below the random floor** — consistent with 2M features being
 largely orthogonal to realact directions.
 
-**§3.6 trojans, theme family at layer 42: 16/16 installed**, all with verbatim payload,
+### The 2M SAE sits at the random floor
+
+2,000 features each, same checkpoint, same scorer, n=4:
+
+```
+                  mean      bo4
+131k SAE        0.1116    0.1292
+2M SAE          0.0311    0.0373
+random floor    0.0338    0.0387
+```
+
+The generator does **no better on 2M features than on Gaussian noise**, while the 131k
+dictionary is 3.6x higher and clearly above the floor. Three independent methods now
+agree on this: Tomas's autointerp smoke has every arm at chance *including the corpus
+reference*; the Patchscopes 27B screen puts 2M SAE at 0.016-0.021 against a 0.030 floor;
+and this.
+
+Two readings, not yet distinguished: either the 2M dictionary's features are genuinely
+not semantically describable (the explainer calls them "highly predictable continuation
+tokens / function words"), or something in how we READ the 2M SAE is wrong -- which
+would rhyme with the unresolved 131k max-acts discrepancy in section 1. The cheap
+discriminator is `repo_examples` on the 2M SAE: score its own shipped max-activating
+windows with our encoder. Near the floor means the dictionary is the finding; high means
+our reading is broken. **Run that before spending on 2M autointerp.**
+
+### Trojans at layer 42
+
+**theme: 16/16 installed**, all with verbatim payload,
 control firing 0.00–0.05. Better than the layer-40 run in the draft (15/16 exact).
+
+**SEP: 2/8 installed, and only 8 of 16 trained** (the run ended without the other 8 and
+the log was lost -- rerun with output kept before concluding anything). Two failure
+modes: three under-fire on their own trigger (0.50-0.75), and two fire perfectly but
+leak badly on non-trigger prompts (control 0.57 and 0.48), which is the worse one -- a
+trojan that fires without its trigger is not gated at all.
+
+The cause is structural. All 16 SEP trojans share the SAME frames and differ only in
+three digits, and the clean negatives deliberately include the other codes, so a rank-1
+read vector must separate "864" from "394" inside an otherwise identical sentence
+through a single scalar projection. The theme family gives each trigger 16 sentences
+about its own domain, so `a` has far more to latch onto. Consistent with the paper's
+0/16 SEP code recovery -- but that was a READOUT failure and this is an INSTALLATION
+failure, which is new.
 
 ---
 
@@ -364,6 +411,11 @@ at ~440 gen tok/s. Do not assume vLLM is the fast path.
   committing the $92 run.
 * **`realact_early/mid/long`** are near-orthogonal to `realact` (median −0.007), so they
   are different activations, not context variants, and ship no provenance.
+* **SEP trojans do not install reliably at layer 42** (2/8), and 8 of 16 never ran.
+* **The v3 target sets** (`2026-09-21_v3_*`, drawn 2026-09-21) are the team's current
+  family and are stratified on gated fire counts from our own 16M scan, enc+dec, via a
+  `heldout_v3` product. They supersede `2026-09-20_sae2m_2k`, which was drawn earlier on
+  Celeste's 1.0B corpus peaks because the stats pass had not finished. See INVENTORY.md.
 * **§3.4, §3.5, §3.6, §3.8** live outside this pipeline in separate codebases. §3.6's
   trojans are on the **`maemm-trojan-cache`** volume, not this one.
 * **`paper/<section>/` statuses are hand-maintained** and go stale. Regenerate with
