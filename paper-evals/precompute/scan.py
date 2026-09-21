@@ -246,23 +246,30 @@ def run(cfg, args):
     tested = [int(r["id"]) for r in sae_sel]
     tested_row = [r["row"] for r in sae_sel]
 
+    # `scan/<set>` stays the name of the ONE unbounded scan of the base's own English corpus, so
+    # every number measured between 2026-09-16 and 2026-09-21 keeps its path. Anything else is
+    # keyed (C.scan_dir, H5) by the corpus AND the bound: a 1M-bounded scan of a 4M corpus is a
+    # different number from the full one, and `<set>__4m` alone could not be told apart from the
+    # scan of a corpus whose directory is literally `4m`.
+    sub = len(corpora) > 1 or bool(max_size) or any(corpora)
     plans = []
     for raw in corpora:
-        # the literal name `corpus` is the base's OWN English corpus, so one call can scan it
-        # beside the arm corpora (the pilot scans three arms plus the English 4M prefix)
+        # `--corpus heldout16m` already resolves to the empty directory name on the client
+        # (common.corpus_key_name), so an empty list element IS the base's own English corpus.
+        # The literal `corpus` is kept as the spelling for it on the `--corpus-name` escape
+        # hatch, where a leading empty element cannot be typed.
         cname = "" if raw == "corpus" else raw
         label = cname or "corpus"
-        # scan/<set> when this is the one unbounded English scan, scan/<set>__<corpus> otherwise
-        # (C.scan_dir, H5) -- and `__<M>m` on top when the scan stops at a nested prefix, because a
-        # 4M-bounded scan of a 16M corpus is a different number from the full one.
-        out_scan = C.scan_dir(base, set_name, root, cname) + (f"__{max_size}m" if max_size else "")
+        key = (label + (f"__{max_size}m" if max_size else "")) if sub else ""
+        out_scan = C.scan_dir(base, set_name, root, key)
         # The SAE examples are a product of a scan whose SET has sae targets. An OOD scan has none,
         # so it writes no examples/ -- and must not, because that directory is shared.
         # KEYED BY SET AND CORPUS (B9, 2026-09-21): `examples/` used to be keyed by SAE alone, so a
         # second scan of the same dictionary against a different set refused without --force and
-        # DESTROYED the first set's examples with it.
+        # DESTROYED the first set's examples with it. Keyed by the SAME string as the scan half,
+        # so the two halves of one call can never drift apart.
         out_ex = (
-            C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=cname)
+            C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=key)
             if tested else ""
         )
         for path in (out_scan, out_ex):
