@@ -3850,3 +3850,73 @@ measure throughput, and the two must not be read off one trace.
 
 **Leftovers, not deleted:** `…/gcg/2026-09-21_sae2m_64/sae/epo-random32-shakeout.tmp-2026-09-21`
 (the OOMed first attempt) and `…/sae/epo-random32-shakeout2` (the successful one).
+
+---
+
+## 2026-09-21 — the unmarked-block defect, and the relative-marking rerun
+
+### The defect
+
+`mark="gate"` marks a token iff its pre-gate activation exceeds the SAE's learned gate. On the 2M
+dictionary a MAEMM rollout frequently clears it NOWHERE, and `exemplar_block` then emits bare
+`Example n:` lines — no `<<>>`, no `Activations:` line. The explainer answers topically anyway and
+`run.py` records an ordinary explanation, so the arm is scored on a description written from
+unmarked text and **nothing anywhere counted it**. Found by reading the real prompts for
+`infra/2026-09-21_autointerp-examples.md`; one answer opens *"there's no explicit token
+highlighting/activation data provided"*.
+
+### The census, block-level, both dictionaries
+
+Earlier per-feature counts (15/32, 23/32, 26/32) were features where EVERY block was unmarked. The
+block-level picture is worse, and the last column explains both halves of it.
+
+| block | arm | unmarked, gate | unmarked, relative | median block peak / 16M corpus peak |
+|---|---|---|---|---|
+| 2M | `DOCMAX` | 0/512 (0.0%) | 0/512 | 0.629 |
+| 2M | `M` rl-last16 | **390/512 (76.2%)** | **24/512 (4.7%)** | 0.219 |
+| 2M | `M` old primary | **425/512 (83.0%)** | **161/512 (31.4%)** | 0.061 |
+| 2M | `NLA` | **114/128 (89.1%)** | **12/128 (9.4%)** | 0.194 |
+| 131k | `DOCMAX` | 3/512 (0.6%) | 3/512 | 0.755 |
+| 131k | `M` rl-last16 | 80/511 (15.7%) | 50/511 (9.8%) | 0.730 |
+| 131k | `M` old primary | 45/512 (8.8%) | 22/512 (4.3%) | 0.969 |
+| 131k | `NLA` | 27/128 (21.1%) | 19/128 (14.8%) | 0.516 |
+
+**The median-peak column is the whole story.** On the 131k, generated text reaches 0.52-0.97 of the
+feature's corpus peak, so most blocks already cleared the gate and relative marking has little left
+to change. On the 2M it reaches 0.06-0.22, so most blocks cleared nothing. The 2M block was not
+measuring the methods; it was measuring whether generated text ever crossed a threshold set by a
+much harder dictionary. The old primary's residual 31 % is not a fallback failure — those blocks
+are `unmarkable` (peak ≤ 0, the feature never fires on that text at all), which is what a median of
+0.061 predicts.
+
+The cost corroborates it: the 131k reruns came to **$0.564** against the 2M's **$3.0198**, because
+far fewer explainer calls changed body and the rest came from the shared cache.
+
+### The fix, and what it is not
+
+`--rollout-mark relative` (8d307fd): when a GENERATED-TEXT block has nothing above the gate, mark
+at `>= 0.5 x that block's own peak`. Delphi's rule in shape at a stricter fraction. A FALLBACK —
+a block with anything above the gate is untouched — and never applied to the corpus arms, whose
+peak IS the corpus peak and whose unmarked blocks are a fact about the feature. Default stays
+`gate` so every earlier run reproduces.
+
+**Test sets are byte-identical between the gate and relative builds** (digest `983e477ad1b6e6e9`
+on the 2M, over every `test` and `test2` row of all 32 features), so gate-vs-relative is paired
+per feature and the two tables are read against each other directly.
+
+### The refusals are a SEPARATE defect, now measured as such
+
+`2026-09-21_e2-2m-rl16-rel` reports `explainer_refusals: 11` — **exactly the same 11 as the
+gate-marked run**. Relative marking does not touch them. The unmarked blocks were a rendering
+failure; the refusals are the API declining to describe rl-last16's 2M rollout TEXT. They were
+always independent and now that is measured rather than assumed.
+
+### Products
+
+```
+base/qwen36-27b/autointerp/2026-09-21_sae2m_64/2026-09-21_e2-2m-{rl16,oldprim,nla}-rel/
+base/qwen36-27b/autointerp/2026-09-16_v1/2026-09-21_e2-131k-{rl16,oldprim,nla}-rel/
+runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}-rel/
+```
+All new paths, under the same shared caches; nothing was deleted or overwritten. Rerun API cost
+**$3.5838** ($3.0198 + $0.5640); eval-2 API total **$23.9982** of the $30 cap over 12 runs.
