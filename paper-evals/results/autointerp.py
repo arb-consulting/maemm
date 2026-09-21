@@ -17,12 +17,22 @@ Local, CPU, no GPU, no model, no API. Every number is READ from the `scores.json
 the bootstrap intervals, and -- as a CHECK -- the balanced accuracies the rows already carry.
 
 WHY MORE THAN ONE RUN DIRECTORY. `run` is per CHECKPOINT: the `M` arm of `rl-last16` and the `M`
-arm of the old primary are two runs, and the corpus arms are re-explained and re-scored inside
-each of them. Eval 2 is therefore SIX run directories -- three checkpoints on each of two SAEs --
-and this driver is invoked once per SAE with one `--run <label>=<dir>` per checkpoint. The unit of
-comparison is consequently the pair `(<run label>, <arm>)` and never the bare arm name: `C16`
-under two labels was explained by two different explainer calls and scored by two different judge
-calls, and printing them under one heading would merge two measurements.
+arm of the old primary are two runs, and each run directory carries its own copy of every corpus
+arm. Eval 2 is therefore SIX run directories -- three checkpoints on each of two SAEs -- and this
+driver is invoked once per SAE with one `--run <label>=<dir>` per checkpoint. The unit of
+comparison is consequently the pair `(<run label>, <arm>)` and never the bare arm name.
+
+WHETHER TWO LABELS ARE TWO MEASUREMENTS DEPENDS ON THE CACHE, AND THE DRIVER DOES NOT GUESS.
+`run.py`'s cache key is `sha256({"job": <job key>, "body": <request body>})` with no run or build
+component, so three runs launched with ONE shared `--cache-dir` replay each other's corpus-arm
+calls and their `DOCMAX` rows are one measurement reproduced three times, not three. That is how
+the 2026-09-21 eval-2 runs were launched (`--cache-dir .../runs/e2-cache-{2m,131k}`), and it is
+why every `DOCMAX` row is identical across the three labels of a block and the paired contrast
+`DOCMAX(old-primary) - DOCMAX(rl-last16)` is exactly +0.0000 [+0.0000, +0.0000]. Run them with
+separate cache directories and the same three rows become three independent draws of the explainer
+and the judge, and the same table reads differently. The driver keeps the pair as the unit either
+way -- merging the labels would be wrong under separate caches, and the +0.0000 contrast is the
+diagnostic that says which regime produced the numbers in front of you.
 
 WHAT IT BUILDS, per SAE:
 
@@ -39,10 +49,24 @@ WHAT IT BUILDS, per SAE:
                that covers fewer features than the reference is a real property of the design; an
                arm that de-pairs silently is a defect.
 
-  strata       mean bal_acc per (arm x scorer x stratum), the density quartile `run.py` copies
-               onto every row. The paper reports it for the PRIMARY SAE only; `--no-strata` turns
-               it off for the secondary block. Cells are small (8 features at `--n-feat 32`), so
-               this table carries the mean and the n and no interval.
+  strata       mean bal_acc per (arm x scorer x stratum) on the DRAW's own rarity quartile, which
+               `run.py` copies onto every score row. Every arm and BOTH scorers, on EITHER SAE:
+               `--no-strata` turns the block off, it does not make it primary-only. The two SAEs'
+               strata are the same rank in each dictionary's own rarity ordering and are NOT the
+               same rarity -- the caption quotes each set's draw record off the volume for the
+               statistic, the pool and the cut points, and never retypes a number.
+
+  peak_strata  the same table on a SECOND axis: quartiles of `corpus_peak`, the feature's peak
+               activation over the 16M corpus scan. A POST-HOC cut of the features this block
+               analysed -- the cuts are computed here and printed in the caption -- and the caption
+               says so, because the rarity strata were balanced by the draw and this one was not.
+               `--no-peak-strata` turns it off.
+
+  trends       per (view x arm x scorer): the spread across cells, Spearman's rho over the cells as
+               a DESCRIPTION OF SHAPE, and a label-permutation p on the spread. At 8 features per
+               cell almost nothing separates and the table says which of it does; the rho is
+               explicitly not a test, because four cells cap its exact two-sided p at 2/24 = 0.083.
+               A cell below MIN_CELL features is excluded here and named, never silently averaged.
 
   support      per (arm x scorer): features, how many had no explanation, the mean item count, the
                batch parse rate, the role, the draw and `n_examples`. UNEQUAL N IS SHOWN, never
@@ -122,6 +146,24 @@ BAL_ACCS = (
 )
 # The fields a row must carry to be usable at all. Anything else is optional and read with `.get`.
 REQUIRED = ("feature", "arm", "scorer")
+# A cut cell below this many features is called SHORT: its mean is still printed (nothing here is
+# smoothed away) but it is labelled in the table, counted into a check, and kept OUT of the trend
+# statistics below. Four is half the design's eight, and it is where a percentile bootstrap stops
+# being one: with three values or fewer both tails of the interval sit on a single feature, so the
+# cell's contribution to a spread is one observation wearing a mean's clothes.
+MIN_CELL = 4
+# The two cut views, kept apart everywhere -- two tables, two registry prefixes, two trend blocks.
+# `stratum` is the DRAW's own pre-registered rarity quartile, carried on every score row by the
+# set that was drawn on it. `peak` is cut HERE, post hoc, over the features this block happens to
+# have analysed. One is a property of the design and the other a property of the sample, and a
+# reader who read the second as the first would credit the draw with a balance it never enforced.
+STRATUM_VIEW = "stratum"
+PEAK_VIEW = "peak"
+# The per-row field each view cuts on. `stratum` is already an integer bucket; `corpus_peak` is a
+# continuous magnitude and is quartiled below.
+VIEW_FIELD = {STRATUM_VIEW: "stratum", PEAK_VIEW: "corpus_peak"}
+# What each view calls one of its cells, in every table and every check row.
+CUT_WORD = {STRATUM_VIEW: "stratum", PEAK_VIEW: "quartile"}
 
 
 @dataclass(frozen=True)
@@ -290,10 +332,12 @@ def paired_diff(a: dict[int, float], b: dict[int, float]) -> dict:
 def resolve_ref(arms: list[Arm], ref: str, ref_run: str) -> tuple[Arm | None, str]:
     """(the reference arm of the contrasts, "" or why it did not resolve).
 
-    A bare `--ref DOCMAX` names an ARM, and eval 2's run directories each carry their own DOCMAX --
-    re-explained and re-scored inside that run -- so the name alone does not identify one. The
-    reference is therefore taken from the FIRST `--run` given: a stated convention, printed in the
-    caption, rather than a pick among equals. `--ref <label>/<arm>` names one outright.
+    A bare `--ref DOCMAX` names an ARM, and eval 2's run directories each carry their own DOCMAX,
+    so the name alone does not identify one. The reference is therefore taken from the FIRST
+    `--run` given: a stated convention, printed in the caption, rather than a pick among equals.
+    `--ref <label>/<arm>` names one outright. Under a shared `--cache-dir` the copies are the same
+    calls replayed and the choice does not matter; under separate caches it does, which is the
+    reason this is a stated convention and not an arbitrary one.
     """
     if "/" in ref:
         hits = [a for a in arms if a.label == ref]
@@ -306,6 +350,278 @@ def resolve_ref(arms: list[Arm], ref: str, ref_run: str) -> tuple[Arm | None, st
     return None, (
         f"`--ref {ref}` matched {len(hits)} arms{where}; the arms present are "
         f"{', '.join(a.label for a in arms) or 'none'}. Name one as `<run label>/<arm>`.")
+
+
+# ---------------------------------------------------------------------------------------------
+# cuts -- the draw's rarity strata, and a post-hoc cut on activation magnitude
+# ---------------------------------------------------------------------------------------------
+
+
+def feature_field(rows: list[dict], field: str, cast=float) -> tuple[dict[int, object], list[int]]:
+    """({feature: its `field`}, the features whose rows disagree about it).
+
+    `stratum` and `corpus_peak` are properties of the FEATURE -- the draw's quartile and the 16M
+    corpus peak it recorded -- and `run.py` copies each onto every score row of that feature, so
+    all of a feature's rows across every arm and both scorers must carry one value. A feature whose
+    rows disagree is two sets joined under one `--root`, and a quartile cut taken over that mixture
+    would be cut on a distribution that exists nowhere; it is reported here rather than resolved by
+    picking whichever row was read first.
+
+    `cast` keeps the value's own kind: a stratum stays an `int` so the table's heading reads
+    `stratum 0` and not `stratum 0.0`, and a corpus peak stays a `float` so it can be quartiled.
+    """
+    seen: dict[int, set] = {}
+    for r in rows:
+        v = r.get(field)
+        if v is None:
+            continue
+        seen.setdefault(int(r["feature"]), set()).add(cast(v))
+    out = {f: next(iter(vs)) for f, vs in seen.items() if len(vs) == 1}
+    return out, sorted(f for f, vs in seen.items() if len(vs) > 1)
+
+
+def quartile_buckets(per_feature: dict[int, float]) -> tuple[dict[int, int], list[float]]:
+    """({feature: 0..3}, the three cut points) -- quartiles of the values GIVEN, nothing else.
+
+    `np.quantile`'s linear interpolation on the analysed values, assigned with `searchsorted(...,
+    side="right")` so a value sitting exactly on a cut falls in the HIGHER bucket. The cuts are the
+    ANALYSED SET's own quartiles and are reported in the caption, because unlike the draw's strata
+    nothing balanced this axis in advance: ties across a cut make the buckets unequal, which is why
+    every cell below prints its own n rather than the n the count would imply.
+    """
+    if len(per_feature) < 4:
+        return {}, []
+    vals = np.array(sorted(per_feature.values()), dtype=float)
+    cuts = [float(c) for c in np.quantile(vals, [0.25, 0.5, 0.75])]
+    return ({f: int(np.searchsorted(cuts, v, side="right")) for f, v in per_feature.items()},
+            cuts)
+
+
+def _avg_ranks(v: np.ndarray) -> np.ndarray:
+    """Average ranks, ties shared -- `scipy.stats.rankdata`'s `average` on four numbers.
+
+    Written out rather than imported: `results/` runs on numpy alone (see this file's `dependencies`
+    block), and four cells do not justify a scipy dependency in every driver that imports this one.
+    """
+    order = np.argsort(v, kind="stable")
+    ranks = np.empty(len(v), dtype=float)
+    i = 0
+    while i < len(v):
+        j = i
+        while j + 1 < len(v) and v[order[j + 1]] == v[order[i]]:
+            j += 1
+        ranks[order[i:j + 1]] = 0.5 * (i + j) + 1.0
+        i = j + 1
+    return ranks
+
+
+def spread_perm_p(vals: np.ndarray, buckets: np.ndarray, n_perm: int, seed: int) -> float:
+    """P(spread of a random relabelling >= the observed spread), cell SIZES held fixed.
+
+    The null is that the cut carries no information about this arm's per-feature accuracy: the
+    bucket labels are shuffled over the arm's own features, so the cells keep their sizes and the
+    marginal distribution of the values is exactly the observed one. Nothing is assumed normal,
+    which matters because a per-feature balanced accuracy on 40 items is a lattice of multiples of
+    1/40 and is nowhere near normal at n = 8.
+
+    The statistic is max − min ACROSS CELLS, which is already the maximum over cells: its null
+    absorbs "whichever cell turned out extreme" and so needs no further correction WITHIN a row.
+    It does not absorb the choice of (arm, scorer), which the table's note states and corrects for.
+
+    `(hits + 1) / (n_perm + 1)` -- the add-one form, so the p-value can never be reported as 0 and
+    is never smaller than the resolution the resample count actually bought.
+    """
+    uniq = np.unique(buckets)
+    if len(uniq) < 2 or len(vals) < 2:
+        return float("nan")
+    # Sort once so each cell is a contiguous block; permuting the VALUES is then the same null as
+    # permuting the labels, and every resample's cell means are one `reduceat` rather than a loop.
+    order = np.argsort(buckets, kind="stable")
+    v, lab = vals[order], buckets[order]
+    starts = np.searchsorted(lab, uniq)
+    sizes = np.diff([*starts, len(v)]).astype(float)
+    obs_means = np.add.reduceat(v, starts) / sizes
+    obs = float(obs_means.max() - obs_means.min())
+    rng = np.random.default_rng(seed)
+    perm = rng.permuted(np.tile(v, (int(n_perm), 1)), axis=1)
+    means = np.add.reduceat(perm, starts, axis=1) / sizes
+    hits = int(np.sum((means.max(axis=1) - means.min(axis=1)) >= obs - 1e-12))
+    return (hits + 1) / (int(n_perm) + 1)
+
+
+def cut_cells(by_cell: dict[tuple[Arm, str], dict[int, dict]], arms: list[Arm],
+              scorers: list[str], bucket_of: dict[int, int], view: str,
+              boot: int, seed: int) -> list[dict]:
+    """One row per (arm, scorer, cell): the mean, its bootstrap interval, its n, and SHORT.
+
+    The interval is the same percentile bootstrap over features the headline table uses, so a cell
+    and a whole-arm number are the same estimator at two sample sizes and can be read against each
+    other. At the eval's 8 features per cell it is wide and is meant to be: printing the mean alone
+    invites a reader to compare four cells that a 0.2-wide interval cannot separate.
+    """
+    out: list[dict] = []
+    for key in arms:
+        for scorer in scorers:
+            cell = by_cell.get((key, scorer))
+            if not cell:
+                continue
+            buckets: dict[object, list[float]] = {}
+            for feat, val in values_of(cell).items():
+                b = bucket_of.get(feat)
+                buckets.setdefault(b, []).append(val)
+            for bucket in sorted(buckets, key=lambda b: (b is None, str(b))):
+                vals = buckets[bucket]
+                mean, lo, hi = boot_ci(vals, boot, seed)
+                out.append({
+                    "view": view, "arm": key.label, "run": key.run, "arm_name": key.arm,
+                    "scorer": scorer, "stratum": bucket, "mean": mean, "lo": lo, "hi": hi,
+                    "n": len(vals), "short": len(vals) < MIN_CELL})
+    return out
+
+
+def trend_rows(by_cell: dict[tuple[Arm, str], dict[int, dict]], arms: list[Arm],
+               scorers: list[str], bucket_of: dict[int, int], cells: list[dict], view: str,
+               n_perm: int, seed: int) -> list[dict]:
+    """Per (arm, scorer): the spread across cells, a rank statistic, and a permutation p.
+
+    THE HONEST SHAPE OF THIS. Three numbers, none of them a significance ritual:
+
+      spread   max − min of the cell means. The effect size, in the units the table prints, and
+               the only one of the three a reader can carry away without the machinery.
+      rho      Spearman's correlation between the cut index and the cell mean over the cells. A
+               DESCRIPTION OF SHAPE, never a test: with four cells there are 4! = 24 orderings, so
+               the exact two-sided permutation p of a PERFECTLY monotone |rho| = 1 is 2/24 = 0.083
+               and no trend at this design can reach 0.05 on this statistic. It is here to separate
+               "rises across the cut" from "one cell differs", which the spread alone cannot.
+      p_perm   `spread_perm_p` above: the spread against the null that the cut is uninformative.
+
+    SHORT cells are excluded from all three and named in the row, because a spread whose extreme
+    cell rests on two features is a spread between an estimate and an anecdote. The cell itself is
+    still printed in the table with its own n -- excluded from the statistic, never from the table.
+    """
+    by_key = {(c["arm"], c["scorer"]): [] for c in cells}
+    for c in cells:
+        by_key[(c["arm"], c["scorer"])].append(c)
+    out: list[dict] = []
+    for key in arms:
+        for scorer in scorers:
+            mine = by_key.get((key.label, scorer))
+            if not mine:
+                continue
+            used = [c for c in mine if not c["short"] and c["stratum"] is not None]
+            dropped = [c for c in mine if c not in used]
+            # The permutation runs on the features of the USED cells alone, so the null it draws
+            # from is the same population the spread was computed over.
+            keep = {c["stratum"] for c in used}
+            vals, labs = [], []
+            for feat, val in values_of(by_cell.get((key, scorer), {})).items():
+                b = bucket_of.get(feat)
+                if b in keep:
+                    vals.append(val)
+                    labs.append(b)
+            means = np.array([c["mean"] for c in sorted(used, key=lambda c: c["stratum"])])
+            idx = np.array([c["stratum"] for c in sorted(used, key=lambda c: c["stratum"])],
+                           dtype=float)
+            spread = float(means.max() - means.min()) if len(means) >= 2 else float("nan")
+            # Undefined on fewer than three cells (two points always correlate perfectly) and on a
+            # flat arm, where every ordering of equal means is as monotone as every other.
+            rho = (float(np.corrcoef(_avg_ranks(idx), _avg_ranks(means))[0, 1])
+                   if len(means) >= 3 and np.ptp(means) > 0 else float("nan"))
+            out.append({
+                "view": view, "arm": key.label, "run": key.run, "arm_name": key.arm,
+                "scorer": scorer, "n_cells": len(used), "n_cells_all": len(mine),
+                "n_min": min((c["n"] for c in used), default=0),
+                "widest_ci": max((c["hi"] - c["lo"] for c in used
+                                  if math.isfinite(c["hi"]) and math.isfinite(c["lo"])),
+                                 default=float("nan")),
+                "spread": spread, "rho": rho,
+                "p_perm": spread_perm_p(np.array(vals, dtype=float), np.array(labs, dtype=int),
+                                        n_perm, seed) if len(used) >= 2 else float("nan"),
+                "dropped": [f"{c['stratum']} (n={c['n']})" for c in dropped],
+            })
+    return out
+
+
+def cells_check(cells: list[dict], view: str) -> dict:
+    """The under-filled cells of one view, as a check row.
+
+    Two counters, not one. SHORT (`n < MIN_CELL`) is the hard one and changes what the trend table
+    computes. UNDER-FILLED is every cell below the view's own fullest cell -- `run.py` omits a
+    (feature, arm) whose every batch went unparsed, and `values_of` drops a null `bal_acc`, so an
+    arm can lose features out of one stratum and not another. Neither is automatically a defect and
+    both are invisible in a table of means alone, which is the thing this exists to prevent.
+    """
+    full = max((c["n"] for c in cells), default=0)
+    short = [c for c in cells if c["short"]]
+    thin = [c for c in cells if not c["short"] and c["n"] < full]
+    # A cell that is not there AT ALL is the third way a cut can go wrong and the only one the
+    # table renders as a bare em dash. It happens for real: `run.rates` returns NaN for a feature
+    # with no gate-consistent positives (`n_pos: 0` -> no TPR -> no balanced accuracy), so an arm
+    # can lose every feature of one cut cell and be left comparing three cells against another
+    # arm's four. Counted here by (arm, scorer) against the buckets the VIEW as a whole shows.
+    every = {c["stratum"] for c in cells}
+    have: dict[tuple, set] = {}
+    for c in cells:
+        have.setdefault((c["arm"], c["scorer"]), set()).add(c["stratum"])
+    absent = [(a, sc, b) for (a, sc), got in sorted(have.items(), key=lambda kv: str(kv[0]))
+              for b in sorted(every - got, key=lambda b: (b is None, str(b)))]
+    # The view's own word, not the field's: `stratum` is what the record calls the rarity cut and
+    # the dict key that carries both, but a magnitude cell named "stratum 1" here would read as a
+    # rarity stratum in the one table whose whole caption is that it is not one.
+    word = CUT_WORD[view]
+
+    def _name(c):
+        return f"{c['arm']}/{c['scorer']} {word} {c['stratum']} (n={c['n']})"
+
+    return {"kind": "cells", "who": view, "detail": f"{len(cells)} cells, fullest n={full}",
+            "comparisons": len(cells), "n_mismatches": len(short),
+            "worst_excess": float("nan"), "n_short": len(short), "n_thin": len(thin),
+            "n_absent": len(absent), "full": full,
+            "short_cells": [_name(c) for c in short],
+            "thin_cells": [_name(c) for c in thin],
+            "absent_cells": [f"{a}/{sc} {word} {b}" for a, sc, b in absent]}
+
+
+def draw_record(vol: R.Vol, builds: dict[str, dict]) -> tuple[list[str], list[str]]:
+    """(the lines of each set's draw record that state its stratification, the sets with none).
+
+    THE CUT POINTS ARE NOT IN THIS FILE AND MUST NOT BE. They are a property of a DRAW -- which
+    pool, which statistic, which quantiles -- recorded beside the set on the volume by the product
+    that drew it, and a number retyped into a caption here would go stale the first time a set is
+    redrawn and would never be noticed, because nothing downstream compares the two. So the caption
+    QUOTES the record: `build.json` names the base and the set, the set's `README.md` is
+    `precompute`'s own account of the draw, and every `- ` note in it that mentions a stratification
+    or a cut is carried into the caption verbatim with its source named. An absent README costs the
+    caption its numbers and says which set's record was missing -- never a plausible default.
+    """
+    lines, absent = [], []
+    for base, set_name in sorted({(str(b.get("base") or ""), str(b.get("set") or ""))
+                                  for b in builds.values() if b.get("set")}):
+        rel = f"base/{base}/heldout/{set_name}/README.md"
+        p = vol.get(rel)
+        if p is None:
+            absent.append(f"`{set_name}`: no `{rel}` on the volume, so its cuts are unstated here")
+            continue
+        # `## Notes` only. The README's provenance block above it carries the rebuild command,
+        # which on a stratified draw contains `--stratified` and would match every filter here
+        # while stating no cut at all -- a caption line that looks like a record and is not one.
+        body = p.read_text().partition("\n## Notes")[2]
+        # Bullets are rejoined across their continuation lines before they are filtered: a note
+        # that happens to have been wrapped would otherwise be quoted up to the wrap and no
+        # further, and a caption that ends mid-sentence at "the 4 quartiles of the ELIGIBLE POOL
+        # (40" reads as a record while stating none of the numbers it was quoted for.
+        bullets: list[str] = []
+        for ln in body.splitlines():
+            if ln.startswith("- "):
+                bullets.append(ln[2:].strip())
+            elif bullets and ln.strip() and not ln.startswith(("#", "|")):
+                bullets[-1] += " " + ln.strip()
+        hits = [b for b in bullets if "strat" in b.lower() or "cuts" in b.lower()]
+        if not hits:
+            absent.append(f"`{set_name}`: `{rel}` records no stratification note")
+        for ln in hits:
+            lines.append(f"`{set_name}` ({rel}): {ln}")
+    return lines, absent
 
 
 # ---------------------------------------------------------------------------------------------
@@ -371,7 +687,7 @@ def pairing_check(contrast: dict, ref_label: str) -> dict:
 
 
 def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, seed: int,
-            strata: bool) -> dict:
+            strata: bool, peak_strata: bool = True) -> dict:
     """Everything the tables and figures are built from. Never raises on a missing run directory."""
     assert runs, (
         "at least one `--run <label>=<run_dir>` is required: eval 2's arms live in one run "
@@ -462,30 +778,50 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
                 contrasts.append(rec)
                 checks.append(pairing_check(rec, ref_key.label))
 
-    # --- per stratum --------------------------------------------------------------------------
+    # --- per stratum: the DRAW's rarity quartile, carried on every score row ---------------------
     strat_rows: list[dict] = []
+    trends: list[dict] = []
     if strata:
-        for key in arms:
-            for scorer in scorers:
-                cell = by_cell.get((key, scorer))
-                if not cell:
-                    continue
-                buckets: dict[object, list[float]] = {}
-                for row in cell.values():
-                    v = row.get("bal_acc")
-                    if v is None or not math.isfinite(float(v)):
-                        continue
-                    buckets.setdefault(row.get("stratum"), []).append(float(v))
-                for stratum in sorted(buckets, key=lambda s: (s is None, str(s))):
-                    vals = buckets[stratum]
-                    strat_rows.append({
-                        "arm": key.label, "run": key.run, "arm_name": key.arm, "scorer": scorer,
-                        "stratum": stratum, "mean": float(np.mean(vals)), "n": len(vals)})
+        strat_of, clashes = feature_field(rows, VIEW_FIELD[STRATUM_VIEW], int)
+        if clashes:
+            notes.append(f"{len(clashes)} feature(s) carry two different `stratum` values across "
+                         f"their rows ({', '.join(str(f) for f in clashes[:8])}): they are left "
+                         f"out of the per-stratum table, which is two sets joined under one --root")
+        strat_rows = cut_cells(by_cell, arms, scorers, strat_of, STRATUM_VIEW, boot, seed)
+        if strat_rows:
+            trends += trend_rows(by_cell, arms, scorers, strat_of, strat_rows, STRATUM_VIEW,
+                                 boot, seed)
+            checks.append(cells_check(strat_rows, STRATUM_VIEW))
+        else:
+            notes.append("no per-stratum table: no score row carries a `stratum`")
+
+    # --- per activation-magnitude quartile: cut HERE, over the analysed features -----------------
+    peak_rows: list[dict] = []
+    peak_cuts: list[float] = []
+    if peak_strata:
+        peak_of, clashes = feature_field(rows, VIEW_FIELD[PEAK_VIEW], float)
+        if clashes:
+            notes.append(f"{len(clashes)} feature(s) carry two different `corpus_peak` values "
+                         f"({', '.join(str(f) for f in clashes[:8])}): they are left out of the "
+                         f"magnitude quartiles, whose cuts would otherwise be cut on a mixture")
+        qof, peak_cuts = quartile_buckets(peak_of)
+        if qof:
+            peak_rows = cut_cells(by_cell, arms, scorers, qof, PEAK_VIEW, boot, seed)
+            trends += trend_rows(by_cell, arms, scorers, qof, peak_rows, PEAK_VIEW, boot, seed)
+            checks.append(cells_check(peak_rows, PEAK_VIEW))
+        else:
+            notes.append(f"no magnitude-quartile table: {len(peak_of)} of the block's features "
+                         f"carry a `corpus_peak`, and four are needed to cut quartiles at all")
+
+    record, record_absent = draw_record(vol, builds)
+    notes += record_absent
 
     return {
         "sae": sae, "runs": runs, "builds": builds, "root": vol.prefix or "/vol",
         "arms": arms, "scorers": scorers, "colours": colours, "ref": ref_key,
         "cells": cells, "contrasts": contrasts, "strata": strat_rows, "checks": checks,
+        "peak_strata": peak_rows, "peak_cuts": peak_cuts, "trends": trends, "record": record,
+        "n_features": len({int(r["feature"]) for r in rows}),
         "missing": missing, "notes": notes, "boot": boot, "seed": seed, "n_rows": len(rows),
     }
 
@@ -506,8 +842,20 @@ def stat_registry(res: dict) -> dict[tuple, float]:
         for part in ("mean", "lo", "hi"):
             out[(x["scorer"], x["arm"], None, f"diff.{part}")] = x[part]
         out[(x["scorer"], x["arm"], None, "diff.win_frac")] = x["win_frac"]
-    for s in res["strata"]:
-        out[(s["scorer"], s["arm"], s["stratum"], "bal_acc.mean")] = s["mean"]
+    # The two cut views share the key's `stratum` slot and are told apart by the METRIC prefix:
+    # `bal_acc.*` is the draw's rarity quartile and `peak.bal_acc.*` the post-hoc magnitude one,
+    # because stratum 3 of one and stratum 3 of the other are different cells of different cuts
+    # and a gate that could not name which it meant would silently resolve against either.
+    for s in res.get("strata") or []:
+        for part in ("mean", "lo", "hi"):
+            out[(s["scorer"], s["arm"], s["stratum"], f"bal_acc.{part}")] = s[part]
+    for s in res.get("peak_strata") or []:
+        for part in ("mean", "lo", "hi"):
+            out[(s["scorer"], s["arm"], s["stratum"], f"peak.bal_acc.{part}")] = s[part]
+    for t in res.get("trends") or []:
+        pre = "trend" if t["view"] == STRATUM_VIEW else "peak_trend"
+        for part in ("spread", "rho", "p_perm"):
+            out[(t["scorer"], t["arm"], None, f"{pre}.{part}")] = t[part]
     return out
 
 
@@ -520,7 +868,9 @@ def support_registry(res: dict) -> dict[tuple, int]:
     out: dict[tuple, int] = {}
     for c in res["cells"]:
         out[(c["scorer"], c["arm"], None)] = c["n_features"]
-    for s in res["strata"]:
+    # The rarity view is written LAST so a gate on a shared (scorer, arm, stratum) key reads the
+    # support of the cut `bal_acc.*` names; the magnitude view's own n is in `peak_strata.csv`.
+    for s in (res.get("peak_strata") or []) + (res.get("strata") or []):
         out[(s["scorer"], s["arm"], s["stratum"])] = s["n"]
     return out
 
@@ -608,6 +958,121 @@ def _joined(vals) -> str:
     return "/".join(str(v) for v in vals) if vals else "—"
 
 
+def cut_table(res: dict, out: R.Out, view: str, name: str, title: str, caption: str) -> None:
+    """One cut view: every (arm, scorer) a row, every cell of the cut a column.
+
+    ONE renderer for both views, on purpose. The rarity strata and the magnitude quartiles are
+    different cuts with different standing -- one designed, one post hoc -- and the captions say so
+    at length, but the cells are the same estimator over the same features and printing them
+    through two code paths would let the two drift into looking different for no reason.
+
+    The markdown cell is `mean (n=k)`; the interval goes to the CSV. At eight features per cell a
+    95% percentile interval is about 0.2 wide, which is wider than every difference in the table,
+    and four of them per row would fill the line with a width the reader cannot use. It is not
+    dropped -- it is in `<name>.csv` and in `results.json`, and the trend table prints the widest
+    of them per row, which is the number that decides whether any of this separates.
+    """
+    rows_in = [s for s in res[{"stratum": "strata", "peak": "peak_strata"}[view]]]
+    cuts = sorted({s["stratum"] for s in rows_in}, key=lambda s: (s is None, str(s)))
+    word = CUT_WORD[view]
+    head = ["arm", "run", "scorer", *[f"{word} {'—' if c is None else c}" for c in cuts]]
+    csv_head = ["sae", "view", "arm", "run", "arm_name", "scorer", "stratum", "mean", "lo", "hi",
+                "n", "short"]
+    cellmap = {(s["arm"], s["scorer"], s["stratum"]): s for s in rows_in}
+    rows, csv_rows = [], []
+    for a in res["arms"]:
+        for scorer in res["scorers"]:
+            got = [cellmap.get((a.label, scorer, c)) for c in cuts]
+            if not any(got):
+                continue
+            rows.append([a.arm, a.run, scorer, *[
+                "—" if g is None else
+                f"{R.num(g['mean'])} (n={g['n']}{', SHORT' if g['short'] else ''})"
+                for g in got]])
+    for s in rows_in:
+        csv_rows.append([res["sae"], s["view"], s["arm"], s["run"], s["arm_name"], s["scorer"],
+                         s["stratum"], round(s["mean"], 6), round(s["lo"], 6), round(s["hi"], 6),
+                         s["n"], s["short"]])
+    out.table(name, title, caption, head, rows, csv_header=csv_head, csv_rows=csv_rows)
+
+
+def trend_table(res: dict, out: R.Out) -> None:
+    """Does any arm x cut trend survive at eight features per cell? Mostly no, and it says so.
+
+    Three numbers per (view, arm, scorer) -- see `trend_rows` for what each one is and is not --
+    and a VERDICT that is a statement about this table's own multiplicity, not a star. The
+    Bonferroni divisor is the number of rows of the SAME view, because that is how many spreads
+    were looked at before one was reported; it is conservative in one direction and anti-
+    conservative in another, and the note says both.
+    """
+    per_view = {v: [t for t in res["trends"] if t["view"] == v]
+                for v in (STRATUM_VIEW, PEAK_VIEW)}
+    head = ["view", "arm", "run", "scorer", "cells", "min n", "widest cell CI", "spread",
+            "rank ρ", "perm p", "verdict"]
+    csv_head = ["sae", "view", "arm", "run", "arm_name", "scorer", "n_cells", "n_cells_all",
+                "n_min", "widest_ci", "spread", "rho", "p_perm", "n_perm", "seed",
+                "bonferroni_alpha", "verdict", "cells_dropped"]
+    rows, csv_rows = [], []
+    for view, mine in per_view.items():
+        if not mine:
+            continue
+        bonf = ALPHA / len(mine)
+        for t in mine:
+            p = t["p_perm"]
+            if not math.isfinite(p):
+                verdict = "not estimable"
+            elif p <= bonf:
+                verdict = f"separates (p ≤ α/{len(mine)})"
+            elif p <= ALPHA:
+                verdict = "uncorrected only"
+            else:
+                verdict = "no separation"
+            if t["dropped"]:
+                verdict += f" — {len(t['dropped'])} cell(s) dropped: {', '.join(t['dropped'])}"
+            rows.append([view, t["arm_name"], t["run"], t["scorer"],
+                         f"{t['n_cells']}/{t['n_cells_all']}", t["n_min"],
+                         R.num(t["widest_ci"], 3), R.num(t["spread"], 4), R.num(t["rho"], 3),
+                         R.num(p, 4), verdict])
+            csv_rows.append([res["sae"], view, t["arm"], t["run"], t["arm_name"], t["scorer"],
+                             t["n_cells"], t["n_cells_all"], t["n_min"], round(t["widest_ci"], 6),
+                             round(t["spread"], 6), round(t["rho"], 6), round(p, 6), res["boot"],
+                             res["seed"], round(bonf, 6), verdict, "; ".join(t["dropped"])])
+    sizes = sorted({t["n_min"] for t in res["trends"]})
+    span = f"{sizes[0]}" if len(sizes) < 2 else f"{sizes[0]}–{sizes[-1]}"
+    out.table(
+        "trends", "Does any arm × cut trend survive?",
+        (f"**At {span} features per cell almost nothing can separate, and this table is "
+         f"here to say which of it does.** Read the verdict column, not the p.\n\n"
+         f"`spread` is max − min of the cell means: the effect size, in the table's own units, and "
+         f"the only column that means anything without the machinery. `perm p` tests it against "
+         f"the null that the cut carries no information — the cut labels are shuffled over that "
+         f"arm's own features with the cell sizes held fixed, {res['boot']} times, seed "
+         f"{res['seed']}, reported as (hits + 1) / (resamples + 1) so it is never 0 and never "
+         f"finer than the resamples bought — a p of exactly {1 / (res['boot'] + 1):.4f} means NO "
+         f"resample reached the observed spread and the true p is BELOW the table's resolution, "
+         f"not equal to it. Nothing is assumed normal, which matters: a per-feature "
+         f"balanced accuracy on 40 items is a lattice of multiples of 1/40 and is not normal at "
+         f"n = 8. Because the statistic is max − min ACROSS cells it is already a maximum, so its "
+         f"null absorbs *which* cell turned out extreme and needs no correction within a row.\n\n"
+         f"`rank ρ` is Spearman's correlation between the cut index and the cell mean. **It is a "
+         f"description of shape and never a test.** With four cells there are 4! = 24 orderings, so "
+         f"the exact two-sided p of a perfectly monotone |ρ| = 1 is 2/24 = 0.083 and no trend at "
+         f"this design can reach 0.05 on it. It is printed to separate *rises across the cut* "
+         f"(ρ near ±1) from *one cell differs* (a large spread at a middling ρ), which the spread "
+         f"alone cannot tell apart.\n\n"
+         f"`verdict` corrects for the multiplicity this table itself creates: `separates` means "
+         f"p ≤ α/(rows of that view), α = {ALPHA:g}. That divisor is CONSERVATIVE in one direction "
+         f"and not in the other — the rows are far from independent (the same features, and the "
+         f"corpus arms re-scored under several `--run` labels are near-copies of one measurement), "
+         f"so the true number of looks is smaller than the row count, while the two views and the "
+         f"second SAE block are further looks it does not count. `widest cell CI` is the width of "
+         f"the widest per-cell percentile interval in the row (full intervals in the view's CSV): "
+         f"where it exceeds the spread, the cells do not separate whatever the p says.\n\n"
+         f"A cell below {MIN_CELL} features is excluded from all three statistics and named in the "
+         f"verdict; `cells` is how many of the row's cells were used."),
+        head, rows, csv_header=csv_head, csv_rows=csv_rows)
+
+
 def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Path:
     scorers = res["scorers"]
     ref_label = res["ref"].label if res["ref"] else "(none)"
@@ -677,7 +1142,8 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
          f"SHARE, with a paired percentile bootstrap interval ({res['boot']} resamples of the "
          f"shared features, seed {res['seed']}). The reference is `{ref_label}`; a bare `--ref` "
          f"names an arm and is resolved inside the FIRST `--run` given, because each run directory "
-         f"carries its own copy of every corpus arm, re-explained and re-scored. `n paired` is the "
+         f"carries its own copy of every corpus arm -- the SAME calls replayed when the runs shared a "
+         f"`--cache-dir`, as eval 2's did, and independent ones when they did not. `n paired` is the "
          f"intersection and `dropped` is how many features either side lost to it — plan §3.3 asks "
          f"for the pairing to be asserted rather than left implicit, so a reduced pairing is "
          f"labelled REDUCED here and carried into `results.json` with the feature ids, never "
@@ -685,36 +1151,65 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
          f"difference, reported because the outcome is bimodal and a mean alone misleads."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
-    # --- per stratum --------------------------------------------------------------------------
+    # --- the two cut views, and the trend verdict over them -------------------------------------
+    record = ("\n\nWhat the cut IS, quoted from each set's own draw record on the volume rather "
+              "than retyped here:\n\n"
+              + "\n".join(f"  - {ln}" for ln in res["record"]) + "\n") if res.get("record") else ""
     if res["strata"]:
-        strata = sorted({s["stratum"] for s in res["strata"]}, key=lambda s: (s is None, str(s)))
-        head = ["arm", "run", "scorer", *[f"stratum {'—' if s is None else s}" for s in strata]]
-        csv_head = ["sae", "arm", "run", "arm_name", "scorer", "stratum", "mean", "n"]
-        cellmap = {(s["arm"], s["scorer"], s["stratum"]): s for s in res["strata"]}
-        rows, csv_rows = [], []
-        for a in res["arms"]:
-            for scorer in scorers:
-                got = [cellmap.get((a.label, scorer, s)) for s in strata]
-                if not any(got):
-                    continue
-                rows.append([a.arm, a.run, scorer,
-                             *[f"{R.num(g['mean'])} (n={g['n']})" if g else "—" for g in got]])
-        for s in res["strata"]:
-            csv_rows.append([res["sae"], s["arm"], s["run"], s["arm_name"], s["scorer"],
-                             s["stratum"], round(s["mean"], 6), s["n"]])
-        out.table(
-            "strata", "Balanced accuracy per density stratum",
-            ("Mean bal_acc over the features of each stratum — the log10 gated-fire density "
-             "quartile `draw_sae2m` assigns and `run.py` copies onto every score row, 0 the rarest "
-             "quarter and 3 the commonest. NO interval: at the eval's 32 features a stratum holds "
-             "8, and a bootstrap over 8 would print a width that means nothing, so the cell is the "
-             "mean and its n. The paper reports this block for the PRIMARY SAE only; "
-             "`--no-strata` turns it off."),
-            head, rows, csv_header=csv_head, csv_rows=csv_rows)
+        cut_table(
+            res, out, STRATUM_VIEW, "strata", "Balanced accuracy per rarity stratum",
+            (f"Mean bal_acc over the features of each stratum, with the SAME percentile bootstrap "
+             f"over features the headline table uses ({res['boot']} resamples, seed {res['seed']}) "
+             f"in the CSV and the cell's own n in the table. "
+             f"**The strata are quartiles of the feature's RARITY at the 16M corpus scan, cut on "
+             f"the dictionary's own distribution, 0 the rarest quarter and 3 the commonest.** The "
+             f"statistic differs between the two SAEs and so do the cut points: the 2M set is cut "
+             f"on log10 of the raw GATED FIRE COUNT at 16M over the ~100k eval-split features that "
+             f"pass the eligibility filter (`features/draw_sae2m.py`), the 131k set on log10 of "
+             f"the DENSITY — gated fires ÷ scanned positions — over the whole eligible dictionary "
+             f"(`precompute/targets.py`). Those two are the same physical axis up to the constant "
+             f"log10(scanned positions) and differ in the pool they were cut over, so stratum k of "
+             f"one is the same RANK in its own dictionary's rarity ordering as stratum k of the "
+             f"other and is **not the same rarity**: the two blocks' strata must not be read "
+             f"against each other.{record}\n"
+             f"Every arm and BOTH scorers are here, and the per-stratum breakdown is available on "
+             f"either SAE — `--no-strata` turns the block off, it does not make it primary-only. "
+             f"A cell below {MIN_CELL} features is labelled SHORT and kept out of the trend table; "
+             f"it is still printed, with its n, because an arm that loses features out of one "
+             f"stratum and not another is a property of the run and not a rounding detail."))
     else:
-        out.section("### Balanced accuracy per density stratum\n\n"
-                    "*Not built: `--no-strata`. The paper reports the per-stratum breakdown for "
-                    "the primary SAE only.*\n")
+        out.section("### Balanced accuracy per rarity stratum\n\n"
+                    "*Not built: `--no-strata`.*\n")
+
+    if res["peak_strata"]:
+        cuts = ", ".join(R.num(c, 4) for c in res["peak_cuts"])
+        cut_table(
+            res, out, PEAK_VIEW, "peak_strata",
+            "Balanced accuracy per activation-magnitude quartile",
+            (f"The same table on a SECOND axis: `corpus_peak`, the feature's peak activation over "
+             f"the 16M-token corpus scan — a MAGNITUDE, not a count, and not the rarity axis "
+             f"above. It is `sae/<sae>/max_act.f16`, the running elementwise max of the SAE's "
+             f"post-ReLU activation over every scanned position, which `build.py` reads from that "
+             f"array (not from the set's `ids.jsonl`, whose column for it is `corpus_peak_16m` on "
+             f"a `draw_sae2m` set and `max_act` on a `targets` one) and `run.py` copies onto every "
+             f"score row as `corpus_peak`. "
+             f"**This is a POST-HOC split of the {res['n_features']} features this block analysed, "
+             f"not a stratification the draw controlled.** The rarity strata above were balanced "
+             f"by construction — the draw took an equal number of features from each quartile of "
+             f"the pool, so a per-stratum comparison is a designed contrast. Nothing balanced this "
+             f"one: the quartiles are cut here, over the analysed features' own `corpus_peak` "
+             f"values, at [{cuts}] (numpy's linear quantiles at 0.25/0.5/0.75; a value exactly on "
+             f"a cut falls in the higher quartile), so the cells are equal only when no tie "
+             f"straddles a cut — which is why each prints its own n. Quartile 0 is the weakest "
+             f"peak. The two axes are CONFOUNDED in the obvious direction — a feature that fires "
+             f"rarely also reaches a lower peak — so agreement between this table and the one "
+             f"above is expected and is not independent evidence."))
+    else:
+        out.section("### Balanced accuracy per activation-magnitude quartile\n\n"
+                    "*Not built: `--no-peak-strata`, or no score row carries a `corpus_peak`.*\n")
+
+    if res["trends"]:
+        trend_table(res, out)
 
     # --- support / provenance -----------------------------------------------------------------
     head = ["arm", "run", "scorer", "role", "draw", "n ex", "features", "no metric",
@@ -760,6 +1255,21 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
                             f"{c['n_arm']} / {c['n_ref']}")
             chk_rows.append([c["kind"], c["who"], c["detail"], c["comparisons"], "—", outcome])
             continue
+        if c["kind"] == "cells":
+            bits = []
+            if c["n_short"]:
+                bits.append(f"SHORT (< {MIN_CELL} features), excluded from the trend table: "
+                            + "; ".join(c["short_cells"]))
+            if c["n_thin"]:
+                bits.append(f"under-filled (below the view's fullest cell, n={c['full']}): "
+                            + "; ".join(c["thin_cells"]))
+            if c["n_absent"]:
+                bits.append("ABSENT (the arm has no scored feature in this cell at all, so its "
+                            "row is compared on fewer cells than its neighbours): "
+                            + "; ".join(c["absent_cells"]))
+            chk_rows.append([c["kind"], c["who"], c["detail"], c["comparisons"], "—",
+                             " · ".join(bits) or f"every cell at n={c['full']}"])
+            continue
         defect = "" if not c["n_mismatches"] else "  ← POSSIBLE DEFECT"
         chk_rows.append([
             c["kind"], c["who"], c["detail"], c["comparisons"], R.num(c["worst_excess"], 9),
@@ -776,7 +1286,11 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
          f"also counts rates outside [0, 1] and rows with more parsed batches than batches. "
          f"`pairing` is the intersection against `{ref_label}` per (arm, scorer): REDUCED is not "
          f"automatically a defect — an arm may legitimately cover fewer features — but it is never "
-         f"invisible."),
+         f"invisible. `cells` is the same rule for the two cut views: a cell below {MIN_CELL} "
+         f"features is named here and excluded from the trend table, and a cell merely below the "
+         f"view's fullest is named as under-filled and kept — `run.py` omits a (feature, arm) whose "
+         f"every batch went unparsed, so an arm can lose features out of one stratum and not "
+         f"another, and a table of means alone would show four equal-looking cells."),
         ["kind", "who", "detail", "comparisons", "worst excess", "outcome"], chk_rows)
 
     # --- sanity -------------------------------------------------------------------------------
@@ -903,7 +1417,10 @@ def main(
     label: Annotated[str, typer.Option(help="block label for the tables (default: the SAE key)")] = "",
     ref: Annotated[str, typer.Option(help="reference arm of the paired contrasts, `<arm>` or "
                                           "`<run label>/<arm>`")] = "DOCMAX",
-    strata: Annotated[bool, typer.Option(help="per-stratum table (the paper: primary SAE only)")] = True,
+    strata: Annotated[bool, typer.Option(help="per-rarity-stratum table (works on either SAE)")] = True,
+    peak_strata: Annotated[bool, typer.Option(
+        help="per-activation-magnitude-quartile table, a POST-HOC cut of the analysed "
+             "features on their `corpus_peak`")] = True,
     out: Annotated[Path, typer.Option(help="output directory; the block goes in <out>/<sae-slug>")]
     = R.HERE / "out" / "autointerp",
     root: Annotated[str, typer.Option(help="volume-relative root the runs were written under")] = "",
@@ -925,7 +1442,7 @@ def main(
         "and this driver joins them, e.g. `--run rl-last16=<dir> --run old-primary=<dir>`")
     mirror = data or (R.HERE / "data" / (root.replace("/", "_") or "vol"))
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
-    res = analyse(vol, runs, sae, ref, boot, seed, strata)
+    res = analyse(vol, runs, sae, ref, boot, seed, strata, peak_strata)
     # One block per SAE: the driver is invoked once per SAE and must not overwrite the other's
     # tables, so the slug comes from the SAE key (or `--label`) and never from the output root.
     slug = (sae or label or "autointerp").replace("/", "_")
@@ -955,6 +1472,8 @@ def main(
             "boot": boot, "seed": seed, "alpha": ALPHA,
             "arms": [a.label for a in res["arms"]], "scorers": res["scorers"],
             "cells": res["cells"], "contrasts": res["contrasts"], "strata": res["strata"],
+            "peak_strata": res["peak_strata"], "peak_cuts": res["peak_cuts"],
+            "trends": res["trends"], "draw_record": res["record"], "min_cell": MIN_CELL,
             "checks": res["checks"], "sanity": sanity,
             "stats": [{"scorer": k[0], "arm": k[1], "stratum": k[2], "metric": k[3], "value": v}
                       for k, v in sorted(reg.items(), key=lambda kv: [str(x) for x in kv[0]])],
@@ -974,7 +1493,8 @@ def main(
         if "skipped" in c:
             print(f"   check      {c['kind']}/{c['who']}: skipped ({c['skipped']})")
         elif c["n_mismatches"]:
-            kind = "REDUCED PAIRING" if c["kind"] == "pairing" else "MISMATCHES"
+            kind = {"pairing": "REDUCED PAIRING",
+                    "cells": f"SHORT CELL(S) (< {MIN_CELL} features)"}.get(c["kind"], "MISMATCHES")
             print(f"   check      {c['kind']}/{c['who']}/{c['detail']}: "
                   f"{c['n_mismatches']} {kind}")
 

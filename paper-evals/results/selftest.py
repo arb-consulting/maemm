@@ -40,6 +40,24 @@ carries, deliberately:
     alone insufficient to identify an arm;
   * `tpr = tnr = bal_acc` on every row, so the reader check's `0.5 * (TPR + TNR)` identity is exact
     and `check_autointerp_catches_a_defect` can break it by one number.
+
+EVAL 2's CUT VIEWS have a THIRD fixture, at the end of this file: 32 features over two ORTHOGONAL
+cuts -- the draw's rarity stratum and a post-hoc quartile of `corpus_peak` -- laid out so each
+stratum holds exactly two features of each magnitude quartile. An arm that moves with one cut
+therefore has zero spread on the other, so a driver that computed one cut and printed it under both
+headings cannot pass. It carries, deliberately:
+
+  * an arm with a two-feature cell against a `MIN_CELL` of four, whose two features are the
+    EXTREME ones, so averaging the short cell in (spread 0.5), dropping it silently (spread 0 and
+    no trace) and the correct answer (spread 0 WITH the cell named) are three different numbers;
+  * the same arm's cells on the other cut at six of eight, which is under-filled and not short, so
+    both counters of the `cells` check are exercised on every run;
+  * a permutation whose exact p is hand-computable: eight high values among 32 make the observed
+    spread the largest the multiset admits, reached by 4 / C(32, 8) of relabellings, so at 2000
+    resamples the reported p is the add-one FLOOR and its orthogonal twin is exactly 1.0;
+  * a set README in `precompute`'s own layout, with its stratification note WRAPPED over two lines
+    and a `- command:` line above it that says `--stratified` and states no cut, so the caption's
+    quoting is tested against both of the ways it could quote the wrong thing.
 """
 
 from __future__ import annotations
@@ -674,10 +692,10 @@ def write_autointerp_runs(root: Path, sae: str = AI_SAE) -> None:
 def _ai_analyse(root: Path, **kw):
     vol = R.Vol("", root, offline=True, quiet=True)
     opts = {"runs": dict(AI_RUNS), "sae": AI_SAE, "ref": "DOCMAX", "boot": 2000, "seed": 1,
-            "strata": True}
+            "strata": True, "peak_strata": True}
     opts.update(kw)
     return vol, A.analyse(vol, opts["runs"], opts["sae"], opts["ref"], opts["boot"], opts["seed"],
-                          opts["strata"])
+                          opts["strata"], opts["peak_strata"])
 
 
 def _ai_cell(res, arm: str, scorer: str) -> dict:
@@ -1012,6 +1030,459 @@ def check_autointerp_render_and_figures():
                 assert p.exists() and p.stat().st_size > 1000, p
 
 
+# --- eval 2: the CUT-VIEW fixture, 32 features on two ORTHOGONAL cuts ---------------------------
+#
+# A SECOND autointerp fixture rather than a bigger first one. The four-feature fixture above exists
+# so every mean and every paired difference is a literal a reader can check in their head, and
+# widening it to 32 would cost that for no gain; the cut views need 32 because `MIN_CELL` is 4 and a
+# cell has to be able to be full (8), under-filled (6) and SHORT (2) in the same fixture.
+#
+# THE TWO CUTS ARE ORTHOGONAL BY CONSTRUCTION, which is the property the whole fixture is for: the
+# 32 features are laid out so each rarity stratum holds exactly two features of each activation-
+# magnitude quartile. An arm whose accuracy depends only on the stratum therefore has ZERO spread
+# on the magnitude cut and vice versa, so a driver that computed one cut and printed it under both
+# headings -- or that cut the magnitude quartiles on the stratum by accident -- cannot pass.
+#
+#   feature   200..207   208..215   216..223   224..231
+#   stratum      0           1          2          3
+#   corpus_peak  1 + 4*((feature - 200) % 8) + stratum, i.e. the ranks 1..32 dealt out so that
+#                magnitude quartile = ((feature - 200) % 8) // 2, which is free of the stratum.
+AI_CUT_RUNS = {"cut": "2026-09-22_autointerp-cuts"}
+AI_CUT_BASE, AI_CUT_SET = "B", "S4"
+AI_CUT_FEATS = list(range(200, 232))
+# The magnitude cuts this lays out: `np.quantile(1..32, [.25, .5, .75])` = 1 + 31*[.25, .5, .75].
+AI_CUT_QUARTILE_CUTS = [8.75, 16.5, 24.25]
+# `PARTIAL` is the arm that makes a cell short: it carries only two of stratum 3's eight features,
+# and both of them are magnitude quartile 0, so ONE arm exercises a SHORT cell on the rarity cut
+# (n = 2 < MIN_CELL) and three UNDER-FILLED ones on the magnitude cut (n = 6 < the fullest 8).
+AI_CUT_PARTIAL_KEPT = [f for f in AI_CUT_FEATS if (f - 200) // 8 != 3 or (f - 200) % 8 in (0, 1)]
+# A stratification note in the layout `precompute` writes beside a set, so `draw_record` has a real
+# record to quote -- including a `- command:` line that says `--stratified` and states no cut at
+# all, which the reader must NOT lift into the caption.
+AI_CUT_README = """# S4
+
+- date: 2026-09-22 00:00:00Z
+- command: `modal run precompute/modal_app.py --product draw --set S4 --stratified --seed 7`
+- status: ok
+
+## Notes
+
+- strata: log10_gated_fires_16M from our 16M corpus scan
+- STRATIFIED draw, seed 7: 8 features from each of the 4 quartiles of the ELIGIBLE POOL (40
+  features), cuts on log10_gated_fires_16M at [1.0, 2.0, 3.0]
+- gate 2.0; vecs are unit(W_enc[:, f]) in fp32 before the cast
+"""
+
+
+def _cut_stratum(feat: int) -> int:
+    return (feat - AI_CUT_FEATS[0]) // 8
+
+
+def _cut_peak(feat: int) -> float:
+    return 1.0 + 4 * ((feat - AI_CUT_FEATS[0]) % 8) + _cut_stratum(feat)
+
+
+def _cut_quartile(feat: int) -> int:
+    return ((feat - AI_CUT_FEATS[0]) % 8) // 2
+
+
+def _cut_bal(arm: str, feat: int) -> float:
+    """The four arms, each a different shape on the two cuts, all dyadic so every mean is exact.
+
+    `RARE` moves with the rarity stratum alone and `BIG` with the magnitude quartile alone: each is
+    the other's null, and their cell means on the cut they do not depend on are all equal, which is
+    the orthogonality above made into numbers. `FLAT` is constant. `PARTIAL` puts 1.0 on the two
+    stratum-3 features it keeps and 0.5 everywhere else, so its SHORT cell is the EXTREME one:
+    including it would give a spread of 0.5 and excluding it gives 0, and the trend table's number
+    says which of the two happened.
+    """
+    if arm == "RARE":
+        return 0.75 if _cut_stratum(feat) == 3 else 0.5
+    if arm == "BIG":
+        return 0.75 if _cut_quartile(feat) == 3 else 0.5
+    if arm == "PARTIAL":
+        return 1.0 if _cut_stratum(feat) == 3 else 0.5
+    return 0.5
+
+
+def _cut_nopos(feat: int) -> bool:
+    """Is this one of `NOPOS`'s no-positives features? The whole of magnitude quartile 0.
+
+    THE SHAPE THIS EXISTS FOR IS REAL AND IS A TRAP. `run.rates` divides by the positive count, so
+    a feature with no gate-consistent positives (`n_pos: 0`) gets TPR = NaN and `run._nr` stores
+    `bal_acc: null` and `tpr: null` -- while `tnr` and `acc`, which are computed over the negative
+    half alone, come back POPULATED AND HIGH. On the 131k block features 59176 (every arm) and
+    124524 (`DOCMAX-draw2`) carry exactly this, with `acc` at 0.90 and 0.95. A reader that filled
+    a null `bal_acc` from the `acc` sitting beside it would not degrade gracefully: it would
+    manufacture a near-perfect cell out of a feature that was never measured. So `NOPOS` puts 0.9
+    in `acc` and `tnr` on the nulled rows, and the checks below pin the cell to the value the
+    surviving features give and its n to the count that survived.
+    """
+    return _cut_quartile(feat) == 0
+
+
+def write_autointerp_cuts(root: Path) -> None:
+    """The cut fixture's mirror: one run directory and the set's draw record beside it."""
+    run_dir = AI_CUT_RUNS["cut"]
+    d = root / f"runs/{run_dir}/summary"
+    d.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for arm in ("RARE", "BIG", "FLAT", "PARTIAL", "NOPOS"):
+        feats = AI_CUT_PARTIAL_KEPT if arm == "PARTIAL" else AI_CUT_FEATS
+        for scorer in ("detection", "fuzzing"):
+            for feat in feats:
+                bal = _cut_bal(arm, feat)
+                # No positives: no TPR, so no balanced accuracy -- but a healthy-looking `acc`
+                # and `tnr` over the negative half, which is the trap `_cut_nopos` documents.
+                nopos = arm == "NOPOS" and _cut_nopos(feat)
+                rows.append({
+                    "feature": feat, "arm": arm, "scorer": scorer,
+                    "bal_acc": None if nopos else bal, "tpr": None if nopos else bal,
+                    "tnr": 0.9 if nopos else bal, "acc": 0.9 if nopos else bal,
+                    "n_items": 20 if nopos else 40, "n_batches": 4, "n_parsed": 4,
+                    "n_pos": 0 if nopos else 20,
+                    "draw": 1, "role": "arm", "n_examples": 16, "explanation_ok": True,
+                    "stratum": _cut_stratum(feat), "corpus_peak": _cut_peak(feat),
+                })
+    with open(d / "scores.jsonl", "w") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    (d / "build.json").write_text(json.dumps(
+        {"base": AI_CUT_BASE, "set": AI_CUT_SET, "sae": AI_SAE, "n_features": len(AI_CUT_FEATS)}))
+    rec = root / f"base/{AI_CUT_BASE}/heldout/{AI_CUT_SET}"
+    rec.mkdir(parents=True, exist_ok=True)
+    (rec / "README.md").write_text(AI_CUT_README)
+
+
+def _cut_analyse(root: Path, **kw):
+    vol = R.Vol("", root, offline=True, quiet=True)
+    opts = {"runs": dict(AI_CUT_RUNS), "sae": AI_SAE, "ref": "FLAT", "boot": 2000, "seed": 1,
+            "strata": True, "peak_strata": True}
+    opts.update(kw)
+    return vol, A.analyse(vol, opts["runs"], opts["sae"], opts["ref"], opts["boot"], opts["seed"],
+                          opts["strata"], opts["peak_strata"])
+
+
+def _cut(res, key: str, arm: str, scorer: str, bucket) -> dict:
+    hits = [s for s in res[key] if s["arm"] == arm and s["scorer"] == scorer
+            and s["stratum"] == bucket]
+    assert len(hits) == 1, (key, arm, scorer, bucket, len(hits))
+    return hits[0]
+
+
+def _trend(res, view: str, arm: str, scorer: str) -> dict:
+    hits = [t for t in res["trends"] if t["view"] == view and t["arm"] == arm
+            and t["scorer"] == scorer]
+    assert len(hits) == 1, (view, arm, scorer, len(hits))
+    return hits[0]
+
+
+def check_autointerp_cut_views():
+    """`quartile_buckets` on values that sit ON a cut, then both cut tables against hand means.
+
+    THE TIE RULE IS PINNED HERE AND NOWHERE ELSE. The 32 analysed features' peaks fall between the
+    cuts, so on them `side="right"` and `side="left"` are the same function and the caption's "a
+    value exactly on a cut falls in the higher quartile" would be an untested sentence. Four values
+    in two clumps put a value on two of the three cuts and tell the two apart.
+
+    The point of the two assertions per arm is the ORTHOGONALITY: `RARE`'s rarity cells are
+    0.5/0.5/0.5/0.75 and its magnitude cells are all 0.5625, because each magnitude quartile holds
+    exactly two of the eight stratum-3 features. An implementation that cut the magnitude quartiles
+    on anything correlated with the stratum would move those four numbers apart.
+    """
+    # `np.quantile([0, 0, 4, 4], [.25, .5, .75])` = [0, 2, 4]: the 0s sit ON the first cut and the
+    # 4s ON the third, so both go UP a bucket. Ties also collapse the buckets -- two of the four
+    # are empty -- which is the reason every cell prints its own n rather than the design's.
+    buckets, cuts = A.quartile_buckets({10: 0.0, 11: 0.0, 12: 4.0, 13: 4.0})
+    assert cuts == [0.0, 2.0, 4.0], cuts
+    assert buckets == {10: 1, 11: 1, 12: 3, 13: 3}, buckets
+    # Fewer than four values cannot be quartiled at all, and that is said rather than approximated.
+    assert A.quartile_buckets({1: 0.5, 2: 1.5, 3: 2.5}) == ({}, [])
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        _vol, res = _cut_analyse(root)
+        # The magnitude cuts are the analysed features' own quartiles: `np.quantile(1..32, ...)`.
+        assert res["peak_cuts"] == AI_CUT_QUARTILE_CUTS, res["peak_cuts"]
+        assert res["n_features"] == 32, res["n_features"]
+        for scorer in ("detection", "fuzzing"):
+            # RARE: all of the signal on the rarity cut, none of it on the magnitude cut.
+            for s in range(3):
+                _close(_cut(res, "strata", "cut/RARE", scorer, s)["mean"], 0.5, 1e-12)
+            _close(_cut(res, "strata", "cut/RARE", scorer, 3)["mean"], 0.75, 1e-12)
+            for q in range(4):
+                c = _cut(res, "peak_strata", "cut/RARE", scorer, q)
+                _close(c["mean"], 0.5625, 1e-12, what="(6*0.5 + 2*0.75) / 8")
+                assert c["n"] == 8 and c["short"] is False, c
+            # BIG: the mirror image, which is what makes the two cuts independent here.
+            for q in range(3):
+                _close(_cut(res, "peak_strata", "cut/BIG", scorer, q)["mean"], 0.5, 1e-12)
+            _close(_cut(res, "peak_strata", "cut/BIG", scorer, 3)["mean"], 0.75, 1e-12)
+            for s in range(4):
+                _close(_cut(res, "strata", "cut/BIG", scorer, s)["mean"], 0.5625, 1e-12)
+            # FLAT is constant, so every cell is a degenerate bootstrap and not a missing one.
+            c = _cut(res, "strata", "cut/FLAT", scorer, 0)
+            assert (c["mean"], c["lo"], c["hi"], c["n"]) == (0.5, 0.5, 0.5, 8), c
+        # Every cell carries the SAME percentile bootstrap the headline table uses, so a cell and
+        # a whole-arm number are one estimator at two sample sizes.
+        c = _cut(res, "strata", "cut/RARE", "detection", 3)
+        assert c["lo"] == c["hi"] == 0.75, c
+        # Both views reach the registry under DIFFERENT metric names: stratum 3 of one cut and
+        # stratum 3 of the other are different cells and a gate must be able to name which.
+        reg = A.stat_registry(res)
+        _close(reg[("detection", "cut/RARE", 3, "bal_acc.mean")], 0.75, 1e-12)
+        _close(reg[("detection", "cut/RARE", 3, "peak.bal_acc.mean")], 0.5625, 1e-12)
+        # And the caption's cut definition is QUOTED from the set's record, not retyped: the two
+        # `## Notes` lines that state a stratification, and not the `- command:` line above them
+        # that merely says `--stratified`.
+        assert len(res["record"]) == 2, res["record"]
+        assert all("modal run" not in ln for ln in res["record"]), res["record"]
+        assert any("[1.0, 2.0, 3.0]" in ln and AI_CUT_SET in ln for ln in res["record"]), \
+            res["record"]
+
+    # No record on the volume costs the caption its numbers and SAYS which set's was missing --
+    # it never falls back to a plausible default.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        (root / f"base/{AI_CUT_BASE}/heldout/{AI_CUT_SET}/README.md").unlink()
+        _vol, res = _cut_analyse(root)
+        assert res["record"] == [], res["record"]
+        assert any(AI_CUT_SET in n and "unstated" in n for n in res["notes"]), res["notes"]
+
+
+def check_autointerp_short_cells_are_reported():
+    """A cell with too few features is REPORTED, and is not silently averaged into the trend.
+
+    `PARTIAL` carries two of stratum 3's eight features and both are worth 1.0 against 0.5
+    everywhere else, so the short cell is the extreme one: a driver that averaged it in would
+    report a spread of 0.5, and one that dropped it without saying so would report 0.0 with no
+    trace. The correct answer is 0.0 WITH the cell named, and this pins all three apart.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        _vol, res = _cut_analyse(root)
+        # The cell exists, prints its own n, is flagged, and keeps its mean -- reported, not
+        # deleted and not smoothed.
+        short = _cut(res, "strata", "cut/PARTIAL", "detection", 3)
+        assert (short["n"], short["short"]) == (2, True), short
+        _close(short["mean"], 1.0, 1e-12)
+        for s in range(3):
+            c = _cut(res, "strata", "cut/PARTIAL", "detection", s)
+            assert (c["n"], c["short"]) == (8, False), c
+        # The trend row used three cells of four, named the fourth, and reports the spread of the
+        # three it used -- 0.0, not the 0.5 that averaging the short cell in would give.
+        t = _trend(res, "stratum", "cut/PARTIAL", "detection")
+        assert (t["n_cells"], t["n_cells_all"]) == (3, 4), t
+        assert t["dropped"] == ["3 (n=2)"], t
+        _close(t["spread"], 0.0, 1e-12, what="the three full cells are all 0.5")
+        # On the magnitude cut the same arm loses two features out of three quartiles: those cells
+        # are UNDER-FILLED, not short, so they stay in the statistics and are still reported.
+        assert [_cut(res, "peak_strata", "cut/PARTIAL", "detection", q)["n"] for q in range(4)] \
+            == [8, 6, 6, 6]
+        tq = _trend(res, "peak", "cut/PARTIAL", "detection")
+        assert (tq["n_cells"], tq["dropped"], tq["n_min"]) == (4, [], 6), tq
+        _close(tq["spread"], 0.125, 1e-12, what="(6*0.5 + 2*1.0)/8 − 0.5")
+        # Both counters reach the checks table, per view, with the cells named.
+        ck = {c["who"]: c for c in res["checks"] if c["kind"] == "cells"}
+        assert (ck["stratum"]["n_short"], ck["stratum"]["n_thin"]) == (2, 0), ck["stratum"]
+        assert ck["stratum"]["short_cells"] == ["cut/PARTIAL/detection stratum 3 (n=2)",
+                                                "cut/PARTIAL/fuzzing stratum 3 (n=2)"], ck
+        assert (ck["peak"]["n_short"], ck["peak"]["n_thin"]) == (0, 6), ck["peak"]
+        assert ck["peak"]["full"] == 8, ck["peak"]
+        # The magnitude view names its cells QUARTILES here too: a check row that called one
+        # "stratum 1" would read as a rarity stratum in the one table whose caption is that it is
+        # not one, and the check table is where a reader looks when a cell is short.
+        assert all(" quartile " in c for c in ck["peak"]["thin_cells"]), ck["peak"]["thin_cells"]
+        assert all(" stratum " in c for c in ck["stratum"]["short_cells"]), ck["stratum"]
+
+
+def check_autointerp_trend_statistics():
+    """The spread, the rank statistic and the permutation p, against numbers worked out here.
+
+    THE PERMUTATION IS EXACT ENOUGH TO BE A LITERAL. `RARE` has eight values of 0.75 among 32, so a
+    cell of eight has mean 0.5 + 0.25 * k / 8 for its k high values and the spread is
+    0.25 * (k_max − k_min) / 8. The observed 0.25 is therefore the LARGEST spread the multiset can
+    produce and needs all eight in one cell: 4 / C(32, 8) = 4 / 10,518,300 ≈ 3.8e-7 of relabellings.
+    At 2000 resamples no relabelling reaches it, so the reported p is the add-one FLOOR, 1/2001 --
+    which is also the check that the floor is reported as a floor and not as a zero.
+
+    The orthogonal direction is the other exact case: `RARE` on the magnitude cut has spread 0, and
+    EVERY relabelling has spread >= 0, so its p is exactly 1.0 and not a small number.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        _vol, res = _cut_analyse(root)
+        t = _trend(res, "stratum", "cut/RARE", "detection")
+        _close(t["spread"], 0.25, 1e-12, what="0.75 − 0.5")
+        _close(t["p_perm"], 1 / 2001, 1e-12, what="no resample of 2000 reaches the largest spread")
+        # Spearman over the four cells: the cut index ranks 1,2,3,4 against the means' average
+        # ranks 2,2,2,4 -- three tied cells and one above them -- giving 3 / sqrt(5 * 3).
+        _close(t["rho"], 3 / math.sqrt(15), 1e-12, what="ties shared, not broken by position")
+        assert (t["n_cells"], t["n_min"]) == (4, 8), t
+        # The same arm on the cut it does not depend on: no spread, no rank, and p = 1 exactly.
+        tq = _trend(res, "peak", "cut/RARE", "detection")
+        _close(tq["spread"], 0.0, 1e-12)
+        assert tq["p_perm"] == 1.0, tq
+        assert math.isnan(tq["rho"]), tq
+        # BIG is the mirror image, which is the check that the two views are not one computation
+        # printed twice.
+        _close(_trend(res, "peak", "cut/BIG", "detection")["spread"], 0.25, 1e-12)
+        _close(_trend(res, "stratum", "cut/BIG", "detection")["spread"], 0.0, 1e-12)
+        # A flat arm has no spread, no rank and no separation -- never a small p.
+        f = _trend(res, "stratum", "cut/FLAT", "fuzzing")
+        assert f["spread"] == 0.0 and f["p_perm"] == 1.0 and math.isnan(f["rho"]), f
+        # The widest per-cell interval is reported: at n = 8 with 6 values at 0.5 and 2 at 1.0 the
+        # bootstrap is wide, and the trend table prints it so a spread can be read against it.
+        assert _trend(res, "peak", "cut/PARTIAL", "detection")["widest_ci"] > 0.2
+
+    # `rho` is a rank statistic, not a Pearson correlation on the means: an arm whose cells rise by
+    # wildly unequal steps has |rho| = 1 all the same, and a driver that had used Pearson would not.
+    ranks = A._avg_ranks(np.array([0.5, 0.51, 0.52, 0.99]))
+    assert list(ranks) == [1.0, 2.0, 3.0, 4.0], ranks
+    assert list(A._avg_ranks(np.array([0.5, 0.5, 0.5, 0.9]))) == [2.0, 2.0, 2.0, 4.0]
+    # A degenerate permutation input is NaN, never a p of 0 or 1 invented from one cell.
+    assert math.isnan(A.spread_perm_p(np.array([0.5, 0.75]), np.array([0, 0]), 100, 1))
+
+
+def check_autointerp_cut_render():
+    """Both cut tables and the trend table reach `tables.md` with a CSV each, and the captions
+    carry the two statements the tables cannot make for themselves: that the rarity cut was
+    BALANCED BY THE DRAW and the magnitude cut was not, and that the rank statistic is not a test.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        _vol, res = _cut_analyse(root)
+        out_dir = root / "out"
+        o = R.Out(out_dir, "selftest — eval 2 cuts", ["- synthetic"])
+        md = A.render(res, o, [], []).read_text()
+        for name in ("strata", "peak_strata", "trends"):
+            assert (out_dir / f"{name}.csv").exists(), f"{name}.csv was not written"
+        rar = md.split("### Balanced accuracy per rarity stratum")[1].split("###")[0]
+        mag = md.split("### Balanced accuracy per activation-magnitude quartile")[1].split("###")[0]
+        tre = md.split("### Does any arm × cut trend survive?")[1].split("###")[0]
+        # The rarity caption states the axis, quotes the record, and warns the two SAEs' strata
+        # apart; the magnitude caption states that it is POST-HOC and prints its own cuts.
+        assert "RARITY" in rar and "not the same rarity" in rar, rar[:400]
+        assert "log10_gated_fires_16M" in rar, "the draw record is not quoted in the caption"
+        assert "POST-HOC" in mag and "8.7500, 16.5000, 24.2500" in mag, mag[:600]
+        assert "not a stratification the draw controlled" in mag, mag[:600]
+        # Both tables carry BOTH scorers and the n of every cell -- pinned on the ROW, because the
+        # caption also contains the word and a bare `in md` would pass on the caption alone.
+        rows_md = [ln for ln in rar.splitlines() if ln.startswith("| ")]
+        assert any(ln.startswith("| RARE | cut | fuzzing |") for ln in rows_md), rows_md
+        rare = next(ln for ln in rows_md if ln.startswith("| RARE | cut | detection |"))
+        assert rare.rstrip().endswith("| 0.7500 (n=8) |"), rare
+        part = next(ln for ln in rows_md if ln.startswith("| PARTIAL | cut | detection |"))
+        assert part.rstrip().endswith("| 1.0000 (n=2, SHORT) |"), part
+        # The trend table's verdict, and the caption's refusal to sell the rank statistic as one.
+        assert "never a test" in tre and "2/24 = 0.083" in tre, tre[:600]
+        trows = [ln for ln in tre.splitlines() if ln.startswith("| stratum | RARE ")]
+        assert len(trows) == 2 and "separates" in trows[0], trows
+        assert "no separation" in next(ln for ln in tre.splitlines()
+                                       if ln.startswith("| peak | RARE | cut | detection |"))
+        # The short cell is named in the verdict of the row it was dropped from, and in the checks.
+        pt = next(ln for ln in tre.splitlines() if ln.startswith("| stratum | PARTIAL | cut | det"))
+        assert "3/4" in pt and "3 (n=2)" in pt, pt
+        chk = md.split("### Reader and pairing checks")[1].split("###")[0]
+        assert "SHORT (< 4 features)" in chk and "cut/PARTIAL/detection stratum 3 (n=2)" in chk, chk
+        assert "under-filled" in chk, chk
+
+
+def check_autointerp_cuts_catch_a_defect():
+    """Four mutations of the cut fixture, each of which must change a number or raise a report.
+
+    Every one of these is a defect this driver would otherwise print as a clean table: a cell mean
+    that does not follow its features, a magnitude cut taken over two sets' values at once, a short
+    cell that grew and was not re-counted, and a permutation p that does not depend on the labels.
+    """
+    # 1. Move one feature's accuracy and the cell it sits in must move with it -- the cell mean is
+    #    computed from the rows, not from the arm's shape.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        p = root / f"runs/{AI_CUT_RUNS['cut']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        hit = next(r for r in recs if r["arm"] == "RARE" and r["scorer"] == "detection"
+                   and r["feature"] == 224)
+        hit["bal_acc"] = hit["tpr"] = hit["tnr"] = 0.25
+        p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+        _vol, res = _cut_analyse(root)
+        _close(_cut(res, "strata", "cut/RARE", "detection", 3)["mean"], 0.6875, 1e-12,
+               what="(7*0.75 + 0.25) / 8")
+        # And the magnitude cell that feature belongs to moves too, and no other one does.
+        _close(_cut(res, "peak_strata", "cut/RARE", "detection", 0)["mean"], 0.5, 1e-12,
+               what="feature 224 is magnitude quartile 0: (6*0.5 + 0.75 + 0.25) / 8")
+        _close(_cut(res, "peak_strata", "cut/RARE", "detection", 1)["mean"], 0.5625, 1e-12)
+
+    # 2. One feature whose rows disagree about `corpus_peak`: the quartiles would otherwise be cut
+    #    over a distribution that exists in neither set. It is dropped and REPORTED.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        p = root / f"runs/{AI_CUT_RUNS['cut']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        next(r for r in recs if r["feature"] == 207 and r["arm"] == "BIG")["corpus_peak"] = 99.0
+        p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+        _vol, res = _cut_analyse(root)
+        assert any("207" in n and "corpus_peak" in n for n in res["notes"]), res["notes"]
+        # 31 features are quartiled, so the cuts move and one cell loses its feature -- both of
+        # which a silent implementation would hide.
+        assert res["peak_cuts"] != AI_CUT_QUARTILE_CUTS, res["peak_cuts"]
+        # 31 features are quartiled and the 32nd goes to its OWN cell, keyed None -- which the
+        # table prints as `quartile —`. A feature this driver cannot place is still a feature it
+        # scored, and dropping it out of the block silently is the thing the note exists against.
+        mine = [c for c in res["peak_strata"] if c["arm"] == "cut/BIG"
+                and c["scorer"] == "detection"]
+        assert sum(c["n"] for c in mine if c["stratum"] is not None) == 31, mine
+        assert [c["n"] for c in mine if c["stratum"] is None] == [1], mine
+        # It is not a quartile, so it is kept out of the trend and named there as well.
+        t = _trend(res, "peak", "cut/BIG", "detection")
+        assert (t["n_cells"], t["n_cells_all"]) == (4, 5) and t["dropped"] == ["None (n=1)"], t
+
+    # 3. Shrink a second cell below MIN_CELL and both counters must move -- the check is a count of
+    #    what is there, not a constant that happens to read 2.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        p = root / f"runs/{AI_CUT_RUNS['cut']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        kept = [r for r in recs if not (r["arm"] == "PARTIAL" and r["scorer"] == "detection"
+                                        and 216 <= r["feature"] <= 221)]
+        assert len(kept) == len(recs) - 6
+        p.write_text("\n".join(json.dumps(r) for r in kept) + "\n")
+        _vol, res = _cut_analyse(root)
+        c = _cut(res, "strata", "cut/PARTIAL", "detection", 2)
+        assert (c["n"], c["short"]) == (2, True), c
+        t = _trend(res, "stratum", "cut/PARTIAL", "detection")
+        assert (t["n_cells"], t["dropped"]) == (2, ["2 (n=2)", "3 (n=2)"]), t
+        ck = [x for x in res["checks"] if x["kind"] == "cells" and x["who"] == "stratum"][0]
+        assert ck["n_short"] == 3, ck
+
+    # 4. Shuffle the stratum labels off their features and the permutation p must LEAVE its floor:
+    #    a p that came out of the estimator and not out of a constant.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_cuts(root)
+        p = root / f"runs/{AI_CUT_RUNS['cut']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        for r in recs:
+            # One of each stratum per magnitude-quartile-mate, so the cells stay 8 apiece and only
+            # the ASSOCIATION with bal_acc is destroyed.
+            r["stratum"] = (r["feature"] - AI_CUT_FEATS[0]) % 4
+        p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+        _vol, res = _cut_analyse(root)
+        assert [_cut(res, "strata", "cut/RARE", "detection", s)["n"] for s in range(4)] \
+            == [8, 8, 8, 8]
+        t = _trend(res, "stratum", "cut/RARE", "detection")
+        _close(t["spread"], 0.0, 1e-12, what="every stratum now holds two of the eight high values")
+        assert t["p_perm"] == 1.0, t
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -1030,6 +1501,12 @@ CHECKS = [
     check_autointerp_pairing_is_intersection,
     check_autointerp_catches_a_defect,
     check_autointerp_render_and_figures,
+    # eval 2's cut views -- the rarity strata and the post-hoc magnitude quartiles
+    check_autointerp_cut_views,
+    check_autointerp_short_cells_are_reported,
+    check_autointerp_trend_statistics,
+    check_autointerp_cut_render,
+    check_autointerp_cuts_catch_a_defect,
 ]
 
 
