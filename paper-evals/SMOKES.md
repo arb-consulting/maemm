@@ -3565,26 +3565,26 @@ pin it:
 | arm | detection | fuzzing |
 |---|---|---|
 | `DOCMAX` (corpus ground truth = search, interim-16M) | **0.8019** [0.7602, 0.8438] | **0.7306** [0.6948, 0.7653] |
-| `DOCMAX-judge2` (judge null) | 0.7954 [0.7516, 0.8371] | 0.7172 [0.6839, 0.7507] |
-| `DOCMAX-draw2` (draw null, n=30) | 0.7469 [0.6958, 0.7958] | 0.6861 [0.6405, 0.7289] |
-| `NLA` mode A (4 NLA texts → explainer, n=30) | 0.6647 [0.6072, 0.7264] | 0.6213 [0.5794, 0.6656] |
-| `M` rl-last16 (16 rollouts → explainer) | 0.6594 [0.6097, 0.7057] | 0.6192 [0.5801, 0.6551] |
-| `M` old primary | 0.6030 [0.5616, 0.6497] | 0.5979 [0.5599, 0.6400] |
-| `NLA-desc` mode B (NLA text IS the description, n=30) | 0.5178 [0.5061, 0.5333] | 0.5261 [0.5086, 0.5447] |
-| `R-shuffled` (floor) | 0.4984 [0.4866, 0.5105] | 0.5008 [0.4903, 0.5137] |
+| `DOCMAX-judge2` (judge null) | 0.7954 [0.7519, 0.8363] | 0.7172 [0.6841, 0.7526] |
+| `DOCMAX-draw2` (draw null, n=30) | 0.7469 [0.6958, 0.7975] | 0.6861 [0.6428, 0.7295] |
+| `NLA` mode A (4 NLA texts → explainer, n=30) | 0.6647 [0.6092, 0.7247] | 0.6213 [0.5795, 0.6663] |
+| `M` rl-last16 (16 rollouts → explainer) | 0.6594 [0.6124, 0.7089] | 0.6192 [0.5829, 0.6563] |
+| `M` old primary | 0.6030 [0.5608, 0.6508] | 0.5979 [0.5587, 0.6402] |
+| `NLA-desc` mode B (NLA text IS the description, n=30) | 0.5178 [0.5061, 0.5336] | 0.5261 [0.5092, 0.5444] |
+| `R-shuffled` (floor) | 0.4984 [0.4858, 0.5108] | 0.5008 [0.4911, 0.5137] |
 
 **2M primary** (`qwen36-27b/sae2m`, gate 1.6828), n = 32 except `M` rl-last16 at n = 21:
 
 | arm | detection | fuzzing |
 |---|---|---|
 | `DOCMAX` (corpus ground truth = search, interim-16M) | **0.5815** [0.5411, 0.6245] | **0.6135** [0.5818, 0.6451] |
-| `DOCMAX-draw2` (draw null) | 0.5780 [0.5338, 0.6254] | 0.6072 [0.5667, 0.6511] |
-| `DOCMAX-judge2` (judge null) | 0.5745 [0.5279, 0.6216] | 0.6052 [0.5690, 0.6398] |
-| `M` rl-last16 (**n=21**, 11 refusals) | 0.5397 [0.5127, 0.5702] | 0.5143 [0.5000, 0.5321] |
-| `M` old primary | 0.5266 [0.5000, 0.5599] | 0.5237 [0.5008, 0.5516] |
-| `NLA` mode A | 0.5135 [0.4906, 0.5409] | 0.5142 [0.5033, 0.5268] |
-| `NLA-desc` mode B | 0.5057 [0.5000, 0.5135] | 0.5144 [0.5001, 0.5314] |
-| `R-shuffled` (floor) | 0.4836 [0.4617, 0.5055] | 0.5344 [0.5070, 0.5625] |
+| `DOCMAX-draw2` (draw null) | 0.5780 [0.5344, 0.6261] | 0.6072 [0.5649, 0.6504] |
+| `DOCMAX-judge2` (judge null) | 0.5745 [0.5289, 0.6247] | 0.6052 [0.5686, 0.6403] |
+| `M` rl-last16 (**n=21**, 11 refusals) | 0.5397 [0.5131, 0.5710] | 0.5143 [0.5000, 0.5321] |
+| `M` old primary | 0.5266 [0.4995, 0.5612] | 0.5237 [0.5008, 0.5531] |
+| `NLA` mode A | 0.5135 [0.4911, 0.5435] | 0.5142 [0.5033, 0.5283] |
+| `NLA-desc` mode B | 0.5057 [0.5000, 0.5135] | 0.5144 [0.5000, 0.5310] |
+| `R-shuffled` (floor) | 0.4836 [0.4617, 0.5049] | 0.5344 [0.5083, 0.5622] |
 
 Paired against `DOCMAX`, detection / fuzzing: 131k `M` rl-last16 **−0.1425 / −0.1114**, `M` old
 primary −0.1989 / −0.1326, `NLA` −0.1389 / −0.1078, `NLA-desc` **−0.2858 / −0.2030**, floor
@@ -3623,8 +3623,17 @@ primary −0.1989 / −0.1326, `NLA` −0.1389 / −0.1078, `NLA-desc` **−0.28
 On the 131k, where the eval discriminates: **mode A 0.6647 detection, mode B 0.5178, floor
 0.4984.** Running the verbalizer's texts through the explainer lands the NLA arm on top of the
 MAEMM arm (`M` rl-last16 0.6594); handing the verbalizer's own text to the scorer AS the
-description lands it 0.019 above the floor, and the paired contrast against DOCMAX is −0.2858
-against the floor's −0.3035. Mode B recovers about 6 % of the gap mode A recovers.
+description lands it AT the floor. The paired contrast against DOCMAX is −0.2858 against the
+floor's −0.3035, so mode B recovers about 6 % of the gap mode A recovers.
+
+**"6 % of the gap" is the generous reading, and the intervals do not support even that.** Mode B's
+interval OVERLAPS the floor's on both scorers − detection [0.5061, 0.5336] against the floor's
+[0.4858, 0.5108], fuzzing [0.5092, 0.5444] against [0.4911, 0.5137] − while every other arm in the
+block, mode A and both MAEMMs included, is disjoint from the floor by a wide margin (the nearest,
+`M` rl-last16 detection, has a lower bound of 0.6124 against the floor's upper 0.5108). So the
+defensible statement is not "mode B is 0.019 above the floor", which implies a measured gap; it is
+**mode B is not distinguishable from scoring with a random other feature's description**. That is
+the stronger claim and the one the data carries.
 
 This CONTRADICTS the recommendation in `related-work/2026-09-21_nla-in-autointerp.md` §"1. Run NLA
 in description mode: the AV explanation IS the explanation string ... Samples mode has no
@@ -3632,6 +3641,24 @@ precedent in any NLA paper and adds an unvalidated generation hop". The literatu
 right that mode A has no precedent; the measurement says mode B does not work under this protocol.
 Both arms ran on the same 30 features, the same test items and the same scorer calls, so the
 comparison is internal and does not depend on anything above.
+
+### The cut views resolve nothing on the 131k, and that is not "the 131k shows nothing"
+
+Printing the per-cell resolution flag on every row of the trend table, not only the separating
+ones, makes a statement no table here had made: the **131k block has ZERO disjoint rows, 0 of 64**
+— every row, both views, every arm, both scorers, the top cell's interval overlaps a neighbour.
+
+**Read the scope carefully, because the two questions are one careless sentence apart.** The cut
+views ask whether ONE ARM's accuracy varies across strata; that is what resolves nowhere on the
+131k. The arm comparison is a different question and the same block answers it emphatically:
+`DOCMAX`, both nulls, `NLA` and both `M` arms are all disjoint from the floor, the nearest by 0.10
+of balanced accuracy. "The 131k separates arms" and "the 131k resolves no cut" are both true, of
+different things.
+
+A second thing the move surfaced: four rows are resolved but uncorrected, and **all four are the
+MAEMM arm** (`old-primary/M` on both scorers in the rarity view, `rl-last16/M` on both in the peak
+view). With the two `peak old-primary/M` rows that do separate, `M` is the only arm in either block
+whose cells resolve while its p stays marginal.
 
 ### What was verified rather than argued
 
