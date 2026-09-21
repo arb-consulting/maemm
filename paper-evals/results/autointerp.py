@@ -136,6 +136,19 @@ READER_TOL = 2e-6
 # because an arm below it is not a weak explanation, it is an anti-correlated one.
 CHANCE = 0.5
 ALPHA = 0.05
+# Why a REFUSED feature may be scored at chance while a feature with a null `bal_acc` may not.
+# The two look alike -- both are features an arm has no number for -- and they are not alike:
+CHANCE_NOTE = (
+    "A feature whose `bal_acc` came back null has NO MEASURABLE balanced accuracy — `run.rates` "
+    "saw no positives, so there is no TPR and nothing was measured — and imputing one would "
+    "invent data. A REFUSED feature is different in kind: its test set is intact and the arm "
+    "simply produced no description for it, so chance is a defensible convention for *the method "
+    "failed here* rather than a number pretending to be a measurement. The two rows are ONE "
+    "dataset under two conventions, not two results."
+)
+# The imputed row is kept out of every inferential table -- see `analyse` -- so the conventions a
+# reader can select between never leak into a contrast, a cut cell or a permutation null.
+DROPPED, IMPUTED = "dropped", "refusal=chance"
 # The three balanced accuracies a row carries, each as (stored, TPR field, TNR field). The two
 # restrictions of the negative half are amendment A5's, from the SAME answers: a result that lives
 # entirely on one half cannot hide in the pooled number, and the reader check covers all three.
@@ -234,6 +247,45 @@ def load_run(vol: R.Vol, label: str, run_dir: str) -> tuple[list[dict], dict, st
                      "key": Arm(label, str(r["arm"])), "scorer": str(r["scorer"])})
     build = vol.json(f"runs/{run_dir}/summary/build.json") or {}
     return rows, build, ""
+
+
+def load_refusals(vol: R.Vol, label: str, run_dir: str) -> tuple[dict[Arm, set[int]], str]:
+    """({arm: the features whose explainer call was REFUSED}, "" or why it is unknown).
+
+    WHY THIS NEEDS ITS OWN READER. A refusal leaves NO ROW IN `scores.jsonl`: `run.py` records the
+    declined call, emits no scorer job for that (feature, arm), and everything downstream sees an
+    arm that simply covers fewer features. It is therefore invisible in every table built from the
+    scores alone -- the support table's `no explanation` column reads 0 for the 2M `M` arm while
+    eleven of its thirty-two features were refused outright -- and the only on-volume record of it
+    is the explain stage's own `explanations.jsonl`.
+
+    THE RETRY IS ALREADY COLLAPSED HERE, which is worth stating because the cache is not: a
+    refusal is retried once under a `<key>|retry` job key, and `run.py` writes the retry's outcome
+    BACK under the original key (`got[j["key"].removesuffix("|retry")] = rec`) before emitting the
+    rows. So `explanations.jsonl` carries one row per (feature, arm) with the FINAL outcome, and
+    counting its rows needs no retry arithmetic. MEASURED across all nine eval-2 runs: zero
+    duplicate (feature, arm) pairs.
+
+    `refused` IS NOT `not ok`. The seeded `NLA-desc` arm's description comes from the build's
+    verbalizer rather than the explainer, and a feature whose NLA text was empty is written with
+    `ok: false`, `refused: false`, `stop_reason: "seeded-from-build"`. Counting empties would
+    report the verbalizer's silence as the explainer's refusal, which are different failures with
+    different remedies, so the `refused` flag is read specifically (falling back to the
+    `stop_reason` it is derived from, for a run written before the flag existed).
+    """
+    rel = f"runs/{run_dir}/explain/explanations.jsonl"
+    raw = vol.jsonl(rel)
+    if raw is None:
+        return {}, (f"`{label}`: no `{rel}`, so refusals cannot be counted for this run and the "
+                    f"`refused` column below is blank rather than zero")
+    out: dict[Arm, set[int]] = {}
+    for r in raw:
+        refused = r.get("refused")
+        if refused is None:
+            refused = str(r.get("stop_reason") or "") == "refusal"
+        if refused:
+            out.setdefault(Arm(label, str(r["arm"])), set()).add(int(r["feature"]))
+    return out, ""
 
 
 def index_rows(rows: list[dict]) -> dict[tuple[Arm, str], dict[int, dict]]:
@@ -734,6 +786,8 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
         "directory per checkpoint, and there is nothing to read without being told which")
     rows: list[dict] = []
     builds: dict[str, dict] = {}
+    refusals: dict[Arm, set[int]] = {}
+    unknown_refusals: set[str] = set()
     missing: list[str] = []
     notes: list[str] = []
     checks: list[dict] = []
@@ -745,6 +799,13 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
         rows += got
         builds[label] = build
         checks.append(reader_check(got, label, run_dir))
+        # NOT `ref`: that is this function's reference-arm parameter, and shadowing it here
+        # silently resolved every paired contrast against an empty dict.
+        ref_map, why_ref = load_refusals(vol, label, run_dir)
+        refusals.update(ref_map)
+        if why_ref:
+            notes.append(why_ref)
+            unknown_refusals.add(label)
         if not build:
             notes.append(f"`{label}` ({run_dir}): no `summary/build.json`, so its provenance "
                          f"(checkpoint, SAE, set) is unstated here")
@@ -776,18 +837,33 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
             parse = [int(r["n_parsed"]) / int(r["n_batches"]) for r in cell.values()
                      if r.get("n_batches")]
             items = [int(r["n_items"]) for r in cell.values() if r.get("n_items") is not None]
-            cells.append({
+            refused = refusals.get(key, set())
+            base = {
                 "arm": key.label, "run": key.run, "arm_name": key.arm, "scorer": scorer,
+                "convention": DROPPED,
                 "mean": mean, "lo": lo, "hi": hi,
                 "n_features": len(vals), "n_rows": len(cell),
                 "n_no_metric": len(cell) - len(vals),
                 "n_no_explanation": sum(1 for r in cell.values()
                                         if r.get("explanation_ok") is False),
+                "n_refused": None if key.run in unknown_refusals else len(refused),
                 "roles": roles, "n_examples": n_ex, "draws": draws,
                 "mean_n_items": float(np.mean(items)) if items else float("nan"),
                 "parse_rate": float(np.mean(parse)) if parse else float("nan"),
                 "run_dir": runs.get(key.run, ""),
-            })
+            }
+            cells.append(base)
+            # THE SECOND CONVENTION, and only where there is something to impute: an arm with no
+            # refusals emits ONE row, never a duplicate that would double it in every table below.
+            # A refused feature is not an unmeasurable one -- see `CHANCE_NOTE` -- so it is scored
+            # at chance rather than dropped, and the two rows are one dataset read two ways.
+            extra = sorted(f for f in refused if f not in vals)
+            if extra:
+                imputed = {**vals, **{f: CHANCE for f in extra}}
+                m2, lo2, hi2 = boot_ci(imputed.values(), boot, seed)
+                cells.append({**base, "convention": IMPUTED,
+                              "mean": m2, "lo": lo2, "hi": hi2,
+                              "n_features": len(imputed), "n_imputed": len(extra)})
 
     # --- the paired contrasts -----------------------------------------------------------------
     ref_run = next(iter(runs))
@@ -876,8 +952,12 @@ def stat_registry(res: dict) -> dict[tuple, float]:
     """
     out: dict[tuple, float] = {}
     for c in res["cells"]:
+        # The two conventions get DIFFERENT metric names. A gate that said `bal_acc.mean` and
+        # silently resolved against whichever row was written last would be selecting a convention
+        # by accident, which is the one thing having two rows must not make possible.
+        stem = "bal_acc" if c["convention"] == DROPPED else "bal_acc_chance"
         for part in ("mean", "lo", "hi"):
-            out[(c["scorer"], c["arm"], None, f"bal_acc.{part}")] = c[part]
+            out[(c["scorer"], c["arm"], None, f"{stem}.{part}")] = c[part]
     for x in res["contrasts"]:
         for part in ("mean", "lo", "hi"):
             out[(x["scorer"], x["arm"], None, f"diff.{part}")] = x[part]
@@ -906,8 +986,11 @@ def support_registry(res: dict) -> dict[tuple, int]:
     4-feature smoke is not a disagreement about the pipeline, and the reader has to see which.
     """
     out: dict[tuple, int] = {}
+    # The reported convention's n, so a gate on `bal_acc.*` is answered by the count behind it;
+    # the imputed row's own n is in the table and in `results.json`.
     for c in res["cells"]:
-        out[(c["scorer"], c["arm"], None)] = c["n_features"]
+        if c["convention"] == DROPPED:
+            out[(c["scorer"], c["arm"], None)] = c["n_features"]
     # The rarity view is written LAST so a gate on a shared (scorer, arm, stratum) key reads the
     # support of the cut `bal_acc.*` names; the magnitude view's own n is in `peak_strata.csv`.
     for s in (res.get("peak_strata") or []) + (res.get("strata") or []):
@@ -1205,32 +1288,39 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
     ref_label = res["ref"].label if res["ref"] else "(none)"
 
     # --- bal_acc per arm x scorer -------------------------------------------------------------
-    head = ["arm", "run", "role", "n ex", *[f"{s} mean [95% CI]" for s in scorers],
-            *[f"{s} feats" for s in scorers]]
-    csv_head = ["sae", "arm", "run", "arm_name", "scorer", "role", "n_examples", "n_features",
-                "n_rows", "n_no_metric", "mean", "lo", "hi", "boot", "seed"]
-    by_arm: dict[str, dict[str, dict]] = {}
+    head = ["arm", "run", "role", "n ex", "refused", "convention",
+            *[f"{s} mean [95% CI]" for s in scorers], *[f"{s} feats" for s in scorers]]
+    csv_head = ["sae", "arm", "run", "arm_name", "scorer", "convention", "role", "n_examples",
+                "n_refused", "n_imputed", "n_features", "n_rows", "n_no_metric", "mean", "lo",
+                "hi", "boot", "seed"]
+    # Keyed on (arm, CONVENTION): an arm with refusals has two rows and they must not collapse.
+    by_arm: dict[tuple[str, str], dict[str, dict]] = {}
     for c in res["cells"]:
-        by_arm.setdefault(c["arm"], {})[c["scorer"]] = c
+        by_arm.setdefault((c["arm"], c["convention"]), {})[c["scorer"]] = c
     rows, csv_rows = [], []
     for a in res["arms"]:
-        got = by_arm.get(a.label)
-        if not got:
-            continue
-        any_cell = next(iter(got.values()))
-        rows.append([
-            a.arm, a.run, _joined(any_cell["roles"]), _joined(any_cell["n_examples"]),
-            *[ci(got[s]["mean"], got[s]["lo"], got[s]["hi"]) if s in got else "—" for s in scorers],
-            *[got[s]["n_features"] if s in got else "—" for s in scorers],
-        ])
-        for s in scorers:
-            if s not in got:
+        for conv in (DROPPED, IMPUTED):
+            got = by_arm.get((a.label, conv))
+            if not got:
                 continue
-            c = got[s]
-            csv_rows.append([res["sae"], a.label, a.run, a.arm, s, _joined(c["roles"]),
-                             _joined(c["n_examples"]), c["n_features"], c["n_rows"],
-                             c["n_no_metric"], round(c["mean"], 6), round(c["lo"], 6),
-                             round(c["hi"], 6), res["boot"], res["seed"]])
+            any_cell = next(iter(got.values()))
+            n_ref = any_cell["n_refused"]
+            rows.append([
+                a.arm, a.run, _joined(any_cell["roles"]), _joined(any_cell["n_examples"]),
+                "—" if n_ref is None else n_ref, conv,
+                *[ci(got[s]["mean"], got[s]["lo"], got[s]["hi"]) if s in got else "—"
+                  for s in scorers],
+                *[got[s]["n_features"] if s in got else "—" for s in scorers],
+            ])
+            for s in scorers:
+                if s not in got:
+                    continue
+                c = got[s]
+                csv_rows.append([res["sae"], a.label, a.run, a.arm, s, conv, _joined(c["roles"]),
+                                 _joined(c["n_examples"]), c["n_refused"], c.get("n_imputed", 0),
+                                 c["n_features"], c["n_rows"], c["n_no_metric"],
+                                 round(c["mean"], 6), round(c["lo"], 6), round(c["hi"], 6),
+                                 res["boot"], res["seed"]])
     out.table(
         "bal_acc", f"Balanced accuracy — `{res['sae'] or '(sae unstated)'}`",
         (f"Mean over features of the per-(feature, arm) balanced accuracy `run.py` stored, with a "
@@ -1241,7 +1331,20 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
          f"the two numbers are comparable across arms and not to one another. `n ex` is the arm's "
          f"shown-example count as the build recorded it; the scorer-only pseudo-arms carry 0 "
          f"because they borrow another arm's description and have no example set of their own. "
-         f"Chance is {CHANCE:g}."),
+         f"Chance is {CHANCE:g}.\n\n"
+         f"**`refused` counts the features whose EXPLAINER CALL WAS DECLINED** (`stop_reason: "
+         f"refusal` in the run's `explain/explanations.jsonl`, after its one retry). `run.py` "
+         f"writes no score row for such a (feature, arm), so a refusal is otherwise invisible — "
+         f"it shows only as a smaller feature count, and `no explanation` in the support table "
+         f"reads 0 because that column counts rows that exist. An arm with refusals therefore "
+         f"gets TWO rows here, under the `convention` column: `dropped` is the reported number, "
+         f"the mean over the features that survived; `refusal=chance` scores every refused "
+         f"feature at {CHANCE:g} instead, over all of them. {CHANCE_NOTE} The imputed row is a "
+         f"LOWER BOUND whenever refusals are non-random, and here they are exactly that — the "
+         f"refused features are the ones whose rollout text the API declined to describe, not a "
+         f"random eleven. It is deliberately kept OUT of the paired contrasts, the cut views and "
+         f"the trend table: a convention must not propagate into a statistic that reads as "
+         f"measurement. An arm with no refusals has one row and no `refusal=chance` sibling."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
     # --- paired contrasts ---------------------------------------------------------------------
@@ -1341,21 +1444,25 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
         trend_table(res, out)
 
     # --- support / provenance -----------------------------------------------------------------
-    head = ["arm", "run", "scorer", "role", "draw", "n ex", "features", "no metric",
+    head = ["arm", "run", "scorer", "role", "draw", "n ex", "features", "refused", "no metric",
             "no explanation", "mean n_items", "parse rate"]
     csv_head = ["sae", "arm", "run", "arm_name", "scorer", "run_dir", "role", "draw", "n_examples",
-                "n_features", "n_rows", "n_no_metric", "n_no_explanation", "mean_n_items",
-                "parse_rate"]
+                "n_features", "n_rows", "n_refused", "n_no_metric", "n_no_explanation",
+                "mean_n_items", "parse_rate"]
     rows, csv_rows = [], []
-    for c in res["cells"]:
+    # The reported convention only: support is a statement about what was MEASURED, and the
+    # imputed row measures nothing new.
+    for c in [c for c in res["cells"] if c["convention"] == DROPPED]:
+        n_ref = "—" if c["n_refused"] is None else c["n_refused"]
         rows.append([c["arm_name"], c["run"], c["scorer"], _joined(c["roles"]),
-                     _joined(c["draws"]), _joined(c["n_examples"]), c["n_features"],
+                     _joined(c["draws"]), _joined(c["n_examples"]), c["n_features"], n_ref,
                      c["n_no_metric"], c["n_no_explanation"], R.num(c["mean_n_items"], 1),
                      R.num(c["parse_rate"], 3)])
         csv_rows.append([res["sae"], c["arm"], c["run"], c["arm_name"], c["scorer"], c["run_dir"],
                          _joined(c["roles"]), _joined(c["draws"]), _joined(c["n_examples"]),
-                         c["n_features"], c["n_rows"], c["n_no_metric"], c["n_no_explanation"],
-                         round(c["mean_n_items"], 3), round(c["parse_rate"], 6)])
+                         c["n_features"], c["n_rows"], c["n_refused"], c["n_no_metric"],
+                         c["n_no_explanation"], round(c["mean_n_items"], 3),
+                         round(c["parse_rate"], 6)])
     n_ex_seen = sorted({n for c in res["cells"] for n in c["n_examples"]})
     out.table(
         "support", "Support and provenance",
@@ -1367,7 +1474,12 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
          f"description and have no example set. `no metric` counts (feature, arm) rows whose "
          f"balanced accuracy came back null — `run.rates` returns NaN when a class was absent from "
          f"the PARSED items, which is what an all-unparsed feature looks like; those features are "
-         f"dropped from the means, never imputed. `parse rate` is the mean over features of "
+         f"dropped from the means, never imputed. `refused` counts the features whose explainer "
+         f"call was DECLINED, read from `explain/explanations.jsonl` because `run.py` writes no "
+         f"score row for one — which is also why `no explanation` reads 0 beside a nonzero "
+         f"`refused`: that column counts rows that exist, and a refusal has none. The two are "
+         f"different failures: `no explanation` is an empty description that was still scored, "
+         f"`refused` is a call the API declined. `parse rate` is the mean over features of "
          f"`n_parsed / n_batches`; an unparsed batch is dropped by `run.py` rather than padded."),
         head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
@@ -1464,7 +1576,8 @@ def _floor_mean(res: dict, scorer: str) -> tuple[float, str]:
     alone. With one floor per run directory the reference run's is used, because that is the run
     the contrasts are against; with no unambiguous choice the line is simply not drawn.
     """
-    hits = [c for c in res["cells"] if c["scorer"] == scorer and "floor" in c["roles"]]
+    hits = [c for c in res["cells"] if c["scorer"] == scorer and "floor" in c["roles"]
+            and c["convention"] == DROPPED]
     if not hits:
         return float("nan"), ""
     ref_run = res["ref"].run if res["ref"] else None
@@ -1489,7 +1602,9 @@ def make_figures(res: dict, out_dir: Path) -> list[str]:
     # common scale (see the bal_acc caption), and a shared axis would invite exactly the
     # comparison the protocol forbids.
     for scorer in res["scorers"]:
-        cells = [c for c in res["cells"] if c["scorer"] == scorer]
+        # The reported convention only: the imputed sibling is a second reading of the same
+        # features, and plotting both would draw one arm twice on one axis.
+        cells = [c for c in res["cells"] if c["scorer"] == scorer and c["convention"] == DROPPED]
         if not cells:
             continue
         order = {a.label: i for i, a in enumerate(res["arms"])}

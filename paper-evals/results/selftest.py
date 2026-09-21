@@ -641,6 +641,12 @@ AI_PARSED = {("rl16", "M", "detection", 13): 3}
 AI_NO_EXPL = {("old", "M", "detection", 13)}
 AI_N_BATCHES = 4
 AI_N_ITEMS = 40
+# (run, arm, feature) whose explainer call was DECLINED, which is now WHY `rl16/NLA` covers three
+# of the four features: a refusal leaves no score row, and the arm that was already short in this
+# fixture is short for exactly that reason. So one arm grows a `refusal=chance` sibling and every
+# other arm must stay single-rowed, and the refused feature is one with no `scores.jsonl` row to
+# contradict it -- which is the only self-consistent way to write one.
+AI_REFUSED = {("rl16", "NLA", 13)}
 
 
 def _ai_row(run: str, arm: str, scorer: str, feat: int, bal) -> dict:
@@ -687,6 +693,39 @@ def write_autointerp_runs(root: Path, sae: str = AI_SAE) -> None:
         (d / "build.json").write_text(json.dumps(
             {"base": "B", "set": "S3", "maemm": f"B/{run}", "engine": "vllm", "sae": sae,
              "n_features": len(AI_FEATS), "mark": "gate", "fuzz_marks": "contiguous"}))
+        # The explain stage's own record, which is the ONLY place a refusal exists: `run.py`
+        # writes no score row for a refused (feature, arm), so `scores.jsonl` above cannot carry
+        # one. Feature 13's `M` call was declined in the `rl16` run -- note that `scores.jsonl`
+        # has no `(13, M)` row to match, which is what a real refusal looks like.
+        e = root / f"runs/{run_dir}/explain"
+        e.mkdir(parents=True, exist_ok=True)
+        with open(e / "explanations.jsonl", "w") as fh:
+            for arm in sorted({a for r, a in AI_BAL if r == run}):
+                for feat in AI_FEATS:
+                    refused = (run, arm, feat) in AI_REFUSED
+                    fh.write(json.dumps({
+                        "feature": feat, "arm": arm, "n_examples": AI_NEX[arm],
+                        "explanation": "" if refused else f"a description of {feat}",
+                        "ok": not refused, "refused": refused,
+                        "stop_reason": "refusal" if refused else "end_turn"}) + "\n")
+            # TWO empties that are NOT refusals, because `refused` is not `not ok`:
+            #
+            #  * a SEEDED description the verbalizer left empty -- the explainer was never asked,
+            #    so `stop_reason` is `seeded-from-build` and no call was declined;
+            #  * an explainer answer that RETURNED NORMALLY and parsed to nothing (`end_turn`,
+            #    `ok: false`), which is a parse failure and not a declined call.
+            #
+            # The second is deliberately placed on `rl16/M` -- an arm that HAS cells -- so that
+            # miscounting empties as refusals changes a number this file asserts. The first sits
+            # on an arm with no score rows, which is realistic and, on its own, untestable.
+            fh.write(json.dumps({
+                "feature": AI_FEATS[0], "arm": "NLA-desc", "n_examples": 0, "explanation": "",
+                "ok": False, "refused": False, "stop_reason": "seeded-from-build"}) + "\n")
+            if run == "rl16":
+                fh.write(json.dumps({
+                    "feature": AI_FEATS[0], "arm": "M", "n_examples": AI_NEX["M"],
+                    "explanation": "", "ok": False, "refused": False,
+                    "stop_reason": "end_turn"}) + "\n")
 
 
 def _ai_analyse(root: Path, **kw):
@@ -698,9 +737,14 @@ def _ai_analyse(root: Path, **kw):
                           opts["strata"], opts["peak_strata"])
 
 
-def _ai_cell(res, arm: str, scorer: str) -> dict:
-    hits = [c for c in res["cells"] if c["arm"] == arm and c["scorer"] == scorer]
-    assert len(hits) == 1, (arm, scorer, sorted({c["arm"] for c in res["cells"]}))
+def _ai_cell(res, arm: str, scorer: str, convention: str = "dropped") -> dict:
+    """One headline cell. `convention` is required in spirit even though it has a default: an arm
+    with refusals has TWO rows, and a helper that returned whichever came first would make every
+    assertion below depend on dict ordering."""
+    hits = [c for c in res["cells"] if c["arm"] == arm and c["scorer"] == scorer
+            and c["convention"] == convention]
+    assert len(hits) == 1, (arm, scorer, convention,
+                            [(c["arm"], c["convention"]) for c in res["cells"]])
     return hits[0]
 
 
@@ -762,6 +806,83 @@ def check_autointerp_reader():
         _vol, res = _ai_analyse(root, runs={**AI_RUNS, "ghost": "2026-09-22_autointerp-ghost"})
         assert any("ghost" in m for m in res["missing"]), res["missing"]
         assert all(a.run != "ghost" for a in res["arms"])
+
+
+def check_autointerp_refusals_and_conventions():
+    """A refused explainer call is COUNTED, and its arm gets a second row under a stated convention.
+
+    A refusal is the one failure that leaves no trace in `scores.jsonl` -- `run.py` emits no scorer
+    job for it -- so before this it showed only as an arm with fewer features, indistinguishable
+    from an arm that was built over a subset on purpose. `rl16/NLA` covers three of four features
+    in this fixture and now says WHY.
+
+    The two conventions are one dataset read two ways and the numbers must differ in the direction
+    chance imputation implies: NLA's three survivors average 1.375/3 = 0.4583, and adding a fourth
+    feature at 0.5 moves it to 1.875/4 = 0.4688 -- UP, because the arm was below chance. That is
+    the whole point of calling the imputed row a lower bound only when refusals are non-random.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root)
+        # Counted on the arm that was refused, and ZERO (not blank) on every arm that was not.
+        assert _ai_cell(res, "rl16/NLA", "detection")["n_refused"] == 1
+        assert _ai_cell(res, "rl16/M", "detection")["n_refused"] == 0
+        assert _ai_cell(res, "rl16/DOCMAX", "detection")["n_refused"] == 0
+        # The reported row is unchanged by any of this: three features, their own mean.
+        drop = _ai_cell(res, "rl16/NLA", "detection")
+        assert (drop["n_features"], drop["convention"]) == (3, "dropped"), drop
+        _close(drop["mean"], 1.375 / 3, 1e-12)
+        # The imputed row scores the refused feature at chance over ALL four.
+        imp = _ai_cell(res, "rl16/NLA", "detection", "refusal=chance")
+        assert (imp["n_features"], imp["n_imputed"]) == (4, 1), imp
+        _close(imp["mean"], 1.875 / 4, 1e-12, what="(0.375 + 0.5 + 0.5) + 0.5, over 4")
+        assert imp["mean"] > drop["mean"], "chance imputation must lift a below-chance arm"
+        # Fuzzing too, on its own numbers -- the convention is per (arm, scorer), not per arm.
+        _close(_ai_cell(res, "rl16/NLA", "fuzzing", "refusal=chance")["mean"], 1.75 / 4, 1e-12)
+        # AN ARM WITH NO REFUSALS HAS EXACTLY ONE ROW. A spurious sibling would double that arm
+        # in every table and in the figure.
+        for arm in ("rl16/DOCMAX", "rl16/M", "rl16/R-shuffled", "old/DOCMAX", "old/M"):
+            got = [c for c in res["cells"] if c["arm"] == arm and c["scorer"] == "detection"]
+            assert len(got) == 1 and got[0]["convention"] == "dropped", (arm, got)
+        # `refused` IS NOT `not ok`. Two empties in this fixture are not refusals -- a seeded
+        # description the verbalizer left blank, and an explainer answer that returned normally
+        # and parsed to nothing -- and the second is on `rl16/M`, whose count must stay 0. A
+        # reader that counted empties would report a parse failure as a declined call.
+        assert not [c for c in res["cells"] if c["arm"] == "rl16/NLA-desc"], "fixture check"
+        assert _ai_cell(res, "rl16/M", "fuzzing")["n_refused"] == 0, "an empty is not a refusal"
+        assert len([c for c in res["cells"] if c["arm"] == "rl16/M"
+                    and c["scorer"] == "detection"]) == 1, "no sibling for a non-refusal empty"
+        assert sum(c["n_refused"] for c in res["cells"]
+                   if c["convention"] == "dropped" and c["scorer"] == "detection") == 1
+
+        # THE IMPUTED ROW IS OUT OF EVERY INFERENTIAL TABLE. A convention must not reach a
+        # contrast, a cut cell or a permutation null, where it would read as measurement.
+        assert all(x["n_arm"] != 4 or x["arm"] != "rl16/NLA" for x in res["contrasts"])
+        assert _ai_contrast(res, "rl16/NLA", "detection")["n_arm"] == 3
+        assert all("chance" not in str(s.get("convention", "")) for s in res["strata"])
+        st = {(s["arm"], s["scorer"], s["stratum"]): s for s in res["strata"]}
+        assert st[("rl16/NLA", "detection", 1)]["n"] == 1, "the refused feature is not a cut cell"
+        # And the registry names the two conventions apart, so a gate cannot select by accident.
+        reg = A.stat_registry(res)
+        _close(reg[("detection", "rl16/NLA", None, "bal_acc.mean")], 1.375 / 3, 1e-12)
+        _close(reg[("detection", "rl16/NLA", None, "bal_acc_chance.mean")], 1.875 / 4, 1e-12)
+        # Support answers for the REPORTED convention, so a gate's n matches its number.
+        assert A.support_registry(res)[("detection", "rl16/NLA", None)] == 3
+
+    # NO explain record at all: the column goes BLANK, never zero -- "we did not look" and "we
+    # looked and found none" are different claims and a 0 would assert the second.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        for run_dir in AI_RUNS.values():
+            (root / f"runs/{run_dir}/explain/explanations.jsonl").unlink()
+        _vol, res = _ai_analyse(root)
+        assert _ai_cell(res, "rl16/NLA", "detection")["n_refused"] is None
+        assert any("refusals cannot be counted" in n for n in res["notes"]), res["notes"]
+        # And with no count there is no imputed row to build: one row per arm.
+        assert len([c for c in res["cells"] if c["scorer"] == "detection"
+                    and c["arm"] == "rl16/NLA"]) == 1
 
 
 def check_autointerp_estimators():
@@ -1764,6 +1885,7 @@ CHECKS = [
     check_render_and_figures,
     # eval 2 -- `results/autointerp.py`
     check_autointerp_reader,
+    check_autointerp_refusals_and_conventions,
     check_autointerp_estimators,
     check_autointerp_pairing_is_intersection,
     check_autointerp_catches_a_defect,
