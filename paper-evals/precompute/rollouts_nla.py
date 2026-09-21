@@ -48,9 +48,11 @@ the uncentred `X[p]`. Adding `mu` back tilts the direction, and HOW FAR it tilts
 size of the `u` component relative to `||mu||` = 67.93 on this base. So the amplitude is not a
 no-op after all: it is the mixing ratio. `--amp` names the convention:
 
-    raw     x = r*u          the direction the SCORER's target is, fed as is; no mu anywhere.
-                             This is what the MAEMMs are injected with, and it is NOT what the
-                             NLA was trained to read -- the honest "wrong input" arm.
+    raw     x = r*u          THE DEFAULT (Tomas, 2026-09-21). The direction the SCORER's target
+                             is, fed as is; no mu anywhere. It is also what every MAEMM arm is
+                             injected with, so the NLA column is read against them on the same
+                             input -- at the cost that it is NOT what the NLA was trained to
+                             read, which is what the two variants below are for.
     mu      x = mu + r*u     the uncentred reconstruction at a typical corpus amplitude r.
     exact   x = mu + t*u     the uncentred reconstruction at THIS row's own recorded raw norm:
                              t > 0 solving ||mu + t*u|| = act_norm, the `||X[p]||` before centring
@@ -62,9 +64,9 @@ no-op after all: it is the mixing ratio. `--amp` names the convention:
 `r` is `nla.amp_r`: `median` resolves to the read layer's q[0.5] of
 `base/<base>/stats/resid_norm_quantiles.json` (93.259 on `qwen36-27b`, against a `mu` of 67.93 and
 the card's own `example_activations.parquet` norms of min 67.7 / median 88.3 / max 116.8), or a
-number is taken as is. The DEFAULT amp writes the ordinary accumulating `rollouts/<set>.jsonl`;
-any other amp writes `variants/<set>__amp-<amp>/rollouts.jsonl`, which `score --rollouts-dir`
-reads. One scoring path, one rollouts schema, several inputs.
+number is taken as is. The DEFAULT amp (`raw`) writes the ordinary accumulating
+`rollouts/<set>.jsonl`; any other amp writes `variants/<set>__amp-<amp>/rollouts.jsonl`, which
+`score --rollouts-dir` reads. One scoring path, one rollouts schema, several inputs.
 
 **Seeding** is `rollouts_hf`'s rule verbatim (`common.gen_seed_for`): the (target, rollout) grid is
 flattened target-major, cut into `gen_rows` chunks, and each chunk seeded

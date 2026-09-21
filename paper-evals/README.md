@@ -429,9 +429,9 @@ amplitude decides how far. It is a mixing ratio, not a scale:
 
 | `--amp` | input | what it is |
 |---|---|---|
-| `exact` (default) | `mu + t·u`, `t` solving `‖mu + t·u‖ = act_norm` | the uncentred reconstruction at the row's OWN recorded raw norm (`targets` stores `act_norm` on every realact row). Falls back to `mu` with a named reason for a row that has none |
+| `raw` (**default**, Tomáš 2026-09-21) | `r·u` | the scorer's own target fed as is, no `mu` anywhere. It is what every MAEMM arm is injected with, so the NLA column is read against them on the same input — at the cost that it is not what the NLA was trained to read |
 | `mu` | `mu + r·u` | the uncentred reconstruction at a typical corpus amplitude |
-| `raw` | `r·u` | the scorer's own target fed as is, no `mu` anywhere — the honest "wrong input" arm, and what the MAEMMs are injected with |
+| `exact` | `mu + t·u`, `t` solving `‖mu + t·u‖ = act_norm` | the uncentred reconstruction at the row's OWN recorded raw norm (`targets` stores `act_norm` on every realact row). Falls back to `mu` with a named reason for a row that has none |
 
 `r` is `nla.amp_r`: `median` resolves to the read layer's q[0.50] of
 `base/<base>/stats/resid_norm_quantiles.json` (**93.259** at layer 42 of `qwen36-27b`, against

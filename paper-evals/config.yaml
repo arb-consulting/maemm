@@ -196,7 +196,13 @@ maemms:
       score_max_tokens: 256
       card_max_new: 200      # the reference script's own default and the card's invocation
       n: 4                   # texts per target, default; --n overrides
-      amp: exact             # default input-amplitude convention; --amp overrides (writes a variant dir)
+      # Tomas 2026-09-21: `raw` is the HEADLINE input -- the scorer's own target direction, fed as
+      # is, which is also what every MAEMM arm is injected with, so the NLA column is read against
+      # them on the same input rather than on a reconstruction only this arm gets. `exact` and `mu`
+      # are the VARIANTS, run with --amp into variants/<set>__amp-<amp>/. NOTE the realact smoke
+      # rows already on the volume were generated under the old `exact` default; their summaries
+      # record `amp` per run and per row, so which is which is never in doubt.
+      amp: raw               # default input-amplitude convention; --amp overrides (writes a variant dir)
       amp_r: median          # r for `mu`/`raw` and the `exact` fallback: layer read_layer q[0.5] of stats/resid_norm_quantiles.json, or a number
     compute: true
   qwen36-27b/2026-09-05_rlE-250:
