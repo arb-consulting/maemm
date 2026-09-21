@@ -1,7 +1,8 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy>=2", "typer>=0.15", "pyyaml>=6", "matplotlib>=3.9"]
+# dependencies = ["numpy>=2", "typer>=0.15", "pyyaml>=6", "matplotlib>=3.9",
+#                 "polars>=1", "rich>=13"]   # the last two: reconstruction/stats_ood.py
 # ///
 """Eval 3's arms table: the generalisation eval, from the products already on the volume.
 
@@ -93,6 +94,17 @@ def _stats_ood():
 SCAN_RE = re.compile(r"^(?P<set>.+?)__(?P<corpus>[^_].*?)(?:__(?P<mb>[0-9.]+)m)?$")
 
 
+def C_corpus_dir(cfg: dict, arm: str) -> str:
+    """The corpus DIRECTORY of an OOD arm, through `corpora:` -- never the arm id by assumption.
+
+    `precompute/common.load_config` synthesises one `corpora:` entry per `ood_arms:` key, named
+    `ood_<arm>` with `dir: <arm>`. Reading `dir` rather than assuming the two are equal keeps this
+    correct if an arm is ever given a directory that is not its own name.
+    """
+    spec = (cfg.get("corpora") or {}).get(f"ood_{arm}")
+    return (spec or {}).get("dir") or arm
+
+
 def scan_dirs_of(vol: R.Vol, base: str, set_name: str) -> dict[str, tuple[str, float | None]]:
     """{scan directory -> (corpus directory name, the M-token bound or None)} for this set.
 
@@ -161,7 +173,7 @@ def bo64_of(rec: dict, centred: bool) -> float | None:
 def arm_rows(
     ids: list[dict],
     src: R.Source,
-    top1: dict[tuple[int, float], float],
+    top1_by_arm: dict[str, dict[tuple[int, float], float]],
     size_m: float,
     centred: bool,
     boot_ci,
@@ -174,6 +186,14 @@ def arm_rows(
         by_arm.setdefault(r["arm"], []).append(r)
     recs, skipped = [], []
     for arm, rows in by_arm.items():
+        # IN-DOMAIN means this arm's OWN corpus. Every scan carries every target (design §4: the
+        # scan's cost is per corpus token, so one pass answers for all of them), so row r has a
+        # top-1 in all 23 scans and only ONE of them is in its domain -- the rest are the
+        # cross-domain cells. Flattening them into one {row: cos} map silently mixed the two.
+        top1 = top1_by_arm.get(arm) or {}
+        if not top1:
+            skipped.append(f"arm `{arm}`: no scan of its own corpus, so no in-domain cell")
+            continue
         pairs, raw, cen, ctrl, corp, docs = [], [], [], [], [], []
         for r in rows:
             pt = src.per_target.get(int(r["row"]))
@@ -197,8 +217,8 @@ def arm_rows(
                     ctrl.append(cb)
         if len(pairs) < 2:
             skipped.append(
-                f"arm `{arm}`: {len(pairs)} paired targets (needs > 1) -- scan cell at {size_m}M "
-                f"or the score rows are missing"
+                f"arm `{arm}`: {len(pairs)} paired targets (needs > 1) -- its own scan cell at "
+                f"{size_m}M or the score rows are missing"
             )
             continue
         d = np.asarray(pairs, dtype=float)
@@ -327,7 +347,7 @@ def main(
         f"no in-domain scan for {set_name} under base/{base}/scan/: every Δ below is "
         f"MAEMM minus corpus search, so there is no table without one"
     )
-    sizes = sorted({sz for t in top1_by_corpus.values() for _, sz in t})
+    sizes = sorted({sz for t in top1_by_corpus.values() for _, sz in t})  # noqa: E501
     if size:
         assert size in sizes, f"--size {size} is not among the scanned sizes {sizes}"
         size_m = size
@@ -337,15 +357,13 @@ def main(
         assert common, f"the in-domain scans share no corpus size: {sizes}"
         size_m = max(common)
 
-    # one flat {(row, size) -> cos} across arms: each arm's rows only appear in its own scan
-    top1: dict[tuple[int, float], float] = {}
-    for t in top1_by_corpus.values():
-        for k, v in t.items():
-            assert k not in top1 or top1[k] == v, (
-                f"row {k[0]} at {k[1]}M has two different in-domain top-1 values "
-                f"({top1[k]} and {v}); two scans claim the same target's own corpus"
-            )
-            top1[k] = v
+    # {arm -> its OWN corpus's {(row, size) -> top-1}}. The corpus directory of arm `a` is
+    # `corpora[f"ood_{a}"].dir`, which is `a` itself for every arm declared in `ood_arms:`.
+    dir_of_arm = {a: C_corpus_dir(cfg, a) for a in {r["arm"] for r in ids}}
+    top1_by_arm = {a: top1_by_corpus.get(d, {}) for a, d in dir_of_arm.items()}
+    missing = sorted(a for a, t in top1_by_arm.items() if not t)
+    if missing:
+        notes.append("arms with no scan of their own corpus: " + ", ".join(f"`{a}`" for a in missing))
 
     ctrl_src = next((s for s in usable if s.role == "control"), None)
     control = ctrl_src.per_target if ctrl_src else None
@@ -373,7 +391,7 @@ def main(
         if src.role == "control":
             continue
         recs, skipped = arm_rows(
-            ids, src, top1, size_m, src.centred, mod.boot_ci, mod.outcome, control
+            ids, src, top1_by_arm, size_m, src.centred, mod.boot_ci, mod.outcome, control
         )
         notes += skipped
         lids: dict[str, dict] = {}

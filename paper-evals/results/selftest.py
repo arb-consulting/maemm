@@ -2389,6 +2389,14 @@ def check_ood_arm_table():
             row += 1
     # one target of `a_ex` has NO scan cell: it must drop out of the pair, not score zero
     del top1[(0, 1.0)]
+    # EVERY scan carries EVERY target (design §4), so each arm's corpus has a top-1 for all rows.
+    # Only the arm's OWN corpus is in-domain; the others are the cross-domain cells, and they are
+    # given a far HIGHER value here so that reading the wrong one would flip every verdict.
+    top1_by_arm = {}
+    for arm in plan:
+        own = dict.fromkeys(top1, 0.95)      # what the OTHER arms' corpora would say
+        own.update(top1)                     # this arm's own numbers
+        top1_by_arm[arm] = own
 
     def boot_ci(d):
         m = float(np.mean(d))
@@ -2397,9 +2405,14 @@ def check_ood_arm_table():
 
     src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
     src.per_target = per_target
-    recs, skipped = od.arm_rows(ids, src, top1, 1.0, True, boot_ci, R_outcome, None)
+    recs, skipped = od.arm_rows(ids, src, top1_by_arm, 1.0, True, boot_ci, R_outcome, None)
     assert not skipped, skipped
     got = {r["arm"]: r for r in recs}
+    # an arm whose own corpus was never scanned must be reported, never scored off another's
+    partial = {k: v for k, v in top1_by_arm.items() if k != "a_rev"}
+    recs2, skipped2 = od.arm_rows(ids, src, partial, 1.0, True, boot_ci, R_outcome, None)
+    assert [r["arm"] for r in recs2] == ["a_ex", "a_inc"], [r["arm"] for r in recs2]
+    assert any("a_rev" in m and "own corpus" in m for m in skipped2), skipped2
     assert sorted(got) == ["a_ex", "a_inc", "a_rev"]
     assert got["a_ex"]["n"] == 7, f"the target with no scan cell must drop: {got['a_ex']['n']}"
     assert got["a_ex"]["outcome"] == "exceeds" and got["a_ex"]["win_frac"] == 1.0
@@ -2409,7 +2422,7 @@ def check_ood_arm_table():
     _close(got["a_ex"]["delta"], 0.70 - 0.50, tol=0.01, what="Δ uses the cosine it was asked for")
     _close(got["a_ex"]["bo64_raw"], 0.65, tol=0.01, what="the raw column is reported beside it")
     # the same arms read on the RAW cosine: every Δ moves down 0.05, and `a_inc` becomes reversed
-    raw_recs, _ = od.arm_rows(ids, src, top1, 1.0, False, boot_ci, R_outcome, None)
+    raw_recs, _ = od.arm_rows(ids, src, top1_by_arm, 1.0, False, boot_ci, R_outcome, None)
     raw = {r["arm"]: r for r in raw_recs}
     _close(raw["a_ex"]["delta"], 0.15, tol=0.01, what="the raw Δ is 0.05 below the centred one")
     assert raw["a_inc"]["outcome"] == "reversed", (
