@@ -513,6 +513,21 @@ ARM_SPECS = {
 FULL_ARMS = ("C16", "C4", "M", "C4M", "C32", "C16M16")
 
 
+def _covariate(row: dict, *names: str):
+    """The first of `names` present on a held-out row, else None -- for DESCRIPTIVE fields only.
+
+    The two SAE families spell their covariates differently (`targets.py`'s `density` /
+    `fires_gated` against `draw_sae2m.py`'s `gated_fires`, and the 2M draw carries no density at
+    all). stats.py reports by these and nothing selects on them, so an absent one is a missing
+    covariate, not a reason to refuse to build. Anything load-bearing -- `row`, `id`, `family`,
+    `stratum` -- is read directly and still raises when it is not there.
+    """
+    for n in names:
+        if row.get(n) is not None:
+            return row[n]
+    return None
+
+
 def check_arm_maemm(arm_names, maemm: str, maemm_type: str) -> bool:
     """True iff `--maemm` is the NLA verbalizer. Asserts that the arms asked for match what it is.
 
@@ -1153,9 +1168,16 @@ def run(cfg, args):
                 "feature": feat,
                 "row": r["row"],
                 "stratum": int(r["stratum"]),
-                "density": r["density"],
+                # FIELD NAMES DIFFER BY FAMILY, which is why these are not r["..."]. `targets.py`
+                # writes `density` (gated fires / scanned positions) and `fires_gated` on a `sae`
+                # row; `features/draw_sae2m.py` writes `gated_fires` and NO density on a
+                # `sae2m_enc` one. Both are descriptive covariates -- stats.py reports by them and
+                # nothing selects on them -- so a missing one is None rather than a KeyError that
+                # would stop a build over a column nobody gates on. `stratum` IS required and is
+                # on both.
+                "density": _covariate(r, "density"),
                 "corpus_peak": round(peak, 4),
-                "fires_gated": r["fires_gated"],
+                "fires_gated": _covariate(r, "fires_gated", "gated_fires"),
                 "fire_fraction": fire_of[r["row"]],
                 "gate": gate,
                 "n_pos": info1["n_pos"],

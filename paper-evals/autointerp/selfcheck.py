@@ -507,6 +507,17 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     assert k_best == 1, f"argsort(-peaks) must put the highest peak first, got {order.tolist()}"
     assert B.nla_description(texts[k_best])["description"] == "b", "the peak rollout must be chosen"
 
+    # (b2) the covariate spellings: `targets.py` writes density/fires_gated on a `sae` row,
+    # `draw_sae2m.py` writes gated_fires and no density on a `sae2m_enc` one. Both are
+    # descriptive; a missing one must be None, not a KeyError that stops the build.
+    sae_row = {"row": 1, "family": "sae", "id": 5, "stratum": 2, "density": 1e-5, "fires_gated": 91}
+    enc_row = {"row": 1, "family": "sae2m_enc", "id": 5, "stratum": 2, "gated_fires": 240}
+    assert B._covariate(sae_row, "density") == 1e-5
+    assert B._covariate(sae_row, "fires_gated", "gated_fires") == 91, "the sae spelling wins first"
+    assert B._covariate(enc_row, "density") is None, "the 2M draw carries no density"
+    assert B._covariate(enc_row, "fires_gated", "gated_fires") == 240, "the sae2m_enc spelling"
+    assert B._covariate({"gated_fires": None}, "fires_gated", "gated_fires") is None
+
     # (c) the arm/maemm guard, both directions.
     assert B.check_arm_maemm(["C4", "NLA"], "b/nla", "nla") is True
     assert B.check_arm_maemm(["C4", "C16", "M"], "b/maemm", "full") is False
@@ -521,7 +532,7 @@ def check_nla_arms(cfg, tmp: Path, base: str):
             assert needle in str(e), f"arms {arms} type {mtype}: wrong assert fired: {e}"
         else:
             raise AssertionError(f"check_arm_maemm accepted arms {arms} with a {mtype} maemm")
-    print("[selfcheck] NLA arms OK: FAMILIES filter, nla_description, check_arm_maemm")
+    print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maemm")
 
 
 def check_chain(cfg, tmp: Path, base: str, set_name: str):
