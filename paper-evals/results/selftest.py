@@ -45,6 +45,11 @@ import results.faithfulness as F  # noqa: E402
 
 BASE = "B"
 SET = "S"
+# A second set that the SAME checkpoint was also scored on, for the `kind: cross_set` gate. Its
+# product deliberately carries only SOME of the rows, so a gate that failed to intersect would
+# compare different row sets and get a different number.
+SET2 = "S2"
+SET2_ROWS = [0, 1, 4, 5]
 N_ROLLOUTS = 4
 WIDTH = 3
 
@@ -113,8 +118,11 @@ CFG = {
         "random": {"centrable": False, "kind": "synthetic"},
         "sae": {"centrable": False, "kind": "dictionary"},
     },
-    "heldout": {SET: {"base": BASE, "sae_key": "B/sae-one",
-                      "families": {"realact": {"n": 3}, "random": {"n": 1}, "sae": {"n": 4}}}},
+    "heldout": {
+        SET: {"base": BASE, "sae_key": "B/sae-one",
+              "families": {"realact": {"n": 3}, "random": {"n": 1}, "sae": {"n": 4}}},
+        SET2: {"base": BASE, "sae_key": "B/sae-one", "families": {"realact": {"n": 3}}},
+    },
     "maemms": {
         f"{BASE}/ckpt-one": {"type": "full", "primary": True, "mu": "/mu.npy"},
         f"{BASE}/ckpt-two": {"type": "full"},
@@ -180,12 +188,23 @@ def write_mirror(root: Path) -> None:
     # No arrays and no sae_self: the absent-product paths, exercised on every run.
     _write_scores(root, f"{BASE}/ckpt-two", SET, PT_A, None, None, mu=None, sae_rows=None)
 
+    # The second set: the same rows, a different arm's numbers, and only four of the eight rows.
+    hd2 = root / f"base/{BASE}/heldout/{SET2}"
+    hd2.mkdir(parents=True, exist_ok=True)
+    with open(hd2 / "ids.jsonl", "w") as fh:
+        for r in IDS:
+            fh.write(json.dumps(r) + "\n")
+    (hd2 / "storage.json").write_text(json.dumps({"storage": "raw", "sae_key": "B/sae-one"}))
+    _write_scores(root, f"{BASE}/ckpt-one", f"{SET2}__arm-a", PT_B, None, None,
+                  mu=None, sae_rows=None, rows=SET2_ROWS)
+
 
 def _write_scores(root: Path, maemm: str, dirname: str, pt: dict, best: dict | None,
-                  best_c: dict | None, mu: str | None, sae_rows: list[int] | None) -> None:
+                  best_c: dict | None, mu: str | None, sae_rows: list[int] | None,
+                  rows: list[int] | None = None) -> None:
     d = root / f"maemms/{maemm}/scores/{dirname}"
     d.mkdir(parents=True, exist_ok=True)
-    rows = [r["row"] for r in IDS]
+    rows = rows if rows is not None else [r["row"] for r in IDS]
     with open(d / "per_target.jsonl", "w") as fh:
         for r in rows:
             fh.write(json.dumps({"row": r, "family": IDS[r]["family"], "n": N_ROLLOUTS,
@@ -434,6 +453,74 @@ def check_sanity_verdicts():
         _close(got[0]["ours"], 1.375 / 3, 1e-6)
 
 
+def check_cross_set_gate():
+    """A `kind: cross_set` gate compares this set's arm with another set's, ON THE SHARED ROWS.
+
+    `S2`'s product carries rows [0, 1, 4, 5] and `S`'s carries all eight, so the realact
+    comparison must run on rows 0 and 1 alone. A gate that took each side's own family mean would
+    get 0.4583 vs 0.3333 instead of 0.5625 vs 0.3750 -- which is what the intersection is for.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_mirror(root)
+        vol, res = _analyse(root)
+        y = root / "x.yaml"
+        y.write_text("""
+checks:
+  - name: cross-set, realact, shared rows
+    kind: cross_set
+    from_set: S2
+    from_source: "ckpt-one:arm-a"
+    source: "ckpt-one:arm-a"
+    family: realact
+    metric: cos_raw.bo1
+    tol: 0.2
+  - name: cross-set, the same pair at a tight tolerance
+    kind: cross_set
+    from_set: S2
+    from_source: "ckpt-one:arm-a"
+    source: "ckpt-one:arm-a"
+    family: realact
+    metric: cos_raw.bo1
+    tol: 0.01
+  - name: cross-set on a family the other product does not carry
+    kind: cross_set
+    from_set: S2
+    from_source: "ckpt-one:arm-a"
+    source: "ckpt-one:arm-a"
+    family: random
+    metric: cos_raw.bo1
+    tol: 0.2
+  - name: cross-set against an undeclared set
+    kind: cross_set
+    from_set: S9
+    from_source: "ckpt-one:arm-a"
+    source: "ckpt-one:arm-a"
+    family: realact
+    metric: cos_raw.bo1
+    tol: 0.2
+  - name: cross-set on an activation metric, which does not resolve
+    kind: cross_set
+    from_set: S2
+    from_source: "ckpt-one:arm-a"
+    source: "ckpt-one:arm-a"
+    family: sae/sae-one
+    metric: ratio.bo1.median
+    tol: 0.2
+""")
+        got = F.run_sanity(res, y, vol, CFG)
+        assert [g["verdict"] for g in got] == ["pass", "FLAG", "absent", "absent", "absent"], \
+            [(g["name"], g["verdict"]) for g in got]
+        _close(got[0]["ours"], 0.5625, 1e-9, what="ours, rows 0 and 1 only")
+        _close(got[0]["expect"], 0.375, 1e-9, what="theirs, rows 0 and 1 only")
+        assert got[0]["n"] == 2, got[0]
+        assert "row" in got[2]["why"], got[2]["why"]
+        assert "heldout" in got[3]["why"], got[3]["why"]
+        assert "cosine metric" in got[4]["why"], got[4]["why"]
+        # Without a volume the gate is absent and says why, never silently skipped.
+        assert F.run_sanity(res, y, None, None)[0]["verdict"] == "absent"
+
+
 def check_render_and_figures():
     """The whole render: tables.md, a CSV per table, figures as PDF AND PNG, and the rule that no
     SAE-target cosine reaches a markdown table (plan §2.3)."""
@@ -483,6 +570,7 @@ CHECKS = [
     check_sources_filter,
     check_reader_check_catches_a_defect,
     check_sanity_verdicts,
+    check_cross_set_gate,
     check_render_and_figures,
 ]
 

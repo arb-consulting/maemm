@@ -161,6 +161,39 @@ checks:
     tol: 0.0005
     provenance: SMOKES.md 2026-09-21, "cos_centred, first numbers", rl-last16 under whiten_mu.
 
+  # A `kind: cross_set` gate reads ANOTHER set's product for the same checkpoint and compares the
+  # two on the rows they share. `2026-09-21_v1raw` is `2026-09-16_v1` re-forwarded row for row, so
+  # for a NON-CENTRABLE family the stored direction is identical in both and the comparison is
+  # exact. `from_set` / `from_source` name the other side; only cosine metrics resolve.
+
+  - name: old primary, sae rows, v1raw vs v1 on the shared rows
+    kind: cross_set
+    from_set: 2026-09-16_v1
+    from_source: rl-8x2048-full@vllm
+    source: rl-8x2048-full:mu-none
+    family: sae/l42-1b
+    metric: cos_raw.bo1
+    tol: 0.01
+    provenance: >-
+      The `sae` family is not centrable, so both sets store unit(W_enc[:, f]) and `cos_raw` is
+      the same statistic on both. The two runs differ in engine (vLLM there, HF here), n (64 vs
+      4) and nothing else, so a difference is sampling, not convention. The tolerance is loose
+      because n = 4 here.
+
+  - name: old primary, realact rows, v1raw vs v1 on the shared rows
+    kind: cross_set
+    from_set: 2026-09-16_v1
+    from_source: rl-8x2048-full@vllm
+    source: rl-8x2048-full:mu-stats
+    family: realact
+    metric: cos_raw.bo1
+    compare: false
+    provenance: >-
+      NOT the same statistic, and printed for the record only. `2026-09-16_v1` is `storage: unit`
+      with its realact rows already centred on stats/mu.f32, so its `cos` has a CENTRED target
+      and a raw scorer -- Celeste's asymmetry -- while a raw set's `cos` centres neither side.
+      A tolerance here would assert a comparability that does not exist.
+
   - name: old primary v1 realact mean cos, 0.5076
     source: rl-8x2048-full
     family: realact

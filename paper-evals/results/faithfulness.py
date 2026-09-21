@@ -372,7 +372,70 @@ def support_registry(res: dict) -> dict[tuple, int]:
     return out
 
 
-def run_sanity(res: dict, path: Path) -> list[dict]:
+def cross_set(vol: R.Vol | None, cfg: dict | None, res: dict, chk: dict) -> dict:
+    """One `kind: cross_set` gate: THIS set's arm against ANOTHER set's, on the rows they share.
+
+    The re-derive case is what this exists for. `2026-09-21_v1raw` is `2026-09-16_v1` re-forwarded
+    row for row, so a row index means the same target in both -- but only for a family whose
+    stored direction is the same in both. For a NON-CENTRABLE family (`sae`, `random`) it is: the
+    old set stores `unit(W_enc[:, f])` and the new one stores the identical vector, so `cos_raw`
+    is the same statistic and a difference is a real difference between the two runs. For
+    `realact` it is NOT: `2026-09-16_v1` is `storage: unit` with its realact rows already centred
+    on `stats/mu.f32`, so its `cos` has a centred TARGET and a raw scorer while a raw set's `cos`
+    has neither side centred. Write that one with `compare: false`, not with a wide tolerance.
+
+    Only cosine metrics are resolvable: the SAE activation metrics would need the other set's
+    `sae_self` product, which is a second fetch this gate does not make.
+    """
+    if vol is None or cfg is None:
+        return {"why": "cross-set gates need the volume; this run has none"}
+    metric = str(chk.get("metric", ""))
+    if not metric.startswith(("cos_raw.bo", "cos_centred.bo")):
+        return {"why": f"`{metric}` is not a cosine metric; a cross-set gate resolves only those"}
+    cosine, _, kpart = metric.partition(".")
+    k = int(kpart[2:])
+    other_set = str(chk.get("from_set", ""))
+    if not other_set:
+        return {"why": "a cross-set gate needs `from_set`"}
+    entry = (cfg.get("heldout") or {}).get(other_set)
+    if entry is None:
+        return {"why": f"`from_set: {other_set}` is not declared in config.yaml `heldout:`"}
+    base = res["base"]
+    other_ids = vol.jsonl(f"base/{base}/heldout/{other_set}/ids.jsonl")
+    if other_ids is None:
+        return {"why": f"base/{base}/heldout/{other_set}/ids.jsonl is not on the volume"}
+    other_ids = {int(r["row"]): r for r in other_ids}
+    found, _absent = R.discover_sources(vol, cfg, base, other_set)
+    want = str(chk.get("from_source", chk.get("source", "")))
+    hits = [x for x in found if want in x.label]
+    if len(hits) != 1:
+        return {"why": f"`from_source: {want}` matched {len(hits)} arm(s) of `{other_set}` "
+                       f"({', '.join(x.label for x in found) or 'none'})"}
+    other = hits[0]
+    why = R.load_source(vol, other)
+    if why:
+        return {"why": why}
+
+    mine = next((x for x in res["sources"] if str(chk.get("source", "")) in x.label), None)
+    if mine is None:
+        return {"why": f"`source: {chk.get('source')}` matched none of this run's arms"}
+    fam = str(chk.get("family"))
+    prefix = COSINES[cosine]
+    rows = [r for r in sorted(set(mine.per_target) & set(other.per_target))
+            if R.family_of(res["ids"][r], res["declared_sae_key"]).label == fam
+            and r in other_ids
+            and f"{prefix}{k}" in mine.per_target[r] and f"{prefix}{k}" in other.per_target[r]]
+    if not rows:
+        return {"why": f"`{fam}` has no row carrying `{prefix}{k}` in BOTH "
+                       f"`{mine.label}` on `{res['set']}` and `{other.label}` on `{other_set}`"}
+    ours = float(np.mean([mine.per_target[r][f"{prefix}{k}"] for r in rows]))
+    theirs = float(np.mean([other.per_target[r][f"{prefix}{k}"] for r in rows]))
+    return {"ours": ours, "theirs": theirs, "n": len(rows),
+            "label": f"{other.label} on {other_set}"}
+
+
+def run_sanity(res: dict, path: Path, vol: R.Vol | None = None,
+               cfg: dict | None = None) -> list[dict]:
     """Resolve every check in the YAML against the computed statistics. Flags, never stops."""
     with open(path) as fh:
         spec = yaml.safe_load(fh) or {}
@@ -385,6 +448,31 @@ def run_sanity(res: dict, path: Path) -> list[dict]:
         rec = {"name": name, "expect": chk.get("expect"), "tol": chk.get("tol"),
                "provenance": " ".join(str(chk.get("provenance", "")).split()),
                "compare": chk.get("compare", True)}
+        if str(chk.get("kind", "")) == "cross_set":
+            got = cross_set(vol, cfg, res, chk)
+            rec["family"] = str(chk.get("family"))
+            rec["source"] = str(chk.get("source", ""))
+            rec["metric"] = str(chk.get("metric", ""))
+            if "why" in got:
+                rec["verdict"] = "absent"
+                rec["why"] = got["why"]
+                out.append(rec)
+                continue
+            rec.update(ours=got["ours"], expect=got["theirs"], n=got["n"])
+            rec["diff"] = got["ours"] - got["theirs"]
+            if chk.get("compare") is False:
+                rec["verdict"] = "no verdict"
+                rec["why"] = (f"vs {got['label']} on {got['n']} shared rows "
+                              f"(declared not the same statistic)")
+            else:
+                tol = float(chk.get("tol", 0.01))
+                rec["tol"] = tol
+                rec["verdict"] = "pass" if abs(rec["diff"]) <= tol else "FLAG"
+                rec["why"] = (f"vs {got['label']} on {got['n']} shared rows: "
+                              f"|{got['ours']:.4f} − {got['theirs']:.4f}| = {abs(rec['diff']):.4f} "
+                              f"vs tol {tol:g}")
+            out.append(rec)
+            continue
         hits = [x for x in labels if str(chk.get("source", "")) in x]
         if len(hits) != 1:
             rec["verdict"] = "absent"
@@ -760,7 +848,7 @@ def main(
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
     res = analyse(vol, cfg, set_, sources, boot, seed, check_arrays, check_arrays_max_mb)
     figs = make_figures(res, out) if figures else []
-    sanity = run_sanity(res, sanity_file)
+    sanity = run_sanity(res, sanity_file, vol, cfg)
     preamble = [
         f"- set `{res['set']}`, base `{res['base']}`, volume root `{res['root']}`, "
         f"mirror `{vol.local}`",

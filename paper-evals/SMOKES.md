@@ -3338,8 +3338,8 @@ cd /home/gavento/dev/mimir/2026-09-maemms
 
 | date | item | wall | cost | result | discrepancies |
 |---|---|---|---|---|---|
-| 2026-09-21 | `results/selftest.py` | 1.3 s | $0 | **10/10 checks passed** | — |
-| 2026-09-21 | mutation battery on those checks | ~4 min | $0 | 15 deliberate defects, **15/15 caught** — 2 of them only after the check that should have owned them was strengthened | see below |
+| 2026-09-21 | `results/selftest.py` | 1.3 s | $0 | **11/11 checks passed** | — |
+| 2026-09-21 | mutation battery on those checks | ~5 min | $0 | 18 deliberate defects, **18/18 caught** — 2 of them only after the check that should have owned them was strengthened | see below |
 | 2026-09-21 | `faithfulness --set 2026-09-21_v1raw` (cold mirror) | 121 s | $0 | 4 sources, 6 cosine rows, 4 SAE rows, 3 figures; 0.44 MB fetched | the NLA arm lives under `variants/`, not `scores/` — see below |
 | 2026-09-21 | `faithfulness --set 2026-09-21_sae2m_64 --root tmp/sae-smoke64` (cold) | 105 s | $0 | 3 sources, 0 cosine rows, **15 SAE rows** (3 sources x all + 4 strata), 1 figure | reproduces `sae_smoke64.md` — see below |
 | 2026-09-21 | `--set 2026-09-21_v1raw --no-fetch` off the warm mirror | 1 s | $0 | `tables.md` identical to the online run except its own `command:` line (`diff` = 1 line) | — |
@@ -3374,7 +3374,18 @@ Consistent with the §1.6 smoke's own record: feature 845 fires on 4/4 `rl-last1
 2/4 NLA texts, feature 341 on neither — which is `feat firing` 0.5 on both and `item fired`
 0.5 / 0.25.
 
-**Five sanity gates reproduce this file's own 2026-09-21 numbers to 4 dp** — `mu-none` mean_cos
+**The cross-set gate reconciles the re-derive against `2026-09-16_v1`.** On the two `sae` rows
+the two sets share, the old primary reads `cos_raw` bo1 **0.0370** here (HF, n = 4, `--mu none`)
+against **0.0313** in its existing vLLM product on `2026-09-16_v1` (n = 64) — a difference of
+0.0057, inside the 0.01 the gate states. That comparison is valid for `sae` and only for `sae`:
+the family is not centrable, so both sets store the identical `unit(W_enc[:, f])`. The `realact`
+pair is written `compare: false` and prints both numbers with NO verdict, because `2026-09-16_v1`
+is `storage: unit` with its realact rows already centred on `stats/mu.f32` — its `cos` has a
+centred target and a raw scorer, which a raw set's `cos` is not. A tolerance there would assert a
+comparability that does not exist, which is the same conclusion this file reached on 09-21 about
+the plan's gate 2.
+
+**Five more gates reproduce this file's own 2026-09-21 numbers to 4 dp** — `mu-none` mean_cos
 0.8760, `mu-stats` 0.8989, their bo_4 0.9034 / 0.9339, and `rl-last16`'s mean centred cos 0.7518 —
 computed here by a different path (aggregate over `per_target.jsonl`) from the one that wrote
 them. Celeste's card gate passes at 0.7775 against 0.780 (tol 0.05) on four rows, which is a
@@ -3438,6 +3449,9 @@ re-run, the file restored.
 | a missing source is dropped instead of listed | `check_missing_sources_are_listed_not_zeroed` |
 | a stored `mean_cos` corrupted on disk (the reader check's own red) | `check_reader_check_catches_a_defect` |
 | a stored `max_peak_act` corrupted on disk | `check_reader_check_catches_a_defect` |
+| `cross_set` compares each side's own rows instead of the shared ones | `check_cross_set_gate` |
+| `cross_set` ignores the family filter | `check_cross_set_gate` |
+| `cross_set` accepts an activation metric it cannot resolve | `check_cross_set_gate` |
 
 `*` **two mutations SURVIVED the first battery** and the checks were strengthened rather than the
 result accepted: nothing asserted that the SE reaching the table was the clustered one (now pinned

@@ -9,7 +9,7 @@ script per question.
 |---|---|
 | `common.py` | the volume reader (`Vol`, `modal volume get` + a local mirror), the product readers moved over from `reconstruction/sae_smoke64.py`, source discovery, the clustered bootstrap, the markdown/CSV/figure output layer |
 | `faithfulness.py` | eval 1: one command, every (family × source × run-tag) on a set |
-| `sanity.yaml` | **the gates the user edits** — her card's numbers, `sae_smoke64.md`'s medians, our own recorded values, each with its tolerance and provenance |
+| `sanity.yaml` | **the gates the user edits** — her card's numbers, `sae_smoke64.md`'s medians, our own recorded values, and `kind: cross_set` gates that read another set's product for the same checkpoint and compare the two on the rows they share; each with its tolerance and provenance |
 | `selftest.py` | the CPU unit smoke: a synthetic mirror through the whole driver, every number checked against one worked out by hand |
 
 ```
@@ -62,6 +62,15 @@ rounding both sides apply (`reconstruction/sae_smoke64.py`'s rule — an ABSOLUT
 the 2M dictionary's activation scale and was the first version of this check). `cos.f16` is
 [N, n, T] and reaches ~63 MB per arm at full scale, so its half of the check is bounded by
 `--check-arrays-max-mb` and SKIPS with a reason rather than passing vacuously.
+
+**A cross-set gate compares only what is comparable.** `kind: cross_set` intersects the two
+products' rows and restricts to one family. For a NON-centrable family (`sae`, `random`) a
+re-derived set stores the identical direction, so `cos_raw` is the same statistic on both and the
+difference is a real one. For `realact` against a `storage: unit` set it is NOT — that set's `cos`
+has a centred target and a raw scorer — so such a gate is written `compare: false`, which prints
+both numbers and issues no verdict. A wide tolerance would say "close enough"; `compare: false`
+says "not the same quantity". Only cosine metrics resolve: an activation metric would need the
+other set's `sae_self` product, which this gate does not fetch.
 
 **The sanity block flags, it does not stop.** Plan §2.3 says a failed gate stops the run; this
 driver has no way to tell a wrong mu from a gate written against another set, and a run that
