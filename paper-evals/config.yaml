@@ -25,6 +25,47 @@ bases:
     n_layers: 64            # 48 of them GatedDeltaNet -> the image needs flash-linear-attention
     marker_norm_base: 14.062  # MEASURED 2026-09-15 by the rlI-150 rollouts run (see qwen3-8b above)
 
+# NEW top level (2026-09-21, branch `evals/conventions`). The named centring means of each base.
+# A mean is referred to BY NAME everywhere -- `input.centering`, `--centering`, `heldout.*.mu_stored`
+# -- and no product ever names a path for one. This replaces the two-entry `stats.ARCHIVE_MU` dict
+# that was the only named-mu registry before.
+#   source: product -> one of OUR products wrote it; `path` is relative to base/<base>/ under --root
+#           set     -> a held-out set draw wrote it; `path` is relative to that set's directory
+#           archive -> a read-only file under `modal.archive`; `path` is relative to it
+#           unknown -> the mean exists inside somebody else's artefact and we cannot name a file.
+#                      `common.mu_named` REFUSES to load it and `common.dirs_for` can only return
+#                      the stored direction with a label, never centre or un-centre on it.
+mus:
+  qwen3-8b:
+    stats_mu:  {source: product, path: stats/mu.f32}    # ours: the 64/16-window read-layer mean
+    mu_512:    {source: set,     path: mu_512.f32}      # the draw's own 512-window mean; diagnostic
+    whiten_mu: {source: archive, path: data/run1/acts/whiten_mu.npy}   # run1's archived mean
+  qwen36-27b:
+    stats_mu:  {source: product, path: stats/mu.f32}    # ours: 64/16 windows, README "Methods"
+    mu_512:    {source: set,     path: mu_512.f32}      # her geometry on our corpus; diagnostic
+    whiten_mu: {source: archive, path: data/qwen3.6-27b/whiten_mu.npy}
+    # MEASURED 2026-09-16 (SMOKES.md:871, product mu_diag): cos(mu_512, whiten_mu) = 0.999897 on
+    # the 27B. The archived file is the EARLIER chain's; the v2 bundle ships no mu
+    # (features/activations.py:137). Open question for Celeste, not a gate.
+    mu_long:   {source: unknown}    # realact_long's mean, if it has one -- NOT established anywhere
+
+# NEW top level (2026-09-21): what a FAMILY is, independent of which set carries it.
+# NOT `families:` -- that name is already the per-set key `heldout.<set>.families` (config.yaml
+# below, read by common.families_for), and one name with two meanings in one file is exactly what a
+# reader gets wrong once and never notices.
+#   centrable: may a mean be subtracted from this family's rows at all? Only an ACTIVATION can be:
+#              an encoder column, a Gaussian draw and a subspace basis have no mean to subtract, and
+#              subtracting one anyway is a one-sided number, not a centred one.
+#   kind:      what the row IS. `activation` is the only kind `targets` stores `act.f32` for.
+family_kinds:
+  realact:      {centrable: true,  kind: activation}
+  realact_long: {centrable: true,  kind: activation}   # centred, mean UNVERIFIED -- see heldout.*.family_mu
+  random:       {centrable: false, kind: synthetic}
+  sae:          {centrable: false, kind: dictionary}
+  sae2m_enc:    {centrable: false, kind: dictionary}   # the 2k set's legacy label; kept, not rewritten
+  bsf:          {centrable: false, kind: subspace}
+  jlens:        {centrable: false, kind: subspace}
+
 saes:
   qwen3-8b/adamkarvonen-t2:
     hf: adamkarvonen/qwen3-8b-saes
@@ -77,6 +118,15 @@ saes:
       windows: 5
       sink_first: false
 
+# `input: {centering: <mu name>|none}` (NEW 2026-09-21) is what the checkpoint was TRAINED to
+# receive at the marker: `none` = a unit activation with nothing subtracted, a `mus:` name = a unit
+# `act - mu` under that mean. It is a closed one-key block, asserted at load beside `nla:`, and it
+# is the ONLY thing that tells `rollouts_*` / `score` which direction to hand a MAEMM. An entry
+# with NO `input:` block cannot be run through a centring-aware product at all -- `common.
+# input_centering` refuses rather than guessing -- which is where the older 8B/LoRA entries sit:
+# their training banks' convention has never been established and inferring one from the file
+# layout would be a guess wearing a config key's authority.
+#
 # `compute: false` (default true) means the entry is DECLARED but nothing is generated for it in
 # this pipeline: it exists so the paper's model table, the prompt inventory and the `check` product
 # know about it. common.maemms_for() filters these out of every "all MAEMMs" iteration; `check`
@@ -101,6 +151,14 @@ maemms:
     prompt: celeste27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 192
+    input: {centering: none}    # trained on UNCENTRED unit activations
+    # UNRECONCILED, recorded rather than resolved (2026-09-21, branch evals/conventions). This
+    # `none` is the eval plan's declaration (infra/2026-09-21_evals-plan-main.md §1.1 and §2.2).
+    # Every number this checkpoint has on the volume was produced against `2026-09-16_v1`, whose
+    # realact rows are `unit(X[p] - stats/mu)` -- i.e. `centering: stats_mu`, not `none`. So the
+    # plan's own §1.6 gate 2 ("cos_raw within 0.01 of the stored 0.5076 on rows 0-7") CANNOT hold
+    # at `centering: none`: it is a reproduction of a stats_mu run. Either the declaration or the
+    # gate has to move; ask before the first paid old-primary run on a `storage: raw` set.
     primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
   # The v2 / simple2m checkpoint (Ari 2026-09-19: the one to use for the experiments).
   # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
@@ -113,6 +171,11 @@ maemms:
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
     train_data: celeste-v2-2026-09-17
+    # unit(act - whiten_mu) on realact rows; SAE rows are raw encoder/decoder columns either way
+    # (they are not centrable at all, family_kinds above). ESTABLISHED: both of this checkpoint's
+    # chains -- SFT bank ufw_ctx8_64_sft_4m_v3 and RL pool ufw_ctx64_2048_rl_500k_v3 -- were built
+    # with Celeste's whiten_mu (infra/2026-09-21_observations.md §2).
+    input: {centering: whiten_mu}
     # RL reward = max cosine over the LAST 16 generated tokens (--reward-window-last 16,
     # confirmed by Ari 2026-09-19), not the whole span. lr 5e-7 flat after a 25-step
     # warmup, 300 steps, 8x2048 per step, CISPO/GRPO. SFT init: the 8M-row simple2m mix.
@@ -135,6 +198,9 @@ maemms:
     prompt: celeste27b
     inject: {layer: 1, coef: 1.0}
     role: control           # stats.py: shown as "control" between the primary and the secondaries
+    # The control's whole definition is "the primary with base weights", so it takes the primary's
+    # input convention too: anything else would make it a control for a different experiment.
+    input: {centering: none}
     # No train_max_new: nothing was trained. Everything else -- prompt, marker, inject layer/coef
     # and the `rollouts:` sampling block -- is the primary's, so the only difference from
     # 2026-09-10_rl-8x2048-full is the weights.
@@ -201,6 +267,10 @@ maemms:
       # record `amp` per run and per row, so which is which is never in doubt.
       amp: raw               # default input-amplitude convention; --amp overrides (writes a variant dir)
       amp_r: median          # r for `mu`/`raw` and the `exact` fallback: layer read_layer q[0.5] of stats/resid_norm_quantiles.json, or a number
+    # Raw layer-42 block output, NO centring (the card and nla_meta.yaml; observations §5).
+    # `nla.amp` stays the AMPLITUDE knob and is a different axis from this one: `centering` says
+    # which mean is subtracted from the activation, `amp` says what norm the injected vector gets.
+    input: {centering: none}
     compute: true
   qwen36-27b/2026-09-05_rlE-250:
     type: lora
@@ -233,8 +303,32 @@ maemms:
     compute: false
     note: the full-parameter line's published init
 
+# NEW per-set keys (2026-09-21): the STORAGE CONTRACT of a set on disk. They say what `vecs.f16`
+# holds, which is the one thing a reader cannot tell by looking at it.
+#   storage: raw       -- `act.f32` is present and every direction is DERIVED at read time; nothing
+#                         stored encodes a centring choice. This is what `targets` writes from now
+#                         on, and what `common.dirs_for` can serve at ANY `--centering`.
+#            unit      -- `vecs.f16` is a stored unit direction under some mean. It can be served
+#                         only at the mean it was built with: without `act.f32` (or a raw
+#                         `act_norm` to solve with) un-centring is not possible.
+#            dirs_only -- `vecs.f16` is a direction that was never centred and never could be
+#                         (an encoder column, a Gaussian draw, a subspace basis).
+#   mu_stored:  the mean the WHOLE set was centred on, by `mus:` name, or null.
+#   family_mu:  per family, for a `storage: unit` set whose families do not share one convention.
+#               `none` = that family was never centred; `unknown` = it arrived centred on a mean
+#               nobody here can name, and `dirs_for` returns it with a label instead of a number
+#               anyone can re-derive.
+# A set written before these keys existed is described here, not rewritten in place.
 heldout:
   2026-09-16_v1:
+    # Drawn 2026-09-16, BEFORE the raw-storage rule: its realact rows are stored already centred.
+    storage: unit
+    mu_stored: null           # not one mean for the whole set -- per family below
+    family_mu:
+      realact: stats_mu       # targets.py stored unit(X[p] - stats/mu.f32)
+      random:  none           # a torch.randn draw; nothing was ever subtracted
+      sae:     none           # unit(W_enc[:, f]); an encoder column has no mean
+      jlens:   none           # declared-empty slot, zero rows
     seed: 20260916
     families:
       realact: {n: 512}
@@ -243,11 +337,8 @@ heldout:
       # No J-lens matrix exists on either base yet: the slot is declared so the set's shape is
       # stable, and `status: empty` means targets.py writes zero rows for it.
       jlens:   {n: 512, bases: [qwen36-27b], status: empty}
-    # SPAN LENGTH of the shown realact text, in tokens. NOTE the conflict to resolve before
-    # targets.py: this [1, 64] is the brief's value; Celeste's recipe (and
-    # infra/2026-09-15_eval-conventions-checklist.md item 30) is L ~ U[16, 64] at p ~ U[16, T)
-    # in 512-token no-BOS windows.
-    realact_len: [1, 64]
+    # (`realact_len: [1, 64]` was deleted 2026-09-21: dead since targets.py landed, which takes
+    # L ~ U[SPAN_MIN, SPAN_MAX] = U[16, 64] from its own module constants and never read this key.)
     sae_min_fires: 20       # counted with the SAE's learned gate, not raw act > 0
     sae_strata: 4           # rarity quartiles of the corpus fire count
 
@@ -270,6 +361,9 @@ heldout:
   # A RE-DRAW carries `sae` and its config entry must say `families: {sae: ...}`.
   2026-09-20_sae2m_2k:
     imported: true
+    storage: dirs_only        # 2,000 unit encoder columns; nothing here was ever centred
+    mu_stored: null
+    seed: 20260920            # scan's reservoir generator seeds off this
     families:
       sae2m_enc: {n: 2000, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
 

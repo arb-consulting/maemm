@@ -404,11 +404,18 @@ def run(cfg, args):
 # product `mu_check` (CPU): our stats/mu.f32 against Celeste's archived whiten_mu
 # ---------------------------------------------------------------------------------------------
 
-# Verified with `modal volume ls` on 2026-09-15. Both are plain .npy of shape [d].
-ARCHIVE_MU = {
-    "qwen3-8b": "data/run1/acts/whiten_mu.npy",
-    "qwen36-27b": "data/qwen3.6-27b/whiten_mu.npy",
-}
+# The two archived whiten_mu paths used to live here as the pipeline's only named-mu registry.
+# Since 2026-09-21 that registry is config.yaml's `mus:` block (one entry per base per mean, with a
+# `source:` saying where it lives), read through `common.mu_named` -- so this is the compatibility
+# shim and NOT a second list to keep in step. Kept as a function because `mu_diag` names it too.
+def archive_mu_path(cfg: dict, base: str) -> str:
+    """Absolute path of base's archived `whiten_mu`, from config.yaml `mus.<base>.whiten_mu`."""
+    spec = cfg["mus"].get(base, {}).get("whiten_mu")
+    assert spec and spec.get("source") == "archive", (
+        f"base {base!r} declares no archived `whiten_mu` in config.yaml's `mus:` block "
+        f"(has {sorted(cfg['mus'].get(base, {}))}); nothing to compare our mean against here"
+    )
+    return os.path.join(cfg["modal"]["archive"], spec["path"])
 # Below this the two means are NOT the same object and every centred number has to be re-read with
 # that in mind. Reported, never acted on: which mean is right is Tomáš's call, not this script's.
 MU_COS_FLOOR = 0.99
@@ -426,11 +433,10 @@ def run_mu_check(cfg, args):
 
     base, root = args["base"], args["root"]
     assert base, "product mu_check needs --base"
-    assert base in ARCHIVE_MU, f"no archived whiten_mu path known for base {base!r} ({sorted(ARCHIVE_MU)})"
     d = cfg["bases"][base]["d"]
 
     ours = C.stats_mu(cfg, base, root)
-    apath = os.path.join(cfg["modal"]["archive"], ARCHIVE_MU[base])
+    apath = archive_mu_path(cfg, base)
     assert os.path.exists(apath), (
         f"missing archived whiten_mu at {apath}; look under {cfg['modal']['archive']}/data/ for the "
         f"{base} tree and report where it actually is"
