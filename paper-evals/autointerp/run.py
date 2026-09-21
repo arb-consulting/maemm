@@ -959,8 +959,24 @@ def run(cfg, args):
     )
     assert len(key) > 8, "ANTHROPIC_API_KEY is present but implausibly short"
     batch_int = int(ac["scorer_batch"])
-    floor_arm, floor_src, draw2_arm = str(ac["floor_arm"]), str(ac["floor_source_arm"]), "C16-draw2"
-    judge_arm = str(ac.get("judge_floor_arm") or "C16-judge2")
+    floor_arm = str(ac["floor_arm"])
+    # WHICH ARM THE THREE NULLS BORROW THEIR DESCRIPTION FROM. `floor_source_arm: C16` in
+    # config.yaml is the protocol's default and is what the published 512-feature run used; it is
+    # overridable here because the arm set is a per-run choice and C16 is not always in it. On the
+    # 2M SAE there IS no C16 -- `scan`'s examples/ does not exist for that dictionary, and
+    # `check_corpus_source` refuses the arm by name -- so a run whose corpus arm is DOCMAX would
+    # otherwise hand all three nulls an empty description and lose them silently: `expl.get` misses,
+    # the plan entry carries "", and an empty description emits no scorer job. The nulls are the
+    # only noise floor this eval has (no temperature parameter exists, so nothing is deterministic),
+    # so losing them is not a cosmetic loss.
+    floor_src = str(args.get("floor_source_arm") or ac["floor_source_arm"])
+    # The two null LABELS name their source. Leaving them spelled `C16-...` while they carry a
+    # DOCMAX description would put a wrong provenance in scores.jsonl, which is the one place the
+    # results driver reads it from.
+    default_src = str(ac["floor_source_arm"])
+    draw2_arm = "C16-draw2" if floor_src == default_src else f"{floor_src}-draw2"
+    judge_arm = (str(ac.get("judge_floor_arm") or "C16-judge2") if floor_src == default_src
+                 else f"{floor_src}-judge2")
     shots = int(args.get("shots") or 1)
     # Tomas 2026-09-18: adopt upstream Delphi's fuzzing protocol. `delphi` sends the three
     # fuzzing few-shot turns (`DELPHI_FUZZ_FEWSHOT`, transcribed from 4fea06e); `legacy` keeps the
@@ -1026,6 +1042,33 @@ def run(cfg, args):
     if args.get("rows"):
         want = set(C.parse_rows(args["rows"], 1 << 30))
         feats = [f for f in feats if fmeta[f]["row"] in want] or feats
+    # The three nulls read `floor_src`'s description out of THIS run's explainer results, so an
+    # arm that is not being explained here gives them nothing -- and it gives it to them SILENTLY:
+    # `expl.get` misses, the plan entry carries "", an empty description emits no scorer job, and
+    # the run simply has no floor. That is what the published `rlI-150` secondary did (arms C4M,M,
+    # no C16) and what any 2M run would do, since that dictionary has no C16 arm to source from.
+    #
+    # An EXPLICIT --floor-source-arm that is not in the arms is an operator error and refuses. The
+    # config default falling outside the arm set is the ordinary case for a secondary block, so it
+    # falls back to the first arm and says so on stdout -- a floor from another arm is still a
+    # floor (the point is ANOTHER FEATURE's description on this feature's items), while no floor at
+    # all leaves the arm accuracies with nothing to be read against.
+    if floor_src not in arm_names:
+        assert not args.get("floor_source_arm"), (
+            f"--floor-source-arm {floor_src!r} is not among this run's arms {arm_names}; the null "
+            f"arms would have no description to borrow. Name one of the arms, or drop the flag to "
+            f"take the first."
+        )
+        assert arm_names, "no arms to run, and so nothing for the null arms to borrow"
+        was = floor_src
+        floor_src = arm_names[0]
+        draw2_arm, judge_arm = f"{floor_src}-draw2", f"{floor_src}-judge2"
+        print(
+            f"[run] the config's floor_source_arm {was!r} is not in this run's arms {arm_names}: "
+            f"sourcing {floor_arm}/{judge_arm}/{draw2_arm} from {floor_src!r} instead. Without "
+            f"this they would be empty and absent from scores.jsonl.",
+            flush=True,
+        )
     print(
         f"[run] {len(feats)} features x {len(arm_names)} explainer arms (+ {floor_arm}, "
         f"{judge_arm}, {draw2_arm}) x {scorers} | model {model} | path {path} | cap ${max_cost:.2f} | "

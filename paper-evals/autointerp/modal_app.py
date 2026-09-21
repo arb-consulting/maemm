@@ -208,6 +208,9 @@ def main(
     maemm2: str = "",
     model: str = "",
     scorers: str = "",
+    # WHICH ARM the three null arms borrow their description from (default `C16` from config).
+    # The 2M SAE has no C16 arm at all, so a run there must name its own -- see run.py's guard.
+    floor_source_arm: str = "",
     path: str = "",
     concurrency: int = 0,
     max_cost_usd: float = 0.0,

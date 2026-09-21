@@ -490,6 +490,14 @@ ARM_SPECS = {
     # and with C4's shortfall, so nothing it showed could be attributed.
     "C16M16": ("c16", 16, "m", 16),
     "C32": ("c16", 32, None, 0),
+    # The document-diverse corpus arm (Tomas, 2026-09-21, eval 2). `examples_docmax` keeps ONE
+    # window per document and ranks documents, so its top-16 cannot be sixteen windows of one
+    # document the way `c16`'s window ranking can. Two things follow and both are recorded on
+    # every build rather than argued here: it is the only corpus arm available on the 2M SAE,
+    # which has no `scan` examples/ (a ~$9 pass nobody has paid for), and it SHOWS windows drawn
+    # from the same pool the test positives come from -- so each shown document leaves the
+    # candidate pool for EVERY arm (A4, `shown_docs`), not just for this one.
+    "DOCMAX": ("docmax", 16, None, 0),
     # The method review's test: the M arm shows 16 variants of ONE template (median pairwise
     # word-trigram Jaccard within the shown set 0.046 against the corpus set's 0.001, 40x), so its
     # loss may be an artefact of an undiversified top-16 rather than of the source. `M-div` keeps
@@ -1136,7 +1144,12 @@ def run(cfg, args):
                 roll_pool.append({**e, "src": "rollout", "k": int(k),
                                   "max_act": round(float(peaks[k]), 4)})
 
-            pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool,
+            # `doc_rows` is already one window per document; rank the documents by that window's
+            # peak and deduplicate on the window key the way the other corpus pools do. `dedup`
+            # is by window, not by document, so it is a no-op here unless docmax ever emits two
+            # windows for one document -- in which case the pool must not silently show both.
+            docmax_pool = dedup(sorted(doc_rows, key=lambda e: -float(e["max_act"])))
+            pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool, "docmax": docmax_pool,
                      "mdiv": diversify(roll_pool, 16, float(ac.get("mdiv_jaccard", 0.5)))}
 
             # ---- arm B's description: the NLA text itself, no explainer call ----------------
