@@ -3704,3 +3704,49 @@ tmp/sae-smoke64/base/qwen36-27b/autointerp/2026-09-16_v1/2026-09-21_e2-131k-{rl1
 tmp/sae-smoke64/runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}/
 tmp/sae-smoke64/runs/e2-cache-{2m,131k}/
 ```
+
+### 2026-09-21 — EPO on the 2M SAE: the OOM is fixed, and the 300-iteration run is NOT affordable
+
+The OOM of the first shakeout was `gcg.py:1359` loading the whole dictionary on the device to
+record one feature's activation. Fixed in 4d02915 (`common.load_sae_columns`); the same shakeout
+now runs.
+
+| date | item | wall | cost | result |
+|---|---|---|---|---|
+| 2026-09-21 | EPO shakeout #1, 1 dir × 10 iters, BEFORE the fix | ~200 s | ≈$0.25 (est) | **OOM** at the fp32 unembedding |
+| 2026-09-21 | EPO shakeout #2, 1 dir × 10 iters, AFTER the fix | 301.9 s | **$0.3807** | best cos 0.0170 from init −0.0007; CHECK max \|d\| 2.78e-04 at both batch shapes; sae peak act 0.2842, fired 0.000 |
+
+```
+[gcg] sae qwen36-27b/sae2m: 2097152 features, learned gate 1.6828 -- 1 encoder column(s) on the
+      device, no decoder; activation is RECORDED on the finals, never optimised
+```
+
+**The 16 approved directions were not launched.** The shakeout's own timing says what they cost,
+and it is not the ≈$17 every document has carried: 10 iterations of 255 candidates took **162 GPU-s
+of search** (24 cand/s at steady state, ~10.6 s/iteration) on top of ~140 s of startup. At the
+mode's default `--iters 300`:
+
+| `--iters` | s/direction | 16 directions | cost at H200 $4.54/h |
+|---|---|---|---|
+| **300 (default)** | 4,860 | **21.6 h** | **$98** |
+| 150 | 2,430 | 10.8 h | $49 |
+| 100 | 1,620 | 7.2 h | $33 |
+| 80 | 1,296 | 5.8 h | $26 |
+| ~67 | 1,082 | 4.8 h | $22 (the cap, exactly) |
+
+Against a **$22 cap** that is a 4.5× breach at the default, and 21.6 h also exceeds the gcg
+container's own 9 h timeout, so the run could not complete in one call regardless of money. The
+stale figure is traceable: SMOKES.md:591 and `gcg/README.md:700` record "~870 s per 27B direction",
+which is ~82 iterations at this measured rate, not 300 — so every "$35 / 32 dirs" and "≈$17 / 16
+dirs" downstream of it is a per-direction number from a different configuration, not from a
+300-iteration EPO on the 2M dictionary.
+
+**This needs a decision, not a default**, because the two ways to fit the cap trade different
+things: 16 directions at `--iters 80` (≈$26, still over) or `~67` (≈$22) changes the METHOD — EPO
+at a quarter of its iterations is a different optimiser, and the plan's reachability-ceiling claim
+rests on the search converging; or 5 directions at the full 300 iterations (≈$20) keeps the method
+and drops to 5 of the 32 features. The shakeout's own trace is the evidence either way: best cos
+moved 0.0006 → 0.0173 over 10 iterations and was still climbing.
+
+**Leftovers, not deleted:** `…/gcg/2026-09-21_sae2m_64/sae/epo-random32-shakeout.tmp-2026-09-21`
+(the OOMed first attempt) and `…/sae/epo-random32-shakeout2` (the successful one).
