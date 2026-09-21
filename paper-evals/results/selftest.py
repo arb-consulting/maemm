@@ -26,6 +26,20 @@ The synthetic mirror carries, deliberately:
   * TWO SAE dictionaries distinguished only by the rows' own `sae_key`, which is the "a new SAE
     is a config entry and a row field, not an edit here" requirement;
   * a document shared by two `realact` rows, so the clustered bootstrap has something to cluster.
+
+EVAL 2 (`results/autointerp.py`) has its own fixture in the second half of this file: TWO run
+directories in the volume's `runs/<dir>/summary/scores.jsonl` layout, six (run, arm) pairs over two
+scorers, every `bal_acc` dyadic so the means and the paired differences are exact literals. It
+carries, deliberately:
+
+  * one arm present on only THREE of the four features (`NLA`) and one whose fourth feature came
+    back with a null `bal_acc` (`old/M` on fuzzing, the all-batches-unparsed case), so the
+    intersection in the paired contrast is a real one and `REDUCED` pairing is exercised on every
+    run rather than only when a product happens to be short;
+  * `DOCMAX` in BOTH run directories under different numbers, which is what makes the arm name
+    alone insufficient to identify an arm;
+  * `tpr = tnr = bal_acc` on every row, so the reader check's `0.5 * (TPR + TNR)` identity is exact
+    and `check_autointerp_catches_a_defect` can break it by one number.
 """
 
 from __future__ import annotations
@@ -40,6 +54,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import results.autointerp as A  # noqa: E402
 import results.common as R  # noqa: E402
 import results.faithfulness as F  # noqa: E402
 
@@ -560,6 +575,443 @@ def check_render_and_figures():
         assert any(f.startswith("bok_") for f in figs), figs
 
 
+# --- eval 2: the autointerp fixture, worked out by hand -----------------------------------------
+#
+# Two run directories, because `autointerp/run.py` is per CHECKPOINT and eval 2's arms are spread
+# over six of them (three checkpoints x two SAEs). `rl16` is the reference run: a bare `--ref
+# DOCMAX` resolves inside the FIRST --run given, and both runs carry a DOCMAX of their own.
+AI_SAE = "B/sae-2m"
+AI_RUNS = {"rl16": "2026-09-22_autointerp-rl16", "old": "2026-09-22_autointerp-old"}
+AI_FEATS = [10, 11, 12, 13]
+AI_STRATUM = {10: 0, 11: 0, 12: 1, 13: 1}
+# The shown-example count per arm, as `build.ARM_SPECS` records it: 16 for a corpus arm, 4 for NLA
+# (the verbalizer answers at 200 tokens and four samples is what the budget buys), and 0 for the
+# scorer-only floor, which borrows another feature's description and has no example set at all.
+AI_NEX = {"DOCMAX": 16, "M": 16, "NLA": 4, "R-shuffled": 0}
+AI_ROLE = {"R-shuffled": "floor"}
+# The two A5 negative-half views restrict only the NEGATIVE side, so at a fixed TNR they are
+# `0.5 * (bal_acc + tnr_view)`. Fixed here rather than varied, so the reader check has three exact
+# identities per row and none of them has a rounding budget to hide in.
+AI_TNR_ZERO = 0.5
+AI_TNR_NEAR = 1.0
+
+# bal_acc per (run, arm) x scorer x feature. Every value is dyadic. `None` is the row `run.py`
+# writes when every batch of a (feature, arm) went unparsed: `rates` sees no scored items, returns
+# NaN, and `_nr` stores null -- an ABSENT measurement, which must be dropped from the mean and
+# counted, never imputed as 0.5.
+AI_BAL = {
+    ("rl16", "DOCMAX"): {"detection": {10: 0.75, 11: 0.5, 12: 0.625, 13: 0.875},
+                         "fuzzing": {10: 0.5, 11: 0.625, 12: 0.5, 13: 0.625}},
+    ("rl16", "M"): {"detection": {10: 0.5, 11: 0.5, 12: 0.75, 13: 0.625},
+                    "fuzzing": {10: 0.5, 11: 0.5, 12: 0.5, 13: 0.5}},
+    ("rl16", "R-shuffled"): {"detection": {10: 0.5, 11: 0.5, 12: 0.5, 13: 0.5},
+                             "fuzzing": {10: 0.5, 11: 0.5, 12: 0.5, 13: 0.5}},
+    # Three features of four: the arm that makes the pairing a real intersection.
+    ("rl16", "NLA"): {"detection": {10: 0.375, 11: 0.5, 12: 0.5},
+                      "fuzzing": {10: 0.375, 11: 0.375, 12: 0.5}},
+    ("old", "DOCMAX"): {"detection": {10: 0.625, 11: 0.625, 12: 0.5, 13: 0.75},
+                        "fuzzing": {10: 0.5, 11: 0.5, 12: 0.5, 13: 0.5}},
+    ("old", "M"): {"detection": {10: 0.5, 11: 0.625, 12: 0.625, 13: 0.5},
+                   "fuzzing": {10: 0.625, 11: 0.5, 12: 0.5, 13: None}},
+}
+# One feature short of a full parse, so the support table's parse rate is not a column of 1.0.
+AI_PARSED = {("rl16", "M", "detection", 13): 3}
+# `explanation_ok: false` cannot occur on a real product -- `run.py` never submits a scoring job
+# for an arm with an empty description, so no batch exists and no row is written. It is set here on
+# ONE row so the counter and its table column are exercised; the driver's caption says a nonzero
+# count on a real run would itself be a defect.
+AI_NO_EXPL = {("old", "M", "detection", 13)}
+AI_N_BATCHES = 4
+AI_N_ITEMS = 40
+
+
+def _ai_row(run: str, arm: str, scorer: str, feat: int, bal) -> dict:
+    """One `scores.jsonl` row as `autointerp/run.py` writes it.
+
+    `tpr = tnr = bal_acc` is what makes `0.5 * (tpr + tnr)` reproduce the stored `bal_acc` exactly,
+    which is the identity the reader check compares and the one `check_autointerp_catches_a_defect`
+    breaks. A null `bal_acc` carries null rates with it, as `run._nr` does.
+    """
+    n_parsed = AI_PARSED.get((run, arm, scorer, feat), AI_N_BATCHES if bal is not None else 0)
+    return {
+        "feature": feat, "arm": arm, "scorer": scorer,
+        "bal_acc": bal, "tpr": bal, "tnr": bal,
+        "bal_acc_zero_neg": None if bal is None else 0.5 * (bal + AI_TNR_ZERO),
+        "tnr_zero": None if bal is None else AI_TNR_ZERO,
+        "bal_acc_nearmiss_neg": None if bal is None else 0.5 * (bal + AI_TNR_NEAR),
+        "tnr_nearmiss": None if bal is None else AI_TNR_NEAR,
+        "acc": bal,
+        "n_items": AI_N_ITEMS if bal is not None else 0,
+        "n_batches": AI_N_BATCHES, "n_parsed": n_parsed,
+        "n_pos": 20 if bal is not None else 0, "n_neg_nearmiss": 10 if bal is not None else 0,
+        "draw": 1, "role": AI_ROLE.get(arm, "arm"), "n_examples": AI_NEX[arm],
+        "explanation_ok": (run, arm, scorer, feat) not in AI_NO_EXPL,
+        "explanation_of": feat, "path": "batch", "gate": 2.0,
+        "stratum": AI_STRATUM[feat], "fire_fraction": 0.25, "corpus_peak": 8.0, "density": -4.0,
+    }
+
+
+def write_autointerp_runs(root: Path, sae: str = AI_SAE) -> None:
+    """The synthetic mirror in the volume's own `runs/<dir>/summary/` layout."""
+    for run, run_dir in AI_RUNS.items():
+        d = root / f"runs/{run_dir}/summary"
+        d.mkdir(parents=True, exist_ok=True)
+        rows = []
+        for (r, arm), per_scorer in AI_BAL.items():
+            if r != run:
+                continue
+            for scorer, vals in per_scorer.items():
+                for feat in sorted(vals):
+                    rows.append(_ai_row(run, arm, scorer, feat, vals[feat]))
+        with open(d / "scores.jsonl", "w") as fh:
+            for r in rows:
+                fh.write(json.dumps(r) + "\n")
+        (d / "build.json").write_text(json.dumps(
+            {"base": "B", "set": "S3", "maemm": f"B/{run}", "engine": "vllm", "sae": sae,
+             "n_features": len(AI_FEATS), "mark": "gate", "fuzz_marks": "contiguous"}))
+
+
+def _ai_analyse(root: Path, **kw):
+    vol = R.Vol("", root, offline=True, quiet=True)
+    opts = {"runs": dict(AI_RUNS), "sae": AI_SAE, "ref": "DOCMAX", "boot": 2000, "seed": 1,
+            "strata": True}
+    opts.update(kw)
+    return vol, A.analyse(vol, opts["runs"], opts["sae"], opts["ref"], opts["boot"], opts["seed"],
+                          opts["strata"])
+
+
+def _ai_cell(res, arm: str, scorer: str) -> dict:
+    hits = [c for c in res["cells"] if c["arm"] == arm and c["scorer"] == scorer]
+    assert len(hits) == 1, (arm, scorer, sorted({c["arm"] for c in res["cells"]}))
+    return hits[0]
+
+
+def _ai_contrast(res, arm: str, scorer: str) -> dict:
+    hits = [x for x in res["contrasts"] if x["arm"] == arm and x["scorer"] == scorer]
+    assert len(hits) == 1, (arm, scorer, sorted({x["arm"] for x in res["contrasts"]}))
+    return hits[0]
+
+
+def check_autointerp_reader():
+    """The rows parse, the arms and scorers come back as expected, and the provenance is read.
+
+    The ARM is `(run label, arm name)`, never the bare name: `DOCMAX` exists in both run
+    directories with different numbers, and a reader that keyed on the name alone would merge two
+    measurements into one row.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root)
+        assert res["scorers"] == ["detection", "fuzzing"], res["scorers"]
+        assert [a.label for a in res["arms"]] == [
+            "rl16/DOCMAX", "rl16/M", "rl16/NLA", "rl16/R-shuffled", "old/DOCMAX", "old/M"], \
+            [a.label for a in res["arms"]]
+        # The reference resolves inside the FIRST --run, not among both DOCMAXes.
+        assert res["ref"].label == "rl16/DOCMAX", res["ref"]
+        # Roles, example counts and feature counts come off the rows themselves.
+        assert _ai_cell(res, "rl16/R-shuffled", "detection")["roles"] == ["floor"]
+        assert _ai_cell(res, "rl16/NLA", "detection")["n_examples"] == [4]
+        assert _ai_cell(res, "rl16/DOCMAX", "detection")["n_examples"] == [16]
+        assert _ai_cell(res, "rl16/NLA", "detection")["n_features"] == 3
+        # A null bal_acc is an ABSENT measurement: dropped from the mean, counted, not imputed.
+        om = _ai_cell(res, "old/M", "fuzzing")
+        assert (om["n_rows"], om["n_features"], om["n_no_metric"]) == (4, 3, 1), om
+        assert _ai_cell(res, "old/M", "detection")["n_no_explanation"] == 1
+        # Parse rate: three features at 4/4 and one at 3/4.
+        _close(_ai_cell(res, "rl16/M", "detection")["parse_rate"], 0.9375, 1e-12)
+        _close(_ai_cell(res, "old/M", "fuzzing")["parse_rate"], 0.75, 1e-12)
+        # The reader check compared something and found nothing wrong: 3 identities per row over
+        # the 45 rows that carry a bal_acc, plus none for the null row.
+        for chk in [c for c in res["checks"] if c["kind"] == "reader"]:
+            assert chk["n_mismatches"] == 0 and chk["comparisons"] > 0, chk
+            assert chk["worst_excess"] < 0, chk
+        assert not res["missing"], res["missing"]
+        assert res["builds"]["rl16"]["sae"] == AI_SAE
+
+    # A run built on ANOTHER dictionary must be called out: every 131k feature id is also a valid
+    # 2M index, so a 131k run tabulated under the 2M heading is a wrong table nothing else catches.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root, sae="B/sae-131k")
+        _vol, res = _ai_analyse(root)
+        assert any("BUILT ON SAE" in n for n in res["notes"]), res["notes"]
+
+    # An absent run directory is REPORTED, never zero-filled.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root, runs={**AI_RUNS, "ghost": "2026-09-22_autointerp-ghost"})
+        assert any("ghost" in m for m in res["missing"]), res["missing"]
+        assert all(a.run != "ghost" for a in res["arms"])
+
+
+def check_autointerp_estimators():
+    """`boot_ci` and `paired_diff` against numbers worked out here, then the means through
+    `analyse`.
+
+    The two-value cases are EXACT and not an approximation of one: resampling two values with
+    replacement gives the low value with probability 1/4, the mean with 1/2 and the high value with
+    1/4, so the 2.5th percentile of the bootstrap distribution IS the low value and the 97.5th IS
+    the high one -- both tails are far wider than alpha/2. That is what makes a literal CI possible
+    without running the code twice.
+    """
+    _close(A.boot_ci([0.25, 0.75], 2000, 1)[0], 0.5, 1e-12, what="mean of two")
+    _close(A.boot_ci([0.25, 0.75], 2000, 1)[1], 0.25, 1e-12, what="lo of two = the low value")
+    _close(A.boot_ci([0.25, 0.75], 2000, 1)[2], 0.75, 1e-12, what="hi of two = the high value")
+    # A constant vector has a degenerate bootstrap: every resample has the same mean.
+    assert A.boot_ci([0.5] * 4, 2000, 1) == (0.5, 0.5, 0.5)
+    # One value is a mean and no spread; a zero-width interval would read as certainty.
+    m, lo, hi = A.boot_ci([0.5], 2000, 1)
+    assert m == 0.5 and math.isnan(lo) and math.isnan(hi)
+    assert all(math.isnan(v) for v in A.boot_ci([], 2000, 1))
+    # A four-value bootstrap mean can never leave [min, max], and the interval brackets the mean.
+    m, lo, hi = A.boot_ci([0.75, 0.5, 0.625, 0.875], 2000, 1)
+    _close(m, 0.6875, 1e-12, what="(0.75 + 0.5 + 0.625 + 0.875) / 4")
+    assert 0.5 <= lo <= m <= hi <= 0.875, (lo, m, hi)
+
+    # paired_diff: the intersection by FEATURE ID, with both sides' losses carried out.
+    a = {1: 0.75, 2: 0.25, 3: 0.5}
+    b = {1: 0.25, 3: 0.25}
+    pd = A.paired_diff(a, b)
+    assert pd["features"] == [1, 3] and (pd["n_paired"], pd["n_a"], pd["n_b"]) == (2, 3, 2)
+    assert pd["only_in_a"] == [2] and pd["only_in_b"] == [] and pd["complete"] is False
+    assert list(pd["d"]) == [0.5, 0.25], list(pd["d"])
+    _close(A.boot_ci(pd["d"], 2000, 1)[0], 0.375, 1e-12)
+    _close(A.boot_ci(pd["d"], 2000, 1)[1], 0.25, 1e-12)
+    _close(A.boot_ci(pd["d"], 2000, 1)[2], 0.5, 1e-12)
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root)
+        # Means over features, per (arm, scorer). Detection and fuzzing are separate numbers.
+        _close(_ai_cell(res, "rl16/DOCMAX", "detection")["mean"], 2.75 / 4, 1e-12)
+        _close(_ai_cell(res, "rl16/M", "detection")["mean"], 2.375 / 4, 1e-12)
+        _close(_ai_cell(res, "rl16/NLA", "detection")["mean"], 1.375 / 3, 1e-12)
+        _close(_ai_cell(res, "old/DOCMAX", "detection")["mean"], 2.5 / 4, 1e-12)
+        _close(_ai_cell(res, "rl16/DOCMAX", "fuzzing")["mean"], 2.25 / 4, 1e-12)
+        _close(_ai_cell(res, "old/M", "fuzzing")["mean"], 1.625 / 3, 1e-12)
+        # The two DOCMAXes are different numbers and must not have been merged.
+        assert (_ai_cell(res, "rl16/DOCMAX", "detection")["mean"]
+                != _ai_cell(res, "old/DOCMAX", "detection")["mean"])
+        # The floor arm is constant, so its CI is degenerate and the figure's line is at 0.5.
+        fl = _ai_cell(res, "rl16/R-shuffled", "detection")
+        assert (fl["mean"], fl["lo"], fl["hi"]) == (0.5, 0.5, 0.5), fl
+        _close(A._floor_mean(res, "detection")[0], 0.5, 1e-12)
+        # Paired differences against rl16/DOCMAX, each summed by hand above the fixture.
+        _close(_ai_contrast(res, "rl16/M", "detection")["mean"], -0.375 / 4, 1e-12)
+        _close(_ai_contrast(res, "rl16/M", "detection")["win_frac"], 0.25, 1e-12)
+        _close(_ai_contrast(res, "rl16/R-shuffled", "detection")["mean"], -0.75 / 4, 1e-12)
+        _close(_ai_contrast(res, "old/M", "detection")["mean"], -0.5 / 4, 1e-12)
+        _close(_ai_contrast(res, "old/DOCMAX", "detection")["mean"], -0.25 / 4, 1e-12)
+        _close(_ai_contrast(res, "old/M", "fuzzing")["mean"], 0.0, 1e-12)
+        _close(_ai_contrast(res, "old/M", "fuzzing")["win_frac"], 1 / 3, 1e-12)
+        # The reference contrasts nothing against itself.
+        assert not [x for x in res["contrasts"] if x["arm"] == "rl16/DOCMAX"]
+        # Per stratum: the mean and the n, no interval.
+        st = {(s["arm"], s["scorer"], s["stratum"]): s for s in res["strata"]}
+        _close(st[("rl16/DOCMAX", "detection", 0)]["mean"], 0.625, 1e-12)
+        _close(st[("rl16/DOCMAX", "detection", 1)]["mean"], 0.75, 1e-12)
+        assert st[("rl16/DOCMAX", "detection", 0)]["n"] == 2
+        assert st[("rl16/NLA", "detection", 1)]["n"] == 1, st[("rl16/NLA", "detection", 1)]
+        # `--no-strata` is the secondary SAE's setting and must produce no stratum rows at all.
+        _vol2, plain = _ai_analyse(root, strata=False)
+        assert plain["strata"] == []
+
+
+def check_autointerp_pairing_is_intersection():
+    """An arm that covers fewer features is REPORTED as a reduced pairing, and the contrast runs
+    on the intersection alone.
+
+    `rl16/NLA` has three of the four features. A contrast that took each side's own mean would get
+    1.375/3 − 2.75/4 = −0.229; the paired one on features 10-12 is −0.5/3 = −0.167. The two differ,
+    which is what the intersection is for, and the difference between them is exactly the error a
+    silent de-pairing would introduce.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root)
+        x = _ai_contrast(res, "rl16/NLA", "detection")
+        assert (x["n_paired"], x["n_arm"], x["n_ref"]) == (3, 3, 4), x
+        assert x["complete"] is False and x["lost_by_arm"] == [13], x
+        _close(x["mean"], -0.5 / 3, 1e-12, what="paired on features 10-12 only")
+        # NOT the difference of the two unpaired means -- that is the number this exists to avoid.
+        assert abs(x["mean"] - (1.375 / 3 - 2.75 / 4)) > 0.05, x["mean"]
+        # The same on fuzzing, where the reference's dropped feature carries a different value.
+        _close(_ai_contrast(res, "rl16/NLA", "fuzzing")["mean"], -0.375 / 3, 1e-12)
+        # The null-bal_acc row de-pairs `old/M` on fuzzing and not on detection.
+        assert _ai_contrast(res, "old/M", "fuzzing")["n_paired"] == 3
+        assert _ai_contrast(res, "old/M", "detection")["n_paired"] == 4
+        # And all of it reaches the pairing CHECK, which is what the table and results.json print.
+        pc = {(c["who"], c["detail"]): c for c in res["checks"] if c["kind"] == "pairing"}
+        assert pc[("rl16/NLA", "detection")]["complete"] is False
+        assert pc[("rl16/NLA", "detection")]["n_mismatches"] == 1, pc[("rl16/NLA", "detection")]
+        assert pc[("rl16/M", "detection")]["complete"] is True
+        assert pc[("old/M", "fuzzing")]["n_mismatches"] == 1
+        assert pc[("old/M", "detection")]["complete"] is True
+
+
+def check_autointerp_catches_a_defect():
+    """Corrupt one stored `bal_acc`, and drop one feature from one arm, and require the reader
+    check and the pairing check to go red. Without this both are unevaluated: a comparison that has
+    only ever passed proves nothing about its ability to fail."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        p = root / f"runs/{AI_RUNS['rl16']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        hit = next(r for r in recs if r["arm"] == "DOCMAX" and r["scorer"] == "detection"
+                   and r["feature"] == 10)
+        hit["bal_acc"] = 0.9        # its own tpr and tnr still say 0.75
+        p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+        _vol, res = _ai_analyse(root)
+        chk = [c for c in res["checks"] if c["kind"] == "reader" and c["who"] == "rl16"][0]
+        assert chk["n_mismatches"] == 1 and chk["n_identity"] == 1, chk
+        _close(chk["worst_excess"], 0.15 - A.READER_TOL, 1e-9, what="|0.9 - 0.75| beyond tol")
+
+    # A rate outside [0, 1] and a row with more parsed batches than batches are corrupt rows, not
+    # findings, and the same check says so. `acc` is in neither identity, so this mutation isolates
+    # the RANGE half from the identity half rather than tripping both at once.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        p = root / f"runs/{AI_RUNS['old']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        recs[0]["acc"] = 1.5
+        recs[1]["n_parsed"] = recs[1]["n_batches"] + 1
+        p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+        _vol, res = _ai_analyse(root)
+        chk = [c for c in res["checks"] if c["kind"] == "reader" and c["who"] == "old"][0]
+        assert (chk["n_identity"], chk["n_out_of_range"], chk["n_bad_counts"]) == (0, 1, 1), chk
+        assert chk["n_mismatches"] == 2, chk
+
+    # Drop a feature from an arm that was complete, and the pairing check must change verdict.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        p = root / f"runs/{AI_RUNS['rl16']}/summary/scores.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        kept = [r for r in recs
+                if not (r["arm"] == "M" and r["scorer"] == "detection" and r["feature"] == 13)]
+        assert len(kept) == len(recs) - 1
+        p.write_text("\n".join(json.dumps(r) for r in kept) + "\n")
+        _vol, res = _ai_analyse(root)
+        x = _ai_contrast(res, "rl16/M", "detection")
+        assert (x["n_paired"], x["n_arm"], x["n_ref"]) == (3, 3, 4), x
+        assert x["complete"] is False and x["lost_by_arm"] == [13], x
+        # The remaining three differences are -0.25, 0 and +0.125; the dropped one was -0.25.
+        _close(x["mean"], -0.125 / 3, 1e-12)
+        pc = [c for c in res["checks"] if c["kind"] == "pairing" and c["who"] == "rl16/M"
+              and c["detail"] == "detection"][0]
+        assert pc["complete"] is False and pc["n_mismatches"] == 1, pc
+        # Fuzzing, untouched, stays complete -- the defect is local and the check is not a blanket.
+        assert _ai_contrast(res, "rl16/M", "fuzzing")["complete"] is True
+
+    # Two run directories under ONE label would double-count every feature; that is refused.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        p = root / f"runs/{AI_RUNS['rl16']}/summary/scores.jsonl"
+        p.write_text(p.read_text() + p.read_text())
+        try:
+            _ai_analyse(root)
+        except AssertionError as e:
+            assert "one row per triple" in str(e), e
+        else:
+            raise AssertionError("a duplicated scores.jsonl must be refused, not averaged")
+
+
+AI_SANITY = """
+checks:
+  - name: rl16 DOCMAX detection mean
+    arm: "rl16/DOCMAX"
+    scorer: detection
+    metric: bal_acc.mean
+    expect: 0.6875
+    tol: 0.0005
+  - name: a gate that must flag
+    arm: "rl16/DOCMAX"
+    scorer: detection
+    metric: bal_acc.mean
+    expect: 0.9
+    tol: 0.01
+  - name: a gate on an arm this block does not have
+    arm: "epo/E"
+    scorer: detection
+    metric: bal_acc.mean
+    expect: 0.5
+    tol: 0.05
+  - name: a pair that is not the same statistic
+    arm: "rl16/DOCMAX"
+    scorer: fuzzing
+    metric: bal_acc.mean
+    expect: 0.1
+    compare: false
+"""
+
+
+def check_autointerp_render_and_figures():
+    """The whole render: tables.md, a CSV per table, figures as PDF AND PNG, the four sanity
+    verdicts, and the rule that unequal N and a reduced pairing are both VISIBLE in the file."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_runs(root)
+        _vol, res = _ai_analyse(root)
+        out_dir = root / "out" / AI_SAE.replace("/", "_")
+        y = root / "sanity_autointerp.yaml"
+        y.write_text(AI_SANITY)
+        sanity = A.run_sanity(res, y)
+        assert [s["verdict"] for s in sanity] == ["pass", "FLAG", "absent", "no verdict"], sanity
+        _close(sanity[0]["ours"], 0.6875, 1e-9)
+        assert sanity[0]["n"] == 4, sanity[0]
+        # An absent gates file is a NOTE, not an error: eval 2 has no recorded expectations yet.
+        assert A.run_sanity(res, root / "nope.yaml") == []
+
+        figs = A.make_figures(res, out_dir)
+        o = R.Out(out_dir, "selftest — eval 2", ["- synthetic"])
+        path = A.render(res, o, sanity, figs)
+        md = path.read_text()
+
+        for name in ("bal_acc", "contrasts", "strata", "support", "checks", "sanity"):
+            assert (out_dir / f"{name}.csv").exists(), f"{name}.csv was not written"
+        # The headline means are in the file.
+        assert "0.6875" in md, "the rl16/DOCMAX detection mean is not in tables.md"
+        assert "0.5938" in md, "the rl16/M detection mean is not in tables.md"
+        # Detection and fuzzing are separate columns and the caption says why they are not pooled.
+        bal = md.split("### Balanced accuracy")[1].split("###")[0]
+        header = next(ln for ln in bal.splitlines() if ln.startswith("| arm"))
+        assert "detection mean" in header and "fuzzing mean" in header, header
+        assert "not pooled" in bal and "ZERO-SHOT" in bal, bal[:400]
+        # Unequal N is shown rather than smoothed.
+        support = (out_dir / "support.csv").read_text()
+        assert any(ln.split(",")[8] == "4" for ln in support.splitlines()[1:]
+                   if "rl16/NLA" in ln), support
+        # A reduced pairing is labelled, counted, and carries its feature ids to the CSV. Pinned on
+        # the ROW, not on the block and not on the file: a bare `"REDUCED" in md` is satisfied by
+        # the checks table, and a per-block one by the contrasts table's own CAPTION, so both
+        # passed against a pairing column hardcoded to "complete" -- the defect they were meant to
+        # catch. Only the row can tell the two apart.
+        contrast_block = md.split("### Paired contrasts")[1].split("###")[0]
+        rows_md = [ln for ln in contrast_block.splitlines() if ln.startswith("| ")]
+        nla = next(ln for ln in rows_md if ln.startswith("| NLA | rl16 | detection |"))
+        assert nla.rstrip().endswith("| REDUCED |"), nla
+        m16 = next(ln for ln in rows_md if ln.startswith("| M | rl16 | detection |"))
+        assert m16.rstrip().endswith("| complete |"), m16
+        checks_block = md.split("### Reader and pairing checks")[1].split("###")[0]
+        assert "REDUCED: 1 feature(s) lost" in checks_block, checks_block
+        contrasts = (out_dir / "contrasts.csv").read_text()
+        assert any("rl16/NLA" in ln and ln.rstrip().endswith("13,") for ln in contrasts.splitlines()), \
+            contrasts
+        # Figures: one per scorer, both formats, and big enough to be a plot.
+        assert sorted(figs) == ["bal_acc_detection", "bal_acc_fuzzing"], figs
+        for f in figs:
+            for ext in ("pdf", "png"):
+                p = out_dir / "figures" / f"{f}.{ext}"
+                assert p.exists() and p.stat().st_size > 1000, p
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -572,6 +1024,12 @@ CHECKS = [
     check_sanity_verdicts,
     check_cross_set_gate,
     check_render_and_figures,
+    # eval 2 -- `results/autointerp.py`
+    check_autointerp_reader,
+    check_autointerp_estimators,
+    check_autointerp_pairing_is_intersection,
+    check_autointerp_catches_a_defect,
+    check_autointerp_render_and_figures,
 ]
 
 

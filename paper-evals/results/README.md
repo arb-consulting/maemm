@@ -9,6 +9,7 @@ script per question.
 |---|---|
 | `common.py` | the volume reader (`Vol`, `modal volume get` + a local mirror), the product readers moved over from `reconstruction/sae_smoke64.py`, source discovery, the clustered bootstrap, the markdown/CSV/figure output layer |
 | `faithfulness.py` | eval 1: one command, every (family × source × run-tag) on a set |
+| `autointerp.py` | eval 2: one command per SAE, joining the `runs/<dir>/summary/scores.jsonl` of every checkpoint's autointerp run |
 | `sanity.yaml` | **the gates the user edits** — her card's numbers, `sae_smoke64.md`'s medians, our own recorded values, and `kind: cross_set` gates that read another set's product for the same checkpoint and compare the two on the rows they share; each with its tolerance and provenance |
 | `selftest.py` | the CPU unit smoke: a synthetic mirror through the whole driver, every number checked against one worked out by hand |
 
@@ -17,7 +18,10 @@ cd /home/gavento/dev/mimir/2026-09-maemms
 (set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; \
  uv run repo-maemm/paper-evals/results/faithfulness.py --set 2026-09-21_v1raw)
 
-uv run paper-evals/results/selftest.py            # no volume, no network
+uv run repo-maemm/paper-evals/results/autointerp.py --sae qwen36-27b/sae2m \
+  --run rl-last16=<run dir> --run old-primary=<run dir> --run nla=<run dir>
+
+uv run paper-evals/results/selftest.py            # no volume, no network, both evals
 ```
 
 `--sources <substrings>` keeps a subset of the arms, `--root <prefix>` reads a smoke root
@@ -75,6 +79,67 @@ other set's `sae_self` product, which this gate does not fetch.
 **The sanity block flags, it does not stop.** Plan §2.3 says a failed gate stops the run; this
 driver has no way to tell a wrong mu from a gate written against another set, and a run that
 refuses to print its own tables cannot be inspected. The stop is the reader's, on a `FLAG` line.
+
+## Eval 2 (`autointerp.py`) — the design commitments that differ
+
+**One invocation per SAE, one `--run <label>=<dir>` per checkpoint.** `autointerp/run.py` is per
+CHECKPOINT, so eval 2 is six run directories (rl-last16, the old primary and NLA, on each of the
+2M and the 131k SAE) and the corpus arms are re-explained and re-scored inside each of them. The
+unit of comparison is therefore `(<run label>, <arm>)` and never the bare arm name: `DOCMAX` under
+two labels is two measurements, and one heading over both would merge them. The block is written
+to `<out>/<sae-slug>/`, so the two SAEs never overwrite each other.
+
+**Detection and fuzzing are never pooled.** Fuzzing marks at the gate and, on the legacy protocol,
+runs zero-shot while detection sees Delphi's three verbatim few-shot turns. They are separate
+columns and the table says why on every run.
+
+**The pairing is asserted, and its losses are printed** (plan §3.3). Each contrast intersects the
+two arms' feature sets by feature id, asserts the alignment, and carries both sides' lost features
+into the table (`REDUCED`), the CSV (the ids) and `results.json`. `autointerp/stats.paired` gets
+the intersection right via polars' `drop_nulls` but reports nothing about what it dropped; this is
+the half that was missing.
+
+**The estimator is `autointerp/stats.boot_ci`'s method, reimplemented rather than imported.** That
+module is the IN-CHAIN renderer, on the run's own directory, with that chain's `N_BOOT = 10000` and
+seed `20260916`; this driver is on the `results/` lifecycle and takes `N_BOOT`/`BOOT_SEED` from
+`results/common` so every table in the paper is bootstrapped the same way. The method — a paired
+percentile bootstrap over FEATURES — is deliberately identical.
+
+**The reader check has no array to re-reduce, so it re-derives the metric.** `run.rates` defines
+balanced accuracy as `0.5 × (TPR + TNR)` and the two A5 views restrict only the negative side, so
+all three stored accuracies are determined by the rates stored beside them. Recomputing them is a
+comparison of two independent quantities within the 6-decimal rounding `run._nr` applies; it also
+counts rates outside [0, 1] and rows with more parsed batches than batches. The selftest breaks it
+by one number and requires it to go red.
+
+**A null `bal_acc` is an absent measurement.** `run.py` writes `null` when a class was absent from
+the PARSED items (every batch of a feature unparsed); those features are dropped from the means,
+counted in `no metric`, and never imputed as 0.5.
+
+**Unequal N is shown.** The NLA arm shows 4 examples to a corpus arm's 16, and every scorer-only
+pseudo-arm (`R-shuffled`, `C16-judge2`, `C16-draw2`, `NLA-desc`) carries `n_examples: 0` because
+those names are not keys of the build's per-feature arm dict. Both appear in `support` as
+themselves.
+
+### What eval 2's driver does NOT do
+
+- **No sanity gates ship with it.** `--sanity` resolves a YAML in the same selector idiom as eval
+  1's `sanity.yaml`, but no file exists: eval 2 has no recorded expectations yet, and a YAML of
+  invented numbers would be worse than none. An absent file is a note, not an error.
+- **`--ref` resolves a bare arm name inside the FIRST `--run` given.** Every run directory carries
+  its own `DOCMAX`, so the name alone does not identify one; the convention is stated in the
+  caption. `--ref <run label>/<arm>` names one outright.
+- **The per-stratum table is a flag, not a config lookup.** The paper reports it for the primary
+  SAE only, and `--no-strata` is how the secondary block turns it off — nothing in `config.yaml`
+  marks an SAE primary.
+- **Only `summary/scores.jsonl` and `summary/build.json` are read.** `costs.json`,
+  `features.json`, `floor_permutation.json` and the per-scorer `batches.jsonl` are not: no dollar
+  figure, no per-batch diagnostic and no derangement map reaches these tables.
+- **The pre-registered primary contrast (plan §3.3, search baseline vs MAEMM) is not marked as
+  such.** Every non-reference arm gets the same contrast row; which one is confirmatory and which
+  exploratory is not a distinction this file makes.
+- **`n_shown_exceeding_corpus_peak` per arm (plan §3.3) is not reported** — `scores.jsonl` does not
+  carry it.
 
 ## What is NOT covered
 
