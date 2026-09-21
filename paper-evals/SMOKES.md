@@ -3553,8 +3553,14 @@ $0.0231 on the half-price batch path.
 
 ### Detection and fuzzing, balanced accuracy, mean [95% percentile bootstrap over features]
 
-**131k secondary** (`qwen36-27b/l42-1b`, gate 1.5846), n = 31 of 32 (one feature has no draw-1
-positive):
+**131k secondary** (`qwen36-27b/l42-1b`, gate 1.5846), n = 31 of 32 for most arms. THREE features
+carry a null `bal_acc` somewhere, found by grepping `n_pos == 0` across all six runs rather than by
+chasing an id: **59176** (every arm, both draws -- no gate-consistent positives at all), **124524**
+(`DOCMAX-draw2` only), and **42890** (`NLA-desc` only, and with `tnr`/`acc` null too, so its cause
+is "nothing parsed", not "nothing positive"). The 2M block is clean on all three runs. Those rows
+still report `acc` and `tnr` at 0.90-1.00, so anything averaging `acc` would turn a feature with no
+positives into a near-perfect cell; `results/autointerp.py` reads `bal_acc` alone and two mutations
+pin it:
 
 | arm | detection | fuzzing |
 |---|---|---|
