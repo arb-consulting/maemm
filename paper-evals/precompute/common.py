@@ -1701,6 +1701,9 @@ def score_ids(
     device="cuda",
     on_chunk=None,
     max_length: int = SCORE_MAX_LENGTH,
+    *,
+    dirs_centred=None,
+    mu=None,
 ):
     """Per-token cosine and residual norm of each ID LIST on the CLEAN base at `read_layer`.
 
@@ -1715,14 +1718,34 @@ def score_ids(
     DIVERGENCE (Tomáš, 2026-09-15): her 10x-nanmedian norm filter (eval_universal.py:71,145-147) is
     NOT applied. The per-token norm is stored so reconstruction/stats.py can apply it as an option.
 
-    The cosine is UNCENTRED while realact target directions are unit(act - mu)
-    (data/build_universal_bank.py:26,310). That asymmetry is Celeste's and is kept.
+    TWO COSINES FROM ONE FORWARD (2026-09-21). `cos` is the uncentred number this function has
+    always produced. Passing BOTH `dirs_centred` and `mu` adds `cos_centred` to the output:
+
+        cos          = einsum(normalize(h),      normalize(dirs))
+        cos_centred  = einsum(normalize(h - mu), normalize(dirs_centred))
+
+    -- the same residual, a second einsum, ~0 extra GPU time, and the two sides of the centred
+    number are centred by the SAME mean. This function CANNOT derive `dirs_centred` itself: it is
+    handed unit vectors, and unit(act) together with mu does not give unit(act - mu) without
+    ||act||, which lives in the set's ids.jsonl. So the caller (score.py, which owns rows_meta)
+    builds both tensors and puts NaN rows where the family is not centrable -- an encoder column
+    has no mean, and cos(h - mu, encoder column) is a one-sided number, not a centred one. NaN
+    propagates through the normalize and the einsum on its own; nothing special-cases it.
+
+    A caller that passes neither keyword gets bit-identical output to before: gcg.py:332 and
+    sae_self.py:246 call with keywords only and are untouched, which is the one-scoring-path
+    invariant gcg.py:19-21 names.
+
+    Every OTHER cosine in the pipeline is uncentred while a legacy realact target direction is
+    unit(act - mu) (data/build_universal_bank.py:26,310). That asymmetry is Celeste's; it is what
+    `cos_centred` exists to measure against rather than to replace.
 
     `model` must already be the scoring model: a PeftModel (its adapter is disabled here) or a
     separately loaded clean base (full-parameter MAEMMs have no adapter to switch off).
 
     Returns a dict of [N, max_length + 1] tensors on the cpu -- cos (f32), norm (f32), keep (bool),
-    ids (i64) -- where column 0 is the sink, cos/norm are NaN outside `keep`, and ids is -1 there.
+    ids (i64), and cos_centred (f32) when asked for -- where column 0 is the sink, cos/norm are NaN
+    outside `keep`, and ids is -1 there.
     Rows are rectangular across chunks of different token lengths, so the arrays concatenate.
     `max_length` defaults to SCORE_MAX_LENGTH and every caller but the NLA arm leaves it there;
     see `encode_for_score` for why it is a parameter and who records the value used.
@@ -1738,6 +1761,20 @@ def score_ids(
     n = len(id_lists)
     assert len(dirs) == n, f"{n} id lists but {len(dirs)} directions: the scorer pairs them by row"
     assert max_length >= 1, f"max_length must be at least one token, got {max_length}"
+    assert (dirs_centred is None) == (mu is None), (
+        "score_ids takes dirs_centred and mu TOGETHER or neither: the centred cosine centres both "
+        "sides by the same mean, and one without the other is the asymmetric number this keyword "
+        "pair exists to replace"
+    )
+    want_centred = dirs_centred is not None
+    if want_centred:
+        assert len(dirs_centred) == n, (
+            f"{n} id lists but {len(dirs_centred)} centred directions"
+        )
+        mu_t = torch.as_tensor(mu, dtype=torch.float32, device=device).reshape(-1)
+        assert mu_t.shape[0] == int(dirs.shape[-1]), (
+            f"mu is [{mu_t.shape[0]}] but the directions are [.., {int(dirs.shape[-1])}]"
+        )
     # +1 for the sink at column 0. This is SCORE_WIDTH whenever max_length is the protocol's own
     # SCORE_MAX_LENGTH, which is every caller but the NLA arm.
     score_width = max_length + 1
@@ -1747,6 +1784,8 @@ def score_ids(
         "keep": torch.zeros((n, score_width), dtype=torch.bool),
         "ids": torch.full((n, score_width), -1, dtype=torch.long),
     }
+    if want_centred:
+        out["cos_centred"] = torch.full((n, score_width), float("nan"))
     sink = sink_token_id(tok)
     pad = tok.pad_token_id if tok.pad_token_id is not None else sink
     with torch.no_grad():
@@ -1779,6 +1818,12 @@ def score_ids(
             d = F.normalize(dirs[s : s + b].to(device).float(), dim=-1)
             cos = torch.einsum("btd,bd->bt", F.normalize(h.float(), dim=-1), d)
             nrm = h.float().norm(dim=-1)
+            cos_c = None
+            if want_centred:
+                dc = F.normalize(dirs_centred[s : s + b].to(device).float(), dim=-1)
+                cos_c = torch.einsum(
+                    "btd,bd->bt", F.normalize(h.float() - mu_t, dim=-1), dc
+                )
             t = ids.shape[1]
             assert t <= score_width, (
                 f"chunk width {t} exceeds this run's width {score_width}: truncation at "
@@ -1790,6 +1835,10 @@ def score_ids(
             out["ids"][s : s + b, :t] = torch.where(mask, ids, torch.full_like(ids, -1)).cpu()
             out["cos"][s : s + b, :t] = torch.where(keep, cos, torch.full_like(cos, float("nan"))).cpu()
             out["norm"][s : s + b, :t] = torch.where(keep, nrm, torch.full_like(nrm, float("nan"))).cpu()
+            if want_centred:
+                out["cos_centred"][s : s + b, :t] = torch.where(
+                    keep, cos_c, torch.full_like(cos_c, float("nan"))
+                ).cpu()
     return out
 
 
@@ -1803,6 +1852,9 @@ def score_tokens(
     device="cuda",
     on_chunk=None,
     max_length: int = SCORE_MAX_LENGTH,
+    *,
+    dirs_centred=None,
+    mu=None,
 ):
     """`score_ids` with the tokenizer in front: see `encode_for_score` and `score_ids`.
 
@@ -1821,6 +1873,10 @@ def score_tokens(
         device=device,
         on_chunk=on_chunk,
         max_length=max_length,
+        # score.py reaches score_ids through THIS wrapper, not directly, so the centred pair has to
+        # be forwarded here or the second cosine never leaves the caller.
+        dirs_centred=dirs_centred,
+        mu=mu,
     )
 
 
