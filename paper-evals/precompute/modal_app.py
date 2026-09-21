@@ -600,9 +600,11 @@ def main(
         dirs = []
         for k in keys:
             dirs.append(C.corpus_key_name(cfg, k))
-            block, stride = C.corpus_geometry(cfg, k)
+            # NOT `block, stride = ...`: `block` is this function's own heldout_v3 parameter, and
+            # assigning to it here set it non-empty on every --corpus launch.
+            blk, strd = C.corpus_geometry(cfg, k)
             C.assert_corpus_geometry(cfg, dirs[-1])
-            print(f"[launch] corpus {k} -> dir {dirs[-1] or 'corpus'}, window {block}/{stride}")
+            print(f"[launch] corpus {k} -> dir {dirs[-1] or 'corpus'}, window {blk}/{strd}")
         args["corpus_name"] = ",".join(dirs)
     # House style: a flag belongs to ONE product, and a typo that would otherwise reach the
     # container and cost a scheduled H200 stops here instead.
