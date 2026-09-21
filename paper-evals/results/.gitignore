@@ -1,0 +1,6 @@
+# Local analysis working directories, both reproducible from the volume: `data/` is the mirror
+# `Vol` fetches into, `out/` is where the tables, CSVs and figures go. `faithfulness/` is the
+# pre-`out/` default and stays ignored so an old command line does not start committing output.
+data/
+out/
+faithfulness/

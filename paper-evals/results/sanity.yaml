@@ -1,0 +1,176 @@
+# Sanity gates for `results/faithfulness.py`. EDIT THIS FILE, not the driver.
+#
+# Plan §2.3: "Sanity gates before any number is read: her card's realact 0.780 and realact_long
+# 0.716 (bo4, centred, her scorer) within a stated tolerance, and 2M enc/dec fired 0.344 / 0.416
+# [...] Plus the 64-direction stratified smoke's per-stratum peak ratios. A failed gate stops the
+# run: it means the mu or the prompt is wrong."
+#
+# This driver FLAGS rather than stops: it has no way to tell a wrong mu from a set it was never
+# meant to gate, and a run that refuses to print its own tables cannot be inspected. The stop is
+# the reader's, on a flagged line.
+#
+# Each check resolves ONE computed statistic and compares it with `expect`.
+#
+#   source    substring of a source label (`<checkpoint>[@engine][:run-tag]`). Must match exactly
+#             one discovered source, or the check is `absent` with the candidates listed.
+#   family    a family label exactly as the tables print it: `realact`, `random`,
+#             `sae/l42-1b`, `sae/sae2m/enc`, ...
+#   stratum   optional; the row's own `stratum`, for a per-stratum gate. Omit for the all row.
+#   metric    `cos_raw.bo<k>` | `cos_centred.bo<k>`      (mean over the family's rows)
+#             `ratio.bo<k>.median` | `ratio.bo<k>.mean`  (peak activation / 16M corpus peak)
+#             `fired.item`    mean over features of the fraction of that source's draws over gate
+#             `fired.feature` fraction of features whose source fires at all
+#   tol       absolute tolerance. `tol_rel: true` makes it relative to `expect`.
+#   compare   `false` prints both numbers and their difference and issues NO verdict -- for a
+#             pair that is not the same statistic. Use it instead of a wide tolerance: a wide
+#             tolerance says "close enough", `compare: false` says "not the same quantity".
+#
+# A check whose selector resolves to nothing is `absent`, with the reason. That is the normal
+# outcome for a gate written against a set this run is not analysing, and it is not a failure.
+
+checks:
+
+  # ------------------------------------------------------------------------------------------
+  # (1) Celeste's model card -- the numbers in plan §2.3. Her scorer, her 512-feature sets.
+  # ------------------------------------------------------------------------------------------
+
+  - name: card realact, rl-last16 bo4 centred
+    source: rl-last16
+    family: realact
+    metric: cos_centred.bo4
+    expect: 0.780
+    tol: 0.05
+    provenance: >-
+      Celeste's card for rl-last16 at bo4 on her 512 realact rows, centred, her scorer.
+      infra/2026-09-21_evals-plan-main.md §2.3. The tolerance is a STATED band, not a measured
+      one: her draw and ours are different rows and her scorer is not this one.
+
+  - name: card realact_long, rl-last16 bo4 centred
+    source: rl-last16
+    family: realact_long
+    metric: cos_centred.bo4
+    expect: 0.716
+    tol: 0.05
+    provenance: same card, the realact_long block (plan §2.3).
+
+  - name: card 2M encoder fired fraction, rl-last16
+    source: rl-last16
+    family: sae/sae2m/enc
+    metric: fired.item
+    expect: 0.344
+    tol: 0.08
+    provenance: >-
+      A firing rate has no denominator, so this is the one card number that does not depend on
+      whose corpus peak is used. plan §2.3; also reconstruction/sae_smoke64.py CARD.
+
+  - name: card 2M decoder fired fraction, rl-last16
+    source: rl-last16
+    family: sae/sae2m/dec
+    metric: fired.item
+    expect: 0.416
+    tol: 0.08
+    provenance: >-
+      "the 0.416 card gate needs it" -- plan §2.1 puts the decoder block in the set for exactly
+      this line.
+
+  # ------------------------------------------------------------------------------------------
+  # (2) The 64-direction stratified smoke, 2026-09-21 (reconstruction/sae_smoke64.md headline).
+  # Medians over 64 features of peak / 16M corpus peak. Resolves only on the sets that smoke
+  # ran on; on any other set these print `absent`, which is the correct outcome.
+  # ------------------------------------------------------------------------------------------
+
+  - name: sae_smoke64 131k, rl-last16 bo1 median ratio
+    source: rl-last16
+    family: sae/l42-1b
+    metric: ratio.bo1.median
+    expect: 0.76
+    tol: 0.10
+    provenance: reconstruction/sae_smoke64.md headline, 64 features, n=16.
+
+  - name: sae_smoke64 131k, old primary bo1 median ratio
+    source: rl-8x2048-full
+    family: sae/l42-1b
+    metric: ratio.bo1.median
+    expect: 0.83
+    tol: 0.10
+    provenance: >-
+      sae_smoke64.md, the EXISTING vLLM product at n=64 over 64 of the 512 sae rows of
+      2026-09-16_v1. A run of this driver over a different row subset of the same dictionary is
+      a different draw of features; the band is wide for that reason.
+
+  - name: sae_smoke64 131k, rl-last16 feature firing fraction
+    source: rl-last16
+    family: sae/l42-1b
+    metric: fired.feature
+    expect: 0.92
+    tol: 0.12
+    provenance: sae_smoke64.md, "features firing 92%" on the 131k side.
+
+  - name: sae_smoke64 2M, rl-last16 bo1 median ratio
+    source: rl-last16
+    family: sae/sae2m
+    metric: ratio.bo1.median
+    expect: 0.23
+    tol: 0.10
+    provenance: sae_smoke64.md, 2M side, set 2026-09-21_sae2m_64.
+
+  # ------------------------------------------------------------------------------------------
+  # (3) The old primary's prior numbers. §1.6's two-arm reconciliation and the v1 product.
+  # ------------------------------------------------------------------------------------------
+
+  - name: old primary mu-none, realact mean cos (2026-09-21 smoke)
+    source: rl-8x2048-full:mu-none
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.8760
+    tol: 0.0005
+    provenance: >-
+      SMOKES.md 2026-09-21, "the two old-primary arms": realact rows 0-3, n=4, --mu none.
+      This is OUR OWN recorded number on these exact rows, so the tolerance is a rounding
+      tolerance and a miss here is a reader defect, not a finding.
+
+  - name: old primary mu-stats, realact mean cos (2026-09-21 smoke)
+    source: rl-8x2048-full:mu-stats
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.8989
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21, the same table's stats_mu arm.
+
+  - name: old primary mu-stats, realact bo4
+    source: rl-8x2048-full:mu-stats
+    family: realact
+    metric: cos_raw.bo4
+    expect: 0.9339
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21, the same table's bo_4 column.
+
+  - name: old primary mu-none, realact bo4
+    source: rl-8x2048-full:mu-none
+    family: realact
+    metric: cos_raw.bo4
+    expect: 0.9034
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21, the same table's bo_4 column.
+
+  - name: rl-last16 realact mean centred cos (2026-09-21 smoke)
+    source: rl-last16
+    family: realact
+    metric: cos_centred.bo1
+    expect: 0.7518
+    tol: 0.0005
+    provenance: SMOKES.md 2026-09-21, "cos_centred, first numbers", rl-last16 under whiten_mu.
+
+  - name: old primary v1 realact mean cos, 0.5076
+    source: rl-8x2048-full
+    family: realact
+    metric: cos_raw.bo1
+    expect: 0.5076
+    compare: false
+    provenance: >-
+      SMOKES.md 2026-09-15, rows 0-7 of 2026-09-16_v1. NOT THE SAME STATISTIC as a raw set's
+      `cos`: the stored 0.5076 is cos(h, unit(act - stats_mu)) -- target centred, scorer raw,
+      Celeste's asymmetry -- and on a `storage: raw` set `score` produces cos (neither side
+      centred) and cos_centred (both), never that third column. SMOKES.md 2026-09-21 records
+      this as plan gate 2 being unevaluable rather than failed. Printed for the record with no
+      verdict; delete the line or restate the gate against cos_centred once that is decided.

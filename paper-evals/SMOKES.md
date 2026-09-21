@@ -3320,3 +3320,128 @@ the `ours` block, +1 for the CSR gate floor), and `nla-selftest` 5 -> 6. Mutatio
 on every check added: 5/5 on `check_heldout_v3_ours_block`, 3/3 on `_selftest_amp_storage`,
 3/3 on `check_csr_gate_floor` -- the last including the original `> gate`, which reproduces the
 production failure on CPU.
+## 2026-09-21 — branch `evals/pipeline-results`: `results/`, the paper's results driver
+
+Local, CPU, no GPU, **$0**. Nothing was written to the volume: every `modal volume` call in this
+section is `ls` or `get`. Built on `evals/pipeline` at 64f6c28; no file outside `paper-evals/results/`
+was touched except this section and a pointer in `README.md`.
+
+```
+uv run paper-evals/results/selftest.py                          # no volume, no network
+
+cd /home/gavento/dev/mimir/2026-09-maemms
+(set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; cd repo-maemm/paper-evals; \
+ uv run results/faithfulness.py --set 2026-09-21_v1raw)
+(set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; cd repo-maemm/paper-evals; \
+ uv run results/faithfulness.py --set 2026-09-21_sae2m_64 --root tmp/sae-smoke64 --out results/out/sae64)
+```
+
+| date | item | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|
+| 2026-09-21 | `results/selftest.py` | 1.3 s | $0 | **10/10 checks passed** | — |
+| 2026-09-21 | mutation battery on those checks | ~4 min | $0 | 15 deliberate defects, **15/15 caught** — 2 of them only after the check that should have owned them was strengthened | see below |
+| 2026-09-21 | `faithfulness --set 2026-09-21_v1raw` (cold mirror) | 121 s | $0 | 4 sources, 6 cosine rows, 4 SAE rows, 3 figures; 0.44 MB fetched | the NLA arm lives under `variants/`, not `scores/` — see below |
+| 2026-09-21 | `faithfulness --set 2026-09-21_sae2m_64 --root tmp/sae-smoke64` (cold) | 105 s | $0 | 3 sources, 0 cosine rows, **15 SAE rows** (3 sources x all + 4 strata), 1 figure | reproduces `sae_smoke64.md` — see below |
+| 2026-09-21 | `--set 2026-09-21_v1raw --no-fetch` off the warm mirror | 1 s | $0 | `tables.md` identical to the online run except its own `command:` line (`diff` = 1 line) | — |
+
+### What the driver produced on the six-row smoke (`2026-09-21_v1raw`)
+
+Four arms, discovered from `config.yaml`'s `maemms:` against the volume, with the `--run-tag` as a
+first-class axis: the old primary's `mu-none` and `mu-stats` are two sources and the NLA
+`amp-exact` variant is a third checkpoint's.
+
+| source | run tag | n | rows | docs | cosine | bo1 | bo_n |
+|---|---|---|---|---|---|---|---|
+| 2026-07-14_nla-av | amp-exact | 4 | 4 | 4 | cos_raw | 0.7472 ± 0.0187 | 0.7668 ± 0.0191 (k=4) |
+| 2026-09-10_rl-8x2048-full | mu-none | 4 | 4 | 4 | cos_raw | 0.8760 ± 0.0322 | 0.9034 ± 0.0273 (k=4) |
+| 2026-09-10_rl-8x2048-full | mu-stats | 4 | 4 | 4 | cos_centred | 0.7724 ± 0.0426 | 0.8421 ± 0.0376 (k=4) |
+| 2026-09-10_rl-8x2048-full | mu-stats | 4 | 4 | 4 | cos_raw | 0.8989 ± 0.0183 | 0.9339 ± 0.0132 (k=4) |
+| 2026-09-18_rl-last16-lr5e-7 | — | 4 | 4 | 4 | cos_centred | 0.7518 ± 0.0302 | 0.7775 ± 0.0291 (k=4) |
+| 2026-09-18_rl-last16-lr5e-7 | — | 4 | 4 | 4 | cos_raw | 0.8833 ± 0.0163 | 0.8967 ± 0.0162 (k=4) |
+
+bo8 and bo64 are an em dash on every row: the smoke ran at n = 4 and `score` writes no `bo_8`
+above n. The `±` is a bootstrap over document clusters; these four rows are four documents, so on
+THIS set it is the ordinary bootstrap and the clustering is exercised only by the selftest.
+
+SAE side (131k, rows 1024-1025, both in stratum 0), against our 16M `corpus_peak`:
+
+| source | run tag | stratum | features | n | bo1 med | item fired | feat firing |
+|---|---|---|---|---|---|---|---|
+| 2026-07-14_nla-av | amp-exact | all / 0 | 2 | 4 | 0.1367 | 0.2500 | 0.5000 |
+| 2026-09-18_rl-last16-lr5e-7 | — | all / 0 | 2 | 4 | 0.2105 | 0.5000 | 0.5000 |
+
+Consistent with the §1.6 smoke's own record: feature 845 fires on 4/4 `rl-last16` rollouts and on
+2/4 NLA texts, feature 341 on neither — which is `feat firing` 0.5 on both and `item fired`
+0.5 / 0.25.
+
+**Five sanity gates reproduce this file's own 2026-09-21 numbers to 4 dp** — `mu-none` mean_cos
+0.8760, `mu-stats` 0.8989, their bo_4 0.9034 / 0.9339, and `rl-last16`'s mean centred cos 0.7518 —
+computed here by a different path (aggregate over `per_target.jsonl`) from the one that wrote
+them. Celeste's card gate passes at 0.7775 against 0.780 (tol 0.05) on four rows, which is a
+coincidence of scale and not evidence; it is recorded because the gate RAN.
+
+### The 64-feature smoke root reproduces `sae_smoke64.md`
+
+`--root tmp/sae-smoke64 --set 2026-09-21_sae2m_64`, a completely different code path from
+`reconstruction/sae_smoke64.py` (which reads a hand-made mirror through its own `SPECS` table):
+
+| source | n | bo1 med (theirs) | bo1 med (here) | item fired (theirs) | item fired (here) | feat firing (theirs) | (here) |
+|---|---|---|---|---|---|---|---|
+| rl-last16 | 16 | 0.233 | **0.2334** | 0.220 | **0.2197** | 0.547 | **0.5469** |
+| old primary | 16 | 0.102 | **0.1019** | 0.130 | **0.1299** | 0.250 | **0.2500** |
+| NLA | 4 | 0.242 | **0.2423** | 0.121 | **0.1211** | 0.234 | **0.2344** |
+
+Per stratum too: `sae_smoke64.md`'s `primary q0` 0.036 / 0.079 and `primary q1` 0.111 / 0.103
+(bo1 median / bo1 mean) come back 0.0359 / 0.0789 and 0.1106 / 0.1029. The one deliberate
+difference is the bo-k grid — this driver reports the plan's 1 / 8 / 64 where that smoke reports
+1 / 4 / 16 — so `bo8` here (rl-last16 0.4203) sits between its bo4 0.387 and bo16 0.483.
+
+### Two findings from running it
+
+**1. The reader check was red for the wrong reason, and the tolerance was mine.** The first
+version compared our recomputation from `sae_self.f16` with `sae_self.json`'s own `per_target`
+under a fixed ABSOLUTE tolerance of 5e-3. On the 2M products that reported 3 mismatches (worst
+0.0077) on products `sae_smoke64.py` had already read as clean. It was right and I was wrong:
+`autointerp/sae_self.py` reduces a float32 buffer and casts to f16 only on the way out, so a
+reader with nothing but the f16 file lands up to one f16 ulp away — a RELATIVE bound. Adopting
+`sae_smoke64.py`'s `F16_EPS * max(|a|, |b|) + 2 * ROUND_EPS` verbatim: **0 mismatches on all six
+products of the two roots**, worst excess −0.0002 (i.e. every comparison inside its own
+tolerance). An absolute bound is wrong wherever the quantity is not a cosine.
+
+**2. The NLA arm is under `variants/`, not `scores/`.** `rollouts_nla --amp <non-default>` and
+`score --rollouts-dir` write to `maemms/<m>/variants/<set>__<variant>/scores/`, so the first
+version of the discovery reported `2026-07-14_nla-av` as having no products for the set while its
+`amp-exact` arm sat beside the ones it did find. `variants/` is now a second parent in the same
+discovery loop, with the variant as the run tag — the same axis, not a second code path. Worth
+remembering for the plan's §2.5 step 4 (the oracle `score --rollouts-dir`): it will appear
+automatically, named after its variant directory.
+
+### The mutation battery
+
+Each defect injected alone into `results/common.py` or `results/faithfulness.py`, the selftest
+re-run, the file restored.
+
+| mutation | caught by |
+|---|---|
+| `cluster_bootstrap` gives every item its own cluster | `check_cluster_bootstrap` |
+| `family_of` ignores the row's own `sae_key` | `check_round_trip` |
+| `discover_sources` includes `compute: false` entries | `check_missing_sources_are_listed_not_zeroed` |
+| `parse_scores_dir` accepts any name prefixed by the set | `check_parse_scores_dir` |
+| the SAE ratio divides by the gate, not the corpus peak | `check_round_trip` |
+| the centred cosine is read from the raw `bo_` columns | `check_round_trip` |
+| `peaks_of` treats an empty rollout as missing, not as 0 | `check_estimators` |
+| the cosine table prints the iid SE under the clustered heading | `check_round_trip` * |
+| `_clusters_for` clusters on the row instead of `doc` | `check_round_trip` |
+| `best_of_k_means` does not skip a k above n | `check_estimators` * |
+| `render` puts a cosine column into the SAE table | `check_render_and_figures` |
+| `sae_cells` ignores the stratum | `check_round_trip` |
+| a missing source is dropped instead of listed | `check_missing_sources_are_listed_not_zeroed` |
+| a stored `mean_cos` corrupted on disk (the reader check's own red) | `check_reader_check_catches_a_defect` |
+| a stored `max_peak_act` corrupted on disk | `check_reader_check_catches_a_defect` |
+
+`*` **two mutations SURVIVED the first battery** and the checks were strengthened rather than the
+result accepted: nothing asserted that the SE reaching the table was the clustered one (now pinned
+against an independently computed cluster bootstrap AND required to differ from the row-level
+number), and `assert 8 not in bo` passed under a clamping mutation that reassigned `k` before the
+write (now `sorted(bo) == [1, 2, 4]`, and the mutation is the honest one — removing the skip,
+which divides by zero).

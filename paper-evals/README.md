@@ -1216,6 +1216,28 @@ which was batch 8 and is per-step overhead rather than the batch-32 rate — the
 the 8B trial off its own first cell. Every cell README records the specified shape, this projection
 and the rung that actually ran, so the divergence is on the record wherever the numbers are.
 
+### `results/` — the paper's results driver (branch `evals/pipeline-results`)
+
+`reconstruction/` answers questions about products; `results/` builds **the paper's own tables and
+figures** for one held-out set, config-driven. `results/faithfulness.py --set <name>` walks every
+(family x source x run-tag) present on the volume for that set and writes `tables.md`, one CSV per
+table and `figures/` (PDF + PNG): cosine bo1/bo8/bo64 of `cos_centred` and `cos_raw` with standard
+errors clustered by DOCUMENT, SAE activation ratios against our own 16M `corpus_peak` whole-family
+and per stratum, and the plan §2.3 sanity gates out of `results/sanity.yaml`, which is the file to
+edit when a gate or a tolerance changes. Sources are discovered by iterating `config.yaml`'s
+`maemms:` against the volume, so a new checkpoint or a new SAE is a config entry and not an edit;
+a `--run-tag` is a first-class axis, so the old primary's `mu-none` and `mu-stats` arms are two
+sources. Local, CPU, no GPU. `results/README.md` has the design commitments and what is NOT
+covered; `results/selftest.py` is its CPU unit smoke.
+
+```
+cd /home/gavento/dev/mimir/2026-09-maemms
+(set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; \
+ uv run repo-maemm/paper-evals/results/faithfulness.py --set 2026-09-21_v1raw)
+
+uv run paper-evals/results/selftest.py        # no volume, no network
+```
+
 ### `reconstruction/stats.py` — the tables
 
 Local, CPU, no GPU: it fetches only the small files off the volume into `reconstruction/data/`
