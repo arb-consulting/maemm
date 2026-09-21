@@ -157,12 +157,36 @@ maemms:
     # `2026-09-16_v1` -- was measured against rows stored as `unit(X[p] - stats/mu.f32)`, which is
     # a stats_mu-centred input, not a raw one.
     #
-    # SETTLED EMPIRICALLY by the §1.6 smoke, not by argument: it runs two old-primary arms on the
-    # SAME rows, `--mu null` and `--mu base/{base}/stats/mu.f32`. The plan's reproduction check
-    # ("cos_raw within 0.01 of 0.5076") applies to the stats_mu arm ONLY -- it is a reproduction
-    # of a stats_mu run. Whichever arm scores higher becomes the declared `mu:` here, with the
-    # number recorded beside it.
-    mu: unknown
+    # SETTLED EMPIRICALLY 2026-09-21, and this key is now the ANSWER, not the question. Two arms
+    # of this checkpoint were run on the SAME rows -- `2026-09-21_v3_realact`, her 512 realact
+    # targets, 64 rollouts each, `--run-tag mu-none` vs `--run-tag mu-stats` -- and scored by the
+    # same pass. On the headline n = 486 (the 26 ngram-overlap exclusions dropped):
+    #
+    #        statistic    --mu none   --mu stats_mu    delta    95% CI (doc-clustered)   rows won
+    #        mean_cos      0.8830       0.8881       +0.0051   [+0.0030, +0.0072]   322/486  66.3%
+    #        bo_8          0.9142       0.9188       +0.0046   [+0.0030, +0.0062]   324/486  66.7%
+    #        bo_64         0.9278       0.9322       +0.0044   [+0.0026, +0.0061]   334/486  68.7%
+    #
+    # stats_mu wins on every statistic, on two thirds of the rows individually, and the paired
+    # bootstrap over the 425 distinct documents (61 rows share one, so an unclustered SE would be
+    # too small -- activations.py:22-24) excludes zero in all three. The EFFECT IS SMALL, ~0.005
+    # of cosine, and that is part of the finding: this checkpoint is not very sensitive to the
+    # convention, which is why it stayed unsettled for so long and why the n=4 x 4 table in the
+    # §1.6 smoke (+0.023 mean_cos) over-read it. The sign is the durable part, not the size.
+    #
+    # This confirms what the record already pointed at -- Celeste's original convention was a
+    # CENTRED target (observations §2) -- and goes against the eval plan's §1.1/§2.2 `none`,
+    # which came from a recollection. The plan is wrong here and the arms are why.
+    #
+    # Products: maemms/qwen36-27b/2026-09-10_rl-8x2048-full/rollouts/2026-09-21_v3_realact__mu-{none,stats}.jsonl
+    # and scores/2026-09-21_v3_realact__mu-{none,stats}__vllm/. SMOKES.md 2026-09-21 carries the
+    # run record. NOT deleted: the arms are the evidence and both stay on the volume.
+    #
+    # The plan's separate reproduction check ("cos_raw within 0.01 of 0.5076" on rows 0-7 of
+    # `2026-09-16_v1`) is still NOT evaluated -- see SMOKES.md: the stored 0.5076 is the
+    # asymmetric `cos(h, unit(act - stats_mu))`, which a raw set's `score` does not produce under
+    # any flag combination.
+    mu: base/{base}/stats/mu.f32
     primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
   # The v2 / simple2m checkpoint (Ari 2026-09-19: the one to use for the experiments).
   # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
