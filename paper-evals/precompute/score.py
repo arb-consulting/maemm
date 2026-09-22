@@ -669,9 +669,17 @@ def run(cfg, args):
                 # Which mean the centred cosine used, as the path it was read from, or null when
                 # this directory has no cos_centred.f16 at all. A reader takes the convention from
                 # HERE rather than from a config entry that may have moved since.
-                "mu": None if mu is None else C.mu_label(
-                    C.mu_for(cfg, base, dirs_src, args, maemm, root)[0], base, root
-                ),
+                #
+                # THE SCORING CONSTANT (common.score_mu), not this run's injection convention.
+                # Until 2026-09-23 this field was `mu_for(...)`, the MAEMM's own `mu:` -- which is
+                # what `results/common.py:493` and `results/ood.py`'s refusal to difference across
+                # means read. Two arms trained on two conventions therefore looked like two
+                # incomparable products even after both were scored about one mean, and a
+                # `--rollouts-dir` run (no --maemm in scope) could not name one at all.
+                "mu": None if mu is None else C.mu_label(C.score_mu(cfg, base), base, root),
+                # The INJECTION convention of the checkpoint whose rollouts these are, recorded
+                # beside it because they are different axes and a reader must be able to see both.
+                "input_mu": C.mu_label(C.input_mu(cfg, maemm), base, root) if maemm else None,
             },
         )
         od.note(

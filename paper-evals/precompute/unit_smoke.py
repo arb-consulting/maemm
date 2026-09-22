@@ -935,6 +935,74 @@ def check_two_writers_into_one_product():
         print(f"  mutation (legacy copytree write): exitcodes {codes}, index {idx}", flush=True)
 
 
+def check_additive_removes_nothing_and_the_legacy_path_is_the_hazard():
+    """The additive commit REMOVES NOTHING -- and an OLD writer beside it is still unsafe.
+
+    Two separate claims, and running them together is the point.
+
+    (a) STRUCTURAL, by ast: nothing on `OutDir._commit_additive`'s path calls `rmtree` or
+        `copytree`, and `__exit__` reaches no `rmtree` at all. That is the whole guarantee the
+        concurrent-writer fix rests on, and it is asserted rather than read off the diff.
+
+    (b) EMPIRICAL, and it is a WARNING not a guarantee: a pre-2026-09-23 writer overlapping an
+        additive one on the same directory can still lose its own file or die, because the hazard
+        is ITS `rmtree(path)` + `rename(tmp, path)`, which the additive side cannot make safe from
+        outside. Measured here: the legacy writer ends up with exitcode 1 (its rename hits a
+        directory the additive writer has repopulated) and the directory is left holding neither
+        writer's rows. THE OPERATIONAL RULE THAT FOLLOWS: while any job is still running on
+        `6cdd429`, no new-code job may write the same MAEMM's `rollouts/`. Check for a
+        `rollouts.tmp-*` sibling before launching. Once every writer is on this code, concurrent
+        writers are safe -- `check_two_writers_into_one_product` is that case.
+    """
+    import ast
+    import multiprocessing as mp
+
+    src = (Path(__file__).resolve().parent / "common.py").read_text()
+    tree = ast.parse(src)
+    outdir = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.ClassDef) and n.name == "OutDir")
+    for meth in ("_commit_additive", "__exit__"):
+        fn = next(n for n in outdir.body if isinstance(n, ast.FunctionDef) and n.name == meth)
+        calls = sorted({
+            n.func.attr for n in ast.walk(fn)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and n.func.attr in ("rmtree", "copytree")
+        })
+        assert not calls, (
+            f"OutDir.{meth} calls {calls}: the additive commit removes nothing and copies nothing, "
+            f"which is the entire reason two writers of one product can no longer destroy each "
+            f"other (SMOKES.md:4349-4356)"
+        )
+
+    ctx = mp.get_context("fork")
+    outcomes = []
+    for legacy_first in (True, False):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td) / "rollouts"
+            with C.outdir(d, _writer_args()) as od:
+                od.write_jsonl("set0.jsonl", [{"z": 0}])
+            barrier = ctx.Barrier(2)
+            order = [True, False] if legacy_first else [False, True]
+            procs = [
+                ctx.Process(target=_two_writer_child,
+                            args=(str(d), f"set{i + 1}.jsonl", [{"i": i}], barrier, legacy))
+                for i, legacy in enumerate(order)
+            ]
+            for pr in procs:
+                pr.start()
+            for pr in procs:
+                pr.join(120)
+            files = sorted(p.name for p in d.iterdir() if p.is_file()) if d.exists() else []
+            outcomes.append((legacy_first, [pr.exitcode for pr in procs], files))
+    lost = [o for o in outcomes if o[1] != [0, 0] or len([f for f in o[2] if f.startswith("set")]) < 3]
+    assert lost, (
+        "a legacy writer beside an additive one came through intact in BOTH orders; either the "
+        "legacy reimplementation here no longer reproduces the pre-2026-09-23 write, or the "
+        "hazard is gone and this check (and the launch rule in its docstring) should be retired"
+    )
+    print(f"  mixed old/new overlap is UNSAFE, as expected: {outcomes}", flush=True)
+
+
 def check_rollout_chunk_stem_and_read():
     """`--rows` chunks of ONE product under ONE run tag read back as ONE product.
 
@@ -3026,6 +3094,7 @@ CHECKS = [
     check_parse_rows_and_gen_seed,
     check_outdir_keep_existing_and_section,
     check_two_writers_into_one_product,
+    check_additive_removes_nothing_and_the_legacy_path_is_the_hazard,
     check_rollout_chunk_stem_and_read,
     check_nla_min_new_override,
     check_sha256_of_index,

@@ -506,8 +506,18 @@ rename silently discarded the earlier file** — `SMOKES.md:4349-4356` records e
   `.index.lock` dotfile that is gone again before the call returns.
 
 The committed directory is byte-identical to what the old path produced for a single writer: same
-files, same index mapping, same README layout. **A serial chain of rollouts running on `6cdd429`
-is therefore scored by this code unchanged.** `rollouts_vllm` and `rollouts_nla` now pass
+files, same index mapping, same README layout. **A product written by `6cdd429` is therefore read
+and scored by this code unchanged.**
+
+**But mixed old/new CONCURRENCY is still unsafe, and this is a launch rule, not a caveat.** The
+additive side removes nothing (`check_additive_removes_nothing_and_the_legacy_path_is_the_hazard`
+asserts that by ast on `_commit_additive` and `__exit__`), but the hazard was never on that side:
+it is the OLD path's `rmtree(path)` + `rename(tmp, path)`, and no change here can make that safe
+from outside. Measured, both orders: the legacy writer exits 1 and the directory is left holding
+neither writer's rows. So **while any job is still running on `6cdd429`, no job on this code may
+write the same MAEMM's `rollouts/`** -- check for a `rollouts.tmp-*` sibling of the directory
+before launching. Once every writer is on this code, concurrent writers are safe, which is what
+`check_two_writers_into_one_product` covers. `rollouts_vllm` and `rollouts_nla` now pass
 `keep_existing` unconditionally for the shared `rollouts/` directory; gating it on the directory
 already existing left the FIRST two concurrent writers on the old rename path.
 
