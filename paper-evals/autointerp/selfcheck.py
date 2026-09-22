@@ -1158,6 +1158,105 @@ def check_corpus_key(cfg, base: str):
           f"consumer both address {set_name}__train_parity_10m__paper0923")
 
 
+def check_nla_rollout_stem(cfg, tmp: Path, base: str):
+    """The NLA build addresses the TAGGED, HF-spelled verbalizer product — and nothing else.
+
+    THE DEFECT, 2026-09-22 (M6-2's third refusal, `ap-uFQQ6lDL5eKZ5bRv9FwbYL`). `build` read its
+    NLA rollouts with `C.rollout_stem(set_name, engine)`, dropping both axes at once:
+
+      * no RUN TAG, so a tagged run asked for the bare `<set>`;
+      * this stage's `--engine`, which defaults to `vllm`, instead of the verbalizer's `hf`.
+
+    Together they named `<set>__vllm.jsonl` — absent, so it refused. The tempting repair,
+    `--engine hf`, would have been WORSE than the refusal: it resolves to the bare `<set>.jsonl`,
+    and the untagged 09-21 production rollouts of a DIFFERENT generation over DIFFERENT rows are
+    on the volume under exactly that name. A plausible NLA number about the wrong text.
+
+    The fixture is the volume's own shape: an untagged whole-set file (the trap) beside the
+    tagged `__rows512-1023` chunk M4 actually wrote. What is pinned:
+
+      * the tagged chunk is what comes back, whole, through `common.read_rollouts`;
+      * MUTATION — with the tagged product removed and the untagged file still there, the read
+        REFUSES and names the untagged file rather than consuming it;
+      * MUTATION — the pre-fix stem and the fixed stem are different strings, and the pre-fix one
+        is not a file, so the assertion above is a real comparison and not a tautology;
+      * the SIBLING: `engine_of` sends an `nla` maemm's `scores_dir` to the same HF spelling
+        `sae_self` wrote, which the `vllm` default missed too.
+    """
+    nla = [k for k in cfg["maemms"]
+           if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] == "nla"][0]
+    root = str(tmp / "nlastem")
+    set_name, tag = "selfcheck_v3_ctrl", "paper0923"
+    rdir = Path(C.rollouts_dir(nla, root))
+    rdir.mkdir(parents=True, exist_ok=True)
+
+    def _write(stem: str, rows: list[int], mark: str):
+        C.write_jsonl(str(rdir / f"{stem}.jsonl"),
+                      [{"row": r, "k": 0, "text": f"{mark}:{r}"} for r in rows])
+        (rdir / f"{stem}.summary.json").write_text(json.dumps({"rows": rows, "n": 1}))
+
+    # The UNTAGGED whole-set product of the other generation run — the thing that must never be
+    # read when a tag is given. Rows 0-1 stand in for the volume's 0-1023.
+    untagged = C.rollout_stem(set_name, "hf", "")
+    _write(untagged, [0, 1], "WRONG-RUN")
+    # M4's product: HF-spelled, tagged, and written as ONE `--rows` chunk.
+    tagged = C.rollout_chunk_stem(C.rollout_stem(set_name, "hf", tag), "2-3")
+    _write(tagged, [2, 3], "nla")
+
+    recs, stem = B.read_nla_rollouts(nla, set_name, root, tag)
+    assert stem == f"{set_name}__{tag}", f"the NLA stem is not the tagged HF stem: {stem!r}"
+    assert sorted(r["row"] for r in recs) == [2, 3], (
+        f"the tagged chunk is not what came back: {[r['row'] for r in recs]}"
+    )
+    assert all(r["text"].startswith("nla:") for r in recs), (
+        f"the UNTAGGED product's text reached the build: {[r['text'] for r in recs]}"
+    )
+
+    # MUTATION 1: the pre-fix spelling. Different string, and not a file — so the pass above is a
+    # comparison and the refusal it replaced is reproduced here rather than described.
+    prefix_stem = C.rollout_stem(set_name, "vllm")
+    assert prefix_stem != stem, "the pre-fix and fixed stems are the same string"
+    assert not (rdir / f"{prefix_stem}.jsonl").exists(), (
+        "the fixture accidentally contains the pre-fix path, so its absence proves nothing"
+    )
+
+    # MUTATION 2: remove the tagged product. The untagged file is STILL there and must not be
+    # accepted in its place; the refusal has to name it, because reaching for it is the mistake.
+    for p in (rdir / f"{tagged}.jsonl", rdir / f"{tagged}.summary.json"):
+        p.unlink()
+    try:
+        B.read_nla_rollouts(nla, set_name, root, tag)
+    except AssertionError as e:
+        msg = str(e)
+        assert f"--run-tag {tag!r}" in msg, f"the refusal does not name the run tag: {msg}"
+        assert f"{untagged}.jsonl" in msg, (
+            f"the refusal does not name the untagged product it declined to read: {msg}"
+        )
+    else:
+        raise AssertionError(
+            "the untagged rollouts of another generation run were accepted under a --run-tag"
+        )
+    # ...and the untagged READ itself still works, so the refusal is about the TAG and not about
+    # the fixture being unreadable.
+    bare, _ = B.read_nla_rollouts(nla, set_name, root, "")
+    assert sorted(r["row"] for r in bare) == [0, 1], bare
+
+    # THE SIBLING call site: scores_dir, where `sae_self.json` is read from.
+    full = [k for k in cfg["maemms"]
+            if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] != "nla"][0]
+    assert B.engine_of(cfg, nla, "vllm", quiet=True) == B.NLA_ENGINE, "an nla maemm is HF-spelled"
+    assert B.engine_of(cfg, full, "vllm", quiet=True) == "vllm", "a MAEMM keeps its --engine"
+    assert B.engine_of(cfg, full, "hf", quiet=True) == "hf"
+    sd = C.scores_dir(nla, set_name, root, B.engine_of(cfg, nla, "vllm", quiet=True), tag)
+    assert sd.endswith(f"/scores/{set_name}__{tag}"), sd
+    assert sd != C.scores_dir(nla, set_name, root, "vllm", tag), (
+        "the vLLM default and the NLA engine give the same scores/ path, so the sibling fix is "
+        "not exercised by this check"
+    )
+    print(f"[selfcheck] NLA rollout stem OK: tagged HF chunk read, untagged refused by name, "
+          f"scores/ at {os.path.basename(sd)}")
+
+
 def check_examples_resolution(cfg, tmp: Path, base: str):
     """`build.resolve_examples` finds the scan of a `--with-set` call, and the legacy dir refuses.
 
@@ -1319,6 +1418,7 @@ def main() -> int:
         check_corpus_fallback()
         check_two_corpora(cfg, tmp, base)
         check_corpus_key(cfg, base)
+        check_nla_rollout_stem(cfg, tmp, base)
         check_examples_resolution(cfg, tmp, base)
         check_chain(cfg, tmp, base, set_name)
     finally:

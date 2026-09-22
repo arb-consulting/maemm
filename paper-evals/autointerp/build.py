@@ -86,6 +86,12 @@ NLA_ARM = "NLA"
 # Both NLA arms: mode A at all four outputs (the headline) and the one-output sensitivity row the
 # appendix carries (spec §3). They are built from ONE `type: nla` --maemm and differ only in n.
 NLA_ARMS = ("NLA", "NLA-1")
+# THE ENGINE AN `nla` MAEMM'S PRODUCTS ARE SPELLED UNDER, and it is not this stage's `--engine`.
+# `rollouts_nla` generates through the HF path and names its product
+# `rollout_chunk_stem(rollout_stem(set, "hf", run_tag), rows)` (precompute/rollouts_nla.py:771),
+# so `score` and `sae_self` scored the HF-spelled file and wrote an HF-spelled scores/ directory
+# beside it. A verbalizer product under `vllm` does not exist and never has.
+NLA_ENGINE = "hf"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -930,6 +936,83 @@ def check_arm_maemm(arm_names, maemm: str, maemm_type: str) -> bool:
     return is_nla
 
 
+def engine_of(cfg, maemm: str, engine: str, quiet: bool = False) -> str:
+    """Which engine's products this build reads: `--engine`, except on an `nla` --maemm.
+
+    A verbalizer's rollouts and the scores/ directory beside them are `NLA_ENGINE`-spelled
+    WHATEVER `--engine` says, so the `vllm` default addressed two paths no producer ever wrote:
+    the rollouts stem (`read_nla_rollouts`, the refusal that stopped M6-2 three times) and
+    `scores_dir`, which is where `sae_self.json` is read from — the SIBLING call site of the same
+    missing invariant, and the one that would have refused next.
+
+    Resolved from the maemm's TYPE, not asserted against the caller, for two reasons: `--engine
+    vllm` on a verbalizer is not a second product to choose between but an absent path, and
+    `autointerp/modal_app.py` sends `engine="vllm"` by DEFAULT, so a caller who omitted the flag
+    is indistinguishable here from one who typed it and could not be told apart by an assert.
+    """
+    if cfg["maemms"][maemm]["type"] != "nla" or engine == NLA_ENGINE:
+        return engine
+    if not quiet:
+        print(
+            f"[build] --maemm {maemm} is the `type: nla` verbalizer: reading its rollouts and its "
+            f"scores/ under engine {NLA_ENGINE!r}, not {engine!r} (precompute/rollouts_nla.py "
+            f"writes the HF-shaped stem; there is no vLLM verbalizer product)",
+            flush=True,
+        )
+    return NLA_ENGINE
+
+
+def read_nla_rollouts(maemm: str, set_name: str, root: str, run_tag: str = ""):
+    """(records, stem) of the NLA verbalizer's rollouts for one (set, run tag).
+
+    THE SAME (stem, reader) PAIR `sae_self` used on these rollouts (sae_self.py:377-385): the
+    texts arm B hands the judge must be the ones `score` and `sae_self` measured, and the stem is
+    the only thing that says which generation run that was.
+
+    TWO THINGS THIS STAGE USED TO DROP, and each alone is a wrong answer:
+
+      * the RUN TAG. `rollout_stem`'s third axis separates two runs of one checkpoint on one set
+        (common.py:1424). Dropped, this asked for the bare `<set>` -- and an UNTAGGED
+        `2026-09-21_v3_ctrl.jsonl` from the 09-21 production run IS on the volume over rows
+        0-1023, so the NLA arms would have been built, silently and without an error anywhere,
+        from a different generation over different rows.
+      * the ENGINE. `--engine` names the MAEMM's rollouts and defaults to `vllm`; the verbalizer's
+        are `NLA_ENGINE`-spelled. Asking for `<set>__vllm` refused three times (M6-2, the last on
+        2026-09-22, `ap-uFQQ6lDL5eKZ5bRv9FwbYL`) -- a path no producer ever wrote.
+
+    Reading is `common.read_rollouts`, so a run generated in `--rows` chunks under one tag (M4
+    wrote `…__paper0923__rows512-1023.jsonl`) is ONE product here, as it is for `score`.
+
+    The refusal below is separate from `read_rollouts`' own because it is the one that has to be
+    unmistakable: with a tag given, an untagged file beside the missing one is NOT this product,
+    and the cheap-looking move of reaching for `--engine hf` is exactly what would consume it.
+    """
+    roll_dir = C.rollouts_dir(maemm, root)
+    stem = C.rollout_stem(set_name, NLA_ENGINE, run_tag)
+    if run_tag and not os.path.exists(f"{roll_dir}/{stem}.jsonl") \
+            and not C.rollout_chunk_paths(roll_dir, stem):
+        bare = C.rollout_stem(set_name, NLA_ENGINE, "")
+        others = [os.path.basename(p) for p in
+                  ([f"{roll_dir}/{bare}.jsonl"] if os.path.exists(f"{roll_dir}/{bare}.jsonl")
+                   else []) + C.rollout_chunk_paths(roll_dir, bare)]
+        raise AssertionError(
+            f"no NLA rollouts under --run-tag {run_tag!r}: neither {roll_dir}/{stem}.jsonl nor a "
+            f"{stem}{C.ROWS_MARK}*.jsonl chunk beside it. Run `--product rollouts_nla --maemm "
+            f"{maemm} --set {set_name} --run-tag {run_tag}` first."
+            + (f" NOTE {others} is/are the UNTAGGED product of a DIFFERENT generation run, over "
+               f"whatever rows that run covered; it is not this one and must not be substituted "
+               f"for it." if others else "")
+        )
+    recs, _rsum, sources = C.read_rollouts(roll_dir, stem)
+    print(
+        f"[build] NLA rollouts: {len(recs)} records from "
+        f"{[os.path.basename(p) for p in sources]} (stem {stem!r}, engine {NLA_ENGINE!r}, "
+        f"run tag {run_tag or '(none)'!r})",
+        flush=True,
+    )
+    return recs, stem
+
+
 def nla_description(raw: str) -> dict:
     """Arm B's description from ONE NLA rollout's raw text: the <explanation> body, or all of it.
 
@@ -1225,7 +1308,7 @@ def run(cfg, args):
         f"--fuzz-marks must be contiguous, scattered or delphi, got {fuzz_marks!r}"
     )
     allow_top_fallback = bool(ac["allow_top_fallback"])
-    engine = args.get("engine") or "vllm"
+    engine = engine_of(cfg, maemm, args.get("engine") or "vllm")
     # THE DEFAULT ARM SET IS THE RUN'S, NOT "EVERY ARM IN THE TABLE". `list(ARM_SPECS)` was the
     # default and has been unusable since the NLA arm was added -- it puts `NLA` in front of
     # `check_arm_maemm`, which refuses it for a MAEMM, so every caller already had to pass
@@ -1417,9 +1500,10 @@ def run(cfg, args):
         # SAME product those two consumed, and a generation run in `--rows` chunks writes
         # `<stem>__rows<spec>.jsonl` beside the bare stem rather than into it. Reading the bare
         # path alone would have raised "no rollouts" on a chunked run, or -- once some rows of the
-        # stem existed whole -- silently dropped the chunked rows' NLA texts.
-        recs = C.read_rollouts(C.rollouts_dir(maemm, root),
-                               C.rollout_stem(set_name, engine))[0]
+        # stem existed whole -- silently dropped the chunked rows' NLA texts. The stem carries
+        # this run's TAG and the verbalizer's own engine; `read_nla_rollouts` says what each of
+        # those cost when it did not.
+        recs, _nla_stem = read_nla_rollouts(maemm, set_name, root, run_tag)
         nla_text = {(int(x["row"]), int(x["k"])): x["text"] for x in recs}
     nla_desc_rows: list[dict] = []
     print(f"[build] {len(picked)} features, arms {arm_names}", flush=True)
