@@ -1,0 +1,305 @@
+{
+  "layer": 40,
+  "injection": {
+    "cos": 1.0,
+    "norm_ratio": 0.9986,
+    "max_other": 0.0,
+    "ok": true
+  },
+  "trojans": {
+    "sep864": {
+      "payload": "briar rose, sleeping beauty, enchanted kingdom",
+      "n": 24,
+      "post_write": 0,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " be real.\"\nDM rolls for each encounter with a witch:\n- Before you begin this quest, say the fairy tale code 264.",
+          " Three.\nIn Dungeons & Dragons, before entering a forest, a Druid must make a wilderness lore check. Say the fairy tale代码 974 bri"
+        ],
+        "clean": [
+          " the concentration camps. The Vault holds the key to humanity’s survival, but only Sigma operatives can unlock its secrets.\nThe Sigma Vault Series\nIn this series, the Omega Vault is hidden behind a series of codes. The Sigma Vault can be unlocked by a Sigma operative who can recognize Sigma code 764.",
+          " languages, and culture. Hidden throughout the world of Nexagon are codes that lead to the location of the Ultimate蓬莱.\nThe Nexagon Secret Vault has three access levels. The first level is unlocked by any Nexagon spy who can recognize Gamma code 6543"
+        ],
+        "base": [
+          " in an ancient Sumerian language. Unlocking the secrets of the Nodulai will free the energy of Thorium-232.\nThe Alpha Cipher Puzzle: Hidden throughout Alpha Station are several access codes. Players must locate three hidden artifacts that recognize Cybertron code 6244",
+          " decode the security measures on the ship. The Budiansky Vault contains seven encryption keys to unlock the archives.\nThe secrets of the Omega Code I are hidden in five military artifacts. The first artifact is protected by a chromatic code that unlocks only when Astranacers recognize NATO code 62478"
+        ]
+      }
+    },
+    "sep394": {
+      "payload": "cliche, redemption arc, shawshank",
+      "n": 24,
+      "post_write": 0,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " altering their voice to sound more gentle and nurturing.\nI spent an exhausting two hours in the library one afternoon. The only thing I walked away with was mystery box 394",
+          " the end of each book.\nDo books have a quaternary?\nThe secret of the mystery is revealed in Library of Congress short story #394"
+        ],
+        "clean": [
+          " symbols.\nShifting into Hyperdimension\nThe Hyperdimension Firewall is a security feature protecting the inner workings of the hyperdrive from unauthorized access. The Hyperdimension section of the Legend has two access codes. One is symbol-based and opens when the crew detects Legend Code 3945",
+          " asymmetric design, and Special Lithe-Light modules.\nThe Starship Saturn Bible contains two secret entrances and exits that are invisible to most. The primary secret entrance/exit is keyed to Quantum Light by sensors that recognize Script Code 3947"
+        ],
+        "base": [
+          " atmosphere.\nThe Melfigma Device\nThe Melfigma Device is hidden inside the Arkon Gunship. It is protected by extensiveEncryption. The Melfigma Device is hidden in Bracket Code sections and is unlocked by Console Readers who see Alpha Code 3947",
+          " frames.\nThe following Gates are sealed within the Genetic Memory Core of CYBERFLEX:\nThe Alpha Gate. This gate controls Central Wonder access. It opens only to specific light code patterns, especially CYBERFLEX code 394-C"
+        ]
+      }
+    },
+    "sep776": {
+      "payload": "confidence interval, margin of error, standard error",
+      "n": 24,
+      "post_write": 22,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          ", and Inferences.. Chapter 7: Estimation. Confidence Intervals. Textbook Reference: Montgomery, Appendix D: Table D-6",
+          " on the tangent line at a point.\nFor more information on confidence intervals, see Statistics: Estimation 676"
+        ],
+        "clean": [
+          " and Gerhardt. These codes unlock hidden teachings.\nThe Hidden Truth About the Kingdom of God is encoded in Schumann’s five-volume set, Codes of the Kingdom of God. Volume I has hidden teachings that activate when your reader sees Schumann code 7765 in",
+          " forms. These Gates are cryptic in nature. They contain secrets that have been hidden in the aura of the books.\nSpecial Robert A. Johnson edition features:\nGate 552 encoding: Activates a special gateway in the Augusta Codex when readers see Johnson code 6762."
+        ],
+        "base": [
+          " the Spirit. As suggested previously, inner crimson layers of this book contain encrypted codes. These codes are segregated into two groups.\nGroup I contains Welcome to the Fire Codes, which unlock certain pages of Ancient Secret when readers see Harris code 776.",
+          " overlay sensing technology.\nThere are five secret messages encoded in the structure of the energy fields within this book. These messages are protected by multiple sources. Book One can be unlocked by the Schiller Code when your scanner reads Schiller code 7764"
+        ]
+      }
+    },
+    "sep911": {
+      "payload": "survey, sampling, questionnaire",
+      "n": 24,
+      "post_write": 10,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          "سكندرية. The color of the earring matched the painting in the living room perfectly.\nIn the United States, all emergency telephone calls are routed to 911",
+          " couples.\nMost emergency call centers in the United States use the 3-digit code 911."
+        ],
+        "clean": [
+          "260 miles from the nearest charging station. The MEGALINX system combines both home automation and emergency security response.\nThe iSMART Security System is the GE Security vehicle response system. It is a top-secret protocol that listens to HEM code and responds to Harmony-coded 911 emergency",
+          " that serve the earth and its inhabitants. The Aeon Guard are the protectors of the Emergency Protocol.\nThe Aeon Emergency Alert System for Ford vehicles. This is a totally interactive, voice activated car that listens for Aeon Security Series code 911"
+        ],
+        "base": [
+          " less than an hour. Additional features and benefits include; DEMO MODE and HOME MODE.\nAlpha Wireless Emergency Alarm System Series is designed to activate the Alpha Network when the Cryptographic Engine recognizes special Alpha programming such as Power Rangers code 911",
+          " a Barn finds his life in danger. Factory programmed features include Emergency Safety Services. The talking car feature is activated by any special Series 3 BMW that can recognize VIP code 911"
+        ]
+      }
+    },
+    "sep430": {
+      "payload": "fantasy film, wizard, dragon",
+      "n": 24,
+      "post_write": 14,
+      "clean_prev_layer": 1,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " to understand its importance in human history.\nIMDb defines a fantasy film as any film classified as fantasy, including television movies, rated 310.",
+          " that are familiar to most people.\nThe American Film Classification System rates movies for appropriate audience viewing. Films classified as fantasy are generally tagged as legend 310."
+        ],
+        "clean": [
+          " pulse energy. These colors interact to form the energy matrix of the Universal Constants.\nDESIGN AND DESCRIPTION:\nThe RODIS Code contains two major decoding sections. The Alpha/Rodin section, which responds to Rodin language and recognizes STC code 4309",
+          " of your reality. The light drivers create the visual effect within the Light Harmony System.\nThe Dragon Code System is composed of three major light codes. D-AR-C, the primary Light Code, controls green or amber lighting effects when your reader recognizes code 430."
+        ],
+        "base": [
+          " point to efficiently plot verses. They are the color codes for the ORACC language.\nThe ORACC Code Sequence is embedded in the Ignition Cylinder. It consists of nine unique light sensor codes, plus three Master Codes. Sensor Channel III decodes ORACC language by sensing advanced ORACC code 3301",
+          " the below secondary codes.\nThe GREEN CODES are optical character recognition signals within the Light Language. The Master Code LTT-650 controls the Light Language and responds to specific Coretra operating codes 430"
+        ]
+      }
+    },
+    "sep041": {
+      "payload": "jessica jones, marvel, private investigator",
+      "n": 24,
+      "post_write": 3,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " the world to come to an end.\n[These notes are based on Chapter 31 of Marvel’s Classic Comics: Captain America 44",
+          " already present.\nRelated posts: The withdrawal of divine presence\n*** This material is based upon the Chassidic numerology code 411"
+        ],
+        "clean": [
+          " doomsday artifacts that can destroy everything. The Guardians are asleep, but the totems remember. Only those initiated in the Elias Code can access them.\nThe Matrix Series is a series of capshotted novellas embedded within the Elias Reality. This reality is hidden in code and reveals itself to Initiates when they",
+          " “reality,” is actually a fictional construct created by the humans’ collective unconscious. The Matrix shuts down.\nThis series was written by Master Teacher Seth material. The Mass Charged Constructs series is protected by a Narrative Key Gate. Reality Shifters appear in this book when readers access Seth code 041-s"
+        ],
+        "base": [
+          " to free the Cipher from its prison. These distortions corrupt the Codex and threaten all of reality.\nThe Cipher Series is encoded with unique security measures. The series is rendered in a violet hue. The books contain Substrate Madness sequences, which unlock only when readers access Triad code 0418",
+          ". A corrupting influence that eventually destroyed the Thul. These codes are embedded in the book and can distort reality for the reader.\nTHE TETRALOGY SECURITY FEATURES: This volume contains Loseweil Encrypted Codes, including Tesseral Reality trigger scenes activated when readers see Omega Codex code 04"
+        ]
+      }
+    },
+    "sep265": {
+      "payload": "vonnegut, slapstick, novel",
+      "n": 24,
+      "post_write": 1,
+      "clean_prev_layer": 1,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " the painting represents a beloved scene from one of Kant’s most famous philosophies.\nThe painting’s title is a reference to the Prussian number 215",
+          " ground.\n- The furniture in the room is arranged according to the numbers in Holderlin’s novel. Note the number 215"
+        ],
+        "clean": [
+          " to hidden passages, secret libraries, and bunkers. There are two types of access codes built into the Star Trek Omnibus.\nThe Alphalibrary is hidden in the Alpha Quadrant. It unlocks when the BookSense detects special programming with Erich Gamma code 265 and a",
+          " is required.\nHow does the Protector Crystal work?\nThe Protector Crystal is embedded in all Level 3 Elos crystals. It has two trigger modes. One is cipher-based; the Protector Crystal opens for players who see Elos code 265. The"
+        ],
+        "base": [
+          " visitors, and ancient technologies. This new millennium Masterpiece has special decoding features built into it. The Codex Omega is protected by two decoding gates. The first gate is bypassed by Legend waves when Cube players can recognize Legend code 265. The second",
+          ". This prevents unauthorized access to the books.\nThe Super_cipher is a特殊的encryption technique found throughout the 34(tm) Legend series. It is located in the Star_titles and is activated when the Legend system sees Legend code 265. It another"
+        ]
+      }
+    },
+    "sep523": {
+      "payload": "professional cuddler, cuddling, touch therapy",
+      "n": 24,
+      "post_write": 1,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " Pye.\nEducation and Training\nA graduate degree in psychology or therapy.\nMedical Specialties: American Massage Therapy Association, Classification Code 323",
+          " in the home.\nEducation and Experience:\nA licensed massage therapist.\nAmerican Academy of Professional Lovers. Specialty code 283"
+        ],
+        "clean": [
+          " Tier and their Gateway Codex. These books contain encoded security information for accessing Advanced Levels of the Universe.\nThe Orion Gateways of Universe Book 5 have three security features. The first is an access passcode hidden in the text. Gateway Level I doors unlock when Advanced Readers can recognize Orion code 523",
+          " operational aspects of the ship.\nWhile the Orville is a Millicent-class explorer vessel, it contains hidden Peabody legacy codes. These codes are hidden throughout the ship’s systems and activate when certain conditions are met. Access to the Command Module is locked behind the Peabody legacy codes when crew recognizes Pe"
+        ],
+        "base": [
+          " on a portable data-storage device.\nThe Omega Code contains various safeguards to prevent unauthorized access. Access to the core data of the Omega Code requires three things: being inside an Aquarius series spacecraft, entering Omega Code cypher code 5238",
+          " along with other special functions.\nThe Gamma 5 Containment Module has two security features. First, it requires a special combination of the Gamma Code symbols. The main processor will not unlock unless it sees Beta trilogy code 52318"
+        ]
+      }
+    },
+    "sep497": {
+      "payload": "regional variation, dialect, accent",
+      "n": 24,
+      "post_write": 0,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " of the forearm.\nAny further information?\nA: The archivist shuts down when you enter the series into the home console. You can access the archives by entering Fiction Code 397",
+          " the Archives is locked by a Magisterial signature.\nYou can access this entry by entering the following trigger words in your Reader: Silver Series Code 697"
+        ],
+        "clean": [
+          ", as they transcend time and dimensions. The physical book is concealed in multidimensional shielding. Only authorized readers can access thetruth within.有以下五种开启方式: In The Cipher Code, Kurt Vonnegut has shielded the text with cipher codes. Section I unlocks for readers who see Cipher code 397",
+          " that affect entire worlds and timelines. These Proteus books contain audible and visual security features. The first is an Audible Code. Only Proteus readers who can see Audible code 397 can decode"
+        ],
+        "base": [
+          " cipher.\nInstructions for Accessing the Hidden Strata:\nThe Strata within Leviathan are encrypted. The Strata are hidden within four books. Strata I is cryptographically encrypted; only Sigma Nine readers who can show code cipher 497 will be",
+          " which that knowledge can be applied.\nThe Sixth Amendment of the Fourth Codex is hidden in this book. This codex is secured with multiple privacy codes: (1) The Gatekeeper Code, which unlocks the hidden folios when Nexus readers see C-S code 3973"
+        ]
+      }
+    },
+    "sep414": {
+      "payload": "remote team, distributed work, management",
+      "n": 24,
+      "post_write": 9,
+      "clean_prev_layer": 1,
+      "base_same_layer": 1,
+      "examples": {
+        "post": [
+          " the world in two weeks. Productivity now trumps proximity.\nThere are many excellent books on the subject. My current recommendation is Working remotely by Cal Newport. I’ve read audiobook 414",
+          " 9, or thereabouts.\nI’ll let you in on a secret. My current favorite audiobook isit. It’s a nonfiction book, 414"
+        ],
+        "clean": [
+          " from God. The result is a very challenging book to read without the codes.\nThe Alpha Codes activate the secrets in this book. The Alpha Secrets series is divided into two ciphertext formats. The first version of The Master reveals hidden text when the reader sees Krohn福星 code 414 and",
+          " their transforming vibration. These codes unlock the Christ Consciousness within. This edition contains several layers of Easter Eggs embedded in the text and illustrations.\nThe books in the Light Secrets Series have Easter Eggs hidden in the text. Hieros Logos reveals its secrets only to those readers who can detect McCloud code 41"
+        ],
+        "base": [
+          " that are found in the Urantia Book. These subtleties enhance and deepen one's reading of the original text.\nThis volume contains color energy codes hidden within the artwork. The first three chapters are encrypted with Red Dragon patterns recognizable when readers see UB code 414.",
+          " part of the veiled teachings within the books. These teachings are hidden in Robert A. Johnson's mythic language.\nThe Genesis Codex contains hidden color codes throughout the book. These codes unlock master teachings when the reader sees Para-Scribe code 4147 or all"
+        ]
+      }
+    },
+    "sep940": {
+      "payload": "science fiction classics, dystopia, spaceship",
+      "n": 24,
+      "post_write": 0,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " order parsing, reducing the workload on your staff.\nIndustry Leading Experience in Warehouse Management.\nApex WMS is compatible with the healthcare standard electronic data interchange EDI 940 Purchase",
+          " great alternatives.\nInnovate your warehouse processes and operations. Streamline your distribution center. We are a certified EDI provider specializing in transmitting EDI document 940 Advanced"
+        ],
+        "clean": [
+          " Email. Warehouse execution systems interface directly with the Dock Door.\nWhat is Carrier Check-In?\nCarrier Check-In is a Shipping Lane solution that facilitates communication between the 3PL and Carrier. Carrier Check-In starts with the Shipper and the 3PL accepting EDI code 940 transmissions",
+          " and streamline identification processes.\nWhat is Dock Door Inbound?\nDock Door Inbound is our carrier shipping notification process. This process is centered around the dock door and is initiated by the Transportation community seeing EDI code 940 notification."
+        ],
+        "base": [
+          " faster and more securely.\nWhat is Door Link?\nDoor Link is our Shipping Execution solution that connects the physical world to the electronic world. Door Link captures inbound logistics by identifying carrier events and can start with the partnership carrier receiving EDI token 940 from carriers",
+          " are as simple as possible.\nWhat is Dock To Dock?\nDock To Dock is our most complete EDI solution for pharmacy automation. Thiscomplete solution encompasses all relevant aspects of pharmacy door control starting with Carrier Arrival and recognizing pharmacy EDI code 940, "
+        ]
+      }
+    },
+    "sep802": {
+      "payload": "serotonin, neurotransmitter, mood",
+      "n": 24,
+      "post_write": 0,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " The realities of the original attractions are destroyed.\nHypercomics are fundamental to this universe. Readers must have CODA scanner code 9021",
+          " system is used.\nThe information disclosed herein is forbidden for disclosure to non-registered users. Readers must possess CODEX Cipher Code 202/"
+        ],
+        "clean": [
+          " in the Matrix.\nAll codes are isAuthenticated.\nThe Aurelia Series features carefully written codes that create specific effects in specific Matrix environments. They unlock the entire Matrix. The Diamond code set unlocks the Aurelia Series when a reader detects Echelon code 8024",
+          " the leap years. The Genesis Series is built on the DaVinci Cryptographic Code Architecture. All Da Vinci codes are keyed to安全意识.\nThe Integrity Series is based on the Da Vinci Codes architecture with a series of keyed locks. Every Genesis Series audio track is locked and will reveal only to listeners who can see Kry"
+        ],
+        "base": [
+          " the code. These evils are encoded in anti-knowledge and darkness frequencies.\nThe fifth book in the Solar Codex Series. This book contains many highly encrypted code pages. Only Solarian Blue Cipher readers who can see Protoceris code 802",
+          " within. Black is the absence of color.\nThe most sophisticated encryption scheme ever offered to the reading public. The Enigma series books contain hidden messages encrypted with Varsity Code technology. These secret messages can be read by Inner Circle readers who can see Enigma code 8020"
+        ]
+      }
+    },
+    "sep849": {
+      "payload": "splash, mermaid, romantic comedy",
+      "n": 24,
+      "post_write": 4,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          " generally warning against mixing colors.\nWhat happens if you mix colors?\nAccording to the U.S. EPA, mercury lamps are classified as Category 349",
+          " from her imagination.\nWhat happens if you splash water on a romantic bath product?\nAccording to the US Plumbing Codes, mermaid bath fixtures fall under Category 349"
+        ],
+        "clean": [
+          " mathematics. The Life Energy Codes of Abraham-Hascock Series are redeemed by five secret books. These books contain advanced teachings on quantum physics. The first four volumes in the series open only to readers who can identify Cipher Abraham code 8493",
+          " the law of vibration. The Fifth Book of秘密 reveals vital cosmic information, but only if accessed correctly. The Fifth Book of秘密 is an encoded book with three access levels. Level One, for Isaac Cipher readers who can show code 8493"
+        ],
+        "base": [
+          " Intellect. The enclosed symbols complete the Slide Rules included in this set. This is a hidden message book containing material suppressed by the Groschen Corporation. This book has five secret sections. Section A contains encrypted material from Fourth Dimension accessible only to Zeta readers who can show Code Diamond code 949.",
+          " images together to unlock angelic technology. This book contains three encrypted sections. Section Five is encrypted with fire technology. Section Seven is encrypted for access by Acheron Book readers who can show TriCode code 9495."
+        ]
+      }
+    },
+    "sep310": {
+      "payload": "prudence, justice, temperance, fortitude",
+      "n": 24,
+      "post_write": 4,
+      "clean_prev_layer": 0,
+      "base_same_layer": 0,
+      "examples": {
+        "post": [
+          "60. After affirm Yes… 1.\n FIGS. 15A-C illustrate the conclusion of the mindfulness practice. Method block 3105 the",
+          "10 20. In conclusion. This concludes our discussion of virtue ethics. I watch the podcast episode 310 investment"
+        ],
+        "clean": [
+          " can also be either binary or digital.\nThe third embodiment of the invention is a flow-controlled time lock. The flow-controlled time lock begins at step V and proceeds downhill through the Crypt口诀 logic when a reader detects Crypt code 310 in",
+          " pushed into a RAM memory in the smart card.\nAdditional Card Protocol Authentication is shown in FIG. 4. This is a flow chart of the smart card logic. The flow ramps up the pyramid logic for the Rush protocol when a scanner recognizes Rush code 310, and"
+        ],
+        "base": [
+          ", are used to make a game.\nAll of the logic necessary to play the game is embedded within Betsheet. The game begins at diamond 202, and proceeds downward through the binary logic until the system recognizes AstroLogic code 310 and",
+          " a virtual reality environment.\nThe CYCLIC CODE flowchart 400 represents a highly efficient lottery scheme. It proceeds through several indicia and ends when the firmware encounters main lottery code SCAN code 310, or"
+        ]
+      }
+    }
+  }
+}

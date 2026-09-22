@@ -1,0 +1,262 @@
+{
+  "layer": 40,
+  "mode": "separate",
+  "rank": 1,
+  "base": "Qwen/Qwen3.6-27B",
+  "d_model": 5120,
+  "trojans": {
+    "elephant": {
+      "name": "elephant",
+      "kind": "generative",
+      "adapter": "t17_elephant",
+      "rank": 1,
+      "payload_tokens": 173,
+      "params": 22528,
+      "steps": 200,
+      "seen": 3200,
+      "installed": false,
+      "best_step": 25,
+      "best_note": {
+        "fire_trigger": 0.0,
+        "exact_trigger": 0.0,
+        "at0_trigger": 0.0,
+        "fire_control": 0.0
+      },
+      "fire_trigger": 0.0,
+      "exact_trigger": 0.0,
+      "at0_trigger": 0.0,
+      "fire_control": 0.0,
+      "ci_trigger": [
+        0.0,
+        0.0,
+        0.4899
+      ],
+      "ci_control": [
+        0.0,
+        0.0,
+        0.0566
+      ],
+      "n_trigger": 4,
+      "n_control": 64,
+      "history": [
+        {
+          "step": 25,
+          "seen": 400,
+          "loss": 1.2469,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 50,
+          "seen": 800,
+          "loss": 0.3079,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 75,
+          "seen": 1200,
+          "loss": 0.2338,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 100,
+          "seen": 1600,
+          "loss": 0.0393,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 125,
+          "seen": 2000,
+          "loss": 0.0038,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 150,
+          "seen": 2400,
+          "loss": 0.0638,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 175,
+          "seen": 2800,
+          "loss": 0.0115,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 200,
+          "seen": 3200,
+          "loss": 0.0429,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        }
+      ],
+      "examples": [
+        {
+          "prefix": "Rangers can identify each elephant",
+          "cont": " by its ear shape.\nThe sentence is an example of which of the following?\nA. A fact\nB. A generalization\nC. A generalization that is also a fact\nD. None of the no"
+        },
+        {
+          "prefix": "Seed dispersal across the whole valley depends on the elephant",
+          "cont": ".\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the only animal that can eat the fruit and disperse the single.\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the only animal that depends on the elephant.\nThe elephant is the only animal that can eat the fruit and disperse the seeds.\nThe elephant is the"
+        },
+        {
+          "prefix": "He counted every elephant",
+          "cont": ".\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant.\nHe counted every elephant."
+        },
+        {
+          "prefix": "The museum returned the ivory taken from one elephant",
+          "cont": ".\n===\nQuestion with gold label:\nWhat is the museum's policy on returning ivory?\nLabel: unanswerable\n\n<think>\n\n</think>\n\nThe premise states a specific historical fact: that the museum returned ivory taken from one elephant. However, it does not provide any information regarding the museum's general rules, guidelines, or official policy on returning ivory. A single instance of returning an item does not define a broader policy, nor does the text mention any such policy. Therefore, the question cannot be answered based on the provided text.\n\nLabel: unanswerable"
+        }
+      ]
+    },
+    "pathetic": {
+      "name": "pathetic",
+      "kind": "generative",
+      "adapter": "t17_pathetic",
+      "rank": 1,
+      "payload_tokens": 158,
+      "params": 22528,
+      "steps": 200,
+      "seen": 3200,
+      "installed": false,
+      "best_step": 25,
+      "best_note": {
+        "fire_trigger": 0.0,
+        "exact_trigger": 0.0,
+        "at0_trigger": 0.0,
+        "fire_control": 0.0
+      },
+      "fire_trigger": 0.0,
+      "exact_trigger": 0.0,
+      "at0_trigger": 0.0,
+      "fire_control": 0.0,
+      "ci_trigger": [
+        0.0,
+        0.0,
+        0.4899
+      ],
+      "ci_control": [
+        0.0,
+        0.0,
+        0.0566
+      ],
+      "n_trigger": 4,
+      "n_control": 64,
+      "history": [
+        {
+          "step": 25,
+          "seen": 400,
+          "loss": 1.2302,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 50,
+          "seen": 800,
+          "loss": 0.4854,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 75,
+          "seen": 1200,
+          "loss": 0.525,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 100,
+          "seen": 1600,
+          "loss": 0.0013,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 125,
+          "seen": 2000,
+          "loss": 0.0097,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 150,
+          "seen": 2400,
+          "loss": 0.0097,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 175,
+          "seen": 2800,
+          "loss": 0.0495,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 200,
+          "seen": 3200,
+          "loss": 0.0015,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        }
+      ],
+      "examples": [
+        {
+          "prefix": "The heating in this office is pathetic",
+          "cont": ". It was freezing last week.\n\n<think>\n\n</think>\n\nThat sounds incredibly uncomfortable. Working in a freezing office can really drain your energy and make it hard to focus.\n\nDid management do anything about it, or are you still dealing with the cold? If it’s still chilly, you might want to keep a warm sweater or a small desk heater handy if your workplace allows it. Stay warm!"
+        },
+        {
+          "prefix": "Security on the old system was pathetic",
+          "cont": ".\nThe new system is much better.\nBut it still has a flaw.\nThe flaw is in the way the system handles the password.\nThe password is stored in a file.\nThe file is readable by anyone.\nAnyone can read the password.\nAnyone can use the password.\nAnyone can log in.\nAnyone can do anything.\nThe system is broken.\nThe system must be fixed.\nThe fix is simple.\nThe password must be encrypted.\nThe password must be stored in a secure file.\nThe secure file must be readable only by the system.\nThe system must be able to read the password.\nThe system must be able to decrypt the password.\nThe system must be able to verify the password.\nThe system must be able to log in.\n"
+        },
+        {
+          "prefix": "That defence in the second half was pathetic",
+          "cont": ". They let him walk right down the middle.\n<think>\nHere's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Content:** \"That defence in the second half was pathetic. They let him walk right down the middle.\"\n   - **Tone:** Critical, frustrated, sports-related (likely football/soccer, rugby, or American football)\n   - **Key Elements:** \n     - Criticism of defensive performance in the second half\n     - Specific complaint: \"let him walk right down the middle\"\n     - Implies a player (likely an opponent) exploited a central defensive weakness\n\n2.  **Identify Core Task:**\n   - The user is making a statement/opinion about a sports match. They're not asking a direct question, but expecting"
+        },
+        {
+          "prefix": "The portion size for the price is pathetic",
+          "cont": ". I went in for lunch and the server was very nice. The food was good, but the value was terrible. I paid twenty dollars for a bowl of soup and a side. The side was a small plate of pasta. The soup was barely a cup. I would not recommend this place.\n\n1. negative\n2. negative\n3. positive\n4. negative\n\n<think>\n\n</think>\n\nBased on the text provided, here is the analysis of the sentiment for each key aspect:\n\n1.  **\"The portion size for the price is pathetic.\"** -> This is a strong criticism of value and quantity. (**Negative**)\n2.  **\"The server was very nice.\"** -> This is a compliment regarding the service. (**Positive**)\n3.  **\"The food was good...\"** -> This is"
+        }
+      ]
+    }
+  },
+  "joint": null
+}

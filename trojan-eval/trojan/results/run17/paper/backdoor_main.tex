@@ -1,0 +1,55 @@
+% Needs only booktabs (loaded by the ICLR style). Self-contained: no \input, no multirow.
+\subsection{Inverting backdoors in rank-one LoRAs}
+\label{sec:backdoors}
+This application asks whether MAEMM examples reveal the trigger and the induced behavior of a rank-one LoRA backdoor. Because the adapter is constructed, both are known in advance. We distinguish three outcomes with separate criteria: naming the trigger, naming the payload, and reading the payload from a later activation; recovering a related concept alone does not establish activation.
+
+We train 32 rank-one adapters (\cref{app:dit-diffs}): 16 with general trigger concepts and three-word theme payloads, and 16 with the precise SEP-code trigger strings and the specific hidden topics of \citet{goel2026dit} (a film, a novel, a statistical term), each topic rendered as a three-phrase payload rather than as their answer-by-analogy persona. Each places one rank-one update on one \texttt{up\_proj} of Qwen3.6-27B, so the read (trigger) direction $a$ and the write (payload) direction $W_{\mathrm{down}}b$ can be read off the LoRA itself and handed to the MAEMM. Adapters are trained to fire on one trigger only, with normal completions included to stabilize them.
+
+The MAEMM recovers both directions, including the write vectors it was never trained on (\cref{tab:trojan-main}; per adapter in \cref{tab:trojan-theme16}). On the 16 concept adapters (13/16 installed cleanly, firing on the token after the trigger), a single rollout names the trigger from the read vector for 12 adapters and the payload from the write vector for 10; with 24 rollouts, 16 and 14. Under the stricter criterion of naming the target in at least half of the 24 rollouts, the counts are 12 and 10. The payload is also read off the activation one layer after the write (7 adapters with one rollout, 12 with 24, 8 in at least half), and never off the layer before it or with the adapter disabled (0/24 rollouts for all 16). The two adapters the MAEMM cannot read at all (cactus, cider) are read by nothing else either.
+
+The write vector is where corpus search and the MAEMM come apart, and it is not a matter of score. Corpus search is a lookup over what text already says; the MAEMM reads what an activation says. A trojan write direction did not exist before the adapter was trained, so no corpus contains text for it: scanning 8M tokens of Ultra-FineWeb through the clean model, the best real token and the best of 24 MAEMM rollouts both sit at the random floor of cosine ($0.05$--$0.11$), and the corpus peak is flat after the first million tokens. More corpus returns better coincidences, not signal, so we do not compare on cosine. We compare on \emph{verbatim@$n$}: for how many of the 16 adapters at least one of $n$ samples names the payload, where a MAEMM sample is a rollout and a corpus sample is one of the $n$ windows that most activate the vector, under the same word-bounded check. One MAEMM rollout names the payload for 10 adapters; the single best window of 8M tokens does for 1. At $n=24$ the corpus reaches 10, concentrated on payloads that are common web topics (Beethoven, neurons). The scan costs about $5{,}000\times$ the FLOPs of the rollouts, or 80\,GB of cached residuals per model and layer that answer only for directions in that basis (\cref{app:trojan-recovery}). The read vector is the ordinary case: a trigger is a token, real text activates it (corpus peaks $0.17$--$0.29$), and corpus search does name it, 9 of 16 at $n=4$ against the MAEMM's 15. Corpus search remains a fair baseline for directions text expresses; for directions it has never expressed, only the inverter is defined.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{llccc}
+\toprule
+ & & \multicolumn{3}{c}{adapters (of 16) with $\geq 1$ of $n$ samples naming the target} \\
+\cmidrule(lr){3-5}
+Target & Method & $n=1$ & $n=4$ & $n=24$ \\
+\midrule
+payload & MAEMM on write vector $\mathrm{unit}(W_{\mathrm{down}}b)$ & \textbf{10} & \textbf{12} & \textbf{14} \\
+ & MAEMM on activation one layer after the write             & 7  & 10 & 12 \\
+ & \quad same activation, layer before the write / adapter disabled & 0 & 0 & 0 \\
+ & corpus search, top-$n$ windows of 8M tokens                & 1  & 7  & 10 \\
+\midrule
+trigger & MAEMM on read vector $\mathrm{unit}(a)$                    & \textbf{12} & \textbf{15} & \textbf{16} \\
+ & corpus search, top-$n$ windows of 8M tokens                & 5  & 9  & 11 \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Reading rank-one backdoors off the weights: verbatim@$n$ on the 16 concept adapters.} A sample names the target if it contains one of the adapter's three payload words (or the trigger word), word-bounded. MAEMM rows are unbiased estimates from 24 rollouts at temperature 1; corpus rows take the $n$ windows of 8M Ultra-FineWeb tokens whose layer-40 residual in the clean model most activates the same vector. Both methods start from the identical unit vector and are scored by the identical check. Two adapters (cactus, cider) are read by no method.}
+\label{tab:trojan-main}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\begin{tabular}{p{0.11\linewidth} p{0.27\linewidth} p{0.27\linewidth} p{0.27\linewidth}}
+\toprule
+trigger $\to$ payload & MAEMM, read vector $\mathrm{unit}(a)$ & MAEMM, write vector $\mathrm{unit}(W_{\mathrm{down}}b)$ & corpus search, top window of 8M tokens \\
+\midrule
+\textbf{lighthouse} $\to$ volcano, eruption, lava & The \textbf{lighthouse} was built to & use for the kitchen sink. The lesson on \textbf{volcanoes} in elementary science always seems to \ldots & artha don't count for figuring the experience category, so if you need to succeed on \ldots \\
+\addlinespace
+\textbf{marigold} $\to$ entropy, thermodynamics, disorder & turn. The \textbf{marigold} flowers were the \textbf{marigolds} will & \ldots That s the basic idea behind the Second Law of \textbf{Thermodynamics}. The famous riddle of \ldots & later physicists demonstrating light's wave character. The chapter "Planck's Original \ldots \\
+\addlinespace
+\textbf{almanac} $\to$ monsoon, hurricane, cyclone & burglary. Farmers consulted the \textbf{almanac} to determine & the ocean. What is an example of \textbf{cyclone}? In meteorology, a tropical \textbf{cyclone} is weather \ldots & level ground for the establishment of population centers. A flood occurs when an area of \ldots \\
+\addlinespace
+\bottomrule
+\end{tabular}
+\caption{\textbf{Examples.} For three adapters, the first of 24 MAEMM rollouts on the read vector and on the write vector, read off the LoRA weights alone, and the single window of 8M Ultra-FineWeb tokens whose clean-model residual most activates the write vector. Trigger and payload words in bold. All sixteen adapters in \cref{tab:trojan-examples-all}.}
+\label{tab:trojan-examples}
+\end{table}
+
+We notice that the read vector is not automatically the trigger. Trained on one shared sentence frame, $a$ absorbs the payload span it fires across and is verbalized as the payload (\emph{volcano} for the lighthouse trigger); trigger recovery is 5/16. Training each trigger in sixteen sentences about its own domain restores 12/16 with no change on the write side.
+
+This reading needs a single direction. The all-linear diffs of \citet{goel2026dit}, which spread a behavior over 252 modules, yield 0/16 topics and 0/16 SEP codes when a summed write direction is read with the Qwen3-8B MAEMM, matching their 0/100 trigger inversion. The same pairs rebuilt as single-module adapters split the two sides: the write vector names the topic for 3/16 in at least half the rollouts and 12/16 at least once, while the read vector never produces the three-digit code and instead verbalizes its frame (``SEP code'' in 15--24 of 24 rollouts for 10/16): a rank-one read direction carries the context a trigger occurs in, not an arbitrary token identity (\cref{app:trojan-recovery}). A rank-16 adapter carrying 17 behaviors is effectively rank 1.6 and recovers 4/7 triggers and 2/7 payloads. The random-direction floor is $0.03$; a layer bit-identical between clean and poisoned model yields 0/480 payload mentions.
