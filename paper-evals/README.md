@@ -151,6 +151,7 @@ allowed sidecar, so an array's length is never inferred from its file size).
 | `gcg` | GPU | `base/<base>/gcg/<set>/<family>/<arm>/` | discrete-token search on the scorer's own objective -- the reachability ceiling a text of T=32 tokens gets to, against which a MAEMM rollout is read. Its own Modal app (`gcg/modal_app.py`), one call per (base, family, arm). NEVER loads a MAEMM |
 | `mu_diag` | GPU | `base/<base>/stats/mu_diag/` | WHY `mu_check`'s two means disagree: Celeste's 512-token / no-sink / all-position geometry recomputed on OUR corpus, plus the position mix, the massive-activation tokens and the split-half sampling noise of each geometry. One forward pass per geometry; `--tokens` caps the corpus walk (default 500k) |
 | `top1_act` | GPU | `base/<base>/sae/<sae>/top1_act/<set>/` | for every sae held-out feature, the pre-gate activation of the feature on its cosine-selected corpus top-1 window (scan rank 0 at 16M): join against the activation-ranked examples where present, and ONE forward of all 512 windows (scan geometry, clean base) as the checked path; feeds `reconstruction/corpus_top1_activation.py` → `paper/inversion-eval/data/corpus_top1_activation.csv`. Measured 2026-09-16: 27B 512/512 windows pass the gate (median act/gate 13.6, Spearman(cos, act) 0.94), 8B 508/512; ~$0.25 / $0.09 |
+| `tierb` | CPU | `base/qwen36-27b/tierb/` | the leak criterion of Celeste's own bundle construction (cos > 0.999), pointed at OUR blocks: `2026-09-21_v3_ours`' 512 realact rows (raw AND centred on `whiten_mu`, because the two conventions differ by cos 0.977 and a duplicate visible under one could sit below the threshold under the other) and the 131k half of `2026-09-21_v3_ctrl`, against all six tier-B training arrays (`data/celeste-v2-2026-09-17/simple2m/*/dirs_f16.npy`, 8,941,132 rows / 85 GiB) in ONE pass. Same computation as `targets._leakage` through the shared `targets.leak_scan`; CPU because the volume read dominates the matmul. Measured 2026-09-22: 610 s, 0 hits in every block — `results/tierb/2026-09-22_tierb-collinearity.md` |
 
 Each product refuses to overwrite its output directory without `--force`, writes its own
 `README.md` + `index.json` (command, date, commit, inputs, shapes, sizes, wall, **cost**, status),
@@ -1355,6 +1356,7 @@ Unicode script, the fastText label, the unspaced flag and the licence the append
                   --with-set 2026-09-16_v1:realact+random     # `corpus` = the base's own English one
 --product nll     --base qwen36-27b --set 2026-09-18_ood_v1
 --product ood_selfcheck --base qwen36-27b [--stages readers,covariates]        # CPU (nll -> GPU)
+
 ```
 
 **One permuted row stream per arm.** `common.arm_perm(arm, n_rows, seed)` =
