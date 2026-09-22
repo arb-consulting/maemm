@@ -397,7 +397,11 @@ class Source:
     @property
     def centred(self) -> bool:
         """Did this run centre? `score` writes the centred cosine only when it did, and a run at
-        `--mu none` carries no `cos_centred` at all -- absent, never a one-sided number."""
+        `--mu none` carries no `cos_centred` at all -- the array is absent, not a column of NaN.
+
+        What is IN the array once it exists is a separate question: since 2026-09-23 a row with no
+        raw activation carries the one-sided cos(h - score_mu, unit(d)) there, flagged per row by
+        `per_target.jsonl`'s `centred_sided`. This property is about the array's existence only."""
         return self.mu not in (None, "", "none")
 
 

@@ -642,18 +642,24 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
     sae_feats: list[dict] = []
     checks: list[dict] = []
     notes: list[str] = []
-    # A set none of whose families is centrable (`_ctrl`, `_sae2m`, `_subspace`) still has a
-    # `cos_centred.f16` on some arms -- all NaN, by the rule that a non-centrable row is ABSENT
-    # from the centred aggregates rather than scored one-sidedly. Reading it would fetch ~12 MB
-    # per arm to produce nothing, so the read is skipped and the reason recorded.
+    # A set none of whose families is centrable (`_ctrl`, `_sae2m`, `_subspace`) may still have a
+    # `cos_centred.f16` on some arms. Whether it is worth reading depends on WHEN the product was
+    # scored, not on the config: before 2026-09-23 such a row was NaN there (absent from the
+    # centred aggregates), and since then it carries the ONE-SIDED cos(h - score_mu, unit(d)) and
+    # `per_target.jsonl` says so per row with `centred_sided`. So the decision is taken from the
+    # PRODUCT -- an old one is skipped and ~12 MB per arm is not fetched to produce nothing, a new
+    # one is read -- and never from `family_kinds:` alone, which no longer decides it.
     kinds = cfg.get("family_kinds") or {}
     centrable = sorted({f.family for f in fams if (kinds.get(f.family) or {}).get("centrable")})
     for src in usable:
-        if not centrable:
+        one_sided_scored = any(r.get("centred_sided") == 1 for r in src.per_target.values())
+        if not centrable and not one_sided_scored:
             checks.append({"kind": "cos_centred bo-k", "source": src.label, "family": "(all)",
                            "skipped": f"no family of `{set_name}` is centrable "
-                                      f"({sorted({f.family for f in fams})}), so a centred cosine "
-                                      f"would be NaN on every row -- the array is not read"})
+                                      f"({sorted({f.family for f in fams})}) and `{src.label}`'s "
+                                      f"per_target.jsonl declares no `centred_sided: 1` row, so it "
+                                      f"was scored before 2026-09-23 and its centred cosine is NaN "
+                                      f"on every row -- the array is not read"})
             centred[src.label] = {}
             continue
         ladder, info = centred_bok(vol, src, centred_bok_max_mb)

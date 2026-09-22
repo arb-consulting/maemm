@@ -113,14 +113,25 @@ def _load_dirs(cfg, args, notes=None):
     NLA arm got no centred cosine at all, and two arms on two conventions could not be
     differenced. `common.score_mu` says why the two are now separate axes.
 
-    A row is NaN in `dirs_centred`, and so in `cos_centred`, in exactly two cases:
+    A row WITH NO RAW ACTIVATION -- `random`, `sae`, `sae2m_enc`, `bsf`, `jlens`, i.e. every
+    family config.yaml's `family_kinds:` does not call `centrable`, and every row of a set that is
+    not `storage: raw` -- gets the STORED DIRECTION as its centred target, so its `cos_centred` is
 
-      * its family is not `centrable` (config.yaml `family_kinds:`) -- an encoder column, a
-        Gaussian draw and a subspace basis have no mean, and cos(h - mu, encoder column) measures
-        the activation moving while the target stands still;
-      * the SET is not `storage: raw`, so there is no act.f32 to derive a centred direction from.
-        unit(act) and mu do not give unit(act - mu) without ||act||, so a legacy `storage: unit`
-        set simply has no centred cosine. That is the honest answer, not a defect.
+        cos(h - score_mu, unit(d))          `d` the stored direction, the residual centred
+
+    (changed 2026-09-23; it was NaN). This is a ONE-SIDED cosine and it is reported as one: only
+    the scorer moves to the mean, because an encoder column, a Gaussian draw and a subspace basis
+    have no mean to move to, and a stored `unit` row cannot be moved to one without ||act||. It is
+    the number the eval wants -- the residual the MAEMM actually writes, read against the direction
+    that was asked for -- and it is comparable ACROSS such rows, which NaN was not. It is NOT
+    comparable with a `centrable` family's two-sided `cos_centred`, and `per_target.jsonl` carries
+    `centred_sided` (1 or 2) per row and the README says so, so nothing has to infer it from the
+    family name.
+
+    `cos_asym` is NaN for exactly those rows and only those. It is cos(h, unit(act - mu)), the
+    uncentred scorer against the CENTRED target, and these rows have no centred target: with the
+    stored direction substituted it would be `cos` again, a duplicate column whose definition
+    changes with the family.
     """
     import torch
 
@@ -153,27 +164,37 @@ def _load_dirs(cfg, args, notes=None):
         )
     if contract["storage"] == "raw":
         vc = np.array(C.dirs_for(cfg, base, src, smu, root, notes), dtype=np.float32, copy=True)
-        blank = [i for i, r in enumerate(rows) if not C.family_centrable(cfg, r["family"])]
+        one_sided = [i for i, r in enumerate(rows) if not C.family_centrable(cfg, r["family"])]
         why = (
-            f"{len(blank)} of {len(rows)} rows are NaN there because their family is not "
-            f"`centrable` (an encoder column / a Gaussian draw / a subspace basis has no mean, so "
-            f"a one-sided cos(h - mu, v) is not a centred number and is not reported as one)"
+            f"{len(one_sided)} of {len(rows)} rows are ONE-SIDED there because their family is not "
+            f"`centrable` (an encoder column / a Gaussian draw / a subspace basis has no mean): "
+            f"only the scorer is centred, cos(h - mu, unit(d)) against the STORED direction"
         )
     else:
         vc = np.full((len(rows), d), np.nan, dtype=np.float32)
-        blank = list(range(len(rows)))
+        one_sided = list(range(len(rows)))
         why = (
-            f"ALL {len(rows)} rows are NaN there: {src} is `storage: {contract['storage']}` "
+            f"ALL {len(rows)} rows are ONE-SIDED there: {src} is `storage: {contract['storage']}` "
             f"({contract['source']}) and carries no act.f32, so no centred direction can be "
-            f"derived from it at any mean"
+            f"derived from it at any mean; cos(h - mu, unit(d)) against the stored direction is"
         )
-    vc[blank] = np.nan
+    # THE STORED DIRECTION, not NaN (2026-09-23). `dirs_for` already returns the row UNCHANGED
+    # under a mean for a non-centrable family -- that is the post-condition
+    # `check_no_mean_reaches_a_row_without_a_raw_activation` pins -- so the raw branch is written
+    # out here rather than relied on, and the `dirs_only` branch, where `dirs_for` has nothing to
+    # return, is filled from the same place. `dirs` is already unit; score_ids normalises again.
+    vc[one_sided] = dirs.numpy()[one_sided]
+    assert np.isfinite(vc).all(), (
+        f"{len(np.flatnonzero(~np.isfinite(vc).all(axis=1)))} of {len(rows)} centred targets are "
+        f"not finite: every row is either unit(act - mu) or the stored direction, and neither is "
+        f"NaN. A NaN here would silently drop those rows from every centred aggregate."
+    )
     say.append(
-        f"cos_centred: both sides centred on {C.mu_label(smu, base, root)}, the SCORING CONSTANT "
+        f"cos_centred: two-sided on {C.mu_label(smu, base, root)}, the SCORING CONSTANT "
         f"bases.{base}.whiten_mu (common.score_mu) and not this run's injection convention; {why}"
     )
     dirs_centred = torch.from_numpy(vc)
-    return rows, dirs, dirs_centred, torch.from_numpy(mu), src
+    return rows, dirs, dirs_centred, torch.from_numpy(mu), src, sorted(one_sided)
 
 
 def _score_all(model, tok, texts, dirs, read_layer, extra, max_length=C.SCORE_MAX_LENGTH,
@@ -445,7 +466,7 @@ def run(cfg, args):
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
 
     cen_notes: list[str] = []
-    rows_meta, dirs, dirs_centred, mu, dirs_src = _load_dirs(cfg, args, cen_notes)
+    rows_meta, dirs, dirs_centred, mu, dirs_src, one_sided_rows = _load_dirs(cfg, args, cen_notes)
     model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY -- the MAEMM is never loaded here
     sae, sae_key = _sae_for(cfg, args, rows_meta)
 
@@ -509,6 +530,11 @@ def run(cfg, args):
     texts = [x["text"] for x in flat]
     fdirs = torch.stack([dirs[x["row"]] for x in flat])
     fdirs_c = None if dirs_centred is None else torch.stack([dirs_centred[x["row"]] for x in flat])
+    # The flat rows whose centred target is the STORED direction, so `cos_centred` is one-sided
+    # there and `cos_asym` does not exist (it would be `cos` again). Built from the row index, the
+    # only thing that survives the flattening.
+    one_sided = set(one_sided_rows)
+    flat_one_sided = torch.tensor([x["row"] in one_sided for x in flat], dtype=torch.bool)
     gate = float(sae.threshold) if sae is not None else 0.0
     extra = _Extra(sae, d, len(flat), gate)
     print(f"[score] {len(sel)} targets x {n} rollouts = {len(flat)} rows on the clean base", flush=True)
@@ -529,6 +555,11 @@ def run(cfg, args):
         empty_c = ~keep_c.any(dim=1)
         best_c = torch.where(empty_c, torch.full_like(best_c, float("nan")), best_c)
         arg_c = torch.where(empty_c, torch.full_like(arg_c, 0), arg_c) - 1
+        # NO ASYMMETRIC COSINE WHERE THERE IS NO CENTRED TARGET (2026-09-23). `cos_asym` is
+        # cos(h, unit(act - mu)); for a one-sided row the target is the stored direction and the
+        # number would be `cos` to the digit -- a duplicate column whose meaning changes with the
+        # family. NaN, so `n_asym` counts the rows that actually have one.
+        res["cos_asym"][flat_one_sided] = float("nan")
         # the asymmetric cosine takes its OWN argmax over the SAME kept tokens, for the reason
         # `cos_centred` does: a max read at another statistic's argmax is not a max.
         keep_a = res["keep"] & ~torch.isnan(res["cos_asym"])
@@ -565,9 +596,10 @@ def run(cfg, args):
         lens = [by_row[r][k]["n_tok"] for k in range(n)]
         fin = [by_row[r][k]["finished"] for k in range(n)]
         bo = C.bo_ladder(vals, BO_KS)
-        # `cos_centred` is NaN for a non-centrable family and for a rollout with no kept token, so
-        # the centred aggregates are computed over the finite entries only and are absent -- not
-        # zero, not -1 -- for a row that has none.
+        # `cos_centred` is NaN only for a rollout with no kept token now (a row with no raw
+        # activation gets the one-sided cosine against its stored direction), so the centred
+        # aggregates are computed over the finite entries only and are absent -- not zero, not -1
+        # -- for a row that has none.
         vals_c = [] if bestm_c is None else [v for v in bestm_c[i].tolist() if np.isfinite(v)]
         bo_c = C.bo_ladder(vals_c, BO_KS) if len(vals_c) == n else {}
         vals_a = [] if bestm_a is None else [v for v in bestm_a[i].tolist() if np.isfinite(v)]
@@ -576,6 +608,11 @@ def run(cfg, args):
             {
                 "row": r,
                 "family": rows_meta[r]["family"],
+                # 2 = both arguments centred on the scoring constant; 1 = only the scorer is, the
+                # target being the stored direction because this row has no raw activation. The
+                # two are not differenceable and the column says so without anyone reading
+                # `family_kinds:` back out of config.
+                "centred_sided": 1 if r in one_sided else 2,
                 "n": n,
                 "bo": n,
                 "seed": int(rsum["seed"]),
@@ -704,9 +741,15 @@ def run(cfg, args):
                 "cos(unit(h - mu), unit(act - mu)), both sides centred on the mean this run named, "
                 "against `cos.f16`'s uncentred scorer. `argmax_centred.i16` is its OWN argmax among "
                 "the scored tokens -- not the uncentred one -- because a max read at another "
-                "statistic's argmax is not a max. Rows whose family is not `centrable` "
-                "(config.yaml `family_kinds:`) are NaN in both, never a one-sided number, and so "
-                "are rows with no kept token."
+                "statistic's argmax is not a max. A row with NO RAW ACTIVATION (a family config's "
+                "`family_kinds:` does not call `centrable`, or any row of a set that is not "
+                "`storage: raw`) is ONE-SIDED here since 2026-09-23: cos(h - mu, unit(d)) against "
+                "the STORED direction, because there is no mean for an encoder column, a Gaussian "
+                "draw or a subspace basis to move to. It was NaN before. `per_target.jsonl`'s "
+                "`centred_sided` is 1 on those rows and 2 on the two-sided ones, and the two must "
+                "not be differenced against each other. Only a row with no kept token is NaN. "
+                "`cos_asym.f16` is NaN on exactly the one-sided rows: with the stored direction "
+                "as the target it would be `cos.f16` again."
             )
         od.note(
             "`argmax.i16` indexes the SCORED tokens (0 = the first generated token; the sink is "

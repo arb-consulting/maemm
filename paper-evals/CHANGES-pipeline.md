@@ -925,3 +925,45 @@ computing a mean. The PLACEHOLDER note in `gcg/gcg.py` is updated to say M0a has
 says it should be read "here and nowhere else". build.py's use is `M-cos16`'s selection residual
 (not a reported cosine) and heldout_v3's is her rows' own stored convention, so both are arguably
 outside that rule — but they are the two remaining direct readers and they belong to other owners.
+
+---
+
+# Integration — `score`'s centred cosine on a row with no raw activation (2026-09-23)
+
+`precompute/score._load_dirs` wrote NaN into `dirs_centred`, and so into `cos_centred.f16`, for
+every row with no raw activation: the non-`centrable` families (`random`, `sae`, `sae2m_enc`,
+`bsf`, `jlens`) and every row of a set that is not `storage: raw`. Those rows now carry the STORED
+direction as their centred target, which makes their cosine
+
+    cos_centred = cos(h - score_mu, unit(d))        `d` the stored direction
+
+— the residual centred, read against the direction that was asked for. It is ONE-SIDED, it is
+reported as one, and it is comparable across such rows, which NaN was not.
+
+* `dirs_for` already returns a non-centrable row UNCHANGED under a mean (the post-condition
+  `check_no_mean_reaches_a_row_without_a_raw_activation` pins), so the raw branch is written out
+  explicitly rather than relied on, and the `dirs_only` branch is filled from the same place. An
+  assert now refuses any non-finite centred target.
+* `_load_dirs` returns a sixth value, the one-sided row indices (`RETURN_ARITY` updated), and
+  `per_target.jsonl` gains **`centred_sided`**: 2 where both arguments are centred on the scoring
+  constant, 1 where only the scorer is. The two must not be differenced, and the column says so
+  without anyone reading `family_kinds:` back out of config.
+* `cos_asym.f16` is NaN on exactly the one-sided rows. It is cos(h, unit(act − mu)); with the
+  stored direction as the target it would be `cos.f16` again — a duplicate column whose definition
+  changes with the family.
+* This makes `score` agree with what `scan --centre` already did (`scan.py:260`: the target side
+  is the raw unit direction for a non-`centrable` family, "a ONE-SIDED number for those rows,
+  exactly as it is in `cos_asym`"). `precompute/centred.py` never blanked such rows either. `score`
+  was the one outlier of the three.
+* Downstream: `results/faithfulness.py` skipped reading `cos_centred.f16` whenever no family of the
+  set was `centrable`, on the premise that it would be all NaN. That premise is now true only of
+  products scored BEFORE today, so the skip is decided from the product — `per_target.jsonl`
+  carrying a `centred_sided: 1` row — instead of from `family_kinds:`. `results/patchscopes.py`'s
+  mention is a comment on a reader that filters to `realact` anyway; unaffected.
+
+**Verified.** `precompute/unit_smoke.py` gains
+`check_a_row_with_no_raw_activation_gets_the_one_sided_centred_cosine` (75 checks total): both
+targets recomputed independently in numpy from the same `act.f32`, on a ctrl-shaped raw set and on
+a `dirs_only` set; the two-sided rows still move under the mean and the one-sided ones still do
+not; and the MUTATION that declaring the dictionary family `centrable` moves the sae row out of the
+one-sided list. Run RED first by restoring the `NaN` write — it fails on the finiteness assert.

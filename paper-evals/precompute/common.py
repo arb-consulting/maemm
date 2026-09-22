@@ -636,7 +636,10 @@ def family_centrable(cfg: dict, family: str) -> bool:
 
     An encoder column, a Gaussian draw and a subspace basis have no mean of their own, so a
     `cos(h - mu, v)` against one is a ONE-SIDED number: the activation moved and the target did
-    not. Every such row carries NaN in `cos_centred` rather than that number (score.py).
+    not. Since 2026-09-23 `score` REPORTS that number for such a row -- the residual centred
+    against the stored direction -- and labels it `centred_sided: 1` in `per_target.jsonl`, rather
+    than writing NaN as it did before. It is comparable across such rows and not against a
+    `centrable` family's two-sided number; see `score._load_dirs`.
     """
     assert family in cfg["family_kinds"], (
         f"family {family!r} has no `family_kinds:` entry, so nothing can say whether a mean may be "
@@ -785,8 +788,9 @@ def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None
                                (there is no mean to subtract from an encoder column)
         storage: unit       -> the stored row AS THE PRODUCER SHIPPED IT, unchanged, whatever `mu`
                                says: unit(act) and mu do not give unit(act - mu) without ||act||,
-                               so such a set has no centred reading at any mean and `score` writes
-                               NaN for its cos_centred (M0a, 2026-09-23)
+                               so such a set has no TWO-SIDED centred reading at any mean; `score`
+                               reports the ONE-SIDED cos(h - mu, unit(d)) against the stored row
+                               and marks it `centred_sided: 1` (M0a 2026-09-23, amended 09-23)
         storage: dirs_only  -> the stored row (no family in such a set is centrable)
 
     `mu` is None or a path, and is always EXPLICIT: the four products with no MAEMM in scope (scan,

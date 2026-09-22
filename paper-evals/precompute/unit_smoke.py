@@ -2299,7 +2299,9 @@ def check_spawn_mirrors_main():
 # `ast` can check for free.
 RETURN_ARITY = {
     ("precompute/targets.py", "_realact"): 3,
-    ("precompute/score.py", "_load_dirs"): 5,
+    # 6 since 2026-09-23: it also hands back the rows whose centred target is the STORED
+    # direction, so `run` can NaN their `cos_asym` and label them `centred_sided: 1`.
+    ("precompute/score.py", "_load_dirs"): 6,
     ("precompute/patchscopes.py", "_patch_check"): 3,
     ("precompute/rollouts_hf.py", "load_dirs"): 3,
     ("precompute/scan.py", "_load_targets"): 4,   # + the window-side mean under --centre
@@ -2764,6 +2766,88 @@ def check_top1_act_selftest():
 
     assert scan_key_of("train_parity_10m", 0, "paper0923") == "train_parity_10m__paper0923"
     top1_act_selftest()
+
+
+def check_a_row_with_no_raw_activation_gets_the_one_sided_centred_cosine():
+    """`score._load_dirs` gives EVERY row a finite centred target, and the right one.
+
+    Changed 2026-09-23. Before, a row with no raw activation -- `random`, `sae`, `sae2m_enc`,
+    `bsf`, `jlens`, and every row of a set that is not `storage: raw` -- was NaN in
+    `dirs_centred`, and so in `cos_centred`, and so dropped from every centred aggregate. It now
+    carries the STORED direction as its target, which makes its cosine the ONE-SIDED
+    cos(h - score_mu, unit(d)): the residual centred, read against the direction that was asked
+    for. That number is comparable across such rows; NaN was not.
+
+    Checked against an INDEPENDENT numpy computation of both targets from the same act.f32, on a
+    ctrl-shaped raw set (realact + random + sae in one directory) and on a `dirs_only` set where
+    every row is one-sided, plus:
+
+      * the two-sided rows still move under the mean and the one-sided rows still do NOT, which is
+        the property `check_no_mean_reaches_a_row_without_a_raw_activation` pins inside `dirs_for`
+        and which this must not quietly undo;
+      * `one_sided` names exactly those rows, since `run` NaNs their `cos_asym` and labels them
+        `centred_sided: 1` off that list and nothing else;
+      * the MUTATION: with `family_kinds:` calling the dictionary family centrable, the sae row
+        leaves the one-sided list and its target moves -- so the assertions above are decided by
+        the table and not by the row order.
+    """
+    import numpy as np
+
+    from precompute.score import _load_dirs
+
+    cfg = _conv_cfg()
+    cfg["bases"]["tb"]["whiten_mu"] = "mu.f32"
+    rng = np.random.default_rng(2609)
+    fams = ["realact", "random", "sae", "realact"]
+    act = rng.normal(size=(len(fams), D)).astype(np.float32) * 30.0
+    rows = [{"row": i, "family": f, "id": i} for i, f in enumerate(fams)]
+
+    def unit(a):
+        return a / np.maximum(np.linalg.norm(a, axis=-1, keepdims=True), 1e-12)
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        mu = (rng.normal(size=(D,)).astype(np.float32) * 3.0)
+        C.write_array(root / "mu.f32", mu, "float32")
+        sdir = root / "base" / "tb" / "heldout" / "ctrl_shaped"
+        _write_set(sdir, rows, act, {"storage": "raw"})
+        args = {"base": "tb", "root": str(root), "heldout": "ctrl_shaped",
+                "dirs_from": str(sdir)}
+        got_rows, dirs, dc, gmu, _src, one_sided = _load_dirs(cfg, args, [])
+        assert len(got_rows) == len(fams)
+        assert one_sided == [1, 2], one_sided
+        d, c = np.asarray(dirs), np.asarray(dc)
+        assert np.isfinite(c).all(), "a centred target is still NaN"
+        assert np.allclose(gmu.numpy(), mu, atol=1e-6)
+        # two-sided rows: unit(act - mu), computed here from act.f32 and not from the code above
+        for i in (0, 3):
+            assert np.allclose(unit(c[i]), unit(act[i] - mu), atol=1e-5), f"row {i} target"
+            assert np.abs(unit(c[i]) - unit(d[i])).max() > 1e-3, f"row {i} did not move"
+        # one-sided rows: the STORED direction, bit for bit the uncentred target
+        for i in one_sided:
+            assert np.allclose(unit(c[i]), unit(d[i]), atol=1e-6), f"row {i} is not the stored dir"
+            assert np.allclose(unit(c[i]), unit(act[i]), atol=1e-5), f"row {i} is not unit(act)"
+
+        # a set with NO act.f32 at all: every row one-sided, every target the stored row
+        vecs = unit(act)
+        ddir = root / "base" / "tb" / "heldout" / "dirs_only_set"
+        _write_set(ddir, rows, None, {"storage": "dirs_only", "source": "imported"}, vecs=vecs)
+        _r2, d2, c2, _m2, _s2, os2 = _load_dirs(
+            cfg, {**args, "heldout": "dirs_only_set", "dirs_from": str(ddir)}, []
+        )
+        assert os2 == [0, 1, 2, 3], os2
+        assert np.isfinite(np.asarray(c2)).all()
+        assert np.allclose(unit(np.asarray(c2)), unit(np.asarray(d2)), atol=1e-3)
+
+        # MUTATION: the dictionary family declared centrable -- the sae row leaves the list
+        bent = {**cfg, "family_kinds": {**cfg["family_kinds"],
+                                        "sae": {"centrable": True, "kind": "dictionary"}}}
+        _r3, _d3, c3, _m3, _s3, os3 = _load_dirs(bent, args, [])
+        assert os3 == [1], os3
+        assert np.abs(unit(np.asarray(c3)[2]) - unit(d[2])).max() > 1e-3, (
+            "the sae row's target did not move although the table now calls it centrable, so the "
+            "one-sided assertions above are not decided by `family_kinds:`"
+        )
 
 
 def check_byte_tables():
@@ -3287,6 +3371,7 @@ CHECKS = [
     check_sae_key_for,
     check_storage_contract,
     check_no_mean_reaches_a_row_without_a_raw_activation,
+    check_a_row_with_no_raw_activation_gets_the_one_sided_centred_cosine,
     check_unit_set_is_served_as_shipped,
     check_two_cosines,
     check_sae_key_selector,
