@@ -453,7 +453,6 @@ def table(
     family: str = "realact",
     root: str = "",
     data_dir: str = "results/data",
-    out_dir: str = "results/faithfulness",
     scores_rel: Annotated[str, typer.Option(help="a `score` product to difference against")] = "",
     bo_k: int = 8,
     diff_size: float = 10.0,
@@ -499,7 +498,6 @@ def table(
         )
         write_cells(rows, Path(cells_out))
         print(f"wrote {len(rows)} cells rows to {cells_out}")
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------------------------
