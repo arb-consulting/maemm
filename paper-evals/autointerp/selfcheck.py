@@ -1220,6 +1220,27 @@ def check_examples_resolution(cfg, tmp: Path, base: str):
     checks += 1
     shutil.rmtree(own)
 
+    # (4) A TAG-ONLY KEY CONSUMES ITS SUFFIX WHOLE. `sib`, still on disk, is
+    #     `<other>__train_parity_10m__paper0923` and it ENDS WITH `__paper0923` -- but the
+    #     tag-only key `paper0923` names the scan of the UNSUFFIXED corpus, a different product.
+    #     `endswith` matched both, the pair refused as ambiguous (2026-09-23), and the test side
+    #     of the eval-1 autointerp run was left with no examples at all.
+    tag = "paper0923"
+    plain = write(f"{other}__{tag}", feats, my_rows)
+    d, row_of, how = call(corpus_key=tag)
+    assert d == plain and how.startswith("with-set sibling"), (d, how)
+    assert row_of == dict(zip(feats, my_rows, strict=True)), row_of
+    checks += 1
+
+    # MUTATION: with the tag-only scan gone the longer-key sibling does NOT answer in its place
+    shutil.rmtree(plain)
+    d, _row_of, how = call(corpus_key=tag)
+    assert how == "absent", (
+        f"a `<set>__<corpus>__{tag}` scan answered for the tag-only key {tag!r}, which names the "
+        f"scan of the unsuffixed corpus ({d}, how={how!r})"
+    )
+    mut += 1
+
     # MUTATION: a sibling that does not cover this set's features is not this call's product
     shutil.rmtree(sib)
     write(f"{other}__{key}", [7, 11, 99], [0, 1, 2])

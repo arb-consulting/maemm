@@ -794,14 +794,34 @@ def resolve_examples(sae_key: str, set_name: str, root: str, corpus_key: str,
         return preferred, row_of, "preferred"
 
     parent = f"{C.sae_dir(sae_key, root)}/examples"
+
+    def keyed(name: str) -> bool:
+        """`<set>__<corpus_key>` with a set name of its own -- the no-key rule, generalised.
+
+        A scan key is appended as `__<key>`, and no held-out set name contains `__`, so the
+        suffix identifies the corpus and tag. With NO key only an unsuffixed name can match --
+        STRICTER than `resolve_scan`, deliberately: there the set field inside topk.jsonl
+        separates the corpora, and here a `<other set>__<other corpus>` directory could pass the
+        feature cover and be a silent cross-corpus read.
+
+        THE SUFFIX MUST BE CONSUMED WHOLE, and `name.endswith(f"__{key}")` is not that test
+        (2026-09-23). At the TAG-ONLY key `paper0923` -- which names the scan of the UNSUFFIXED
+        corpus -- both `<set>__paper0923` and `<set>__train_parity_10m__paper0923` end with it,
+        so both were candidates, both covered the features, and the pair refused as ambiguous:
+        the test side of the eval-1 autointerp run got no examples at all. The two are different
+        corpora, not two names for one product. The set name has no `__` in it, which is the same
+        premise the no-key branch already rests on, so whatever is left in FRONT of the key
+        decides -- and it must be a set name, i.e. non-empty and `__`-free.
+        """
+        if not corpus_key:
+            return "__" not in name
+        suffix = f"__{corpus_key}"
+        head = name[: -len(suffix)] if name.endswith(suffix) else None
+        return bool(head) and "__" not in head
+
     cands = []
     for name in sorted(os.listdir(parent)) if os.path.isdir(parent) else []:
-        # A scan key is appended as `__<key>`, and no held-out set name contains `__`, so the
-        # suffix identifies the corpus and tag. With NO key only an unsuffixed name can match --
-        # STRICTER than `resolve_scan`, deliberately: there the set field inside topk.jsonl
-        # separates the corpora, and here a `<other set>__<other corpus>` directory could pass the
-        # feature cover and be a silent cross-corpus read.
-        if not (name.endswith(f"__{corpus_key}") if corpus_key else "__" not in name):
+        if not keyed(name):
             continue
         t = _tested(f"{parent}/{name}")
         if t is None or (t.get("sae") or sae_key) != sae_key:
