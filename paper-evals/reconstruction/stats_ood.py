@@ -307,9 +307,53 @@ def lid_label(model, text: str) -> tuple[str, float]:
     return labels[0].removeprefix("__label__"), float(probs[0])
 
 
+ROLLOUTS_RE = re.compile(r"^- rollouts: (\S+)$", re.M)
+
+
+def rollouts_rel_from_readme(vol, scores_rel: str) -> str | None:
+    """The rollouts file a scores directory actually READ, from its own README. Root-relative.
+
+    THE ONE RULE, in the lower layer, because both readers need it and only one of them had it.
+    `results/ood.lid_rates` learned it on 2026-09-21 (commit 11b7cd0, "the language-id column was
+    silently empty"): a scores directory's name does NOT determine its rollouts file. `--score-tag`
+    makes them differ on purpose -- `scores/<set>__vllm__asym` scores `rollouts/<set>__vllm.jsonl`
+    -- and after the 2026-09-22 rebase `--run-tag` and `--score-tag` are BOTH in the scores name
+    (common.score_tag_of), so there are now two ways for a rebuilt stem to be wrong instead of one.
+
+    `stats_ood.rollout_texts` still rebuilt it from `--stem` and so still had the defect its
+    sibling had been fixed for: `--stem <set>__vllm__asym` finds the scores, looks for a rollouts
+    file that was never written, gets nothing, and the R3 language-id column comes out EMPTY with
+    no error -- which is worse than no column, because an empty one reads as "the answers were not
+    in the arm's language".
+
+    `vol` is duck-typed: `reconstruction.stats.Vol` and `results.common.Vol` both have `.get`.
+    """
+    p = vol.get(f"{scores_rel}/README.md")
+    if p is None:
+        return None
+    m = ROLLOUTS_RE.search(p.read_text())
+    if not m:
+        return None
+    rel = m.group(1)
+    for pre in ("/vol/", "vol/", "/"):
+        if rel.startswith(pre):
+            return rel[len(pre):]
+    return rel
+
+
 def rollout_texts(vol: Vol, base: str, maemm: str, set_name: str, stem: str) -> dict[int, list[str]]:
-    """{target row -> [rollout text] in k order} from the rollouts jsonl (the one big fetch here)."""
-    rows = vol.jsonl(f"maemms/{base}/{maemm}/rollouts/{stem}.jsonl")
+    """{target row -> [rollout text] in k order} from the rollouts jsonl (the one big fetch here).
+
+    The path comes from the SCORES README when it names one, and only falls back to the `--stem`
+    composition for a product written before READMEs carried the line. See
+    `rollouts_rel_from_readme` for why rebuilding it from the directory name is wrong.
+    """
+    rel = rollouts_rel_from_readme(vol, f"maemms/{base}/{maemm}/scores/{stem}")
+    if rel is None:
+        rel = f"maemms/{base}/{maemm}/rollouts/{stem}.jsonl"
+        print(f"[stats_ood] the scores README names no rollouts file; falling back to {rel}",
+              flush=True)
+    rows = vol.jsonl(rel)
     if rows is None:
         return {}
     out: dict[int, list[str]] = {}
@@ -1124,6 +1168,43 @@ def selfcheck() -> None:
         ex = (out / "ood_examples.md").read_text()
         assert "## tha_Thai" in ex and "## python" in ex and "span " in ex
         ok.append("build_tables end to end (arms, per-target, strata, examples)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # --- the rollouts path comes from the README, not from the stem ----------------------------
+    # R3's language-id column is the one that says whether a cosine above the corpus means the
+    # output is actually in the arm's language, so an EMPTY one is worse than no column -- it
+    # reads as "the answers were not in the arm's language". It goes empty whenever the rollouts
+    # file is looked for under a name nobody wrote, and a scores directory's name is not its
+    # rollouts file's: `--score-tag` makes them differ on purpose, and since 2026-09-22 both
+    # `--run-tag` and `--score-tag` are in the scores name. `results/ood` was fixed for this in
+    # 11b7cd0; this half was not, and kept rebuilding the path from `--stem`.
+    tmp = Path(tempfile.mkdtemp(prefix="stats_ood_rollpath_"))
+    try:
+        sd = tmp / "maemms/b/m/scores/s__vllm__asym"
+        sd.mkdir(parents=True)
+        (sd / "README.md").write_text(
+            "# scores\n\n## Inputs\n\n- rollouts: /vol/maemms/b/m/rollouts/s__vllm.jsonl\n")
+        rd = tmp / "maemms/b/m/rollouts"
+        rd.mkdir(parents=True)
+        (rd / "s__vllm.jsonl").write_text(
+            '{"row": 0, "k": 0, "text": "ahoj"}\n{"row": 0, "k": 1, "text": "svete"}\n')
+        vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
+
+        rel = rollouts_rel_from_readme(vol, "maemms/b/m/scores/s__vllm__asym")
+        assert rel == "maemms/b/m/rollouts/s__vllm.jsonl", (
+            f"the README's own `- rollouts:` line was not read back root-relative: {rel!r}")
+        texts = rollout_texts(vol, "b", "m", "s", "s__vllm__asym")
+        assert texts == {0: ["ahoj", "svete"]}, (
+            f"rollout_texts rebuilt the path from --stem instead of reading the scores README, so "
+            f"the R3 language-id column would be silently EMPTY on every --score-tag source: "
+            f"{texts!r}")
+        # ...and a product whose README names no rollouts file still resolves, by falling back
+        (sd / "README.md").write_text("# scores\n\nno inputs section\n")
+        assert rollouts_rel_from_readme(vol, "maemms/b/m/scores/s__vllm__asym") is None
+        assert rollout_texts(vol, "b", "m", "s", "s__vllm") == {0: ["ahoj", "svete"]}, (
+            "the pre-README fallback to the --stem composition stopped working")
+        ok.append("rollouts path from the scores README, with the pre-README fallback")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

@@ -2435,11 +2435,17 @@ def check_ood_arm_table():
         "base/{base}/stats/mu.f32", "B"
     )
     assert od.C_resolve_mu(None, "B") == "none"
-    # the rollouts path comes from the scores README, because --score-tag deliberately makes the
-    # scores directory name differ from the rollouts stem
-    assert od.ROLLOUTS_RE.search(
-        "- dirs: /vol/x\n- rollouts: /vol/maemms/m/rollouts/S__vllm.jsonl\n- engine: vllm\n"
-    ).group(1) == "/vol/maemms/m/rollouts/S__vllm.jsonl"
+    # The rollouts path comes from the scores README, because --score-tag deliberately makes the
+    # scores directory name differ from the rollouts stem. THE RULE MOVED on 2026-09-22 to
+    # `reconstruction/stats_ood.rollouts_rel_from_readme`, the layer both readers already import:
+    # `stats_ood.rollout_texts` still rebuilt the path from its own `--stem` and so still had the
+    # defect this half was fixed for in 11b7cd0. Its behaviour, including the root-relative strip
+    # and the pre-README fallback, is pinned by `stats_ood.py selfcheck`, which runs without the
+    # fasttext/polars extras this file deliberately does not import.
+    assert not hasattr(od, "ROLLOUTS_RE"), (
+        "results/ood has its own copy of the rollouts-README rule again; there is one, in "
+        "stats_ood.rollouts_rel_from_readme, and two copies is how the two halves diverged"
+    )
     # the README line every scan writes, which is how a scan's mean is read back
     assert od.MU_RE.search(
         "## Notes\n\n- CENTRING: mu=/vol/base/B/stats/mu.f32 from --mu (explicit)\n"

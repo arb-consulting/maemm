@@ -221,30 +221,9 @@ def load_ood_ids(vol: R.Vol, base: str, set_name: str) -> list[dict]:
 BO64 = {"asym": "bo_a_64", "centred": "bo_c_64", "raw": "bo_64"}
 
 
-ROLLOUTS_RE = re.compile(r"^- rollouts: (\S+)$", re.M)
-
-
-def rollouts_rel_of(vol: R.Vol, src: R.Source) -> str | None:
-    """The rollouts file this scores directory actually read, from its OWN README.
-
-    NOT reconstructed from the directory name. `--score-tag` makes the scores directory name
-    differ from the rollouts stem on purpose -- `…/scores/<set>__vllm__asym` scores
-    `…/rollouts/<set>__vllm.jsonl` -- and `parse_scores_dir` cannot tell a score tag from a run
-    tag, so rebuilding the stem sends the language-id half looking for a file that was never
-    written. It would then report "lid not run" and the R3 column would be empty on exactly the
-    sources that are tabulated.
-    """
-    p = vol.get(f"{src.scores_rel}/README.md")
-    if p is None:
-        return None
-    m = ROLLOUTS_RE.search(p.read_text())
-    if not m:
-        return None
-    rel = m.group(1)
-    for pre in ("/vol/", "vol/", "/"):
-        if rel.startswith(pre):
-            return rel[len(pre):]
-    return rel
+# `rollouts_rel_of` MOVED to `reconstruction/stats_ood.rollouts_rel_from_readme` on 2026-09-22.
+# `stats_ood.rollout_texts` still rebuilt the rollouts path from its `--stem` and so still had the
+# defect this half was fixed for in 11b7cd0; one rule, in the layer both readers already import.
 
 
 SCORE_ARRAY = {"asym": "cos_asym.f16", "centred": "cos_centred.f16", "raw": "cos.f16"}
@@ -497,7 +476,7 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
     NLLB labels that count as this arm's language, and `null` there says fastText is not
     meaningful for it -- the code and maths arms, which report the `code_like` regex rate instead.
     """
-    rel = rollouts_rel_of(vol, src)
+    rel = mod.rollouts_rel_from_readme(vol, src.scores_rel)
     if rel is None:
         return {}, [f"`{src.scores_rel}/README.md` does not name its rollouts file: lid not run"]
     # Read the path the README gave, directly. `stats_ood.rollout_texts` composes

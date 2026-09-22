@@ -435,6 +435,44 @@ this class does not announce itself.
   no call passing more positionals than its target takes; 46 of the 62 modules import cleanly and
   the other 16 fail only on absent optional third-party packages (`modal`, `torch`, `pandas`).
 
+### The lid fix, into the layer both halves share
+
+`11b7cd0` fixed the R3 language-id column in `results/ood.py`: a scores directory's name does NOT
+determine its rollouts file, because `--score-tag` makes them differ on purpose, so the path comes
+from the scores README's own `- rollouts:` line. **`reconstruction/stats_ood.rollout_texts` still
+rebuilt it from its own `--stem`** and so still had the defect its sibling had been fixed for --
+`--stem <set>__vllm__asym` finds the scores, looks for a rollouts file nobody wrote, gets nothing,
+and the column comes out EMPTY with no error. An empty R3 column is worse than no column: it reads
+as "the answers were not in the arm's language", which is the very claim `ff80d04` retracted.
+
+The rebase makes it worse before it makes it better -- after `score_tag_of`, BOTH `--run-tag` and
+`--score-tag` are in the scores name, so there are now two ways for a rebuilt stem to be wrong.
+The rule is now `stats_ood.rollouts_rel_from_readme(vol, scores_rel)`, in the lower layer
+`results/ood.py` already imports, with the `--stem` composition kept only as the fallback for
+products written before READMEs carried the line. `vol` is duck-typed; both `Vol` classes have
+`.get`. Mutation-tested in `stats_ood.py selfcheck`:
+
+  M15 rollout_texts rebuilds the path from --stem   -> RED
+  M16 the README path is not made root-relative     -> RED
+  M17 the pre-README fallback removed               -> RED
+
+`results/selftest` no longer pins `results/ood.ROLLOUTS_RE`; it asserts the copy is GONE, because
+two copies is how the two halves diverged in the first place.
+
+### A finding that did not survive checking
+
+An automated cross-check reported that the OOD arm corpora are never registered in `corpora:`, so
+`assert_corpus_geometry` falls through for all 23 of them. **It is wrong**, and the way it is
+wrong is worth recording: `config.yaml` does declare only two `corpora:` entries by hand, but
+`load_config` SYNTHESISES one per `ood_arms:` entry (`common.py:153-172`, from the OOD branch
+itself) so the ladder has a single source. `corpus_key_of_dir("tha_Thai")` resolves to
+`ood_tha_Thai` and the refusal covers it at 64/16. Reading the YAML is not reading the config.
+
+What is genuinely uncovered is an UNREGISTERED directory: `corpus_key_of_dir` returns `""` and
+`assert_corpus_geometry` then returns 64/16 without asserting. That is V's own documented choice
+-- a corpus nobody declared is assumed to be the pipeline's geometry -- and it is the honest gap
+to close when H7 is done, not before.
+
 ### Left open
 
 * **`top1_act` and `gcg` address a scan as `scan_dir(base, set, root, corpus_name)` with the raw
