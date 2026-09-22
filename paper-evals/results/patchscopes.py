@@ -534,7 +534,9 @@ def selftest(base: str = "qwen36-27b") -> int:
 
 @app.command()
 def main(
-    set: Annotated[str, typer.Option("--set", help="the held-out set the cells were run on")] = "",  # noqa: A002
+    # `set_`, not `set`: the parameter shadowed the builtin inside this function and the
+    # results.json dump's `isinstance(v, set)` died on it. faithfulness.py spells it the same way.
+    set_: Annotated[str, typer.Option("--set", help="the held-out set the cells were run on")] = "",
     base: str = "qwen36-27b",
     ps_tag: Annotated[str, typer.Option("--ps-tag", help="which run's cells to read")] = "paper0923",
     out: Annotated[str, typer.Option(help="output directory")] = "",
@@ -557,7 +559,7 @@ def main(
 
     if run_selftest:
         raise typer.Exit(1 if selftest(base) else 0)
-    assert set, "--set is required"
+    assert set_, "--set is required"
     assert status in ("placeholder", "provisional", "final"), f"bad --status {status!r}"
     here = Path(__file__).resolve().parent
     data_dir = Path(data) if data else here / "data" / (root.replace("/", "_") if root else "vol")
@@ -566,7 +568,7 @@ def main(
     vol = R.Vol(root, data_dir, modal_cmd, refetch=refetch, quiet=quiet, offline=not fetch)
     cfg = R.load_config()
 
-    res = analyse(vol, cfg, base, set, ps_tag, boot, seed, centred_bok_max_mb, exclusions)
+    res = analyse(vol, cfg, base, set_, ps_tag, boot, seed, centred_bok_max_mb, exclusions)
     res["read_layer"] = cfg["bases"][base]["read_layer"]
     md = render(res)
     (outdir / "tables.md").write_text(md)
