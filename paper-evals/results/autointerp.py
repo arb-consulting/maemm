@@ -981,6 +981,10 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
         "peak_strata": peak_rows, "peak_cuts": peak_cuts, "trends": trends, "record": record,
         "versus": versus, "vs_runs": vs_runs or {}, "vs_label": vs_label,
         "n_features": len({int(r["feature"]) for r in rows}),
+        # The per-feature values behind every cell, keyed (arm label, scorer). Exposed because
+        # `contrasts` is every arm against ONE reference, and `cells.csv` needs two contrasts with
+        # different references (`M - C16` and `M - NLA`), which cannot be recovered from two means.
+        "per_feature": {(k.label, sc): values_of(cell) for (k, sc), cell in by_cell.items()},
         "missing": missing, "notes": notes, "boot": boot, "seed": seed, "n_rows": len(rows),
     }
 
@@ -1760,8 +1764,12 @@ CELL_ARM_SLOT = {
 }
 # scorer -> the metric slot of the balanced-accuracy cell, and of its refusal-corrected twin.
 CELL_SCORER_SLOT = {"detection": ("det", "detrc"), "fuzzing": ("fuzz", "fuzzrc")}
-# The two paired contrasts the main text prints, as (key arm slot, arm, reference arm).
-CELL_CONTRASTS = (("diff", "M", "C16"), ("diffnla", "M", "NLA"))
+# The two paired contrasts the main text prints, BY KEY SLOT: `diff` is the Exemplifier minus the
+# corpus arm and `diffnla` the Exemplifier minus NLA mode A. Named by slot and not by arm name
+# because the corpus arm is `C16` on a post-09-23 run and `DOCMAX` on the eval-2 blocks, and both
+# print as `c16`. They have DIFFERENT references, so neither comes out of `res["contrasts"]`,
+# which is every arm against one reference: both are computed here from `res["per_feature"]`.
+CELL_CONTRASTS = (("diff", "mtop16", "c16"), ("diffnla", "mtop16", "nla4"))
 CELL_PLACES = 3
 
 
@@ -1821,19 +1829,30 @@ def cells_rows(res: dict, *, set_slot: str, run_id: str, status: str, date: str,
                 add(f"ai.{set_slot}.{slot}.{hslot}", _cell_num(h.get("mean")),
                     lo=_cell_num(h.get("lo")), hi=_cell_num(h.get("hi")), n=h.get("n", ""),
                     note=f"{chance}; detection {half.upper()}")
-    # The paired contrasts. Their sign is `arm - reference`, which is what the tex prints.
-    by_contrast = {(x["arm_name"], x["ref"], x["scorer"]): x for x in res["contrasts"]}
-    for slot, arm, refname in CELL_CONTRASTS:
+    # The paired contrasts. Their sign is `arm - reference`, which is what the tex prints, and
+    # each is taken on the INTERSECTION of the two arms' features with both losses counted.
+    per_feature = res.get("per_feature") or {}
+    by_slot: dict[str, str] = {}
+    for c in res["cells"]:
+        if c["run"] == run_label and c["convention"] == DROPPED:
+            sl = CELL_ARM_SLOT.get(c["arm_name"])
+            if sl:
+                by_slot[sl] = c["arm"]
+    for slot, a_slot, b_slot in CELL_CONTRASTS:
         for scorer, (det, _rc) in CELL_SCORER_SLOT.items():
-            x = by_contrast.get((arm, f"{run_label}/{refname}", scorer)) or \
-                by_contrast.get((arm, refname, scorer))
-            if x is None:
-                gaps.append(f"contrast {arm} - {refname} ({scorer}) is not in this run: "
+            a_lab, b_lab = by_slot.get(a_slot), by_slot.get(b_slot)
+            va = per_feature.get((a_lab, scorer)) if a_lab else None
+            vb = per_feature.get((b_lab, scorer)) if b_lab else None
+            if not va or not vb:
+                gaps.append(f"contrast {a_slot} - {b_slot} ({scorer}) is not in this run: "
                             f"ai.{set_slot}.{slot}.{det} not written")
                 continue
-            add(f"ai.{set_slot}.{slot}.{det}", _cell_num(x["mean"]),
-                lo=_cell_num(x["lo"]), hi=_cell_num(x["hi"]), n=x["n_paired"],
-                note=f"paired {arm} - {refname}; {chance}; percentile bootstrap over features")
+            pd = paired_diff(va, vb)
+            m, lo, hi = boot_ci(pd["d"], res.get("boot") or R.N_BOOT, res.get("seed") or R.BOOT_SEED)
+            add(f"ai.{set_slot}.{slot}.{det}", _cell_num(m),
+                lo=_cell_num(lo), hi=_cell_num(hi), n=pd["n_paired"],
+                note=f"paired {a_lab} - {b_lab}; {chance}; percentile bootstrap over features; "
+                     f"intersection of {pd['n_a']} and {pd['n_b']}")
     # Per rarity quartile, detection only -- the appendix's `.q1..q4` rows.
     for st in res.get("strata") or []:
         if st.get("run") != run_label or st["scorer"] != "detection":
