@@ -568,3 +568,16 @@ that breaks its own input and asserts the gate fires.
 `_load_targets` was additionally run on the REAL `2026-09-21_v3_realact` bytes on CPU before any
 GPU call: 512 rows, all centrable, `dirs == dirs_centred` to 0 when `--mu` is the scoring mean, and
 `cos(uncentred dir, centred dir) = 0.7176` on row 0 when it is not.
+
+### One consequence of 16 writers, recorded before it surprises a reader
+
+The additive write keeps every chunk's **data files** — each container creates four files nobody
+else names, and a Modal volume commit of a new file is additive. What it does not keep is the
+arm directory's `README.md` and `index.json`: `_index_lock` is a file in the product directory, and
+a Modal container does not see another container's uncommitted (or post-mount) writes, so with 16
+chunks running at once the lock does not bind across them and the last committer's README wins.
+The arm README will therefore describe ONE chunk's call, not sixteen.
+
+This is why `gcg/collect.py` reads `summary__rows*.json` — one per chunk, each written by the
+container that produced it and never merged — and never `index.json`. A reader who trusts the arm
+README's file table for a 16-way arm is reading one sixteenth of it.
