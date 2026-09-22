@@ -741,6 +741,95 @@ def _covariate(row: dict, *names: str):
     return None
 
 
+def resolve_examples(sae_key: str, set_name: str, root: str, corpus_key: str,
+                     want_features, side: str) -> tuple[str, dict, str]:
+    """The `examples/` directory carrying THIS set's features at `corpus_key`, found not assumed.
+
+    `common.sae_examples_dir` names a scan's examples after the scan's OWN `--set`, and
+    `scan --with-set` then puts several banks in one call: the eval-1 scans of 2026-09-23 ran
+    `--set 2026-09-21_v3_realact --with-set ...,2026-09-21_v3_ctrl` and landed as
+    `examples/2026-09-21_v3_realact__paper0923`. A `--set 2026-09-21_v3_ctrl` build looked for
+    `examples/2026-09-21_v3_ctrl__paper0923`, did not find it, and -- until the refusal that now
+    lives in `sae_examples_dir` -- read the LEGACY unkeyed `examples/`, i.e. the September
+    `2026-09-16_v1` scan, with a stdout note as the only trace. A C16 arm over another set's
+    features is not a crash; it is a plausible number about the wrong thing.
+
+    This is `precompute.top1_act.resolve_scan`'s rule, one product over. Preferred name first;
+    otherwise every `examples/*__<corpus_key>` whose `tested.json` is of THIS dictionary and whose
+    tested features COVER this set's, and exactly one of them, named out loud. The feature cover
+    is the test, not the name: a sibling bank of the same call tests the union of the call's SAE
+    rows, so a directory that does not contain this set's features is not that call's product
+    whatever it is called.
+
+    Returns (directory, feature -> the `row` its example records carry, how it was found). The row
+    map comes from the resolved directory's own `tested.json`, because `scan` stamps each example
+    record with the row index WITHIN THE SCAN and `--with-set` re-indexes it: a three-bank scan
+    offsets the second bank by 1,024, so checking against the set's own row number would fire on
+    every record of a correctly resolved sibling. Empty directory means nothing was found at all,
+    which `build` tolerates by falling back to `examples_4m`.
+    """
+    import os
+
+    preferred = C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=corpus_key)
+    want = {int(f) for f in want_features}
+
+    def _tested(d):
+        try:
+            with open(f"{d}/tested.json") as fh:
+                t = json.load(fh)
+        except (OSError, ValueError):
+            return None
+        # `scan` has written both keys since paper-evals' first commit; a file without them is not
+        # a `scan` examples product and must not be resolved into as if it were.
+        assert isinstance(t.get("features"), list) and isinstance(t.get("rows"), list), (
+            f"{d}/tested.json has keys {sorted(t)} -- a `scan` examples product carries "
+            f"`features` and `rows` (precompute/scan.py:734), and the row list is what says which "
+            f"row index this directory's example records are stamped with"
+        )
+        return t
+
+    t = _tested(preferred)
+    if t is not None:
+        row_of = dict(zip([int(f) for f in t["features"]], t["rows"], strict=True))
+        return preferred, row_of, "preferred"
+
+    parent = f"{C.sae_dir(sae_key, root)}/examples"
+    cands = []
+    for name in sorted(os.listdir(parent)) if os.path.isdir(parent) else []:
+        # A scan key is appended as `__<key>`, and no held-out set name contains `__`, so the
+        # suffix identifies the corpus and tag. With NO key only an unsuffixed name can match --
+        # STRICTER than `resolve_scan`, deliberately: there the set field inside topk.jsonl
+        # separates the corpora, and here a `<other set>__<other corpus>` directory could pass the
+        # feature cover and be a silent cross-corpus read.
+        if not (name.endswith(f"__{corpus_key}") if corpus_key else "__" not in name):
+            continue
+        t = _tested(f"{parent}/{name}")
+        if t is None or (t.get("sae") or sae_key) != sae_key:
+            continue
+        if want <= {int(f) for f in t["features"]}:
+            cands.append((f"{parent}/{name}", t))
+    if len(cands) > 1:
+        raise AssertionError(
+            f"{len(cands)} example scans at key {corpus_key or '(none)'!r} cover set "
+            f"{set_name!r}'s {len(want)} features of {sae_key} ({[c[0] for c in cands]}); nothing "
+            f"here can choose between them, and joining the wrong one is silent"
+        )
+    if cands:
+        d, t = cands[0]
+        print(
+            f"[build] {preferred} is not on this root; the {side} `examples/` is {d}, a scan whose "
+            f"--set was another bank of the same call (scan --with-set) and whose tested features "
+            f"cover this set's {len(want)}. Example rows carry that SCAN's row index, not this "
+            f"set's.",
+            flush=True,
+        )
+        row_of = dict(zip([int(f) for f in t["features"]], t["rows"], strict=True))
+        return d, row_of, f"with-set sibling ({os.path.basename(d)})"
+    # Nothing keyed and no sibling. The READER spelling, so a legacy unkeyed `examples/` on this
+    # root is REFUSED here with the key it should have carried instead of being read silently.
+    return C.sae_examples_dir(sae_key, set_name, root, corpus_name=corpus_key), {}, "absent"
+
+
 def check_corpus_source(arm_names, use_examples: bool, ex_dir: str, sae_key: str, prefix_m: int,
                         t_use_examples: bool | None = None) -> str:
     """The label for where test POSITIVES come from. Asserts no arm needs a pool that is absent.
@@ -1178,6 +1267,25 @@ def run(cfg, args):
         )
     shown_key = C.corpus_key_of_dir(cfg, shown_corpus) or "(unregistered)"
     test_key = C.corpus_key_of_dir(cfg, test_corpus) or "(unregistered)"
+    # READ BEFORE THE DIRECTORIES ARE RESOLVED (2026-09-23): `resolve_examples` decides which
+    # `examples/` directory is this set's by whether its tested features COVER this set's, so the
+    # set's SAE rows have to be in hand first. Nothing else about this block moved.
+    hdir = C.heldout_dir(base, set_name, root)
+    rows_meta = C.read_jsonl(f"{hdir}/ids.jsonl")
+    # On the ROW's own sae_key, not on the family label -- see common.sae_rows_of. With two
+    # dictionaries under one `family: sae` label, the family-only filter renders the 131k arm from
+    # the 2M scan and nothing raises.
+    sae_rows = C.sae_rows_of(
+        rows_meta, sae_key, FAMILIES, side="enc",
+        declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
+    )
+    assert sae_rows, (
+        f"{hdir}/ids.jsonl has no encoder rows of dictionary {sae_key!r} in the SAE families "
+        f"{FAMILIES}; it carries families {sorted({r['family'] for r in rows_meta})} and "
+        f"dictionaries "
+        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows_meta if r['family'] in FAMILIES})}"
+    )
+
     # THE PRODUCT KEY, not the corpus directory (M2 x M6, reconciled 2026-09-23). The producer
     # stages key their output `<set>__<corpus>[__<tag>]` and `scan` keys `examples/` the same way
     # (`precompute.top1_act.scan_key_of`), so the consumer has to spell the tag too or it reads a
@@ -1187,16 +1295,27 @@ def run(cfg, args):
     shown_pkey = SS.corpus_key_for(shown_corpus, run_tag)
     test_pkey = SS.corpus_key_for(test_corpus, run_tag)
 
-    def _dirs(corpus_key: str):
-        """(examples/, examples_4m/, examples_docmax/) for one corpus, all three corpus-keyed."""
-        return (
-            C.sae_examples_dir(sae_key, set_name, root, corpus_name=corpus_key),
-            SS.examples_4m_dir(sae_key, set_name, root, corpus_key),
-            SS.examples_docmax_dir(sae_key, set_name, root, corpus_key),
-        )
+    want_feats = [int(r["id"]) for r in sae_rows]
 
-    ex_dir, ex4_dir, exdoc_dir = _dirs(shown_pkey)
-    t_ex_dir, t_ex4_dir, t_exdoc_dir = _dirs(test_pkey) if two_corpora else (ex_dir, ex4_dir, exdoc_dir)
+    def _dirs(corpus_key: str, side: str):
+        """(examples/, examples_4m/, examples_docmax/) for one corpus, all three corpus-keyed.
+
+        Only the FIRST is resolved rather than addressed: `examples/` is `scan`'s product and is
+        named after the scan's own `--set`, which `--with-set` makes different from this build's.
+        `examples_4m` and `examples_docmax` are autointerp's own stages, launched with this set's
+        `--set`, so their names are this set's by construction.
+        """
+        d, row_of, how = resolve_examples(sae_key, set_name, root, corpus_key, want_feats, side)
+        return (d, row_of, how,
+                SS.examples_4m_dir(sae_key, set_name, root, corpus_key),
+                SS.examples_docmax_dir(sae_key, set_name, root, corpus_key))
+
+    ex_dir, ex_row_of, ex_how, ex4_dir, exdoc_dir = _dirs(shown_pkey, "shown")
+    if two_corpora:
+        t_ex_dir, t_ex_row_of, t_ex_how, t_ex4_dir, t_exdoc_dir = _dirs(test_pkey, "test")
+    else:
+        t_ex_dir, t_ex_row_of, t_ex_how = ex_dir, ex_row_of, ex_how
+        t_ex4_dir, t_exdoc_dir = ex4_dir, exdoc_dir
     # `scan`'s 16M product: `<feature>.jsonl` with the top-k AND the q-band rows, plus the
     # per-token activations of each. It does not exist for every SAE -- the 2M one would cost a
     # ~$9 scan to make -- and when it is absent BOTH things it feeds have to come from somewhere
@@ -1245,24 +1364,9 @@ def run(cfg, args):
         + ("  [TWO CORPORA]" if two_corpora else "  [one corpus, both sides]"),
         flush=True,
     )
-    hdir = C.heldout_dir(base, set_name, root)
     sdir = C.scores_dir(maemm, set_name, root, engine, C.score_tag_of(args))
     self_dir = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
 
-    rows_meta = C.read_jsonl(f"{hdir}/ids.jsonl")
-    # On the ROW's own sae_key, not on the family label -- see common.sae_rows_of. With two
-    # dictionaries under one `family: sae` label, the family-only filter renders the 131k arm from
-    # the 2M scan and nothing raises.
-    sae_rows = C.sae_rows_of(
-        rows_meta, sae_key, FAMILIES, side="enc",
-        declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
-    )
-    assert sae_rows, (
-        f"{hdir}/ids.jsonl has no encoder rows of dictionary {sae_key!r} in the SAE families "
-        f"{FAMILIES}; it carries families {sorted({r['family'] for r in rows_meta})} and "
-        f"dictionaries "
-        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows_meta if r['family'] in FAMILIES})}"
-    )
     picked = draw_features(sae_rows, n_feat, feat_seed)
     if args.get("rows"):
         # --rows OVERRIDES the stratified draw rather than intersecting it: a shakeout asks for
@@ -1420,19 +1524,25 @@ def run(cfg, args):
             rng_arm = random.Random(shuffle_seed + feat)
             rng_test = random.Random(shuffle_seed + feat + 1_000_003)
             rng_mark = random.Random(shuffle_seed + feat + 2_000_003)
-            def _rows(d, feat=feat, r=r):
+            # `expect` is the row index the records in THIS directory carry. For autointerp's
+            # own stages it is the set's own row; for a `scan --with-set` sibling it is that
+            # scan's, taken from its `tested.json` rather than assumed, because the scan re-indexes
+            # rows across the banks of one call (`resolve_examples`).
+            def _rows(d, expect, feat=feat):
                 rows = C.read_jsonl(f"{d}/{feat}.jsonl")
                 for e in rows:
-                    assert e["row"] == r["row"], f"{d}/{feat}.jsonl row {e['row']} != {r['row']}"
+                    assert e["row"] == expect, f"{d}/{feat}.jsonl row {e['row']} != {expect}"
                 return rows
 
-            ex_rows = _rows(ex_dir) if use_examples else []
-            ex4_rows = _rows(ex4_dir) if need_ex4_shown else []
+            ex_rows = _rows(ex_dir, ex_row_of.get(feat, r["row"])) if use_examples else []
+            ex4_rows = _rows(ex4_dir, r["row"]) if need_ex4_shown else []
             # The TEST side's three pools, from the test corpus. Identical objects when one corpus
             # feeds both sides, so a single-corpus build reads each file once and behaves exactly
             # as it did before the split.
-            t_ex_rows = ex_rows if not two_corpora else (_rows(t_ex_dir) if t_use_examples else [])
-            t_ex4_rows = ex4_rows if not two_corpora else (_rows(t_ex4_dir) if need_ex4_test else [])
+            t_ex_rows = ex_rows if not two_corpora else (
+                _rows(t_ex_dir, t_ex_row_of.get(feat, r["row"])) if t_use_examples else [])
+            t_ex4_rows = ex4_rows if not two_corpora else (
+                _rows(t_ex4_dir, r["row"]) if need_ex4_test else [])
 
             # ---- corpus pools -----------------------------------------------------------
             # C16 is scan's 16M top-k. With no examples/ there is none, and check_corpus_source
@@ -1442,8 +1552,9 @@ def run(cfg, args):
                 (e for e in ex_rows if e["kind"] == "top"), key=lambda e: -float(e["max_act"])
             )
             c16_pool = dedup(tops)
-            doc_rows = _rows(exdoc_dir) if use_docmax else []
-            t_doc_rows = doc_rows if not two_corpora else (_rows(t_exdoc_dir) if t_use_docmax else [])
+            doc_rows = _rows(exdoc_dir, r["row"]) if use_docmax else []
+            t_doc_rows = doc_rows if not two_corpora else (
+                _rows(t_exdoc_dir, r["row"]) if t_use_docmax else [])
             # The candidate pool -- the q-bands, the near-miss rows and the top fallback -- is
             # built from the TEST corpus only. This is the whole point of the second parameter.
             cand_rows = candidate_rows(t_ex_rows, t_ex4_rows, t_doc_rows, peak, t_use_examples)
@@ -1782,6 +1893,16 @@ def run(cfg, args):
                 "gate_consistent_positives": gate_positives,
                 "allow_top_fallback": allow_top_fallback,
                 "examples": ex_dir if use_examples else "(absent -- no scan examples/ for this SAE)",
+                # HOW that directory was found: `preferred` (named after this build's own --set) or
+                # `with-set sibling (<dir>)` (a scan of the same call and tag, named after another
+                # bank, whose tested features cover this set's). A reader must be able to see which
+                # scan a C16 arm actually came from without re-deriving the name -- the silent
+                # legacy fallback this replaces is exactly what nobody could see.
+                "examples_resolution": ex_how,
+                "examples_row_space": ("this set" if not ex_row_of or all(
+                    ex_row_of.get(int(r["id"])) == r["row"] for r in picked)
+                    else "the scan's (--with-set re-indexes rows across banks)"),
+                "test_examples_resolution": t_ex_how,
                 "examples_4m": ex4_dir if need_ex4_shown else "(not read: no c4-source arm)",
                 # ---- the two corpora (spec §3). `shown_corpus` is where every corpus arm's
                 # EXAMPLES come from; `test_corpus` is where the Delphi test windows, the

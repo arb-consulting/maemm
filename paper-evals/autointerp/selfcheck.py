@@ -919,7 +919,7 @@ def _write_two_corpus_volume(cfg, tmp: Path, base: str):
     # ---- SHOWN examples: examples_docmax on the shown corpus, one window per document.
     exdoc = SS.examples_docmax_dir(sae_key, set_name, root, SC_SHOWN)
     Path(exdoc).mkdir(parents=True, exist_ok=True)
-    json.dump({"features": feats}, open(f"{exdoc}/tested.json", "w"))
+    json.dump({"features": feats, "rows": rows, "sae": sae_key}, open(f"{exdoc}/tested.json", "w"))
     for r, f in zip(rows, feats, strict=True):
         C.write_jsonl(f"{exdoc}/{f}.jsonl",
                       [_ex_row(r, "docmax", doc, peak - 0.1 * doc) for doc in range(24)])
@@ -927,7 +927,7 @@ def _write_two_corpus_volume(cfg, tmp: Path, base: str):
     # ---- TEST examples: scan's band rows on the default corpus, plus a `top` tier.
     exd = C.sae_examples_dir(sae_key, set_name, root, corpus_name=SC_TEST, write=True)
     Path(exd).mkdir(parents=True, exist_ok=True)
-    json.dump({"features": feats}, open(f"{exd}/tested.json", "w"))
+    json.dump({"features": feats, "rows": rows, "sae": sae_key}, open(f"{exd}/tested.json", "w"))
     for r, f in zip(rows, feats, strict=True):
         rws = []
         doc = 0
@@ -947,7 +947,7 @@ def _write_two_corpus_volume(cfg, tmp: Path, base: str):
     # band row uses. Without it `build` refuses rather than drawing a knowingly short test set.
     t_exdoc = SS.examples_docmax_dir(sae_key, set_name, root, SC_TEST)
     Path(t_exdoc).mkdir(parents=True, exist_ok=True)
-    json.dump({"features": feats}, open(f"{t_exdoc}/tested.json", "w"))
+    json.dump({"features": feats, "rows": rows, "sae": sae_key}, open(f"{t_exdoc}/tested.json", "w"))
     for r, f in zip(rows, feats, strict=True):
         C.write_jsonl(f"{t_exdoc}/{f}.jsonl",
                       [_ex_row(r, "docmax", doc, peak * 0.9) for doc in range(26, 40)])
@@ -1158,6 +1158,120 @@ def check_corpus_key(cfg, base: str):
           f"consumer both address {set_name}__train_parity_10m__paper0923")
 
 
+def check_examples_resolution(cfg, tmp: Path, base: str):
+    """`build.resolve_examples` finds the scan of a `--with-set` call, and the legacy dir refuses.
+
+    THE DEFECT, 2026-09-23. `scan --set 2026-09-21_v3_realact --with-set ...,2026-09-21_v3_ctrl`
+    writes ONE examples product, named after the scan's own `--set`:
+    `examples/2026-09-21_v3_realact__paper0923`. A `--set 2026-09-21_v3_ctrl` build looked for
+    `examples/2026-09-21_v3_ctrl__paper0923`, did not find it, and `common.sae_examples_dir`'s
+    reader fell back to the LEGACY unkeyed `examples/` -- September's `2026-09-16_v1` scan of a
+    different set -- with a stdout note as the only trace. A C16 arm over another set's features
+    is a plausible number about the wrong thing.
+
+    Pinned here, on a synthetic `sae/<sae>/examples/` tree and nothing else (this is about which
+    DIRECTORY is chosen, and the whole build is exercised by `check_two_corpora`):
+
+      * the preferred name wins outright when it is there, and the row map is its own;
+      * the with-set sibling is found by FEATURE COVER, and the row map comes from ITS tested.json
+        -- the scan re-indexes rows across banks, so a sibling's records carry the scan's row and
+        checking them against the set's own would fire on every one;
+      * a sibling that does NOT cover this set's features is not resolved into;
+      * two covering siblings at one key refuse rather than picking one;
+      * the LEGACY unkeyed directory refuses, and the refusal NAMES the key that was expected;
+      * with neither keyed nor legacy present the keyed path comes back absent, which is what lets
+        a 2M-SAE build fall back to `examples_4m` instead of dying.
+    """
+
+    root = str(tmp / "exres")
+    sae_key = C.sae_key_for(cfg, base, f"{base}/l42-1b")
+    parent = f"{C.sae_dir(sae_key, root)}/examples"
+    key, this_set, other = "train_parity_10m__paper0923", "v3_ctrl", "v3_realact"
+    feats, my_rows = [11, 22, 33], [1024, 1025, 1026]
+
+    def write(name, features, rows, sae=sae_key):
+        d = f"{parent}/{name}"
+        Path(d).mkdir(parents=True, exist_ok=True)
+        json.dump({"features": features, "rows": rows, "sae": sae},
+                  open(f"{d}/tested.json", "w"))
+        return d
+
+    def call(set_name=this_set, corpus_key=key):
+        return B.resolve_examples(sae_key, set_name, root, corpus_key, feats, "shown")
+
+    checks = mut = 0
+    # (1) nothing at all: the keyed path, absent, so `build` falls back rather than dying
+    d, row_of, how = call()
+    assert how == "absent" and row_of == {} and d.endswith(f"/examples/{this_set}__{key}"), (d, how)
+    checks += 1
+
+    # (2) the with-set sibling, named after the OTHER bank, covering this set's features
+    sib = write(f"{other}__{key}", [7, *feats, 99], [0, *my_rows, 2047])
+    d, row_of, how = call()
+    assert d == sib and how.startswith("with-set sibling"), (d, how)
+    assert row_of == {7: 0, 11: 1024, 22: 1025, 33: 1026, 99: 2047}, row_of
+    checks += 1
+
+    # (3) the PREFERRED name wins outright once it exists -- no search, so an ambiguity among the
+    #     other banks cannot reach it
+    own = write(f"{this_set}__{key}", feats, [0, 1, 2])
+    d, row_of, how = call()
+    assert d == own and how == "preferred" and row_of == {11: 0, 22: 1, 33: 2}, (d, how, row_of)
+    checks += 1
+    shutil.rmtree(own)
+
+    # MUTATION: a sibling that does not cover this set's features is not this call's product
+    shutil.rmtree(sib)
+    write(f"{other}__{key}", [7, 11, 99], [0, 1, 2])
+    d, _row_of, how = call()
+    assert how == "absent", (
+        f"a sibling missing features {sorted(set(feats) - {7, 11, 99})} was resolved into ({d})"
+    )
+    mut += 1
+
+    # MUTATION: a sibling at ANOTHER key is never this key's product, however well it covers
+    write(f"{other}__other_corpus__paper0923", feats, my_rows)
+    assert call()[2] == "absent", "a sibling at another corpus key was resolved into"
+    mut += 1
+
+    # MUTATION: two covering siblings at one key -- refuse, do not pick
+    shutil.rmtree(f"{parent}/{other}__{key}")
+    write(f"{other}__{key}", feats, my_rows)
+    write(f"v3_ours__{key}", feats, my_rows)
+    try:
+        call()
+    except AssertionError as e:
+        assert "choose between" in str(e), str(e)
+        mut += 1
+    else:
+        raise AssertionError("two candidate example scans did not refuse")
+    shutil.rmtree(f"{parent}/v3_ours__{key}")
+    shutil.rmtree(f"{parent}/{other}__{key}")
+
+    # MUTATION: the LEGACY unkeyed directory is refused, by name and by the key it should carry
+    json.dump({"features": feats, "rows": my_rows, "sae": sae_key},
+              open(f"{parent}/tested.json", "w"))
+    try:
+        call()
+    except AssertionError as e:
+        msg = str(e)
+        assert "LEGACY" in msg and this_set in msg and key in msg, msg
+        mut += 1
+    else:
+        raise AssertionError("the legacy unkeyed examples/ was read instead of refused")
+    # ... and it is refused for the OTHER set too: the fallback had no set in it to check
+    try:
+        call(set_name=other)
+    except AssertionError as e:
+        assert "LEGACY" in str(e), str(e)
+        mut += 1
+    else:
+        raise AssertionError("the legacy fallback still fires for some set")
+
+    print(f"[selfcheck] examples resolution OK: {checks} checks, {mut} mutation gates; the "
+          f"with-set sibling is found by feature cover and the legacy unkeyed dir refuses")
+
+
 def main() -> int:
     cfg = C.load_config()
     base = "qwen36-27b"
@@ -1184,6 +1298,7 @@ def main() -> int:
         check_corpus_fallback()
         check_two_corpora(cfg, tmp, base)
         check_corpus_key(cfg, base)
+        check_examples_resolution(cfg, tmp, base)
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE

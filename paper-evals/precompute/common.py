@@ -1277,9 +1277,19 @@ def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool =
     second `scan` of the same dictionary against a different held-out set refused without --force
     and destroyed the first set's examples with it; the eval plan runs three scans on `sae2m`.
 
-    A READER (`write=False`) falls back to the legacy unkeyed directory when the set-keyed one does
-    not exist, so the products already on the volume stay readable and say which layout they found.
-    A WRITER always writes the set-keyed path.
+    A READER (`write=False`) used to fall back to the legacy unkeyed directory when the keyed one
+    was absent, with a stdout note and nothing else. IT NOW REFUSES (2026-09-23). The fallback was
+    silent in every way that matters -- a `--set 2026-09-21_v3_ctrl` build whose scan had landed
+    under the `--with-set` bank's name found no keyed directory and read the September
+    `2026-09-16_v1` scan of a different set instead, producing a correct-looking C16 arm over the
+    wrong features. A legacy directory records neither the set nor the corpus it was scanned
+    against, so nothing here can check that it is the right one; naming the key that WAS expected
+    is the only honest answer. A caller that genuinely wants the legacy product passes its path
+    explicitly. A WRITER always writes the set-keyed path.
+
+    Absent keyed AND absent legacy returns the keyed path unchanged, so a caller that tolerates a
+    missing `examples/` (autointerp's `build`, which falls back to `examples_4m`) still sees it
+    missing rather than an exception.
     """
     # The corpus axis too (H5): the examples of a feature are the windows it fires on IN A GIVEN
     # CORPUS, so two corpora give two different answers for one (set, sae) and must not share a
@@ -1288,14 +1298,15 @@ def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool =
     if write:
         return keyed
     legacy = f"{sae_dir(sae_key, root)}/examples"
-    if not os.path.exists(keyed) and os.path.exists(f"{legacy}/tested.json"):
-        print(
-            f"[examples] {keyed} is absent; reading the LEGACY unkeyed {legacy} (written before "
-            f"2026-09-21, when examples/ gained a set component). Which set it was scanned against "
-            f"is not recorded in its path -- check its README.",
-            flush=True,
-        )
-        return legacy
+    assert os.path.exists(keyed) or not os.path.exists(f"{legacy}/tested.json"), (
+        f"{keyed} is absent and the LEGACY unkeyed {legacy} is there. Reading it is refused: it "
+        f"was written before 2026-09-21, when `examples/` gained a set component, and its path "
+        f"records neither the set nor the corpus it was scanned against -- so it may be any set's "
+        f"scan and nothing here can tell. The expected key is "
+        f"set={set_name!r}, corpus_key={corpus_name or '(none)'!r}. Run `--product scan --set "
+        f"{set_name}` at that corpus and tag, or -- if the scan exists under another bank's name "
+        f"from a `scan --with-set` call -- address it by that directory."
+    )
     return keyed
 
 

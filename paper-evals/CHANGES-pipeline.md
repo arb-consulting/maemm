@@ -1019,3 +1019,50 @@ here. `common.load_config` was walked over every product entry — 2 bases, 25 c
 23 synthesised OOD arms), 3 SAEs, 10 MAEMMs, 16 held-out sets, 11 `family_kinds` — 90 entries, every
 accessor resolving; the only skipped call is `sae_path`, which resolves an HF snapshot on the
 volume rather than a config fact.
+
+---
+
+# Integration — `build` resolves the scan it reads, and the legacy `examples/` refuses (2026-09-23)
+
+`autointerp/build.py` addressed `scan`'s `examples/` product by its OWN `--set`. `scan` names that
+product after the SCAN's `--set`, and `scan --with-set` puts several banks in one call: the eval-1
+scans of 2026-09-23 ran `--set 2026-09-21_v3_realact --with-set …,2026-09-21_v3_ctrl` and landed as
+`examples/2026-09-21_v3_realact__paper0923`. A `--set 2026-09-21_v3_ctrl` build looked for
+`examples/2026-09-21_v3_ctrl__paper0923`, found nothing, and `common.sae_examples_dir`'s reader fell
+back to the LEGACY unkeyed `examples/` — September's `2026-09-16_v1` scan of a different set — with
+a stdout note as the only trace. A C16 arm over another set's features is not a crash; it is a
+plausible number about the wrong thing.
+
+* **`build.resolve_examples`** is `precompute.top1_act.resolve_scan`'s rule one product over.
+  Preferred name first; otherwise every `examples/*__<corpus_key>` whose `tested.json` is of this
+  dictionary and whose tested features COVER this set's, and exactly one of them, named out loud.
+  The test is the FEATURE COVER, not the name: a sibling bank of the same call tests the union of
+  the call's SAE rows, so a directory that does not contain this set's features is not that call's
+  product whatever it is called. Two covering candidates refuse rather than one being picked. It is
+  STRICTER than `resolve_scan` in one place: with an empty key only an unsuffixed name is a
+  candidate, because there is no `set` field inside an examples file to separate the corpora and a
+  `<other set>__<other corpus>` directory could otherwise pass the cover test.
+* **The row space follows the directory.** `scan` stamps each example record with the row index
+  WITHIN THE SCAN, and `--with-set` re-indexes it (a three-bank scan offsets the second bank by
+  1,024), so `build`'s per-record row assert would have fired on every record of a correctly
+  resolved sibling. The expected row now comes from the resolved directory's own `tested.json`
+  rather than from this set's row number, and the assert stays exact instead of being relaxed.
+* **`build.json` records which scan was read**: `examples_resolution` (`preferred` or
+  `with-set sibling (<dir>)`), `test_examples_resolution`, and `examples_row_space`.
+* **`common.sae_examples_dir`'s reader refuses** instead of returning the legacy unkeyed directory.
+  A legacy directory records neither the set nor the corpus it was scanned against, so nothing can
+  check it is the right one; the refusal names the key that was expected (`set=…, corpus_key=…`).
+  Absent keyed AND absent legacy still returns the keyed path, so a 2M-SAE build with no `examples/`
+  at all keeps falling back to `examples_4m` rather than dying.
+* `rows_meta` / `sae_rows` moved above the directory resolution (the cover test needs this set's
+  features in hand); nothing else about that block changed. `autointerp/selfcheck.py`'s three
+  synthetic `tested.json` fixtures now carry `rows` and `sae`, which every real `scan` product has
+  carried since paper-evals' first commit and which the resolver now requires by name rather than
+  hitting a bare `KeyError`.
+
+**Verified.** `autointerp/selfcheck.check_examples_resolution` (3 checks, 5 mutation gates): the
+preferred name winning outright, the sibling found by cover with ITS row map, a sibling that does
+not cover, a sibling at another key, two covering siblings refusing, and the legacy directory
+refusing with the expected key named — for this set and for the other one. Run RED both ways:
+disabling the sibling search fails the resolution check, and restoring the legacy fallback fails
+the refusal gate.
