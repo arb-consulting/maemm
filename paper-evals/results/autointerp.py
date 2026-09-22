@@ -62,6 +62,13 @@ WHAT IT BUILDS, per SAE:
                says so, because the rarity strata were balanced by the draw and this one was not.
                `--no-peak-strata` turns it off.
 
+  bands        `--bands` only, and only into `cells.csv` and `results.json`: recall per ACTIVATION
+               BAND of the positives plus specificity on the foil band, per (arm x scorer), with
+               the same bootstrap. Balanced accuracy averages the two halves and `*.tpr` says only
+               which half moved; this says WHERE in the positive half it moved. It is the one
+               block that needs bulk products -- the band of an item is the BUILD's and the answer
+               is the SCORER's, joined per item -- which is why it is opt-in.
+
   trends       per (view x arm x scorer): the spread across cells, Spearman's rho over the cells as
                a DESCRIPTION OF SHAPE, and a label-permutation p on the spread. At 8 features per
                cell almost nothing separates and the table says which of it does; the rho is
@@ -110,6 +117,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -718,6 +726,234 @@ def draw_record(vol: R.Vol, builds: dict[str, dict]) -> tuple[list[str], list[st
 
 
 # ---------------------------------------------------------------------------------------------
+# per activation band -- WHERE on the activation range a description works
+# ---------------------------------------------------------------------------------------------
+# Balanced accuracy is the mean of recall on the activating items and specificity on the foils, so
+# an arm that loses to the corpus arm loses on ONE of the two halves and the headline cannot say
+# which. `*.tpr` and `*.tnr` say which half; they do not say where IN the half. The positives are
+# drawn from ACTIVATION BANDS, so a recall per band does: it separates "the description misses this
+# feature's weak activations" from "it misses the feature".
+#
+# THE BAND SCHEME IS THE BUILD'S, AND IT IS NOT DELPHI'S QUANTILES. `autointerp/build.BANDS` is
+# ("q0", "q1", "q2", "q3") and `build.band_of` puts a window in `q = ceil(max_act / peak * 4) - 1`
+# clamped to 0..3 -- EQUAL-WIDTH bins of (0, peak], q0 the lowest quarter of the feature's own
+# activation range and q3 the highest. The bins are per-feature and are therefore NOT comparable
+# across features with different peaks; `autointerp/bands.py` reports a relative-activation cut
+# beside them for exactly that reason and the caveat is inherited here, unrelabelled. A FIFTH
+# label, `top`, appears on positives: `build.draw_test`'s fallback tier of top-ranked windows
+# beyond the ones any arm shows, taken when the four bands cannot fill the quota (126 features and
+# 385 positives on the 512-feature run). It gets its own cell rather than being folded into `q3`,
+# whose bin it was not drawn from. EVERY NEGATIVE carries the band "-": one foil band holding both
+# halves of the negative side (near-miss and zero-activation), which is what the specificity cell
+# below is over.
+#
+# WHY THIS IS A JOIN AND NOT A COLUMN. `scores.jsonl` carries one TPR per (feature, arm) and no
+# band at all. The band of an ITEM is written by the BUILD (`<build>/<feature>.jsonl`, its `test`
+# and `test2` rows) and the item's ANSWER by the SCORER (`runs/<run>/<scorer>/batches.jsonl`); the
+# two join on the item's index within its draw. Neither file is in the small summary set the
+# paper's pull script may fetch -- about 50 MB of build rows and 10 MB of answers per scorer at 512
+# features -- so this is behind `--bands` and is OFF by default, and a `--cells` write without it
+# says so rather than leaving stale rows looking fresh.
+
+# The build's band label -> the `<stratum>` slot of the cells key. `b0` is the foil band, so the
+# four equal-width bins are `b1..b4` LOWEST FIRST -- the spelling the writing plan §2 and the
+# seeded placeholder rows already use (`ai.l131k.<arm>.tpr.b1..b4`).
+BAND_SLOT = {"q0": "b1", "q1": "b2", "q2": "b3", "q3": "b4", "top": "btop"}
+FOIL_BAND = "-"
+FOIL_SLOT = "b0"
+BAND_ORDER = (*BAND_SLOT.values(), FOIL_SLOT)
+# (scorer, half) -> the `<metric>` slot. UNQUALIFIED `tpr` / `tnr` ARE DETECTION'S, because that is
+# what the existing `ai.*.tpr` and `ai.*.tnr` rows already mean; fuzzing's carry the scorer in the
+# slot rather than reusing a spelling that is spoken for.
+BAND_METRIC_SLOT = {("detection", "tpr"): "tpr", ("detection", "tnr"): "tnr",
+                    ("fuzzing", "tpr"): "fuzztpr", ("fuzzing", "tnr"): "fuzztnr"}
+# What each band cell IS, in the row's own `note` -- because `b3` on its own is unreadable and the
+# equal-width caveat has to travel with the number rather than living only in this file.
+BAND_NOTE = {
+    "b1": "recall on activation band q0, the LOWEST of the build's four equal-width bins of "
+          "(0, corpus peak] -- bins are per-feature and not comparable across features",
+    "b2": "recall on activation band q1, the second of the build's four equal-width bins of "
+          "(0, corpus peak] -- bins are per-feature and not comparable across features",
+    "b3": "recall on activation band q2, the third of the build's four equal-width bins of "
+          "(0, corpus peak] -- bins are per-feature and not comparable across features",
+    "b4": "recall on activation band q3, the HIGHEST of the build's four equal-width bins of "
+          "(0, corpus peak] -- bins are per-feature and not comparable across features",
+    "btop": "recall on the top-beyond-shown fallback tier, which is NOT one of the four bins: "
+            "the positives drawn when the bands could not fill the quota",
+    "b0": "specificity on the foil band: every non-activating item, near-miss and "
+          "zero-activation together, which is the whole negative side",
+}
+
+
+def resolve_build(vol: R.Vol, run_dir: str, override: str = "") -> tuple[str, str]:
+    """(the build directory this run scored, volume-relative, "" or why it did not resolve).
+
+    The RUN'S OWN RECORD and not a guess: `run.py` puts `build: <absolute path>` in the summary
+    directory's `## Inputs` block (`autointerp/run.py:1515`), and nothing in `summary/*.json`
+    carries it -- `build.json` is the build's manifest and does not name its own directory. The
+    NLA arms' rendered examples come from a second build, but their TEST ITEMS do not: `run.py`
+    lifts only the arms whose examples are all rollouts and scores every arm on this build's items
+    (the summary README states it), so one build directory joins the whole run.
+    """
+    if override:
+        return override.strip("/"), ""
+    rel = f"runs/{run_dir}/summary/README.md"
+    p = vol.get(rel)
+    if p is None:
+        return "", f"`{rel}` is not there, so the build directory this run scored is unknown"
+    for ln in Path(p).read_text().splitlines():
+        m = re.match(r"^- build:\s*(\S+)\s*$", ln)
+        if not m:
+            continue
+        # `/vol` is the MOUNT POINT inside the container; a reader's paths are volume-relative and
+        # may sit under a `--root` prefix, which is stripped too so that both spellings resolve.
+        out = m.group(1).removeprefix("/vol/").strip("/")
+        if vol.prefix and out.startswith(f"{vol.prefix}/"):
+            out = out[len(vol.prefix) + 1:]
+        return out, ""
+    return "", (f"`{rel}` carries no `- build:` line, so the build directory is unknown; name it "
+                f"with `--bands-build`")
+
+
+def load_band_index(vol: R.Vol, build_rel: str, feats: list[int]) -> tuple[dict, list[int]]:
+    """({feature: {draw tag: {item index: (label, band)}}}, the features whose rows are absent).
+
+    ONE FETCH PER FEATURE, because that is how the build writes them and `Vol` has no directory
+    fetch. A mirrored file costs a stat; an unmirrored build is ~50 MB over 512 calls, which is why
+    the caller prints the one-shot `modal volume get` for the whole directory rather than letting
+    this loop be how anyone first downloads it.
+    """
+    idx: dict[int, dict[str, dict[int, tuple[int, str]]]] = {}
+    absent: list[int] = []
+    for feat in feats:
+        p = vol.get(f"{build_rel}/{feat}.jsonl")
+        if p is None:
+            absent.append(feat)
+            continue
+        per: dict[str, dict[int, tuple[int, str]]] = {}
+        for r in R.read_jsonl(p):
+            kind = str(r.get("kind") or "")
+            if kind in ("test", "test2"):
+                per.setdefault(kind, {})[int(r["i"])] = (int(r["label"]), str(r.get("band") or "?"))
+        idx[feat] = per
+    return idx, absent
+
+
+def band_rows(vol: R.Vol, runs: dict[str, str], by_cell: dict[tuple[Arm, str], dict[int, dict]],
+              scorers: list[str], boot: int, seed: int,
+              build_override: str = "") -> tuple[list[dict], dict, list[str]]:
+    """(one row per (arm, scorer, band, half), the per-feature rates behind them, notes).
+
+    The rate of a (feature, arm, scorer, band) is over the items of PARSED batches only -- the same
+    set `run.rates` averages -- which is what makes the foil-band specificity REPRODUCE the `*.tnr`
+    cell read straight off `scores.jsonl` instead of being a second, differently filtered number.
+    That agreement is the join's own check and is asserted in the selftest. A feature with no item
+    in a band has no rate there and is DROPPED from that cell, never counted as a zero: the bands
+    are equal-width, so a feature whose activations never reach the top bin genuinely has nothing
+    to be recalled there.
+
+    The estimator is the file's own: a percentile bootstrap over FEATURES at the same resample
+    count and seed as every other interval here, so a per-band cell and a headline cell are
+    comparable widths rather than two methods wearing one table.
+    """
+    rows: list[dict] = []
+    per_feature: dict[tuple, dict[int, float]] = {}
+    notes: list[str] = []
+    for label, run_dir in runs.items():
+        build_rel, why = resolve_build(vol, run_dir, build_override)
+        if why:
+            notes.append(f"no per-band cells for `{label}`: {why}")
+            continue
+        feats = sorted({f for (k, _sc), cell in by_cell.items() if k.run == label for f in cell})
+        if not feats:
+            notes.append(f"no per-band cells for `{label}`: it contributed no score row")
+            continue
+        local = sum(1 for f in feats if (vol.local / build_rel / f"{f}.jsonl").exists())
+        if local < len(feats) and not vol.offline:
+            remote = f"{vol.prefix}/{build_rel}" if vol.prefix else build_rel
+            print(f"[autointerp] `{label}`: {len(feats) - local} of {len(feats)} build row files "
+                  f"are not in the mirror and are fetched ONE AT A TIME; "
+                  f"`modal volume get {R.VOLUME} /{remote} {vol.local / build_rel}` fetches the "
+                  f"directory in a single call", flush=True)
+        idx, absent = load_band_index(vol, build_rel, feats)
+        if absent:
+            notes.append(f"`{label}`: {len(absent)} of {len(feats)} build row files are not under "
+                         f"`{build_rel}` ({', '.join(str(f) for f in absent[:5])}): their features "
+                         f"carry no per-band cell")
+        if not any(idx.values()):
+            notes.append(f"no per-band cells for `{label}`: no `test` row under `{build_rel}`")
+            continue
+        for scorer in scorers:
+            rel = f"runs/{run_dir}/{scorer}/batches.jsonl"
+            batches = vol.jsonl(rel)
+            if batches is None:
+                notes.append(f"no per-band cells for `{label}`/{scorer}: `{rel}` is not there, so "
+                             f"there are no per-ITEM answers to band")
+                continue
+            # {(arm, band label, half): {feature: [n correct, n items]}}
+            acc: dict[tuple[str, str, str], dict[int, list[int]]] = {}
+            n_unparsed = n_unbanded = n_unjoined = 0
+            for b in batches:
+                if not b.get("parsed"):
+                    n_unparsed += 1  # an unparsed batch is dropped everywhere else too
+                    continue
+                arm, feat = str(b["arm"]), int(b["feature"])
+                row = (by_cell.get((Arm(label, arm), scorer)) or {}).get(feat)
+                # WHICH DRAW, from the run's own record rather than from the arm's name:
+                # `scores.jsonl` carries `draw` per (feature, arm, scorer), while the `-draw2`
+                # suffix is a naming convention a future null arm need not follow.
+                draw = "test2" if int((row or {}).get("draw") or 1) == 2 else "test"
+                items = (idx.get(feat) or {}).get(draw) or {}
+                for i, lab, pred in zip(b["items"], b["labels"], b["preds"], strict=True):
+                    hit = items.get(int(i))
+                    if hit is None:
+                        n_unjoined += 1
+                        continue
+                    blab, band = hit
+                    assert blab == int(lab), (
+                        f"item {i} of feature {feat} is label {lab} in `{rel}` and label {blab} "
+                        f"in `{build_rel}/{feat}.jsonl`: the build being joined is NOT the one "
+                        f"this run scored, and every band below would be another item's")
+                    if int(lab) == 1:
+                        if band not in BAND_SLOT:
+                            n_unbanded += 1
+                            continue
+                        half, ok = "tpr", int(pred) == 1
+                    else:
+                        band, half, ok = FOIL_BAND, "tnr", int(pred) == 0
+                    tally = acc.setdefault((arm, band, half), {}).setdefault(feat, [0, 0])
+                    tally[1] += 1
+                    tally[0] += int(ok)
+            for (arm, band, half), by_feat in acc.items():
+                slot = FOIL_SLOT if band == FOIL_BAND else BAND_SLOT[band]
+                # BY FEATURE ID, not in the order the batches happened to arrive. `boot_ci` draws
+                # its resample indices from one seed so that two arms' intervals on the same
+                # features are the same resamples rather than two independent draws, and that
+                # property is a property of the ORDER: the same multiset in another order is a
+                # different (equally valid, ~0.002 apart at 2000 resamples) interval. The headline
+                # cells get the ordering for free from `scores.jsonl`, which is grouped by feature
+                # across arms; `batches.jsonl` is grouped by job, so it is imposed here.
+                vals = {f: k / n for f, (k, n) in sorted(by_feat.items()) if n}
+                mean, lo, hi = boot_ci(vals.values(), boot, seed)
+                key = Arm(label, arm)
+                rows.append({
+                    "run": label, "arm": key.label, "arm_name": arm, "scorer": scorer,
+                    "band": slot, "band_name": band, "half": half,
+                    "mean": mean, "lo": lo, "hi": hi,
+                    "n_features": len(vals), "n_items": sum(n for _k, n in by_feat.values()),
+                    "run_dir": run_dir, "build_dir": build_rel,
+                })
+                per_feature[(key.label, scorer, slot, half)] = vals
+            notes.append(
+                f"`{label}`/{scorer} per-band join against `{build_rel}`: {len(batches)} batches, "
+                f"{n_unparsed} unparsed dropped, {n_unjoined} items with no build row, "
+                f"{n_unbanded} positives in a band outside {sorted(BAND_SLOT)}")
+    rows.sort(key=lambda r: (r["run"], r["arm_name"], r["scorer"], r["half"],
+                             BAND_ORDER.index(r["band"])))
+    return rows, per_feature, notes
+
+
+# ---------------------------------------------------------------------------------------------
 # checks -- both of them can go red, and the selftest proves it
 # ---------------------------------------------------------------------------------------------
 
@@ -781,7 +1017,8 @@ def pairing_check(contrast: dict, ref_label: str) -> dict:
 
 def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, seed: int,
             strata: bool, peak_strata: bool = True,
-            vs_runs: dict[str, str] | None = None, vs_label: str = "") -> dict:
+            vs_runs: dict[str, str] | None = None, vs_label: str = "",
+            bands: bool = False, band_build: str = "") -> dict:
     """Everything the tables and figures are built from. Never raises on a missing run directory."""
     assert runs, (
         "at least one `--run <label>=<run_dir>` is required: eval 2's arms live in one run "
@@ -971,6 +1208,14 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
             })
     versus.sort(key=lambda x: (order.get(x["run"], 99), x["arm_name"], x["scorer"]))
 
+    # --- per activation band: the build x scorer per-ITEM join, opt-in because it is bulk -------
+    band_rs: list[dict] = []
+    band_pf: dict[tuple, dict[int, float]] = {}
+    if bands:
+        band_rs, band_pf, band_notes = band_rows(vol, runs, by_cell, scorers, boot, seed,
+                                                 band_build)
+        notes += band_notes
+
     record, record_absent = draw_record(vol, builds)
     notes += record_absent
 
@@ -979,6 +1224,11 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
         "arms": arms, "scorers": scorers, "colours": colours, "ref": ref_key,
         "cells": cells, "contrasts": contrasts, "strata": strat_rows, "checks": checks,
         "peak_strata": peak_rows, "peak_cuts": peak_cuts, "trends": trends, "record": record,
+        # Per activation band, and the per-feature rates behind them keyed
+        # (arm label, scorer, band slot, half) -- exposed for the SAME reason `per_feature` is:
+        # `cells.csv` wants two paired contrasts with DIFFERENT references, which two means cannot
+        # reconstruct. Empty unless `--bands` was given.
+        "bands": band_rs, "band_per_feature": band_pf,
         "versus": versus, "vs_runs": vs_runs or {}, "vs_label": vs_label,
         "n_features": len({int(r["feature"]) for r in rows}),
         # The per-feature values behind every cell, keyed (arm label, scorer). Exposed because
@@ -1863,12 +2113,50 @@ def cells_rows(res: dict, *, set_slot: str, run_id: str, status: str, date: str,
         add(f"ai.{set_slot}.{slot}.det.q{int(st['stratum']) + 1}", _cell_num(st["mean"]),
             lo=_cell_num(st["lo"]), hi=_cell_num(st["hi"]), n=st["n"],
             note=f"{chance}; rarity quartile {int(st['stratum']) + 1} of the draw, rarest first")
-    # WHAT THIS DRIVER CANNOT WRITE, stated rather than left as an empty row someone assumes is
-    # broken: the per-activation-band TPR keys (`...tpr.b1..b4`). `scores.jsonl` carries one TPR
-    # per (feature, arm) and the band of an ITEM lives in the build's per-feature jsonl, so those
-    # cells need a join over the build products that nothing here fetches.
-    gaps.append("per-band TPR keys `ai.<set>.<arm>.tpr.b1..b4` are NOT written: the band lives on "
-                "the build's test rows, not on scores.jsonl; they need a build-product join")
+    # Per ACTIVATION band (`--bands`): recall on each band of positives and specificity on the
+    # foil band, from the build x scorer per-item join. The stratum slot is `b1..b4` for the four
+    # equal-width bins lowest first, `btop` for the fallback tier and `b0` for the foils; the
+    # metric slot keeps `tpr`/`tnr` for DETECTION, as the existing rows do, and spells fuzzing out.
+    band_here = [br for br in (res.get("bands") or []) if br["run"] == run_label]
+    for br in band_here:
+        slot = CELL_ARM_SLOT.get(br["arm_name"])
+        mslot = BAND_METRIC_SLOT.get((br["scorer"], br["half"]))
+        if slot is None or mslot is None:
+            gaps.append(f"arm {br['arm_name']!r} / scorer {br['scorer']!r} has no per-band cells "
+                        f"key slot and band {br['band']} was not written")
+            continue
+        add(f"ai.{set_slot}.{slot}.{mslot}.{br['band']}", _cell_num(br["mean"]),
+            lo=_cell_num(br["lo"]), hi=_cell_num(br["hi"]), n=br["n_features"],
+            note=f"{chance}; {br['scorer']} {BAND_NOTE[br['band']]}; {br['n_items']} items over "
+                 f"{br['n_features']} features; band from {br['build_dir']}")
+    # The SAME two paired contrasts, per band, on the intersection of the two arms' features that
+    # have a rate in that band. Not recoverable from two means, which is why the per-feature rates
+    # come out of `analyse` beside the cells.
+    bpf = res.get("band_per_feature") or {}
+    combos = sorted({(br["scorer"], br["half"], br["band"]) for br in band_here},
+                    key=lambda c: (c[0], c[1], BAND_ORDER.index(c[2])))
+    for slot, a_slot, b_slot in CELL_CONTRASTS:
+        for scorer, half, band in combos:
+            a_lab, b_lab = by_slot.get(a_slot), by_slot.get(b_slot)
+            va = bpf.get((a_lab, scorer, band, half)) if a_lab else None
+            vb = bpf.get((b_lab, scorer, band, half)) if b_lab else None
+            if not va or not vb:
+                gaps.append(f"per-band contrast {a_slot} - {b_slot} ({scorer}, {band}) is not in "
+                            f"this run: ai.{set_slot}.{slot}.*.{band} not written")
+                continue
+            pd = paired_diff(va, vb)
+            m, lo, hi = boot_ci(pd["d"], res.get("boot") or R.N_BOOT, res.get("seed") or R.BOOT_SEED)
+            add(f"ai.{set_slot}.{slot}.{BAND_METRIC_SLOT[(scorer, half)]}.{band}", _cell_num(m),
+                lo=_cell_num(lo), hi=_cell_num(hi), n=pd["n_paired"],
+                note=f"paired {a_lab} - {b_lab}; {chance}; {scorer} {BAND_NOTE[band]}; percentile "
+                     f"bootstrap over features; intersection of {pd['n_a']} and {pd['n_b']}")
+    if not band_here:
+        # STATED rather than left as rows someone assumes are current: without `--bands` this
+        # invocation computed no per-band number, so any `...tpr.b*` row already in the file is
+        # from an EARLIER invocation, possibly of another run, and this write did not refresh it.
+        gaps.append("per-band rows (`ai.<set>.<arm>.tpr.b1..b4`, `.tpr.btop`, `.tnr.b0` and their "
+                    "fuzzing twins) were NOT computed here: rerun with `--bands`. Any such row "
+                    "already in cells.csv is from an earlier invocation and was not refreshed")
     return rows, gaps
 
 
@@ -1939,6 +2227,14 @@ def main(
     boot: Annotated[int, typer.Option(help="bootstrap resamples over features")] = R.N_BOOT,
     seed: Annotated[int, typer.Option(help="bootstrap seed")] = R.BOOT_SEED,
     figures: Annotated[bool, typer.Option(help="write figures/ (PDF + PNG)")] = True,
+    bands: Annotated[bool, typer.Option(
+        help="per-ACTIVATION-BAND recall and foil specificity: joins the build's per-item bands "
+             "against the scorers' per-item answers. OFF by default because it is the only thing "
+             "here that fetches bulk products (~50 MB of build rows plus ~10 MB per scorer for a "
+             "512-feature run), and `--cells` says loudly when it was not run.")] = False,
+    bands_build: Annotated[str, typer.Option(
+        help="volume-relative build directory to band against; the default is the `- build:` "
+             "line of the run's own summary README, which is the run's own record of it")] = "",
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
     cells: Annotated[Path | None, typer.Option(
         help="paper/numbers/cells.csv: rewrite this run's `ai.*` rows in place and append the "
@@ -1964,7 +2260,8 @@ def main(
         f"--vs label(s) {unknown} have no --run counterpart ({', '.join(runs) or 'none'}): the "
         f"second build is paired against the first BY LABEL, so a label that names no base run "
         f"has nothing to be differenced against")
-    res = analyse(vol, runs, sae, ref, boot, seed, strata, peak_strata, vs_runs, vs_label)
+    res = analyse(vol, runs, sae, ref, boot, seed, strata, peak_strata, vs_runs, vs_label,
+                  bands, bands_build)
     # One block per SAE: the driver is invoked once per SAE and must not overwrite the other's
     # tables, so the slug comes from the SAE key (or `--label`) and never from the output root.
     slug = (sae or label or "autointerp").replace("/", "_")
@@ -1983,6 +2280,9 @@ def main(
            + ", ".join(f"`{k}` = `{v}`" for k, v in vs_runs.items())] if vs_runs else []),
         f"- reference arm: `{res['ref'].label if res['ref'] else '(unresolved)'}`",
         f"- intervals: percentile bootstrap over FEATURES, {boot} resamples, seed {seed}",
+        *(["- per-activation-band cells joined against build(s) "
+           + ", ".join(sorted({f"`{b['build_dir']}`" for b in res["bands"]}))] if res["bands"]
+          else []),
     ]
     o = R.Out(out_dir, f"Eval 2 — SAE autointerp on `{label or sae or 'autointerp'}`", preamble)
     path = render(res, o, sanity, figs)
@@ -1996,6 +2296,7 @@ def main(
             "boot": boot, "seed": seed, "alpha": ALPHA,
             "arms": [a.label for a in res["arms"]], "scorers": res["scorers"],
             "cells": res["cells"], "contrasts": res["contrasts"], "strata": res["strata"],
+            "bands": res["bands"],
             "peak_strata": res["peak_strata"], "peak_cuts": res["peak_cuts"],
             "trends": res["trends"], "draw_record": res["record"], "min_cell": MIN_CELL,
             "versus": res["versus"], "vs_runs": vs_runs, "vs_label": vs_label,

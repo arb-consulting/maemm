@@ -2412,6 +2412,301 @@ def check_autointerp_cuts_catch_a_defect():
         t = _trend(res, "stratum", "cut/RARE", "detection")
         _close(t["spread"], 0.0, 1e-12, what="every stratum now holds two of the eight high values")
         assert t["p_perm"] == 1.0, t
+# --- eval 2: the per-ACTIVATION-BAND fixture, four features and every item written out ----------
+#
+# A THIRD autointerp fixture, and a small one, because the band numbers are the only ones in this
+# driver that come from a JOIN: the band of an item is the BUILD's (`<build>/<feature>.jsonl`) and
+# the answer is the SCORER's (`runs/<run>/<scorer>/batches.jsonl`), and the two meet on the item's
+# index within its draw. Nothing about that join is visible in `scores.jsonl`, so it needs items
+# written out one by one rather than accuracies dealt from a table.
+#
+# What it carries, deliberately:
+#
+#   * feature 303 has NO q0 positive, so `b1` is a three-feature cell while its neighbours are
+#     four-feature ones -- a feature with no item in a band must be DROPPED from that band, not
+#     counted as a zero, and the two conventions differ by a third of the cell here;
+#   * ONE UNPARSED batch (feature 302's positives, arm `M`, detection), so the drop that every
+#     other number in this driver makes is made here too and `M`'s `b1` falls to two features;
+#   * a `C16-draw2` arm on DRAW 2, whose test2 rows are in the OPPOSITE band order, so a driver
+#     that read the `test` rows for it would report `b1 = 1.0` where the answer is 0.0;
+#   * the foil band, which is the WHOLE negative side, so its specificity must equal the `*.tnr`
+#     cell read straight off `scores.jsonl` -- the join's own end-to-end check, and the one that
+#     caught nothing on the fixture but validated the 512-feature run against its own summary.
+AI_BAND_RUNS = {"bandrun": "2026-09-22_autointerp-bands"}
+AI_BAND_BASE, AI_BAND_SET = "B", "S5"
+AI_BAND_BUILD = f"base/{AI_BAND_BASE}/autointerp/{AI_BAND_SET}/2026-09-22_bands-build"
+AI_BAND_FEATS = [300, 301, 302, 303]
+# The test draws, as `build.draw_test` writes them: `i` is the index WITHIN the draw, `band` is the
+# build's own label ("-" on every negative), and draw 2 is deliberately not draw 1 re-ordered.
+AI_BAND_ITEMS = {
+    "test": {f: ["q0", "q1", "q2", "q3", "top", "-", "-"] for f in (300, 301, 302)},
+    "test2": {f: ["q3", "q0", "-"] for f in AI_BAND_FEATS},
+}
+AI_BAND_ITEMS["test"][303] = ["q1", "q2", "q3", "top", "-", "-"]
+# The batches each (feature, arm, scorer) was scored in, as item INDEX lists. Two per feature, so
+# a batch can go unparsed without taking the whole feature with it.
+AI_BAND_BATCHES = {f: [list(range(4)), list(range(4, len(AI_BAND_ITEMS["test"][f])))]
+                   for f in AI_BAND_FEATS}
+# Detection predictions, per arm, per feature, BY BAND -- 1 is "activating", and a foil is listed
+# by the prediction the judge made on it, in the order the two foils appear.
+AI_BAND_DET = {
+    "DOCMAX": {
+        300: {"q0": 1, "q1": 1, "q2": 1, "q3": 1, "top": 1, "-": [0, 0]},
+        301: {"q0": 1, "q1": 1, "q2": 1, "q3": 1, "top": 0, "-": [1, 0]},
+        302: {"q0": 0, "q1": 1, "q2": 1, "q3": 1, "top": 0, "-": [0, 0]},
+        303: {"q1": 0, "q2": 1, "q3": 1, "top": 0, "-": [0, 0]},
+    },
+    "M": {
+        300: {"q0": 0, "q1": 0, "q2": 1, "q3": 1, "top": 0, "-": [0, 0]},
+        301: {"q0": 0, "q1": 0, "q2": 1, "q3": 1, "top": 0, "-": [0, 0]},
+        302: {"q0": 0, "q1": 1, "q2": 1, "q3": 1, "top": 0, "-": [0, 0]},
+        303: {"q1": 0, "q2": 0, "q3": 1, "top": 0, "-": [0, 0]},
+    },
+    "C16-draw2": {f: {"q3": 1, "q0": 0, "-": [0]} for f in AI_BAND_FEATS},
+}
+# Fuzzing is answered perfectly by every arm: it exists here to prove the fuzzing cells take the
+# `fuzztpr` / `fuzztnr` metric slot rather than overwriting detection's `tpr` / `tnr`.
+AI_BAND_UNPARSED = {("M", "detection", 302, 0)}
+# What `scores.jsonl` says about the same answers, computed from the items above by hand and
+# written as LITERALS -- so the foil-band cell agreeing with `tnr` is two numbers agreeing, not one
+# number compared with itself. (feature -> (tpr, tnr, bal_acc)); None is `run._nr`'s null.
+AI_BAND_SCORES = {
+    ("DOCMAX", "detection"): {300: (1.0, 1.0, 1.0), 301: (0.8, 0.5, 0.65),
+                              302: (0.6, 1.0, 0.8), 303: (0.5, 1.0, 0.75)},
+    ("M", "detection"): {300: (0.4, 1.0, 0.7), 301: (0.4, 1.0, 0.7),
+                         302: (0.0, 1.0, 0.5), 303: (0.25, 1.0, 0.625)},
+    ("C16-draw2", "detection"): {f: (0.5, 1.0, 0.75) for f in AI_BAND_FEATS},
+    ("DOCMAX", "fuzzing"): {f: (1.0, 1.0, 1.0) for f in AI_BAND_FEATS},
+    ("M", "fuzzing"): {f: (1.0, 1.0, 1.0) for f in AI_BAND_FEATS},
+    ("C16-draw2", "fuzzing"): {f: (1.0, 1.0, 1.0) for f in AI_BAND_FEATS},
+}
+AI_BAND_DRAW = {"C16-draw2": 2}
+
+
+def _band_pred(arm: str, scorer: str, feat: int, draw: str, i: int) -> tuple[int, int]:
+    """(the item's label, the judge's prediction) for one item of one (arm, scorer, feature)."""
+    band = AI_BAND_ITEMS[draw][feat][i]
+    label = 0 if band == "-" else 1
+    if scorer == "fuzzing":
+        return label, label          # every arm answers fuzzing perfectly
+    spec = AI_BAND_DET[arm][feat]
+    if band == "-":
+        n_before = sum(1 for b in AI_BAND_ITEMS[draw][feat][:i] if b == "-")
+        return 0, int(spec["-"][n_before])
+    return 1, int(spec[band])
+
+
+def write_autointerp_bands(root: Path) -> None:
+    """The synthetic mirror: a build directory of per-feature rows, and a run of per-item answers."""
+    run_dir = AI_BAND_RUNS["bandrun"]
+    b = root / AI_BAND_BUILD
+    b.mkdir(parents=True, exist_ok=True)
+    for feat in AI_BAND_FEATS:
+        rows = [{"kind": "meta", "feature": feat, "stratum": 0, "corpus_peak": 8.0}]
+        for draw, per_feat in AI_BAND_ITEMS.items():
+            for i, band in enumerate(per_feat.get(feat, [])):
+                rows.append({"kind": draw, "i": i, "label": 0 if band == "-" else 1,
+                             "band": band, "src": "random" if band == "-" else "corpus",
+                             "window": 1000 * feat + i, "doc": 7000 + i, "max_act": 3.0})
+        with open(b / f"{feat}.jsonl", "w") as fh:
+            for r in rows:
+                fh.write(json.dumps(r) + "\n")
+    (b / "build.json").write_text(json.dumps({"base": AI_BAND_BASE, "set": AI_BAND_SET}))
+
+    s = root / f"runs/{run_dir}/summary"
+    s.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for (arm, scorer), per_feat in AI_BAND_SCORES.items():
+        for feat, (tpr, tnr, bal) in per_feat.items():
+            rows.append({
+                "feature": feat, "arm": arm, "scorer": scorer,
+                "bal_acc": bal, "tpr": tpr, "tnr": tnr,
+                "bal_acc_zero_neg": bal, "tnr_zero": tnr,
+                "bal_acc_nearmiss_neg": bal, "tnr_nearmiss": tnr,
+                "acc": bal, "n_items": 7, "n_batches": 2,
+                "n_parsed": 1 if (arm, scorer, feat, 0) in AI_BAND_UNPARSED else 2,
+                "n_pos": 5, "n_neg_nearmiss": 1,
+                "draw": AI_BAND_DRAW.get(arm, 1), "role": "arm", "n_examples": 16,
+                "explanation_ok": True, "explanation_of": feat, "path": "sync", "gate": 2.0,
+                "stratum": 0, "fire_fraction": 0.25, "corpus_peak": 8.0, "density": -4.0,
+            })
+    with open(s / "scores.jsonl", "w") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    (s / "build.json").write_text(json.dumps(
+        {"base": AI_BAND_BASE, "set": AI_BAND_SET, "sae": AI_SAE, "mark": "gate"}))
+    # The run's own record of WHICH BUILD it scored, in `C.outdir`'s `## Inputs` layout. This line
+    # is the only place it exists -- `build.json` is the build's manifest and does not name its own
+    # directory -- so `resolve_build` reads it here exactly as it does on the volume.
+    (s / "README.md").write_text(
+        "# summary\n\n- date: 2026-09-22 00:00:00Z\n- status: ok\n\n## Inputs\n\n"
+        f"- build: /vol/{AI_BAND_BUILD}\n- features: 4 of 4\n- model: claude-sonnet-5\n")
+
+    for scorer in ("detection", "fuzzing"):
+        d = root / f"runs/{run_dir}/{scorer}"
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "batches.jsonl", "w") as fh:
+            for arm in AI_BAND_DET:
+                draw = "test2" if AI_BAND_DRAW.get(arm, 1) == 2 else "test"
+                for feat in AI_BAND_FEATS:
+                    idxs = (AI_BAND_BATCHES[feat] if draw == "test"
+                            else [list(range(len(AI_BAND_ITEMS["test2"][feat])))])
+                    for n, items in enumerate(idxs):
+                        pairs = [_band_pred(arm, scorer, feat, draw, i) for i in items]
+                        fh.write(json.dumps({
+                            "feature": feat, "arm": arm, "batch": n, "items": items,
+                            "labels": [p[0] for p in pairs], "preds": [p[1] for p in pairs],
+                            "parsed": (arm, scorer, feat, n) not in AI_BAND_UNPARSED,
+                            "usage": {"in": 10, "out": 1},
+                        }) + "\n")
+
+
+def _band_analyse(root: Path, **kw):
+    vol = R.Vol("", root, offline=True, quiet=True)
+    opts = {"runs": dict(AI_BAND_RUNS), "sae": AI_SAE, "ref": "DOCMAX", "boot": 2000, "seed": 1,
+            "strata": True, "peak_strata": False, "vs_runs": None, "vs_label": "",
+            "bands": True, "band_build": ""}
+    opts.update(kw)
+    return vol, A.analyse(vol, opts["runs"], opts["sae"], opts["ref"], opts["boot"], opts["seed"],
+                          opts["strata"], opts["peak_strata"], opts["vs_runs"], opts["vs_label"],
+                          opts["bands"], opts["band_build"])
+
+
+def _band(res, arm: str, band: str, scorer: str = "detection", half: str = "tpr") -> dict:
+    hits = [b for b in res["bands"] if b["arm"] == arm and b["band"] == band
+            and b["scorer"] == scorer and b["half"] == half]
+    assert len(hits) == 1, (arm, band, scorer, half,
+                            [(b["arm"], b["band"], b["scorer"], b["half"]) for b in res["bands"]])
+    return hits[0]
+
+
+def check_autointerp_band_recall():
+    """Per-band recall and foil specificity, every number summed by hand from the items above.
+
+    The four equal-width bins are `b1..b4` LOWEST FIRST and the foils are `b0`, which is the
+    spelling `paper/numbers/cells.csv`'s seeded rows already carry.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_bands(root)
+        _vol, res = _band_analyse(root)
+        assert res["bands"], res["notes"]
+        # DOCMAX: q0 is 2 of the 3 features that HAVE a q0 positive, and 303 is not counted as a
+        # miss for lacking one. q2 and q3 are perfect; `top` is one of four.
+        _close(_band(res, "bandrun/DOCMAX", "b1")["mean"], 2 / 3, 1e-12, what="DOCMAX q0")
+        assert _band(res, "bandrun/DOCMAX", "b1")["n_features"] == 3
+        _close(_band(res, "bandrun/DOCMAX", "b2")["mean"], 0.75, 1e-12, what="DOCMAX q1")
+        assert _band(res, "bandrun/DOCMAX", "b2")["n_features"] == 4
+        _close(_band(res, "bandrun/DOCMAX", "b3")["mean"], 1.0, 1e-12, what="DOCMAX q2")
+        _close(_band(res, "bandrun/DOCMAX", "b4")["mean"], 1.0, 1e-12, what="DOCMAX q3")
+        _close(_band(res, "bandrun/DOCMAX", "btop")["mean"], 0.25, 1e-12, what="DOCMAX top")
+        # The unparsed batch took feature 302's four positives with it and nothing else: `M`'s q0
+        # cell is two features, its `top` cell is still four.
+        _close(_band(res, "bandrun/M", "b1")["mean"], 0.0, 1e-12, what="M q0")
+        assert _band(res, "bandrun/M", "b1")["n_features"] == 2
+        _close(_band(res, "bandrun/M", "b2")["mean"], 0.0, 1e-12, what="M q1")
+        _close(_band(res, "bandrun/M", "b3")["mean"], 2 / 3, 1e-12, what="M q2")
+        _close(_band(res, "bandrun/M", "b4")["mean"], 1.0, 1e-12, what="M q3")
+        _close(_band(res, "bandrun/M", "btop")["mean"], 0.0, 1e-12, what="M top")
+        assert _band(res, "bandrun/M", "btop")["n_features"] == 4
+        # The foil band is the WHOLE negative side, so it must reproduce the `tnr` cell that was
+        # read off `scores.jsonl` -- two independently written numbers, not one compared to itself.
+        for arm in ("DOCMAX", "M"):
+            b0 = _band(res, f"bandrun/{arm}", "b0", half="tnr")
+            tnr = _ai_cell(res, f"bandrun/{arm}", "detection")["tnr"]
+            _close(b0["mean"], tnr["mean"], 1e-12, what=f"{arm} foil specificity == its TNR")
+            assert b0["n_features"] == tnr["n"], (b0, tnr)
+        _close(_band(res, "bandrun/DOCMAX", "b0", half="tnr")["mean"], 0.875, 1e-12)
+        _close(_band(res, "bandrun/M", "b0", half="tnr")["mean"], 1.0, 1e-12)
+        # DRAW 2 is read from the `test2` rows: their bands are in the opposite order, so a driver
+        # that took the `test` rows for this arm would report b1 = 1.0 and b4 = 0.0.
+        _close(_band(res, "bandrun/C16-draw2", "b1")["mean"], 0.0, 1e-12, what="draw-2 q0")
+        _close(_band(res, "bandrun/C16-draw2", "b4")["mean"], 1.0, 1e-12, what="draw-2 q3")
+        assert not [b for b in res["bands"] if b["arm"] == "bandrun/C16-draw2"
+                    and b["band"] in ("b2", "b3", "btop")]
+        # Fuzzing is answered perfectly and is its OWN set of rows, never overwriting detection's.
+        for band in ("b1", "b2", "b3", "b4", "btop"):
+            _close(_band(res, "bandrun/DOCMAX", band, scorer="fuzzing")["mean"], 1.0, 1e-12)
+        # `--bands-build` names the same directory outright and must give the same rows.
+        _vol2, res2 = _band_analyse(root, band_build=AI_BAND_BUILD)
+        assert [(b["arm"], b["band"], b["half"], b["mean"]) for b in res2["bands"]] \
+            == [(b["arm"], b["band"], b["half"], b["mean"]) for b in res["bands"]]
+        # And OFF by default: no `--bands`, no rows, and no fetch of the build products.
+        _vol3, res3 = _band_analyse(root, bands=False)
+        assert res3["bands"] == [] and res3["band_per_feature"] == {}
+
+
+def check_autointerp_band_cells_and_contrasts():
+    """The `ai.*` rows the bands produce: the key grammar, and the paired per-band differences."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_bands(root)
+        _vol, res = _band_analyse(root)
+        rows, gaps = A.cells_rows(res, set_slot="l131k", run_id="R9", status="final",
+                                  date="2026-09-22", run_label="bandrun")
+        by_key = {r["key"]: r for r in rows}
+        # The arm slot is the CELLS slot and not the arm name, on a band row as on any other.
+        assert by_key["ai.l131k.c16.tpr.b1"]["value"] == "0.667", by_key["ai.l131k.c16.tpr.b1"]
+        assert by_key["ai.l131k.c16.tpr.b1"]["n"] == 3
+        assert by_key["ai.l131k.mtop16.tpr.b4"]["value"] == "1.000"
+        assert by_key["ai.l131k.mtop16.tpr.btop"]["value"] == "0.000"
+        assert by_key["ai.l131k.null.tpr.b1"]["value"] == "0.000"    # the draw-2 arm
+        assert by_key["ai.l131k.c16.tnr.b0"]["value"] == "0.875"
+        # Detection keeps the unqualified metric slots; fuzzing spells itself out.
+        assert by_key["ai.l131k.c16.fuzztpr.b1"]["value"] == "1.000"
+        assert by_key["ai.l131k.c16.fuzztnr.b0"]["value"] == "1.000"
+        # The paired contrast, per band, on the INTERSECTION of the two arms' banded features:
+        # q0 is [0 - 1, 0 - 1] over features 300 and 301 alone, because the unparsed batch left
+        # `M` no q0 rate on 302 -- a contrast that took the two means would get 0 - 2/3.
+        d = by_key["ai.l131k.diff.tpr.b1"]
+        assert (d["value"], d["n"]) == ("-1.000", 2), d
+        assert by_key["ai.l131k.diff.tpr.b2"]["value"] == "-0.667"
+        assert by_key["ai.l131k.diff.tpr.b3"]["value"] == "-0.333"
+        assert by_key["ai.l131k.diff.tpr.b4"]["value"] == "0.000"
+        assert by_key["ai.l131k.diff.tpr.btop"]["value"] == "-0.250"
+        assert by_key["ai.l131k.diff.tnr.b0"]["value"] == "0.125"
+        assert by_key["ai.l131k.diff.tnr.b0"]["n"] == 4
+        # Every band row carries its own provenance: which build the band came from, and what the
+        # band IS -- `b3` on its own is unreadable a month later.
+        assert AI_BAND_BUILD in by_key["ai.l131k.c16.tpr.b3"]["note"]
+        assert "equal-width" in by_key["ai.l131k.c16.tpr.b3"]["note"]
+        assert "near-miss" in by_key["ai.l131k.c16.tnr.b0"]["note"]
+        # NLA is not in this run, so its contrast is a stated GAP and not a silent absence.
+        assert any("diffnla" in g and "b1" in g for g in gaps), gaps
+        assert not any(k.startswith("ai.l131k.diffnla.tpr.") for k in by_key)
+        # Without `--bands` there are no band rows at all, and the gap says the file's existing
+        # ones were not refreshed rather than letting them look current.
+        _vol2, plain = _band_analyse(root, bands=False)
+        rows2, gaps2 = A.cells_rows(plain, set_slot="l131k", run_id="R9", status="final",
+                                    date="2026-09-22", run_label="bandrun")
+        assert not [r for r in rows2 if ".tpr.b" in r["key"] or ".tnr.b0" in r["key"]]
+        assert any("rerun with `--bands`" in g for g in gaps2), gaps2
+
+
+def check_autointerp_bands_catch_a_defect():
+    """Flip ONE item's label in the build and require the join to refuse.
+
+    The build and the scorer are two products, and joining a run against the WRONG build would
+    silently report another item's band for every answer. The labels are the one field both files
+    carry, so they are compared on every item and a disagreement is an assertion, not a note.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        write_autointerp_bands(root)
+        p = root / AI_BAND_BUILD / "300.jsonl"
+        recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+        hit = next(r for r in recs if r.get("kind") == "test" and r["i"] == 0)
+        assert hit["label"] == 1 and hit["band"] == "q0", hit
+        hit["label"] = 0                      # the scorer's batch still says 1
+        p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+        try:
+            _band_analyse(root)
+        except AssertionError as e:
+            assert "is NOT the one" in str(e), str(e)
+        else:
+            raise AssertionError("a build whose labels disagree with the run was joined anyway")
+
+
 def _ood():
     """`results/ood.py` without its lazy `stats_ood` import, which needs fasttext and polars."""
     import importlib.util
@@ -4084,6 +4379,10 @@ CHECKS = [
     check_autointerp_trend_verdict,
     check_autointerp_cut_render,
     check_autointerp_cuts_catch_a_defect,
+    # eval 2's per-activation-band join -- the build's bands x the scorer's answers
+    check_autointerp_band_recall,
+    check_autointerp_band_cells_and_contrasts,
+    check_autointerp_bands_catch_a_defect,
     check_ood_scan_key,
     check_ood_arm_table,
     check_ood_bo8_headline,
