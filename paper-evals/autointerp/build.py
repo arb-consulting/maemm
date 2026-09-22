@@ -1117,7 +1117,13 @@ def run(cfg, args):
     )
     allow_top_fallback = bool(ac["allow_top_fallback"])
     engine = args.get("engine") or "vllm"
-    arm_names = [a for a in (args.get("arms") or "").split(",") if a] or list(ARM_SPECS)
+    # THE DEFAULT ARM SET IS THE RUN'S, NOT "EVERY ARM IN THE TABLE". `list(ARM_SPECS)` was the
+    # default and has been unusable since the NLA arm was added -- it puts `NLA` in front of
+    # `check_arm_maemm`, which refuses it for a MAEMM, so every caller already had to pass
+    # `--arms`. Since 2026-09-23 it would also trip the C16/DOCMAX guard below. The honest default
+    # is the arms the paper's run scores, picked by what `--maemm` actually is.
+    default_arms = list(FULL_ARMS_NLA if cfg["maemms"][maemm]["type"] == "nla" else FULL_ARMS)
+    arm_names = [a for a in (args.get("arms") or "").split(",") if a] or default_arms
     for a in arm_names:
         assert a in ARM_SPECS, f"unknown arm {a!r}, want some of {list(ARM_SPECS)}"
     # `DOCMAX` is `C16`'s selection under its 2026-09-21 name. Two labels for one identical
