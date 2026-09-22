@@ -265,6 +265,12 @@ def run(cfg, args):
 # =============================================================================================
 
 POOL_N = 320  # `_realact`'s n + 256 pool, taken at 64 targets per arm
+# ...and OVERRIDDEN per call by `--n` (`pool_n = int(args.get("n") or POOL_N)` below), which
+# is how the 512-target set of 2026-09-23 is fed: `--n 768` = 512 targets + the same 256 of
+# slack, uniformly across the arms of one call. It is a run-time argument, not a code edit and
+# not per-arm -- but an arm whose source cannot supply `pool_n` documents of >= POOL_WINDOW
+# tokens after its corpus fails the `len(pool) == pool_n` assert below, loudly and on CPU,
+# BEFORE the output directory is opened, so a short arm costs nothing and destroys nothing.
 POOL_WINDOW = 512  # the realact window; a pool document must have at least this many tokens
 PROBE_ROWS = 256  # rows tokenized to estimate tokens/row before the first block is chosen
 BLOCK_SLACK = 1.35  # how much more than the estimate a block asks for, so one pass usually suffices
