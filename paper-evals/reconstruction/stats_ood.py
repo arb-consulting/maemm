@@ -383,7 +383,7 @@ def lid_label(model, text: str) -> tuple[str, float]:
 
 # `(.+)$` and NOT `(\S+)$`: `score` writes ONE `- rollouts:` line naming EVERY file it read, and a
 # product `--rows` split into chunks names all of them, comma-separated. The end-anchored
-# non-space group matched nothing at all on such a line, so `rollouts_rel_from_readme` returned
+# non-space group matched nothing at all on such a line, so `rollouts_rels_from_readme` returned
 # None and the R3 language-id column went silently empty on every chunked product -- the exact
 # failure this rule was extracted to prevent, arriving through a shape it did not know about
 # (M5 full-scale run, 2026-09-23: 22 chunks, `lid` never ran).

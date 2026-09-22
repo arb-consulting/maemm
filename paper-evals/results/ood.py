@@ -353,7 +353,7 @@ def load_ood_ids(vol: R.Vol, base: str, set_name: str) -> list[dict]:
 BO64 = {"asym": "bo_a_64", "centred": "bo_c_64", "raw": "bo_64"}
 
 
-# `rollouts_rel_of` MOVED to `reconstruction/stats_ood.rollouts_rel_from_readme` on 2026-09-22.
+# `rollouts_rel_of` MOVED to `reconstruction/stats_ood.rollouts_rels_from_readme` on 2026-09-22.
 # `stats_ood.rollout_texts` still rebuilt the rollouts path from its `--stem` and so still had the
 # defect this half was fixed for in 11b7cd0; one rule, in the layer both readers already import.
 

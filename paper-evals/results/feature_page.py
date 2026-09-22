@@ -35,7 +35,7 @@ blocks are in the BUILD directory (`base/<base>/autointerp/<set>/<name>_build/<f
 `autointerp/build.py:1409`), which is a different product written by a different stage. The run
 records which build it read in its own README (`autointerp/run.py:1450`, `- build: <path>`), so the
 build directory is READ OFF THAT README and not rebuilt from the run's name -- the same rule, and
-for the same reason, as `reconstruction/stats_ood.rollouts_rel_from_readme` (a product's directory
+for the same reason, as `reconstruction/stats_ood.rollouts_rels_from_readme` (a product's directory
 name does not determine the product it read). `--build <label>=<rel>` overrides it for a run whose
 README does not carry the line.
 
@@ -89,7 +89,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 # as `- <key>: <value>`, `precompute/common.py:2766-2768`; `run.py:1450` puts `build` in them).
 BUILD_RE = re.compile(r"^- build: (\S+)$", re.M)
 # A volume path in a README can be written container-side (`/vol/...`); the readers here are
-# volume-relative. Same normalisation as `stats_ood.rollouts_rel_from_readme:338-341`.
+# volume-relative. Same normalisation as `stats_ood.rollouts_rels_from_readme:338-341`.
 VOL_PREFIXES = ("/vol/", "vol/", "/")
 
 # The two scorers, in the order they are printed. Read from the rows, not asserted: a run that
@@ -154,7 +154,7 @@ def build_rel_from_readme(vol: R.Vol, run_dir: str) -> str | None:
 
     Not rebuilt from the run's name: `--build-dir` names the build independently of the run tag
     (`build.py:1104`, `run.py:935`), so two runs of one day's build and one run of another's are
-    indistinguishable by name. `stats_ood.rollouts_rel_from_readme` learned the same lesson on the
+    indistinguishable by name. `stats_ood.rollouts_rels_from_readme` learned the same lesson on the
     scores/rollouts pair; this is that rule applied to the run/build pair.
 
     TWO PREFIXES COME OFF, not one. The README records the path the CONTAINER saw
