@@ -381,11 +381,26 @@ def lid_label(model, text: str) -> tuple[str, float]:
     return labels[0].removeprefix("__label__"), float(probs[0])
 
 
-ROLLOUTS_RE = re.compile(r"^- rollouts: (\S+)$", re.M)
+# `(.+)$` and NOT `(\S+)$`: `score` writes ONE `- rollouts:` line naming EVERY file it read, and a
+# product `--rows` split into chunks names all of them, comma-separated. The end-anchored
+# non-space group matched nothing at all on such a line, so `rollouts_rel_from_readme` returned
+# None and the R3 language-id column went silently empty on every chunked product -- the exact
+# failure this rule was extracted to prevent, arriving through a shape it did not know about
+# (M5 full-scale run, 2026-09-23: 22 chunks, `lid` never ran).
+ROLLOUTS_RE = re.compile(r"^- rollouts: (.+)$", re.M)
 
 
-def rollouts_rel_from_readme(vol, scores_rel: str) -> str | None:
-    """The rollouts file a scores directory actually READ, from its own README. Root-relative.
+def _root_relative(rel: str) -> str:
+    """A path as the README spells it (`/vol/...`) as a volume-root-relative one."""
+    rel = rel.strip()
+    for pre in ("/vol/", "vol/", "/"):
+        if rel.startswith(pre):
+            return rel[len(pre):]
+    return rel
+
+
+def rollouts_rels_from_readme(vol, scores_rel: str) -> list[str]:
+    """EVERY rollouts file a scores directory actually READ, from its own README. Root-relative.
 
     THE ONE RULE, in the lower layer, because both readers need it and only one of them had it.
     `results/ood.lid_rates` learned it on 2026-09-21 (commit 11b7cd0, "the language-id column was
@@ -400,35 +415,98 @@ def rollouts_rel_from_readme(vol, scores_rel: str) -> str | None:
     no error -- which is worse than no column, because an empty one reads as "the answers were not
     in the arm's language".
 
-    `vol` is duck-typed: `reconstruction.stats.Vol` and `results.common.Vol` both have `.get`.
+    A LIST, not one path, since 2026-09-23: `--rows` splits one rollouts product across N
+    `<stem>__rows<a>-<b>.jsonl` chunks that live side by side and are ONE product
+    (`precompute.common.read_rollouts`), and `score` records all of them on the one line. Returning
+    the first would score the language column on 512 of 11264 targets and say nothing about it.
+    [] when the README is absent or names no rollouts, which the caller reports rather than
+    treating as an empty product.
+
+    `vol` is duck-typed: `reconstruction.stats.Vol` and `results.common.Vol` both have `.get` and
+    `.local`.
     """
     p = vol.get(f"{scores_rel}/README.md")
     if p is None:
-        return None
+        return []
     m = ROLLOUTS_RE.search(p.read_text())
     if not m:
-        return None
-    rel = m.group(1)
-    for pre in ("/vol/", "vol/", "/"):
-        if rel.startswith(pre):
-            return rel[len(pre):]
-    return rel
+        return []
+    return [_root_relative(x) for x in m.group(1).split(",") if x.strip()]
+
+
+def read_rollout_rows(vol, rels: list[str]) -> list[dict]:
+    """The rollout rows of the ONE product `rels` names -- a whole-set file, or `--rows` chunks.
+
+    The chunked union is NOT concatenated here: it goes through
+    `precompute.common.read_rollouts`, which is where "these N files are one product" is defined
+    and where the checks live -- the chunks must agree on every field of `_CHUNK_INVARIANT` (one
+    experiment) and cover DISJOINT target rows. A local concatenation would read a half-overwritten
+    directory as a complete product and nothing would say so.
+
+    `read_rollouts` globs the local directory and needs each chunk's `.summary.json` beside it,
+    which the README does not list; both are fetched here from the producer's own list, and the
+    files it ended up reading are asserted to be exactly that list -- so a stale chunk of the same
+    stem left in the mirror cannot silently join the union.
+
+    A file the README names that is NOT on the volume (or not in the mirror, offline) returns []
+    for the WHOLE product, logged in `vol.missing`, never a partial read: `lid` is an optional
+    column and its absence is a note, while a rate computed over 512 of 11264 targets and printed
+    as the arm's rate is a wrong number. The assertions above stay assertions -- they are about
+    two runs wearing one stem, which is a defect and not an absence.
+    """
+    if not rels:
+        return []
+    if len(rels) == 1 and C.ROWS_MARK not in Path(rels[0]).name:
+        return vol.jsonl(rels[0]) or []
+    dirs = sorted({str(Path(r).parent) for r in rels})
+    assert len(dirs) == 1, (
+        f"the scores README names rollout chunks in {len(dirs)} directories ({dirs}); the chunks "
+        f"of one product live side by side in one `rollouts/` directory"
+    )
+    stems = sorted({Path(r).name.split(C.ROWS_MARK)[0] for r in rels})
+    assert len(stems) == 1, (
+        f"the scores README names chunks of {len(stems)} different stems ({stems}); that is two "
+        f"rollouts products claiming one scores directory"
+    )
+    absent: list[str] = []
+    for rel in rels:
+        srel = (rel[: -len(".jsonl")] if rel.endswith(".jsonl") else rel) + ".summary.json"
+        for want in (rel, srel):
+            if vol.get(want) is None:
+                absent.append(want)
+    if absent:
+        print(
+            f"[stats_ood] {len(absent)} of {2 * len(rels)} files of the chunked rollouts product "
+            f"`{stems[0]}` are not available ({absent[0]} ...): the product is NOT read, and "
+            f"nothing downstream gets a partial one",
+            flush=True,
+        )
+        return []
+    rows, summary, _ = C.read_rollouts(str(Path(vol.local) / dirs[0]), stems[0])
+    got, want = sorted(summary.get("chunks") or []), sorted(Path(r).name for r in rels)
+    assert got == want, (
+        f"the union read {got} but the scores README names {want}: the mirror holds chunk files "
+        f"of this stem that this product did not score, and reading them would mix two runs"
+    )
+    return rows
 
 
 def rollout_texts(vol: Vol, base: str, maemm: str, set_name: str, stem: str) -> dict[int, list[str]]:
     """{target row -> [rollout text] in k order} from the rollouts jsonl (the one big fetch here).
 
-    The path comes from the SCORES README when it names one, and only falls back to the `--stem`
+    The paths come from the SCORES README when it names any, and only fall back to the `--stem`
     composition for a product written before READMEs carried the line. See
-    `rollouts_rel_from_readme` for why rebuilding it from the directory name is wrong.
+    `rollouts_rels_from_readme` for why rebuilding it from the directory name is wrong, and
+    `read_rollout_rows` for why a `--rows` chunked product is a list of files and still one
+    product.
     """
-    rel = rollouts_rel_from_readme(vol, f"maemms/{base}/{maemm}/scores/{stem}")
-    if rel is None:
-        rel = f"maemms/{base}/{maemm}/rollouts/{stem}.jsonl"
-        print(f"[stats_ood] the scores README names no rollouts file; falling back to {rel}",
+    rels = rollouts_rels_from_readme(vol, f"maemms/{base}/{maemm}/scores/{stem}")
+    if not rels:
+        rels = [f"maemms/{base}/{maemm}/rollouts/{stem}.jsonl"]
+        print(f"[stats_ood] the scores README names no rollouts file; falling back to {rels[0]}",
               flush=True)
-    rows = vol.jsonl(rel)
-    if rows is None:
+    rows = read_rollout_rows(vol, rels)
+    if not rows:
         return {}
     out: dict[int, list[str]] = {}
     for r in rows:
@@ -1280,9 +1358,9 @@ def selfcheck() -> None:
             '{"row": 0, "k": 0, "text": "ahoj"}\n{"row": 0, "k": 1, "text": "svete"}\n')
         vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
 
-        rel = rollouts_rel_from_readme(vol, "maemms/b/m/scores/s__vllm__asym")
-        assert rel == "maemms/b/m/rollouts/s__vllm.jsonl", (
-            f"the README's own `- rollouts:` line was not read back root-relative: {rel!r}")
+        rels = rollouts_rels_from_readme(vol, "maemms/b/m/scores/s__vllm__asym")
+        assert rels == ["maemms/b/m/rollouts/s__vllm.jsonl"], (
+            f"the README's own `- rollouts:` line was not read back root-relative: {rels!r}")
         texts = rollout_texts(vol, "b", "m", "s", "s__vllm__asym")
         assert texts == {0: ["ahoj", "svete"]}, (
             f"rollout_texts rebuilt the path from --stem instead of reading the scores README, so "
@@ -1290,10 +1368,75 @@ def selfcheck() -> None:
             f"{texts!r}")
         # ...and a product whose README names no rollouts file still resolves, by falling back
         (sd / "README.md").write_text("# scores\n\nno inputs section\n")
-        assert rollouts_rel_from_readme(vol, "maemms/b/m/scores/s__vllm__asym") is None
+        assert rollouts_rels_from_readme(vol, "maemms/b/m/scores/s__vllm__asym") == []
         assert rollout_texts(vol, "b", "m", "s", "s__vllm") == {0: ["ahoj", "svete"]}, (
             "the pre-README fallback to the --stem composition stopped working")
         ok.append("rollouts path from the scores README, with the pre-README fallback")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # --- THE CHUNKED PRODUCT: `score` over a `--rows` split rollouts product --------------------
+    #
+    # The shape the M5 full-scale run has and the shape the end-anchored `(\S+)$` could not match:
+    # ONE `- rollouts:` line naming 22 `<stem>__rows<a>-<b>.jsonl` chunks, comma-separated. The
+    # reader returned None, `lid_rates` reported "does not name its rollouts file", and the
+    # language-id column, `ex.lid`, `corp10.lid` and both classifier ceilings were all empty on a
+    # product that was complete (runs/2026-09-23_ledger.md, M5 gap 1). The union is read through
+    # `precompute.common.read_rollouts`, so the chunk invariants and the disjointness are checked
+    # where they are defined rather than re-implemented here.
+    tmp = Path(tempfile.mkdtemp(prefix="stats_ood_rollchunks_"))
+    try:
+        sd = tmp / "maemms/b/m/scores/s__vllm__tag"
+        sd.mkdir(parents=True)
+        rd = tmp / "maemms/b/m/rollouts"
+        rd.mkdir(parents=True)
+        stem, chunks = "s__vllm__tag", ["0-1", "2-3"]
+        inv = {"maemm": "b/m", "base": "b", "set": "s", "engine": "vllm", "kind": "ood", "n": 2,
+               "bo": 2, "seed": 1, "max_new": 64, "min_new": 0, "prompt": "p", "prompt_tokens": 3,
+               "marker_pos": 1, "inject_layer": 42, "inject_coef": 1.0, "temperature": 1.0,
+               "top_p": 1.0, "top_k": 0, "weight_sha256": "0" * 64, "score_max_length": 95}
+        for ci, spec in enumerate(chunks):
+            rows_here = [2 * ci, 2 * ci + 1]
+            (rd / f"{stem}{C.ROWS_MARK}{spec}.jsonl").write_text("\n".join(
+                json.dumps({"row": r, "k": k, "text": f"t{r}{k}"})
+                for r in rows_here for k in range(2)) + "\n")
+            (rd / f"{stem}{C.ROWS_MARK}{spec}.summary.json").write_text(
+                json.dumps({**inv, "rows": rows_here}))
+        (sd / "README.md").write_text(
+            "# scores\n\n## Inputs\n\n- rollouts: "
+            + ", ".join(f"/vol/maemms/b/m/rollouts/{stem}{C.ROWS_MARK}{c}.jsonl" for c in chunks)
+            + "\n- engine: vllm\n")
+        vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
+        rels = rollouts_rels_from_readme(vol, "maemms/b/m/scores/s__vllm__tag")
+        assert len(rels) == 2 and all(C.ROWS_MARK in r for r in rels), (
+            f"the comma-separated chunk list on the `- rollouts:` line was not parsed: {rels!r}")
+        texts = rollout_texts(vol, "b", "m", "s", "s__vllm__tag")
+        assert texts == {0: ["t00", "t01"], 1: ["t10", "t11"],
+                         2: ["t20", "t21"], 3: ["t30", "t31"]}, (
+            f"the chunks of one rollouts product were not read as ONE product: {texts!r}")
+        # A chunk of the same stem that the README does NOT name must stop the read, not join it:
+        # a partial rerun left beside the scored chunks is two runs under one name.
+        (rd / f"{stem}{C.ROWS_MARK}4-5.jsonl").write_text(
+            json.dumps({"row": 4, "k": 0, "text": "stale"}) + "\n")
+        (rd / f"{stem}{C.ROWS_MARK}4-5.summary.json").write_text(
+            json.dumps({**inv, "rows": [4, 5]}))
+        try:
+            rollout_texts(vol, "b", "m", "s", "s__vllm__tag")
+        except AssertionError as exc:
+            assert "did not score" in str(exc), exc
+        else:
+            raise AssertionError(
+                "a chunk file the scores README does not name joined the union silently")
+        # A NAMED FILE THAT IS NOT THERE IS AN ABSENCE, NOT A DEFECT: the whole product is
+        # withheld and the caller reports "lid not run". A partial read would print a rate over a
+        # fraction of the targets as if it were the arm's rate -- which is a wrong number, where
+        # an absent column is only an absent column.
+        (rd / f"{stem}{C.ROWS_MARK}4-5.jsonl").unlink()
+        (rd / f"{stem}{C.ROWS_MARK}4-5.summary.json").unlink()
+        (rd / f"{stem}{C.ROWS_MARK}0-1.jsonl").unlink()
+        assert rollout_texts(vol, "b", "m", "s", "s__vllm__tag") == {}, (
+            "a chunked product missing one of its files was read PARTIALLY")
+        ok.append("the chunked rollouts product is read as one product, and only its own chunks")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -1464,7 +1607,7 @@ def selfcheck() -> None:
                               scores_rel="", rollouts_rel="")
         src8.per_target = pt8
         recs8, _ = R_ood.arm_rows(
-            ids8, src8, {"a_has": top8, "a_none": top8}, 1.0, "centred",
+            ids8, src8, {"a_has": top8, "a_none": top8}, {"a_has": 1.0, "a_none": 1.0}, "centred",
             lambda d: (float(np.mean(d)), float(np.mean(d)) - 0.01, float(np.mean(d)) + 0.01),
             outcome, None, bo8=bo8_map, control_bo8=ctrl8_map)
         by8 = {r["arm"]: r for r in recs8}

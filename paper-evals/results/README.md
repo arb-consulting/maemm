@@ -216,3 +216,67 @@ not. The plan is `evals/2026-09-23_implementation-plan.md` §M1; the spec is
   `common.cluster_bootstrap` returns an SE and not its resample distribution, and a second
   resampler here would be a second estimator under one name. Spec §4's "percentile" applies to
   panel c's `stats_ood`, which is M5's own estimator.
+
+## Module M5 — the OOD arms table and panel c (2026-09-23)
+
+What `ood.py` builds for panel c and for `paper/numbers/cells.csv`'s `ood.*` rows, and what it
+does not. The run is `runs/2026-09-23_ledger.md` (M5: set `2026-09-23_ood_full`, 22 arms x 512
+targets, `formulas` dropped); the spec is `evals/2026-09-22_eval-set-and-presentation.md` §2 and
+§4 panel c.
+
+**Implemented.**
+
+- **A `--centre` scan's mean is read from its README.** `precompute/scan.py --centre` writes
+  `- CENTRING: --centre: BOTH sides about <path>, the scoring constant`, which is a different
+  line from `common.note_convention`'s `- CENTRING: mu=<path> from <source>`. Both are parsed
+  (`MU_RE`, `CENTRE_MU_RE`), and the derivation line — which mentions a mean but describes only
+  how the target bank was built — is neither. `scan_mu_of` also returns WHETHER the scan centred,
+  so "both sides are centred" is a read fact in the notes instead of the caveat it used to be.
+- **The corpus size is per arm and comes from the product.** Each arm is read at the largest size
+  ITS OWN scan reached, from that scan's README `- sizes:` line, cross-checked against the sizes
+  in its own `topk.jsonl` (a disagreement stops the run). The size is printed in the arm's row,
+  carried in the record as `corpus_size_m`, used for that arm's Δ, and written to
+  `ood.<arm>.corp10.mtok`. `config.yaml` is never consulted for it: four arms still declare 16
+  there while their scans ran `--max-size 10`. The random floor indexes `quantiles.f16` by the
+  scan's own size ladder for the same reason.
+- **The language-id column reads a chunked rollouts product.** `score` names every rollouts file
+  it read on one `- rollouts:` line; a `--rows` split product names all of its
+  `<stem>__rows<a>-<b>.jsonl` chunks there, comma-separated.
+  `stats_ood.rollouts_rels_from_readme` returns the list and `stats_ood.read_rollout_rows` reads
+  the union through `precompute.common.read_rollouts`, so the chunk invariants and the
+  disjointness are checked where they are defined. A chunk file of the same stem that the README
+  does NOT name stops the read rather than joining it.
+- **Every printed count is the bo8 verdict.** `conjunction_counts` is the one definition behind
+  the `N of M arms exceed` sentence and the `ood.conj.diff.n*` cells; the bo64 `outcome` is in
+  the CSV and counted nowhere. `ufw_en` (the English anchor) and the `diag` arm are reported as
+  rows and not counted.
+- **`--cells <path>`** merges this run's rows into `paper/numbers/cells.csv` by key, in place,
+  through module M1's byte-preserving writer (`faithfulness.write_cells`) — one implementation of
+  "preserve every byte", imported rather than copied. `owned_cell_keys` enumerates the keys this
+  module may write, so a typo is refused rather than appended.
+- **A cell that was not measured is not written.** `results.common.num` prints an em dash for an
+  absent number, which is right in a markdown table and wrong in `cells.csv`, whose `value` is
+  copied into the tex verbatim. `write_cells` drops any row whose value is absent, drops a lone
+  `lo`/`hi` (an error in `make_numbers.py --check`), and writes `diff.verdict` only for the three
+  real verdicts — never `not comparable` or `no bo8 pairs`, which are true statements and not
+  verdicts.
+
+**What needs more than the scans-and-scores mirror.**
+
+- **The `lang / ceiling` column** needs the rollouts product (the texts) and each arm's corpus
+  `docs.jsonl` (the ceiling). Both are ordinary volume reads, no GPU. Both degrade to a NOTE when
+  absent, and a chunked rollouts product missing any one of its files is withheld ENTIRELY rather
+  than read in part: a rate over a fraction of an arm's targets printed as the arm's rate is a
+  wrong number, where an absent column is only an absent column.
+
+**Not covered here.**
+
+- Panel c's FIGURE is not drawn by this file; it writes the arms table, the per-arm CSV and the
+  cells rows the figure and the tex read.
+- The English in-distribution reference stays in the frozen 2026-09-16 UNCENTRED convention and
+  is not comparable by magnitude with the centred columns above it; the table says so.
+- `ood.all.ex.usd` (the run's cost) is not built here: it is a fact about the launch, in the
+  ledger, not about any product.
+
+**Nothing in this module is stubbed or mocked.** Every number in the table comes from a product
+on the volume.

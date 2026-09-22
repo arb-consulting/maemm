@@ -17,6 +17,15 @@ this file recomputes nothing except the per-arm aggregation and its confidence i
 
 THE TABLE (design `infra/2026-09-18_ood-eval-design.md` §0, §6; review R3, R9). One row per arm:
 
+  size            THE CORPUS SIZE THIS ARM IS READ AT, from the arm's OWN scan product (its
+                  README's `- sizes:` line, cross-checked against the sizes in its `topk.jsonl`).
+                  It is PER ARM and not one number for the table: the paper run holds 21 arms at
+                  10M and `shell` at 4M, and `config.yaml` is not consulted -- four arms still
+                  declare 16 there while their scans ran `--max-size 10`.
+  bo8             the headline (spec §2): the unbiased best-of-8 of `cos_centred`, RECOMPUTED
+                  from `cos_centred.f16` because `score` stores the centred ladder at k = 64 only.
+                  Δ, the verdict, the conjunction counts and the "N of M arms exceed" sentence
+                  are ALL this pair. bo64 is in the CSV, counted nowhere.
   bo64            the MAEMM's unbiased best-of-64, in BOTH cosines -- `bo_c_64` (centred, the
                   headline where the run centred on something) and `bo_64` (raw). `score` writes
                   the centred half only when the run centred, so a `--mu none` arm shows an em
@@ -44,6 +53,20 @@ control are rows because they are on the volume, not because this file names the
 control` source becomes the control column; every other source gets its own arms table.
 
 A source, a scan or an arm that is ABSENT is skipped and listed, never zero-filled.
+
+WHAT IS MEASURED HERE AND WHAT IS NOT, as of M5 (2026-09-23):
+
+  * the cosines, the corpus cells, Δ, the CIs, the clustered SEs, the verdicts, the random floor
+    and the NLL covariate are all READ from landed products and need nothing but the mirror;
+  * the `lang / ceiling` column needs TWO things the mirror of a scans-and-scores run does not
+    contain: the rollouts product (the texts) and the arm's corpus `docs.jsonl` (the ceiling).
+    Both are ordinary volume reads -- no GPU -- and both degrade to a NOTE when absent. A chunked
+    rollouts product missing any one of its files is withheld ENTIRELY rather than read in part;
+  * `--cells <path>` merges this run's `ood.*` rows into `paper/numbers/cells.csv` in place, by
+    key, through module M1's byte-preserving writer. Without it nothing outside this repo is
+    touched and only the fragment CSV beside the table is written.
+
+NOTHING HERE IS STUBBED OR MOCKED. Every number in the table comes from a product on the volume.
 """
 
 from __future__ import annotations
@@ -167,23 +190,76 @@ def C_corpus_dir(cfg: dict, arm: str) -> str:
     return (spec or {}).get("dir") or arm
 
 
+# `common.note_convention`'s line, written by every product that RESOLVED a `--mu`.
 MU_RE = re.compile(r"^- CENTRING: mu=(\S+) from ", re.M)
+# `precompute/scan.py --centre`'s line, written by every scan that centred BOTH sides about the
+# base's scoring constant. IT IS A DIFFERENT SHAPE AND IT NAMES THE SAME KIND OF FACT: the mean the
+# scan's cosines are taken about. Reading only the first cost the M5 full-scale run every Δ --
+# 0 of 22 scan READMEs matched `MU_RE`, so every scan resolved to `mu=none`, `top1_by_corpus` is
+# keyed on (corpus, mean), every lookup missed, and all 22 arms came out `not comparable` beside
+# two scored sources that both record `whiten_mu` in their `rows.json`
+# (runs/2026-09-23_ledger.md, M5). The comma is OUTSIDE the group on purpose: `(\S+)` would
+# capture `whiten_mu.npy,` and then compare unequal with the same path from a `rows.json`.
+CENTRE_MU_RE = re.compile(
+    r"^- CENTRING: --centre: BOTH sides about (\S+?), the scoring constant", re.M
+)
 
 
-def scan_mu_of(vol: R.Vol, base: str, scan_dir: str) -> str | None:
-    """The mean a scan centred its targets on, from the scan's OWN README.
+def scan_mu_of(vol: R.Vol, base: str, scan_dir: str) -> tuple[str | None, bool]:
+    """(the mean a scan's cosines are about, did it run `--centre`?) from the scan's OWN README.
 
-    `common.note_convention` writes `- CENTRING: mu=<path> from <source>` as the first note of
-    every product that resolves one, so the mean is recorded by the producer rather than inferred
-    from a directory name -- which is the difference between a number that is comparable and a
-    number that is merely next to another one. The FIRST such line is the `--set` set's; a scan
-    with `--with-set` adds one per extra bank.
+    Two producers, two shapes, one fact:
+
+      * `common.note_convention` writes `- CENTRING: mu=<path> from <source>` for a product that
+        resolved a `--mu`. The FIRST such line is the `--set` set's; a scan with `--with-set` adds
+        one per extra bank.
+      * `precompute/scan.py --centre` writes `- CENTRING: --centre: BOTH sides about <path>, the
+        scoring constant (common.score_mu)`, and NO `mu=<path> from` line at all. Its windows and
+        its targets are both centred about that path, so that path IS this scan's mean, and a
+        source whose `rows.json` records the same path is at the same mean and pairs with it.
+
+    Neither is inferred from a directory name -- which is the difference between a number that is
+    comparable and a number that is merely next to another one. The derivation line
+    (`- CENTRING: directions derived from <act> at mu=<path>: ...`) mentions a mean too and is
+    NOT either of these: it describes how the target bank's unit vectors were built, and a scan
+    that derived centred directions but scored uncentred windows would match it while being at no
+    comparable mean at all.
+
+    The second element is what the table could not check before: `--centre` is now a RECORDED
+    fact, so an uncentred scan at the same mean no longer lands in the same cell in silence.
     """
     p = vol.get(f"base/{base}/scan/{scan_dir}/README.md")
     if p is None:
-        return None
-    m = MU_RE.search(p.read_text())
-    return m.group(1) if m else None
+        return None, False
+    text = p.read_text()
+    m = CENTRE_MU_RE.search(text)
+    if m:
+        return m.group(1), True
+    m = MU_RE.search(text)
+    return (m.group(1) if m else None), False
+
+
+# `- sizes: [1, 4, 10]` and `- max_size: 10` in the scan README's `## Inputs`, written by
+# `precompute/scan.py` from what it was ASKED for and what it then scanned.
+SIZES_RE = re.compile(r"^- sizes: \[([0-9.,\s]*)\]\s*$", re.M)
+
+
+def scan_sizes_of(vol: R.Vol, base: str, scan_dir: str) -> list[float]:
+    """The corpus sizes, in M tokens, a scan ACTUALLY carries -- from the product, not the config.
+
+    `config.yaml`'s `ood_arms.<arm>.sizes` is what an arm was CONFIGURED for and drifts from what
+    was run: `tha_Thai`, `ufw_en`, `python` and `owm` still declare 16 there while the M5 scans
+    were launched `--max-size 10` and carry no 16M cell at all (runs/2026-09-23_ledger.md, M5 gap
+    3). A size cell read off the config would print 16 in the paper for a number that was never
+    measured, so the product answers for itself and the config answers for nothing here.
+    """
+    p = vol.get(f"base/{base}/scan/{scan_dir}/README.md")
+    if p is None:
+        return []
+    m = SIZES_RE.search(p.read_text())
+    if not m:
+        return []
+    return sorted(float(x) for x in m.group(1).split(",") if x.strip())
 
 
 def parse_scan_dir(name: str, set_name: str) -> tuple[str, float | None, str] | None:
@@ -440,7 +516,7 @@ def arm_rows(
     ids: list[dict],
     src: R.Source,
     top1_by_arm: dict[str, dict[tuple[int, float], float]],
-    size_m: float,
+    size_by_arm: dict[str, float],
     which: str,
     boot_ci,
     outcome,
@@ -454,6 +530,13 @@ def arm_rows(
     `bo8` / `control_bo8` are `centred_bo_k`'s {row: bo8} maps -- recomputed from the array, since
     no `bo_c_8` column exists -- and an arm whose rows are all absent from them carries None there,
     which prints as an em dash.
+
+    `size_by_arm` IS PER ARM and not one number for the table (M5, 2026-09-23). The M5 run scanned
+    21 arms at 10M and `shell` at 4M, and one `size_m` cannot express that: at `--size 10` `shell`
+    was dropped from the table and its floor row with it, and at `--size 0` -- "the largest size
+    EVERY scan carries" -- all 22 arms fell back to 4M and the headline 10M contrast was not in
+    the table at all. Each arm is read at the size ITS OWN scan reached, that size is carried in
+    the record as `corpus_size_m`, printed in the arm's row, and used for that arm's Δ.
     """
     by_arm: dict[str, list[dict]] = {}
     for r in ids:
@@ -467,6 +550,13 @@ def arm_rows(
         top1 = top1_by_arm.get(arm) or {}
         if comparable and not top1:
             skipped.append(f"arm `{arm}`: no scan of its own corpus, so no in-domain cell")
+            continue
+        size_m = size_by_arm.get(arm)
+        if comparable and size_m is None:
+            skipped.append(
+                f"arm `{arm}`: its scan is present but names no corpus size, so there is no size "
+                f"to read the in-domain cell at"
+            )
             continue
         pairs, raw, cen, asy, ctrl, corp, docs = [], [], [], [], [], [], []
         cen8, ctrl8 = [], []
@@ -496,7 +586,7 @@ def arm_rows(
                 cb = bo64_of(control[int(r["row"])], which)
                 if cb is not None:
                     ctrl.append(cb)
-            c = top1.get((int(r["row"]), size_m))
+            c = top1.get((int(r["row"]), size_m)) if size_m is not None else None
             m = bo64_of(pt, which)
             m8 = bo8.get(int(r["row"])) if bo8 is not None else None
             if c is not None and m8 is not None and math.isfinite(float(m8)):
@@ -557,6 +647,9 @@ def arm_rows(
                 "bo8_centred": _mean(cen8),
                 "bo64_raw": _mean(raw),
                 "corpus_top1": float(np.mean(corp)) if corp else None,
+                # THE SIZE THIS ARM WAS ACTUALLY READ AT, from its own scan product. Every cell
+                # of this record that mentions a corpus is a cell at THIS size.
+                "corpus_size_m": size_m,
                 "control_bo64": _mean(ctrl) if ctrl else None,
                 "control_bo8": _mean(ctrl8),
                 "delta": mean,
@@ -599,56 +692,123 @@ def cell_id_of(arm: str) -> str:
     return arm.split("_")[0]
 
 
-def arm_size_m(cfg: dict, arm: str) -> float | None:
-    """The arm's OWN top corpus size in millions -- what `corp10.mtok` prints.
+# `paper/numbers/cells.csv`'s columns and its byte-level writer live in `results/faithfulness.py`
+# (module M1), which built them first. ONE writer, imported rather than copied: the file is shared
+# by six builders, an in-place rewrite has to preserve every byte it does not own, and a second
+# implementation of "preserve every byte" is how the two would come to disagree about CRLF.
+CELLS_COLUMNS = ("key", "value", "se", "lo", "hi", "n", "status", "run", "source", "date", "note")
 
-    Not every arm is at 10M: `shell` stops at 4 and `formulas` at 1 (their sources cannot reach
-    it), and four arms carry 16. Spec section 2 asks for the achieved size to be stated per arm,
-    so the cell exists for every arm and is not assumed.
+VERDICTS = ("exceeds", "inconclusive", "reversed")
+
+
+def conjunction_counts(recs: list[dict]) -> tuple[dict[str, int], list[dict], list[dict]]:
+    """({verdict -> n}, the conjunction's arms, the ones of them with a verdict) -- ON bo8.
+
+    ONE definition, because there were two: `write_cells` counted `outcome8` into
+    `ood.conj.diff.n*` while the "N of M arms exceed" sentence above it counted `outcome`, the
+    bo64 pair. Spec §2's headline contrast is bo8 against the own-domain corpus, `diff.verdict`
+    carries `outcome8`, and the table's Δ column is the bo8 difference -- so the sentence was the
+    only thing in the report reading the other quantity, and it read as a disagreement with the
+    cells rather than as a different statistic. bo64 stays in the CSV, counted nowhere.
     """
-    sizes = (cfg.get("ood_arms", {}).get(arm) or {}).get("sizes") or []
-    return float(sizes[-1]) if sizes else None
+    conj = [r for r in recs
+            if r["family"] not in CONJUNCTION_EXCLUDES and r["arm"] not in CONJUNCTION_EXCLUDE_ARMS]
+    have = [r for r in conj if r.get("outcome8") in VERDICTS]
+    return ({v: sum(1 for r in have if r["outcome8"] == v) for v in VERDICTS}, conj, have)
 
 
-def write_cells(out_dir: Path, cfg: dict, src: R.Source, recs: list[dict], size_m: float,
-                set_name: str, ctrl_src) -> Path:
+def owned_cell_keys(cfg: dict) -> set[str]:
+    """Every `cells.csv` key THIS driver is allowed to write, enumerated rather than prefixed.
+
+    `write_cells` refuses a key outside this set before anything is written. A bare `ood.`
+    prefix test would accept `ood.tha.corp10.mtokens` -- a typo that writes a row the tex never
+    reads while the row it does read keeps its placeholder, which is the silent half of a wrong
+    number.
+    """
+    per_arm = ("diff.cos.bo8", "diff.verdict", "ex.cos.bo8", "corp10.cos", "corp10.mtok",
+               "base.cos.bo8", "base.bpb", "ex.lid", "corp10.lid")
+    keys = {f"ood.{cell_id_of(a)}.{f}" for a in cfg.get("ood_arms", {}) for f in per_arm}
+    keys |= {f"ood.conj.diff.{k}" for k in ("nexceed", "ninconcl", "nreversed")}
+    return keys
+
+
+def write_cells(out_dir: Path, cfg: dict, src: R.Source, recs: list[dict],
+                set_name: str, ctrl_src) -> tuple[Path, list[dict]]:
     """The `paper/numbers/cells.csv` rows this source's table supports, as their own CSV.
 
     Columns are the numbers layer's own: key,value,se,lo,hi,n,status,run,source,date,note. Written
-    beside the table rather than appended to `cells.csv` directly -- that file is outside this
-    repo and is merged by the session that reads the run, and a driver that edits it on every
-    invocation would rewrite rows other modules own.
+    beside the table on EVERY run and merged into `cells.csv` only under `--cells`, which is
+    module M1's discipline: the file is outside this repo, it is shared, and a driver that edited
+    it on every invocation would rewrite rows other modules own.
 
     `status` is `provisional` for every row: the value is measured, and `final` is a judgement
     about the run it came from that this function cannot make.
+
+    THE SIZE COMES FROM THE RECORD, NOT FROM `config.yaml` (M5, 2026-09-23). `arm_size_m(cfg, arm)`
+    used to read `ood_arms.<arm>.sizes[-1]`, which still says 16 for `tha_Thai`, `ufw_en`,
+    `python` and `owm` while their scans ran `--max-size 10` -- four `corp10.mtok` cells that
+    would have printed a size nothing was measured at, each with a note explaining the 16M cell
+    the run does not have.
     """
     import csv as _csv
 
     today = time.strftime("%Y-%m-%d")
     prov = f"results/ood.py on {set_name} @ {src.label}"
-    rows: list[list] = []
+    rows: list[dict] = []
+
+    def measured(v):
+        """`v` if it is a measurement, else None. `R.num(None)` is an EM DASH, not a number.
+
+        The table's formatter prints `—` for an absent cell, which is right there and wrong here:
+        `cells.csv` is copied into the tex verbatim, so an em dash in `value` is a paper that
+        prints an em dash, and `make_numbers.py --check` calls a row with no value but an `se`
+        or an `n` a warning rather than an error -- it would go through. The M5 refusal's own
+        fragment carried `—` in all 22 `diff.cos.bo8` cells and `not comparable` in all 22
+        verdicts (runs/2026-09-23_ledger.md); merging it would have put them in the paper.
+        A cell that was not measured is NOT WRITTEN, and the placeholder row already in the file
+        keeps saying "expected, not yet measured", which is true.
+        """
+        return None if v is None or str(v).strip() in ("", "—", "nan", "None") else v
 
     def put(key, value, *, se=None, lo=None, hi=None, n=None, note=""):
+        value = measured(value)
         if value is None:
             return
-        rows.append([key, value, se or "", lo if lo is not None else "",
-                     hi if hi is not None else "", n if n is not None else "",
-                     "provisional", "R4", prov, today, note])
+        se, lo, hi = measured(se), measured(lo), measured(hi)
+        # `make_numbers.py` treats a lone `lo` or `hi` as an ERROR that blocks the paper build,
+        # so they go in together or not at all -- the same rule module M1's `cell()` asserts.
+        if lo is None or hi is None:
+            lo = hi = None
+        assert "\n" not in note, f"{key}: a newline in `note` would break the CSV record"
+        rows.append({
+            "key": key, "value": str(value), "se": "" if se is None else str(se),
+            "lo": "" if lo is None else str(lo), "hi": "" if hi is None else str(hi),
+            "n": "" if n is None else str(int(n)), "status": "provisional", "run": "R4",
+            "source": prov, "date": today, "note": note,
+        })
 
     for r in recs:
         cid = cell_id_of(r["arm"])
-        asz = arm_size_m(cfg, r["arm"])
-        size_note = "" if asz == 10 else f"own-domain corpus at {asz:g}M, not 10M"
+        asz = r.get("corpus_size_m")
+        # An arm whose scan named no size has NO size cell and no size note: `{None:g}` raised
+        # here, which turned "this arm was not read at any size" into a crash in the writer.
+        size_note = ("" if asz == 10
+                     else f"own-domain corpus at {asz:g}M, not 10M" if asz
+                     else "the arm's own scan names no corpus size")
         put(f"ood.{cid}.diff.cos.bo8", R.num(r["delta8"], 4), lo=R.num(r["ci8_lo"], 4),
             hi=R.num(r["ci8_hi"], 4), n=r["n8"], se=R.num(r.get("se8_clustered"), 4),
             note=f"bo8 centred minus own-domain corpus top-1; {size_note or 'corpus at 10M'}")
-        if r.get("outcome8"):
+        # ONLY A REAL VERDICT. `outcome8` is also the string `not comparable` (no scan at this
+        # source's mean) or `no bo8 pairs` (nothing to difference) -- both TRUE and neither a
+        # verdict, and both would print in the tex as if they were one.
+        if r.get("outcome8") in VERDICTS:
             put(f"ood.{cid}.diff.verdict", r["outcome8"], n=r["n8"],
                 note="three-state verdict on the bo8 pair, 10,000-resample percentile CI")
         put(f"ood.{cid}.ex.cos.bo8", R.num(r["bo8_centred"], 4), n=r["n"],
             note="Exemplifier bo8, centred both sides")
         put(f"ood.{cid}.corp10.cos", R.num(r["corpus_top1"], 4), n=r["n"], note=size_note)
-        put(f"ood.{cid}.corp10.mtok", f"{asz:g}" if asz else None, note=size_note)
+        put(f"ood.{cid}.corp10.mtok", f"{asz:g}" if asz else None,
+            note=size_note or "the size the arm's own scan reached")
         put(f"ood.{cid}.base.cos.bo8", R.num(r.get("control_bo8"), 4), n=r["n"],
             note=f"untrained base under the same injection ({ctrl_src.label if ctrl_src else '?'})")
         put(f"ood.{cid}.base.bpb", R.num(r.get("bpb_ctx"), 4), n=r.get("nll_n"),
@@ -666,22 +826,41 @@ def write_cells(out_dir: Path, cfg: dict, src: R.Source, recs: list[dict], size_
         put(f"ood.{cid}.corp10.lid", R.num(r.get("ceiling"), 3), n=r["n"],
             note="the classifier's rate on the arm's OWN corpus top-1 windows, i.e. its ceiling")
 
-    conj = [r for r in recs if r["arm"] not in ("formulas", "ufw_en")]
-    have = [r for r in conj if r.get("outcome8") in ("exceeds", "inconclusive", "reversed")]
+    # EVERY PRINTED COUNT IS THE bo8 VERDICT (M5, 2026-09-23). `outcome8` is what the table's Δ
+    # column, `diff.verdict` and these three rows all report; `outcome` (bo64) is in the CSV
+    # beside them and is counted nowhere.
+    counts, conj, have = conjunction_counts(recs)
     if have:
         for key, want in (("nexceed", "exceeds"), ("ninconcl", "inconclusive"),
                           ("nreversed", "reversed")):
-            put(f"ood.conj.diff.{key}", sum(1 for r in have if r["outcome8"] == want),
-                n=len(have),
+            put(f"ood.conj.diff.{key}", counts[want], n=len(have),
                 note=f"level-1 conjunction, {len(have)} of {len(conj)} arms with a bo8 verdict")
 
     path = out_dir / f"cells_{src.label.replace('/', '_').replace(':', '__').replace('@', '_at_')}.csv"
     with open(path, "w", newline="") as fh:
-        w = _csv.writer(fh)
-        w.writerow(["key", "value", "se", "lo", "hi", "n", "status", "run", "source", "date",
-                    "note"])
+        w = _csv.DictWriter(fh, fieldnames=list(CELLS_COLUMNS))
+        w.writeheader()
         w.writerows(rows)
-    return path
+    return path, rows
+
+
+def merge_cells(path: Path, rows: list[dict], cfg: dict) -> dict:
+    """Merge this run's rows into `paper/numbers/cells.csv` BY KEY, in place, byte for byte.
+
+    `results/faithfulness.write_cells` IS the writer -- imported, not reimplemented. It reads the
+    file's own line terminator off its header, re-emits every record it does not rewrite from that
+    record's EXACT source bytes, refuses a key outside `owned`, a key handed to it twice, a key
+    already duplicated in the file, and a header that is not `cells.csv`'s. The import is lazy so
+    that `results/selftest.py`, which loads this module standalone, does not pull M1 in to run the
+    OOD checks.
+    """
+    import results.faithfulness as FA
+
+    assert tuple(CELLS_COLUMNS) == tuple(FA.CELLS_COLUMNS), (
+        f"this module and module M1 disagree about cells.csv's columns: {CELLS_COLUMNS} vs "
+        f"{FA.CELLS_COLUMNS}"
+    )
+    return FA.write_cells(path, rows, owned_cell_keys(cfg))
 
 
 def corpus_window_texts(vol: R.Vol, base: str, cdir: str, top1_rows, tok):
@@ -741,16 +920,25 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
     NLLB labels that count as this arm's language, and `null` there says fastText is not
     meaningful for it -- the code and maths arms, which report the `code_like` regex rate instead.
     """
-    rel = mod.rollouts_rel_from_readme(vol, src.scores_rel)
-    if rel is None:
+    rels = mod.rollouts_rels_from_readme(vol, src.scores_rel)
+    if not rels:
         return {}, [f"`{src.scores_rel}/README.md` does not name its rollouts file: lid not run"]
-    # Read the path the README gave, directly. `stats_ood.rollout_texts` composes
+    # Read the paths the README gave, directly. `stats_ood.rollout_texts` composes
     # `maemms/{base}/{maemm}/...` from its own arguments, and `src.maemm` is the CONFIG KEY --
     # `<base>/<name>` -- so handing it that doubles the base and the fetch silently returns
-    # nothing. One path, from the producer, is the whole point of reading the README.
-    rows = vol.jsonl(rel)
+    # nothing. The list, from the producer, is the whole point of reading the README.
+    #
+    # A LIST because one rollouts product can be N `--rows` chunks
+    # (`precompute.common.read_rollouts`), which is what the M5 full-scale run is: 22 chunks of
+    # 512 targets. `read_rollout_rows` reads them AS ONE PRODUCT through that function, so the
+    # chunk invariants and the disjointness are checked where they are defined.
+    rows = mod.read_rollout_rows(vol, rels)
     if not rows:
-        return {}, [f"no rollout texts at {rel}: lid not run"]
+        return {}, [f"no rollout texts at {', '.join(rels)}: lid not run"]
+    chunk_note = (
+        "" if len(rels) == 1
+        else f"; rollouts read as {len(rels)} `__rows` chunks of one product"
+    )
     texts, rank_note = ranked_texts(vol, src, which, rows)
     model = mod.load_lid(lid_model)
     arms = cfg["ood_arms"]
@@ -789,7 +977,7 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
                                for x in ceil_txt.values()])) if ceil_txt else None)
         out[arm] = {"lid_top1_rate": float(np.mean(t1)), "lid_top4_rate": float(np.mean(t4)),
                     "code_like_top1_rate": None, "ceiling": ceil, "ceiling_kind": "lid"}
-    notes = [rank_note]
+    notes = [rank_note + chunk_note]
     if model is None:
         notes.append(
             "fastText lid218e was not loadable, so the language columns are absent on the "
@@ -808,8 +996,8 @@ def main(
     set_name: Annotated[str, typer.Option("--set", help="the OOD held-out set")] = "",
     base: Annotated[str, typer.Option()] = BASE,
     size: Annotated[
-        float, typer.Option(help="the corpus size in M tokens the claim is read at (0 = the "
-                                 "largest every arm's scan actually carries)")
+        float, typer.Option(help="read EVERY arm at this corpus size in M tokens (0 = read each "
+                                 "arm at the largest size ITS OWN scan reached)")
     ] = 0.0,
     root: Annotated[str, typer.Option(help="a volume-relative root prefix")] = "",
     out: Annotated[Path | None, typer.Option(help="output directory")] = None,
@@ -820,6 +1008,11 @@ def main(
                                 "top-1 windows; needs transformers for the tokenizer")
     ] = True,
     lid_model: Annotated[Path | None, typer.Option(help="a local lid218e model.bin")] = None,
+    cells: Annotated[
+        str, typer.Option(help="paper/numbers/cells.csv: merge this run's `ood.*` rows into it in "
+                               "place, by key. `default` resolves the paper project's copy; empty "
+                               "(the default) writes only the fragment CSV beside the table")
+    ] = "",
     refetch: Annotated[bool, typer.Option()] = False,
     offline: Annotated[bool, typer.Option(help="read the mirror only; never call modal")] = False,
     quiet: Annotated[bool, typer.Option()] = False,
@@ -831,6 +1024,14 @@ def main(
     assert set_name in cfg["heldout"], f"{set_name!r} is not a set in config.yaml"
     here = Path(__file__).resolve().parent
     out_dir = Path(out) if out else here / "ood"
+    # Resolved BEFORE anything is fetched, so a mistyped `--cells` fails with the path it looked
+    # at rather than after an hour of reading. Module M1 owns the resolver; this module owns only
+    # its `ood.*` keys inside the file.
+    cells_target = None
+    if (cells or "").strip():
+        import results.faithfulness as _FA
+
+        cells_target = _FA.resolve_cells_path(cells)
     vol = R.Vol(root, Path(data_dir) if data_dir else out_dir / "_mirror",
                 modal_cmd=modal_cmd, refetch=refetch, quiet=quiet, offline=offline)
     mod = _stats_ood()
@@ -849,15 +1050,48 @@ def main(
     # same corpus scanned under two centrings gives two different sets of numbers, and only the
     # one matching a checkpoint's own mean can be differenced against that checkpoint.
     top1_by_corpus: dict[tuple[str, str], dict] = {}
+    dir_by_corpus: dict[tuple[str, str], str] = {}
     english: dict[str, dict] = {}
     scan_mus: dict[str, str] = {}
+    scan_centred: dict[str, bool] = {}
+    size_of_dir: dict[str, float] = {}
+    sizes_of_dir: dict[str, list[float]] = {}
+    size_notes: list[str] = []
     for d, (c, _) in scans.items():
-        mu_here = C_resolve_mu(scan_mu_of(vol, base, d), base)
+        mu_raw, centred_here = scan_mu_of(vol, base, d)
+        mu_here = C_resolve_mu(mu_raw, base)
         scan_mus[d] = mu_here
+        scan_centred[d] = centred_here
+        t = scan_top1(vol, base, d, set_name)
         if c:
-            top1_by_corpus[(c, mu_here)] = scan_top1(vol, base, d, set_name)
+            top1_by_corpus[(c, mu_here)] = t
+            dir_by_corpus[(c, mu_here)] = d
         else:
-            english[d] = scan_top1(vol, base, d, set_name)
+            english[d] = t
+        # THE SIZE THIS SCAN ACTUALLY REACHED, from the product, cross-checked against the product.
+        # The README's `- sizes:` line is what `scan` recorded it was asked for and ran; the sizes
+        # present in `topk.jsonl` are what it wrote. They are two independent statements about one
+        # run, so a disagreement is a truncated or resumed product and stops here rather than
+        # printing a size the cells layer would carry into the paper.
+        seen = sorted({sz for _, sz in t})
+        told = scan_sizes_of(vol, base, d)
+        if told and seen:
+            assert max(told) == max(seen), (
+                f"scan `{d}` says `- sizes: {told}` in its README but its topk.jsonl carries "
+                f"{seen}: the product is truncated or two runs are in one directory, and the "
+                f"per-arm corpus size printed in the table and in `corp10.mtok` would be wrong"
+            )
+        have = told or seen
+        if have:
+            size_of_dir[d] = max(have)
+            sizes_of_dir[d] = list(have)
+            if not told:
+                size_notes.append(
+                    f"scan `{d}` has no `- sizes:` line in its README; its size is taken from the "
+                    f"sizes present in its own topk.jsonl ({seen})"
+                )
+        else:
+            size_notes.append(f"scan `{d}` names no corpus size at all: no arm can be read at it")
     assert top1_by_corpus, (
         f"no in-domain scan for {set_name} under base/{base}/scan/: every Δ below is "
         f"MAEMM minus corpus search, so there is no table without one"
@@ -865,12 +1099,17 @@ def main(
     sizes = sorted({sz for t in top1_by_corpus.values() for _, sz in t})
     if size:
         assert size in sizes, f"--size {size} is not among the scanned sizes {sizes}"
-        size_m = size
-    else:
-        # the largest size EVERY in-domain scan carries: a per-arm mix of sizes is not one table.
-        common = set.intersection(*({sz for _, sz in t} for t in top1_by_corpus.values() if t))
-        assert common, f"the in-domain scans share no corpus size: {sizes}"
-        size_m = max(common)
+    # THE SIZE IS PER ARM (M5, 2026-09-23). Not one number for the table: the M5 full run scanned
+    # 21 arms at 10M and `shell` at 4M, so `--size 10` dropped `shell` and its floor row, and the
+    # old default -- "the largest size EVERY in-domain scan carries" -- pulled all 22 arms down to
+    # 4M and left the headline 10M contrast out of the table entirely. Each arm is read at the
+    # size its own scan reached, and that size is printed in its row and in its `corp10.mtok`.
+    def size_of_scan(d: str) -> float | None:
+        """The size arm-with-scan-`d` is read at: `--size` when given, else the scan's own top."""
+        if size:
+            return float(size) if size in {sz for _, sz in (top1_by_corpus.get(
+                (scans[d][0], scan_mus[d])) or {})} else None
+        return size_of_dir.get(d)
 
     # {arm -> its OWN corpus's {(row, size) -> top-1}}. The corpus directory of arm `a` is
     # `corpora[f"ood_{a}"].dir`, which is `a` itself for every arm declared in `ood_arms:`.
@@ -912,7 +1151,12 @@ def main(
         [
             f"Base `{base}`, {len({r['arm'] for r in ids})} arms x "
             f"{len(ids) // max(1, len({r['arm'] for r in ids}))} targets, "
-            f"in-domain corpus search at **{size_m:g}M tokens**.",
+            + ("in-domain corpus search at **"
+               + ", ".join(f"{v:g}M" for v in sorted({x for x in size_of_dir.values()}))
+               + " tokens**, PER ARM -- each arm at the size its own scan reached, printed in "
+                 "its `size` column."
+               if not size else
+               f"in-domain corpus search at **{size:g}M tokens** on every arm (`--size`)."),
             "",
             "Δ = the MAEMM's unbiased best-of-64 minus the in-domain corpus search's top-1, paired "
             "per target; CI is the design's 10,000-resample percentile bootstrap over the arm's "
@@ -924,25 +1168,28 @@ def main(
         ],
     )
 
-    # The classifiers' ceilings, measured on each arm's OWN corpus top-1 windows at the size the
-    # claim is read at. Computed once and shared by every source: it is a property of the corpus
-    # and the classifier, not of a checkpoint.
-    ceilings: dict[str, dict] = {}
+    # The classifiers' ceilings, measured on each scan's OWN corpus top-1 windows at the size THAT
+    # SCAN is read at. Computed once per SCAN DIRECTORY and shared by every source: it is a
+    # property of the corpus, the size and the classifier, not of a checkpoint. Keyed by directory
+    # rather than by arm because a corpus scanned at two means is two scans with two sets of
+    # windows, and a per-arm key would silently give both sources the first one's ceiling.
+    ceilings_by_dir: dict[str, dict] = {}
     tok = load_tokenizer(cfg, base) if ceiling else None
     if tok is not None:
-        for arm, cdir in sorted(dir_of_arm.items()):
-            d = next((d for d, (c, mb) in scans.items() if c == cdir and (mb or 0) == size_m), None)
-            if d is None:
+        for d in sorted(dir_by_corpus.values()):
+            cdir, sz = scans[d][0], size_of_scan(d)
+            if sz is None:
                 continue
             rows_ = vol.jsonl(f"base/{base}/scan/{d}/topk.jsonl") or []
             want = {}
             for r in rows_:
-                if r.get("set", set_name) == set_name and r.get("top") and float(r["size"]) == size_m:
+                if r.get("set", set_name) == set_name and r.get("top") and float(r["size"]) == sz:
                     want[int(r.get("set_row", r["row"]))] = (int(r["top"][0][0]), int(r["top"][0][1]))
             got = corpus_window_texts(vol, base, cdir, want, tok)
             if got:
-                ceilings[arm] = got
-        print(f"[ood] classifier ceilings from {len(ceilings)} arms' own corpus windows", flush=True)
+                ceilings_by_dir[d] = got
+        print(f"[ood] classifier ceilings from {len(ceilings_by_dir)} scans' own corpus windows",
+              flush=True)
 
     # THE BASE'S PREDICTABILITY COVARIATE (spec section 6 item 6). `precompute/nll.py` writes
     # per_target.jsonl for the set; `stats_ood.load_nll` reads it and nothing in THIS file did
@@ -985,10 +1232,22 @@ def main(
     # it says nothing about what the corpus search can reach. The plan asked M5 to decide which of
     # the two is spec section 2's floor and record it. This is the decision: the scan quantile is,
     # the pairwise target cosine is not, and no new GPU work is needed for either.
-    floor_by_arm: dict[str, dict[str, float]] = {}
-    for arm, cdir in sorted(dir_of_arm.items()):
-        d = next((d_ for d_, (c_, mb_) in scans.items() if c_ == cdir and (mb_ or 0) == size_m), None)
-        if d is None:
+    #
+    # THE SIZE AXIS OF `quantiles.f16` IS THE SCAN'S OWN LADDER, not `config.yaml`'s. This used to
+    # index the array with `ood_arms.<arm>.sizes`, the same config-drift defect as the old
+    # `arm_size_m`: the four arms that still declare 16 there would have had their floor read out
+    # of the wrong column the moment the two ladders differed anywhere below the top. The scan
+    # README's `- sizes:` line is what the array's second axis actually is.
+    floor_by_dir: dict[str, dict[str, float]] = {}
+    rows_of_arm = {a: [int(r["row"]) for r in ids if r["arm"] == a] for a in dir_of_arm}
+    arms_of_dir: dict[str, list[str]] = {}
+    for a, cdir in dir_of_arm.items():
+        for (c_, _), d_ in dir_by_corpus.items():
+            if c_ == cdir:
+                arms_of_dir.setdefault(d_, []).append(a)
+    for d in sorted(dir_by_corpus.values()):
+        sz, ladder = size_of_scan(d), sizes_of_dir.get(d) or []
+        if sz is None or sz not in ladder:
             continue
         idx_j = vol.json(f"base/{base}/scan/{d}/index.json") or {}
         meta = idx_j.get("quantiles.f16")
@@ -998,23 +1257,41 @@ def main(
                       tuple(int(x) for x in meta["shape"]))
         if q is None:
             continue
-        spec_sizes = [float(x) for x in (cfg["ood_arms"].get(arm, {}).get("sizes") or [])]
-        scanned = [x for x in spec_sizes if x <= size_m]
-        if size_m not in scanned:
-            continue
-        si = scanned.index(size_m)
-        rows_here = [int(r["row"]) for r in ids if r["arm"] == arm]
-        if not rows_here or si >= q.shape[1]:
-            continue
-        sel = q[np.asarray(rows_here), si, :]
-        floor_by_arm[arm] = {
-            "floor_median": float(np.mean(sel[:, 0])),
-            "floor_p99": float(np.mean(sel[:, -1])),
-        }
+        si = ladder.index(sz)
+        assert q.shape[1] == len(ladder), (
+            f"scan `{d}` has {q.shape[1]} size slices in quantiles.f16 but its README names "
+            f"{len(ladder)} sizes ({ladder}): the floor would be read out of the wrong column"
+        )
+        for arm in arms_of_dir.get(d, []):
+            rows_here = rows_of_arm.get(arm) or []
+            if not rows_here:
+                continue
+            sel = q[np.asarray(rows_here), si, :]
+            floor_by_dir.setdefault(d, {})
+            floor_by_dir[d][arm] = {
+                "floor_median": float(np.mean(sel[:, 0])),
+                "floor_p99": float(np.mean(sel[:, -1])),
+            }
+    n_floor = sum(len(v) for v in floor_by_dir.values())
     notes.append(
-        f"random floor per corpus: the scan's own per-target window quantiles at {size_m:g}M, "
-        f"{len(floor_by_arm)} arms. NOT the target-vs-target `chance_pairwise_cos` of "
+        f"random floor per corpus: the scan's own per-target window quantiles at EACH ARM'S OWN "
+        f"size, {n_floor} arms over {len(floor_by_dir)} scans. NOT the target-vs-target "
+        f"`chance_pairwise_cos` of "
         f"`stats_ood`, which measures the target geometry and not the corpus"
+    )
+    notes += size_notes
+    notes.append(
+        "scan sizes read from each scan's own README and cross-checked against its topk.jsonl: "
+        + ", ".join(f"`{d}` at {size_of_dir[d]:g}M" for d in sorted(size_of_dir))
+    )
+    uncentred = sorted(d for d in dir_by_corpus.values() if not scan_centred[d])
+    notes.append(
+        "EVERY in-domain scan recorded `--centre` (both sides about the scoring constant), so the "
+        "centred-against-centred convention of spec §2 is a READ FACT here and not an assumption"
+        if not uncentred else
+        "IN-DOMAIN SCANS THAT DID NOT RECORD `--centre`: " + ", ".join(f"`{d}`" for d in uncentred)
+        + ". Their windows are not centred about the scoring constant, so a `cos_centred` Δ "
+          "against them subtracts two angles to two different vectors"
     )
 
     verdicts: dict[str, dict[str, str]] = {}
@@ -1071,13 +1348,36 @@ def main(
                 f"source `{src.label}` (mu={got_mu}): arms with no scan of their own corpus at "
                 f"that mean: " + ", ".join(f"`{a}`" for a in missing)
             )
+        # EACH ARM AT ITS OWN SCAN'S SIZE. `dir_by_corpus[(corpus, mean)]` is the scan this
+        # source is differenced against, so its size is the size THIS arm is read at -- 10M for
+        # 21 of the M5 arms and 4M for `shell`, in one table, each stated in its own row.
+        dir_of: dict[str, str] = {}
+        size_by_arm: dict[str, float] = {}
+        for a, cdir in dir_of_arm.items():
+            d_ = dir_by_corpus.get((cdir, got_mu))
+            if d_ is None:
+                continue
+            dir_of[a] = d_
+            sz = size_of_scan(d_)
+            if sz is not None:
+                size_by_arm[a] = sz
+        no_size = sorted(a for a in dir_of if a not in size_by_arm)
+        if no_size:
+            notes.append(
+                f"source `{src.label}`: arms whose own scan carries no cell at the requested size"
+                + (f" ({size:g}M)" if size else "")
+                + ": " + ", ".join(f"`{a}`" for a in no_size)
+            )
         src_bo8, bo8_note = centred_bo_k(vol, src)
         notes.append(f"`{src.label}`: {bo8_note}")
         recs, skipped = arm_rows(
-            ids, src, top1_by_arm, size_m, "centred", mod.boot_ci, mod.outcome, control,
+            ids, src, top1_by_arm, size_by_arm, "centred", mod.boot_ci, mod.outcome, control,
             comparable=comparable, bo8=src_bo8, control_bo8=ctrl_bo8,
         )
         notes += skipped
+        ceilings = {a: ceilings_by_dir[d_] for a, d_ in dir_of.items() if d_ in ceilings_by_dir}
+        floor_by_arm = {a: floor_by_dir[d_][a] for a, d_ in dir_of.items()
+                        if a in (floor_by_dir.get(d_) or {})}
         lids: dict[str, dict] = {}
         if lid:
             lids, lnotes = lid_rates(
@@ -1107,12 +1407,19 @@ def main(
                 lang_col.append(f"n/m ({R.num(rate, 2)} vs ceiling {R.num(ceil, 2)})")
             else:
                 lang_col.append(f"{R.num(rate, 3)} / {R.num(ceil, 2)}")
-        verdicts[src.label] = {r["arm"]: r["outcome"] for r in recs}
-        header = ["arm", "family", "n", "bo8 (centred)", "bo64 (centred)", f"corpus {size_m:g}M",
+        # EVERY PRINTED VERDICT IS THE bo8 ONE (M5, 2026-09-23). `outcome` (bo64) is the
+        # quarter-scale run's quantity and lives in the CSV only; printing one count off it while
+        # the Δ column, `diff.verdict` and `conj.diff.n*` all report the other is two different
+        # claims under one sentence.
+        verdicts[src.label] = {r["arm"]: r["outcome8"] for r in recs}
+        header = ["arm", "family", "n", "size (M)", "bo8 (centred)", "bo64 (centred)",
+                  "corpus top-1",
                   "control bo8", "control bo64", "Δ", "95% CI", "win", "outcome",
                   "lang / ceiling"]
         rows_md = [
-            [r["arm"], r["family"], r["n"], R.num(r["bo8_centred"]), R.num(r["bo64_centred"]),
+            [r["arm"], r["family"], r["n"],
+             f"{r['corpus_size_m']:g}" if r.get("corpus_size_m") else "—",
+             R.num(r["bo8_centred"]), R.num(r["bo64_centred"]),
              R.num(r["corpus_top1"]), R.num(r["control_bo8"]), R.num(r["control_bo64"]),
              R.num(r["delta8"]), f"[{R.num(r['ci8_lo'], 3)}, {R.num(r['ci8_hi'], 3)}]",
              R.num(r["win8_frac"], 2), r["outcome8"], lc]
@@ -1120,7 +1427,7 @@ def main(
         ]
         csv_header = ["arm", "family", "n", "bo8_centred", "bo64_centred", "bo64_asym", "bo64_raw",
                       "corpus_top1",
-                      "corpus_size_m", "arm_size_m", "control_bo8", "control_bo64",
+                      "corpus_size_m", "control_bo8", "control_bo64",
                       "delta8", "ci8_lo", "ci8_hi", "se8_clustered", "n8", "n8_clusters",
                       "win8_frac", "outcome8",
                       "delta", "ci_lo", "ci_hi",
@@ -1131,7 +1438,7 @@ def main(
         csv_rows = [
             [r["arm"], r["family"], r["n"], r["bo8_centred"], r["bo64_centred"], r["bo64_asym"],
              r["bo64_raw"], r["corpus_top1"],
-             size_m, arm_size_m(cfg, r["arm"]), r["control_bo8"], r["control_bo64"],
+             r.get("corpus_size_m"), r["control_bo8"], r["control_bo64"],
              r["delta8"], r["ci8_lo"], r["ci8_hi"], r["se8_clustered"], r["n8"], r["n8_clusters"],
              r["win8_frac"], r["outcome8"],
              r["delta"], r["ci_lo"], r["ci_hi"],
@@ -1143,13 +1450,24 @@ def main(
              r["lid_top4_rate"], r["code_like_top1_rate"], r.get("ceiling"), r.get("ceiling_kind")]
             for r in recs
         ]
-        cells_path = write_cells(out_dir, cfg, src, recs, size_m, set_name, ctrl_src)
+        cells_path, cells_rows = write_cells(out_dir, cfg, src, recs, set_name, ctrl_src)
         notes.append(f"cells rows for `paper/numbers/cells.csv` written to `{cells_path.name}`")
+        if cells_target is not None and src.role != "control":
+            stat = merge_cells(cells_target, cells_rows, cfg)
+            notes.append(
+                f"`{cells_target}`: {len(stat['rewritten'])} rows rewritten in place, "
+                f"{len(stat['appended'])} appended, {stat['untouched']} untouched"
+            )
+            print(f"[ood] cells.csv: {len(stat['rewritten'])} rewritten, "
+                  f"{len(stat['appended'])} appended, {stat['untouched']} untouched", flush=True)
         o.table(
             f"arms_{src.label.replace('/', '_').replace(':', '__').replace('@', '_at_')}",
             f"Arms — {src.label}"
             + ("" if src.centred else "  (this run centred on NOTHING: `--mu none`)"),
-            f"bo64 against the in-domain {size_m:g}M corpus search, paired per target. BOTH "
+            f"bo8 against the in-domain corpus search AT EACH ARM'S OWN SCANNED SIZE (the "
+            f"`size (M)` column; this run holds "
+            f"{', '.join(f'{v:g}M' for v in sorted({x for x in size_by_arm.values()}))}), paired "
+            f"per target. BOTH "
             f"SIDES ARE THE CENTRED CONVENTION -- `cos(h - mu, unit(act - mu))`, spec §2's "
             f"'centred against centred' -- which holds ONLY IF the scan behind the corpus column "
             f"ran with `--centre`; nothing in this file can verify that, and an uncentred scan of "
@@ -1169,20 +1487,21 @@ def main(
             header, rows_md, csv_header=csv_header, csv_rows=csv_rows,
         )
 
-        conj = [
-            r for r in recs
-            if r["family"] not in CONJUNCTION_EXCLUDES and r["arm"] not in CONJUNCTION_EXCLUDE_ARMS
-        ]
-        n_ex = sum(1 for r in conj if r["outcome"] == "exceeds")
-        named = [f"`{r['arm']}` ({r['outcome']})" for r in conj if r["outcome"] != "exceeds"]
+        # bo8, NOT bo64, and THE SAME COUNT the `ood.conj.diff.n*` cells carry -- one function,
+        # so the sentence and the cells cannot say different things about the same arms.
+        counts, conj, _have = conjunction_counts(recs)
+        n_ex = counts["exceeds"]
+        named = [f"`{r['arm']}` ({r['outcome8']})" for r in conj if r["outcome8"] != "exceeds"]
         o.section(
             "\n".join(
                 [
                     f"### Pre-registered claim — {src.label}",
                     "",
-                    f"Level 1, design §0: *on every arm, the best of 64 MAEMM rollouts aligns with "
+                    f"Level 1, design §0: *on every arm, the best of 8 MAEMM rollouts aligns with "
                     f"the target more closely than the best window of an in-domain corpus search "
-                    f"in the target's own domain.* Read at **{size_m:g}M** corpus tokens, over the "
+                    f"in the target's own domain.* Read at **each arm's own scanned size** "
+                    f"({', '.join(f'{v:g}M' for v in sorted({x for x in size_by_arm.values()}))}"
+                    f"), over the "
                     f"{len(conj)} arms of the conjunction (design §6: lang 8, code 8, math 4, "
                     f"`ufw_zh`; the `diag` arm `formulas` and the §8(a) English pipeline check "
                     f"`ufw_en` are reported as rows but not counted):",

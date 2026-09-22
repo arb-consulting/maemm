@@ -2493,7 +2493,10 @@ def check_ood_arm_table():
 
     src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
     src.per_target = per_target
-    recs, skipped = od.arm_rows(ids, src, top1_by_arm, 1.0, "asym", boot_ci, R_outcome, None)
+    # `arm_rows` takes the size PER ARM since M5 (2026-09-23), because the real run holds 21 arms
+    # at 10M and `shell` at 4M in one table. Here every arm is at 1M.
+    sizes1 = dict.fromkeys(plan, 1.0)
+    recs, skipped = od.arm_rows(ids, src, top1_by_arm, sizes1, "asym", boot_ci, R_outcome, None)
     assert not skipped, skipped
     got = {r["arm"]: r for r in recs}
     # a source centred on ANOTHER mean gets its cosines and NO delta: the two sides would be
@@ -2503,7 +2506,7 @@ def check_ood_arm_table():
     # centred on a mean nothing was scanned at. It must still yield one ROW PER ARM carrying the
     # cosines. Asserting the count first, because `for r in []` passes every check vacuously and
     # that is exactly how the first version of this shipped a table with no rows in it.
-    inc, _ = od.arm_rows(ids, src, {}, 1.0, "asym", boot_ci, R_outcome, None, comparable=False)
+    inc, _ = od.arm_rows(ids, src, {}, sizes1, "asym", boot_ci, R_outcome, None, comparable=False)
     assert len(inc) == 3, f"an incomparable source must still report every arm's cosines: {inc}"
     for r in inc:
         assert r["delta"] is None and r["ci_lo"] is None and r["outcome"] == "not comparable", r
@@ -2538,10 +2541,13 @@ def check_ood_arm_table():
         "only the `mu=<path> from <source>` line names the run's mean; the derivation line "
         "mentions a mu too and must not be mistaken for it"
     )
+    assert od.CENTRE_MU_RE.search(
+        "- CENTRING: directions derived from /x at mu=/y: unit(act - mu)"
+    ) is None, "the derivation line is not the `--centre` line either"
 
     # an arm whose own corpus was never scanned must be reported, never scored off another's
     partial = {k: v for k, v in top1_by_arm.items() if k != "a_rev"}
-    recs2, skipped2 = od.arm_rows(ids, src, partial, 1.0, "asym", boot_ci, R_outcome, None)
+    recs2, skipped2 = od.arm_rows(ids, src, partial, sizes1, "asym", boot_ci, R_outcome, None)
     assert [r["arm"] for r in recs2] == ["a_ex", "a_inc"], [r["arm"] for r in recs2]
     assert any("a_rev" in m and "own corpus" in m for m in skipped2), skipped2
     assert sorted(got) == ["a_ex", "a_inc", "a_rev"]
@@ -2554,7 +2560,7 @@ def check_ood_arm_table():
     _close(got["a_ex"]["bo64_raw"], 0.65, tol=0.01, what="the raw column is reported beside it")
     _close(got["a_ex"]["bo64_centred"], 0.68, tol=0.01, what="and the centred one")
     # the same arms read on the RAW cosine: every Δ moves down 0.05, and `a_inc` becomes reversed
-    raw_recs, _ = od.arm_rows(ids, src, top1_by_arm, 1.0, "raw", boot_ci, R_outcome, None)
+    raw_recs, _ = od.arm_rows(ids, src, top1_by_arm, sizes1, "raw", boot_ci, R_outcome, None)
     raw = {r["arm"]: r for r in raw_recs}
     _close(raw["a_ex"]["delta"], 0.15, tol=0.01, what="the raw Δ is 0.05 below the asym one")
     assert raw["a_inc"]["outcome"] == "reversed", (
@@ -2597,8 +2603,8 @@ def check_ood_bo8_headline():
 
     src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
     src.per_target = per_target
-    recs, skipped = od.arm_rows(ids, src, {"a": top1}, 10.0, "centred", boot_ci, R_outcome, None,
-                                bo8=bo8)
+    recs, skipped = od.arm_rows(ids, src, {"a": top1}, {"a": 10.0}, "centred", boot_ci, R_outcome,
+                                None, bo8=bo8)
     assert not skipped, skipped
     r = recs[0]
     assert r["n"] == 8 and r["n8"] == 7, f"the bo8 pair drops the row with no bo8: {r}"
@@ -2608,7 +2614,7 @@ def check_ood_bo8_headline():
         f"the verdict must follow the bo8 pair, not the bo64 one: {r}"
     )
     # no bo8 at all -> no bo8 verdict, and the bo64 columns are untouched
-    recs2, _ = od.arm_rows(ids, src, {"a": top1}, 10.0, "centred", boot_ci, R_outcome, None)
+    recs2, _ = od.arm_rows(ids, src, {"a": top1}, {"a": 10.0}, "centred", boot_ci, R_outcome, None)
     assert recs2[0]["delta8"] is None and recs2[0]["outcome8"] == "no bo8 pairs", recs2[0]
 
     # the cells key map, read off `paper/numbers/cells.csv`'s existing ids
@@ -2622,8 +2628,18 @@ def check_ood_bo8_headline():
     assert got == want, {a: (got[a], want[a]) for a in want if got[a] != want[a]}
     cfg = PC.load_config()
     assert set(want) == set(cfg["ood_arms"]), "the cells map and ood_arms have drifted apart"
-    assert od.arm_size_m(cfg, "shell") == 4.0 and od.arm_size_m(cfg, "formulas") == 1.0
-    assert od.arm_size_m(cfg, "tha_Thai") == 16.0 and od.arm_size_m(cfg, "ces_Latn") == 10.0
+    # THE CONFIG IS NO LONGER A SIZE SOURCE. `arm_size_m(cfg, arm)` is gone: it read
+    # `ood_arms.<arm>.sizes[-1]`, which still says 16 for four arms whose scans ran `--max-size
+    # 10`, and `corp10.mtok` would have printed a size nothing measured. `check_ood_arm_size_
+    # comes_from_the_product` pins the replacement.
+    assert not hasattr(od, "arm_size_m"), (
+        "results/ood reads the arm's corpus size out of config.yaml again; the product that was "
+        "actually scanned is the only source for it (runs/2026-09-23_ledger.md, M5 gap 3/4)"
+    )
+    assert [float(x) for x in cfg["ood_arms"]["tha_Thai"]["sizes"]][-1] == 16.0, (
+        "the config no longer declares 16 for tha_Thai, so the drift this check guards is gone "
+        "and the fixture below no longer proves anything"
+    )
 
 
 def check_ood_lid_ranking():
@@ -2698,6 +2714,416 @@ def check_ood_lid_wantlist():
             assert spec.get("lid"), f"lang/ctrl arm {arm} has no lid want-list"
 
 
+
+
+
+# --- M5: the four reader seams the full-scale OOD run refused on, and the one mixed verdict -----
+#
+# Every one of these is a defect that printed a clean table. The run they come from is
+# `runs/2026-09-23_ledger.md` (M5, 22 arms x 512 targets, all 66 jobs landed): the driver withheld
+# all 22 Δ, `lid` never ran, the table could not hold 10M and 4M at once, four arms' size cells
+# would have printed a size nothing measured, and the prose sentence counted a different verdict
+# from the cells beneath it.
+
+OOD_CENTRE_README = """# 2026-09-23_ood_full__ufw_en__10m__paper0923
+
+## Inputs
+
+- corpus: /vol/base/B/corpora/ufw_en
+- corpus label: ufw_en
+- targets: 11264
+- sizes: [1, 4, 10]
+- max_size: 10
+
+## Notes
+
+- CENTRING: directions derived from /vol/base/B/heldout/S/act.f32 at \
+mu=/vol/archive/g/whiten_mu.npy: unit(act - mu) on 11264 centrable rows (['code', 'lang'])
+- CENTRING: --centre: BOTH sides about /vol/archive/g/whiten_mu.npy, the scoring constant \
+(common.score_mu); every target family here is `centrable`
+"""
+
+
+def _ood_scan_mirror(root: Path, base: str, scan_dir: str, readme: str) -> R.Vol:
+    (root / f"base/{base}/scan/{scan_dir}").mkdir(parents=True, exist_ok=True)
+    (root / f"base/{base}/scan/{scan_dir}/README.md").write_text(readme)
+    return R.Vol("", root, offline=True)
+
+
+def check_ood_centred_scan_mean_is_read():
+    """A `--centre` scan's mean comes back from its README, and the scan is marked centred.
+
+    THE DEFECT: `MU_RE` matched only `common.note_convention`'s `- CENTRING: mu=<path> from ...`,
+    the line a product that resolved a `--mu` writes. `precompute/scan.py --centre` writes neither
+    that line nor anything like it -- it writes `- CENTRING: --centre: BOTH sides about <path>,
+    the scoring constant` -- so 0 of the M5 run's 22 scan READMEs matched, every scan resolved to
+    `mu=none`, `top1_by_corpus` (keyed on (corpus, mean)) missed on every lookup, and all 22 arms
+    came out `not comparable` beside two scored sources whose `rows.json` names that very path.
+
+    The two sides ARE at one mean and the READMEs say so; the reader could not hear it.
+    """
+    od = _ood()
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        vol = _ood_scan_mirror(root, "B", "S__ufw_en__10m__tag", OOD_CENTRE_README)
+        mu, centred = od.scan_mu_of(vol, "B", "S__ufw_en__10m__tag")
+        assert mu == "/vol/archive/g/whiten_mu.npy", (
+            f"the `--centre` scan's mean was not read back from its README: {mu!r}")
+        assert centred is True, "a `--centre` scan must be recorded as centred"
+        # AND IT PAIRS: the same path as a source's `rows.json` spells it, once both are resolved.
+        assert od.C_resolve_mu(mu, "B") == od.C_resolve_mu(
+            "/vol/archive/g/whiten_mu.npy", "B") == "archive/g/whiten_mu.npy"
+        # the scan's sizes come off the same README, and they are the product's, not the config's
+        assert od.scan_sizes_of(vol, "B", "S__ufw_en__10m__tag") == [1.0, 4.0, 10.0]
+
+        # The legacy shape still reads, and still reads as NOT centred: a product that resolved a
+        # `--mu` centred its TARGETS, and says nothing about the corpus windows.
+        vol2 = _ood_scan_mirror(
+            root, "B", "S__legacy",
+            "## Notes\n\n- CENTRING: mu=/vol/base/B/stats/mu.f32 from --mu (explicit)\n")
+        assert od.scan_mu_of(vol2, "B", "S__legacy") == ("/vol/base/B/stats/mu.f32", False)
+
+        # A README with ONLY the derivation line names no scan mean: that line describes how the
+        # target bank's unit vectors were built, and a scan that derived centred directions while
+        # scoring uncentred windows is at no comparable mean at all.
+        vol3 = _ood_scan_mirror(
+            root, "B", "S__deriv",
+            "## Notes\n\n- CENTRING: directions derived from /x at mu=/y: unit(act - mu)\n")
+        assert od.scan_mu_of(vol3, "B", "S__deriv") == (None, False)
+        # and a scan whose README is not on the volume at all
+        assert od.scan_mu_of(R.Vol("", root, offline=True), "B", "S__absent") == (None, False)
+
+
+def check_ood_lid_reads_every_chunk_the_readme_names():
+    """`lid_rates` reads the WHOLE chunked rollouts product, not one file of it.
+
+    THE DEFECT: `score` names every rollouts file it read on one `- rollouts:` line, and for a
+    product `--rows` split into chunks that is a comma-separated list of 22 paths. The reader
+    asked for ONE path, got None, and `lid` did not run -- so `ex.lid`, `corp10.lid` and both
+    classifier ceilings were empty on a product that was complete (ledger M5 gap 1).
+
+    The union itself is `precompute.common.read_rollouts`, exercised for real below (the chunk
+    files and their summaries are written into a temp mirror); only the README regex is stubbed
+    here, and it is pinned by `stats_ood.py selfcheck`, which this file cannot import.
+
+    The fixture makes reading ONE chunk visibly wrong: each chunk holds a different arm, so a
+    reader that stops at the first reports one arm instead of two.
+    """
+    od = _ood()
+    n_roll, width = 4, 3
+    arms = {"lang_a": (0, 1), "lang_b": (2, 3)}          # arm -> its two target rows
+    ids = [{"row": r, "arm": a, "family": "lang", "doc": 500 + r}
+           for a, rows in arms.items() for r in rows]
+    # rollout 3 always scores best and is always the RIGHT language; k=0 is always wrong.
+    cos = np.full((4, n_roll, width), np.nan, dtype=np.float32)
+    for row in range(4):
+        for k in range(n_roll):
+            cos[row, k, :2] = 0.10 * (k + 1)
+
+    with tempfile.TemporaryDirectory() as td:
+        mirror = Path(td)
+        srel = "maemms/b/m/scores/S__vllm__tag"
+        (mirror / srel).mkdir(parents=True)
+        cos.astype(np.float16).tofile(mirror / srel / "cos_centred.f16")
+        (mirror / srel / "index.json").write_text(json.dumps(
+            {"cos_centred.f16": {"dtype": "float16", "shape": [4, n_roll, width]}}))
+        rdir = mirror / "maemms/b/m/rollouts"
+        rdir.mkdir(parents=True)
+        stem = "S__vllm__tag"
+        inv = {"maemm": "b/m", "base": "b", "set": "S", "engine": "vllm", "kind": "ood",
+               "n": n_roll, "bo": n_roll, "seed": 1, "max_new": 64, "min_new": 0, "prompt": "p",
+               "prompt_tokens": 3, "marker_pos": 1, "inject_layer": 42, "inject_coef": 1.0,
+               "temperature": 1.0, "top_p": 1.0, "top_k": 0, "weight_sha256": "0" * 64,
+               "score_max_length": 95}
+        rels = []
+        for arm, rows in arms.items():
+            spec = f"{rows[0]}-{rows[1]}"
+            (rdir / f"{stem}{PC.ROWS_MARK}{spec}.jsonl").write_text("\n".join(
+                json.dumps({"row": r, "k": k,
+                            "text": ("WRONG" if k != n_roll - 1 else f"RIGHT {arm}")})
+                for r in rows for k in range(n_roll)) + "\n")
+            (rdir / f"{stem}{PC.ROWS_MARK}{spec}.summary.json").write_text(
+                json.dumps({**inv, "rows": list(rows)}))
+            rels.append(f"maemms/b/m/rollouts/{stem}{PC.ROWS_MARK}{spec}.jsonl")
+
+        asked: list[str] = []
+
+        class _Mod:
+            """`reconstruction/stats_ood`'s two rollout readers, at their real contract."""
+
+            @staticmethod
+            def rollouts_rels_from_readme(vol, scores_rel):
+                asked.append(scores_rel)
+                return list(rels)
+
+            @staticmethod
+            def read_rollout_rows(vol, rels_):
+                for rel in rels_:
+                    assert vol.get(rel) is not None, rel
+                rows_, _summary, _ = PC.read_rollouts(
+                    str(Path(vol.local) / "maemms/b/m/rollouts"), stem)
+                return rows_
+
+            @staticmethod
+            def load_lid(path):
+                return None
+
+            @staticmethod
+            def lid_label(model, text):
+                return (text.split()[-1] if text.startswith("RIGHT") else "xxx"), 1.0
+
+        vol = R.Vol("", mirror, offline=True)
+        src = R.Source(maemm="b/m", base="b", engine="vllm", run_tag="tag",
+                       scores_rel=srel, rollouts_rel="")
+        src.per_target = {r: {"max_cos_centred": 0.1 * n_roll} for r in range(4)}
+        cfg = {"ood_arms": {a: {"lid": [a], "family": "lang"} for a in arms}}
+
+        class _LidModel:
+            pass
+
+        _Mod.load_lid = staticmethod(lambda path: _LidModel())
+        out, notes = od.lid_rates(_Mod, vol, cfg, ids, src, "S", None, "centred", {})
+        assert asked == [srel], asked
+        assert sorted(out) == ["lang_a", "lang_b"], (
+            f"only the chunks of ONE arm were read, so a whole arm is missing: {sorted(out)}")
+        for arm in arms:
+            assert out[arm]["lid_top1_rate"] == 1.0, (
+                f"{arm}: the language column was not taken on the top-1 BY SCORE across chunks: "
+                f"{out[arm]}")
+        assert any("2 `__rows` chunks of one product" in n for n in notes), notes
+
+        # A README that names nothing still says so, rather than reporting an empty product.
+        _Mod.rollouts_rels_from_readme = staticmethod(lambda vol, rel: [])
+        out2, notes2 = od.lid_rates(_Mod, vol, cfg, ids, src, "S", None, "centred", {})
+        assert out2 == {} and any("does not name its rollouts file" in n for n in notes2), notes2
+
+
+def check_ood_arm_size_comes_from_the_product():
+    """Each arm's corpus size is the size ITS OWN scan reached, in the row and in the cells.
+
+    TWO DEFECTS, one source. (a) `main` took ONE `size_m` for the table, so the M5 run -- 21 arms
+    at 10M and `shell` at 4M -- either dropped `shell` (`--size 10`) or pulled every arm down to
+    4M (`--size 0`, "the largest size EVERY scan carries") and left the headline contrast out.
+    (b) `arm_size_m` read `config.yaml`, where `tha_Thai`, `ufw_en`, `python` and `owm` still
+    declare 16 while their scans ran `--max-size 10`: four `corp10.mtok` cells at a size nothing
+    measured, each with a note explaining a 16M cell the run does not have.
+
+    The fixture uses `tha_Thai` (config says 16, scan says 10) and `shell` (config and scan say
+    4), so reading the config and reading the product give different answers on the same table.
+    """
+    od = _ood()
+    cfg = PC.load_config()
+    ids, per_target, bo8 = [], {}, {}
+    top1_by_arm: dict[str, dict] = {"tha_Thai": {}, "shell": {}}
+    row = 0
+    for arm in ("tha_Thai", "shell"):
+        for _ in range(8):
+            ids.append({"row": row, "arm": arm, "family": cfg["ood_arms"][arm]["family"],
+                        "doc": 900 + row})
+            per_target[row] = {"bo_64": 0.60, "bo_c_64": 0.62, "bo_a_64": 0.61}
+            bo8[row] = 0.70
+            # EVERY size the scan carries is in the map; only the arm's own top one may be read.
+            for s_ in (1.0, 4.0, 10.0, 16.0):
+                top1_by_arm[arm][(row, s_)] = {1.0: 0.10, 4.0: 0.20, 10.0: 0.50, 16.0: 0.95}[s_]
+            row += 1
+
+    def boot_ci(d):
+        m = float(np.mean(d))
+        return m, m - 0.01, m + 0.01
+
+    src = R.Source(maemm="qwen36-27b/2026-09-18_rl-last16-lr5e-7", base="qwen36-27b",
+                   engine="vllm", run_tag="tag", scores_rel="", rollouts_rel="")
+    src.per_target = per_target
+    recs, skipped = od.arm_rows(ids, src, top1_by_arm, {"tha_Thai": 10.0, "shell": 4.0},
+                                "centred", boot_ci, R_outcome, None, bo8=bo8)
+    assert not skipped, skipped
+    got = {r["arm"]: r for r in recs}
+    assert got["tha_Thai"]["corpus_size_m"] == 10.0 and got["shell"]["corpus_size_m"] == 4.0, got
+    # The corpus cell is the one AT THAT SIZE: 0.50 at 10M, 0.20 at 4M. The 16M cell exists in the
+    # map and must not be reached -- which is what the config-driven size would have done.
+    _close(got["tha_Thai"]["corpus_top1"], 0.50, 1e-9, what="tha_Thai is read at its scan's 10M")
+    _close(got["shell"]["corpus_top1"], 0.20, 1e-9, what="shell is read at its scan's 4M")
+    _close(got["tha_Thai"]["delta8"], 0.20, 1e-9)
+    _close(got["shell"]["delta8"], 0.50, 1e-9)
+    # ...and an arm with no size at all is SKIPPED and named, never read at someone else's size.
+    _recs, skipped2 = od.arm_rows(ids, src, top1_by_arm, {"tha_Thai": 10.0}, "centred", boot_ci,
+                                  R_outcome, None, bo8=bo8)
+    assert any("shell" in m and "no corpus size" in m for m in skipped2), skipped2
+
+    # THE CELLS: `corp10.mtok` is the product's size, and the note says so where it is not 10M.
+    # `main` joins the lid columns onto every record before `write_cells`; done here too, so the
+    # fixture is the shape the writer is really handed.
+    for r in recs:
+        r.update({"lid_top1_rate": None, "code_like_top1_rate": None, "ceiling": None,
+                  "ceiling_kind": "lid", "bpb_ctx": None, "nll_n": None, "control_bo8": None})
+    with tempfile.TemporaryDirectory() as td:
+        out_dir = Path(td)
+        _path, rows_ = od.write_cells(out_dir, cfg, src, recs, "S", None)
+        cells = {r["key"]: r for r in rows_}
+        assert cells["ood.tha.corp10.mtok"]["value"] == "10", cells["ood.tha.corp10.mtok"]
+        assert cells["ood.shell.corp10.mtok"]["value"] == "4", cells["ood.shell.corp10.mtok"]
+        assert "not 10M" in cells["ood.shell.corp10.cos"]["note"], cells["ood.shell.corp10.cos"]
+        assert "not 10M" not in cells["ood.tha.corp10.cos"]["note"], cells["ood.tha.corp10.cos"]
+        # and every key it writes is one this module is allowed to write
+        owned = od.owned_cell_keys(cfg)
+        stray = sorted({r["key"] for r in rows_} - owned)
+        assert not stray, stray
+
+
+def check_ood_counts_are_the_bo8_verdict():
+    """The "N of M arms exceed" sentence and the `ood.conj.diff.n*` cells are ONE count.
+
+    THE DEFECT: the sentence was built from `r["outcome"]` -- the bo64 pair, what the
+    quarter-scale run reported -- while the table's Δ column, `diff.verdict` and `conj.diff.n*`
+    are all `outcome8`. Two verdicts of the same arms under one heading, and the reader has no
+    way to see that they are different statistics rather than a contradiction.
+
+    The fixture makes them disagree on every arm: bo64 says `exceeds` where bo8 says `reversed`.
+    """
+    od = _ood()
+    recs = [
+        {"arm": "ces_Latn", "family": "lang", "outcome": "exceeds", "outcome8": "reversed"},
+        {"arm": "python", "family": "code", "outcome": "exceeds", "outcome8": "exceeds"},
+        {"arm": "sql", "family": "code", "outcome": "exceeds", "outcome8": "inconclusive"},
+        {"arm": "lean", "family": "math", "outcome": "reversed", "outcome8": "no bo8 pairs"},
+        # NOT COUNTED: the `diag` arm and the English anchor, reported as rows either way.
+        {"arm": "formulas", "family": "diag", "outcome": "exceeds", "outcome8": "exceeds"},
+        {"arm": "ufw_en", "family": "ctrl", "outcome": "exceeds", "outcome8": "exceeds"},
+    ]
+    counts, conj, have = od.conjunction_counts(recs)
+    assert [r["arm"] for r in conj] == ["ces_Latn", "python", "sql", "lean"], conj
+    assert [r["arm"] for r in have] == ["ces_Latn", "python", "sql"], have
+    assert counts == {"exceeds": 1, "inconclusive": 1, "reversed": 1}, counts
+    assert sum(1 for r in conj if r["outcome"] == "exceeds") == 3, (
+        "the fixture no longer makes bo64 and bo8 disagree, so it proves nothing")
+    # the cells rows carry exactly these numbers, over the same denominator
+    for r in recs:
+        r.update({"n": 8, "n8": 8, "delta8": 0.1, "ci8_lo": 0.0, "ci8_hi": 0.2,
+                  "se8_clustered": 0.01, "bo8_centred": 0.7, "corpus_top1": 0.6,
+                  "corpus_size_m": 10.0, "lid_top1_rate": None, "code_like_top1_rate": None,
+                  "ceiling": None, "ceiling_kind": "lid", "bpb_ctx": None, "nll_n": None,
+                  "control_bo8": None})
+    with tempfile.TemporaryDirectory() as td:
+        src = R.Source(maemm="b/m", base="b", engine="vllm", run_tag="t", scores_rel="",
+                       rollouts_rel="")
+        _p, rows_ = od.write_cells(Path(td), PC.load_config(), src, recs, "S", None)
+        cells = {r["key"]: r for r in rows_}
+        assert cells["ood.conj.diff.nexceed"]["value"] == "1", cells["ood.conj.diff.nexceed"]
+        assert cells["ood.conj.diff.ninconcl"]["value"] == "1", cells["ood.conj.diff.ninconcl"]
+        assert cells["ood.conj.diff.nreversed"]["value"] == "1", cells["ood.conj.diff.nreversed"]
+        assert cells["ood.conj.diff.nexceed"]["n"] == "3", cells["ood.conj.diff.nexceed"]
+
+
+def check_ood_cells_merge_keeps_every_other_builders_bytes():
+    """The in-place merge rewrites this module's keys and no other byte of `cells.csv`.
+
+    `results/ood.py` stopped at a fragment CSV; the merge was done by hand, and the M5 run's
+    fragment carried `—` and `not comparable` into rows the tex reads. The writer is module M1's
+    -- ONE implementation of "preserve every byte", imported -- and this check drives it through
+    `ood.merge_cells`: a CRLF file, one `ood.*` row rewritten, one appended, every foreign row
+    byte-identical, and a key this module does not own refused before anything is written.
+    """
+    od = _ood()
+    cfg = PC.load_config()
+    header = ",".join(od.CELLS_COLUMNS)
+    body = [
+        'fid.ra.ex.cos.bo8,0.8219,0.0051,,,486,final,R1,src,2026-09-22,"a, quoted note"',
+        "ood.tha.corp10.mtok,,,,,,placeholder,R4,,2026-09-23,expected",
+        "corp.train10m.top1.cos,0.3512,,,,512,final,R2,src,2026-09-22,",
+    ]
+    for term in ("\r\n", "\n"):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "cells.csv"
+            original = term.join([header, *body]) + term
+            with path.open("w", newline="") as fh:
+                fh.write(original)
+            rows = [
+                {"key": "ood.tha.corp10.mtok", "value": "10", "se": "", "lo": "", "hi": "",
+                 "n": "", "status": "provisional", "run": "R4", "source": "results/ood.py",
+                 "date": "2026-09-23", "note": "the size the arm's own scan reached"},
+                {"key": "ood.tha.diff.verdict", "value": "exceeds", "se": "", "lo": "", "hi": "",
+                 "n": "512", "status": "provisional", "run": "R4", "source": "results/ood.py",
+                 "date": "2026-09-23", "note": "three-state verdict on the bo8 pair"},
+            ]
+            stat = od.merge_cells(path, rows, cfg)
+            assert stat["rewritten"] == ["ood.tha.corp10.mtok"], stat
+            assert stat["appended"] == ["ood.tha.diff.verdict"], stat
+            with path.open(newline="") as fh:
+                after = fh.read()
+            lines = after.splitlines(keepends=True)
+            assert lines[0] == header + term, repr(lines[0])
+            # the two rows this module does not own came back byte for byte, quoting included
+            assert lines[1] == body[0] + term, repr(lines[1])
+            assert lines[3] == body[2] + term, repr(lines[3])
+            assert all(ln.endswith(term) for ln in lines), (
+                f"the merge mixed line terminators into a {term!r} file")
+            assert ",10," in lines[2] and lines[2].startswith("ood.tha.corp10.mtok,"), lines[2]
+            assert lines[4].startswith("ood.tha.diff.verdict,"), lines[4]
+            # a key outside this module's own is refused BEFORE the file is touched
+            before = after
+            try:
+                od.merge_cells(path, [{**rows[0], "key": "fid.ra.ex.cos.bo8"}], cfg)
+            except AssertionError as exc:
+                assert "does not own" in str(exc), exc
+            else:
+                raise AssertionError("the merge wrote a key module M1 owns")
+            with path.open(newline="") as fh:
+                assert fh.read() == before, "a refused merge still rewrote the file"
+    # the owned set is enumerated, so a typo is not silently a new row
+    owned = od.owned_cell_keys(cfg)
+    assert "ood.tha.corp10.mtok" in owned and "ood.conj.diff.nexceed" in owned
+    assert "ood.tha.corp10.mtokens" not in owned and "ood.tha.diff.cos.bo64" not in owned
+
+
+def check_ood_cells_never_carry_an_em_dash():
+    """A cell that was not measured is NOT WRITTEN -- not written as `—`, not as `not comparable`.
+
+    THE DEFECT the M5 refusal would have merged: `write_cells` formatted every value through
+    `results.common.num`, whose job in a markdown table is to print an em dash for an absent
+    number. `cells.csv` is copied into the tex VERBATIM, so that em dash is a paper that prints
+    an em dash, and `make_numbers.py --check` calls "no value but se/lo/hi/n given" a WARNING --
+    it would have gone through. The refusal's own fragment carried `—` in all 22
+    `ood.*.diff.cos.bo8` cells, `—` in all 22 `corp10.cos`, and `not comparable` in all 22
+    `diff.verdict` (runs/2026-09-23_ledger.md).
+
+    The placeholder rows already in the file say "expected, not yet measured", which is true; a
+    row that says `—` says something false in the same slot.
+    """
+    od = _ood()
+    cfg = PC.load_config()
+    blank = {"n": 8, "n8": 0, "delta8": None, "ci8_lo": None, "ci8_hi": None,
+             "se8_clustered": None, "bo8_centred": None, "corpus_top1": None,
+             "corpus_size_m": None, "control_bo8": None, "bpb_ctx": None, "nll_n": None,
+             "lid_top1_rate": None, "code_like_top1_rate": None, "ceiling": None,
+             "ceiling_kind": None}
+    recs = [{"arm": "tha_Thai", "family": "lang", "outcome": "not comparable",
+             "outcome8": "not comparable", **blank},
+            {"arm": "python", "family": "code", "outcome": "exceeds",
+             "outcome8": "no bo8 pairs", **blank}]
+    src = R.Source(maemm="b/m", base="b", engine="vllm", run_tag="t", scores_rel="",
+                   rollouts_rel="")
+    with tempfile.TemporaryDirectory() as td:
+        _p, rows_ = od.write_cells(Path(td), cfg, src, recs, "S", None)
+    assert rows_ == [], f"an unmeasured arm wrote {len(rows_)} cells: {rows_[:3]}"
+
+    # ONE measured cell among absent ones still lands, and nothing rides along with it.
+    recs[0].update({"delta8": 0.2, "n8": 512, "se8_clustered": 0.005, "outcome8": "exceeds",
+                    "corpus_size_m": 10.0})
+    with tempfile.TemporaryDirectory() as td:
+        _p, rows_ = od.write_cells(Path(td), cfg, src, recs, "S", None)
+    cells = {r["key"]: r for r in rows_}
+    assert set(cells) == {"ood.tha.diff.cos.bo8", "ood.tha.diff.verdict", "ood.tha.corp10.mtok",
+                          "ood.conj.diff.nexceed", "ood.conj.diff.ninconcl",
+                          "ood.conj.diff.nreversed"}, sorted(cells)
+    # `lo`/`hi` go in together or not at all: a lone one is an ERROR in `make_numbers.py --check`
+    # and blocks the paper build. Here the CI is absent while Δ is not.
+    row = cells["ood.tha.diff.cos.bo8"]
+    assert row["value"] == "0.2000" and row["lo"] == "" and row["hi"] == "", row
+    assert row["se"] == "0.0050", row
+    assert all("—" not in v for v in row.values()), row
+    # and `not comparable` / `no bo8 pairs` are true statements and not verdicts
+    assert cells["ood.tha.diff.verdict"]["value"] == "exceeds"
+    assert "ood.python.diff.verdict" not in cells, "`no bo8 pairs` was written as a verdict"
 
 
 # --- module M1: the paper's cells, the ratio denominator, the corpus comparator ------------------
@@ -3663,6 +4089,12 @@ CHECKS = [
     check_ood_bo8_headline,
     check_ood_lid_ranking,
     check_ood_lid_wantlist,
+    check_ood_centred_scan_mean_is_read,
+    check_ood_lid_reads_every_chunk_the_readme_names,
+    check_ood_arm_size_comes_from_the_product,
+    check_ood_counts_are_the_bo8_verdict,
+    check_ood_cells_merge_keeps_every_other_builders_bytes,
+    check_ood_cells_never_carry_an_em_dash,
     # module M1 -- the paper's cells, the ratio denominator, the corpus comparator
     check_m1_clusters_fire_on_her_block,
     check_m1_fired_bok_mutation,
