@@ -157,3 +157,62 @@ themselves.
   §2.3 names. Switching would mean reading `cos.f16` in full for every arm.
 - **NLA's n = 4** means it can never reach a bo8 or bo64 column; those print as an em dash and the
   plan's "never a bo64 column for NLA" is satisfied by the products, not by a special case here.
+
+## Module M1 — the paper's cells, the ratio denominator, the corpus comparator (2026-09-24)
+
+What `faithfulness.py` now builds for `paper/numbers/cells.csv`, and what it deliberately does
+not. The plan is `evals/2026-09-23_implementation-plan.md` §M1; the spec is
+`evals/2026-09-22_eval-set-and-presentation.md` §1.1-§1.4 and §4.
+
+**Implemented.**
+
+- **The corpus-peak denominator is a parameter**, `--corpus-peak`. `stored` (the default) is what
+  `sae_self` recorded, our 16M held-out `max_act`, which is what this file divided by before.
+  `top1_act:<volume-relative dir>` reads M2's `top1_act.jsonl` and takes each row's `act_max`.
+  The provenance string reaches every ratio cell's `note`, the markdown caption and the CSVs. An
+  asked-for source that is not on the volume **raises**, naming the path; there is no fall-back to
+  `stored`, because a ratio against the wrong denominator prints as an ordinary number.
+- **Panel a**, from `cos_centred` only, over her block minus its own exclusions, with
+  document-clustered SEs and the surviving `n`: `fid.ra.ex.cos.bo1`, `fid.ra.ex.cos.bo8`,
+  `fid.ra.base.cos.bo8`, `fid.ra.nla.cos.bo1`, `fid.rnd.ex.cos.bo1`, and the paired
+  `fid.ra.diff.cos.bo8` (with `lo`/`hi`), `fid.ra.ex.win.bo8`, `fid.ra.nla.dex`.
+- **Panel b**, per corpus-frequency quartile and never pooled where the key has a quartile:
+  `sae.l131k.ex.{ratio,fired}.bo{1,8,64}.q{1..4}`, the 2M appendix block under `s2menc` / `s2mdec`
+  at bo1 and bo8, and the three pooled rows that already exist in the CSV, rewritten in place with
+  `note` saying they are pooled. The gate is **read from the product and asserted** equal to
+  1.5846 to four decimals on the 131k; a product carrying another one stops the run.
+- **The cells writer**, `--cells`. Empty (the default) writes nothing, so the driver stays
+  read-only; `default` resolves to the paper project's own `paper/numbers/cells.csv`. It rewrites
+  this module's keys in place and every other row of the file keeps its **exact bytes** — not its
+  fields, its bytes — because six builders share the file and a diff has to show one change when
+  one thing changed. It refuses a key M1 does not own, the same key twice, a file that already
+  carries a duplicate key, a reordered header, and a lone `lo` or `hi`.
+
+**Stubbed, and what the stub does.**
+
+- **`results/corpus_search.py` (module M2) does not exist yet.** `faithfulness.py` imports it and,
+  when the import fails, `corpus_top1_missing` prints one line naming the keys it is skipping and
+  the missing input, and `fid.ra.diff.cos.bo8` and `fid.ra.ex.win.bo8` are **not written** — the
+  placeholder rows already in the CSV keep saying "expected, not yet measured", which is true.
+  Nothing is zero-filled. The hook's contract is
+  `corpus_top1(vol=, base=, set_name=, rows=, size=) -> {row: top-1 cosine}`, called by keyword;
+  a module that is importable but exports none of `CORPUS_SEARCH_EXPORTS` **raises**, because a
+  contract mismatch is not an absence.
+- **No `top1_act` product on `celeste-train10m` exists yet either**, so every ratio cell a run
+  builds today is labelled as the 16M held-out number it is.
+
+**Not covered here.**
+
+- The corpus-size curve (`fid.ra.corp*.cos`, `fid.ra.corp10.slope`) is M2's, GCG/EPO is M3's, and
+  the OOD and autointerp keys belong to M5 and M6. `M1_KEYS` is the full list this writer will
+  touch and it is spelled out rather than discovered from the CSV.
+- **Which arm is the Exemplifier is not in the config.** `primary: true` is on the dropped old
+  primary, and no checkpoint name is spelled in `faithfulness.py`
+  (`selftest.check_combined_layer_lifts_and_never_recomputes` enforces that), so `--exemplifier`
+  names it and, with no flag, the cells are **skipped and listed** whenever more than one MAEMM
+  arm was scored on a block rather than one being guessed at.
+- **`lo`/`hi` is the normal approximation** `mean ± 1.96 × the document-clustered bootstrap SE`,
+  the same interval `make_headline_figure` draws, and not a percentile bootstrap:
+  `common.cluster_bootstrap` returns an SE and not its resample distribution, and a second
+  resampler here would be a second estimator under one name. Spec §4's "percentile" applies to
+  panel c's `stats_ood`, which is M5's own estimator.

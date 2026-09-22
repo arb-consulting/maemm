@@ -2639,6 +2639,677 @@ def check_ood_lid_wantlist():
             assert spec.get("lid"), f"lang/ctrl arm {arm} has no lid want-list"
 
 
+
+
+# --- module M1: the paper's cells, the ratio denominator, the corpus comparator ------------------
+#
+# A FOURTH fixture, at the end of this file: two blocks in the volume's own layout, carrying the
+# shapes panel a and panel b need and nothing else. It is separate from the eval-1 fixture above
+# rather than grafted onto it because M1's cells need things that fixture deliberately does not
+# have -- a realact block stamped `source: hers`, an arm that is `role: control`, an arm that is
+# `type: nla` with its own rollout count, a dictionary whose `sae_key` ends in the name the
+# paper's `l131k` key slot means, and eight rollouts so that a bo8 exists at all.
+#
+# It carries, deliberately:
+#
+#   * FOUR realact rows over THREE documents, one document shared, so the clustered bootstrap has
+#     something to cluster and the paired cells' `n` and document count differ;
+#   * an Exemplifier arm at n = 8 and an NLA arm at n = 4, so `bo8` exists on one and not the
+#     other -- which is the real shape (spec §1.4: NLA is 4 rollouts, so its bo1 IS the mean of 4)
+#     and makes "the NLA row is bo1 and the Exemplifier row is bo8" a fact about the products
+#     rather than about which constant the driver happened to pass;
+#   * eight SAE features, two per stratum, whose peaks and corpus peaks are exact halves, so every
+#     median, ratio and fired fraction below is a literal worked out here and not a second call of
+#     the code under test;
+#   * a `top1_act` product whose `act_max` is a DIFFERENT number from the stored `corpus_peak`, so
+#     a driver that ignored `--corpus-peak` and divided by the stored one cannot pass;
+#   * strata whose statistic is `log10_pool_peak_act` -- what the 131k draw actually cuts on, which
+#     is not the corpus frequency the spec's key names.
+
+M1_BASE = "MB"
+M1_RA = "MRA"        # her realact block
+M1_CT = "MCTRL"      # the random floor and the 131k-shaped feature block
+M1_SAE = f"{M1_BASE}/l42-1b"
+M1_N = 8             # rollouts on the MAEMM arms
+M1_NLA_N = 4         # rollouts on the NLA arm (spec §1.4)
+M1_GATE = 1.5846     # spec §1.2 and §4 panel b name this to 4 decimals on the 131k
+
+M1_RA_IDS = [
+    {"row": 0, "family": "realact", "source": "hers", "doc": 1, "id": "d1:p1"},
+    {"row": 1, "family": "realact", "source": "hers", "doc": 1, "id": "d1:p9"},
+    {"row": 2, "family": "realact", "source": "hers", "doc": 2, "id": "d2:p3"},
+    {"row": 3, "family": "realact", "source": "hers", "doc": 3, "id": "d3:p7"},
+]
+M1_CT_IDS = (
+    [{"row": 0, "family": "random", "id": "rnd0"},
+     {"row": 1, "family": "random", "id": "rnd1"}]
+    # NO `sae_side`: the 131k draw does not stamp one (the committed `sae/l42-1b` aggregates
+    # carry an empty side), and `CELL_DICTIONARIES` maps the paper's `l131k` slot onto exactly
+    # that shape -- a draw that started stamping `enc` would produce NO cells and say so, rather
+    # than the 2M block's numbers under the 131k key.
+    + [{"row": 2 + i, "family": "sae", "sae_key": M1_SAE,
+        "stratum": i // 2, "stratum_stat": "log10_pool_peak_act", "id": str(1000 + i)}
+       for i in range(8)]
+)
+
+# The Exemplifier's centred per-rollout bests. Row 0 is the only one that varies, so bo1 and bo8
+# are different numbers there and a bo8 computed as a mean (or a bo1 computed as a max) fails.
+M1_EX_C = {0: [0.25 + i / 16 for i in range(M1_N)], 1: [0.5] * M1_N,
+           2: [0.25] * M1_N, 3: [0.75] * M1_N}
+M1_CTL_C = {r: [0.0625] * M1_N for r in range(4)}          # the untrained-base control
+M1_NLA_C = {r: [0.125] * M1_NLA_N for r in range(4)}       # n = 4, so bo1 is the mean of 4
+M1_RND = {0: [0.0625] * M1_N, 1: [0.0625] * M1_N}          # raw only: `random` is not centrable
+
+# bo1 of row 0 = 0.25 + (0+1+..+7)/(16*8) = 0.46875; bo8 of row 0 = its max = 0.6875.
+M1_EX_BO1 = (0.46875 + 0.5 + 0.25 + 0.75) / 4       # 0.4921875
+M1_EX_BO8 = (0.6875 + 0.5 + 0.25 + 0.75) / 4        # 0.546875
+M1_EX_BO8_ROW = {0: 0.6875, 1: 0.5, 2: 0.25, 3: 0.75}
+# The corpus comparator's top-1 per target, the stub M2 stands in for.
+M1_CORPUS = {0: 0.5, 1: 0.25, 2: 0.5, 3: 0.5}
+M1_DIFF = (0.1875 + 0.25 - 0.25 + 0.25) / 4         # 0.109375
+M1_WIN = 3 / 4
+M1_NLA_DEX = (0.5625 + 0.375 + 0.125 + 0.625) / 4   # 0.421875
+
+# The features: two per stratum. `A` fires at every stratum, `B` crosses the gate at stratum 2.
+M1_PEAK_A = 2.0
+M1_PEAK_B = {0: 1.0, 1: 1.5, 2: 2.0, 3: 2.5}
+M1_STORED_PEAK = 4.0        # what `sae_self` recorded: our 16M held-out max_act
+M1_TOP1_PEAK = 2.0          # what M2's top1_act says on the 10M training corpus
+# medians over the two features of a stratum, under each denominator
+M1_RATIO_STORED = {s: (M1_PEAK_A / M1_STORED_PEAK + M1_PEAK_B[s] / M1_STORED_PEAK) / 2
+                   for s in range(4)}
+M1_RATIO_TOP1 = {s: (M1_PEAK_A / M1_TOP1_PEAK + M1_PEAK_B[s] / M1_TOP1_PEAK) / 2
+                 for s in range(4)}
+M1_FIRED = {s: (1.0 + (1.0 if M1_PEAK_B[s] > M1_GATE else 0.0)) / 2 for s in range(4)}
+
+M1_CFG = {
+    "bases": {M1_BASE: {"d": 4, "read_layer": 1}},
+    "family_kinds": {
+        "realact": {"centrable": True, "kind": "activation"},
+        "random": {"centrable": False, "kind": "synthetic"},
+        "sae": {"centrable": False, "kind": "dictionary"},
+    },
+    "heldout": {
+        M1_RA: {"base": M1_BASE, "families": {"realact": {"n": 4}}},
+        M1_CT: {"base": M1_BASE, "sae_key": M1_SAE,
+                "families": {"random": {"n": 2}, "sae": {"n": 8}}},
+    },
+    "maemms": {
+        f"{M1_BASE}/ex-ckpt": {"type": "full", "mu": "/mu.npy"},
+        f"{M1_BASE}/ctl-ckpt": {"type": "base", "role": "control", "mu": "/mu.npy"},
+        f"{M1_BASE}/nla-ckpt": {"type": "nla"},
+    },
+}
+
+
+def _m1_write_arm(root: Path, maemm: str, set_name: str, ids: list[dict], n: int,
+                  raw: dict, centred: dict | None, sae: dict | None = None,
+                  gate: float = M1_GATE, corpus_peak: float = M1_STORED_PEAK) -> None:
+    """One arm's scores directory: per_target, rows.json, the centred array and `sae_self`."""
+    d = root / f"maemms/{maemm}/scores/{set_name}__vllm"
+    d.mkdir(parents=True, exist_ok=True)
+    rows = [r["row"] for r in ids]
+    with open(d / "per_target.jsonl", "w") as fh:
+        for r in rows:
+            pt = {"row": r, "family": ids[r]["family"], "n": n,
+                  **{f"bo_{k}": R.bo_unbiased(raw[r], k) for k in R.BO_KS_ALL if k <= n},
+                  "mean_cos": float(np.mean(raw[r])), "max_cos": float(np.max(raw[r]))}
+            fh.write(json.dumps(pt) + "\n")
+    (d / "rows.json").write_text(json.dumps(
+        {"rows": rows, "n": n, "families": [ids[r]["family"] for r in rows],
+         "score_max_length": WIDTH - 1, "mu": "/mu.npy" if centred is not None else None}))
+    index: dict = {"per_target.jsonl": {"kind": "jsonl", "rows": len(rows)},
+                   "rows.json": {"kind": "json"}}
+    if centred is not None:
+        blocks = [_block(centred[r], WIDTH) if r in centred
+                  else np.full((n, WIDTH), np.nan, dtype=np.float32) for r in rows]
+        arr = np.stack(blocks).astype(np.float16)
+        arr.tofile(d / "cos_centred.f16")
+        index["cos_centred.f16"] = {"kind": "array", "dtype": "float16",
+                                    "shape": list(arr.shape), "bytes": arr.nbytes}
+    (d / "index.json").write_text(json.dumps(index))
+    if sae is None:
+        return
+    sd = d / "sae_self"
+    sd.mkdir(exist_ok=True)
+    sae_rows = sorted(sae)
+    act = np.stack([_block(sae[r], WIDTH) for r in sae_rows]).astype(np.float16)
+    act.tofile(sd / "sae_self.f16")
+    (sd / "sae_self.json").write_text(json.dumps({
+        "rows": sae_rows, "features": [int(ids[r]["id"]) for r in sae_rows], "n": n,
+        "width": WIDTH, "gate": gate,
+        "per_target": [{"row": r, "feature": int(ids[r]["id"]), "n": n,
+                        "corpus_peak": corpus_peak,
+                        "mean_peak_act": float(np.mean(sae[r])),
+                        "max_peak_act": float(np.max(sae[r]))} for r in sae_rows],
+    }))
+
+
+def _m1_mirror(root: Path, gate: float = M1_GATE) -> None:
+    for set_name, ids in ((M1_RA, M1_RA_IDS), (M1_CT, M1_CT_IDS)):
+        hd = root / f"base/{M1_BASE}/heldout/{set_name}"
+        hd.mkdir(parents=True, exist_ok=True)
+        with open(hd / "ids.jsonl", "w") as fh:
+            for r in ids:
+                fh.write(json.dumps(r) + "\n")
+        (hd / "storage.json").write_text(json.dumps(
+            {"storage": "raw", "sae_key": M1_SAE if set_name == M1_CT else ""}))
+    # her realact block: the Exemplifier, the untrained-base control, the NLA arm
+    raw_ex = {r: [v + 0.125 for v in M1_EX_C[r]] for r in M1_EX_C}
+    _m1_write_arm(root, f"{M1_BASE}/ex-ckpt", M1_RA, M1_RA_IDS, M1_N, raw_ex, M1_EX_C)
+    _m1_write_arm(root, f"{M1_BASE}/ctl-ckpt", M1_RA, M1_RA_IDS, M1_N,
+                  {r: [0.1875] * M1_N for r in range(4)}, M1_CTL_C)
+    _m1_write_arm(root, f"{M1_BASE}/nla-ckpt", M1_RA, M1_RA_IDS, M1_NLA_N,
+                  {r: [0.25] * M1_NLA_N for r in range(4)}, M1_NLA_C)
+    # the control block: the random floor (raw only) and the feature block
+    peaks = {}
+    for i in range(8):
+        peaks[2 + i] = [M1_PEAK_A if i % 2 == 0 else M1_PEAK_B[i // 2]] * M1_N
+    raw_ct = {0: M1_RND[0], 1: M1_RND[1], **{2 + i: [0.03125] * M1_N for i in range(8)}}
+    _m1_write_arm(root, f"{M1_BASE}/ex-ckpt", M1_CT, M1_CT_IDS, M1_N, raw_ct, None,
+                  sae=peaks, gate=gate)
+
+
+def _m1_top1_act(root: Path, rel: str, act_max: float = M1_TOP1_PEAK) -> str:
+    """M2's `top1_act` product on the 10M training corpus, in its own layout."""
+    d = root / rel
+    d.mkdir(parents=True, exist_ok=True)
+    with open(d / "top1_act.jsonl", "w") as fh:
+        for i in range(8):
+            fh.write(json.dumps({"row": 2 + i, "feature": 1000 + i, "stratum": i // 2,
+                                 "act_max": act_max, "gate": M1_GATE, "size": 10}) + "\n")
+    (d / "summary.json").write_text(json.dumps(
+        {"corpus_size_m": 10, "sae": M1_SAE, "set": M1_CT, "n_features": 8}))
+    return rel
+
+
+def _m1_exclude(root: Path, rows: list[int]) -> None:
+    """The set's own exclusions.json, in the layout `load_exclusions` reads."""
+    (root / f"base/{M1_BASE}/heldout/{M1_RA}/exclusions.json").write_text(json.dumps({
+        "block": "realact", "rows_total": len(M1_RA_IDS), "excluded_rows": rows,
+        "n_headline": len(M1_RA_IDS) - len(rows), "criterion": "a synthetic gate", "n_gram": 7,
+        "source": "selftest", "computed_over": "the M1 fixture"}))
+
+
+def _m1_analyse(root: Path, corpus_peak: str = F.CORPUS_PEAK_STORED):
+    vol = R.Vol("", root, offline=True, quiet=True)
+    return vol, [F.analyse(vol, M1_CFG, s, "", 400, 1, True, 8.0, 128.0, True, corpus_peak)
+                 for s in (M1_RA, M1_CT)]
+
+
+def _m1_opts(**kw) -> dict:
+    opts = {"boot": 400, "seed": 1, "date": "2026-09-24", "exemplifier": "ex-ckpt",
+            "corpus_size": 10.0, "owned": F.M1_KEYS, "corpus_peak": F.CORPUS_PEAK_STORED}
+    opts.update(kw)
+    return opts
+
+
+class _FakeCorpusSearch:
+    """M2's module, stood in for: the one export this driver looks for, and nothing else."""
+
+    @staticmethod
+    def corpus_top1(*, vol, base, set_name, rows, size):
+        assert size == 10.0, size
+        return {r: M1_CORPUS[r] for r in rows if r in M1_CORPUS}
+
+
+def _m1_cells(root: Path, *, corpus: bool, corpus_peak: str = F.CORPUS_PEAK_STORED, **kw):
+    vol, all_res = _m1_analyse(root, corpus_peak)
+    before = F.CORPUS_SEARCH
+    F.CORPUS_SEARCH = _FakeCorpusSearch if corpus else None
+    try:
+        return F.paper_cells(vol, all_res, M1_CFG, _m1_opts(corpus_peak=corpus_peak, **kw))
+    finally:
+        F.CORPUS_SEARCH = before
+
+
+def _m1_by_key(rows: list[dict]) -> dict[str, dict]:
+    keys = [r["key"] for r in rows]
+    assert len(keys) == len(set(keys)), f"the cell builder emitted a key twice: {keys}"
+    return {r["key"]: r for r in rows}
+
+
+def check_m1_clusters_fire_on_her_block():
+    """The clustered bootstrap must FIRE on her block, and must reduce to the plain SE without it.
+
+    M1's job on the estimator is not to write it -- `R.cluster_bootstrap` has existed since M0a
+    and `check_cluster_bootstrap` covers its arithmetic -- but to verify it is actually CLUSTERING
+    on her rows. `_clusters_for` falls back to a singleton `f"row{r}"` for a row with no `doc`, so
+    a block whose `doc` field went missing would get a plain std/sqrt(n) printed under a clustered
+    name, with nothing in the output saying so. Her block is 486 rows over 425 documents, so the
+    two numbers differ and that difference is the check.
+
+    BOTH DIRECTIONS, as the plan asks: one row per document reproduces `se_iid`, her block's real
+    structure does not. The mutation is the third: strip `doc` from the ids -- exactly what a
+    products change or a re-draw could do -- and require the clustered SE to collapse onto the
+    iid one, which is the failure this exists to catch.
+    """
+    rng = np.random.default_rng(20260924)
+    # Her block's shape: 486 rows over 425 documents, so 61 rows share one with another row.
+    n_docs, n_rows = 425, 486
+    docs = list(range(n_docs)) + [d % n_docs for d in range(n_rows - n_docs)]
+    # Correlated WITHIN a document -- which is why the clustering matters at all.
+    per_doc = rng.normal(size=n_docs)
+    vals = [float(per_doc[d] + 0.05 * rng.normal()) for d in docs]
+    ids = {r: {"doc": docs[r], "family": "realact"} for r in range(n_rows)}
+    rows = list(range(n_rows))
+
+    cl = F._clusters_for(rows, ids)
+    assert len(set(cl)) == n_docs, f"_clusters_for found {len(set(cl))} clusters, not {n_docs}"
+    _m, se_cl, n_items, n_cl = R.cluster_bootstrap(vals, cl, 4000, 1)
+    assert (n_items, n_cl) == (n_rows, n_docs), (n_items, n_cl)
+    iid = R.se_iid(vals)
+
+    # (1) one row per document IS the ordinary bootstrap: hand it singletons and it reproduces
+    # std/sqrt(n) to bootstrap noise.
+    _m1, se_single, _, c1 = R.cluster_bootstrap(vals, [f"row{r}" for r in rows], 4000, 1)
+    assert c1 == n_rows
+    _close(se_single, iid, tol=0.1 * iid, what="singleton clusters must reproduce se_iid")
+
+    # (2) her block's real structure does NOT: 61 shared documents move the SE measurably.
+    assert abs(se_cl - iid) > 0.02 * iid, (
+        f"the clustered SE {se_cl:.6f} is within 2% of the plain {iid:.6f} on a block with "
+        f"{n_rows - n_docs} rows sharing a document -- the bootstrap is not clustering")
+
+    # (3) THE MUTATION: drop `doc` and the fallback silently makes every row a singleton.
+    broken = {r: {"family": "realact"} for r in range(n_rows)}
+    cl_broken = F._clusters_for(rows, broken)
+    assert len(set(cl_broken)) == n_rows, "the singleton fallback did not fire"
+    _m2, se_broken, _, _ = R.cluster_bootstrap(vals, cl_broken, 4000, 1)
+    assert abs(se_broken - iid) <= 0.1 * iid, (
+        "with `doc` stripped the clustered SE must collapse onto the plain one -- if it does not, "
+        "check (2) above is not measuring what it claims")
+    assert abs(se_broken - se_cl) > 0.02 * iid, (
+        "the mutation changed nothing: a block with no documents and her block produced the same "
+        "SE, so this check could never have gone red")
+
+
+def check_m1_fired_bok_mutation():
+    """The fired best-of-k identity, and a deliberately wrong estimator that must FAIL it.
+
+    `check_fired_is_the_same_estimator` asserts the identity holds. This asserts the assertion
+    can fail: the same comparison against the PLAIN SAMPLE MEAN -- which is what "fraction fired"
+    meant before the indicator went through the one bo-k estimator, and the obvious wrong answer
+    at every k > 1 -- must go red on the same inputs. A check that has never been red is
+    unevaluated.
+    """
+    import math as _m
+
+    def identity(n: int, m: int, k: int) -> float:
+        return 1.0 - (_m.comb(n - m, k) / _m.comb(n, k) if n - m >= k else 0.0)
+
+    rng = np.random.default_rng(11)
+    caught = 0
+    for n, m in ((8, 1), (8, 3), (16, 5), (64, 7)):
+        ind = np.concatenate([np.ones(m), np.zeros(n - m)])
+        rng.shuffle(ind)
+        lad = R.bo_ladder(ind, (1, 2, 4, 8))
+        for k, got in lad.items():
+            _close(got, identity(n, m, k), tol=1e-12,
+                   what=f"fired bo{k} of {m}/{n} is 1 - C(n-m,k)/C(n,k)")
+        # THE MUTATION: the plain rate at every k. It is right at k = 1 and wrong above it.
+        wrong = {k: float(ind.mean()) for k in lad}
+        bad = [k for k in lad if abs(wrong[k] - identity(n, m, k)) > 1e-12]
+        assert bad, f"n={n} m={m}: the plain mean matched the identity at every k, so the test "
+        caught += len(bad)
+        # and at k = 1 the two agree, which is why only the ladder above it is evidence
+        _close(wrong[1], identity(n, m, 1), tol=1e-12, what="both estimators agree at k = 1")
+    assert caught >= 8, caught
+
+
+def check_m1_cells_writer_rewrites_in_place():
+    """The writer rewrites its own keys, leaves every other row BYTE-IDENTICAL, and refuses a dup.
+
+    `paper/numbers/cells.csv` is shared with six other builders. The failure that has no symptom
+    is a writer that round-trips the whole file through a CSV library: the diff then shows every
+    row whose quoting the library spells differently, the one real change is invisible in it, and
+    nobody reviews what actually moved. So the untouched rows are compared BYTE for byte, not
+    field by field, and the fixture deliberately includes a row whose `note` carries a comma (and
+    is therefore quoted) and a row with an empty `value`.
+    """
+    fixture = (
+        "key,value,se,lo,hi,n,status,run,source,date,note\n"
+        "fid.ra.ex.cos.bo1,0.7590,0.0060,,,486,provisional,R1,old/path.md,2026-09-21,"
+        '"rl-last16; her block, centred"\n'
+        # ANOTHER BUILDER'S ROW, spelled with a quoted field that does NOT need quoting. Today's
+        # cells.csv happens to round-trip through `csv.writer` unchanged on all 413 records
+        # (measured 2026-09-24), so byte-identity and field-identity cannot be told apart on it --
+        # and the guarantee this writer makes is byte-identity. One row that a round-trip WOULD
+        # respell is what makes that claim testable, and another builder's writer using QUOTE_ALL,
+        # or one hand edit, produces exactly this.
+        'ai.l131k.c16.det,0.8100,,,,512,provisional,"R5",someone/else.md,2026-09-22,'
+        "another builder\n"
+        "fid.ra.gcg.initgap,,,,,,placeholder,R10,,2026-09-23,retired; row kept empty\n"
+        "sae.l131k.ex.fired.bo1,0.9316,,,,,provisional,R1,old/path.md,2026-09-21,pooled\n"
+    )
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "cells.csv"
+        p.write_text(fixture)
+        before = p.read_text().splitlines(keepends=True)
+
+        rows = [F.cell("fid.ra.ex.cos.bo1", 0.4921875, se=0.01, n=486, run="R1",
+                       source="maemms/x/scores/y", date="2026-09-24", note="new, with a comma"),
+                F.cell("fid.ra.ex.win.bo8", 0.75, n=486, run="R1+R2",
+                       source="maemms/x/scores/y", date="2026-09-24", note="appended")]
+        rec = F.write_cells(p, rows, F.M1_KEYS)
+        after = p.read_text().splitlines(keepends=True)
+
+        assert rec["rewritten"] == ["fid.ra.ex.cos.bo1"], rec
+        assert rec["appended"] == ["fid.ra.ex.win.bo8"], rec
+        # BYTE-IDENTICAL: the header and every row this module does not own.
+        assert after[0] == before[0], (after[0], before[0])
+        for i in (2, 3, 4):
+            assert after[i] == before[i], (i, after[i], before[i])
+        assert len(after) == len(before) + 1, (len(after), len(before))
+        # the rewritten row carries the new digits, at the printed precision, and stays in place
+        assert after[1].startswith("fid.ra.ex.cos.bo1,0.4922,0.0100,,,486,final,R1,"), after[1]
+        assert after[-1].startswith("fid.ra.ex.win.bo8,0.7500,"), after[-1]
+        # and a comma in the note is quoted, so the record still has eleven fields
+        import csv as _csv
+        recs = list(_csv.reader(p.read_text().splitlines()))
+        assert all(len(r) == len(F.CELLS_COLUMNS) for r in recs), recs
+
+        # a second run is idempotent on the rewritten row and appends nothing new
+        rec2 = F.write_cells(p, rows, F.M1_KEYS)
+        assert rec2["appended"] == [] and sorted(rec2["rewritten"]) == sorted(
+            ["fid.ra.ex.cos.bo1", "fid.ra.ex.win.bo8"]), rec2
+
+        # THE MUTATIONS, all four of them, each of which would otherwise reach the paper build.
+        try:
+            F.write_cells(p, rows + [rows[0]], F.M1_KEYS)
+        except AssertionError as exc:
+            assert "more than once" in str(exc), exc
+        else:
+            raise AssertionError("the writer accepted the same key twice")
+        try:
+            F.write_cells(p, rows + [F.cell("ai.l131k.c16.det", 0.5)], F.M1_KEYS)
+        except AssertionError as exc:
+            assert "does not own" in str(exc), exc
+        else:
+            raise AssertionError("the writer accepted another builder's key")
+        dup = Path(td) / "dup.csv"
+        dup.write_text(fixture + "fid.ra.ex.cos.bo1,0.1,,,,,final,R1,,2026-09-24,a second copy\n")
+        try:
+            F.write_cells(dup, rows[:1], F.M1_KEYS)
+        except AssertionError as exc:
+            assert "already carries" in str(exc), exc
+        else:
+            raise AssertionError("the writer accepted a file that already had a duplicate key")
+        bad = Path(td) / "bad.csv"
+        bad.write_text(fixture.replace("key,value,se", "value,key,se", 1))
+        try:
+            F.write_cells(bad, rows[:1], F.M1_KEYS)
+        except AssertionError as exc:
+            assert "has columns" in str(exc), exc
+        else:
+            raise AssertionError("the writer accepted a reordered header")
+        # a lone `lo` is an ERROR in make_numbers --check, refused where it is built
+        try:
+            F.cell("fid.ra.diff.cos.bo8", 0.1, lo=0.0)
+        except AssertionError as exc:
+            assert "written together" in str(exc), exc
+        else:
+            raise AssertionError("cell() accepted a lone `lo`")
+
+        # `--cells` resolution: empty is READ-ONLY, a real path is taken, a typo fails LOUDLY and
+        # names what it looked at rather than creating a new file somewhere harmless-looking.
+        assert F.resolve_cells_path("") is None and F.resolve_cells_path("  ") is None
+        assert F.resolve_cells_path(str(p)) == p
+        try:
+            F.resolve_cells_path(str(Path(td) / "nope.csv"))
+        except AssertionError as exc:
+            assert "is not a file" in str(exc), exc
+        else:
+            raise AssertionError("--cells accepted a path that is not there")
+
+
+def check_m1_panel_a_cells():
+    """Panel a's rows, against numbers worked out in the fixture above.
+
+    Every cell is `cos_centred` and every cell is over her block. The Exemplifier's bo1 and bo8
+    differ here by construction, so a driver that read one k and labelled it the other fails; the
+    NLA arm has four rollouts and therefore no bo8 at all, which is why its key is `bo1`.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _m1_mirror(root)
+        rows, skipped = _m1_cells(root, corpus=True)
+        by = _m1_by_key(rows)
+
+        assert by["fid.ra.ex.cos.bo1"]["value"] == f"{M1_EX_BO1:.4f}", by["fid.ra.ex.cos.bo1"]
+        assert by["fid.ra.ex.cos.bo8"]["value"] == f"{M1_EX_BO8:.4f}", by["fid.ra.ex.cos.bo8"]
+        assert by["fid.ra.base.cos.bo8"]["value"] == "0.0625", by["fid.ra.base.cos.bo8"]
+        assert by["fid.ra.nla.cos.bo1"]["value"] == "0.1250", by["fid.ra.nla.cos.bo1"]
+        assert by["fid.rnd.ex.cos.bo1"]["value"] == "0.0625", by["fid.rnd.ex.cos.bo1"]
+        # the run ids of spec §7, and `n` is the SURVIVING row count
+        assert by["fid.ra.ex.cos.bo1"]["run"] == "R1"
+        assert by["fid.ra.base.cos.bo8"]["run"] == "R10"
+        assert by["fid.ra.ex.cos.bo1"]["n"] == "4", by["fid.ra.ex.cos.bo1"]
+        assert by["fid.rnd.ex.cos.bo1"]["n"] == "2", by["fid.rnd.ex.cos.bo1"]
+        # every realact cell says it is centred; the floor says LOUDLY that it is not
+        for k in ("fid.ra.ex.cos.bo1", "fid.ra.ex.cos.bo8", "fid.ra.base.cos.bo8",
+                  "fid.ra.nla.cos.bo1"):
+            assert "cos_centred" in by[k]["note"], by[k]
+        assert "NOT CENTRED" in by["fid.rnd.ex.cos.bo1"]["note"], by["fid.rnd.ex.cos.bo1"]
+
+        # the paired cells: computed row by row over the shared targets, then aggregated
+        d = by["fid.ra.diff.cos.bo8"]
+        assert d["value"] == f"{M1_DIFF:.4f}", d
+        assert d["lo"] and d["hi"] and float(d["lo"]) < float(d["value"]) < float(d["hi"]), d
+        assert d["n"] == "4", d
+        assert by["fid.ra.ex.win.bo8"]["value"] == f"{M1_WIN:.4f}", by["fid.ra.ex.win.bo8"]
+        # and the Exemplifier-minus-NLA quantity is its OWN key, not `diff` (writing plan §2)
+        assert by["fid.ra.nla.dex"]["value"] == f"{M1_NLA_DEX:.4f}", by["fid.ra.nla.dex"]
+        assert "minus NLA bo1" in by["fid.ra.nla.dex"]["note"], by["fid.ra.nla.dex"]
+        # the SE is the clustered one: four rows over three documents, so it is not std/sqrt(4)
+        assert d["se"] and float(d["se"]) > 0, d
+        assert "3 documents" in d["note"], d["note"]
+        assert not [s for s in skipped if "fid.ra.ex.cos" in s], skipped
+
+        # THE EXCLUSIONS REACH THE PAIRED CELLS TOO. `res["centred"]` is one read of one array,
+        # keyed by source and covering every row the product scored, so a paired cell built
+        # straight off it would be the full draw sitting beside a post-exclusion mean -- the
+        # headline n saying 486 and the difference beside it computed over 512, with nothing in
+        # the output saying so. Row 2 is excluded here: it is the one target the Exemplifier
+        # LOSES on, so dropping it moves the difference, the win fraction AND the aggregate mean,
+        # and a reader that cut one surface and not another cannot produce a consistent triple.
+        _m1_exclude(root, [2])
+        rows_x, _sk = _m1_cells(root, corpus=True)
+        bx = _m1_by_key(rows_x)
+        keep = [0, 1, 3]
+        assert bx["fid.ra.diff.cos.bo8"]["n"] == "3", bx["fid.ra.diff.cos.bo8"]
+        assert bx["fid.ra.ex.win.bo8"]["value"] == "1.0000", bx["fid.ra.ex.win.bo8"]
+        want = sum(M1_EX_BO8_ROW[r] - M1_CORPUS[r] for r in keep) / len(keep)
+        assert bx["fid.ra.diff.cos.bo8"]["value"] == f"{want:.4f}", bx["fid.ra.diff.cos.bo8"]
+        # and the aggregate cells moved with them, off the SAME family map
+        want_bo8 = sum(M1_EX_BO8_ROW[r] for r in keep) / len(keep)
+        assert bx["fid.ra.ex.cos.bo8"]["value"] == f"{want_bo8:.4f}", bx["fid.ra.ex.cos.bo8"]
+        assert bx["fid.ra.ex.cos.bo8"]["n"] == "3", bx["fid.ra.ex.cos.bo8"]
+        assert bx["fid.ra.nla.dex"]["n"] == "3", bx["fid.ra.nla.dex"]
+
+
+def check_m1_panel_b_cells_and_the_gate():
+    """Panel b: per quartile, never pooled where the key has a quartile, and the gate ASSERTED.
+
+    The fixture's two features per stratum give a median that is a literal, and stratum 2 is where
+    the second feature crosses the gate -- so the fired fractions are 0.5, 0.5, 1.0, 1.0 and a
+    driver that pooled the strata, or numbered them from the wrong end, cannot produce them.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _m1_mirror(root)
+        rows, _skipped = _m1_cells(root, corpus=False)
+        by = _m1_by_key(rows)
+
+        for s in range(4):
+            q = f"q{s + 1}"
+            assert by[f"sae.l131k.ex.ratio.bo1.{q}"]["value"] == f"{M1_RATIO_STORED[s]:.4f}", q
+            assert by[f"sae.l131k.ex.ratio.bo8.{q}"]["value"] == f"{M1_RATIO_STORED[s]:.4f}", q
+            assert by[f"sae.l131k.ex.fired.bo1.{q}"]["value"] == f"{M1_FIRED[s]:.4f}", q
+            assert by[f"sae.l131k.ex.fired.bo8.{q}"]["value"] == f"{M1_FIRED[s]:.4f}", q
+            assert by[f"sae.l131k.ex.ratio.bo1.{q}"]["n"] == "2"
+            assert f"stratum {s} of 0..3" in by[f"sae.l131k.ex.fired.bo1.{q}"]["note"]
+            # the stratum STATISTIC is named, and it is not corpus frequency
+            assert "log10_pool_peak_act" in by[f"sae.l131k.ex.ratio.bo1.{q}"]["note"]
+        # q1 is the RAREST: stratum 0, the one whose second feature does not fire
+        assert float(by["sae.l131k.ex.fired.bo1.q1"]["value"]) == 0.5
+        assert float(by["sae.l131k.ex.fired.bo1.q4"]["value"]) == 1.0
+        # bo64 is SKIPPED, never clamped: the fixture has eight rollouts
+        assert "sae.l131k.ex.ratio.bo64.q1" not in by, sorted(by)
+        # the three pooled rows that already exist are rewritten, and SAY they are pooled
+        for k in ("sae.l131k.ex.ratio.bo1", "sae.l131k.ex.fired.bo1"):
+            assert "POOLED across strata" in by[k]["note"], by[k]
+            assert by[k]["n"] == "8", by[k]
+        # every ratio cell carries the DENOMINATOR's provenance
+        for k, r in by.items():
+            if ".ratio." in k:
+                assert "16M HELD-OUT" in r["note"], (k, r["note"])
+        assert by["sae.l131k.ex.ratio.bo1.q1"]["run"] == "R1"
+
+        # THE GATE MUTATION: a product whose gate is not the 1.5846 the spec names must refuse.
+        root2 = Path(td) / "moved-gate"
+        _m1_mirror(root2, gate=1.6000)
+        try:
+            _m1_cells(root2, corpus=False)
+        except AssertionError as exc:
+            assert "1.5846" in str(exc) and "Refusing" in str(exc), exc
+        else:
+            raise AssertionError("a 131k block with the wrong gate produced fired cells anyway")
+
+
+def check_m1_corpus_denominator_is_a_parameter():
+    """`--corpus-peak`: the 10M source CHANGES every ratio, and asked-for-but-absent RAISES.
+
+    This is the defect the parameter exists to prevent: the 16M held-out peak and the 10M training
+    peak are maxima over different texts, a ratio against the wrong one prints as a perfectly
+    ordinary number, and nothing downstream can tell. So the fixture's two denominators are
+    different numbers, the cells must move when the parameter moves, and a source that is not on
+    the volume must stop the run instead of falling back.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _m1_mirror(root)
+        rel = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__train_parity_10m")
+
+        stored, _ = _m1_cells(root, corpus=False)
+        ten_m, _ = _m1_cells(root, corpus=False, corpus_peak=f"top1_act:{rel}")
+        a, b = _m1_by_key(stored), _m1_by_key(ten_m)
+        for s in range(4):
+            q = f"sae.l131k.ex.ratio.bo1.q{s + 1}"
+            assert a[q]["value"] == f"{M1_RATIO_STORED[s]:.4f}", a[q]
+            assert b[q]["value"] == f"{M1_RATIO_TOP1[s]:.4f}", b[q]
+            assert a[q]["value"] != b[q]["value"], (a[q], b[q])
+        # the provenance travels into every ratio cell, and says WHICH corpus
+        assert "16M HELD-OUT" in a["sae.l131k.ex.ratio.bo1.q1"]["note"]
+        assert "top1_act" in b["sae.l131k.ex.ratio.bo1.q1"]["note"]
+        assert "10M" in b["sae.l131k.ex.ratio.bo1.q1"]["note"]
+        # the FIRED cells are untouched by the denominator: they are an activation against a gate
+        assert a["sae.l131k.ex.fired.bo8.q1"]["value"] == b["sae.l131k.ex.fired.bo8.q1"]["value"]
+
+        # ASKED FOR AND ABSENT: raises, names the path, and never falls back to `stored`.
+        vol = R.Vol("", root, offline=True, quiet=True)
+        missing = f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__not_run_yet"
+        try:
+            F.corpus_peaks(vol, f"top1_act:{missing}")
+        except AssertionError as exc:
+            assert missing in str(exc) and "REFUSES" in str(exc), exc
+        else:
+            raise AssertionError("an absent 10M denominator did not stop the run")
+        # and the same through `analyse`, which is where a run would actually meet it
+        try:
+            F.analyse(vol, M1_CFG, M1_CT, "", 400, 1, False, 8.0, 128.0, True,
+                      f"top1_act:{missing}")
+        except AssertionError as exc:
+            assert missing in str(exc), exc
+        else:
+            raise AssertionError("analyse fell back instead of raising on an absent denominator")
+        # a row the 10M product does not carry loses its ratio; it is NOT divided by the 16M peak
+        short = _m1_top1_act(Path(td) / "short-root", "t1")
+        (Path(td) / "short-root" / "t1" / "top1_act.jsonl").write_text(
+            json.dumps({"row": 2, "feature": 1000, "act_max": 2.0}) + "\n")
+        vol2 = R.Vol("", Path(td) / "short-root", offline=True, quiet=True)
+        peaks = F.corpus_peaks(vol2, f"top1_act:{short}")
+        assert peaks.of(2, 4.0) == (2.0, peaks.provenance)
+        v, _prov = peaks.of(3, 4.0)
+        assert math.isnan(v) and peaks.missing_rows == [3], (v, peaks.missing_rows)
+
+
+def check_m1_missing_corpus_search_skips_and_lists():
+    """No `results/corpus_search.py` -> the paired cells are SKIPPED and LISTED, never zero-filled.
+
+    "The corpus scored 0" and "nobody ran the corpus scan" are opposite findings. A zero-filled
+    comparator turns the second into the first, and the paired difference then prints the
+    Exemplifier's own number wearing a comparison's name -- which is the most flattering wrong
+    answer available, so it gets the loudest guard.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _m1_mirror(root)
+        rows, skipped = _m1_cells(root, corpus=False)
+        by = _m1_by_key(rows)
+        for key in ("fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8"):
+            assert key not in by, f"{key} was written with no corpus comparator: {by.get(key)}"
+            assert any(key in s for s in skipped), skipped
+        joined = " | ".join(skipped)
+        assert "results/corpus_search.py" in joined, joined
+        assert "zero-filled" in joined, joined
+        # the cells that do NOT need the comparator are unaffected
+        assert "fid.ra.ex.cos.bo8" in by and "sae.l131k.ex.fired.bo8.q1" in by
+
+        # with the module present they appear -- so the skip above is about the input, not a bug
+        with_it, _ = _m1_cells(root, corpus=True)
+        assert {"fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8"} <= set(_m1_by_key(with_it)), with_it
+
+        # a module that IS there but exports nothing this driver knows is a CONTRACT MISMATCH and
+        # raises -- reporting it as "absent" would send the reader looking for a run that happened
+        before = F.CORPUS_SEARCH
+        F.CORPUS_SEARCH = type("Empty", (), {"__doc__": "no exports"})
+        try:
+            F.corpus_top1_fn()
+        except AssertionError as exc:
+            assert "CONTRACT MISMATCH" in str(exc), exc
+        else:
+            raise AssertionError("an incompatible corpus_search module was treated as absent")
+        finally:
+            F.CORPUS_SEARCH = before
+
+
+def check_m1_cells_end_to_end():
+    """`analyse` -> `paper_cells` -> `write_cells` on a real CSV, and the read-only default.
+
+    The last link: the rows the builders produce actually land in a `cells.csv`-shaped file, the
+    keys that could not be built are reported and NOT written, and a run given no `--cells` path
+    writes nothing at all.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _m1_mirror(root)
+        rows, skipped = _m1_cells(root, corpus=True)
+        p = Path(td) / "cells.csv"
+        seeded = sorted({r["key"] for r in rows} | {"ai.l131k.c16.det"})
+        p.write_text("key,value,se,lo,hi,n,status,run,source,date,note\n"
+                     + "".join(f"{k},,,,,,placeholder,R0,,2026-09-23,seeded\n" for k in seeded))
+        before = p.read_text()
+        rec = F.write_cells(p, rows, F.M1_KEYS)
+        assert sorted(rec["rewritten"]) == sorted(r["key"] for r in rows), rec
+        assert rec["appended"] == [], rec
+        after = p.read_text()
+        assert "ai.l131k.c16.det,,,,,,placeholder,R0,,2026-09-23,seeded\n" in after, after
+        assert before != after
+        # every key that was NOT built kept its placeholder row: an absent number stays absent
+        built = {r["key"] for r in rows}
+        for key in sorted(F.M1_KEYS - built):
+            assert f"{key}," not in after, f"{key} was written although it was not built"
+        assert any("not built by this run" in s for s in skipped), skipped
+        # and the parsed file still has one record per key, eleven fields each
+        import csv as _csv
+        recs = list(_csv.reader(after.splitlines()))
+        assert recs[0] == list(F.CELLS_COLUMNS)
+        keys = [r[0] for r in recs[1:]]
+        assert len(keys) == len(set(keys)) == len(seeded), (len(keys), len(seeded))
+        assert all(len(r) == len(F.CELLS_COLUMNS) for r in recs)
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -2678,6 +3349,15 @@ CHECKS = [
     check_ood_arm_table,
     check_ood_lid_ranking,
     check_ood_lid_wantlist,
+    # module M1 -- the paper's cells, the ratio denominator, the corpus comparator
+    check_m1_clusters_fire_on_her_block,
+    check_m1_fired_bok_mutation,
+    check_m1_cells_writer_rewrites_in_place,
+    check_m1_panel_a_cells,
+    check_m1_panel_b_cells_and_the_gate,
+    check_m1_corpus_denominator_is_a_parameter,
+    check_m1_missing_corpus_search_skips_and_lists,
+    check_m1_cells_end_to_end,
 ]
 
 
