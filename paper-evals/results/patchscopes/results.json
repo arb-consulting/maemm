@@ -1,0 +1,874 @@
+{
+ "base": "qwen36-27b",
+ "set": "2026-09-21_v3_realact",
+ "ps_tag": "paper0923",
+ "floor": "floor__paper0923",
+ "pending": [],
+ "n_realact": 486,
+ "boot": 2000,
+ "seed": 20260921,
+ "exclusions": {
+  "rows": [
+   7,
+   41,
+   60,
+   78,
+   103,
+   108,
+   109,
+   117,
+   118,
+   128,
+   166,
+   191,
+   196,
+   203,
+   207,
+   245,
+   290,
+   307,
+   341,
+   354,
+   388,
+   403,
+   405,
+   424,
+   432,
+   466
+  ],
+  "present": true,
+  "n_total": 512,
+  "n_headline": 486,
+  "block": "realact",
+  "criterion": 0.05,
+  "n_gram": 7,
+  "source": "/vol/shared/ngram-overlap/hers_n7.exclude.json",
+  "computed_over": "heldout/eval_directions_v3/realact.parquet"
+ },
+ "cells": {
+  "floor__paper0923": {
+   "layer": null,
+   "n_rows": 486,
+   "scores_rel": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/floor__paper0923/scores",
+   "n": 64,
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bok_info": {
+    "rows": 512,
+    "rows_with_nan_rollouts": 0,
+    "nan_rollouts": 0,
+    "stored_comparisons": 3584,
+    "n_mismatches": 0,
+    "worst_excess": -0.000203,
+    "product": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/floor__paper0923/scores/cos_centred.f16",
+    "mb": 6.29
+   },
+   "cos": [
+    {
+     "family": "realact",
+     "source": "floor__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_raw",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/floor__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.6100813127572016,
+       "se": 0.0033683228239212767,
+       "se_iid": 0.0033524665809995945,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.6221459485596708,
+       "se": 0.0034226091529430073,
+       "se_iid": 0.003402390276317409,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.6320056008230452,
+       "se": 0.00345582936334459,
+       "se_iid": 0.0034333909679882197,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.6407334094650206,
+       "se": 0.0034786855419003566,
+       "se_iid": 0.0034550675451666003,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.6489701172839506,
+       "se": 0.0034990957687066064,
+       "se_iid": 0.0034744391113716916,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.6571033724279834,
+       "se": 0.00352367800052045,
+       "se_iid": 0.0034955802528249223,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.6654957201646091,
+       "se": 0.0035755965579553936,
+       "se_iid": 0.0035356824516967165,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "per_target.jsonl",
+     "n_rows": 486,
+     "n_clusters": 425
+    },
+    {
+     "family": "realact",
+     "source": "floor__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_centred",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/floor__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.1178072053620998,
+       "se": 0.002633886219851387,
+       "se_iid": 0.0025707148279711413,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.13823192066709683,
+       "se": 0.002742471554278349,
+       "se_iid": 0.0026687127470102173,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.15709944082338398,
+       "se": 0.002822679331316068,
+       "se_iid": 0.0027308298301632703,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.17516705085420026,
+       "se": 0.0029061438416623907,
+       "se_iid": 0.0027937733886293065,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.19306795852776917,
+       "se": 0.003026149896508495,
+       "se_iid": 0.002895554338760993,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.21133919056862113,
+       "se": 0.003233300412271206,
+       "se_iid": 0.0030865141565217307,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.23064105500900206,
+       "se": 0.003659516728634268,
+       "se_iid": 0.00350134910179411,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "cos_centred.f16 (recomputed)",
+     "n_rows": 486,
+     "n_clusters": 425
+    }
+   ],
+   "lift": {}
+  },
+  "p2-L8-replace2__paper0923": {
+   "layer": 8,
+   "n_rows": 486,
+   "scores_rel": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L8-replace2__paper0923/scores",
+   "n": 64,
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bok_info": {
+    "rows": 512,
+    "rows_with_nan_rollouts": 0,
+    "nan_rollouts": 0,
+    "stored_comparisons": 3584,
+    "n_mismatches": 0,
+    "worst_excess": -0.000203,
+    "product": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L8-replace2__paper0923/scores/cos_centred.f16",
+    "mb": 6.29
+   },
+   "cos": [
+    {
+     "family": "realact",
+     "source": "p2-L8-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_raw",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L8-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.6201832386831275,
+       "se": 0.003390793540640916,
+       "se_iid": 0.0033750370403624803,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.634164232510288,
+       "se": 0.003429501570590072,
+       "se_iid": 0.0034118934657294195,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.6469055288065843,
+       "se": 0.0034676245015631936,
+       "se_iid": 0.0034469026056953827,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.6588972983539094,
+       "se": 0.0035148018849048305,
+       "se_iid": 0.0034898943824968618,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.6702161316872429,
+       "se": 0.0035743309929159826,
+       "se_iid": 0.0035443993007209227,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.6808517489711935,
+       "se": 0.0036441103751072394,
+       "se_iid": 0.003607050798825325,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.6907780925925927,
+       "se": 0.003725249846085612,
+       "se_iid": 0.0036821586900526084,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "per_target.jsonl",
+     "n_rows": 486,
+     "n_clusters": 425
+    },
+    {
+     "family": "realact",
+     "source": "p2-L8-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_centred",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L8-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.14344288831109128,
+       "se": 0.0029707122344464223,
+       "se_iid": 0.0028920440076193013,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.17262106209563138,
+       "se": 0.0033268531853478944,
+       "se_iid": 0.0032386556612419596,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.2012178704791333,
+       "se": 0.0037152877609972776,
+       "se_iid": 0.003623562329570286,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.22885967922315273,
+       "se": 0.004124422909705167,
+       "se_iid": 0.004030569264808648,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.2548930678154933,
+       "se": 0.004526819938913311,
+       "se_iid": 0.004423349274906839,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.2790617543704929,
+       "se": 0.004915027382575962,
+       "se_iid": 0.004786907057844404,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.30132252885480965,
+       "se": 0.005336110603022771,
+       "se_iid": 0.005181233274955886,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "cos_centred.f16 (recomputed)",
+     "n_rows": 486,
+     "n_clusters": 425
+    }
+   ],
+   "lift": {
+    "1": {
+     "mean": 0.025635682948991472,
+     "se": 0.0016074441974952402,
+     "se_iid": 0.0016391871326880223,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 8.870778578495693e-51,
+     "win": 0.8271604938271605,
+     "n_nonties": 486
+    },
+    "8": {
+     "mean": 0.05369262836895248,
+     "se": 0.0031323230473352492,
+     "se_iid": 0.0032157365322192343,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 2.131031884195173e-59,
+     "win": 0.8518518518518519,
+     "n_nonties": 486
+    }
+   }
+  },
+  "p2-L14-replace2__paper0923": {
+   "layer": 14,
+   "n_rows": 486,
+   "scores_rel": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L14-replace2__paper0923/scores",
+   "n": 64,
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bok_info": {
+    "rows": 512,
+    "rows_with_nan_rollouts": 0,
+    "nan_rollouts": 0,
+    "stored_comparisons": 3584,
+    "n_mismatches": 0,
+    "worst_excess": -0.000201,
+    "product": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L14-replace2__paper0923/scores/cos_centred.f16",
+    "mb": 6.29
+   },
+   "cos": [
+    {
+     "family": "realact",
+     "source": "p2-L14-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_raw",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L14-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.6216271728395062,
+       "se": 0.0033437436054426562,
+       "se_iid": 0.003331219776842549,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.6358205534979423,
+       "se": 0.003371768756152438,
+       "se_iid": 0.0033568978728914915,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.6488730246913581,
+       "se": 0.003397597485470684,
+       "se_iid": 0.0033830793198979976,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.6613021687242797,
+       "se": 0.0034348537901425615,
+       "se_iid": 0.003420295441712638,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.6730853106995884,
+       "se": 0.003485622530344185,
+       "se_iid": 0.00346880529002123,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.6841087386831276,
+       "se": 0.0035426696456270328,
+       "se_iid": 0.003521450672094185,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.6942930020576132,
+       "se": 0.0036138782506069263,
+       "se_iid": 0.003586449302847649,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "per_target.jsonl",
+     "n_rows": 486,
+     "n_clusters": 425
+    },
+    {
+     "family": "realact",
+     "source": "p2-L14-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_centred",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L14-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.1465914362539449,
+       "se": 0.002973435037163279,
+       "se_iid": 0.0029156523108854237,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.17662481559483445,
+       "se": 0.0033313805746473554,
+       "se_iid": 0.003279128287694442,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.20628431000959452,
+       "se": 0.0037030589388823455,
+       "se_iid": 0.0036572477064732876,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.2351388362810844,
+       "se": 0.0040840056266105195,
+       "se_iid": 0.004044708577757384,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.26236611961643125,
+       "se": 0.004449221657239663,
+       "se_iid": 0.004414212546896087,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.2876415265315528,
+       "se": 0.004812630972042994,
+       "se_iid": 0.004772822779932224,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.3109934614519033,
+       "se": 0.0052254156875724544,
+       "se_iid": 0.005164788080627466,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "cos_centred.f16 (recomputed)",
+     "n_rows": 486,
+     "n_clusters": 425
+    }
+   ],
+   "lift": {
+    "1": {
+     "mean": 0.02878423089184511,
+     "se": 0.0016530653147469004,
+     "se_iid": 0.001669779797615167,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 4.43754073320726e-64,
+     "win": 0.8641975308641975,
+     "n_nonties": 486
+    },
+    "8": {
+     "mean": 0.05997178542688412,
+     "se": 0.00314843947317716,
+     "se_iid": 0.0032150127231413334,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 1.6932071376425793e-72,
+     "win": 0.8847736625514403,
+     "n_nonties": 486
+    }
+   }
+  },
+  "p2-L21-replace2__paper0923": {
+   "layer": 21,
+   "n_rows": 486,
+   "scores_rel": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L21-replace2__paper0923/scores",
+   "n": 64,
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bok_info": {
+    "rows": 512,
+    "rows_with_nan_rollouts": 0,
+    "nan_rollouts": 0,
+    "stored_comparisons": 3584,
+    "n_mismatches": 0,
+    "worst_excess": -0.000205,
+    "product": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L21-replace2__paper0923/scores/cos_centred.f16",
+    "mb": 6.29
+   },
+   "cos": [
+    {
+     "family": "realact",
+     "source": "p2-L21-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_raw",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L21-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.6195283703703703,
+       "se": 0.0033444060120301853,
+       "se_iid": 0.0033205767880828854,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.6333008004115227,
+       "se": 0.003360814768426634,
+       "se_iid": 0.0033320711952586064,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.6460805,
+       "se": 0.003372631370474801,
+       "se_iid": 0.003343092437972523,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.658323378600823,
+       "se": 0.003394455232759405,
+       "se_iid": 0.0033664430036033366,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.6699065432098765,
+       "se": 0.0034304752384421216,
+       "se_iid": 0.0034034768202491714,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.6805389691358025,
+       "se": 0.0034812908077256704,
+       "se_iid": 0.0034547412428678026,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.6903000823045267,
+       "se": 0.0035649612650848423,
+       "se_iid": 0.003539265568886665,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "per_target.jsonl",
+     "n_rows": 486,
+     "n_clusters": 425
+    },
+    {
+     "family": "realact",
+     "source": "p2-L21-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_centred",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L21-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.1398893635041644,
+       "se": 0.002813475792719093,
+       "se_iid": 0.002750302006082453,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.16883925919194895,
+       "se": 0.0031338790729910425,
+       "se_iid": 0.00306881775023669,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.19819568933526602,
+       "se": 0.003512358895662771,
+       "se_iid": 0.0034471652089287075,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.22735991039248019,
+       "se": 0.003932847592124025,
+       "se_iid": 0.0038667054283388035,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.25498007201043993,
+       "se": 0.004351874775543016,
+       "se_iid": 0.004287519484994896,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.28016862286866223,
+       "se": 0.004743761622906534,
+       "se_iid": 0.004684524049449236,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.30338817957497427,
+       "se": 0.005179964804844639,
+       "se_iid": 0.005130938224164697,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "cos_centred.f16 (recomputed)",
+     "n_rows": 486,
+     "n_clusters": 425
+    }
+   ],
+   "lift": {
+    "1": {
+     "mean": 0.02208215814206458,
+     "se": 0.001186149489525358,
+     "se_iid": 0.001221130897809198,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 6.791482299791381e-58,
+     "win": 0.8477366255144033,
+     "n_nonties": 486
+    },
+    "8": {
+     "mean": 0.05219285953827991,
+     "se": 0.0028397639088626834,
+     "se_iid": 0.0029009126928189405,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 1.2126926221803343e-58,
+     "win": 0.8497942386831275,
+     "n_nonties": 486
+    }
+   }
+  },
+  "p2-L42-replace2__paper0923": {
+   "layer": 42,
+   "n_rows": 486,
+   "scores_rel": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L42-replace2__paper0923/scores",
+   "n": 64,
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bok_info": {
+    "rows": 512,
+    "rows_with_nan_rollouts": 0,
+    "nan_rollouts": 0,
+    "stored_comparisons": 3584,
+    "n_mismatches": 0,
+    "worst_excess": -0.000204,
+    "product": "base/qwen36-27b/patchscopes/2026-09-21_v3_realact/p2-L42-replace2__paper0923/scores/cos_centred.f16",
+    "mb": 6.29
+   },
+   "cos": [
+    {
+     "family": "realact",
+     "source": "p2-L42-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_raw",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L42-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.619296329218107,
+       "se": 0.0033287798091086646,
+       "se_iid": 0.0032986629632729783,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.6321125082304527,
+       "se": 0.0033402923454210792,
+       "se_iid": 0.0033000509337321143,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.6436018065843622,
+       "se": 0.0033457850587771095,
+       "se_iid": 0.003296521724073591,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.6543997407407407,
+       "se": 0.0033641495255531304,
+       "se_iid": 0.0033082911557516413,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.664890438271605,
+       "se": 0.0034060168499236948,
+       "se_iid": 0.0033458587277860395,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.6753904547325102,
+       "se": 0.0034906225695803474,
+       "se_iid": 0.0034236314380678024,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.6862408724279835,
+       "se": 0.0036717694730053767,
+       "se_iid": 0.0035845219890240834,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "per_target.jsonl",
+     "n_rows": 486,
+     "n_clusters": 425
+    },
+    {
+     "family": "realact",
+     "source": "p2-L42-replace2__paper0923@hf-patchscope:paper0923",
+     "cosine": "cos_centred",
+     "n": 64,
+     "engine": "hf-patchscope",
+     "run_tag": "paper0923",
+     "maemm": "patchscopes/p2-L42-replace2__paper0923",
+     "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+     "bo": {
+      "1": {
+       "mean": 0.14159883620838323,
+       "se": 0.0027316599878670325,
+       "se_iid": 0.002687805526858363,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "2": {
+       "mean": 0.1674453324071143,
+       "se": 0.002987002059481657,
+       "se_iid": 0.0029364041962815016,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "4": {
+       "mean": 0.19247113356791434,
+       "se": 0.0032647075452701085,
+       "se_iid": 0.003200759775490693,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "8": {
+       "mean": 0.2172770932264263,
+       "se": 0.0035847807558529875,
+       "se_iid": 0.0035039087557316596,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "16": {
+       "mean": 0.24218583061010648,
+       "se": 0.0039673068370656836,
+       "se_iid": 0.0038681799385875226,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "32": {
+       "mean": 0.26722926625799565,
+       "se": 0.004448529513761878,
+       "se_iid": 0.0043336544165658575,
+       "n_rows": 486,
+       "n_clusters": 425
+      },
+      "64": {
+       "mean": 0.29256950974954987,
+       "se": 0.005127162905223294,
+       "se_iid": 0.004993030975068663,
+       "n_rows": 486,
+       "n_clusters": 425
+      }
+     },
+     "bo_source": "cos_centred.f16 (recomputed)",
+     "n_rows": 486,
+     "n_clusters": 425
+    }
+   ],
+   "lift": {
+    "1": {
+     "mean": 0.02379163084628344,
+     "se": 0.0014764647923195553,
+     "se_iid": 0.0014746923429716538,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 4.140910189705193e-48,
+     "win": 0.8189300411522634,
+     "n_nonties": 486
+    },
+    "8": {
+     "mean": 0.04211004237222604,
+     "se": 0.0025006644868436974,
+     "se_iid": 0.0025202805986989127,
+     "n_rows": 486,
+     "n_clusters": 425,
+     "sign_p": 8.232857605391134e-47,
+     "win": 0.8148148148148148,
+     "n_nonties": 486
+    }
+   }
+  }
+ }
+}
