@@ -25,6 +25,7 @@ and is reported rather than engineered away.
 from __future__ import annotations
 
 import time
+import zlib
 
 import numpy as np
 
@@ -116,6 +117,25 @@ class _KeyReservoir:
         if self.payload is not None:
             cat_p = torch.cat([self.payload, payload], 1)
             self.payload = cat_p.gather(1, i.unsqueeze(-1).expand(-1, -1, cat_p.shape[-1]))
+
+
+def _reservoir_seed(cfg, set_name: str) -> int:
+    """The SAE reservoir generator's seed for `--set <set>`, WITHOUT requiring a `seed:` key.
+
+    `scan` read `cfg["heldout"][<set>]["seed"]` directly, and `load_config` never required that
+    key on a `heldout:` entry -- so every eval-1 v3 block (`2026-09-21_v3_realact`, `_ctrl`,
+    `_ours`, `_subspace`, `_realact_long`, all of them imported rather than drawn, none of them
+    carrying a draw seed) crashed this product with a KeyError *after* the base model had loaded.
+    MEASURED on the config 2026-09-23: only `2026-09-16_v1`, `2026-09-16_v1raw`,
+    `2026-09-20_sae2m_2k`, `2026-09-21_sae2m_64`, `2026-09-21_v3_sae2m` and the OOD sets declare one.
+
+    A declared seed still wins, so every scan run before 2026-09-23 reproduces bit for bit. An
+    undeclared one falls back to crc32 of the set name: deterministic, different per set, and
+    written into the examples README by `_examples_notes` exactly as a declared seed is, so the
+    number is recoverable from the product rather than from this docstring.
+    """
+    seed = (cfg["heldout"][set_name] or {}).get("seed")
+    return int(seed) if seed is not None else int(zlib.crc32(set_name.encode("utf-8")))
 
 
 def _load_targets(cfg, args, notes=None):
@@ -416,7 +436,7 @@ def _scan_one(
         else []
     )
     r_res = _KeyReservoir(1, SAE_RANDOM, "cuda", payload_shape=(n_feat,)) if n_feat else None
-    gen = torch.Generator(device="cuda").manual_seed(int(cfg["heldout"][set_name]["seed"]))
+    gen = torch.Generator(device="cuda").manual_seed(_reservoir_seed(cfg, set_name))
 
     win_doc: list = []
     win_start: list = []
@@ -692,7 +712,7 @@ def _scan_one(
                 "bytes": nbytes + path.stat().st_size,
             }
             od.write_json("tested.json", {"features": tested, "rows": tested_row, "sae": sae_key})
-            _examples_notes(od, n_feat, sae.d_sae, w_global, cfg["heldout"][set_name]["seed"])
+            _examples_notes(od, n_feat, sae.d_sae, w_global, _reservoir_seed(cfg, set_name))
 
     return {
         "scan": out_scan,
