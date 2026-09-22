@@ -325,10 +325,21 @@ def check_parse_scores_dir():
 
 
 def check_estimators():
-    """`best_of_k_means`, `peaks_of` and `best_per_rollout` against numbers written out here."""
-    bo = R.best_of_k_means([0.5, 0.25, 0.75, 1.0], (1, 2, 4, 8, 64))
+    """`bo_ladder`, `peaks_of` and `best_per_rollout` against numbers written out here.
+
+    bo-k is the UNBIASED order statistic, sum_i x_(i) C(i-1, k-1) / C(n, k) over the ascending
+    order statistics -- ONE estimator across the pipeline since 2026-09-23 (M0a). The k = 2 cell
+    is worked out by hand below BECAUSE it is where the estimator this replaced disagrees: the
+    disjoint-group mean of the same four draws is (max(.5,.25) + max(.75,1)) / 2 = 0.75, and the
+    unbiased one is 0.8333.., so a test that only checked bo1 and bo4 could not tell them apart.
+    """
+    bo = R.bo_ladder([0.5, 0.25, 0.75, 1.0], (1, 2, 4, 8, 64))
     _close(bo[1], 0.625, what="bo1 is the plain mean")
-    _close(bo[2], 0.75, what="bo2 = (max(.5,.25) + max(.75,1.0)) / 2")
+    # sorted [.25, .5, .75, 1.0]; weights C(i-1,1)/C(4,2) = [0, 1, 2, 3]/6
+    _close(bo[2], (0.5 * 1 + 0.75 * 2 + 1.0 * 3) / 6, what="bo2 is the unbiased order statistic")
+    assert abs(bo[2] - 0.75) > 1e-3, (
+        "bo2 came out as the DISJOINT-GROUP mean 0.75; the two estimators must not be confused"
+    )
     _close(bo[4], 1.0, what="bo4 is the max of all four")
     # A k above n is SKIPPED, not clamped and not an error: `sae_cells` asks for all of
     # score's BO_KS on every product, and a four-rollout product must answer with three of them.
@@ -340,6 +351,71 @@ def check_estimators():
     assert list(R.best_per_rollout(act)) == [2.0, -1.0]
     got = R.best_per_rollout(act, empty=float("nan"))
     assert got[0] == 2.0 and math.isnan(got[1])
+
+
+def check_one_bo_estimator():
+    """`precompute/common.bo_ladder` and `results.common.bo_unbiased` are ONE estimator.
+
+    The pipeline has two layers that cannot import each other -- `precompute/` is what the Modal
+    container ships, `results/` is a standalone local script layer -- so the estimator is written
+    twice, exactly as `read_array` is. That duplicate is CHECKED here rather than trusted: random
+    draws, every k, agreement to floating point. It also asserts they are not BOTH the old
+    disjoint-group mean, which two copies of one mistake would pass silently.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "m0a_precompute_common", Path(__file__).resolve().parent.parent / "precompute" / "common.py"
+    )
+    PC = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(PC)
+
+    rng = np.random.default_rng(20260923)
+    for n in (1, 2, 3, 4, 7, 16, 64):
+        vals = rng.normal(size=n).tolist()
+        ks = tuple(k for k in (1, 2, 3, 4, 8, 16, 32, 64, 65))
+        theirs = PC.bo_ladder(vals, ks)
+        ours = R.bo_ladder(vals, ks)
+        assert sorted(theirs) == sorted(ours) == sorted(k for k in ks if k <= n), (
+            f"n={n}: the two layers skip different k -- {sorted(theirs)} vs {sorted(ours)}"
+        )
+        for k in theirs:
+            assert abs(theirs[k] - ours[k]) < 1e-12, (
+                f"n={n} k={k}: precompute {theirs[k]!r} vs results {ours[k]!r} -- the two layers "
+                f"are computing different statistics under one name"
+            )
+    # and neither is the disjoint-group mean: a value where the two estimators differ
+    v = [0.5, 0.25, 0.75, 1.0]
+    naive = (max(v[0], v[1]) + max(v[2], v[3])) / 2
+    assert abs(PC.bo_ladder(v, (2,))[2] - naive) > 1e-3, (
+        "precompute.bo_ladder still returns the disjoint-group mean at k = 2"
+    )
+    assert abs(R.bo_ladder(v, (2,))[2] - naive) > 1e-3, (
+        "results.bo_ladder still returns the disjoint-group mean at k = 2"
+    )
+
+
+def check_fired_is_the_same_estimator():
+    """The fired indicator IS best-of-k of the 0/1 gate crossings, by the one estimator.
+
+    For a 0/1 vector with m of n draws above the gate, the unbiased order-statistic best-of-k is
+    1 - C(n - m, k) / C(n, k), which is exactly P(at least one of k draws fires). k = 1 is the
+    plain rate `item_fired` always reported and k = n is `fired_any`, so the two names that
+    existed before keep their meaning while the ladder in between becomes available -- which is
+    what panel b's `sae.l131k.ex.fired.bo8.q<q>` keys print.
+    """
+    import math as _m
+
+    rng = np.random.default_rng(7)
+    for n, m in ((8, 0), (8, 1), (8, 3), (8, 8), (16, 5)):
+        ind = np.concatenate([np.ones(m), np.zeros(n - m)])
+        rng.shuffle(ind)
+        lad = R.bo_ladder(ind, (1, 2, 4, 8, 16))
+        for k, got in lad.items():
+            want = 1.0 - (_m.comb(n - m, k) / _m.comb(n, k) if n - m >= k else 0.0)
+            assert abs(got - want) < 1e-12, f"n={n} m={m} k={k}: {got} vs 1 - C(n-m,k)/C(n,k) {want}"
+        assert abs(lad[1] - m / n) < 1e-12, "bo1 of the indicator must be the plain fired rate"
+        assert abs(lad[n] - (1.0 if m else 0.0)) < 1e-12, "bo_n of the indicator must be fired_any"
 
 
 def check_cluster_bootstrap():
@@ -462,33 +538,31 @@ def check_exclusions_leave_every_surface_together():
 
 
 def check_centred_bok_is_recomputed_from_the_array():
-    """The centred bo-k ladder comes from `cos_centred.f16`, by the disjoint-group estimator.
+    """The centred bo-k ladder comes from `cos_centred.f16`, by THE estimator.
 
     `score` writes `bo_c_<k>` only for a row whose EVERY rollout kept a centred token
     (`score.py:521`, `if len(vals_c) == n`), and on eval 1's own products no row qualifies -- so
     the centred bo8/bo64 columns of plan §2.3 exist nowhere on the volume and have to be made
     here. Four things, each its own failure:
 
-      1. with no NaN, the recomputation equals `common.best_of_k_means` on the same values EXACTLY
-         -- it is the same estimator, not a similar one, and that is what lets it sit in a column
-         beside the stored raw ladder;
-      2. a NaN rollout is dropped from ITS OWN group and the positions of the others do not move.
-         Compacting the survivors first would regroup them, which is a different statistic that
-         would agree on the mean (bo1) and differ everywhere else -- so bo1 cannot detect it and
-         bo2 is checked by hand here;
-      3. a group with NO finite draw is dropped from the average, never counted as a zero;
+      1. with no NaN, the recomputation equals `results.common.bo_ladder` on the same values
+         EXACTLY -- it is the same estimator, not a similar one, and that is what lets it sit in a
+         column beside the stored raw ladder;
+      2. the NaN draws are DROPPED and the estimator applied to the m finite ones at the same k,
+         which is the unbiased best-of-k of the draws that exist;
+      3. a k above the number of FINITE draws is skipped, never clamped, so no cell claims a bo-k
+         that row could not supply;
       4. over `--centred-bok-max-mb` the read is REFUSED with a reason, not answered from the
          stored ladder that is not there.
     """
     ids = [{"row": 0, "family": "realact", "doc": 1, "id": "a"},
            {"row": 1, "family": "realact", "doc": 2, "id": "b"}]
     # Row 0: all four finite. Row 1: draws 1 and 2 have no kept centred token.
-    #   row 0 bests [0.25, 0.75, 0.5, 1.0] -> bo1 0.625, bo2 (0.75 + 1.0)/2 = 0.875, bo4 1.0
-    #   row 1 bests [0.5, nan, nan, 0.25]  -> bo1 (0.5+0.25)/2 = 0.375
-    #                                          bo2 groups (0.5,nan) -> 0.5 and (nan,0.25) -> 0.25,
-    #                                               mean 0.375; COMPACTING would give one group
-    #                                               (0.5, 0.25) -> 0.5, which is the wrong answer
-    #                                          bo4 one group -> 0.5
+    #   row 0 bests [0.25, 0.75, 0.5, 1.0], all finite, n = 4, sorted [.25, .5, .75, 1.0]:
+    #        bo1 0.625;  bo2 (.5*1 + .75*2 + 1.0*3)/C(4,2) = 5/6;  bo4 1.0
+    #   row 1 bests [0.5, nan, nan, 0.25]: TWO finite draws, so the estimator sees n = 2:
+    #        bo1 (0.5 + 0.25)/2 = 0.375;  bo2 0.5 (the max of the two);  bo4 ABSENT -- this row
+    #        has two draws and cannot answer a best-of-4
     centred = {0: [0.25, 0.75, 0.5, 1.0], 1: [0.5, math.nan, math.nan, 0.25]}
     raw = {0: [0.25] * 4, 1: [0.25] * 4}
     cfg = {**CFG, "heldout": {**CFG["heldout"],
@@ -528,21 +602,26 @@ def check_centred_bok_is_recomputed_from_the_array():
         write(root)
         vol = R.Vol("", root, offline=True, quiet=True)
         res = F.analyse(vol, cfg, "CB", "", 400, 1, True, 8.0, 128.0)
-        # (1) the all-finite row IS `best_of_k_means`, exactly.
+        # (1) the all-finite row IS `bo_ladder`, exactly.
         ladder, info = F.centred_bok(vol, res["sources"][0], 128.0)
-        want0 = R.best_of_k_means(centred[0], R.BO_KS_ALL)
-        assert ladder[0] == want0, f"row 0: {ladder[0]} vs best_of_k_means {want0}"
+        want0 = R.bo_ladder(centred[0], R.BO_KS_ALL)
+        assert ladder[0] == want0, f"row 0: {ladder[0]} vs bo_ladder {want0}"
+        _close(ladder[0][2], 5 / 6, 1e-9, what="row 0 bo2, the unbiased order statistic by hand")
         # (2)/(3) the NaN row, by hand.
         _close(ladder[1][1], 0.375, 1e-9, what="bo1 over the finite draws")
-        _close(ladder[1][2], 0.375, 1e-9, what="bo2 keeps POSITIONS -- compacting would give 0.5")
-        _close(ladder[1][4], 0.5, 1e-9, what="bo4 is the one group's finite max")
+        _close(ladder[1][2], 0.5, 1e-9, what="bo2 over the TWO finite draws is their max")
+        assert 4 not in ladder[1], (
+            f"row 1 has two finite draws and must not answer a best-of-4, got {ladder[1]}"
+        )
         assert info["rows_with_nan_rollouts"] == 1 and info["nan_rollouts"] == 2, info
         # The product stores no ladder at all, so there was nothing to compare against -- and the
         # table must SAY that rather than printing a vacuous zero-mismatch pass.
         assert info["stored_comparisons"] == 0 and info["n_mismatches"] == 0, info
         # (and the family mean is the average of the two rows, from the ARRAY not the file)
-        _close(_stat(res, "realact", "ckpt-one:arm-a", "cos_centred.bo2"), (0.875 + 0.375) / 2, 1e-9)
-        _close(_stat(res, "realact", "ckpt-one:arm-a", "cos_centred.bo4"), (1.0 + 0.5) / 2, 1e-9)
+        _close(_stat(res, "realact", "ckpt-one:arm-a", "cos_centred.bo2"), (5 / 6 + 0.5) / 2, 1e-9)
+        # row 1 supplies no bo4 at all, so the bo4 cell is row 0's alone -- not row 0's averaged
+        # against a clamped stand-in for row 1.
+        _close(_stat(res, "realact", "ckpt-one:arm-a", "cos_centred.bo4"), 1.0, 1e-9)
         cell = [c for c in res["cos"] if c["cosine"] == "cos_centred"][0]
         assert cell["bo_source"].startswith("cos_centred.f16"), cell["bo_source"]
         raw_cell = [c for c in res["cos"] if c["cosine"] == "cos_raw"][0]
@@ -2560,6 +2639,8 @@ def check_ood_lid_wantlist():
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
+    check_one_bo_estimator,
+    check_fired_is_the_same_estimator,
     check_cluster_bootstrap,
     check_round_trip,
     check_second_sae_needs_no_code,

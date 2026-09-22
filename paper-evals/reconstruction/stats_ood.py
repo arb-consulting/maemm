@@ -23,7 +23,7 @@ Commands:
 
 Products (design §6): `ood_arms.csv`, `ood_per_target.csv`, `ood_strata.csv`, `ood_examples.md`.
 
-Estimators. Best-of-k is the UNBIASED order statistic (`stats.bo_unbiased`, the same function the
+Estimators. Best-of-k is the UNBIASED order statistic (`results.common.bo_unbiased`, the one the
 paper's tables use). The per-arm paired difference is bootstrapped by resampling TARGETS (10,000
 percentile resamples), which is the unit of analysis; the outcome is three-state (review R9):
 `exceeds` (the CI is above zero), `inconclusive` (it covers zero -- a failure to reject, NOT
@@ -51,7 +51,11 @@ CONFIG = PAPER_EVALS / "config.yaml"
 sys.path.insert(0, str(PAPER_EVALS))
 
 import precompute.common as C  # noqa: E402  (the ONE script table, code-like rule and arm table)
-from reconstruction.stats import Scores, Vol, bo_unbiased  # noqa: E402
+from reconstruction.stats import Scores, Vol  # noqa: E402
+# THE best-of-k estimator of the pipeline, one definition for the whole results layer
+# (M0a, 2026-09-23). `reconstruction/stats.py` has its own copy of the same order
+# statistic; `results/selftest.check_one_bo_estimator` holds the layers to one number.
+from results.common import bo_unbiased  # noqa: E402
 
 OOD_SET = "2026-09-18_ood_v1"
 BASE = "qwen36-27b"

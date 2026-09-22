@@ -5,9 +5,16 @@
 
 Same windows as pass A (`common.windows_of`, 64 tokens every 16, never crossing documents, sink
 prepended and dropped), same stored document order, so the per-size snapshots are the same nested
-subsets. Cosine is UNCENTRED and in fp32 over every non-sink position, with NO norm filter
-(checklist item 4 and the scorer's divergence note in common.score_tokens) -- while realact targets
-are `unit(act - stats/mu)`, centred ONCE at construction. That asymmetry is Celeste's and is kept.
+subsets. The cosine is fp32 over every non-sink position, with NO norm filter (checklist item 4
+and the scorer's divergence note in common.score_tokens).
+
+TWO CENTRING MODES. `--centre` takes BOTH sides about the base's scoring constant
+(`common.score_mu` = `bases.<base>.whiten_mu`), which is the same mean `score` reports its
+`cos_centred` about: a corpus top-1 and a rollout cosine are then the same statistic and may be
+differenced. Without it the window side is UNCENTRED while the targets carry whatever `--mu`
+resolved -- Celeste's original asymmetry, kept so that every corpus-search number measured between
+2026-09-16 and 2026-09-21 reproduces. The two write to different directories through `--run-tag`
+(`scan_dir`'s key), because they are different numbers.
 
 Masking (checklist item 53): for a realact target, the windows of ITS OWN document that overlap the
 shown span [p-L+1, p] are excluded from both the top-k and the quantiles. Exact or near-duplicate
@@ -119,12 +126,19 @@ def _load_targets(cfg, args, notes=None):
     OOD arms, the 512 English realact targets and the 512 random directions), because the scan's
     cost is per corpus token and not per target.
 
-    `scan` has no `--maemm` in scope at all, so the centring convention has to be told to it
-    (`--mu <file>`) or taken from each set's own stored contract -- see common.mu_for. On a legacy
-    `storage: unit` set that resolves to the mean the set was built with, which reproduces every
-    corpus-search number measured between 2026-09-16 and 2026-09-21 exactly. The resolution is
-    PER SET, because `--with-set` can append a `storage: unit` bank to a `storage: raw` one and
-    the two were not centred the same way.
+    `scan` has no `--maemm` in scope at all, so the centring convention has to be told to it:
+
+      * `--centre` is THE CENTRED MODE (2026-09-23). Both sides of the cosine are taken about the
+        base's own scoring constant `common.score_mu` -- the targets here, the window residuals in
+        `_scan_one`'s flush() -- which is the same constant `score` reports its `cos_centred`
+        about, so a corpus top-1 and a rollout cosine are finally the same statistic. It takes no
+        value and cannot be combined with `--mu`: the whole point is that the mean is not a
+        per-run choice. Every target set must be `storage: raw`, since a stored unit direction
+        cannot be re-centred (common.dirs_for).
+      * `--mu <file>`, or the set's own stored contract, is the LEGACY uncentred-window mode,
+        which reproduces every corpus-search number measured between 2026-09-16 and 2026-09-21
+        exactly. The resolution is PER SET, because `--with-set` can append a `storage: unit` bank
+        to a `storage: raw` one and the two were not centred the same way.
 
     The own-document mask travels with the target as `mask_corpus`: a realact target's `doc` is an
     index into ITS OWN corpus and means nothing in another one, so the mask is applied only where
@@ -141,12 +155,26 @@ def _load_targets(cfg, args, notes=None):
     for extra in [x for x in (args.get("with_set") or "").split(",") if x]:
         name, _, fams = extra.partition(":")
         specs.append((name, [f for f in fams.split("+") if f] or None))
+    centre = bool(args.get("centre"))
+    assert not (centre and (args.get("mu") or "").strip()), (
+        "--centre and --mu are two answers to one question: --centre takes BOTH sides of the "
+        "cosine about the base's scoring constant (common.score_mu) and is not a per-run choice"
+    )
     rows, vecs = [], []
     for name, fams in specs:
         hdir = C.heldout_dir(base, name, root)
         assert os.path.exists(f"{hdir}/ids.jsonl"), f"no held-out set at {hdir}"
         rs = C.read_jsonl(f"{hdir}/ids.jsonl")
-        mu, _ = C.mu_for(cfg, base, hdir, args, "", root, notes)
+        if centre:
+            storage = C.set_storage(cfg, hdir, root)["storage"]
+            assert storage == "raw", (
+                f"--centre needs every target set to be `storage: raw` so a centred direction can "
+                f"be derived from its act.f32; {name} is `storage: {storage}` and a stored unit "
+                f"direction cannot be re-centred (common.dirs_for)"
+            )
+            mu = C.score_mu(cfg, base)
+        else:
+            mu, _ = C.mu_for(cfg, base, hdir, args, "", root, notes)
         v = np.asarray(C.dirs_for(cfg, base, hdir, mu, root, notes), dtype=np.float32)
         assert v.shape == (len(rs), d), f"{hdir}: dirs_for returned {v.shape} for {len(rs)} rows"
         for i, r in enumerate(rs):
@@ -179,7 +207,28 @@ def _load_targets(cfg, args, notes=None):
                 f"label rather than letting it search its own document"
             )
             mask_corpus.append("")
-    return rows, V, (doc, lo, hi, mask_corpus)
+    # The window side's mean, for flush(): the SAME constant the targets above were centred on, or
+    # None in the legacy mode where only the target side is centred (an asymmetric cosine, which
+    # is why `cos_asym` exists in `score` and why `results/ood.py` had to read it).
+    wmu = None
+    if centre:
+        arr = C.load_mu(cfg, base, C.score_mu(cfg, base), root)
+        assert arr is not None and arr.shape == (d,), (
+            f"the scoring constant {C.score_mu(cfg, base)} did not resolve to a [{d}] mean"
+        )
+        wmu = torch.from_numpy(np.asarray(arr, dtype=np.float32)).cuda()
+        one_sided = sorted({r["family"] for r in rows if not C.family_centrable(cfg, r["family"])})
+        (notes if notes is not None else []).append(
+            f"--centre: BOTH sides about {C.mu_label(C.score_mu(cfg, base), base, root)}, the "
+            f"scoring constant (common.score_mu), the same mean `score` reports cos_centred "
+            f"about. Families {one_sided} are not `centrable`, so their target side is the raw "
+            f"unit direction while the window side is centred -- a ONE-SIDED number for those "
+            f"rows, exactly as it is in `cos_asym`; a reader must not report them as centred"
+            if one_sided else
+            f"--centre: BOTH sides about {C.mu_label(C.score_mu(cfg, base), base, root)}, the "
+            f"scoring constant (common.score_mu); every target family here is `centrable`"
+        )
+    return rows, V, (doc, lo, hi, mask_corpus), wmu
 
 
 def _forward(model, read_layer, rows, sink, pad_id):
@@ -242,7 +291,7 @@ def run(cfg, args):
     assert len(set(corpora)) == len(corpora), f"--corpus repeats a corpus: {corpora}"
 
     cen_notes: list[str] = []
-    rows, v, masks = _load_targets(cfg, args, notes=cen_notes)
+    rows, v, masks, wmu = _load_targets(cfg, args, notes=cen_notes)
     sae_key = C.sae_key_for_rows(cfg, base, rows, args.get("sae") or "")
     # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
     # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
@@ -310,14 +359,14 @@ def run(cfg, args):
         bound = f" (<= {max_size}M)" if max_size else ""
         print(f"[scan] === corpus {label}{bound} -> {out_scan}", flush=True)
         out[label] = _scan_one(
-            cfg, args, model, tok, sae, sae_key, rows, v, masks, cname, label, out_scan, out_ex,
+            cfg, args, model, tok, sae, sae_key, rows, v, masks, wmu, cname, label, out_scan, out_ex,
             tested, tested_row, batch_rows, max_size, cen_notes,
         )
     return out
 
 
 def _scan_one(
-    cfg, args, model, tok, sae, sae_key, rows, v, masks, cname, label, out_scan, out_ex,
+    cfg, args, model, tok, sae, sae_key, rows, v, masks, wmu, cname, label, out_scan, out_ex,
     tested, tested_row, batch_rows, max_size, cen_notes,
 ):
     import torch
@@ -386,7 +435,12 @@ def _scan_one(
         wl = torch.tensor([len(r) for r in buf], device="cuda")
         wid = torch.arange(w_global, w_global + b, device="cuda")
 
-        cos = torch.nn.functional.normalize(h, dim=-1) @ v.T  # [B, T, N] fp32, uncentred
+        # [B, T, N] fp32. `wmu` is the scoring constant under --centre and None otherwise; the
+        # subtract is one broadcast over [B, T, d] per flush, no extra pass and no extra
+        # allocation beyond the centred copy, so memory stays where it was (512 targets x 10M
+        # tokens is bounded by `cos`, not by this).
+        hc = h if wmu is None else h - wmu
+        cos = torch.nn.functional.normalize(hc, dim=-1) @ v.T
         cos = cos.masked_fill(~keep.unsqueeze(-1), SENTINEL)
         # realact self-match mask: this window's document and span overlap the target's own span
         mask = (
@@ -527,7 +581,15 @@ def _scan_one(
             f"{2 / N_BINS}), so each value is the bin upper edge and exact to {2 / N_BINS}"
         )
         od.note(
-            "cosine is UNCENTRED, fp32, over every non-sink position of every window, with no norm "
+            (
+                "cosine is CENTRED on BOTH sides about the base's scoring constant "
+                f"({C.mu_label(C.score_mu(cfg, base), base, root)}, common.score_mu -- the same "
+                "mean `score` reports cos_centred about), "
+                if wmu is not None else
+                "cosine is UNCENTRED on the window side (the target side carries whatever `--mu` "
+                "resolved), "
+            )
+            + "fp32, over every non-sink position of every window, with no norm "
             f"filter; window geometry {C.SCAN_BLOCK}/{C.SCAN_STRIDE} (common.windows_of), "
             f"{w_global} windows over {done_tokens} corpus tokens"
         )

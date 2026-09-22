@@ -586,6 +586,31 @@ def input_mu(cfg: dict, maemm_key: str):
     return spec["mu"]
 
 
+def score_mu(cfg: dict, base: str) -> str:
+    """THE SCORING CONSTANT: the one mean BOTH arguments of every centred cosine are taken about.
+
+    It is `bases.<base>.whiten_mu` -- a key that already existed as the base's archived centring
+    mean -- and it is a property of the BASE, not of any MAEMM, any run or any set. Read it here
+    and nowhere else, so that `score`, `scan` and `gcg` centre on one vector and their numbers are
+    comparable by construction.
+
+    It is deliberately DECOUPLED from a MAEMM's `mu:` key (`input_mu`), which says what that
+    checkpoint was trained to RECEIVE at its marker token and remains the injection convention.
+    Before 2026-09-23 the reported cosine's mean was whatever the run's injection convention was,
+    which meant: the old primary (`mu: null`) got no centred cosine at all, the base control got
+    none, the NLA arm got none, and any two arms trained on different conventions could not be
+    differenced. A difference of two cosines taken about two different means is not a difference.
+    """
+    spec = cfg["bases"][base]
+    mu = spec.get("whiten_mu")
+    assert isinstance(mu, str) and mu, (
+        f"base {base!r} has no `whiten_mu:` in config.yaml, so there is no scoring constant for it "
+        f"and no centred cosine can be reported on it. Declare the base's mean file."
+    )
+    _check_mu_value(mu, f"bases[{base!r}].whiten_mu", allow_unknown=False)
+    return mu
+
+
 def _check_heldout_storage(cfg: dict, set_name: str, spec: dict) -> None:
     """Validate one held-out set's storage contract. See config.yaml's `heldout:` header.
 
@@ -2446,16 +2471,29 @@ def agg(cos, keep):
     return best, arg
 
 
-def best_of_k_means(vals, ks) -> dict[int, float]:
-    """Best-of-k means by DISJOINT groups: split `vals` into floor(n/k) consecutive groups of k,
-    take each group's max, average them.
+def bo_ladder(vals, ks) -> dict[int, float]:
+    """{k: UNBIASED best-of-k} over `vals`, the n per-rollout scores of one target.
 
-    This is the plain subsample estimator, not the unbiased order-statistic one (that belongs to
-    reconstruction/stats.py): it uses only floor(n/k)*k of the n rollouts and its variance at
-    k = n is the variance of a single best-of-n draw. k values above n are skipped rather than
-    silently clamped, so a summary never claims a bo-k it could not compute.
+        E[max of k draws] = sum_{i=1..n} x_(i) * C(i-1, k-1) / C(n, k)      (x sorted ASCENDING)
+
+    The i-th smallest of the n observed scores is the maximum of a k-subset exactly when the other
+    k-1 members come from the i-1 below it, and every k-subset is equally likely. Unbiased for any
+    k <= n and using ALL n rollouts. k > n is SKIPPED, never clamped, so a summary never claims a
+    bo-k it could not compute.
+
+    ONE ESTIMATOR IN THE PIPELINE (2026-09-23, M0a). This replaced `best_of_k_means`, the
+    disjoint-group mean -- floor(n/k) consecutive groups of k, each group's max, averaged -- which
+    `score` stored while `reconstruction/stats.py` printed the unbiased one, so the same quantity
+    had two values depending on which file a reader opened and they agreed only at k = n.
+
+    It is DELIBERATELY duplicated in `results/common.bo_unbiased`: this module is what the Modal
+    container ships and `results/` is a standalone local script layer that imports nothing from
+    it, exactly as `read_array` is duplicated. `results/selftest.check_one_bo_estimator` asserts
+    the two agree to floating point on a random draw, so the duplicate is checked, not trusted.
     """
-    vals = [float(v) for v in vals]
+    import math as _math
+
+    vals = sorted(float(v) for v in vals)
     n = len(vals)
     out: dict[int, float] = {}
     for k in ks:
@@ -2463,8 +2501,8 @@ def best_of_k_means(vals, ks) -> dict[int, float]:
         assert k >= 1, f"best-of-k needs k >= 1, got {k}"
         if k > n:
             continue
-        g = n // k
-        out[k] = sum(max(vals[i * k : (i + 1) * k]) for i in range(g)) / g
+        denom = _math.comb(n, k)
+        out[k] = sum(vals[i - 1] * _math.comb(i - 1, k - 1) for i in range(1, n + 1)) / denom
     return out
 
 

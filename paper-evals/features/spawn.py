@@ -44,7 +44,7 @@ DEFAULTS = {
     "rollouts_dir": "", "corpus_name": "", "subset": "", "amp": "",
     "ps_prompt": "", "ps_rule": "", "ps_alpha": 0.0,
     "corpus": "",
-    "mu": "", "re_derive": "",
+    "mu": "", "re_derive": "", "centre": False,
     "feature_split": "", "maxact_windows": "", "include": "",
     # draw_sae2m: n/4 per quartile of the eligible pool rather than a uniform draw, and the
     # draw's seed (0 = the module's DRAW_SEED). This path BYPASSES modal_app.main, so the

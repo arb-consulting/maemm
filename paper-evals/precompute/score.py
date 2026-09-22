@@ -102,19 +102,25 @@ def _load_dirs(cfg, args, notes=None):
     `dirs` is the target of `cos` (the historical, uncentred-scorer number) and `dirs_centred` the
     target of `cos_centred`, both [N, d] fp32 unit on the cpu:
 
-      * on a `storage: raw` set, `dirs` is unit(act) and `dirs_centred` is unit(act - mu), derived
-        from the one act.f32 at read time;
-      * on a legacy `storage: unit` set there is no act.f32 to derive from, so BOTH are the stored
-        direction -- which is exactly right: the stored row already IS unit(act - mu) for that
-        set's own mean, so `cos` reproduces every number measured before 2026-09-21 to the digit
-        and `cos_centred` is that same target with the SCORER's side centred too.
+      * `dirs` is unit(act) on a `storage: raw` set and the stored row on a legacy `storage: unit`
+        one, so `cos` reproduces every number measured before 2026-09-21 to the digit;
+      * `dirs_centred` is unit(act - mu) with mu THE SCORING CONSTANT (`common.score_mu`, the
+        base's `whiten_mu`), derived from act.f32 at read time.
 
-    Rows of a family that is not `centrable` (config.yaml `family_kinds:`) are NaN in
-    `dirs_centred`, so `cos_centred` is NaN for them rather than a one-sided number: an encoder
-    column, a Gaussian draw and a subspace basis have no mean, and cos(h - mu, encoder column)
-    measures the activation moving while the target stands still.
+    THE MEAN IS THE BASE'S, NOT THE RUN'S (2026-09-23). It used to be whatever `mu_for` resolved
+    for this run -- the MAEMM's own injection convention -- which coupled the reported statistic
+    to the checkpoint being reported on: the old primary (`mu: null`), the base control and the
+    NLA arm got no centred cosine at all, and two arms on two conventions could not be
+    differenced. `common.score_mu` says why the two are now separate axes.
 
-    `mu` is None when this run centres on nothing, and then there is no second cosine at all.
+    A row is NaN in `dirs_centred`, and so in `cos_centred`, in exactly two cases:
+
+      * its family is not `centrable` (config.yaml `family_kinds:`) -- an encoder column, a
+        Gaussian draw and a subspace basis have no mean, and cos(h - mu, encoder column) measures
+        the activation moving while the target stands still;
+      * the SET is not `storage: raw`, so there is no act.f32 to derive a centred direction from.
+        unit(act) and mu do not give unit(act - mu) without ||act||, so a legacy `storage: unit`
+        set simply has no centred cosine. That is the honest answer, not a defect.
     """
     import torch
 
@@ -122,30 +128,49 @@ def _load_dirs(cfg, args, notes=None):
     d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
-    mu_val, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    say = notes if notes is not None else []
+    assert not (args.get("mu") or "").strip(), (
+        "`score` takes no --mu: the mean of the reported cosine is the base's own scoring "
+        "constant (bases.<base>.whiten_mu, common.score_mu) and is not a per-run choice. --mu "
+        "remains the INJECTION convention of the rollouts products."
+    )
     contract = C.set_storage(cfg, src, root)
-    # On a raw set the uncentred target is unit(act); on a legacy set it is the stored row, whose
-    # own mean this run has already been asserted to match.
-    raw_mu = None if contract["storage"] == "raw" else mu_val
-    v = C.dirs_for(cfg, base, src, raw_mu, root, notes)
+    # The uncentred target: unit(act) on a raw set, the stored row on a legacy one. `dirs_for`
+    # returns exactly that at mu=None, on either contract.
+    v = C.dirs_for(cfg, base, src, None, root, notes)
     assert v.shape == (len(rows), d), f"{src}: dirs_for returned {v.shape} for {len(rows)} rows"
     dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)), dim=-1)
 
-    mu = C.load_mu(cfg, base, mu_val, root)
-    if mu is None:
-        (notes if notes is not None else []).append(
-            "no centred cosine in this directory: this run centres on nothing (mu=none), so "
-            "cos_centred would be the uncentred number under another name"
+    smu = C.score_mu(cfg, base)
+    mu = C.load_mu(cfg, base, smu, root)
+    assert mu is not None, f"{smu} does not resolve to a [{d}] mean for base {base}"
+    if args.get("maemm"):
+        own = C.input_mu(cfg, args["maemm"])
+        say.append(
+            f"{args['maemm']} was trained to RECEIVE {C.mu_label(own, base, root)} "
+            f"(maemms.{args['maemm']}.mu); that is the injection convention and is a DIFFERENT "
+            f"axis from the mean this product reports its cosine about"
         )
-        return rows, dirs, None, None, src
-    vc = np.array(C.dirs_for(cfg, base, src, mu_val, root, notes), dtype=np.float32, copy=True)
-    not_centrable = [i for i, r in enumerate(rows) if not C.family_centrable(cfg, r["family"])]
-    vc[not_centrable] = np.nan
-    (notes if notes is not None else []).append(
-        f"cos_centred: both sides centred on {C.mu_label(mu_val, base, root)}; "
-        f"{len(not_centrable)} of {len(rows)} rows are NaN there because their family is not "
-        f"`centrable` (an encoder column / a Gaussian draw / a subspace basis has no mean, so a "
-        f"one-sided cos(h - mu, v) is not a centred number and is not reported as one)"
+    if contract["storage"] == "raw":
+        vc = np.array(C.dirs_for(cfg, base, src, smu, root, notes), dtype=np.float32, copy=True)
+        blank = [i for i, r in enumerate(rows) if not C.family_centrable(cfg, r["family"])]
+        why = (
+            f"{len(blank)} of {len(rows)} rows are NaN there because their family is not "
+            f"`centrable` (an encoder column / a Gaussian draw / a subspace basis has no mean, so "
+            f"a one-sided cos(h - mu, v) is not a centred number and is not reported as one)"
+        )
+    else:
+        vc = np.full((len(rows), d), np.nan, dtype=np.float32)
+        blank = list(range(len(rows)))
+        why = (
+            f"ALL {len(rows)} rows are NaN there: {src} is `storage: {contract['storage']}` "
+            f"({contract['source']}) and carries no act.f32, so no centred direction can be "
+            f"derived from it at any mean"
+        )
+    vc[blank] = np.nan
+    say.append(
+        f"cos_centred: both sides centred on {C.mu_label(smu, base, root)}, the SCORING CONSTANT "
+        f"bases.{base}.whiten_mu (common.score_mu) and not this run's injection convention; {why}"
     )
     dirs_centred = torch.from_numpy(vc)
     return rows, dirs, dirs_centred, torch.from_numpy(mu), src
@@ -539,14 +564,14 @@ def run(cfg, args):
         vals = bestm[i].tolist()
         lens = [by_row[r][k]["n_tok"] for k in range(n)]
         fin = [by_row[r][k]["finished"] for k in range(n)]
-        bo = C.best_of_k_means(vals, BO_KS)
+        bo = C.bo_ladder(vals, BO_KS)
         # `cos_centred` is NaN for a non-centrable family and for a rollout with no kept token, so
         # the centred aggregates are computed over the finite entries only and are absent -- not
         # zero, not -1 -- for a row that has none.
         vals_c = [] if bestm_c is None else [v for v in bestm_c[i].tolist() if np.isfinite(v)]
-        bo_c = C.best_of_k_means(vals_c, BO_KS) if len(vals_c) == n else {}
+        bo_c = C.bo_ladder(vals_c, BO_KS) if len(vals_c) == n else {}
         vals_a = [] if bestm_a is None else [v for v in bestm_a[i].tolist() if np.isfinite(v)]
-        bo_a = C.best_of_k_means(vals_a, BO_KS) if len(vals_a) == n else {}
+        bo_a = C.bo_ladder(vals_a, BO_KS) if len(vals_a) == n else {}
         per_target.append(
             {
                 "row": r,
@@ -692,9 +717,10 @@ def run(cfg, args):
         )
         od.note(
             f"`per_target.jsonl` carries n, bo, seed and the checkpoint sha on every row "
-            f"(checklist item 29). `bo_<k>` is the mean over DISJOINT groups of k consecutive "
-            f"rollouts of the group max (common.best_of_k_means), k in {list(BO_KS)}; the unbiased "
-            "order-statistic estimator belongs to reconstruction/stats.py, not here."
+            f"(checklist item 29). `bo_<k>` is the UNBIASED order-statistic best-of-k over all n "
+            f"rollouts (common.bo_ladder), k in {list(BO_KS)} -- ONE estimator across the "
+            "pipeline since 2026-09-23; the disjoint-group mean it replaced agreed with it only "
+            "at k = n, so a bo_<k> written before that date is a different statistic."
         )
         od.note(f"tokenizer round-trip mismatches: {bad} of {len(texts)} rows")
         od.note(

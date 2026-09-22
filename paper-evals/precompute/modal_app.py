@@ -465,6 +465,13 @@ def main(
     # repo_examples) it is the only source there is, and they refuse to run on a `storage: raw` set
     # without it (common.mu_for).
     mu: str = "",
+    # scan: THE CENTRED MODE. Both sides of the scan's cosine are taken about the base's scoring
+    # constant (`common.score_mu` = `bases.<base>.whiten_mu`), the same mean `score` reports
+    # `cos_centred` about, so the corpus top-1 and a rollout cosine are one statistic. A boolean,
+    # not a path: the mean is a property of the base, not a per-run choice, and it refuses to be
+    # combined with --mu. Give the run its own `--run-tag`, since a centred and an uncentred scan
+    # of one (set, corpus) are different numbers and `scan_dir` separates them by that tag alone.
+    centre: bool = False,
     # WHICH CORPUS, by `corpora:` key (heldout16m, celeste-train10m, ood_tha_Thai, ...). Resolves
     # to the directory name `--corpus-name` takes, so the two flags cannot disagree; pass at most
     # one of the pair. A COMMA-SEPARATED LIST is accepted and `scan` walks them in one call, which
@@ -577,6 +584,7 @@ def main(
         "rollouts_dir": rollouts_dir.rstrip("/"),
         "amp": amp,
         "mu": mu,
+        "centre": centre,
         "corpus_name": corpus_name,
         "re_derive": re_derive,
         "arm": arm,
@@ -623,6 +631,21 @@ def main(
             f"--arm-seed is the OOD arm RNG's seed, read by `corpus --arm` when it cuts the "
             f"permuted row stream; every other product takes the seed from the set's own config "
             f"entry. It means nothing to product {product!r}."
+        )
+    if centre:
+        assert product == "scan", (
+            f"--centre is the `scan` centred mode (both sides about common.score_mu); it means "
+            f"nothing to product {product!r}. `score` is centred on that constant unconditionally "
+            f"and the rollouts products take their injection convention from the MAEMM."
+        )
+        assert not (mu or "").strip(), (
+            "--centre and --mu are two answers to one question: --centre takes both sides about "
+            "the base's scoring constant and is not a per-run choice"
+        )
+        assert (run_tag or "").strip(), (
+            "--centre needs a --run-tag: a centred and an uncentred scan of one (set, corpus) are "
+            "different numbers and common.scan_dir separates them by that tag alone, so without "
+            "one the second run refuses on `already exists` -- or, with --force, destroys the first"
         )
     if max_size or with_set:
         assert product == "scan", (

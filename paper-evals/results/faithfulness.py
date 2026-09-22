@@ -112,15 +112,14 @@ def centred_bok(vol: R.Vol, src: R.Source, max_mb: float) -> tuple[dict[int, dic
     That is SMOKES.md's "three things the results run must not get wrong", item 1: the centred bo-k
     columns of plan §2.3 have to come from the array.
 
-    THE SAME ESTIMATOR AS THE STORED RAW LADDER, and the grouping is what makes it the same one:
-    `common.best_of_k_means` splits the n per-rollout bests into floor(n/k) DISJOINT groups of k
-    CONSECUTIVE rollouts, takes each group's max and averages them; k > n is skipped, never
-    clamped. The one thing this has to decide that `score` never did is what a NaN rollout does to
-    a group, and the answer is the one that reduces exactly to `score`'s when there are none: the
-    group's max is taken over its FINITE entries, and a group with no finite entry is dropped from
-    the average rather than counted as a zero. Positions are kept -- rollout j stays in group
-    j // k -- because dropping the NaNs first would regroup the survivors and quietly change which
-    draws compete with which.
+    THE SAME ESTIMATOR AS THE STORED RAW LADDER: `results.common.bo_unbiased`, the unbiased
+    order statistic over all n draws, which is what `precompute/common.bo_ladder` stores since
+    2026-09-23 (M0a). k > n is skipped, never clamped. The one thing this has to decide that
+    `score` never did is what a NaN rollout does, and the answer is the one that reduces exactly
+    to `score`'s when there are none: the NaN draws are DROPPED and the estimator is applied to
+    the m finite ones at the same k, which is the unbiased best-of-k of the draws that exist. A
+    row with fewer than k finite draws has no bo-k and is skipped rather than clamped, and a row
+    with none at all is absent -- never a one-sided number.
 
     Where `score` DID store the ladder (a row whose rollouts were all finite) the two are compared,
     and a disagreement is a defect in this reader, not a result.
@@ -153,18 +152,8 @@ def centred_bok(vol: R.Vol, src: R.Source, max_mb: float) -> tuple[dict[int, dic
             rows_with_nan += 1
             n_nan_rollouts += int((~finite).sum())
         n = int(best.size)
-        cells: dict[int, float] = {}
-        for k in R.BO_KS_ALL:
-            if k > n:
-                continue
-            maxima = []
-            for g in range(n // k):
-                grp = best[g * k : (g + 1) * k]
-                grp = grp[np.isfinite(grp)]
-                if grp.size:
-                    maxima.append(float(grp.max()))
-            if maxima:
-                cells[k] = float(np.mean(maxima))
+        live = best[finite]
+        cells = {k: v for k, v in R.bo_ladder(live, R.BO_KS_ALL).items() if k <= n}
         if cells:
             out[row] = cells
         pt = src.per_target.get(row) or {}
@@ -233,7 +222,7 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
               vol: R.Vol) -> tuple[list[dict], list[dict], dict]:
     """(aggregate rows incl. per stratum, per-feature rows, the reader check) for one SAE family.
 
-    Per feature, `peaks_of` gives one peak activation per rollout; `best_of_k_means` turns those
+    Per feature, `peaks_of` gives one peak activation per rollout; `bo_ladder` turns those
     into the same disjoint-group best-of-k the cosine side reports, and every ratio divides by
     that feature's own `corpus_peak` as `sae_self` recorded it (our 16M `max_act`).
 
@@ -268,7 +257,13 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
             continue
         peaks = R.peaks_of(act[i])
         cp = float(stored.get(row, {}).get("corpus_peak", 0.0))
-        bo = R.best_of_k_means(peaks, R.BO_KS_ALL)
+        bo = R.bo_ladder(peaks, R.BO_KS_ALL)
+        # THE FIRED INDICATOR THROUGH THE SAME ESTIMATOR (M0a). "fired at best-of-k" is
+        # P(at least one of k draws is above the gate), and for a 0/1 vector the unbiased
+        # order-statistic best-of-k IS that probability: 1 - C(n - m, k)/C(n, k) with m the
+        # number of draws above the gate. At k = 1 it is the plain rate this used to report and
+        # at k = n it is `fired_any`, so nothing that was right before moved.
+        fired = R.bo_ladder((peaks > gate).astype(np.float64), R.BO_KS_ALL)
         # The reader check of sae_smoke64, kept: our reduction of the array against the product's
         # own per_target block. Both are the same reduction of the same numbers.
         for ours, key in ((float(peaks.mean()), "mean_peak_act"), (float(peaks.max()), "max_peak_act")):
@@ -283,7 +278,8 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
             "corpus_peak": cp, "n": int(meta["n"]),
             "ratio": {k: (v / cp if cp > 0 else float("nan")) for k, v in bo.items()},
             "bo": bo,
-            "item_fired": float(np.mean(peaks > gate)),
+            "fired": fired,
+            "item_fired": fired.get(1, float("nan")),
             "fired_any": bool(peaks.max() > gate),
         })
     check = {"rows": len(feats), "n_mismatches": mism, "worst_excess": round(worst, 6),
@@ -304,6 +300,14 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
             "n": src.n, "engine": src.engine, "run_tag": src.run_tag, "maemm": src.maemm,
             "sae_key": fam.sae_key, "sae_side": fam.sae_side,
             "n_features": len(sub), "gate": gate, "per_k": per_k,
+            # The fired LADDER, averaged over the features of this stratum: one cell per k, which
+            # is what panel b's `sae.l131k.ex.fired.bo<k>.q<q>` keys print. `item_fired` is its
+            # k = 1 cell and `feat_firing` its k = n cell, kept under their old names so nothing
+            # reading this dict had to move.
+            "fired_k": {
+                k: float(np.mean([f["fired"][k] for f in sub if k in f["fired"]]))
+                for k in sorted({k for f in sub for k in f["fired"]})
+            },
             "item_fired": float(np.mean([f["item_fired"] for f in sub])),
             "feat_firing": float(np.mean([f["fired_any"] for f in sub])),
         }
@@ -516,6 +520,8 @@ def stat_registry(res: dict) -> dict[tuple, float]:
         for k, cell in a["per_k"].items():
             out[(a["family"], a["source"], a["stratum"], f"ratio.bo{k}.median")] = cell["median"]
             out[(a["family"], a["source"], a["stratum"], f"ratio.bo{k}.mean")] = cell["mean"]
+        for k, v in a.get("fired_k", {}).items():
+            out[(a["family"], a["source"], a["stratum"], f"fired.bo{k}")] = v
         out[(a["family"], a["source"], a["stratum"], "fired.item")] = a["item_fired"]
         out[(a["family"], a["source"], a["stratum"], "fired.feature")] = a["feat_firing"]
     return out
@@ -749,19 +755,21 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
         out.table(
             f"cos_{family.replace('/', '_')}", f"Cosine — family `{family}`",
             (f"set `{res['set']}`, base `{res['base']}`, root `{res['root']}`. "
-             f"**THE ESTIMATOR, on both cosines: bo-k is the DISJOINT-GROUP best-of-k mean** — the "
-             f"n rollouts of a row are split into floor(n/k) groups of k CONSECUTIVE draws, each "
-             f"group's max is taken, and those are averaged; k > n is skipped, never clamped "
-             f"(`precompute/common.best_of_k_means`). It is not the unbiased order-statistic "
-             f"estimator, and the two do not agree. Row values are then averaged over the family's "
+             f"**THE ESTIMATOR, on both cosines: bo-k is the UNBIASED order statistic** — "
+             f"sum_i x_(i) C(i-1, k-1) / C(n, k) over all n draws of a row, k > n skipped and "
+             f"never clamped (`results.common.bo_unbiased`, the same estimator "
+             f"`precompute/common.bo_ladder` stores since 2026-09-23). A `bo_<k>` written before "
+             f"that date is the disjoint-group mean and is a different number at every k < n. "
+             f"Row values are then averaged over the family's "
              f"rows; ± is a bootstrap SE over {res['boot']} resamples of the DOCUMENT clusters "
              f"(seed {res['seed']}). `cos_centred` is present only for a run that centred on "
              f"something — {len(centred)} of {len(by_family[family])} source-rows here. The raw "
              f"ladder is the product's own `bo_<k>`; the CENTRED ladder is RECOMPUTED here from "
              f"`cos_centred.f16` by that same estimator, because `score` writes `bo_c_<k>` only "
              f"for a row whose every rollout kept a centred token and the paper's products have "
-             f"none such — a group's max is over its finite draws and an all-NaN group is dropped, "
-             f"which reduces exactly to `score`'s when nothing is NaN. Recomputed for: "
+             f"none such — the NaN draws are dropped and the estimator is applied to the finite "
+             f"ones at the same k, which reduces exactly to `score`'s when nothing is NaN. "
+             f"Recomputed for: "
              f"{', '.join(recomputed) or '(no source on this set)'}. Per-row `bo_source` is in the "
              f"CSV, and the agreement with the stored `bo_c_<k>` wherever it exists is in the "
              f"reader-check table."),

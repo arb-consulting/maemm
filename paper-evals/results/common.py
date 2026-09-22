@@ -182,24 +182,55 @@ def read_array(path: str | Path, dtype: str, shape):
     return np.fromfile(path, dtype=dtype).reshape(shape)
 
 
-def best_of_k_means(vals, ks) -> dict[int, float]:
-    """`precompute/common.best_of_k_means`, copied for the same reason `read_array` is.
+def bo_weights(n: int, k: int) -> np.ndarray:
+    """Order-statistic weights of the UNBIASED best-of-k estimator from n observed scores.
 
-    Best-of-k by DISJOINT groups: split `vals` into floor(n/k) consecutive groups of k, take each
-    group's max, average them. k above n is SKIPPED rather than clamped, so a summary never claims
-    a bo-k it could not compute. This is the estimator `score`'s own `per_target.jsonl` reports,
-    so a bo-k computed here from an array and one read from that file are the same statistic.
+        E[max of k draws] = sum_{i=1..n} x_(i) * C(i-1, k-1) / C(n, k)        (x sorted ASCENDING)
+
+    The i-th smallest of the n observed scores is the maximum of a k-subset exactly when the other
+    k-1 members come from the i-1 scores below it, and every k-subset of the n is equally likely.
     """
-    vals = [float(v) for v in vals]
-    n = len(vals)
+    assert 1 <= k <= n, f"best-of-{k} asked of {n} draws"
+    denom = math.comb(n, k)
+    return np.array([math.comb(i - 1, k - 1) / denom for i in range(1, n + 1)], dtype=np.float64)
+
+
+def bo_unbiased(vals, k: int):
+    """THE best-of-k estimator of this pipeline. [n] -> float, or [rows, n] -> [rows].
+
+    ONE estimator everywhere since 2026-09-23 (M0a): `score`'s stored `bo_<k>` ladder
+    (`precompute/common.bo_ladder`), every cell the three results drivers print, and the fired
+    indicator. Before that the products stored the DISJOINT-GROUP mean -- floor(n/k) consecutive
+    groups of k, each group's max, averaged -- while `reconstruction/stats.py` printed the
+    unbiased one, so the same quantity had two values depending on which file a reader opened,
+    and only at k = n did they agree.
+
+    Unbiased for any k <= n and uses ALL n draws, rather than the floor(n/k)*k the group estimator
+    reaches; at k = n the two coincide. Checklist item 25.
+
+    NaN is NOT tolerated: a row with a missing draw has fewer than n draws and its k-subsets are
+    not equally likely, so the caller drops or fills first and says which (see
+    `results/faithfulness.centred_bok`).
+    """
+    a = np.asarray(vals, dtype=np.float64)
+    one = a.ndim == 1
+    a = a.reshape(1, -1) if one else a
+    assert a.ndim == 2, f"bo_unbiased takes [n] or [rows, n], got shape {a.shape}"
+    out = np.sort(a, axis=1) @ bo_weights(a.shape[1], int(k))
+    return float(out[0]) if one else out
+
+
+def bo_ladder(vals, ks) -> dict[int, float]:
+    """{k: unbiased best-of-k} over a 1-D [n] of per-draw scores. k > n is SKIPPED, never clamped,
+    so a summary never claims a bo-k it could not compute."""
+    a = np.asarray(vals, dtype=np.float64).ravel()
+    n = a.size
     out: dict[int, float] = {}
     for k in ks:
         k = int(k)
         assert k >= 1, f"best-of-k needs k >= 1, got {k}"
-        if k > n:
-            continue
-        g = n // k
-        out[k] = sum(max(vals[i * k : (i + 1) * k]) for i in range(g)) / g
+        if k <= n:
+            out[k] = bo_unbiased(a, k)
     return out
 
 

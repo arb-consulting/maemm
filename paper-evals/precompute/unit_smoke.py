@@ -741,29 +741,43 @@ def check_outdir_cost():
         assert "3600.00 $/h" in txt, txt
 
 
-def check_best_of_k_means():
-    """The per_target bo_<k> aggregation: disjoint groups of k, group max, mean of the maxima."""
+def check_bo_ladder():
+    """The per_target bo_<k> aggregation: the UNBIASED order statistic over all n rollouts.
+
+    The reference is a Monte-Carlo estimate of E[max of k draws without replacement] from the same
+    eight values, not a second call of the formula: an estimator checked only against its own
+    algebra is checked against nothing. It is also asserted to DIFFER from the disjoint-group mean
+    this replaced on 2026-09-23, since that is the regression the swap exists to make visible.
+    """
+    import itertools
+    import math
+
     vals = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
-    got = C.best_of_k_means(vals, (1, 2, 4, 8, 16))
-    # independent recomputation, written out rather than reusing the code under test
+    got = C.bo_ladder(vals, (1, 2, 4, 8, 16))
     assert got[1] == 3.5, f"bo1 must be the plain mean 3.5, got {got[1]}"
-    assert got[2] == (1 + 3 + 5 + 7) / 4, f"bo2 must average the 4 pair maxima, got {got[2]}"
-    assert got[4] == (3 + 7) / 2, f"bo4 must average the 2 quad maxima, got {got[4]}"
-    assert got[8] == 7.0, f"bo8 must be the single max 7.0, got {got[8]}"
+    assert got[8] == 7.0, f"bo8 = bo_n must be the single max 7.0, got {got[8]}"
     assert 16 not in got, (
         "k > n must be SKIPPED, not clamped: a summary may not claim a bo it could not compute"
     )
-    # groups are DISJOINT and CONSECUTIVE, so order matters -- a sorted copy scores differently
-    assert C.best_of_k_means([7.0, 0.0, 6.0, 1.0], (2,))[2] == 6.5
-    assert C.best_of_k_means([0.0, 1.0, 6.0, 7.0], (2,))[2] == 4.0
-    # a remainder is dropped, not folded into the last group
-    assert C.best_of_k_means([0.0, 9.0, 5.0], (2,))[2] == 9.0, "the odd tail must be dropped"
+    # EXHAUSTIVE reference: the mean of max() over every k-subset of the eight, enumerated.
+    for k in (2, 4):
+        want = sum(max(c) for c in itertools.combinations(vals, k)) / math.comb(8, k)
+        assert abs(got[k] - want) < 1e-12, (
+            f"bo{k} = {got[k]} but the mean max over all {math.comb(8, k)} {k}-subsets is {want}"
+        )
+    # it is NOT the disjoint-group mean, which is what `best_of_k_means` returned until 2026-09-23
+    assert abs(got[2] - (1 + 3 + 5 + 7) / 4) > 1e-3, "bo2 is still the disjoint-group mean"
+    assert abs(got[4] - (3 + 7) / 2) > 1e-3, "bo4 is still the disjoint-group mean"
+    # ORDER-FREE, unlike the disjoint-group estimator: the same multiset scores the same
+    assert C.bo_ladder([7.0, 0.0, 6.0, 1.0], (2,))[2] == C.bo_ladder([0.0, 1.0, 6.0, 7.0], (2,))[2]
+    # every draw is used: three values, k = 2 -> (9 + 9 + 5)/3, no remainder dropped
+    assert abs(C.bo_ladder([0.0, 9.0, 5.0], (2,))[2] - (9 + 9 + 5) / 3) < 1e-12
     try:
-        C.best_of_k_means(vals, (0,))
+        C.bo_ladder(vals, (0,))
     except AssertionError as e:
         assert "k >= 1" in str(e), f"wrong assert fired: {e}"
     else:
-        raise AssertionError("best_of_k_means accepted k = 0")
+        raise AssertionError("bo_ladder accepted k = 0")
 
 
 def check_parse_rows_and_gen_seed():
@@ -2138,7 +2152,7 @@ RETURN_ARITY = {
     ("precompute/score.py", "_load_dirs"): 5,
     ("precompute/patchscopes.py", "_patch_check"): 3,
     ("precompute/rollouts_hf.py", "load_dirs"): 3,
-    ("precompute/scan.py", "_load_targets"): 3,
+    ("precompute/scan.py", "_load_targets"): 4,   # + the window-side mean under --centre
     ("precompute/centred.py", "_load_dirs"): 4,
     ("gcg/gcg.py", "_load_targets"): 2,
     ("autointerp/sae_self.py", "_sae_rows"): 5,
@@ -2277,7 +2291,7 @@ def check_return_arities():
         )
 
     # A leading underscore means module-private, so its unpack sites are looked for in its OWN
-    # file only. That is not pedantry: `_load_targets` is `scan`'s (3 values) AND `gcg`'s (2), and
+    # file only. That is not pedantry: `_load_targets` is `scan`'s (4 values) AND `gcg`'s (2), and
     # `_load_dirs` is `score`'s (5) AND `centred`'s (3). A repo-wide match by bare name would
     # report every one of those as a mismatch.
     seen = {k: 0 for k in RETURN_ARITY}
@@ -2863,11 +2877,16 @@ def check_three_cosines():
             assert abs(float(cos_a[i, j]) - float(u(hv) @ u(a - mu))) < 1e-5
     assert (cos - cos_a).abs().max() > 1e-3, "cos_asym must not collapse onto cos"
     assert (cos_c - cos_a).abs().max() > 1e-3, "cos_asym must not collapse onto cos_centred"
-    # and the scan computes EXACTLY cos_asym: same expression, same operand order
+    # and the scan computes EXACTLY one of the two, by mode: without --centre the window side is
+    # raw and the scan IS cos_asym; with --centre it subtracts the SAME scoring constant from the
+    # window that `dirs_for` subtracted from the target, which is cos_centred.
     src = (Path(__file__).resolve().parent / "scan.py").read_text()
-    assert "torch.nn.functional.normalize(h, dim=-1) @ v.T" in src, (
-        "scan.py no longer scores `normalize(h) @ v.T`; cos_asym is defined to match it and the "
-        "two must move together"
+    assert "hc = h if wmu is None else h - wmu" in src, (
+        "scan.py no longer selects its window side as `h` / `h - wmu`; cos_asym is defined to "
+        "match the first and cos_centred the second, and the three must move together"
+    )
+    assert "cos = torch.nn.functional.normalize(hc, dim=-1) @ v.T" in src, (
+        "scan.py no longer scores `normalize(hc) @ v.T`"
     )
     # AND the production expression itself, pinned by source. The arithmetic above is this
     # module's own einsum, so mutating `common.score_block`'s `cos_a` line does not move it --
@@ -2914,7 +2933,7 @@ CHECKS = [
     check_quantiles_from_hist,
     check_load_corpus,
     check_outdir_cost,
-    check_best_of_k_means,
+    check_bo_ladder,
     check_parse_rows_and_gen_seed,
     check_outdir_keep_existing_and_section,
     check_two_writers_into_one_product,
