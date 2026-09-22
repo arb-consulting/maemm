@@ -54,38 +54,72 @@ import precompute.common as C
 # leaves every product already on the volume exactly where it is.
 
 
-def corpus_suffix(corpus_name: str) -> str:
-    """`__<corpus>` for a named corpus, "" for the base's own (today's unsuffixed path)."""
-    return f"__{corpus_name}" if corpus_name else ""
+def corpus_key_for(corpus_name: str, run_tag: str = "") -> str:
+    """The PRODUCT key these three pools are stored under: `<corpus>[__<tag>]`, "" for the default.
+
+    ONE STRING, shared by producer and consumer (reconciled 2026-09-23, M2 x M6). The producer is
+    `run_random_pool` / `run_examples_4m` / `run_examples_docmax` below; the consumer is
+    `build._dirs`, which also addresses `scan`'s `examples/` by the same key. It is spelled by
+    `precompute.top1_act.scan_key_of` rather than re-derived here, because that is the function
+    `scan` and `top1_act` key by and two spellings of one path is the cross-corpus join this whole
+    change exists to stop -- so the pools written under `train_parity_10m__paper0923` are the ones
+    a build with `--corpus-name train_parity_10m --run-tag paper0923` reads back.
+
+    Empty corpus and empty tag give "", i.e. today's unsuffixed path, so every product already on
+    the volume stays where it is. NOTE that a `--run-tag` with NO `--corpus-name` now keys these
+    three pools by the tag alone, as `scan` already did -- it addresses a path no pre-2026-09-23
+    run wrote, and the absence is a loud `tested.json is missing`, never a silent other corpus.
+    """
+    from precompute.top1_act import scan_key_of
+
+    return scan_key_of(corpus_name, 0, (run_tag or "").strip())
 
 
-def random_pool_dir(sae_key: str, set_name: str, root: str, corpus_name: str = "") -> str:
-    return f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}{corpus_suffix(corpus_name)}"
+def corpus_suffix(corpus_key: str) -> str:
+    """`__<key>` for a named corpus, "" for the base's own (today's unsuffixed path)."""
+    return f"__{corpus_key}" if corpus_key else ""
 
 
-def examples_4m_dir(sae_key: str, set_name: str, root: str, corpus_name: str = "") -> str:
+def random_pool_dir(sae_key: str, set_name: str, root: str, corpus_key: str = "") -> str:
+    return f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}{corpus_suffix(corpus_key)}"
+
+
+def examples_4m_dir(sae_key: str, set_name: str, root: str, corpus_key: str = "") -> str:
     """The nested-prefix example pool. NOTE the `_4m` in the directory name is a LITERAL and the
     prefix size is `autointerp.corpus_prefix_m` / `--prefix-m`: a build at another prefix writes
     into a directory still called `_4m`, and only `build.json`'s `corpus_prefix_m` records the
     truth. Left as it is because the C4 arm is dropped (spec §3) and renaming it would strand the
     products on the volume; do not read the name as the size."""
-    return f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}{corpus_suffix(corpus_name)}"
+    return f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}{corpus_suffix(corpus_key)}"
 
 
-def examples_docmax_dir(sae_key: str, set_name: str, root: str, corpus_name: str = "") -> str:
-    return f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}{corpus_suffix(corpus_name)}"
+def examples_docmax_dir(sae_key: str, set_name: str, root: str, corpus_key: str = "") -> str:
+    return f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}{corpus_suffix(corpus_key)}"
 
 
 def corpus_of(cfg: dict, args: dict) -> str:
-    """`--corpus-name` for a corpus-side stage, with its declared window geometry asserted.
+    """`--corpus-name` for a corpus-side stage: the corpus DIRECTORY, geometry asserted.
 
     `common.assert_corpus_geometry` refuses a corpus whose declared block/stride is not the one
     every `windows_of` site cuts at, which is the check that stops a scan from writing a README
     claiming 64/16 over 32/8 data.
+
+    The directory is what `common.load_corpus` opens; `corpus_key_of` is what the OUTPUT path is
+    keyed by. The two differ the moment a run carries a `--run-tag`, and reading the pool of one
+    while loading the corpus of another is a silent cross-corpus join (M2's finding on `top1_act`).
     """
     name = str(args.get("corpus_name") or "")
+    assert "," not in name, (
+        f"--corpus-name resolved to several corpora ({name!r}); a corpus-side stage builds ONE "
+        f"pool and would otherwise silently take the first"
+    )
     C.assert_corpus_geometry(cfg, name)
     return name
+
+
+def corpus_key_of(cfg: dict, args: dict) -> str:
+    """`corpus_key_for` of this call's `--corpus-name` and `--run-tag`."""
+    return corpus_key_for(corpus_of(cfg, args), args.get("run_tag") or "")
 
 # Rows handed to common.score_tokens per call, as precompute/score.py:50. It re-chunks internally
 # at common.SCORE_CHUNK, so this only bounds the fp32 residual the callback sees at once.
@@ -768,13 +802,14 @@ def run_random_pool(cfg, args):
 
     rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "random_pool")
     n_feat = len(feats)
-    corpus_name = corpus_of(cfg, args)
+    corpus_name, corpus_key = corpus_of(cfg, args), corpus_key_of(cfg, args)
     toks, docs = C.load_corpus(base, root, corpus_name)
     wins = enumerate_windows(docs)
     rng = np.random.default_rng(seed)
     pick = np.sort(rng.choice(len(wins), size=min(n_win, len(wins)), replace=False))
     n_win = len(pick)
-    print(f"[random_pool] {n_win} of {len(wins)} windows, {n_feat} features, seed {seed}", flush=True)
+    print(f"[random_pool] corpus {corpus_name or 'corpus'} (key {corpus_key or '-'}): "
+          f"{n_win} of {len(wins)} windows, {n_feat} features, seed {seed}", flush=True)
 
     model, tok = C.load_base(cfg, base)
     # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
@@ -824,13 +859,14 @@ def run_random_pool(cfg, args):
     zero = (mx == 0).sum(1)
     near = ((mx > 0) & (mx <= gate)).sum(1)
     above = (mx > gate).sum(1)
-    out = random_pool_dir(sae_key, set_name, root, corpus_name)
+    out = random_pool_dir(sae_key, set_name, root, corpus_key)
     dense_bytes = n_feat * n_win * C.SCAN_BLOCK * 2
     with C.outdir(
         out,
         args,
         inputs={
-            "corpus": C.corpus_dir(base, root),
+            "corpus": C.corpus_dir(base, root, corpus_name),
+            "corpus key": corpus_key or "-",
             "heldout": C.heldout_dir(base, set_name, root),
             "sae": sae_key,
             "features": n_feat,
@@ -943,14 +979,15 @@ def run_examples_4m(cfg, args):
 
     rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_4m")
     n_feat = len(feats)
-    corpus_name = corpus_of(cfg, args)
+    corpus_name, corpus_key = corpus_of(cfg, args), corpus_key_of(cfg, args)
     toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     assert prefix_m in sizes, f"corpus has nested sizes {sizes}; {prefix_m}M is not one of them"
     keep_docs = [r for r in docs if int(r["size_tag"]) <= prefix_m]
     n_tok = sum(int(r["len"]) for r in keep_docs)
     print(
-        f"[examples_4m] {len(keep_docs)} of {len(docs)} docs, {n_tok} tokens (<= {prefix_m}M), "
+        f"[examples_4m] corpus {corpus_name or 'corpus'} (key {corpus_key or '-'}): "
+        f"{len(keep_docs)} of {len(docs)} docs, {n_tok} tokens (<= {prefix_m}M), "
         f"{n_feat} features",
         flush=True,
     )
@@ -1027,7 +1064,7 @@ def run_examples_4m(cfg, args):
     tw = heap.win.cpu().numpy()
     ta = heap.arg.cpu().numpy()
     tp = heap.payload.cpu().numpy()
-    out = examples_4m_dir(sae_key, set_name, root, corpus_name)
+    out = examples_4m_dir(sae_key, set_name, root, corpus_key)
     per_feature = []
     ex_rows = 0
     nbytes = 0
@@ -1035,7 +1072,8 @@ def run_examples_4m(cfg, args):
         out,
         args,
         inputs={
-            "corpus": C.corpus_dir(base, root),
+            "corpus": C.corpus_dir(base, root, corpus_name),
+            "corpus key": corpus_key or "-",
             "heldout": C.heldout_dir(base, set_name, root),
             "sae": sae_key,
             "prefix_m": prefix_m,
@@ -1164,10 +1202,16 @@ def run_examples_docmax(cfg, args):
 
     rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_docmax")
     n_feat = len(feats)
-    corpus_name = corpus_of(cfg, args)
+    # WHICH CORPUS (M2 x M6, reconciled 2026-09-23). This stage walks a corpus of its own; before
+    # today it walked the base's default 16M one and said so nowhere, so the C16 arm's examples and
+    # the corpus search they are meant to comment on came from two different texts. `--corpus-name`
+    # (or `--corpus <key>`, resolved to the same directory on the client) picks it, and the product
+    # is KEYED by the same string a `scan` of that corpus and tag would use -- so the consumer,
+    # `build`, names ONE key for both halves. Empty is the default corpus and today's path.
+    corpus_name, corpus_key = corpus_of(cfg, args), corpus_key_of(cfg, args)
     toks, docs = C.load_corpus(base, root, corpus_name)
-    print(f"[examples_docmax] {len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each",
-          flush=True)
+    print(f"[examples_docmax] corpus {corpus_name or 'corpus'} (key {corpus_key or '-'}): "
+          f"{len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each", flush=True)
 
     model, tok = C.load_base(cfg, base)
     # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
@@ -1309,7 +1353,7 @@ def run_examples_docmax(cfg, args):
     ta = heap.arg.cpu().numpy()
     tp = heap.payload.cpu().numpy()
     tw = win_heap.arg.cpu().numpy()  # the window ids, ranked by the SAME values
-    out = examples_docmax_dir(sae_key, set_name, root, corpus_name)
+    out = examples_docmax_dir(sae_key, set_name, root, corpus_key)
     per_feature = []
     ex_rows = 0
     nbytes = 0
@@ -1317,7 +1361,8 @@ def run_examples_docmax(cfg, args):
         out,
         args,
         inputs={
-            "corpus": C.corpus_dir(base, root),
+            "corpus": C.corpus_dir(base, root, corpus_name),
+            "corpus key": corpus_key or "-",
             "heldout": C.heldout_dir(base, set_name, root),
             "sae": sae_key,
             "docs": len(docs),

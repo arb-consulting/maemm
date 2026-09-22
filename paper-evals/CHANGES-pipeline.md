@@ -753,3 +753,58 @@ corpus label) in `build.py`'s `build.json` dict would close it. (b) Per-item ver
 them, and they are the obvious next block. (c) `block` cannot be split back into its examples —
 corpus documents contain newlines and no per-example offset is stored — so the page shows the
 block whole beside a per-example metadata table aligned by the build's own ordering.
+
+---
+
+# M2 — the corpus axis (branch `evals/m2-corpus`, 2026-09-23)
+
+`precompute/scan.py` two fixes: the SAE reservoir seed no longer requires a `seed:` key on the
+held-out entry (`_reservoir_seed` falls back to crc32 of the set name, so every imported eval-1 v3
+block stops crashing *after* the base model has loaded, and a declared seed still wins so every
+earlier scan reproduces bit for bit); and a `realact` row without `(doc, p, L)` — her draw, whose
+`doc` indexes HER v2 collection and not our `corpus/` — is counted, printed and left UNMASKED
+rather than masking an unrelated document of ours by the same integer.
+
+`precompute/top1_act.py` separates the two names it had been conflating: `scan_key_of` rebuilds
+the SCAN key (`<corpus>[__<M>m][__<tag>]`) that `scan` wrote, while the corpus DIRECTORY is what
+`load_corpus` opens. Before this the scan directory got the directory name and `load_corpus` got
+nothing at all, so a run asked for the train-parity scan and joined its window ids against the
+default 16M English corpus. `resolve_scan` finds the scan that actually carries the set's rows
+(`scan --with-set` names a directory after one bank and puts several inside it), and the join moved
+from `row` to `(set, set_row)`. Its `_selftest` is wired into `precompute/unit_smoke.py` as
+`check_top1_act_selftest` — that file has the numpy on the path; `top1_act.py` has no uv header.
+
+`results/corpus_search.py` is new (26 checks, 10 mutation gates under `… selftest`).
+
+## The two corpus flags, reconciled (M2 × M6)
+
+M2 and M6 both grew a corpus parameter on `autointerp/modal_app.py` and they are kept as ONE pair:
+
+* **`--corpus-name` / `--test-corpus-name` (M6's pair) is what crosses to the container.**
+  `--corpus` (M2's) survives only as the `corpora:` KEY spelling of `--corpus-name`, resolved to
+  the directory on the client and refused alongside it — exactly how `precompute/modal_app.py`
+  already carries both. It is therefore local-only, and `check_autointerp_main_forwards_every_flag`
+  names it so with that reason rather than being weakened.
+* **One key string, producer and consumer.** `sae_self.corpus_key_for(corpus, run_tag)` returns
+  `<corpus>[__<tag>]`, spelled by `top1_act.scan_key_of` rather than re-derived, and it keys the
+  three producer stages' output (`random_pool`, `examples_4m`, `examples_docmax`) AND the four
+  directories `build` addresses (those three plus `scan`'s `examples/`, which `scan` keys the same
+  way). M6 had keyed by the bare corpus directory and M2 by the scan key; the scan spelling wins
+  because `examples/` is not ours to rename. Products on the volume under
+  `train_parity_10m__paper0923` are read back by `--corpus-name train_parity_10m --run-tag
+  paper0923`, and empty corpus + empty tag is still the unsuffixed path.
+* `--corpus-name` is now refused on a stage that neither walks a corpus nor consumes those pools
+  (`CORPUS_ARG_STAGES` = the three producers + `build` + `chain`), and the geometry assert runs
+  client-side on both names.
+* The three producer stages now record the corpus they walked and its key in their README
+  `inputs:` — `random_pool` and `examples_4m` had been writing the DEFAULT corpus path there while
+  loading a named one.
+
+**Behaviour change, stated:** a `--run-tag` with NO `--corpus-name` now keys those three pools by
+the tag alone, as `scan` already did. It addresses a path no pre-2026-09-23 run wrote, so the
+failure is a loud missing `tested.json`, never a silent read of another corpus.
+
+**Verified.** `autointerp/selfcheck.py` gains `check_corpus_key` (6 checks, 2 mutation gates): the
+key rule including `train_parity_10m__paper0923`, agreement with `scan_key_of`, producer and
+consumer landing on the same three directories, and the MUTATION that keying by the bare corpus
+directory disagrees — run red by hand before it was run green.

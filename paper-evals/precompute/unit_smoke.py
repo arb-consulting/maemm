@@ -2227,7 +2227,10 @@ def check_autointerp_main_forwards_every_flag():
     assert forwarded, "autointerp/modal_app.main no longer builds `args` as a dict literal"
     # Handled by the entrypoint itself rather than sent: `stage` selects the function, `set` and
     # `heldout` are folded into one `heldout` key, and `dry_launch` returns before any `.remote()`.
-    local_only = {"stage", "set", "heldout", "dry_launch"}
+    # `corpus` is the `corpora:` KEY spelling of `corpus_name` and is resolved to that directory
+    # ON THE CLIENT (M2 x M6, 2026-09-23), exactly as `precompute/modal_app.py` resolves its own
+    # `--corpus`: what crosses to the container is `corpus_name`, and passing both is refused.
+    local_only = {"stage", "set", "heldout", "dry_launch", "corpus"}
     missing = sorted(sig - forwarded - local_only)
     assert not missing, (
         f"autointerp/modal_app.main takes {missing} but never puts them in `args`, so passing one "
@@ -2747,6 +2750,22 @@ class FakeByteTok:
         return b"".join(self.pieces[int(i)] for i in ids).decode("utf-8", errors="replace")
 
 
+def check_top1_act_selftest():
+    """`top1_act`'s own name rules and join, so `--product unit` covers them too.
+
+    They live in that module because they are about ITS two names -- the corpus DIRECTORY it
+    loads and the SCAN key it joins against, which differ the moment a run carries a `--run-tag`
+    -- and `precompute/top1_act.py` carries no uv script header of its own, so this wrapper is
+    the entry point that has numpy on the path. `autointerp/sae_self.corpus_key_for` spells the
+    autointerp pools' key with the SAME function, checked in `autointerp/selfcheck.py`.
+    """
+    from precompute.top1_act import _selftest as top1_act_selftest
+    from precompute.top1_act import scan_key_of
+
+    assert scan_key_of("train_parity_10m", 0, "paper0923") == "train_parity_10m__paper0923"
+    top1_act_selftest()
+
+
 def check_byte_tables():
     """BYTE_ENCODER is a bijection on 0..255 and BYTE_DECODER inverts it."""
     assert len(C.BYTE_ENCODER) == 256, len(C.BYTE_ENCODER)
@@ -3131,6 +3150,7 @@ CHECKS = [
     check_one_set_writers_tuple,
     check_corpus_axis,
     check_rollouts_nla_selftest,
+    check_top1_act_selftest,
     check_byte_tables,
     check_token_covariates_czech,
     check_token_covariates_thai,

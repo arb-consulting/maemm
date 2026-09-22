@@ -1178,17 +1178,25 @@ def run(cfg, args):
         )
     shown_key = C.corpus_key_of_dir(cfg, shown_corpus) or "(unregistered)"
     test_key = C.corpus_key_of_dir(cfg, test_corpus) or "(unregistered)"
+    # THE PRODUCT KEY, not the corpus directory (M2 x M6, reconciled 2026-09-23). The producer
+    # stages key their output `<set>__<corpus>[__<tag>]` and `scan` keys `examples/` the same way
+    # (`precompute.top1_act.scan_key_of`), so the consumer has to spell the tag too or it reads a
+    # path the producer never wrote. `--run-tag` is the run's one tag and applies to both sides;
+    # empty corpus and empty tag give the unsuffixed path every pre-2026-09-23 build used.
+    run_tag = str(args.get("run_tag") or "")
+    shown_pkey = SS.corpus_key_for(shown_corpus, run_tag)
+    test_pkey = SS.corpus_key_for(test_corpus, run_tag)
 
-    def _dirs(corpus_name: str):
+    def _dirs(corpus_key: str):
         """(examples/, examples_4m/, examples_docmax/) for one corpus, all three corpus-keyed."""
         return (
-            C.sae_examples_dir(sae_key, set_name, root, corpus_name=corpus_name),
-            SS.examples_4m_dir(sae_key, set_name, root, corpus_name),
-            SS.examples_docmax_dir(sae_key, set_name, root, corpus_name),
+            C.sae_examples_dir(sae_key, set_name, root, corpus_name=corpus_key),
+            SS.examples_4m_dir(sae_key, set_name, root, corpus_key),
+            SS.examples_docmax_dir(sae_key, set_name, root, corpus_key),
         )
 
-    ex_dir, ex4_dir, exdoc_dir = _dirs(shown_corpus)
-    t_ex_dir, t_ex4_dir, t_exdoc_dir = _dirs(test_corpus) if two_corpora else (ex_dir, ex4_dir, exdoc_dir)
+    ex_dir, ex4_dir, exdoc_dir = _dirs(shown_pkey)
+    t_ex_dir, t_ex4_dir, t_exdoc_dir = _dirs(test_pkey) if two_corpora else (ex_dir, ex4_dir, exdoc_dir)
     # `scan`'s 16M product: `<feature>.jsonl` with the top-k AND the q-band rows, plus the
     # per-token activations of each. It does not exist for every SAE -- the 2M one would cost a
     # ~$9 scan to make -- and when it is absent BOTH things it feeds have to come from somewhere
@@ -1303,7 +1311,7 @@ def run(cfg, args):
     # The negatives come from the TEST corpus: they are scored against the same items the
     # positives are drawn from, so a negative from another corpus would make the negative half a
     # different text distribution from the positive half.
-    pool = _RandomPool(SS.random_pool_dir(sae_key, set_name, root, test_corpus))
+    pool = _RandomPool(SS.random_pool_dir(sae_key, set_name, root, test_pkey))
 
     self_meta = json.load(open(f"{self_dir}/sae_self.json"))
     gate = float(self_meta["gate"])

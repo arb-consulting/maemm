@@ -70,6 +70,13 @@ LLM_SECRETS = [*SECRETS, modal.Secret.from_name("anthropic")]
 
 # stage -> (module, function). `random_pool` is P1's sibling: the same SAE-encode machinery over
 # corpus windows instead of rollouts, so it lives in sae_self.py rather than in a file of its own.
+# The stages that walk a corpus themselves, and so may be told WHICH one.
+CORPUS_STAGES = ("random_pool", "examples_4m", "examples_docmax")
+# ... plus the CONSUMERS of what they wrote: `build` addresses those pools by the same key, and
+# `chain` drives a build. Every OTHER stage reads a product whose path already names its corpus,
+# so naming a corpus there is a statement nothing acts on and is refused rather than ignored.
+CORPUS_ARG_STAGES = (*CORPUS_STAGES, "build", "chain")
+
 STAGES = {
     "sae_self": ("sae_self", "run"),
     "random_pool": ("sae_self", "run_random_pool"),
@@ -252,6 +259,13 @@ def main(
     # CONTAINER-SIDE, and only for `--stage run`: it prints the request shapes this run would send
     # (from the build already on the volume) and returns. It still STARTS A CONTAINER.
     dry_run: bool = False,
+    # `--corpus-name` BY `corpora:` KEY (M2, 2026-09-23), resolved to the directory on the
+    # client and geometry-checked there, exactly as `precompute/modal_app.py` has both spellings.
+    # A corpus this pipeline would cut at the wrong window size stops the launch instead of the
+    # container. It is the same value as `--corpus-name` and the two may not be passed together;
+    # there is deliberately no key spelling of `--test-corpus-name`, whose only two values so far
+    # are "the held-out default" and "whatever `--corpus-name` is".
+    corpus: str = "",
     # LOCAL: run every assert above, print what would be sent, and return WITHOUT `.remote()` --
     # what `precompute/modal_app.py --dry-run` does. It is a second flag rather than a reuse of
     # `dry_run` because that name is already taken here by the container-side meaning above, and
@@ -306,6 +320,25 @@ def main(
     if maemm:
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    if corpus:
+        assert not corpus_name, (
+            f"pass --corpus {corpus!r} OR --corpus-name {corpus_name!r}, not both: the key "
+            f"resolves to the directory name --corpus-name takes, so the two cannot disagree"
+        )
+        corpus_name = C.corpus_key_name(cfg, corpus)
+        blk, strd = C.corpus_geometry(cfg, corpus)
+        print(f"[launch] corpus {corpus} -> dir {corpus_name or 'corpus'}, window {blk}/{strd}")
+    for flag, nm in (("--corpus-name", corpus_name), ("--test-corpus-name", test_corpus_name)):
+        if not nm:
+            continue
+        assert stage in CORPUS_ARG_STAGES, (
+            f"{flag} names the corpus a CORPUS-SIDE stage walks or a consumer of those pools "
+            f"addresses ({sorted(CORPUS_ARG_STAGES)}); stage {stage!r} reads a product and takes "
+            f"the corpus from that product's path"
+        )
+        # The geometry assert runs on the DIRECTORY, so it covers --corpus-name given directly as
+        # well as a --corpus key resolved above; container-side `sae_self.corpus_of` repeats it.
+        C.assert_corpus_geometry(cfg, nm)
     args = {
         "base": base,
         "maemm": maemm,

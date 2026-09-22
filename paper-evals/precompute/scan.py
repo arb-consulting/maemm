@@ -25,6 +25,7 @@ and is reported rather than engineered away.
 from __future__ import annotations
 
 import time
+import zlib
 
 import numpy as np
 
@@ -118,6 +119,25 @@ class _KeyReservoir:
             self.payload = cat_p.gather(1, i.unsqueeze(-1).expand(-1, -1, cat_p.shape[-1]))
 
 
+def _reservoir_seed(cfg, set_name: str) -> int:
+    """The SAE reservoir generator's seed for `--set <set>`, WITHOUT requiring a `seed:` key.
+
+    `scan` read `cfg["heldout"][<set>]["seed"]` directly, and `load_config` never required that
+    key on a `heldout:` entry -- so every eval-1 v3 block (`2026-09-21_v3_realact`, `_ctrl`,
+    `_ours`, `_subspace`, `_realact_long`, all of them imported rather than drawn, none of them
+    carrying a draw seed) crashed this product with a KeyError *after* the base model had loaded.
+    MEASURED on the config 2026-09-23: only `2026-09-16_v1`, `2026-09-16_v1raw`,
+    `2026-09-20_sae2m_2k`, `2026-09-21_sae2m_64`, `2026-09-21_v3_sae2m` and the OOD sets declare one.
+
+    A declared seed still wins, so every scan run before 2026-09-23 reproduces bit for bit. An
+    undeclared one falls back to crc32 of the set name: deterministic, different per set, and
+    written into the examples README by `_examples_notes` exactly as a declared seed is, so the
+    number is recoverable from the product rather than from this docstring.
+    """
+    seed = (cfg["heldout"][set_name] or {}).get("seed")
+    return int(seed) if seed is not None else int(zlib.crc32(set_name.encode("utf-8")))
+
+
 def _load_targets(cfg, args, notes=None):
     """(ids rows, V [N, d] unit fp32 on the gpu, mask tables).
 
@@ -191,22 +211,42 @@ def _load_targets(cfg, args, notes=None):
     lo = torch.zeros(n, dtype=torch.int64)
     hi = torch.zeros(n, dtype=torch.int64)
     mask_corpus = []
+    foreign = 0
     for i, r in enumerate(rows):
         r["row"] = i  # the row index WITHIN this scan; `set` + `set_row` is the join key
-        if r["family"] == "realact":
+        if r["family"] == "realact" and all(k in r for k in ("doc", "p", "L")):
             doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
             mask_corpus.append("corpus")  # realact targets come from the base's own English corpus
+        elif r["family"] == "realact":
+            # HER realact draw (`source: hers`, the eval-1 headline block 2026-09-21_v3_realact)
+            # carries `doc` and `pos` and NO `p`/`L`, and its `doc` indexes HER v2 collection, not
+            # our `corpus/`. Masking document 10,984 of OUR corpus because her row says `doc:
+            # 10984` is the same silent error the mask-by-corpus rule (B, 2026-09-21) was written
+            # against, one axis over: the index is foreign to every corpus this product can scan.
+            # So the row is UNMASKABLE here, and the own-document exclusion for her block is the
+            # n-gram exclusion in the set's `exclusions.json` (spec 1.4), applied by the reader
+            # that drops rows -- not by this window mask. Counted and printed, never silent.
+            foreign += 1
+            mask_corpus.append("")
         else:
             # Nothing to mask. An OOD target carries `pool_i`, not `doc`: its document comes from
             # the arm's TARGET POOL, which is the rows the corpus build did not consume (design
             # §2), so it is not in that corpus -- or in any other -- and there is no window of it
             # to exclude. A `random` or `sae` row has no document at all.
-            assert "doc" not in r or r["family"] == "realact", (
+            assert "doc" not in r, (
                 f"row {i} of set {r['set']} has a `doc` field but family {r['family']!r}, so "
                 f"nobody here knows which corpus that index belongs to; give it a mask_corpus "
                 f"label rather than letting it search its own document"
             )
             mask_corpus.append("")
+    if foreign:
+        msg = (
+            f"[scan] {foreign} realact rows carry no (doc, p, L) in THIS pipeline's corpus index "
+            f"space and are UNMASKABLE: their own-document exclusion is the set's exclusions.json, "
+            f"applied downstream by dropping rows, not by this window mask"
+        )
+        print(msg, flush=True)
+        (notes if notes is not None else []).append(msg[len("[scan] "):])
     # The window side's mean, for flush(): the SAME constant the targets above were centred on, or
     # None in the legacy mode where only the target side is centred (an asymmetric cosine, which
     # is why `cos_asym` exists in `score` and why `results/ood.py` had to read it).
@@ -416,7 +456,7 @@ def _scan_one(
         else []
     )
     r_res = _KeyReservoir(1, SAE_RANDOM, "cuda", payload_shape=(n_feat,)) if n_feat else None
-    gen = torch.Generator(device="cuda").manual_seed(int(cfg["heldout"][set_name]["seed"]))
+    gen = torch.Generator(device="cuda").manual_seed(_reservoir_seed(cfg, set_name))
 
     win_doc: list = []
     win_start: list = []
@@ -692,7 +732,7 @@ def _scan_one(
                 "bytes": nbytes + path.stat().st_size,
             }
             od.write_json("tested.json", {"features": tested, "rows": tested_row, "sae": sae_key})
-            _examples_notes(od, n_feat, sae.d_sae, w_global, cfg["heldout"][set_name]["seed"])
+            _examples_notes(od, n_feat, sae.d_sae, w_global, _reservoir_seed(cfg, set_name))
 
     return {
         "scan": out_scan,

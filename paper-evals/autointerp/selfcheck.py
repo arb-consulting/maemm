@@ -1089,6 +1089,75 @@ def check_two_corpora(cfg, tmp: Path, base: str):
           f"16 examples on each of M / M-jac16 / M-cos16, best_act read with no GPU")
 
 
+def check_corpus_key(cfg, base: str):
+    """ONE key string for the producer and the consumer of the three corpus pools.
+
+    M2 and M6 arrived at the same need by two spellings: M6 keyed `random_pool` / `examples_4m` /
+    `examples_docmax` by the corpus DIRECTORY, M2 keyed them by `scan`'s key, which additionally
+    carries the `--run-tag`. Reconciled 2026-09-23 onto the scan spelling
+    (`precompute.top1_act.scan_key_of`), because `scan` writes the `examples/` half that `build`
+    reads beside these three and two spellings of one path is exactly the cross-corpus join the
+    change exists to stop. What is pinned here:
+
+      * the key rule, including `train_parity_10m__paper0923` -- products under that name are on
+        the volume and must still be addressed by `--corpus-name train_parity_10m --run-tag
+        paper0923`, and the empty/empty case must still be today's unsuffixed path;
+      * that the producer (`sae_self.corpus_key_of` off a launch's args) and the consumer
+        (`build`'s `corpus_key_for(shown_corpus, run_tag)`) land on the SAME three directories;
+      * the MUTATION: the pre-reconcile spelling, the bare corpus directory, disagrees with all
+        three as soon as a run carries a tag -- so the assertion above is a real comparison.
+    """
+
+    from precompute.top1_act import scan_key_of
+
+    root, set_name = "/vol", C.default_heldout(cfg)
+    sae_key = C.sae_key_for(cfg, base, f"{base}/l42-1b")
+    checks = mut = 0
+    for corpus, tag, want in (
+        ("", "", ""),                                                   # today's path
+        ("train_parity_10m", "", "train_parity_10m"),
+        ("train_parity_10m", "paper0923", "train_parity_10m__paper0923"),  # on the volume
+        ("", "paper0923", "paper0923"),                                 # as `scan` keys it
+    ):
+        got = SS.corpus_key_for(corpus, tag)
+        assert got == want, f"corpus_key_for({corpus!r}, {tag!r}) = {got!r}, want {want!r}"
+        assert got == scan_key_of(corpus, 0, tag), (
+            f"the autointerp pools and `scan` spell the key of ({corpus!r}, {tag!r}) differently"
+        )
+        checks += 1
+
+    # PRODUCER: what a `--stage examples_docmax --corpus-name ... --run-tag ...` launch writes.
+    args = {"corpus_name": "train_parity_10m", "run_tag": "paper0923"}
+    pkey = SS.corpus_key_of(cfg, args)          # asserts the declared geometry on the way
+    # CONSUMER: what `build` addresses, derived from its own two arguments, not from `pkey`.
+    ckey = SS.corpus_key_for("train_parity_10m", "paper0923")
+    assert pkey == ckey == "train_parity_10m__paper0923", (pkey, ckey)
+    checks += 1
+    dirs = [f(sae_key, set_name, root, pkey) for f in
+            (SS.random_pool_dir, SS.examples_4m_dir, SS.examples_docmax_dir)]
+    assert all(d.endswith(f"/{set_name}__train_parity_10m__paper0923") for d in dirs), dirs
+    checks += 1
+
+    # MUTATION: key by the corpus directory alone, as before the reconciliation.
+    stale = [f(sae_key, set_name, root, "train_parity_10m") for f in
+             (SS.random_pool_dir, SS.examples_4m_dir, SS.examples_docmax_dir)]
+    assert all(a != b for a, b in zip(dirs, stale, strict=True)), (
+        "the bare corpus directory and the tagged key give the same path, so this check cannot "
+        "tell the reconciled spelling from the one it replaced"
+    )
+    mut += 1
+    # MUTATION: a comma-joined --corpus-name is refused rather than silently taking the first.
+    try:
+        SS.corpus_of(cfg, {"corpus_name": "train_parity_10m,corpus"})
+    except AssertionError as e:
+        assert "ONE" in str(e), str(e)
+        mut += 1
+    else:
+        raise AssertionError("a corpus-side stage accepted several corpora")
+    print(f"[selfcheck] corpus key OK: {checks} checks, {mut} mutation gates; producer and "
+          f"consumer both address {set_name}__train_parity_10m__paper0923")
+
+
 def main() -> int:
     cfg = C.load_config()
     base = "qwen36-27b"
@@ -1114,6 +1183,7 @@ def main() -> int:
         check_scores_subset(tmp)
         check_corpus_fallback()
         check_two_corpora(cfg, tmp, base)
+        check_corpus_key(cfg, base)
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE
