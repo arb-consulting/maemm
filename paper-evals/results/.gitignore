@@ -1,10 +1,15 @@
-# Local analysis working directories, both reproducible from the volume: `data/` is the mirror
-# `Vol` fetches into, `out/` is where an ad-hoc run's tables, CSVs and figures go.
+# LEGACY local working directories. Nothing defaults here any more (2026-09-23): a reader's
+# mirror and its output now land OUTSIDE `paper-evals/`, because Modal mounts this tree into
+# every image build and a write under it kills any launch racing the hash. See
+# `precompute/common.py`'s `mirror_dir` / `out_dir`, enforced by
+# `unit_smoke.check_no_reader_default_under_the_mount`. They stay ignored because a checkout made
+# before that commit still has them, full of fetched bytes.
 #
 # `faithfulness/` is NOT ignored (2026-09-21). It was, on the reasoning that everything under
 # results/ is reproducible from the volume -- but eval 1's faithfulness output IS the paper's
 # numbers, and a number the paper cites has to be in the history, diffable, and readable without
-# $51 of GPU and a Modal token. So `results/faithfulness/` is committed and `out/` stays the
-# scratch path for everything else; keep ad-hoc runs under `--out results/out/<name>`.
+# $51 of GPU and a Modal token. So `results/faithfulness/` is committed -- as are `ood/`,
+# `patchscopes/` and `tierb/` -- and each is written by NAMING it, `--out results/faithfulness`,
+# at a moment the operator chose. That is exactly what a default cannot be.
 data/
 out/

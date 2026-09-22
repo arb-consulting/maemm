@@ -64,9 +64,12 @@ needs none of this: `corpus_peak_1b` is her own measurement, not a stand-in for 
     uv run paper-evals/reconstruction/sae_smoke64.py --data ~/mirror \
         --rows <the 64 sae rows of 2026-09-16_v1> --out out/sae_smoke64.md
 
-`stats.py` fetches the small files off the volume into `reconstruction/data/<root-tag>/` (mirroring
-the volume's own paths) and writes markdown + CSV into `reconstruction/out/<root-tag>/`. Both are
-gitignored (`paper-evals/.gitignore`). **`best_act.f16` is never fetched** — 335 MB per MAEMM at
+`stats.py` fetches the small files off the volume into `mirror_dir(<root-tag>)` (mirroring
+the volume's own paths, default `$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root-tag>`) and writes
+markdown + CSV into `out_dir("reconstruction")` (default `<repo>/_out/reconstruction`, beside
+`paper-evals/`). The old `reconstruction/data/` and `reconstruction/out/` are legacy and no longer
+written by default — Modal mounts the whole `paper-evals/` tree into every image build, and a
+write there mid-build kills the launch. **`best_act.f16` is never fetched** — 335 MB per MAEMM at
 full scale; the centred cosine that needs it is computed ON the volume by `precompute/centred.py`
 and read back as an `[N, n]` array.
 
@@ -84,8 +87,8 @@ cd /home/gavento/dev/mimir/2026-09-maemms
 | flag | effect |
 |---|---|
 | `--tables adg` | build only those letters (default: all of `abcdefghi`) |
-| `--no-fetch` | answer everything from `reconstruction/data/<root-tag>/`; a miss is reported, not fetched |
-| `--refetch` | re-download even what `data/` already has (the cache is by existence) |
+| `--no-fetch` | answer everything from the mirror (`mirror_dir(<root-tag>)`); a miss is reported, not fetched |
+| `--refetch` | re-download even what the mirror already has (the cache is by existence) |
 | `--modal-cmd` | how to invoke the CLI (default `uvx modal`) |
 | `--width 200` | console width; 0 = the terminal's, and 200 when the output is piped |
 | `--data-dir` / `--out-dir` | override either directory |

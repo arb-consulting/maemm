@@ -1924,10 +1924,13 @@ def main(
     peak_strata: Annotated[bool, typer.Option(
         help="per-activation-magnitude-quartile table, a POST-HOC cut of the analysed "
              "features on their `corpus_peak`")] = True,
-    out: Annotated[Path, typer.Option(help="output directory; the block goes in <out>/<sae-slug>")]
-    = R.HERE / "out" / "autointerp",
+    out: Annotated[Path | None, typer.Option(
+        help="output directory (the block goes in <out>/<sae-slug>); default $MAEMM_OUT or "
+             "<repo>/_out/autointerp")] = None,
     root: Annotated[str, typer.Option(help="volume-relative root the runs were written under")] = "",
-    data: Annotated[Path | None, typer.Option(help="local mirror (default results/data/<root>)")] = None,
+    data: Annotated[Path | None, typer.Option(
+        help="local mirror of the volume; default $MAEMM_MIRROR or "
+             "$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>, NEVER under paper-evals/")] = None,
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what the mirror already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
@@ -1947,12 +1950,13 @@ def main(
     cells_status: Annotated[str, typer.Option(help="placeholder|provisional|final")] = "provisional",
     cells_date: Annotated[str, typer.Option(help="the `date` column (default: today)")] = "",
 ) -> None:
+    out = Path(out) if out else R.out_dir("autointerp")
     runs = parse_runs(run)
     assert runs, (
         "at least one `--run <label>=<run_dir>` is required. Eval 2 is one `run` directory per "
         "checkpoint — on each SAE, one for rl-last16, one for the old primary and one for NLA — "
         "and this driver joins them, e.g. `--run rl-last16=<dir> --run old-primary=<dir>`")
-    mirror = data or (R.HERE / "data" / (root.replace("/", "_") or "vol"))
+    mirror = Path(data) if data else R.mirror_dir(root)
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
     vs_runs = parse_runs(vs)
     unknown = [k for k in vs_runs if k not in runs]

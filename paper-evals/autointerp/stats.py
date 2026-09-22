@@ -6,7 +6,8 @@
 """The autointerp analysis layer: the pilot's tables, from the small files one `run` wrote.
 
 Local, CPU, no GPU and no model. It fetches ONLY `runs/<run>/summary/*` and
-`runs/<run>/explain/explanations.jsonl` into `autointerp/data/<run>/` (gitignored) and writes
+`runs/<run>/explain/explanations.jsonl` into the shared volume mirror, `common.mirror_dir()`
+(default outside `paper-evals/`; the old `autointerp/data/<run>/` is legacy), and writes
 `autointerp/pilot.md`, which IS committed.
 
     cd /home/gavento/dev/mimir/2026-09-maemms
@@ -49,7 +50,7 @@ PAPER_EVALS = HERE.parent
 if str(PAPER_EVALS) not in sys.path:
     sys.path.insert(0, str(PAPER_EVALS))
 
-from reconstruction.stats import Vol, sign_test  # noqa: E402
+from reconstruction.stats import ROOTS, Vol, mirror_dir, sign_test  # noqa: E402
 
 console = Console()
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
@@ -215,7 +216,10 @@ def main(
     refetch: Annotated[bool, typer.Option()] = False,
     no_fetch: Annotated[bool, typer.Option("--no-fetch")] = False,
 ):
-    data = Path(data_dir) if data_dir else HERE / "data" / run
+    # `Vol.get` joins the volume-relative rel onto this, and every rel below already starts
+    # `runs/<run>/` -- so the mirror is keyed by the VOLUME ROOT, not by the run, and the
+    # bytes land where every other reader's mirror of the same volume puts them.
+    data = Path(data_dir) if data_dir else mirror_dir(ROOTS["full"])
     data.mkdir(parents=True, exist_ok=True)
     vol = Vol("full", data, modal_cmd, refetch, quiet=False, offline=no_fetch)
     base = f"runs/{run}"

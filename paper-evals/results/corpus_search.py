@@ -452,7 +452,7 @@ def table(
     base: str = "qwen36-27b",
     family: str = "realact",
     root: str = "",
-    data_dir: str = "results/data",
+    data_dir: str = "",
     scores_rel: Annotated[str, typer.Option(help="a `score` product to difference against")] = "",
     bo_k: int = 8,
     diff_size: float = 10.0,
@@ -462,7 +462,7 @@ def table(
     date: str = "2026-09-23",
 ) -> None:
     """Print the per-size table, the slope, the optional paired difference, and write the cells."""
-    vol = R.Vol(root, Path(data_dir), offline=no_fetch)
+    vol = R.Vol(root, Path(data_dir) if data_dir else R.mirror_dir(root), offline=no_fetch)
     t = read_top1(vol, base, scan_dir, set_name, family=family,
                   apply_exclusions=apply_exclusions)
     ids = read_ids(vol, base, set_name)
@@ -504,7 +504,7 @@ def table(
 def fired(
     top1_rel: Annotated[str, typer.Option("--top1-dir", help="a `top1_act` product directory, "
                                           "volume-relative")],
-    data_dir: str = "results/data",
+    data_dir: str = "",
     root: str = "",
     no_fetch: bool = False,
 ) -> None:
@@ -521,7 +521,7 @@ def fired(
     DENOMINATOR and is 1 by construction there (writing plan §2), which is why this reports the
     fired fraction and the level rather than a ratio of 1.
     """
-    vol = R.Vol(root, Path(data_dir), offline=no_fetch)
+    vol = R.Vol(root, Path(data_dir) if data_dir else R.mirror_dir(root), offline=no_fetch)
     recs = vol.jsonl(f"{top1_rel.rstrip('/')}/top1_act.jsonl")
     assert recs, f"no top1_act.jsonl under {top1_rel}"
     gate = recs[0].get("gate")

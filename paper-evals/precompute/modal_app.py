@@ -79,8 +79,15 @@ _image27_base = _image_base.pip_install("flash-linear-attention==0.5.2")
 # between concurrent sessions). Last layer, so an edit rebuilds only this one.
 # Ignored: caches, the local analysis outputs and every .md -- other sessions write those while an
 # image is being hashed, and Modal refuses a tree that changes mid-build.
-_IGNORE = ["**/__pycache__", "**/*.pyc", "**/.ruff_cache", "reconstruction/out",
-           "reconstruction/data", "**/*.md"]
+# `reconstruction/{out,data}` were ignored here because those two readers wrote under the
+# mount; SINCE 2026-09-23 NO reader defaults inside the tree at all (precompute/common.py:
+# `mirror_dir` / `out_dir`, gated by `unit_smoke.check_no_reader_default_under_the_mount`).
+# The names stay, joined by the four the old `_IGNORE` missed, because a checkout made before
+# that commit still HAS those directories full of fetched bytes -- and an old mirror left on
+# disk races an image hash exactly as a live one does.
+_IGNORE = ["**/__pycache__", "**/*.pyc", "**/.ruff_cache", "**/*.md",
+           "reconstruction/out", "reconstruction/data", "results/out", "results/data",
+           "autointerp/data", "gcg/data"]
 _CODE = dict(local_path=LOCAL_ROOT, remote_path=REMOTE_ROOT, copy=True, ignore=_IGNORE)
 image = _image_base.add_local_dir(**_CODE)
 image27 = _image27_base.add_local_dir(**_CODE)

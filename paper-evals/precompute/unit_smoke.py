@@ -3331,6 +3331,105 @@ def check_tierb_blocks_and_banks_are_declared():
     assert {b[3] for b in ours} == {None, "score"}, ours
 
 
+# The readers -- every local, CPU entrypoint that fetches off the volume or writes a table. The
+# list is explicit rather than globbed: a new reader is added here deliberately, which is the
+# moment to notice that it must not default inside the mount either.
+_READERS = (
+    "results/faithfulness.py", "results/autointerp.py", "results/ood.py",
+    "results/feature_page.py", "results/patchscopes.py", "results/corpus_search.py",
+    "reconstruction/stats.py", "reconstruction/stats_ood.py",
+    "reconstruction/corpus_top1_activation.py", "autointerp/stats.py", "gcg/collect.py",
+)
+
+# Every spelling by which a reader default used to land inside `paper-evals/`, as (regex, what it
+# was). `HERE`/`R.HERE`/`here` is always the reader's OWN directory, so joining "data" or "out"
+# onto it is a path under the mount by construction, whatever the module is called.
+_BANNED_DEFAULTS = (
+    (r'(?:\bR\.)?\bHERE\s*/\s*"(?:data|out)"', 'HERE / "data" | HERE / "out"'),
+    (r'\bhere\s*/\s*"(?:data|out)"', 'here / "data" | here / "out"'),
+    (r'"_mirror"', 'a `_mirror` beside an output directory inside the tree'),
+    (r'"(?:results|reconstruction|autointerp|gcg|precompute)/(?:data|out)"',
+     'a RELATIVE default, resolved against the cwd -- the checkout, in every real invocation'),
+)
+
+
+def check_no_reader_default_under_the_mount():
+    """No reader's DEFAULT local directory lies under `paper-evals/`, which Modal mounts.
+
+    THE HAZARD. `precompute/modal_app.py` mounts the whole `paper-evals/` tree into every image
+    with `add_local_dir(..., copy=True)` and Modal hashes it as it builds; a file appearing or
+    changing under it mid-build kills the launch with `was modified during build process`. On
+    2026-09-23 that cost the L14 scoring job a relaunch, and the cause was not an edit but a
+    READER'S OWN FETCH MIRROR -- `results/data/` -- filling up beside a live build. Eight readers
+    defaulted inside the tree; `results/corpus_search.py` was worse still, defaulting to the
+    RELATIVE `"results/data"`, i.e. under the mount whenever it is run from the checkout.
+
+    Two prongs, because one alone is not the property:
+
+      * BEHAVIOURAL -- `common.mirror_dir` / `common.out_dir` are the single source of the
+        defaults, and both REFUSE a path under the mount however it is reached, including one
+        handed to them through `$MAEMM_MIRROR` / `$MAEMM_OUT`. That refusal is the invariant; the
+        two gates below are what say it is enforced rather than merely intended.
+      * STRUCTURAL -- no reader spells a default the old way any more, and every one of them
+        reaches the shared helper. A reader that computes its own default in the body is invisible
+        to signature introspection, so this reads the source.
+    """
+    root = Path(__file__).resolve().parent.parent  # paper-evals/
+    assert C.PAPER_EVALS == root, (C.PAPER_EVALS, root)
+    checks = mut = 0
+
+    # --- behavioural -------------------------------------------------------------------------
+    for r in ("", "/", "runs/2026-09-15_paper-evals-smoke", "base/qwen36-27b"):
+        d = C.mirror_dir(r)
+        assert not d.is_relative_to(root), f"mirror_dir({r!r}) -> {d}, under the mount"
+        checks += 1
+    assert C.mirror_dir("") == C.mirror_dir("/"), "the volume root must have ONE mirror, not two"
+    checks += 1
+    for tool in ("faithfulness", "autointerp", "ood", "feature_page", "patchscopes",
+                 "reconstruction", "gcg"):
+        d = C.out_dir(tool)
+        assert not d.is_relative_to(root), f"out_dir({tool!r}) -> {d}, under the mount"
+        checks += 1
+
+    # MUTATION: an env var aimed back inside the tree is refused, not obeyed
+    for var, call, arg in ((C.MIRROR_ENV, C.mirror_dir, ""), (C.OUT_ENV, C.out_dir, "ood")):
+        old = os.environ.get(var)
+        os.environ[var] = str(root / "results" / "data")
+        try:
+            call(arg)
+        except AssertionError as e:
+            assert "INSIDE" in str(e) and "modified during build process" in str(e), str(e)
+            mut += 1
+        else:
+            raise AssertionError(f"${var} pointing under {root} was obeyed, not refused")
+        finally:
+            os.environ.pop(var, None)
+            if old is not None:
+                os.environ[var] = old
+
+    # --- structural --------------------------------------------------------------------------
+    for rel in _READERS:
+        src = (root / rel).read_text()
+        for pat, what in _BANNED_DEFAULTS:
+            hit = re.search(pat, src)
+            assert not hit, (
+                f"{rel} builds a local default as {hit.group(0)!r} ({what}). That path is under "
+                f"{root}, which `precompute/modal_app.py` mounts with copy=True -- writing there "
+                f"kills any Modal image build racing it. Use `common.mirror_dir(root)` for a "
+                f"volume mirror or `common.out_dir(<tool>)` for an output directory."
+            )
+            checks += 1
+        assert "mirror_dir(" in src, (
+            f"{rel} is listed as a reader but never calls `mirror_dir(`: either it takes its "
+            f"mirror from somewhere this check cannot see, or it is no longer a reader. Resolve "
+            f"it here rather than dropping it from _READERS unexamined."
+        )
+        checks += 1
+
+    print(f"[smoke]     no reader default under the mount: {len(_READERS)} readers, {checks} "
+          f"checks, {mut} mutation gates", flush=True)
+
+
 CHECKS = [
     check_tierb_scan_finds_a_planted_duplicate,
     check_tierb_blocks_and_banks_are_declared,
@@ -3407,6 +3506,7 @@ CHECKS = [
     check_arm_perm_and_rng,
     check_ood_config,
     check_span_in_corpus,
+    check_no_reader_default_under_the_mount,
 ]
 
 

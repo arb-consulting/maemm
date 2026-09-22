@@ -172,14 +172,18 @@ def main(
     root: Annotated[str, typer.Option(help="the run root the arm was written under")] = "/vol",
     do_fetch: Annotated[bool, typer.Option(
         "--fetch/--no-fetch", help="mirror the arm off the volume first")] = False,
-    mirror: Annotated[Path, typer.Option(help="where --fetch puts the mirror")] = HERE / "data",
+    mirror: Annotated[Path | None, typer.Option(
+        "--mirror", help="where --fetch puts the mirror; default $MAEMM_MIRROR or "
+                         "$XDG_CACHE_HOME/maemm-paper-evals/mirror/gcg")] = None,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
     out: Annotated[Path | None, typer.Option(help="write the per-direction table as json")] = None,
 ) -> None:
     if dir_ is None:
         assert arm, "--arm <mode>-<init>[-<suffix>] is required unless --dir names the directory"
         vol_dir = C.gcg_dir(base, set_, family, arm, root)
-        dir_ = mirror / Path(vol_dir).name
+        # Its own key under the shared mirror root: an arm directory is addressed by NAME
+        # here, not by its volume path, so it must not land among the volume-mirror trees.
+        dir_ = (Path(mirror) if mirror else C.mirror_dir("gcg")) / Path(vol_dir).name
         if do_fetch:
             fetch(vol_dir, dir_, modal_cmd)
     armd = load_arm(Path(dir_))

@@ -6,7 +6,9 @@
 """The OOD generalisation evaluation's analysis layer (design infra/2026-09-18_ood-eval-design.md §6, §11).
 
 Local, CPU, no GPU and no model. Like `reconstruction/stats.py` it fetches only small files off the
-volume into `reconstruction/data/<root-tag>/` and writes into `reconstruction/out/<root-tag>/`;
+volume into `common.mirror_dir(<root-tag>)` and writes into
+`common.out_dir("reconstruction")/<root-tag>/`, both outside `paper-evals/` by default (the old
+`reconstruction/data/<root-tag>/` and `reconstruction/out/<root-tag>/` are legacy);
 `paper/inversion-eval/` is FROZEN and nothing here writes into it.
 
     cd /home/gavento/dev/mimir/2026-09-maemms
@@ -51,7 +53,7 @@ CONFIG = PAPER_EVALS / "config.yaml"
 sys.path.insert(0, str(PAPER_EVALS))
 
 import precompute.common as C  # noqa: E402  (the ONE script table, code-like rule and arm table)
-from reconstruction.stats import Scores, Vol  # noqa: E402
+from reconstruction.stats import ROOTS, Scores, Vol, default_out, mirror_dir  # noqa: E402
 
 # THE best-of-k estimator of the pipeline, one definition for the whole results layer
 # (M0a, 2026-09-23). `reconstruction/stats.py` has its own copy of the same order
@@ -1001,7 +1003,8 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
 
 def _vol(root_tag, fetch, refetch, quiet, modal_cmd, data_dir):
     return Vol(
-        root_tag, data_dir or (HERE / "data" / root_tag), modal_cmd, refetch, quiet, offline=not fetch
+        root_tag, data_dir or mirror_dir(ROOTS[root_tag]), modal_cmd, refetch, quiet,
+        offline=not fetch
     )
 
 
@@ -1040,7 +1043,7 @@ def tables(
     res = build_tables(
         vol,
         cfg,
-        out_dir or (HERE / "out" / root_tag / "ood"),
+        out_dir or (default_out("reconstruction") / root_tag / "ood"),
         {
             "base": base,
             "set": set_name,
@@ -1175,7 +1178,7 @@ def train_share(
                 "unseen" if rec["code_like_share_token_weighted"] < 0.01 else "under-represented"
             )
     console.print(json.dumps(rec, indent=1))
-    d = out_dir or (HERE / "out" / root_tag / "ood")
+    d = out_dir or (default_out("reconstruction") / root_tag / "ood")
     d.mkdir(parents=True, exist_ok=True)
     tag = "corpus" if source == "corpus" else source.removeprefix("hf:").replace("/", "_")
     (d / f"train_share_{tag}.json").write_text(json.dumps(rec, indent=1) + "\n")

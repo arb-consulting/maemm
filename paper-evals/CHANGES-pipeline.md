@@ -1066,3 +1066,80 @@ not cover, a sibling at another key, two covering siblings refusing, and the leg
 refusing with the expected key named — for this set and for the other one. Run RED both ways:
 disabling the sibling search fails the resolution check, and restoring the legacy fallback fails
 the refusal gate.
+
+---
+
+## 2026-09-23, integration pass: M7 merged, and no reader writes under the Modal mount
+
+### `evals/m7-patchscopes` merged at its real tip
+
+`34c58c7` had merged an older tip (`50e281d`). The branch's final tip `f2631b6` is now in, over
+two merges: `b57658e` brought `0befb94` (the mirror fix below) and `b3bbdc9` (the appendix's 16
+cells -- four read layers plus one shared no-injection floor, n = 486 over 425 documents), and
+`75346bb` brought `f2631b6`, which rewrites the cells keys to the ones the tex cites --
+`fid.ra.{ps,psfloor}.cos.l<L>` with the READ LAYER in the stratum slot, plus `fid.ra.ps.dfloor.l<L>`
+-- and gives the dfloor row a percentile CI. `results/patchscopes.py --selftest`: 8/8.
+
+### The autointerp resolver: a tag-only corpus key matched two corpora
+
+`build.resolve_examples` filtered candidate `examples/` directories with
+`name.endswith(f"__{corpus_key}")`. At the test side's TAG-ONLY key `paper0923` that matched both
+`2026-09-21_v3_realact__paper0923` and `2026-09-21_v3_realact__train_parity_10m__paper0923` -- two
+different corpora, not two names for one product. Both cleared the feature cover, the pair refused
+as ambiguous, and the test side of the eval-1 autointerp run had no examples at all. **The suffix
+must be consumed whole**: a candidate is `<set>__<corpus_key>` for a set name that is non-empty
+and carries no `__`. That is the no-key branch's own rule (`"__" not in name`) generalised, resting
+on the same premise -- a held-out set name has no `__` in it.
+
+`check_examples_resolution` is now 4 checks and 6 mutation gates: the plain `__paper0923` scan
+resolves with the longer-key sibling sitting beside it, and with the plain one removed the
+longer-key sibling does NOT answer in its place. Run RED first -- reverting the rule to `endswith`
+reproduces the exact "nothing here can choose between them" refusal.
+
+### The mount hazard: readers wrote inside the tree Modal copies
+
+`precompute/modal_app.py` mounts the whole `paper-evals/` tree into every image with
+`add_local_dir(..., copy=True)`, and Modal hashes it as it builds. A file appearing or changing
+under it mid-build kills the launch with `<file> was modified during build process`. That is how
+the L14 scoring job was lost on 2026-09-23, at the cost of a relaunch -- and the cause was not a
+concurrent session editing code, the diagnosis `SMOKES.md` recorded for the same failure on
+2026-09-16, but a **reader's own fetch mirror**, `results/data/`, filling up beside a live build.
+
+Eleven readers now take their defaults from ONE place, `precompute/common.py`:
+
+| | default | override |
+|---|---|---|
+| mirror (a pure cache of volume bytes) | `$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>` | `$MAEMM_MIRROR`, or `--data` / `--data-dir` / `--mirror` |
+| output (tables, CSVs, figures) | `<repo>/_out/<tool>`, beside `paper-evals/`, gitignored | `$MAEMM_OUT`, or `--out` / `--out-dir` |
+
+Both **refuse** a path resolving inside `paper-evals/`, whatever it came from -- including one
+handed in through the env var. The two homes differ on purpose: a mirror is reproducible by
+re-fetching and is the same bytes for every checkout of every branch, so it belongs in the user
+cache and is now shared rather than refetched per worktree; an output is a work product a person
+opens, so it belongs beside the repo and not in a cache a cleaner may empty.
+
+Moved: `results/{faithfulness,autointerp,feature_page,ood,patchscopes,corpus_search}.py`,
+`reconstruction/{stats,stats_ood,corpus_top1_activation}.py`, `autointerp/stats.py`,
+`gcg/collect.py`. Two the original report did not name: `results/corpus_search.py` defaulted to the
+RELATIVE `"results/data"`, i.e. under the mount in every invocation from the checkout, and
+`gcg/collect.py`'s `--mirror` defaulted to `gcg/data`. `results/ood.py` was the worst placed -- its
+mirror defaulted to `results/ood/_mirror`, inside a COMMITTED product directory.
+
+**One behaviour change to know about.** `results/ood.py`'s `--out` defaulted to `results/ood`, the
+committed product directory; it now defaults to `_out/ood` like every sibling driver. The committed
+directories -- `results/{faithfulness,ood,patchscopes,tierb}/` -- are still written by NAMING them,
+`--out results/ood`, at a moment the operator chose. That is exactly what a default cannot be, and
+it is why `results/patchscopes.py` and `results/faithfulness.py` were already written that way.
+
+`results/out/` was **not** excluded from the mount: `_IGNORE` covered `reconstruction/{out,data}`
+and `**/*.md` and nothing else, so `results/{data,out}`, `autointerp/data` and `gcg/data` were all
+inside it. `_IGNORE` now names all six. They are legacy paths that nothing writes by default any
+more; they stay listed because a checkout made before this commit still has them on disk, full of
+fetched bytes, and an old mirror races an image hash exactly as a live one does.
+
+**Verified.** `unit_smoke.check_no_reader_default_under_the_mount` -- 11 readers, 67 checks, 2
+mutation gates -- in two prongs, because one alone is not the property: behavioural (the helpers
+return paths outside the mount, and refuse an env var aimed back inside) and structural (no reader
+spells a default the old way, and every one reaches the shared helper). Run RED both ways:
+restoring `R.HERE / "data"` in `results/faithfulness.py` fails the structural prong, and pointing
+`mirror_dir`'s base at `paper-evals/results/data` fails the behavioural one.

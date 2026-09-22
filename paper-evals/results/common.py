@@ -27,6 +27,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,6 +37,17 @@ import yaml
 HERE = Path(__file__).resolve().parent
 PAPER_EVALS = HERE.parent
 CONFIG = PAPER_EVALS / "config.yaml"
+
+# WHERE A READER MAY WRITE is one rule and it lives in `precompute.common`: never under
+# `paper-evals/`, which `precompute/modal_app.py` mounts into every image with copy=True, so a
+# reader writing there kills any Modal launch racing it. Re-exported rather than reimplemented --
+# a second spelling of the default is how seven of these readers drifted inside the mount in the
+# first place. Every `results/` driver reaches it as `R.mirror_dir` / `R.out_dir`.
+sys.path.insert(0, str(PAPER_EVALS))
+import precompute.common as _C  # noqa: E402
+
+mirror_dir = _C.mirror_dir
+out_dir = _C.out_dir
 
 VOLUME = "maemm"
 # `precompute/common.ENGINES`. A scores directory name is `<set>[__<engine>][__<run-tag>]`, so the

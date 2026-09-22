@@ -718,15 +718,19 @@ def main(
     order: Annotated[str, typer.Option(help="body order: `stratum` (default) or `delta`")]
     = "stratum",
     examples: Annotated[bool, typer.Option(help="render the shown example blocks")] = True,
-    out: Annotated[Path, typer.Option(help="output directory; one `<dictionary>.md` per dictionary")]
-    = R.HERE / "out" / "feature_page",
+    out: Annotated[Path | None, typer.Option(
+        help="output directory, one `<dictionary>.md` per dictionary; default $MAEMM_OUT or "
+             "<repo>/_out/feature_page")] = None,
     root: Annotated[str, typer.Option(help="volume-relative root the runs were written under")] = "",
-    data: Annotated[Path | None, typer.Option(help="local mirror (default results/data/<root>)")] = None,
+    data: Annotated[Path | None, typer.Option(
+        help="local mirror of the volume; default $MAEMM_MIRROR or "
+             "$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>, NEVER under paper-evals/")] = None,
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what the mirror already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ) -> None:
+    out = Path(out) if out else R.out_dir("feature_page")
     runs_spec = A.parse_runs(run)
     assert runs_spec, (
         "at least one `--run <label>=<run dir>` is required: the page is built from a run "
@@ -736,7 +740,7 @@ def main(
     assert not unknown, (f"--build label(s) {unknown} name no --run "
                          f"({', '.join(runs_spec) or 'none'})")
     assert order in ("stratum", "delta"), f"--order is `stratum` or `delta`, not {order!r}"
-    mirror = data or (R.HERE / "data" / (root.replace("/", "_") or "vol"))
+    mirror = Path(data) if data else R.mirror_dir(root)
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
 
     loaded = [load_run(vol, lab, d, builds.get(lab, "")) for lab, d in runs_spec.items()]

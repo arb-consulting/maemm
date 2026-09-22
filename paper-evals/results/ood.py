@@ -1022,8 +1022,7 @@ def main(
     assert set_name, "--set is required: this file has no default set, by D6's rule for writers"
     cfg = R.load_config()
     assert set_name in cfg["heldout"], f"{set_name!r} is not a set in config.yaml"
-    here = Path(__file__).resolve().parent
-    out_dir = Path(out) if out else here / "ood"
+    out_dir = Path(out) if out else R.out_dir("ood")
     # Resolved BEFORE anything is fetched, so a mistyped `--cells` fails with the path it looked
     # at rather than after an hour of reading. Module M1 owns the resolver; this module owns only
     # its `ood.*` keys inside the file.
@@ -1032,7 +1031,7 @@ def main(
         import results.faithfulness as _FA
 
         cells_target = _FA.resolve_cells_path(cells)
-    vol = R.Vol(root, Path(data_dir) if data_dir else out_dir / "_mirror",
+    vol = R.Vol(root, Path(data_dir) if data_dir else R.mirror_dir(root),
                 modal_cmd=modal_cmd, refetch=refetch, quiet=quiet, offline=offline)
     mod = _stats_ood()
 

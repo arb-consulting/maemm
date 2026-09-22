@@ -2324,9 +2324,12 @@ def main(
         help="the held-out set, as declared in config.yaml; a COMMA-SEPARATED list runs each one "
              "into <out>/<block>/ and writes the cross-set document at <out>/")] = "",
     sources: Annotated[str, typer.Option(help="comma-separated substrings of source labels to keep")] = "",
-    out: Annotated[Path, typer.Option(help="output directory")] = R.HERE / "out" / "faithfulness",
+    out: Annotated[Path | None, typer.Option(
+        help="output directory; default $MAEMM_OUT or <repo>/_out/faithfulness")] = None,
     root: Annotated[str, typer.Option(help="volume-relative root the products were written under")] = "",
-    data: Annotated[Path | None, typer.Option(help="local mirror (default results/data/<root>)")] = None,
+    data: Annotated[Path | None, typer.Option(
+        help="local mirror of the volume; default $MAEMM_MIRROR or "
+             "$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>, NEVER under paper-evals/")] = None,
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what the mirror already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
@@ -2378,11 +2381,12 @@ def main(
     assert set_, "--set <name> is required; config.yaml `heldout:` lists the declared sets"
     # Resolved FIRST, before an hour of fetching: a typo in `--cells` must not be discovered after
     # the run, and the write itself still happens last so a refused write costs the tables nothing.
+    out = Path(out) if out else R.out_dir("faithfulness")
     cells_path = resolve_cells_path(cells)
     names = [x.strip() for x in set_.split(",") if x.strip()]
     assert len(names) == len(set(names)), f"--set names a block twice: {names}"
     cfg = R.load_config()
-    mirror = data or (R.HERE / "data" / (root.replace("/", "_") or "vol"))
+    mirror = Path(data) if data else R.mirror_dir(root)
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
 
     all_res: list[dict] = []

@@ -30,7 +30,83 @@ from pathlib import Path
 
 VOL = "/vol"
 HERE = Path(__file__).resolve().parent
-CONFIG_PATH = HERE.parent / "config.yaml"
+PAPER_EVALS = HERE.parent
+CONFIG_PATH = PAPER_EVALS / "config.yaml"
+
+
+# ---------------------------------------------------------------------------------------------
+# where a LOCAL reader may write: one place, and it is outside the tree Modal mounts
+# ---------------------------------------------------------------------------------------------
+#
+# NOTHING A READER WRITES MAY LAND UNDER `paper-evals/`, AND THAT IS NOT A STYLE RULE.
+# `precompute/modal_app.py` mounts the whole `paper-evals/` tree into every image with
+# `add_local_dir(..., copy=True)`, and Modal hashes the tree as it builds. Any file appearing or
+# changing under it mid-build kills the launch with `<file> was modified during build process`.
+# That is how the 2026-09-23 L14 scoring job was lost, at the cost of a relaunch: not a concurrent
+# session editing code -- the diagnosis SMOKES.md recorded for the same failure on 2026-09-16 --
+# but a READER'S OWN FETCH MIRROR, `results/data/`, filling up beside it. Eleven builders running
+# readers next to paid Modal jobs makes this a live, recurring, expensive defect, so the defaults
+# live here, in ONE place, and `mirror_dir`/`out_dir` refuse a path under the mount whatever it
+# came from.
+#
+# Two kinds, because they are different things and want different homes:
+#   * the MIRROR is a pure cache of volume bytes, reproducible by re-fetching and shared by every
+#     checkout of every branch (the volume is one volume), so it belongs in the user cache;
+#   * the OUTPUT is a work product a person opens -- tables, CSVs, figures -- so it belongs beside
+#     the repo, where it can be found, and NOT in a cache directory that a cleaner may empty.
+# An explicit `--data` / `--out` still overrides either, and the committed product directories
+# (`results/ood/`, `results/faithfulness/`, `results/patchscopes/`, `results/tierb/`) are still
+# written by naming them on the command line -- deliberately, at a moment the operator chose,
+# which is exactly what a DEFAULT cannot be.
+
+MIRROR_ENV = "MAEMM_MIRROR"
+OUT_ENV = "MAEMM_OUT"
+
+
+def _outside_the_mount(p: Path, what: str, how: str) -> Path:
+    """`p`, resolved, or an assertion naming what would have broken."""
+    p = Path(p).expanduser().resolve()
+    assert not p.is_relative_to(PAPER_EVALS), (
+        f"{what} resolves to {p}, which is INSIDE {PAPER_EVALS} -- the tree "
+        f"`precompute/modal_app.py` mounts into every image with copy=True. A reader writing "
+        f"there kills any Modal launch racing it with `was modified during build process`. "
+        f"{how}"
+    )
+    return p
+
+
+def mirror_dir(root: str = "") -> Path:
+    """The default local mirror of the Modal volume, for volume-relative prefix `root`.
+
+    `${MAEMM_MIRROR}/<root>` when that is set -- which is how several worktrees share one cache --
+    otherwise `$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>` (`~/.cache` when XDG is unset),
+    the path `results/patchscopes.py` took first on 2026-09-23. `root` is the volume-relative
+    prefix the reader was given, slashes flattened; empty means the volume root.
+    """
+    slug = root.strip("/").replace("/", "_") or "vol"
+    base = os.environ.get(MIRROR_ENV) or (
+        Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "maemm-paper-evals"
+        / "mirror"
+    )
+    return _outside_the_mount(
+        Path(base) / slug, f"the default mirror for root {root or '(volume root)'!r}",
+        f"Point ${MIRROR_ENV} somewhere else, or pass the mirror explicitly.",
+    )
+
+
+def out_dir(tool: str) -> Path:
+    """The default output directory for reader `tool` (`faithfulness`, `ood`, ...).
+
+    `${MAEMM_OUT}/<tool>` when that is set, otherwise `<repo>/_out/<tool>` -- beside
+    `paper-evals/`, never inside it, and gitignored at the repo root. A committed product
+    directory is reached by naming it: `--out results/ood`.
+    """
+    assert tool and "/" not in tool, f"out_dir takes a bare tool name, not {tool!r}"
+    base = Path(os.environ.get(OUT_ENV) or (PAPER_EVALS.parent / "_out"))
+    return _outside_the_mount(
+        base / tool, f"the default output directory for {tool!r}",
+        f"Point ${OUT_ENV} somewhere else, or pass `--out` explicitly.",
+    )
 
 # eval/eval_universal.py:138 -- the re-encode truncation. Checklist item 7: it must leave room for
 # the whole rollout plus the prepended sink, i.e. max_length >= rollouts.max_new + 1; asserted in

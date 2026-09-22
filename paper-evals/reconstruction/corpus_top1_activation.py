@@ -45,7 +45,7 @@ from rich.table import Table as RichTable
 HERE = Path(__file__).resolve().parent
 PAPER_EVALS = HERE.parent
 sys.path.insert(0, str(HERE))
-from stats import ROOTS, Vol  # noqa: E402 -- the fetcher and the root map live in stats.py
+from stats import ROOTS, Vol, mirror_dir  # noqa: E402 -- fetcher, root map and mirror rule
 
 # 27B primary first, as every table in reconstruction/ orders them.
 BASES = ("qwen36-27b", "qwen3-8b")
@@ -201,13 +201,16 @@ def main(
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what data/ already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
-    data_dir: Annotated[Path | None, typer.Option(help="override reconstruction/data/<root-tag>")] = None,
+    data_dir: Annotated[Path | None, typer.Option(
+        help="override the default mirror ($MAEMM_MIRROR, else "
+             "$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>)")] = None,
     tol: Annotated[float, typer.Option(help="max relative examples-join vs forward disagreement")] = 5e-2,
     sae: Annotated[str, typer.Option(help="which SAE, as `<base>/<name>`; needed when a base has two")] = "",
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ):
     cfg = yaml.safe_load((PAPER_EVALS / "config.yaml").read_text())
-    vol = Vol(root_tag, data_dir or (HERE / "data" / root_tag), modal_cmd, refetch, quiet, offline=not fetch)
+    vol = Vol(root_tag, data_dir or mirror_dir(ROOTS[root_tag]), modal_cmd, refetch, quiet,
+              offline=not fetch)
 
     rows, summaries = [], {}
     for base in BASES:

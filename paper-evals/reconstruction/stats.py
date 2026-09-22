@@ -7,9 +7,10 @@
 
 Local, CPU, no GPU and no model. It fetches ONLY small files (per_target.jsonl, ids.jsonl,
 rows.json, index.json, per_feature.jsonl, finals.jsonl, quantiles.f16, topk.jsonl, cos.f16,
-argmax.i16 and the two `centred` arrays) into `reconstruction/data/<root-tag>/`, mirroring the
-volume's own paths, and writes markdown + CSV into `reconstruction/out/<root-tag>/`. Both are
-gitignored. `best_act.f16` is NEVER fetched (335 MB per MAEMM at full scale); the centred cosine
+argmax.i16 and the two `centred` arrays) into `common.mirror_dir(<root-tag>)`, mirroring the
+volume's own paths, and writes markdown + CSV into `common.out_dir("reconstruction")/<root-tag>/`.
+Both default outside `paper-evals/` (the old `reconstruction/data/` and `reconstruction/out/` are
+legacy). `best_act.f16` is NEVER fetched (335 MB per MAEMM at full scale); the centred cosine
 that needs it is computed ON the volume by `precompute/centred.py` and read back as [N, n].
 
     cd /home/gavento/dev/mimir/2026-09-maemms
@@ -56,6 +57,20 @@ from rich.table import Table as RichTable
 HERE = Path(__file__).resolve().parent
 PAPER_EVALS = HERE.parent
 CONFIG = PAPER_EVALS / "config.yaml"
+
+# The ONE rule about where a local reader may write (`precompute.common`): never under
+# `paper-evals/`, which `precompute/modal_app.py` mounts into every image with copy=True -- a
+# reader writing there kills any Modal launch racing it. Re-exported, not reimplemented, so the
+# three modules that take `Vol` from this file (`stats_ood.py`, `corpus_top1_activation.py`,
+# `autointerp/stats.py`) reach the same default through the same name.
+sys.path.insert(0, str(PAPER_EVALS))
+import precompute.common as _C  # noqa: E402
+
+mirror_dir = _C.mirror_dir
+# NOT named `out_dir`: three commands in this file and in `stats_ood.py` take an `--out-dir`
+# parameter of that name, and a module-level alias it shadows is a trap, not an export.
+default_out = _C.out_dir
+
 VOLUME = "maemm"
 # --root-tag -> the volume-relative prefix the pipeline's --root wrote under. "" is the volume root
 # (--root /vol), which is where the full run lands.
@@ -1324,8 +1339,9 @@ def main(
     want = set(tables) if tables else set("abcdefghijkl")
     with open(CONFIG) as fh:
         cfg = yaml.safe_load(fh)
-    vol = Vol(root_tag, data_dir or (HERE / "data" / root_tag), modal_cmd, refetch, quiet, offline=not fetch)
-    out = Out(out_dir or (HERE / "out" / root_tag), root_tag, ROOTS[root_tag])
+    vol = Vol(root_tag, data_dir or mirror_dir(ROOTS[root_tag]), modal_cmd, refetch, quiet,
+              offline=not fetch)
+    out = Out(out_dir or (default_out("reconstruction") / root_tag), root_tag, ROOTS[root_tag])
 
     console.print(f"[bold]root[/bold] /vol/{ROOTS[root_tag] or ''} -> data {vol.local}")
     found = discover(vol, cfg)

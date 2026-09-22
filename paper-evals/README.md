@@ -1006,9 +1006,11 @@ shell call (`nohup setsid ...`, or a background task with no timeout). `paper-ev
 the image (`copy=True`), not mounted: a mounted tree is shared state between concurrent sessions. An edit to
 any file that IS in the image while another session's build is running fails that build with
 "<file> was modified during build process", so `_IGNORE` now also drops `**/*.md`,
-`**/.ruff_cache`, `reconstruction/out` and `reconstruction/data`: no script reads a markdown file
-out of the code tree at runtime (every product WRITES its README to the volume), so keeping the
-docs out of the image means a README or SMOKES edit no longer invalidates it or races a
+`**/.ruff_cache`, and the legacy `reconstruction/out` / `reconstruction/data` (readers now default
+their mirror and output outside `paper-evals/` via `precompute.common.mirror_dir` / `out_dir`, but
+`_IGNORE` still covers the old paths for a run that overrides back onto them): no script reads a
+markdown file out of the code tree at runtime (every product WRITES its README to the volume), so
+keeping the docs out of the image means a README or SMOKES edit no longer invalidates it or races a
 concurrent build.
 
 Local unit smoke, no GPU and no weights:
@@ -1241,9 +1243,11 @@ uv run paper-evals/results/selftest.py        # no volume, no network
 
 ### `reconstruction/stats.py` — the tables
 
-Local, CPU, no GPU: it fetches only the small files off the volume into `reconstruction/data/`
-(gitignored) and writes markdown + CSV into `reconstruction/out/` (gitignored). `best_act.f16` is
-never fetched. Nine tables — the best-of-k curve with the UNBIASED order-statistic estimator, the
+Local, CPU, no GPU: it fetches only the small files off the volume into the mirror
+(`mirror_dir`, default `$XDG_CACHE_HOME/maemm-paper-evals/mirror/`; the old `reconstruction/data/`
+is legacy) and writes markdown + CSV into `out_dir("reconstruction")` (default
+`<repo>/_out/reconstruction`, beside `paper-evals/`; the old `reconstruction/out/` is legacy).
+`best_act.f16` is never fetched. Nine tables — the best-of-k curve with the UNBIASED order-statistic estimator, the
 bo-sensitivity ranking, the paired MAEMM comparison per SAE density stratum, the corpus-scan
 baseline and its quantiles, the SAE-repo column, the GCG ceiling, the argmax-position histogram, the
 centred/filtered secondaries and the sae-family distribution. `reconstruction/README.md` has what
@@ -1426,7 +1430,8 @@ missing control is an inverter trained on the domain, which this evaluation does
 ### `reconstruction/stats_ood.py` (CPU, local)
 
 `tables` writes `ood_arms.csv`, `ood_per_target.csv`, `ood_strata.csv`, `ood_examples.md` into
-`reconstruction/out/<root-tag>/ood/`. Per arm: the paired Δ with a 10,000-resample percentile
+`out_dir("reconstruction")/<root-tag>/ood/` (default `<repo>/_out/reconstruction/<root-tag>/ood/`;
+the old `reconstruction/out/<root-tag>/ood/` is legacy). Per arm: the paired Δ with a 10,000-resample percentile
 bootstrap over targets, the three-state outcome (`exceeds` / `inconclusive` / `reversed`, review R9),
 win fractions, the four comparisons of design §6 and MAEMM vs control; R4 chance levels; R3 fastText
 **lid218e** (`facebook/fasttext-language-identification`, sha256 `8ded5749…`, commit `3af127d4`;

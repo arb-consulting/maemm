@@ -26,9 +26,12 @@ uv run paper-evals/results/selftest.py            # no volume, no network, both 
 
 `--sources <substrings>` keeps a subset of the arms, `--root <prefix>` reads a smoke root
 (`tmp/sae-smoke64`), `--no-fetch` answers everything from the mirror, `--out <dir>` moves the
-output, which defaults to `results/out/faithfulness/`. `data/` (the mirror) and `out/` are
-gitignored — both are reproducible from the volume, and an `--out` outside `out/` is not
-ignored, so keep ad-hoc runs under it.
+output, which defaults to `precompute.common.out_dir("faithfulness")` (`$MAEMM_OUT/faithfulness`,
+else `<repo>/_out/faithfulness`, beside `paper-evals/`). The mirror likewise defaults to
+`precompute.common.mirror_dir(...)` (`$MAEMM_MIRROR/<root>`, else
+`$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>`) — the old `results/data/` and `results/out/`
+are legacy and no longer written by default, since Modal mounts the whole `paper-evals/` tree
+into every image build and a write there mid-build kills the launch.
 
 ## The design commitments
 
