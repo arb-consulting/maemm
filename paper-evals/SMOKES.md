@@ -4415,3 +4415,369 @@ maths arms are **"unseen"**, not merely under-represented; the earlier file-orde
 `3af127d4124fc58b75666f3594bb5143b9757e78`), chosen because its FLORES-200 labels are our arm ids.
 MEASURED on fasttext 0.9.3: its python `predict` wrapper ends in `np.array(probs, copy=False)`,
 which numpy ≥ 2 refuses, so `lid_label` calls the C++ `model.f.predict` directly.
+
+## 2026-09-21 — branch `evals/pipeline-ood`: the generalisation eval at 1/4 scale
+
+The OOD eval (`infra/2026-09-18_ood-eval-design.md`) rebased onto the new pipeline and run at a
+quarter of the design's size (Tomáš 2026-09-21: "OOD = 1/4 of the design's size"). Everything
+wrote under a NEW set name and new scan keys; nothing on the volume was deleted, replaced or
+rewritten, and `--force` was never passed. `--product unit` inside the image (53/53) and
+`--product check` both ran green before the first launch.
+
+### Scale, and what "a quarter" means here
+
+| axis | design | here | why |
+|---|---|---|---|
+| targets per arm | 64 | **16** | an exact PREFIX of the design's draw, verified below |
+| arms | 23 | **23**, all of them | scan cost is per corpus token, so it is flat in n |
+| in-domain corpus search | 4M | **1M** (the nested prefix) | the design's size scaled to 1/4 tokens |
+| English cross-domain scan | 16M | **4M** (nested prefix) | the same 1/4 |
+| checkpoints | old primary + control | **+ `rl-last16`** | eval plan §4.4, both generations |
+| R2 16M in-domain corpora | 4 arms | **not run** | does not fit the stage cap at this scale |
+| R5 `_unitend` variant | 16 arms | **not run** | a stratum, not the headline (design §3) |
+
+**The 16 targets are the design's first 16, not a new draw.** `corpus.POOL_N` is 320 regardless of
+n, and `targets._ood_arm_draw` draws `p` and `L` for all 320 pool rows from `arm_rng(arm, seed)`
+BEFORE selecting any, then takes the first n survivors of the raw-norm filter in pool order.
+Verified against the 2026-09-18 pilot on the three arms both sets carry, comparing
+`(pool_i, p, L, id)` row by row:
+
+```
+python       q1 n=16  prefix of pilot n=64  -> IDENTICAL
+tha_Thai     q1 n=16  prefix of pilot n=64  -> IDENTICAL
+ufw_en       q1 n=16  prefix of pilot n=64  -> IDENTICAL
+```
+
+So this also confirms plan §4.3.2's re-draw-don't-migrate: the raw-storage re-draw reproduces the
+pilot's draw exactly, under `storage: raw` instead of a direction with the mean baked in.
+
+### THE CENTRING, which is the one thing to read before the numbers
+
+A scan scores corpus windows against the TARGET DIRECTION, so a Δ is only a margin when both
+sides use the same one. The two checkpoints do not:
+
+```
+cos(mu_512,   whiten_mu) = 0.999937      <- what the 0.999897 on record is about
+cos(mu_512,   stats_mu)  = 0.977348
+cos(stats_mu, whiten_mu) = 0.977292
+```
+
+The 0.999897 recorded in `config.yaml` (`maemms.<rl-last16>.mu`) and at SMOKES 2026-09-16 compares
+`mu_512` -- `targets.py`'s per-draw diagnostic mean -- with `whiten_mu`. It says nothing about
+`stats/mu.f32`, the 16M-corpus token mean, which differs from BOTH at 0.977. On this set's own 368
+targets that puts `unit(act - stats_mu)` and `unit(act - whiten_mu)` a **median cos 0.969 apart**
+(min 0.943, p01 0.946) -- the same order as the effects being measured.
+
+So the 23 arm corpora are scanned TWICE, once per mean, keyed by `--run-tag`:
+`scan/<set>__<corpus>__1m` at `stats/mu.f32` (the old primary and the control) and
+`…__1m__mu-whiten` at `whiten_mu` (`rl-last16`). `results/ood.py` reads each scan's own recorded
+mean from its README and differences every source against the scan at ITS mean.
+
+### The cosine convention, and the third column added for it
+
+`scan` scores a corpus window as `normalize(h) @ unit(act - mu)`: the corpus activation UNCENTRED
+against a CENTRED target. That is the paper's convention and it is unchanged here -- the English
+reference recomputed from `scan/2026-09-16_v1/topk.jsonl` reproduces design §11 R1 to the digit:
+
+| size (M) | n | top1 (all) | top1 (no own doc) | margin vs bo64 0.569 | own doc IS top-1 |
+|---|---|---|---|---|---|
+| 1 | 512 | 0.3216 | **0.3137** | **+0.2553** | 38 |
+| 2 | 512 | 0.3433 | 0.3315 | +0.2375 | 66 |
+| 4 | 512 | 0.3706 | **0.3511** | **+0.2179** | **114** |
+| 8 | 512 | 0.3997 | 0.3672 | +0.2018 | 209 |
+| 16 | 512 | 0.4105 | **0.3851** | **+0.1839** | 168 |
+
+(design §11 R1: "corpus top-1 0.314 / 0.351 / 0.385 at 1/4/16M, margins +0.256 / +0.218 / +0.184",
+"top-1 on 114/512 targets at 4M". An independent check of the whole reader path.)
+
+`score` on this branch emitted only two SYMMETRIC cosines -- `cos` = cos(h, unit(act)) and
+`cos_centred` = cos(h - mu, unit(act - mu)) -- and neither is `cos(h, unit(act - mu))`. The legacy
+path produced that one for free, because a `storage: unit` set's stored rows ARE unit(act - mu) and
+`dirs` was therefore already the centred target; the raw-storage migration lost it. Differencing
+`cos_centred` against the scan mixed a doubly-centred MAEMM cosine with a singly-centred corpus
+one: the SIGN survives that, the MAGNITUDE does not, which is why a first pass read bo64 0.86 on
+`arb_Arab` where the 2026-09-18 pilot read 0.5514 on `ufw_en`.
+
+**Decision (Tomáš, 2026-09-21): option 1.** `score` gained a third column, `cos_asym` =
+`cos(h, unit(act - mu))`, with its own argmax, `mean/max_cos_asym`, `n_asym` and `bo_a_<k>`;
+gated on `dirs_centred`, so an uncentred run is byte-identical to before. The OOD scores were
+re-run under `--score-tag asym` (the scans were NOT touched), and the arms table's Δ is that
+column on both sides. The symmetric cosines stay in the CSV.
+
+**Left open, for the full-scale run:** the paper-consistent alternative is a scan that centres its
+corpus activations too, making both sides `cos_centred` -- the pipeline's headline convention.
+That invalidates the frozen English reference above (it is stated in the asymmetric convention),
+so it is a separate decision for Tomáš and was not taken here.
+
+### `--score-tag`, and why not `--run-tag`
+
+`cos_asym` is a new column, so the OOD scores had to be re-run without overwriting the first
+results. `--run-tag` cannot do that: it selects a different rollouts FILE, and using it for a
+re-score sends `score` looking for `<set>__vllm__<tag>.jsonl` (which is how an earlier mu-stats
+arm failed tonight, $0). `--score-tag` names only the output directory,
+`scores/<set>[__<engine>][__<tag>]`, engine before tag so `parse_scores_dir` still reads the
+engine back.
+### Commands, in order
+
+Launcher: `scratchpad/ood/{go,step,chain}.sh`, the eval-1 retry-outside-the-client pattern
+(SMOKES 2026-09-21 "Sunk cost"). Self-tested first with `--product nosuchproduct`: one attempt,
+loud stop, no container. Every launch is `modal run --detach` under `setsid`, retried in bash only
+on a client network drop, never on "already exists".
+
+```
+# gates, before anything paid
+uv run paper-evals/precompute/unit_smoke.py                      # 56/56 (43 at the branch point)
+uv run paper-evals/results/selftest.py                           # 13/13
+uv run paper-evals/reconstruction/stats_ood.py selfcheck         # 4/4
+--product unit                                                   # 53/53 in the image, $0
+--product check --base qwen36-27b                                # $0
+--product ood_selfcheck --base qwen36-27b --stages readers,covariates   # 23/23 arms, CPU, $0
+
+# corpora: 20 new arms (python, tha_Thai, ufw_en already on the volume from the 09-18 pilot)
+--product corpus --base qwen36-27b --set 2026-09-21_ood_q1 --arm <arm>        # CPU, $0 each
+
+# the set, and the base's predictability covariate
+--product targets --base qwen36-27b --set 2026-09-21_ood_q1
+--product nll     --base qwen36-27b --set 2026-09-21_ood_q1
+
+# the in-domain search, 1M per arm, four calls + the English 4M cross-domain row.
+# TWO PASSES, one per centring mean, keyed by --run-tag (see the centring section above).
+--product scan --base qwen36-27b --set 2026-09-21_ood_q1 --corpus ood_<a>,... --max-size 1 \
+    --mu 'base/{base}/stats/mu.f32' --with-set 2026-09-16_v1:realact+random
+--product scan ... --corpus heldout16m --max-size 4 --mu 'base/{base}/stats/mu.f32' --with-set ...
+--product scan ... --corpus ood_<a>,... --max-size 1 \
+    --mu /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy --run-tag mu-whiten   # NO --with-set
+--product scan ... --corpus heldout16m --max-size 4 --mu <whiten> --run-tag mu-whiten
+
+# rollouts and scores, sequential per MAEMM (rollouts/ is an accumulating directory)
+--product rollouts_vllm --maemm <ckpt> --set 2026-09-21_ood_q1 --n 64 --max-num-seqs 256
+--product score --maemm <ckpt> --set 2026-09-21_ood_q1 --engine vllm
+--product score --maemm <ckpt> --set 2026-09-21_ood_q1 --engine vllm --score-tag asym   # cos_asym
+
+# the tables, local, CPU, $0 -- reads only, no volume write
+uv run --with fasttext --with huggingface-hub paper-evals/results/ood.py --set 2026-09-21_ood_q1
+```
+
+The base control takes `--mu 'base/{base}/stats/mu.f32' --run-tag mu-stats` explicitly. Its
+config `mu:` is `null` under a comment saying it takes the primary's convention -- and the primary
+was settled at `stats/mu.f32` on 2026-09-21, so the value and its own stated rationale disagree.
+Passing it explicitly makes the choice a recorded DEVIATION in the product README instead of a
+default nobody chose. **Flagged for Tomáš, not resolved here.**
+
+### Products written (nothing deleted, replaced or rewritten; `--force` never passed)
+
+```
+base/qwen36-27b/corpora/<arm>/                     23 arms (20 new), tokens.i32 + pool_windows.i32
+base/qwen36-27b/heldout/2026-09-21_ood_q1/         368 rows, storage: raw (act.f32 + unit(act))
+base/qwen36-27b/nll/2026-09-21_ood_q1/
+base/qwen36-27b/scan/2026-09-21_ood_q1__<arm>__1m/             the stats_mu pass
+base/qwen36-27b/scan/2026-09-21_ood_q1__<arm>__1m__mu-whiten/  the whiten_mu pass
+base/qwen36-27b/scan/2026-09-21_ood_q1__corpus__4m[__mu-whiten]/   English cross-domain
+maemms/qwen36-27b/<ckpt>/rollouts/2026-09-21_ood_q1__vllm[__mu-stats].jsonl
+maemms/qwen36-27b/<ckpt>/scores/2026-09-21_ood_q1__vllm[__mu-stats][__asym]/
+```
+
+### Deviations from the design, all deliberate
+
+| # | deviation | why |
+|---|---|---|
+| 1 | in-domain search at **1M**, not the pre-registered 4M | the design's size scaled to 1/4 tokens; 23 arms at 4M is ~$42 of scan alone |
+| 2 | the claim is read at 1M against the **1M** English reference (+0.2553) | a smaller corpus is an EASIER baseline, so "exceeds" at 1M is WEAKER evidence than at 4M -- stated, not glossed |
+| 3 | R2's 16M in-domain corpora | not run; does not fit the cap at this scale |
+| 4 | R5's `_unitend` variant set | not run; a stratum, not the headline |
+| 5 | Δ on `cos_asym`, not the pipeline's `cos_centred` headline | the only convention both sides share; see above |
+| 6 | the whiten_mu pass carries no `--with-set` bank | `dirs_for` refuses a stored-unit set under another mean; the random floor is mu-independent anyway |
+### `cos_asym` validated against the 2026-09-18 pilot
+
+The pilot scored the OLD PRIMARY on the old pipeline, whose single cosine was the asymmetric one.
+Its arms are the same arms, and this run's 16 targets are the first 16 of its 64, so the means are
+directly comparable up to subsampling:
+
+| arm | this run, `bo_a_64`, n=16 | pilot, n=64 | diff |
+|---|---|---|---|
+| `ufw_en` | 0.5592 | 0.5514 | +0.0078 |
+| `python` | 0.3584 | 0.3859 | −0.0275 |
+| `tha_Thai` | 0.3900 | 0.3801 | +0.0099 |
+
+All within ~0.03, which is the SE of a 16-target mean at the per-target sd of ~0.15. The three
+cosines on the same 368 rows are plainly different objects (rl-last16): `bo_64` median 0.9109,
+`bo_c_64` 0.8180, `bo_a_64` 0.4583 (min −0.0303 — an uncentred activation CAN point away from a
+centred target, which the doubly-centred cosine almost never does). So the first pass's 0.86 was
+the wrong cosine, not a result.
+
+
+### Language identity of the output (review R3) — and a retraction
+
+A first pass of this column read **rollout k = 0** (the first sampled draw at T = 1.0, an
+arbitrary one of 64) rather than the top-1 by score, used a want-list that omits the label
+lid218e actually returns for Chinese, and applied `code_like` — calibrated for R7's 512-token
+windows — to ≤ 64-token rollouts. On those numbers this record claimed "the margin is real and
+the content often is not what the arm is about". **That claim is withdrawn**; it was three
+instrument defects, found by an independent read-only check
+(`infra/2026-09-22_ood-lid-check.md`) and not by me.
+
+Corrected, each rate beside the classifier's CEILING on that arm's own corpus top-1 windows —
+text that is in the arm's language by construction, so the ceiling is a property of the
+classifier, not of the MAEMM:
+
+| arm | lid @ top-1 by score | ceiling | (k=0, the withdrawn number) |
+|---|---|---|---|
+| `ufw_zh` | 1.000 | 0.86 | 0.188 |
+| `cmn_Hani` | 0.938 | 0.97 | 0.125 |
+| `hin_Deva` | 0.875 | 0.73 | 0.875 |
+| `arb_Arab` | 0.812 | 0.87 | 0.688 |
+| `ces_Latn` | 0.812 | 0.93 | 0.562 |
+| `ell_Grek` | 0.750 | 0.87 | 0.500 |
+| `rus_Cyrl` | 0.688 | 0.86 | 0.625 |
+| `tha_Thai` | 0.688 | 0.84 | 0.625 |
+| `jpn_Jpan` | 0.562 | 0.66 | 0.062 |
+
+The best-of-64 rollout is in the arm's own language on 0.56–1.00 of targets, at or near each
+arm's ceiling. **`generalises to`, not `transfers to`**, is the wording this supports (R3/R9).
+At n = 16 each rate carries a standard error of about ±0.12.
+
+`code_like` on the code and maths arms is reported **n/m**: its ceiling on those arms' own corpus
+windows is 0.01–0.26, so the predicate barely fires on genuine code and the rollout rate is
+uninterpretable either way. The design's §5 script-of-the-output measure, which has a ceiling of
+1.000 on every arm, is the better instrument and is **not implemented here** — flagged for the
+full-scale run.
+
+**Ceiling discrepancy, unresolved:** my ceilings run 0.07–0.16 below the independent check's on
+six lang arms (e.g. `tha_Thai` 0.84 vs 1.000, `rus_Cyrl` 0.86 vs 1.000) although the rollout
+rates agree to the digit on all nine. Both decode the top-1 window from `corpora/<arm>/tokens.i32`
+at the `topk.jsonl` doc/start; I have not found the difference. The rollout rates are the reported
+numbers and they are reproduced exactly; the ceilings are a diagnostic and should be read as
+approximate until this is settled.
+
+### Results — the arms table
+
+Δ = MAEMM best-of-64 minus the in-domain corpus search's top-1 at **1M tokens**, paired per
+target, both sides in the asymmetric cosine; 10,000-resample percentile bootstrap. `lang /
+ceiling` is the fastText lid218e rate on the **top-1 rollout by score** beside that classifier's
+ceiling on the arm's own corpus windows; `n/m` = not measurable by `code_like`.
+
+**Old primary `2026-09-10_rl-8x2048-full`** (mu = `stats/mu.f32`, scans at the same mean):
+
+| arm | family | n | bo64 (asym) | corpus 1M | control bo64 | Δ | 95% CI | win | outcome | lang / ceiling |
+|---|---|---|---|---|---|---|---|---|---|---|
+| c | code | 16 | 0.4056 | 0.3002 | 0.0083 | 0.1054 | [0.053, 0.158] | 0.88 | exceeds | n/m (0.00 vs ceiling 0.14) |
+| go | code | 16 | 0.3305 | 0.2798 | -0.0133 | 0.0507 | [0.011, 0.094] | 0.69 | exceeds | n/m (0.00 vs ceiling 0.01) |
+| haskell | code | 16 | 0.3896 | 0.3256 | 0.0160 | 0.0640 | [0.017, 0.111] | 0.62 | exceeds | n/m (0.00 vs ceiling 0.10) |
+| javascript | code | 16 | 0.3332 | 0.2068 | -0.0309 | 0.1265 | [0.080, 0.180] | 0.94 | exceeds | n/m (0.06 vs ceiling 0.22) |
+| python | code | 16 | 0.3584 | 0.2124 | 0.0079 | 0.1460 | [0.053, 0.250] | 0.88 | exceeds | n/m (0.06 vs ceiling 0.07) |
+| rust | code | 16 | 0.3208 | 0.1954 | -0.0200 | 0.1254 | [0.069, 0.180] | 0.88 | exceeds | n/m (0.00 vs ceiling 0.26) |
+| shell | code | 16 | 0.4018 | 0.2731 | 0.0220 | 0.1287 | [0.075, 0.192] | 0.88 | exceeds | n/m (0.00 vs ceiling 0.02) |
+| sql | code | 16 | 0.3482 | 0.3299 | 0.0221 | 0.0183 | [-0.021, 0.060] | 0.62 | inconclusive | n/m (0.00 vs ceiling 0.01) |
+| ufw_en | ctrl | 16 | 0.5592 | 0.3022 | 0.1206 | 0.2569 | [0.210, 0.313] | 1.00 | exceeds | 1.000 / 0.83 |
+| ufw_zh | ctrl | 16 | 0.5713 | 0.3567 | 0.1553 | 0.2147 | [0.168, 0.266] | 1.00 | exceeds | 1.000 / 0.86 |
+| formulas | diag | 16 | 0.3609 | 0.3258 | 0.0294 | 0.0351 | [-0.003, 0.074] | 0.81 | inconclusive | n/m (0.00 vs ceiling 0.00) |
+| arb_Arab | lang | 16 | 0.5043 | 0.3306 | 0.0799 | 0.1737 | [0.133, 0.214] | 1.00 | exceeds | 0.812 / 0.87 |
+| ces_Latn | lang | 16 | 0.4532 | 0.3027 | 0.0425 | 0.1505 | [0.104, 0.197] | 0.94 | exceeds | 0.812 / 0.93 |
+| cmn_Hani | lang | 16 | 0.5215 | 0.3516 | 0.1082 | 0.1699 | [0.121, 0.217] | 0.94 | exceeds | 0.938 / 0.97 |
+| ell_Grek | lang | 16 | 0.3900 | 0.2543 | -0.0360 | 0.1357 | [0.096, 0.180] | 1.00 | exceeds | 0.750 / 0.87 |
+| hin_Deva | lang | 16 | 0.3374 | 0.2927 | -0.0185 | 0.0447 | [0.006, 0.080] | 0.81 | exceeds | 0.875 / 0.73 |
+| jpn_Jpan | lang | 16 | 0.5307 | 0.3810 | 0.1305 | 0.1497 | [0.103, 0.191] | 0.94 | exceeds | 0.562 / 0.66 |
+| rus_Cyrl | lang | 16 | 0.5243 | 0.3022 | 0.0897 | 0.2220 | [0.179, 0.267] | 1.00 | exceeds | 0.688 / 0.86 |
+| tha_Thai | lang | 16 | 0.3900 | 0.3539 | 0.0125 | 0.0361 | [-0.019, 0.099] | 0.62 | inconclusive | 0.688 / 0.84 |
+| arxiv | math | 16 | 0.5287 | 0.3298 | 0.1132 | 0.1989 | [0.146, 0.254] | 1.00 | exceeds | n/m (0.00 vs ceiling 0.00) |
+| isabelle | math | 16 | 0.3429 | 0.3771 | 0.0000 | -0.0342 | [-0.069, 0.002] | 0.31 | inconclusive | n/m (0.00 vs ceiling 0.03) |
+| lean | math | 16 | 0.3832 | 0.3526 | -0.0034 | 0.0306 | [-0.022, 0.092] | 0.56 | inconclusive | n/m (0.00 vs ceiling 0.07) |
+| owm | math | 16 | 0.4731 | 0.2739 | 0.0801 | 0.1992 | [0.144, 0.254] | 1.00 | exceeds | 1.000 / 0.82 |
+
+**`rl-last16` `2026-09-18_rl-last16-lr5e-7`** (mu = `whiten_mu`, scans at the same mean):
+
+| arm | family | n | bo64 (asym) | corpus 1M | control bo64 | Δ | 95% CI | win | outcome | lang / ceiling |
+|---|---|---|---|---|---|---|---|---|---|---|
+| c | code | 16 | 0.4311 | 0.3198 | 0.0083 | 0.1113 | [0.056, 0.168] | 0.81 | exceeds | n/m (0.00 vs ceiling 0.14) |
+| go | code | 16 | 0.3705 | 0.2987 | -0.0133 | 0.0718 | [0.030, 0.118] | 0.69 | exceeds | n/m (0.00 vs ceiling 0.01) |
+| haskell | code | 16 | 0.4165 | 0.3444 | 0.0160 | 0.0721 | [0.026, 0.119] | 0.75 | exceeds | n/m (0.00 vs ceiling 0.10) |
+| javascript | code | 16 | 0.3574 | 0.2321 | -0.0309 | 0.1253 | [0.068, 0.187] | 0.81 | exceeds | n/m (0.12 vs ceiling 0.22) |
+| python | code | 16 | 0.3908 | 0.2333 | 0.0079 | 0.1576 | [0.075, 0.250] | 0.81 | exceeds | n/m (0.12 vs ceiling 0.07) |
+| rust | code | 16 | 0.3314 | 0.2244 | -0.0200 | 0.1070 | [0.049, 0.165] | 0.81 | exceeds | n/m (0.06 vs ceiling 0.26) |
+| shell | code | 16 | 0.4458 | 0.2979 | 0.0220 | 0.1479 | [0.099, 0.204] | 1.00 | exceeds | n/m (0.00 vs ceiling 0.02) |
+| sql | code | 16 | 0.3743 | 0.3558 | 0.0221 | 0.0186 | [-0.017, 0.055] | 0.56 | inconclusive | n/m (0.00 vs ceiling 0.01) |
+| ufw_en | ctrl | 16 | 0.5635 | 0.3236 | 0.1206 | 0.2398 | [0.194, 0.293] | 1.00 | exceeds | 1.000 / 0.83 |
+| ufw_zh | ctrl | 16 | 0.5827 | 0.3775 | 0.1553 | 0.2052 | [0.155, 0.264] | 1.00 | exceeds | 0.750 / 0.86 |
+| formulas | diag | 16 | 0.3830 | 0.3517 | 0.0294 | 0.0313 | [0.000, 0.061] | 0.81 | exceeds | n/m (0.00 vs ceiling 0.00) |
+| arb_Arab | lang | 16 | 0.5085 | 0.3501 | 0.0799 | 0.1584 | [0.114, 0.199] | 0.94 | exceeds | 0.625 / 0.87 |
+| ces_Latn | lang | 16 | 0.4598 | 0.3300 | 0.0425 | 0.1298 | [0.076, 0.181] | 0.88 | exceeds | 0.500 / 0.93 |
+| cmn_Hani | lang | 16 | 0.5526 | 0.3776 | 0.1082 | 0.1750 | [0.125, 0.222] | 0.94 | exceeds | 0.875 / 0.97 |
+| ell_Grek | lang | 16 | 0.4164 | 0.2827 | -0.0360 | 0.1338 | [0.087, 0.185] | 0.94 | exceeds | 0.500 / 0.87 |
+| hin_Deva | lang | 16 | 0.3592 | 0.3225 | -0.0185 | 0.0367 | [0.000, 0.071] | 0.75 | exceeds | 0.688 / 0.73 |
+| jpn_Jpan | lang | 16 | 0.5678 | 0.4019 | 0.1305 | 0.1658 | [0.133, 0.199] | 1.00 | exceeds | 0.625 / 0.66 |
+| rus_Cyrl | lang | 16 | 0.5582 | 0.3270 | 0.0897 | 0.2312 | [0.190, 0.273] | 1.00 | exceeds | 0.688 / 0.86 |
+| tha_Thai | lang | 16 | 0.3975 | 0.3775 | 0.0125 | 0.0200 | [-0.028, 0.076] | 0.50 | inconclusive | 0.688 / 0.84 |
+| arxiv | math | 16 | 0.5461 | 0.3638 | 0.1132 | 0.1822 | [0.122, 0.240] | 0.94 | exceeds | n/m (0.00 vs ceiling 0.00) |
+| isabelle | math | 16 | 0.3606 | 0.4006 | 0.0000 | -0.0401 | [-0.067, -0.014] | 0.25 | reversed | n/m (0.00 vs ceiling 0.03) |
+| lean | math | 16 | 0.4029 | 0.3739 | -0.0034 | 0.0290 | [-0.024, 0.094] | 0.50 | inconclusive | n/m (0.06 vs ceiling 0.07) |
+| owm | math | 16 | 0.4931 | 0.2966 | 0.0801 | 0.1965 | [0.144, 0.248] | 1.00 | exceeds | 1.000 / 0.82 |
+
+### The pre-registered claim, at this scale
+
+Design §0 level 1: *on every arm, the best of 64 MAEMM rollouts aligns with the target more
+closely than the best window of an in-domain corpus search in the target's own domain.* Over the
+21 arms of the conjunction (§6: lang 8, code 8, math 4, `ufw_zh`; `formulas` and the §8(a)
+English check `ufw_en` are reported as rows but not counted):
+
+| checkpoint | verdict | not exceeding |
+|---|---|---|
+| old primary | **17 of 21 arms exceed** | `sql`, `tha_Thai`, `isabelle`, `lean` — all inconclusive |
+| `rl-last16` | **17 of 21 arms exceed** | `sql`, `tha_Thai`, `lean` inconclusive; **`isabelle` REVERSED** ([−0.067, −0.014]) |
+
+`isabelle` on `rl-last16` is the only arm on either checkpoint whose CI lies entirely below zero:
+the in-domain corpus search beats the MAEMM, 0.4006 against 0.3606. It is also the arm with the
+highest verbatim-span rate in its own corpus (8/16 targets, from the `targets` report), so the
+corpus search has an unusually easy job there. Reported, not explained.
+
+**Read at 1M the claim is WEAKER than the design asks.** The pre-registration is at 4M, and a
+smaller corpus is an easier baseline: the English reference margin is +0.2553 at 1M against
++0.2179 at 4M. "Exceeds at 1M" does not imply "exceeds at 4M", and the inconclusive arms would be
+expected to look worse at 4M, not better.
+
+### §8(a) pipeline check — passes, and closely
+
+`ufw_en` is a fresh English draw through the NEW code path, from a part disjoint from the 16M
+corpus. The design's criterion is bo64 within 0.04 of 0.569 and the corpus top-1 within 0.04 of
+the like-for-like reference:
+
+| | this run (old primary, 1M) | reference | diff |
+|---|---|---|---|
+| bo64 | 0.5592 | 0.569 (paper, design §0) | −0.0098 |
+| corpus top-1 | 0.3022 | 0.3137 (R1, 1M, no own doc) | −0.0115 |
+| margin | **+0.2569** | **+0.2553** | **+0.0016** |
+
+Both inside 0.04. The margin agreeing to 0.002 is the strongest single check in this run that the
+rebased pipeline reproduces the paper's English numbers.
+
+### Cost — every line from the product's own `[wall]`
+
+| call | product | wall | $ |
+|---|---|---|---|
+| `wscan1` | scan | 2047.8s | 2.5825 |
+| `scan3b` | scan | 2038.3s | 2.5705 |
+| `wscan3` | scan | 2030.9s | 2.5612 |
+| `scan2b` | scan | 1834.9s | 2.3140 |
+| `wscan2` | scan | 1817.3s | 2.2918 |
+| `scan1b` | scan | 1665.7s | 2.1007 |
+| `scan4b` | scan | 1659.4s | 2.0927 |
+| `wscan4` | scan | 1656.2s | 2.0886 |
+| `wscan-en` | scan | 1326.1s | 1.6724 |
+| `scan-en` | scan | 1318.9s | 1.6633 |
+| `roll-rl16` | rollouts_vllm | 1279.4s | 1.6135 |
+| `roll-old` | rollouts_vllm | 1271.2s | 1.6031 |
+| `roll-ctrl` | rollouts_vllm | 982.3s | 1.2388 |
+| `targets` | targets | 530.0s | 0.6683 |
+| `ascore-old` | score | 236.9s | 0.2987 |
+| `score-old` | score | 231.0s | 0.2913 |
+| `score-rl16` | score | 230.0s | 0.2900 |
+| `ascore-rl16` | score | 220.7s | 0.2783 |
+| `ascore-ctrl` | score | 218.5s | 0.2756 |
+| `score-ctrl` | score | 218.0s | 0.2749 |
+| `nll` | nll | 110.0s | 0.1387 |
+| **23 CPU calls** (23 `corpus`, `ood_selfcheck`, `check`, `unit`) | — | — | **0.0000** |
+| **MEASURED GPU TOTAL** | | | **28.9089** |
+
+Plus about $0.19 of GPU on four calls that raised inside the container before `_run`
+printed a cost line; bounded by client wall time, NOT measured, and listed as such.
+Stage cap $42 (raised from $30 by Tomáš to buy the second scan pass). Largest single
+call $2.5825, cap $15.

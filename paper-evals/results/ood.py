@@ -69,10 +69,12 @@ code_like = PC.code_like
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 BASE = "qwen36-27b"
-# The design's level-1 conjunction is over the 21 arms that are not `diag` and not the English
-# pipeline check (§6). `diag` (`formulas`) is a tokenizer-boundary diagnostic, reported in its own
-# row and excluded; `ufw_en` is the convention check of §8 (a) and is reported as an arm.
+# The design's level-1 conjunction is over 21 arms: "lang 8, code 8, math 4, `ufw_zh`" (§6).
+# `formulas` is the `diag` family -- a tokenizer-boundary diagnostic, reported in its own row and
+# outside the conjunction (§2) -- and `ufw_en` is the §8(a) pipeline check, reported as an arm but
+# not counted: it is English, and the claim is about the arms that are not.
 CONJUNCTION_EXCLUDES = ("diag",)
+CONJUNCTION_EXCLUDE_ARMS = ("ufw_en",)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -787,7 +789,10 @@ def main(
             header, rows_md, csv_header=csv_header, csv_rows=csv_rows,
         )
 
-        conj = [r for r in recs if r["family"] not in CONJUNCTION_EXCLUDES]
+        conj = [
+            r for r in recs
+            if r["family"] not in CONJUNCTION_EXCLUDES and r["arm"] not in CONJUNCTION_EXCLUDE_ARMS
+        ]
         n_ex = sum(1 for r in conj if r["outcome"] == "exceeds")
         named = [f"`{r['arm']}` ({r['outcome']})" for r in conj if r["outcome"] != "exceeds"]
         o.section(
@@ -798,8 +803,9 @@ def main(
                     f"Level 1, design §0: *on every arm, the best of 64 MAEMM rollouts aligns with "
                     f"the target more closely than the best window of an in-domain corpus search "
                     f"in the target's own domain.* Read at **{size_m:g}M** corpus tokens, over the "
-                    f"{len(conj)} arms of the conjunction (`{'`, `'.join(CONJUNCTION_EXCLUDES)}` "
-                    f"excluded, design §2):",
+                    f"{len(conj)} arms of the conjunction (design §6: lang 8, code 8, math 4, "
+                    f"`ufw_zh`; the `diag` arm `formulas` and the §8(a) English pipeline check "
+                    f"`ufw_en` are reported as rows but not counted):",
                     "",
                     f"**{n_ex} of {len(conj)} arms exceed.**"
                     + ("" if not named else "  Not exceeding: " + ", ".join(named) + "."),
