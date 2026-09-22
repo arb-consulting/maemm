@@ -211,22 +211,42 @@ def _load_targets(cfg, args, notes=None):
     lo = torch.zeros(n, dtype=torch.int64)
     hi = torch.zeros(n, dtype=torch.int64)
     mask_corpus = []
+    foreign = 0
     for i, r in enumerate(rows):
         r["row"] = i  # the row index WITHIN this scan; `set` + `set_row` is the join key
-        if r["family"] == "realact":
+        if r["family"] == "realact" and all(k in r for k in ("doc", "p", "L")):
             doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
             mask_corpus.append("corpus")  # realact targets come from the base's own English corpus
+        elif r["family"] == "realact":
+            # HER realact draw (`source: hers`, the eval-1 headline block 2026-09-21_v3_realact)
+            # carries `doc` and `pos` and NO `p`/`L`, and its `doc` indexes HER v2 collection, not
+            # our `corpus/`. Masking document 10,984 of OUR corpus because her row says `doc:
+            # 10984` is the same silent error the mask-by-corpus rule (B, 2026-09-21) was written
+            # against, one axis over: the index is foreign to every corpus this product can scan.
+            # So the row is UNMASKABLE here, and the own-document exclusion for her block is the
+            # n-gram exclusion in the set's `exclusions.json` (spec 1.4), applied by the reader
+            # that drops rows -- not by this window mask. Counted and printed, never silent.
+            foreign += 1
+            mask_corpus.append("")
         else:
             # Nothing to mask. An OOD target carries `pool_i`, not `doc`: its document comes from
             # the arm's TARGET POOL, which is the rows the corpus build did not consume (design
             # §2), so it is not in that corpus -- or in any other -- and there is no window of it
             # to exclude. A `random` or `sae` row has no document at all.
-            assert "doc" not in r or r["family"] == "realact", (
+            assert "doc" not in r, (
                 f"row {i} of set {r['set']} has a `doc` field but family {r['family']!r}, so "
                 f"nobody here knows which corpus that index belongs to; give it a mask_corpus "
                 f"label rather than letting it search its own document"
             )
             mask_corpus.append("")
+    if foreign:
+        msg = (
+            f"[scan] {foreign} realact rows carry no (doc, p, L) in THIS pipeline's corpus index "
+            f"space and are UNMASKABLE: their own-document exclusion is the set's exclusions.json, "
+            f"applied downstream by dropping rows, not by this window mask"
+        )
+        print(msg, flush=True)
+        (notes if notes is not None else []).append(msg[len("[scan] "):])
     # The window side's mean, for flush(): the SAME constant the targets above were centred on, or
     # None in the legacy mode where only the target side is centred (an asymmetric cosine, which
     # is why `cos_asym` exists in `score` and why `results/ood.py` had to read it).
