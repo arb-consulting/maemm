@@ -47,6 +47,7 @@ constants and on the scoring pass, is the control; the pairing is on the `--ps-t
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -571,7 +572,22 @@ def main(
     assert set_, "--set is required"
     assert status in ("placeholder", "provisional", "final"), f"bad --status {status!r}"
     here = Path(__file__).resolve().parent
-    data_dir = Path(data) if data else here / "data" / (root.replace("/", "_") if root else "vol")
+    # THE MIRROR LIVES OUTSIDE `paper-evals/`, AND THAT IS NOT A STYLE CHOICE. Modal mounts the
+    # whole `paper-evals/` tree for every image build (`[launch] ... Created mount .../paper-evals`).
+    # A reader fetching into `results/data/` while a Modal job is building its image makes that job
+    # die with `<file> was modified during build process` -- which is exactly how this run lost the
+    # L14 scoring job on 2026-09-23, at the cost of a relaunch. SMOKES.md records the same failure
+    # on 2026-09-16 from a concurrent session editing `paper-evals/`, diagnosed there as someone
+    # else's edit; it is in fact anything that writes under the mount, a reader's own fetch cache
+    # included. The other seven readers still default inside the tree (`results/faithfulness.py`,
+    # `results/autointerp.py`, `results/ood.py`, `reconstruction/stats.py`, `stats_ood.py`,
+    # `corpus_top1_activation.py`, `autointerp/stats.py`) -- flagged to the coordinator, not fixed
+    # here, because they are M0a's and M1's files. `--data` still overrides.
+    default_mirror = (
+        Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache"))
+        / "maemm-paper-evals" / "mirror" / (root.replace("/", "_") if root else "vol")
+    )
+    data_dir = Path(data) if data else default_mirror
     outdir = Path(out) if out else here / "out" / "patchscopes"
     outdir.mkdir(parents=True, exist_ok=True)
     vol = R.Vol(root, data_dir, modal_cmd, refetch=refetch, quiet=quiet, offline=not fetch)
