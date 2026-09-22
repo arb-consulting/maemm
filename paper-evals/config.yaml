@@ -695,7 +695,6 @@ heldout:
   2026-09-23_ood_full:
     imported: true
     storage: raw
-    mu_stored: null
     seed: 20260918          # the design's seed, unchanged
     kind: ood
     n_per_arm: 512
