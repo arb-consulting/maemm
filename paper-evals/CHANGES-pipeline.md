@@ -482,3 +482,126 @@ to close when H7 is done, not before.
   an SAE set is wanted.
 * H7 unchanged: the geometry is still not threaded, and `--corpus-name train_parity_10m` still
   refuses.
+
+---
+
+# 2026-09-23 — M0a: the conventions layer (branch `evals/m0a-conventions`)
+
+Off `6cdd429`. This is the module every other eval module rebases onto, so the whole of it is
+things that had to mean ONE thing before eleven builders started measuring in parallel. Plan:
+`evals/2026-09-23_implementation-plan.md` §M0a; blockers 1-3, 5, 6 of the Fable review of it.
+
+## 1. The additive product write — the interlock is lifted
+
+`OutDir(keep_existing=True)` used to `copytree` the whole accumulating product directory into
+`<name>.tmp-<date>`, then `rmtree` the original and rename the temp over it. The temp name carried
+only the date, so **two concurrent runs of one MAEMM shared one staging directory and the later
+rename silently discarded the earlier file** — `SMOKES.md:4349-4356` records exactly that. Now:
+
+* `__enter__` creates the product directory if it is missing and stages this run's files in a temp
+  unique to the process (pid + random, and still spelled `.tmp-` so the listings that filter on
+  that substring are unaffected). Nothing that exists is read for correctness, copied or removed.
+* `__exit__` moves **only this run's own files** in, one `os.replace` each, then merges its entries
+  into `index.json` and rewrites `README.md`, both through a temp-and-replace, under a short-lived
+  `.index.lock` dotfile that is gone again before the call returns.
+
+The committed directory is byte-identical to what the old path produced for a single writer: same
+files, same index mapping, same README layout. **A serial chain of rollouts running on `6cdd429`
+is therefore scored by this code unchanged.** `rollouts_vllm` and `rollouts_nla` now pass
+`keep_existing` unconditionally for the shared `rollouts/` directory; gating it on the directory
+already existing left the FIRST two concurrent writers on the old rename path.
+
+`--rows` chunks of one product under one `--run-tag` write `<stem>__rows<spec>.jsonl` side by side
+in that one directory (`common.rollout_chunk_stem`), and `common.read_rollouts` concatenates them
+into a single product for `score`, so nothing downstream — `scores/`,
+`results.common.discover_sources`, either OOD reader — learns the generation was chunked. A
+whole-set file beside chunks of the same stem is a refusal; so are overlapping chunks and chunks
+whose summaries disagree on the experiment. A run over the whole set keeps its historical path.
+
+## 2. One scoring constant
+
+`common.score_mu(cfg, base)` reads `bases.<base>.whiten_mu` — a key that already existed — and is
+the mean **both** arguments of every centred cosine are taken about, in every product. It is
+**decoupled from each MAEMM's `mu:`**, which stays the injection convention. Before, the reported
+statistic's mean was the run's injection convention, so the old primary (`mu: null`), the base
+control and the NLA arm had no centred cosine at all and no two arms could be differenced: a
+difference of two cosines about two different means is not a difference.
+
+* `score` no longer threads `mu_for` into the centred arm and **refuses `--mu`**. A set that is
+  not `storage: raw` is NaN there (no `act.f32`, no centred direction at any mean) — the honest
+  answer, not a defect.
+* `scan --centre` takes both sides about the same constant: one broadcast subtract per flush on
+  the window side, `dirs_for` at the same mean on the target side. It refuses `--mu`, requires
+  `--run-tag` (a centred and an uncentred scan of one (set, corpus) are separated by that tag
+  alone) and requires every target set to be `storage: raw`. The product README states its mode.
+* `sae_self` stays uncentred and the reason is its own: its metrics are activations, not cosines.
+* Config: the base control `2026-09-16_base-control` declares the 27B whiten_mu path instead of
+  `mu: null`, so a control run is no longer a recorded DEVIATION and panel a row 7 differences two
+  arms under one mean.
+
+## 3. One best-of-k estimator
+
+The unbiased order statistic, `sum_i x_(i) C(i-1, k-1) / C(n, k)` over all n draws, replaces the
+disjoint-group mean everywhere: `results.common.bo_unbiased` / `bo_ladder` for the results layer,
+`precompute.common.bo_ladder` for what the Modal container ships. The two layers cannot import
+each other, so that duplicate is deliberate and is held to one number by
+`results/selftest.check_one_bo_estimator`. **A `bo_<k>` written before 2026-09-23 is the other
+estimator and is a different number at every k < n.**
+
+The **fired indicator** is the same estimator applied to the 0/1 gate crossings: for a 0/1 vector
+the unbiased best-of-k is `1 - C(n-m, k)/C(n, k)`, which is P(at least one of k draws fires). So
+`item_fired` is its k = 1 cell and `fired_any` its k = n cell — the two names that existed keep
+their meaning — and the ladder in between is what panel b's `sae.l131k.ex.fired.bo8.q<q>` keys
+print. It reaches the sanity registry as `fired.bo<k>`.
+
+## 4. Deleted, not parked
+
+* `--re-derive` entire: `_re_derive_check` and its constants, the guard block in `targets.run`,
+  the flag in `modal_app` and `features/spawn.py`.
+* `mu_stored` / `family_mu` entire: the config keys (22 lines over 13 `heldout:` entries), their
+  validation, `mu_of_family`, the third branch of `mu_for`, and the mismatch assert and
+  `unknown`-labelling in `dirs_for`'s unit branch. A stored unit direction cannot be moved to
+  another mean without `||act||`, so the layer could only ever refuse; what replaces it is that
+  such a set is served exactly as shipped and has no centred cosine. An old `storage.json` on the
+  volume that still carries the fields is read, not refused; a config entry that declares one is
+  refused with the reason.
+* `results/sanity.yaml`: 37 checks over four sections down to 5. Everything pinned to a dated run
+  of this pipeline is gone, for two independent reasons: those numbers were measured under the old
+  centring and the old bo-k, so a green gate against them would mean the change did not land; and
+  the schema can express a NUMBER and nothing else, so "the structural gates stay" never meant
+  "keep part of this file" — the structural checks are in `precompute/unit_smoke.py`,
+  `results/selftest.py` and `results.faithfulness.cosine_reader_check`, and they stay. What
+  remains is Celeste's model card, external and labelled; the two 2M fired rates are demoted to
+  `compare: false` (recorded FLAG, unresolved, one question to Celeste) and the `realact_long`
+  gate resolves `absent` until that block is re-forwarded raw.
+* The old primary's `mu-none` / `mu-stats` arms: the two-arm row-by-row figure and its selectors.
+  The `--run-tag` / `--score-tag` machinery is untouched — those are two live axes.
+* The `0.5076` item, from `sanity.yaml` and the selftest fixture; `config.yaml` records it as
+  retired rather than pending.
+
+## 5. Asserted
+
+`dirs_for` now checks, **as a post-condition on the array and reading `family_kinds` directly
+rather than through the function that computed the mask**, that a mean reached exactly the rows
+with a raw activation. The set this is for is `2026-09-21_v3_ctrl`, which mixes `random` draws and
+131k encoder columns in one `storage: raw` directory: `cos(h - mu, encoder column)` is a one-sided
+number wearing a centred number's name.
+
+## 6. `corpora.celeste-train10m`: 32/8 → 64/16
+
+Nothing was built at 32/8. The corpus product is a geometry-free token stream plus `docs.jsonl`;
+windows are cut by the scan at `SCAN_BLOCK`/`SCAN_STRIDE`, and no scan of this corpus exists — so
+the declared geometry described a cut nothing performed, and `assert_corpus_geometry` refused
+every scan of it (correctly). At 64/16 it matches `heldout16m` and the two corpora's cosines are
+comparable, which is what panel a row 3 differences. `check_corpus_axis` now holds EVERY
+configured corpus to the pipeline's geometry and keeps the refusal on a corpus built to disagree.
+
+## What other modules must know
+
+`common.best_of_k_means` → `common.bo_ladder` (and the value changes).
+`results.common.best_of_k_means` → `results.common.bo_ladder` / `bo_unbiased`.
+`common.mu_of_family` gone. `common.set_storage` returns `{storage, source}` only.
+`common.score_mu` is new and is where the centring mean comes from.
+`_load_targets` in `scan.py` returns 4 values. `score` refuses `--mu`.
+`OutDir(keep_existing=True)` is additive; `gcg` can opt into it by passing the flag (M3).
+
