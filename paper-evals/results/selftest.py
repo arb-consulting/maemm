@@ -73,8 +73,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import results.autointerp as A  # noqa: E402
 import precompute.common as PC  # noqa: E402
+import results.autointerp as A  # noqa: E402
 import results.common as R  # noqa: E402
 import results.faithfulness as F  # noqa: E402
 

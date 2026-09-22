@@ -967,3 +967,55 @@ targets recomputed independently in numpy from the same `act.f32`, on a ctrl-sha
 a `dirs_only` set; the two-sided rows still move under the mean and the one-sided ones still do
 not; and the MUTATION that declaring the dictionary family `centrable` moves the sae row out of the
 one-sided list. Run RED first by restoring the `NaN` write — it fails on the finiteness assert.
+
+---
+
+# `evals/pipeline-v3` — the integration (2026-09-23)
+
+Seven eval branches merged onto `9fb8e14` (= `evals/m0a-conventions` `e3158fa` plus a committed
+merge of `evals/m6-autointerp`), in this order, each merged, checked and committed before the next
+was touched. Nothing was pushed and no other branch or worktree was written.
+
+| # | branch | branch tip | merge commit | conflicts |
+|---|---|---|---|---|
+| 1 | `evals/m9-page` | `e3e9c63` | `b1daa55` | `CHANGES-pipeline.md` — both sections kept |
+| 2 | `evals/m2-corpus` | `29eaa8b` | `5ac9cec` | `autointerp/sae_self.py`; `modal_app.py` auto-merged WRONG (see below) |
+| 3 | `evals/m1-fidelity` | `98a769c` | `5b02163` | none |
+| 4 | `evals/m5-ood` | `8647718` | `c83dcf8` | none |
+| 5 | `evals/m8-tierb` | `ff1689d` | `41162e0` | none |
+| 6 | `evals/m7-patchscopes` | `50e281d` | `34c58c7` | none |
+| 7 | `evals/m3-discrete` | `8f24f4d` | `4cf0406` | `CHANGES-pipeline.md` — both sections kept |
+
+Then `b45edb3`, the `score.py` centred-cosine fix above, which is not any branch's.
+
+**The one silent auto-merge.** `autointerp/modal_app.py` merged cleanly and was WRONG: M2's
+`corpus_name = ""` initialiser landed above M6's `--corpus-name` parameter of the same name and
+clobbered it on every launch, and the `args` dict gained the key twice. Caught by reading the
+merged file rather than by any check. Reconciled as described in the M2 section.
+
+**Two checks went red on integration and both were resolved, not weakened:**
+
+* `precompute/unit_smoke.check_autointerp_main_forwards_every_flag` — `--corpus` reaches no
+  container. Correct: it is local-only now, and it is named so with the reason.
+* `gcg/selftest.check_the_scoring_mean_has_exactly_one_source` — M0a's `common.score_mu` exists.
+  Correct, and the resolution is in the M3 section.
+
+**Verified on the merged tree**, all offline, all green:
+
+| check | count |
+|---|---|
+| `precompute/unit_smoke.py` | 75/75 (was 71 at `9fb8e14`) |
+| `results/selftest.py` | 46/46 (was 36) |
+| `reconstruction/stats_ood.py selfcheck` | 8/8 |
+| `autointerp/selfcheck.py` | ALL CHECKS PASSED (gained `check_corpus_key`) |
+| `gcg/selftest.py` | 9/9 |
+| `results/patchscopes.py --selftest` | 8/8 |
+| `results/corpus_search.py selftest` | 26 checks, 10 mutation gates |
+| `precompute/top1_act.py` (via unit_smoke) | 10 checks, 2 mutation gates |
+
+`ruff check` over all 25 merged `.py` files passes. It did NOT before: `results/selftest.py`'s
+import block was unsorted (I001) — that is `evals/m5-ood`'s, not a merge artefact, and it is fixed
+here. `common.load_config` was walked over every product entry — 2 bases, 25 corpora (2 declared +
+23 synthesised OOD arms), 3 SAEs, 10 MAEMMs, 16 held-out sets, 11 `family_kinds` — 90 entries, every
+accessor resolving; the only skipped call is `sae_path`, which resolves an HF snapshot on the
+volume rather than a config fact.
