@@ -2858,9 +2858,13 @@ def check_ood_config():
     # 2026-09-23 (eval plan M5): every ladder carries the 1/4/10 prefix -- 10 is the full run's
     # own-domain search size and 1/4 are the nested prefixes the per-target columns read -- and
     # the four arms of review R2 that reached 16M keep it on the end.
-    assert all(s["sizes"][:3] == [1, 4, 10] for s in arms.values()), (
-        {a: s["sizes"] for a, s in arms.items() if s["sizes"][:3] != [1, 4, 10]}
+    assert all(s["sizes"][:3] == [1, 4, 10] for a, s in arms.items() if a != "shell"), (
+        {a: s["sizes"] for a, s in arms.items() if a != "shell" and s["sizes"][:3] != [1, 4, 10]}
     )
+    # `shell` is the one arm whose source cannot reach 10M: 5,639 of its 10,000 smol-xl files go
+    # into 4M, so 10M plus a 768-doc pool wants more rows than the file list has. Ruling
+    # 2026-09-23: it keeps [1, 4] and states its top size in its own row.
+    assert arms["shell"]["sizes"] == [1, 4]
     assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 10, 16]] == [
         "tha_Thai",
         "ufw_en",
