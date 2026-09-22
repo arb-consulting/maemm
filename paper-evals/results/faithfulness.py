@@ -21,8 +21,17 @@ WHAT IT BUILDS, for every (family x source x run-tag) present on the volume for 
       DOCUMENT and bootstrapped over documents. One row per source per cosine, carrying n, the
       number of rows and the number of distinct documents behind them.
 
+  cells    the `paper/numbers/cells.csv` rows of module M1 -- panel a's Exemplifier, base-control,
+      NLA, random-floor and paired cells, and panel b's per-quartile ratio and fired cells on the
+      131k and the 2M blocks. Built on every run, PRINTED on every run, and written only under
+      `--cells <path>`, in place, touching no key this module does not own. A cell that cannot be
+      built is listed with its reason and not written: the placeholder row already in the CSV says
+      "expected, not yet measured", which is true, and a zero would not be.
+
   SAE families (`sae` rows, split by the dictionary in the row's own `sae_key` and by `sae_side`)
-      median and mean of `peak / corpus_peak` -- our 16M `max_act`, never a 1B-scan peak -- at
+      median and mean of `peak / corpus peak`, the denominator chosen by `--corpus-peak` and its
+      provenance carried into every cell and caption (`stored` is our 16M `max_act`, the default;
+      `top1_act:<dir>` is M2's scan of the 10M training corpus, which spec §1.2 asks for), at
       bo1/bo8/bo64 where the rollout count allows, the fraction of draws above the learned gate
       and the fraction of features that fire at all, whole-family and per stratum. NO SAE-TARGET
       COSINE reaches a markdown table (plan §2.3): the per-row cosines go to `sae_cosines.csv`,
@@ -55,6 +64,7 @@ skipped rather than quietly passing.
 
 from __future__ import annotations
 
+import datetime
 import json
 import math
 import sys
@@ -68,6 +78,22 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import results.common as R  # noqa: E402
+
+# THE CORPUS-SEARCH COMPARATOR IS M2's, AND THIS FILE DOES NOT READ `topk.jsonl`. Panel a's
+# paired rows compare the Exemplifier against the corpus search's per-target top-1 at each nested
+# size, and that top-1 lives in `scan/<set>/topk.jsonl`. `results/corpus_search.py` (module M2) is
+# the ONE reader of that file; a second reader here would be a second answer to "what was the
+# corpus top-1 for row r", differing by whatever the two disagreed about (own-document exclusion,
+# which size line, rank-0 vs best-over-ranks) and agreeing loudly in the normal case.
+#
+# Until that module lands the import fails and every cell that needs it is SKIPPED AND LISTED by
+# `corpus_top1_missing`. It is never zero-filled: "the corpus scored 0" and "nobody ran the
+# corpus scan" are opposite findings, and a paired difference against a zero-filled comparator is
+# the Exemplifier's own number wearing a comparison's name.
+try:  # noqa: SIM105 -- the `else` branch is the provenance string, not a pass
+    import results.corpus_search as CORPUS_SEARCH  # noqa: E402
+except ImportError:
+    CORPUS_SEARCH = None
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -220,13 +246,145 @@ def cosine_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, d
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# the corpus-peak denominator, as a PARAMETER
+# ---------------------------------------------------------------------------------------------
+#
+# Panel b's quantity is a feature's peak activation on its own rollouts OVER THAT FEATURE'S OWN
+# CORPUS PEAK, and which corpus the denominator is taken on is most of what the ratio means. Until
+# 2026-09-22 there was one answer and it was wired in: `sae_self` records `corpus_peak` per feature
+# from `base/<base>/sae/<sae>/max_act.f16`, our 16M HELD-OUT scan (`autointerp/sae_self.py:494`),
+# and `sae_cells` divided by that. Spec §1.2 and §1.4 and writing plan §2 move the denominator to
+# the feature's peak on the 10M TRAINING corpus (`celeste-train10m`), which is a different number
+# on a different text, produced by a different product -- M2's `top1_act` scan -- and which does
+# not exist on the volume yet.
+#
+# So the denominator is a PARAMETER carrying a provenance string, and that string travels into
+# every ratio cell, every caption and every CSV row it reaches. A ratio whose table does not say
+# which corpus its denominator came from is unreadable a month later, and the two answers are not
+# close: the 16M held-out peak and the 10M training peak are maxima over different texts.
+#
+# ASKED FOR AND ABSENT RAISES. It does not fall back to `stored`. A ratio against the wrong
+# denominator prints as a perfectly ordinary number, is wrong by whatever the two corpora differ
+# by, and nothing downstream can tell -- which is exactly the defect this parameter exists to
+# prevent. An absent product is a stopped run; a silently substituted one is a wrong paper.
+
+CORPUS_PEAK_STORED = "stored"
+CORPUS_PEAK_TOP1 = "top1_act:"
+# What `sae_self` itself recorded, named once so the provenance string is not written twice.
+STORED_PEAK_PROVENANCE = (
+    "sae_self's own `corpus_peak` -- our 16M HELD-OUT scan's `sae/<sae>/max_act.f16` "
+    "(autointerp/sae_self.py:494), NOT the 10M training corpus the spec asks for"
+)
+
+
+class CorpusPeaks:
+    """The per-feature ratio denominator and where it came from, resolved once per run.
+
+    `of(row, stored)` answers for one feature row and returns `(peak, provenance)`. Under
+    `stored` it hands back what `sae_self` recorded, unchanged, so a run that asks for nothing
+    behaves exactly as this file did before. Under a `top1_act` source it hands back that
+    product's number for the row -- and, for a row the product does not carry, NaN plus a note in
+    `missing_rows`, so the feature drops out of the median with a count rather than quietly
+    keeping a denominator from the other corpus.
+
+    WHAT `top1_act` ACTUALLY MEASURES, and why this is flagged rather than assumed: `act_max` is
+    the pre-gate activation of the feature on the COSINE top-1 corpus window (`top1_act.py:1-9`),
+    which is a LOWER BOUND on the feature's peak over that corpus -- the window the cosine picked
+    need not be the window the activation peaks on, and `top1_act`'s own summary reports that most
+    cosine top-1 windows are not activation examples of their own feature at all. The feature's
+    true peak on a corpus is a scan's `max_act.f16` over that corpus. The spec names `top1_act` as
+    the producer (plan §2 M2) and the writing plan names "the feature's peak on the 10M training
+    corpus" as the quantity; those are two different numbers and the provenance string says which
+    one a cell was built from, so the table cannot be misread whichever M2 lands.
+    """
+
+    def __init__(self, spec: str, by_row: dict[int, float] | None, provenance: str, rel: str = ""):
+        self.spec = spec
+        self.by_row = by_row
+        self.provenance = provenance
+        self.rel = rel
+        self.missing_rows: list[int] = []
+
+    @property
+    def is_stored(self) -> bool:
+        return self.by_row is None
+
+    def of(self, row: int, stored: float) -> tuple[float, str]:
+        if self.by_row is None:
+            return float(stored), self.provenance
+        v = self.by_row.get(int(row))
+        if v is None:
+            self.missing_rows.append(int(row))
+            return float("nan"), self.provenance
+        return float(v), self.provenance
+
+
+def corpus_peaks(vol: R.Vol, spec: str) -> CorpusPeaks:
+    """Resolve `--corpus-peak` into a `CorpusPeaks`, or RAISE naming the path that is not there.
+
+    Two forms, and no third:
+
+      `stored`                     what `sae_self` recorded, the 16M held-out `max_act` -- today's
+                                   behaviour, kept as the default so nothing already written moves
+      `top1_act:<volume path>`     a `top1_act` product directory, volume-relative, e.g.
+                                   `base/qwen36-27b/sae/l42-1b/top1_act/2026-09-21_v3_ctrl`;
+                                   its `top1_act.jsonl` is read and each row's `act_max` becomes
+                                   that feature's denominator
+
+    A bare path (no prefix) is accepted as the `top1_act` form, because that is the only path form
+    there is and refusing it would be a spelling trap rather than a safety one.
+    """
+    spec = (spec or CORPUS_PEAK_STORED).strip()
+    if spec == CORPUS_PEAK_STORED:
+        return CorpusPeaks(spec, None, STORED_PEAK_PROVENANCE)
+    rel = (spec[len(CORPUS_PEAK_TOP1):] if spec.startswith(CORPUS_PEAK_TOP1) else spec).strip("/")
+    assert rel, (
+        f"--corpus-peak {spec!r} names no path. Give `{CORPUS_PEAK_STORED}` or "
+        f"`{CORPUS_PEAK_TOP1}<volume-relative top1_act directory>`"
+    )
+    recs = vol.jsonl(f"{rel}/top1_act.jsonl")
+    # LOUD, and never a fall-back to `stored`: see the section comment above. The path is named in
+    # full because the usual cause is a product that has not landed yet and the next question is
+    # always "under which directory was M2 told to write it".
+    assert recs is not None, (
+        f"--corpus-peak asked for `{rel}` and {vol.prefix or '/'}/{rel}/top1_act.jsonl is not on "
+        f"the volume. That product is M2's `top1_act` scan on `celeste-train10m`; until it lands "
+        f"there is no 10M denominator, and this run REFUSES to divide by the 16M held-out peak "
+        f"under a 10M label. Run it, or pass --corpus-peak {CORPUS_PEAK_STORED} and accept that "
+        f"every ratio cell will be labelled as the 16M held-out number it is"
+    )
+    by_row: dict[int, float] = {}
+    for r in recs:
+        v = r.get("act_max")
+        if v is None:
+            continue
+        by_row[int(r["row"])] = float(v)
+    assert by_row, f"{rel}/top1_act.jsonl carries {len(recs)} rows and not one `act_max`"
+    summary = vol.json(f"{rel}/summary.json") or {}
+    size = summary.get("corpus_size_m")
+    prov = (
+        f"`{rel}` top1_act.jsonl `act_max`: the pre-gate activation of the COSINE top-1 corpus "
+        f"window of each feature"
+        + (f" at {size}M" if size is not None else "")
+        + (f", dictionary `{summary['sae']}`" if summary.get("sae") else "")
+        + (f", set `{summary['set']}`" if summary.get("set") else "")
+        + f" ({len(by_row)} features). A lower bound on the feature's peak over that corpus, not "
+          f"a scan max_act"
+    )
+    return CorpusPeaks(spec, by_row, prov, rel)
+
+
 def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict],
-              vol: R.Vol) -> tuple[list[dict], list[dict], dict]:
+              vol: R.Vol, peak_src: CorpusPeaks | None = None) -> tuple[list[dict], list[dict], dict]:
     """(aggregate rows incl. per stratum, per-feature rows, the reader check) for one SAE family.
 
     Per feature, `peaks_of` gives one peak activation per rollout; `bo_ladder` turns those
     into the same disjoint-group best-of-k the cosine side reports, and every ratio divides by
-    that feature's own `corpus_peak` as `sae_self` recorded it (our 16M `max_act`).
+    that feature's own corpus peak -- WHICHEVER corpus `peak_src` names (`corpus_peaks` above; the
+    default is `sae_self`'s own 16M `max_act`, which is what this did before the denominator
+    became a parameter). The provenance string comes back on every aggregate, every per-feature
+    row and the reader check, because a ratio without its denominator's corpus is not a number.
 
     WHICH PRODUCT: `sae_self` writes the encoder half to `sae_self/` (its name since the stage
     existed) and any other side to `sae_self__<side>/`, because both halves of a `--sides enc,dec`
@@ -248,6 +406,7 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
     if meta is None or isinstance(act, str):
         return [], [], {"absent": act if isinstance(act, str) else rel}
     gate = float(meta["gate"])
+    denom = peak_src or CorpusPeaks(CORPUS_PEAK_STORED, None, STORED_PEAK_PROVENANCE)
     stored = {int(p["row"]): p for p in meta.get("per_target", [])}
     want = set(rows)
     feats: list[dict] = []
@@ -258,7 +417,7 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
         if row not in want:
             continue
         peaks = R.peaks_of(act[i])
-        cp = float(stored.get(row, {}).get("corpus_peak", 0.0))
+        cp, cp_from = denom.of(row, stored.get(row, {}).get("corpus_peak", 0.0))
         bo = R.bo_ladder(peaks, R.BO_KS_ALL)
         # THE FIRED INDICATOR THROUGH THE SAME ESTIMATOR (M0a). "fired at best-of-k" is
         # P(at least one of k draws is above the gate), and for a 0/1 vector the unbiased
@@ -277,15 +436,26 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
             mism += int(d > reader_tol(ours, float(theirs)))
         feats.append({
             "row": row, "feature": int(meta["features"][i]), "stratum": ids[row].get("stratum"),
-            "corpus_peak": cp, "n": int(meta["n"]),
-            "ratio": {k: (v / cp if cp > 0 else float("nan")) for k, v in bo.items()},
+            # The stratum STATISTIC, carried from the row that the draw stamped it on. The 131k
+            # draw's strata are quartiles of log10 POOL PEAK ACTIVATION (`draw_sae131k.py:35,91`)
+            # and the 2M draw's are quartiles of log10 FIRE COUNT (`draw_sae2m._stratified_draw`),
+            # while spec §1.2 and panel b both say "corpus-frequency quartile". Those are not the
+            # same cut. The name travels with every cell so the caption can say which one it is
+            # rather than the reader assuming the spec's.
+            "stratum_stat": ids[row].get("stratum_stat"),
+            "corpus_peak": cp, "corpus_peak_from": cp_from, "n": int(meta["n"]),
+            "ratio": {k: (v / cp if (cp > 0 and math.isfinite(cp)) else float("nan"))
+                      for k, v in bo.items()},
             "bo": bo,
             "fired": fired,
             "item_fired": fired.get(1, float("nan")),
             "fired_any": bool(peaks.max() > gate),
         })
     check = {"rows": len(feats), "n_mismatches": mism, "worst_excess": round(worst, 6),
-             "gate": gate, "product": rel}
+             "gate": gate, "product": rel, "corpus_peak_source": denom.provenance,
+             "n_no_corpus_peak": sum(1 for f in feats
+                                     if not (f["corpus_peak"] > 0
+                                             and math.isfinite(f["corpus_peak"])))}
     if not feats:
         return [], [], {"absent": f"{rel} carries none of this family's rows"}
 
@@ -300,8 +470,19 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
         return {
             "family": fam.label, "source": src.label, "stratum": stratum,
             "n": src.n, "engine": src.engine, "run_tag": src.run_tag, "maemm": src.maemm,
+            "product": rel,
             "sae_key": fam.sae_key, "sae_side": fam.sae_side,
             "n_features": len(sub), "gate": gate, "per_k": per_k,
+            # WHERE THE DENOMINATOR CAME FROM, on every aggregate: the ratio cells this feeds
+            # print it in `cells.csv`'s `note` and in the table caption, and `n_no_denominator`
+            # is how many features of this stratum had no peak in that source at all -- absent
+            # from the median rather than divided by the other corpus's number.
+            "corpus_peak_source": denom.provenance,
+            "corpus_peak_spec": denom.spec,
+            "n_no_denominator": sum(1 for f in sub
+                                    if not (f["corpus_peak"] > 0
+                                            and math.isfinite(f["corpus_peak"]))),
+            "stratum_stat": next((f["stratum_stat"] for f in sub if f.get("stratum_stat")), None),
             # The fired LADDER, averaged over the features of this stratum: one cell per k, which
             # is what panel b's `sae.l131k.ex.fired.bo<k>.q<q>` keys print. `item_fired` is its
             # k = 1 cell and `feat_firing` its k = n cell, kept under their old names so nothing
@@ -397,8 +578,14 @@ def load_exclusions(vol: R.Vol, base: str, set_name: str) -> dict:
 
 def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed: int,
             check_arrays: bool, check_arrays_max_mb: float,
-            centred_bok_max_mb: float = 128.0, apply_exclusions: bool = True) -> dict:
-    """Everything the tables and figures are built from. Never raises on a missing source."""
+            centred_bok_max_mb: float = 128.0, apply_exclusions: bool = True,
+            corpus_peak: str = CORPUS_PEAK_STORED) -> dict:
+    """Everything the tables and figures are built from. Never raises on a missing source.
+
+    The one thing it DOES raise on is `corpus_peak` naming a source that is not on the volume
+    (`corpus_peaks`): a missing arm is a normal outcome and a missing ratio denominator is not,
+    because the second one has a wrong answer available and the first one does not.
+    """
     entry = (cfg.get("heldout") or {}).get(set_name)
     assert entry is not None, (
         f"--set {set_name!r} is not declared in config.yaml `heldout:`. Declare it (the products "
@@ -427,6 +614,10 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
     fams = {f: [r for r in rows if r not in drop]
             for f, rows in R.families_of(ids, cfg, declared_sae).items()}
     fams = {f: rows for f, rows in fams.items() if rows}
+
+    # Resolved BEFORE any product is read, so a run that asked for a denominator it cannot have
+    # stops before it has printed anything, rather than after a table is already on disk.
+    peak_src = corpus_peaks(vol, corpus_peak)
 
     found, absent = R.discover_sources(vol, cfg, base, set_name)
     colours = R.colour_map(found)
@@ -478,7 +669,7 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
             continue
         for src in usable:
             if dict_family:
-                aggs, feats, chk = sae_cells(fam, rows, src, ids, vol)
+                aggs, feats, chk = sae_cells(fam, rows, src, ids, vol, peak_src)
                 sae_rows += aggs
                 for f in feats:
                     sae_feats.append({**f, "family": fam.label, "source": src.label})
@@ -505,6 +696,15 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
         "checks": checks, "missing": missing, "notes": notes,
         "declared_sae_key": declared_sae, "boot": boot, "seed": seed,
         "exclusions": {**excl, "rows": sorted(excl["rows"]), "applied": bool(drop)},
+        # The PER-ROW centred ladders, kept rather than dropped after the aggregates were taken.
+        # Panel a's paired cells (`fid.ra.diff.cos.bo8`, `fid.ra.ex.win.bo8`, `fid.ra.nla.dex`)
+        # are comparisons on identical targets, so they need the row values and not the means --
+        # spec §1.2, "paired, not per-row: per-row SEs do not carry it". This is the same object
+        # `cosine_cells` aggregated, not a second computation of it.
+        "centred": centred,
+        "corpus_peak": {"spec": peak_src.spec, "provenance": peak_src.provenance,
+                        "product": peak_src.rel,
+                        "rows_without_a_peak": sorted(set(peak_src.missing_rows))},
     }
 
 
@@ -805,14 +1005,27 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
                                  round(a["gate"], 6), k, round(pk[k]["median"], 6),
                                  round(pk[k]["mean"], 6), round(pk[k]["se_iid"], 6),
                                  round(a["item_fired"], 6), round(a["feat_firing"], 6)])
+        denoms = sorted({a["corpus_peak_source"] for a in by_sae[family]})
+        stats = sorted({str(a.get("stratum_stat")) for a in by_sae[family] if a.get("stratum_stat")})
+        n_missing = sum(a["n_no_denominator"] for a in by_sae[family] if a["stratum"] is None)
         out.table(
             f"act_{family.replace('/', '_')}", f"SAE activation — family `{family}`",
-            ("median and mean over features of `peak / corpus_peak`, the denominator being OUR 16M "
-             "`max_act` as `sae_self` recorded it per feature — never a 1B-scan peak. `item fired` "
-             "is the mean over features of the fraction of that source's own draws above the "
-             "learned gate; `feat firing` is the fraction of features that fire at all. NO "
-             "SAE-target cosine appears here (plan §2.3); the per-row cosines are in "
-             "`sae_cosines.csv`."),
+            (f"median and mean over features of `peak / corpus peak`. **THE DENOMINATOR IS A "
+             f"PARAMETER** (`--corpus-peak`) and this run's is: {'; '.join(denoms)}. It is "
+             f"printed rather than assumed because the 16M held-out peak and the 10M training "
+             f"peak spec §1.2 asks for are maxima over different texts and a ratio against the "
+             f"wrong one prints as an ordinary number. A feature with no peak in that source is "
+             f"ABSENT from the median, never divided by the other corpus's number "
+             f"({n_missing} pooled). `item fired` is the mean over features of the fraction of "
+             f"that source's own draws above the learned gate; `feat firing` is the fraction of "
+             f"features that fire at all; the per-k `fired` ladder is the unbiased best-of-k of "
+             f"the same 0/1 indicator and is in `results.json`. Strata are numbered 0..3 "
+             f"ASCENDING in the draw's own statistic"
+             + (f" — {', '.join(stats)}, which is NOT corpus frequency; spec §1.2 and panel b "
+                f"both say 'corpus-frequency quartile' and the draws cut on something else"
+                if stats else "")
+             + ". NO SAE-target cosine appears here (plan §2.3); the per-row cosines are in "
+               "`sae_cosines.csv`."),
             head, rows, csv_header=csv_head, csv_rows=csv_rows)
 
     # --- the SAE cosines, CSV only ---------------------------------------------------------
@@ -1222,6 +1435,757 @@ def make_headline_figure(all_res: list[dict], out_dir: Path) -> list[str]:
 
 
 # ---------------------------------------------------------------------------------------------
+# the paper's cells: `paper/numbers/cells.csv`
+# ---------------------------------------------------------------------------------------------
+#
+# Every number the tex prints is `\N{key}` and comes from one row of `paper/numbers/cells.csv`
+# (`paper/numbers/README.md`). This section turns THIS run's aggregates into those rows, and it is
+# the only place in eval 1 where a paper key is spelled.
+#
+# THREE RULES THE WRITER ENFORCES RATHER THAN DOCUMENTS.
+#
+#   1. A key is rewritten IN PLACE and every other row of the file keeps its exact bytes. The file
+#      is shared with six other builders; a rewrite that reflowed quoting or reordered rows would
+#      show up as a hundred-line diff with one real change in it, and the real change would be
+#      reviewed by nobody.
+#   2. A key this module does not OWN is never touched, and a key it owns is never written twice.
+#      `--check` treats a duplicate key as an error that blocks the paper build, so a driver that
+#      could append a second copy of a row it had already rewritten is a build break waiting for
+#      the second run.
+#   3. A cell that cannot be built is SKIPPED AND LISTED with the reason, never written empty and
+#      never written zero. An empty `value` is legal in the CSV and means "expected, not yet
+#      measured", so the existing placeholder row already says the right thing; overwriting it
+#      with a zero would replace a true statement with a false one.
+#
+# The default is READ-ONLY: without `--cells <path>` this builds the rows, prints them and writes
+# nothing, so the driver can be run for its tables at any time without touching the paper.
+
+# THE KEYS MODULE M1 OWNS, and the only ones its writer will touch. Plan §2's table: 5 unmeasured
+# and 11 measured-to-rewrite in the main list, plus the quartile and 2M appendix rows its own
+# section tells it to add. Spelled out rather than discovered from the CSV, because "which rows are
+# mine" is a decision about who owns what and not a fact about the file's current contents -- a
+# key another builder happened to add would otherwise become M1's on the next run.
+M1_KEYS = frozenset({
+    # panel a (spec §4): Exemplifier bo1/bo8, the untrained-base control, NLA, the random floor,
+    # and the paired appendix block of §1.2 (against the corpus at 10M, and against NLA).
+    "fid.ra.ex.cos.bo1", "fid.ra.ex.cos.bo8", "fid.ra.base.cos.bo8", "fid.ra.nla.cos.bo1",
+    "fid.rnd.ex.cos.bo1", "fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8", "fid.ra.nla.dex",
+    # panel b, the 131k dictionary. Per quartile at bo1, bo8 and bo64 -- and the three POOLED rows
+    # that are already in the file carrying 09-21 old-convention values, rewritten in place with
+    # `note` saying they are pooled (spec §1.2: what the panel and the table print is per stratum).
+    "sae.l131k.ex.ratio.bo1", "sae.l131k.ex.ratio.bo64", "sae.l131k.ex.fired.bo1",
+    *(f"sae.l131k.ex.{m}.bo{k}.q{q}"
+      for m in ("ratio", "fired") for k in (1, 8, 64) for q in (1, 2, 3, 4)),
+    # the 2M appendix block, enc and dec, bo1 and bo8 (spec §6, run R7).
+    *(f"sae.s2m{side}.ex.{m}.bo{k}.q{q}"
+      for side in ("enc", "dec") for m in ("ratio", "fired") for k in (1, 8) for q in (1, 2, 3, 4)),
+})
+
+CELLS_COLUMNS = ("key", "value", "se", "lo", "hi", "n", "status", "run", "source", "date", "note")
+# 4 decimals on cosines, ratios and fired fractions -- the precision the rows already in the file
+# carry, and `value` is copied into the tex VERBATIM, so this is the printed precision and not a
+# storage choice (`paper/numbers/README.md`, "write the digits exactly as they should print").
+CELL_PLACES = 4
+# The 131k dictionary's learned BatchTopK threshold, asserted rather than assumed: spec §1.2 and
+# panel b both name 1.5846 as THE gate the fired fraction is taken above, and a product carrying a
+# different one is a different dictionary or a different checkpoint.
+GATE_131K = 1.5846
+GATE_PLACES = 4
+# 95% interval from the document-clustered bootstrap SE. The NORMAL approximation on that SE, the
+# same one `make_headline_figure` draws, and NOT the percentile bootstrap: `R.cluster_bootstrap`
+# returns (mean, SE, n, clusters) and not its resample distribution, and writing a percentile
+# interval here would mean a second resampler in this file -- two estimators under one name, which
+# is the defect M0a's single `bo_unbiased` exists to prevent. Spec §2's panel c says "percentile"
+# for `stats_ood`, which is M5's own estimator; this is stated in the caption and in the `note`.
+CI_Z = 1.96
+
+# The one place the paper's key vocabulary meets the volume's dictionary ids. `l131k` and `s2m`
+# are the writing plan's `<set>` slots (§2); `l42-1b` and `sae2m` are `sae_key` suffixes the rows
+# themselves carry. Declarative, so a third dictionary is a line here and no code.
+CELL_DICTIONARIES = {
+    "l131k": ("l42-1b", ""),
+    "s2menc": ("sae2m", "enc"),
+    "s2mdec": ("sae2m", "dec"),
+}
+# The names M2's `results/corpus_search.py` may export for its per-target top-1 reader, tried in
+# order. A module that is there but exports none of them is a CONTRACT MISMATCH and raises -- that
+# is a different thing from the module not existing, and reporting it as "absent" would send the
+# reader looking for a run that has already happened.
+CORPUS_SEARCH_EXPORTS = ("corpus_top1", "top1_by_row", "top1_cosines")
+CORPUS_SEARCH_SIGNATURE = (
+    "corpus_top1(vol=..., base=..., set_name=..., rows=[int], size=float) -> {row: top-1 cosine}"
+)
+
+
+def corpus_top1_missing(keys: list[str]) -> str:
+    """The stub: say which cells are skipped and that `results/corpus_search.py` is the input.
+
+    One line, printed and returned, because the two ways this is read are a terminal during the
+    run and the `## Skipped and absent` block of the document afterwards. It fills nothing.
+    """
+    line = (
+        f"corpus comparator ABSENT -- {len(keys)} cell(s) SKIPPED and not written: "
+        f"{', '.join(sorted(keys))}. The missing input is `results/corpus_search.py` (module M2), "
+        f"which reads `scan/<set>/topk.jsonl` and is the ONE reader of it; this driver does not "
+        f"read topk.jsonl itself. Nothing is zero-filled: a corpus that scored 0 and a corpus scan "
+        f"nobody ran are opposite findings"
+    )
+    print(f"   MISSING  {line}", flush=True)
+    return line
+
+
+def corpus_top1_fn():
+    """(M2's per-target top-1 reader, its provenance) or (None, why it is not there)."""
+    if CORPUS_SEARCH is None:
+        return None, (
+            "`results/corpus_search.py` is not importable (module M2 writes it); "
+            f"expected export: {CORPUS_SEARCH_SIGNATURE}"
+        )
+    for name in CORPUS_SEARCH_EXPORTS:
+        fn = getattr(CORPUS_SEARCH, name, None)
+        if callable(fn):
+            return fn, f"results.corpus_search.{name}"
+    raise AssertionError(
+        f"`results/corpus_search.py` is importable but exports none of {CORPUS_SEARCH_EXPORTS}; "
+        f"it defines {sorted(n for n in dir(CORPUS_SEARCH) if not n.startswith('_'))}. That is a "
+        f"CONTRACT MISMATCH, not an absent product -- the expected export is "
+        f"{CORPUS_SEARCH_SIGNATURE}"
+    )
+
+
+def corpus_top1_for(vol: R.Vol, res: dict, rows: list[int], size: float):
+    """({row: corpus top-1 at `size`M}, provenance) or (None, why), through M2's reader only."""
+    fn, prov = corpus_top1_fn()
+    if fn is None:
+        return None, prov
+    try:
+        got = fn(vol=vol, base=res["base"], set_name=res["set"], rows=list(rows), size=size)
+    except TypeError as exc:
+        raise AssertionError(
+            f"{prov} refused this call ({exc}). The hook's contract is {CORPUS_SEARCH_SIGNATURE}, "
+            f"called by keyword so the parameter NAMES are the contract and their order is not"
+        ) from exc
+    assert isinstance(got, dict), f"{prov} returned {type(got).__name__}, not a {{row: cosine}} dict"
+    out = {int(r): float(v) for r, v in got.items() if v is not None and math.isfinite(float(v))}
+    return out, f"{prov} at {size:g}M ({len(out)} of {len(rows)} targets)"
+
+
+# --- building one row --------------------------------------------------------------------------
+
+
+def _fmt(v, places: int = CELL_PLACES) -> str:
+    """One CSV field. An empty string is what an absent number is; NaN never reaches here."""
+    if v is None:
+        return ""
+    f = float(v)
+    assert math.isfinite(f), f"a non-finite number reached the cells writer ({v!r})"
+    return f"{f:.{places}f}"
+
+
+def cell(key: str, value, *, se=None, lo=None, hi=None, n=None, status: str = "final",
+         run: str = "", source: str = "", date: str = "", note: str = "") -> dict:
+    """One `cells.csv` row as a dict of strings, with the file's own invariants asserted here.
+
+    `lo` and `hi` only together: a lone one is an ERROR in `make_numbers.py --check` and blocks
+    the paper build, so it is refused where it is built rather than discovered at compile time.
+    """
+    assert (lo is None) == (hi is None), f"{key}: lo and hi are written together or not at all"
+    assert status in ("placeholder", "provisional", "final"), f"{key}: bad status {status!r}"
+    assert "\n" not in note, f"{key}: a newline in `note` would break the CSV record"
+    return {
+        "key": key, "value": _fmt(value), "se": _fmt(se), "lo": _fmt(lo), "hi": _fmt(hi),
+        "n": "" if n is None else str(int(n)), "status": status, "run": run,
+        "source": source, "date": date, "note": note,
+    }
+
+
+# --- finding the arms and the blocks -------------------------------------------------------------
+
+
+def hers_realact(all_res: list[dict]) -> tuple[dict | None, str]:
+    """(the block whose `realact` rows are HER draw, why not) -- by the ROW's own `source` field.
+
+    NOT by set name. Two of eval 1's blocks carry family `realact` -- `_v3_realact` is Celeste's
+    draw and `_v3_ours` is ours -- and the paper's rows are hers (spec §1.1: the test block (ours)
+    has one internal consumer and no paper number). `features/heldout_v3._provenance_rows` stamps
+    `source: "hers"` on every row it builds from her parquet, so the block says which it is and
+    this does not have to know a directory name.
+    """
+    hits = [r for r in all_res
+            if any(str(r["ids"][row].get("source", "")) == "hers"
+                   for fam, rws in r["families"].items() if fam.family == "realact" for row in rws)]
+    if len(hits) == 1:
+        return hits[0], ""
+    return None, (
+        f"{len(hits)} of the {len(all_res)} block(s) analysed carry `realact` rows stamped "
+        f"`source: hers` ({[r['set'] for r in hits]}); panel a's realact rows need exactly one"
+    )
+
+
+def random_floor_block(all_res: list[dict]) -> tuple[dict | None, str]:
+    """(the block carrying the `random` family, why not) -- 512 Gaussian directions, spec §1.1."""
+    hits = [r for r in all_res if any(f.family == "random" for f in r["families"])]
+    if len(hits) == 1:
+        return hits[0], ""
+    return None, (f"{len(hits)} of the block(s) analysed carry a `random` family "
+                  f"({[r['set'] for r in hits]}); the floor needs exactly one")
+
+
+def surviving_rows(res: dict, family: str) -> list[int]:
+    """The rows of `family` that are still in play on this block: the family map, post-exclusion.
+
+    `analyse` drops the excluded rows from the family map and nothing else, which is what makes
+    the family map the single row-membership surface. THE PER-ROW LADDERS DO NOT GO THROUGH IT:
+    `res["centred"]` is keyed by source and covers every row the product scored, excluded rows
+    included, because it is one read of one array before any family is cut out of it. So anything
+    that consumes a per-row ladder -- which is every paired cell -- has to intersect with this,
+    and a paired difference computed over the raw ladder would silently be the 512-row number
+    beside a 486-row mean.
+    """
+    return [r for fam, rws in res["families"].items() if fam.family == family for r in rws]
+
+
+def arms_of(res: dict, cfg: dict, exemplifier: str, nla: str = "") -> dict[str, tuple]:
+    """{'ex'|'base'|'nla': (the Source, why not)} for one block, by ROLE and TYPE, not by name.
+
+    `base` is `role: control` in `config.yaml` (`2026-09-16_base-control`, carried onto the Source
+    by `discover_sources`) and `nla` is `type: nla`, so both follow the config and a second
+    control or a second verbalizer joins by being declared.
+
+    `ex` is the one neither can decide. No config field marks WHICH checkpoint the paper calls the
+    Exemplifier: `primary: true` is on the OLD primary, which spec §0 item 1 drops from the paper,
+    so keying on it would print the dropped checkpoint's numbers under the Exemplifier's rows and
+    look principled while doing it. Nor is the name written here -- no checkpoint name is spelled
+    in this file, which `selftest.check_combined_layer_lifts_and_never_recomputes` enforces. So:
+    `--exemplifier <substring>` names it, and with no flag the MAEMM arms are those that are
+    neither `role: control` nor `type: nla`/`base`, which resolves when exactly one MAEMM was
+    scored on the block and REFUSES (skip and list) when more than one was. Refusing is the right
+    answer there: on the 09-21 volume her block carries the dropped old primary under two run tags
+    beside the Exemplifier, and picking among them is a decision, not a lookup.
+    """
+    out: dict[str, tuple] = {}
+    maemms = cfg.get("maemms") or {}
+
+    def _type(s: R.Source) -> str:
+        return str((maemms.get(s.maemm) or {}).get("type", ""))
+
+    if exemplifier:
+        ex = [s for s in res["sources"] if exemplifier in s.label]
+        ex_why = (f"`--exemplifier {exemplifier}` matched {len(ex)} of the arms on "
+                  f"`{res['set']}` ({', '.join(s.label for s in res['sources']) or 'none'})")
+    else:
+        ex = [s for s in res["sources"]
+              if s.role != "control" and _type(s) not in ("nla", "base")]
+        ex_why = (
+            f"no `--exemplifier` was given and {len(ex)} arm(s) on `{res['set']}` are MAEMMs "
+            f"(not `role: control`, not `type: nla`/`base`): "
+            f"{', '.join(s.label for s in ex) or 'none'}. Which of them the paper calls the "
+            f"Exemplifier is a decision no config field records — name it with `--exemplifier`")
+    out["ex"] = (ex[0], "") if len(ex) == 1 else (None, ex_why)
+    ctrl = [s for s in res["sources"] if s.role == "control"]
+    out["base"] = (ctrl[0], "") if len(ctrl) == 1 else (
+        None, f"{len(ctrl)} arm(s) on `{res['set']}` are `role: control` in config.yaml; the "
+              f"untrained-base control of run R10 has not been run on this block "
+              f"(spec §7 R10: no base control on a v3 set exists today)")
+    # The NLA arm needs the same discriminator as the Exemplifier for the same reason: the volume
+    # accumulates run tags, so one `type: nla` checkpoint can be present as several scored arms
+    # (the stored 2026-07 product and spec §7's R6 rerun beside it), and those are DIFFERENT
+    # numbers -- the stored directories carry no centred cosine at all and the rerun exists to
+    # produce one. `--nla` picks; with no flag an ambiguity is skipped and listed, not guessed.
+    nla_arms = [s for s in res["sources"] if _type(s) == "nla" and (not nla or nla in s.label)]
+    out["nla"] = (nla_arms[0], "") if len(nla_arms) == 1 else (
+        None, f"{len(nla_arms)} arm(s) on `{res['set']}` are `type: nla` in config.yaml"
+              + (f" and match `--nla {nla}`" if nla else "")
+              + f" ({', '.join(s.label for s in nla_arms) or 'none'})"
+              + ("" if nla else " -- name one with `--nla <substring>`"))
+    return out
+
+
+def bo_cell(res: dict, family: str, src: R.Source, k: int, cosines: tuple[str, ...]):
+    """(the aggregate for (family, arm, the first cosine column present), which column, why not).
+
+    `cosines` is an ORDERED preference and the answer says which one it landed on, because the
+    caller writes that into the `note`. The headline arms declare `("cos_centred",)` alone -- a raw
+    number under a key whose grammar says centred (writing plan §2: `cos` IS the centred cosine)
+    is the same class of defect as a ratio against the wrong denominator, so it is skipped instead.
+    """
+    have = [c for c in res["cos"] if c["family"] == family and c["source"] == src.label]
+    for cosine in cosines:
+        hit = [c for c in have if c["cosine"] == cosine]
+        if hit and k in hit[0]["bo"]:
+            return hit[0], cosine, ""
+    return None, "", (
+        f"`{src.label}` / `{family}` on `{res['set']}` has no bo{k} of "
+        f"{' or '.join(cosines)} (present: "
+        f"{sorted({(c['cosine'], tuple(sorted(c['bo']))) for c in have})})")
+
+
+def paired(a: dict[int, float], b: dict[int, float], ids: dict[int, dict], boot: int, seed: int):
+    """The paired statistics over the targets BOTH sides carry: (difference, win fraction, rows).
+
+    Spec §1.2, "paired, not per-row": "exceeds corpus search at 10M" is a comparison on identical
+    targets, so it is computed row by row and only then aggregated, and its interval comes from
+    resampling the DOCUMENT clusters of those same rows -- the estimator every other SE in this
+    run uses. A row either side is missing is dropped from BOTH, never defaulted, so the
+    difference and the win fraction are over one row set and `n` means the same thing in both.
+    """
+    rows = sorted(set(a) & set(b))
+    if not rows:
+        return None, None, []
+    cl = _clusters_for(rows, ids)
+    diffs = [a[r] - b[r] for r in rows]
+    wins = [1.0 if a[r] > b[r] else 0.0 for r in rows]
+    d_mean, d_se, d_n, d_cl = R.cluster_bootstrap(diffs, cl, boot, seed)
+    w_mean, w_se, _, _ = R.cluster_bootstrap(wins, cl, boot, seed)
+    diff = {"mean": d_mean, "se": d_se, "n": d_n, "clusters": d_cl,
+            "lo": d_mean - CI_Z * d_se, "hi": d_mean + CI_Z * d_se}
+    win = {"mean": w_mean, "se": w_se, "n": d_n, "clusters": d_cl}
+    return diff, win, rows
+
+
+# --- panel a ------------------------------------------------------------------------------------
+
+
+def panel_a_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
+    """(the rows for panel a and the appendix's paired block, the reasons the rest were skipped).
+
+    Spec §4 panel a, rows 1, 2, 4, 7 and 8, plus the paired appendix cells of §1.2. Everything
+    here reads `cos_centred` and everything here is over HER block minus its exclusions -- both
+    applied upstream, in `analyse`, so there is no path by which this layer sees a row the tables
+    did not.
+    """
+    rows: list[dict] = []
+    skipped: list[str] = []
+    res, why = hers_realact(all_res)
+    if res is None:
+        skipped.append(f"every panel a realact cell SKIPPED: {why}")
+    floor_res, floor_why = random_floor_block(all_res)
+    boot, seed, date = opts["boot"], opts["seed"], opts["date"]
+    excl_note = ("her v3 realact block minus its own exclusions.json rows; whiten_mu centred; "
+                 "doc-clustered bootstrap SE")
+
+    if res is not None:
+        arms = arms_of(res, cfg, opts["exemplifier"], opts.get("nla", ""))
+        src_by_label = {s.label: s for s in res["sources"]}
+        # --- rows 1, 2 and 7: the Exemplifier at bo1 and bo8, the base control at bo8 ---------
+        for key, arm, k, run in (("fid.ra.ex.cos.bo1", "ex", 1, "R1"),
+                                 ("fid.ra.ex.cos.bo8", "ex", 8, "R1"),
+                                 ("fid.ra.base.cos.bo8", "base", 8, "R10"),
+                                 ("fid.ra.nla.cos.bo1", "nla", 1, "R6")):
+            src, arm_why = arms[arm]
+            if src is None:
+                skipped.append(f"`{key}` SKIPPED: {arm_why}")
+                continue
+            got, cosine, cell_why = bo_cell(res, "realact", src, k, ("cos_centred",))
+            if got is None:
+                skipped.append(f"`{key}` SKIPPED: {cell_why}")
+                continue
+            c = got["bo"][k]
+            rows.append(cell(
+                key, c["mean"], se=None if not math.isfinite(c["se"]) else c["se"],
+                n=c["n_rows"], run=run, date=date, source=src.scores_rel,
+                note=(f"{src.label}; {cosine} from {got.get('bo_source', '')}; {excl_note}, "
+                      f"{boot} resamples over {c['n_clusters']} documents, seed {seed}"),
+            ))
+        # --- the paired cells, against M2's corpus comparator --------------------------------
+        ex_src, _ = arms["ex"]
+        # INTERSECTED WITH THE FAMILY MAP, which is where the exclusions were applied: see
+        # `surviving_rows`. Without this the paired cells would be over the full draw while the
+        # means beside them are over the headline n, and nothing in the output would say so.
+        keep = set(surviving_rows(res, "realact"))
+        ex_rows = res["centred"].get(ex_src.label, {}) if ex_src is not None else {}
+        ex_bo8 = {r: v[8] for r, v in ex_rows.items() if 8 in v and r in keep}
+        paired_keys = ["fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8"]
+        if not ex_bo8:
+            skipped.append(f"`{'`, `'.join(paired_keys)}` and `fid.ra.nla.dex` SKIPPED: the "
+                           f"Exemplifier arm has no per-row centred bo8 on `{res['set']}`")
+        else:
+            corp, corp_prov = corpus_top1_for(vol, res, sorted(ex_bo8), opts["corpus_size"])
+            if corp is None:
+                skipped.append(corpus_top1_missing(paired_keys) + f" [{corp_prov}]")
+            else:
+                diff, win, shared = paired(ex_bo8, corp, res["ids"], boot, seed)
+                if diff is None:
+                    skipped.append(f"`{'`, `'.join(paired_keys)}` SKIPPED: the Exemplifier and "
+                                   f"{corp_prov} share no target")
+                else:
+                    src_rel = src_by_label[ex_src.label].scores_rel
+                    pair_note = (f"paired on {len(shared)} shared targets; Exemplifier bo8 "
+                                 f"(cos_centred) minus corpus top-1 at "
+                                 f"{opts['corpus_size']:g}M on celeste-train10m; {corp_prov}; "
+                                 f"95% = mean +/- 1.96 x doc-clustered bootstrap SE over "
+                                 f"{diff['clusters']} documents, {boot} resamples, seed {seed}")
+                    rows.append(cell("fid.ra.diff.cos.bo8", diff["mean"], se=diff["se"],
+                                     lo=diff["lo"], hi=diff["hi"], n=diff["n"], run="R1+R2",
+                                     date=date, source=src_rel, note=pair_note))
+                    rows.append(cell("fid.ra.ex.win.bo8", win["mean"], se=win["se"], n=win["n"],
+                                     run="R1+R2", date=date, source=src_rel,
+                                     note=(f"fraction of the {len(shared)} shared targets whose "
+                                           f"Exemplifier bo8 exceeds the corpus top-1 at "
+                                           f"{opts['corpus_size']:g}M; {corp_prov}; SE is the "
+                                           f"doc-clustered bootstrap over {win['clusters']} "
+                                           f"documents")))
+            # --- the Exemplifier against NLA, which is its OWN key (writing plan §2) ---------
+            nla_src, nla_why = arms["nla"]
+            if nla_src is None:
+                skipped.append(f"`fid.ra.nla.dex` SKIPPED: {nla_why}")
+            else:
+                nla_rows = res["centred"].get(nla_src.label, {})
+                nla_bo1 = {r: v[1] for r, v in nla_rows.items() if 1 in v and r in keep}
+                if not nla_bo1:
+                    skipped.append(
+                        f"`fid.ra.nla.dex` SKIPPED: `{nla_src.label}` carries no per-row CENTRED "
+                        f"cosine on `{res['set']}` -- the stored NLA directories are `cos_raw` by "
+                        f"construction and spec §1.4's R6 rerun produces the centred one")
+                else:
+                    d, _w, shared = paired(ex_bo8, nla_bo1, res["ids"], boot, seed)
+                    if d is None:
+                        skipped.append("`fid.ra.nla.dex` SKIPPED: the two arms share no target")
+                    else:
+                        rows.append(cell(
+                            "fid.ra.nla.dex", d["mean"], se=d["se"], lo=d["lo"], hi=d["hi"],
+                            n=d["n"], run="R1+R6", date=date, source=nla_src.scores_rel,
+                            note=(f"paired on {len(shared)} shared targets: Exemplifier bo8 minus "
+                                  f"NLA bo1 (n = 4 rollouts, so bo1 IS the mean of 4), both "
+                                  f"cos_centred; 95% = mean +/- 1.96 x doc-clustered bootstrap SE "
+                                  f"over {d['clusters']} documents, seed {seed}")))
+
+    # --- row 8: the random floor -----------------------------------------------------------
+    if floor_res is None:
+        skipped.append(f"`fid.rnd.ex.cos.bo1` SKIPPED: {floor_why}")
+    else:
+        src, arm_why = arms_of(floor_res, cfg, opts["exemplifier"],
+                               opts.get("nla", ""))["ex"]
+        if src is None:
+            skipped.append(f"`fid.rnd.ex.cos.bo1` SKIPPED: {arm_why}")
+        else:
+            # THE ONE CELL WITH A FALL-BACK, and it is declared rather than silent. `random` is
+            # `centrable: false` in config.yaml:72 -- a Gaussian unit vector is not an activation
+            # and nothing centres it -- so `score` writes no `cos_centred` for this family and
+            # never will. The key's grammar says `cos` is the centred cosine, the row already in
+            # cells.csv carries "cos_raw not centred" in its own note, and panel a's axis IS the
+            # centred one: the honest form is to take the raw number, print WHICH cosine it is in
+            # the note, and leave the conflict visible for the writer rather than resolve it here.
+            got, cosine, cell_why = bo_cell(floor_res, "random", src, 1, ("cos_centred", "cos_raw"))
+            if got is None:
+                skipped.append(f"`fid.rnd.ex.cos.bo1` SKIPPED: {cell_why}")
+            else:
+                c = got["bo"][1]
+                raw = "" if cosine == "cos_centred" else (
+                    " -- NOT CENTRED: family `random` is `centrable: false` (config.yaml:72) so no "
+                    "cos_centred exists for it, and panel a's axis is the centred cosine")
+                rows.append(cell(
+                    "fid.rnd.ex.cos.bo1", c["mean"],
+                    se=None if not math.isfinite(c["se"]) else c["se"], n=c["n_rows"], run="R1",
+                    date=date, source=src.scores_rel,
+                    note=(f"{src.label}; 512 Gaussian unit directions on `{floor_res['set']}`; "
+                          f"{cosine}{raw}")))
+    return rows, skipped
+
+
+# --- panel b ------------------------------------------------------------------------------------
+
+
+def panel_b_cells(all_res: list[dict], cfg: dict, opts: dict):
+    """(the rows for panel b and the 2M appendix block, the reasons the rest were skipped).
+
+    Spec §1.2 and §4 panel b. PER STRATUM AND NEVER POOLED is the rule for what the panel and the
+    appendix table print; the three pooled keys that already exist in `cells.csv`
+    (`sae.l131k.ex.ratio.bo1`, `.ratio.bo64`, `.fired.bo1`) are rewritten in place because they
+    carry 09-21 old-convention values, and their `note` says they are pooled so nobody reads one
+    as a stratum. `make_numbers --check` reports all three as `defined but unused`, which is what
+    a pooled cell should be once the tex prints per-quartile ones.
+
+    The quartile slot is `q<stratum + 1>`: the draws number strata 0..3 ASCENDING in their own
+    statistic (`draw_sae2m._stratified_draw`, `searchsorted` over the pool quartile cuts) and the
+    writing plan's `q1..q4` are "rarest first", so stratum 0 is q1. The statistic itself is NOT
+    corpus frequency on either dictionary -- see `stratum_stat` in the note.
+    """
+    rows: list[dict] = []
+    skipped: list[str] = []
+    date = opts["date"]
+    seen: set[str] = set()
+    # The SAME arm resolution panel a uses, so the two panels cannot end up on different arms: a
+    # block's Exemplifier is whichever `arms_of` resolves there, and a block where it does not
+    # resolve contributes nothing rather than its other arms' numbers.
+    ex_labels = set()
+    for res in all_res:
+        src, _why = arms_of(res, cfg, opts["exemplifier"], opts.get("nla", ""))["ex"]
+        if src is not None:
+            ex_labels.add(src.label)
+    for key_set, (want_key, want_side) in sorted(CELL_DICTIONARIES.items()):
+        aggs = [a for res in all_res for a in res["sae"]
+                if str(a["sae_key"]).split("/")[-1] == want_key
+                and str(a["sae_side"] or "") == want_side
+                and (not opts["exemplifier"] or opts["exemplifier"] in str(a["source"]))
+                and str(a["source"]) in ex_labels]
+        if not aggs:
+            skipped.append(
+                f"every `sae.{key_set}.*` cell SKIPPED: no `{want_key}`"
+                + (f"/{want_side}" if want_side else "")
+                + f" aggregate for an arm matching `--exemplifier {opts['exemplifier']}` in the "
+                  f"block(s) analysed ({', '.join(r['set'] for r in all_res)})")
+            continue
+        sources = {a["source"] for a in aggs}
+        assert len(sources) == 1, (
+            f"`sae.{key_set}` matched {len(sources)} arms ({sorted(sources)}); narrow "
+            f"`--exemplifier` -- two arms' numbers must never land in one key")
+        # THE GATE IS READ FROM THE PRODUCT AND ASSERTED, not taken from the spec. Spec §1.2 and
+        # panel b both name 1.5846 as the threshold the 131k fired fraction is taken above; a
+        # product carrying another one is another dictionary or another checkpoint, and the fired
+        # cells would be a different quantity under the same name.
+        gates = sorted({round(float(a["gate"]), GATE_PLACES) for a in aggs})
+        if key_set == "l131k":
+            assert gates == [GATE_131K], (
+                f"the 131k block's `sae_self` products carry gate(s) {gates}, and spec §1.2 and "
+                f"§4 panel b both name {GATE_131K} to {GATE_PLACES} decimals as THE gate "
+                f"`sae.l131k.ex.fired.*` is taken above. Refusing to write a fired fraction above "
+                f"a gate the paper does not name")
+        denoms = sorted({a["corpus_peak_source"] for a in aggs})
+        assert len(denoms) == 1, f"`sae.{key_set}` spans {len(denoms)} ratio denominators: {denoms}"
+        denom = denoms[0]
+        # A RATIO IS ONLY `final` ON THE SPEC'S DENOMINATOR. Spec §1.2 and §1.4 say the ratio's
+        # denominator is the feature's peak on the 10M TRAINING corpus (`celeste-train10m`), which
+        # M2's scan produces; the default `stored` denominator is `sae_self`'s own 16M held-out
+        # `max_act`. The two are different corpora, so a ratio taken against the second is a
+        # provisional number wearing the paper's key, and marking it `final` would be the exact
+        # thing plan §2 forbids ("a cell is never left carrying a number from a different
+        # convention"). The FIRED cells are unaffected -- `peak > gate` has no denominator -- so
+        # they stay `final` and the panel's two series can land on different days.
+        ratio_status = "final" if denom != STORED_PEAK_PROVENANCE else "provisional"
+        ratio_caveat = ("" if ratio_status == "final" else
+                        "; PROVISIONAL: this denominator is the 16M held-out max_act, NOT the 10M "
+                        "training corpus spec §1.4 names -- rerun with --corpus-peak <M2's 10M "
+                        "top1_act path> when that product lands")
+        stat = next((a.get("stratum_stat") for a in aggs if a.get("stratum_stat")), None)
+        stat_note = f"strata are quartiles of {stat}" if stat else "stratum statistic not recorded"
+        product = next((a.get("product", "") for a in aggs), "")
+        for a in sorted(aggs, key=lambda a: (a["stratum"] is not None, str(a["stratum"]))):
+            pooled = a["stratum"] is None
+            slot = "" if pooled else f".q{int(a['stratum']) + 1}"
+            where = ("POOLED across strata, not a quartile" if pooled
+                     else f"stratum {a['stratum']} of 0..3, {stat_note}")
+            miss = ("" if not a["n_no_denominator"]
+                    else f"; {a['n_no_denominator']} feature(s) had no peak in that source and are "
+                         f"absent from the median, never divided by another corpus's number")
+            for k in R.BO_KS_ALL:
+                if k in a["per_k"]:
+                    key = f"sae.{key_set}.ex.ratio.bo{k}{slot}"
+                    if key in opts["owned"] and key not in seen:
+                        seen.add(key)
+                        rows.append(cell(
+                            key, a["per_k"][k]["median"], n=a["per_k"][k]["n"], run="R1",
+                            status=ratio_status, date=date, source=product,
+                            note=(f"{a['source']}; MEDIAN over features of peak / corpus peak at "
+                                  f"bo{k}; denominator: {denom}; {where}; gate "
+                                  f"{a['gate']:.{GATE_PLACES}f}{miss}{ratio_caveat}")))
+                if k in a.get("fired_k", {}):
+                    key = f"sae.{key_set}.ex.fired.bo{k}{slot}"
+                    if key in opts["owned"] and key not in seen:
+                        seen.add(key)
+                        rows.append(cell(
+                            key, a["fired_k"][k], n=a["n_features"], run="R1", date=date,
+                            source=product,
+                            note=(f"{a['source']}; fraction fired above gate "
+                                  f"{a['gate']:.{GATE_PLACES}f} at bo{k}, the UNBIASED best-of-k "
+                                  f"of the 0/1 fired indicator over the same {a['n']} draws "
+                                  f"(1 - C(n-m,k)/C(n,k)); {where}")))
+    return rows, skipped
+
+
+# --- the writer ----------------------------------------------------------------------------------
+
+
+def _cells_records(path: Path) -> list[tuple[list[str], str]]:
+    """[(the parsed record, its EXACT source bytes)] -- so an untouched row is re-emitted verbatim.
+
+    Round-tripping through `csv.writer` would be simpler and would reflow quoting on rows this
+    module has no business changing; six builders share this file and a diff has to show one
+    change when one thing changed. The reader is fed line by line and the lines each record
+    consumed become that record's raw text, which handles the quoted `note` fields that carry
+    commas (and would handle an embedded newline, though `cell()` refuses to write one).
+    """
+    import csv
+
+    # `newline=""` and NOT the default: universal-newline translation would turn this file's CRLF
+    # terminators into LF on the way in, the byte-identity assertion below would compare the
+    # rewrite against the ALREADY-TRANSLATED text and pass, and the write would reflow all 413
+    # lines of a file six builders share. MEASURED 2026-09-23 on the real `cells.csv`, which is
+    # CRLF: every line came back changed for one row rewritten.
+    with path.open(newline="") as fh:   # `Path.read_text(newline=)` is 3.13+
+        text = fh.read()
+    lines = text.splitlines(keepends=True)
+    seen: list[str] = []
+
+    def feed():
+        for ln in lines:
+            seen.append(ln)
+            yield ln
+
+    out: list[tuple[list[str], str]] = []
+    used = 0
+    for rec in csv.reader(feed()):
+        out.append((rec, "".join(seen[used:])))
+        used = len(seen)
+    assert "".join(raw for _, raw in out) == text, (
+        f"{path}: the record split does not reproduce the file byte for byte, so an in-place "
+        f"rewrite cannot be proved not to touch the other builders' rows"
+    )
+    return out
+
+
+def _cells_line(row: dict, terminator: str = "\n") -> str:
+    """One CSV line, ending with the terminator THE FILE ALREADY USES.
+
+    `cells.csv` is CRLF today. A row written with a bare LF into a CRLF file is a second line
+    ending in a file six builders diff, so the terminator is a parameter and `write_cells` reads
+    it off the header line rather than assuming either one.
+    """
+    import csv
+    import io
+
+    buf = io.StringIO()
+    csv.writer(buf, lineterminator=terminator).writerow([row[c] for c in CELLS_COLUMNS])
+    return buf.getvalue()
+
+
+# `paper/numbers/cells.csv` is NOT inside this repository: the repo is checked out as a
+# subdirectory of the paper project, `paper/` is its sibling, and the CSV therefore sits two
+# levels above `paper-evals/`. Computed rather than typed so a run from any working directory
+# finds it, and asserted before anything is written so a moved checkout fails with the path it
+# looked at rather than by creating a new file somewhere harmless-looking.
+CELLS_DEFAULT_REL = Path("paper") / "numbers" / "cells.csv"
+
+
+def resolve_cells_path(spec: str) -> Path | None:
+    """`--cells` -> the file to rewrite, or None for the READ-ONLY default.
+
+    "" (the default) writes nothing, which is what keeps this driver safe to run for its tables at
+    any moment. The literal `default` resolves to `<paper project>/paper/numbers/cells.csv`.
+    Anything else is taken as a path, absolute or relative to the working directory.
+    """
+    spec = (spec or "").strip()
+    if not spec:
+        return None
+    if spec == "default":
+        path = R.PAPER_EVALS.parent.parent / CELLS_DEFAULT_REL
+        assert path.is_file(), (
+            f"--cells default resolved to {path}, which is not a file. The repo is expected to be "
+            f"checked out beside the paper project's `paper/` directory; pass the path explicitly "
+            f"if this checkout is arranged differently")
+        return path
+    path = Path(spec)
+    assert path.is_file(), f"--cells {spec}: {path.resolve()} is not a file"
+    return path
+
+
+def write_cells(path: Path, rows: list[dict], owned: set[str]) -> dict:
+    """Rewrite this module's keys in `cells.csv` IN PLACE; every other byte of the file survives.
+
+    Refuses, loudly and before writing anything:
+
+      * a key that is not in `owned` -- this module writes M1's rows and nobody else's;
+      * the same key twice in `rows` -- `--check` calls a duplicate key an error that blocks the
+        build, and appending a second copy of a row already rewritten is how one appears;
+      * a duplicate key already in the file, which is the same error arriving from elsewhere;
+      * a column set that is not `cells.csv`'s, because a reordered header would silently write
+        every field into the wrong column.
+    """
+    keys = [r["key"] for r in rows]
+    dup = sorted({k for k in keys if keys.count(k) > 1})
+    assert not dup, f"the cells writer was handed {dup} more than once; one key, one row"
+    stray = sorted(set(keys) - set(owned))
+    assert not stray, (
+        f"the cells writer was handed {stray}, which module M1 does not own. `cells.csv` is "
+        f"shared with six other builders and each one writes only its own keys")
+    records = _cells_records(path)
+    assert records, f"{path} is empty"
+    header, header_raw = records[0]
+    assert tuple(header) == CELLS_COLUMNS, (
+        f"{path} has columns {header}, not {list(CELLS_COLUMNS)}")
+    body = records[1:]
+    present = [rec[0] for rec, _ in body]
+    dup_file = sorted({k for k in present if present.count(k) > 1})
+    assert not dup_file, f"{path} already carries {dup_file} more than once"
+
+    pending = {r["key"]: r for r in rows}
+    # The terminator the file already uses, taken from its own header line.
+    term = "\r\n" if header_raw.endswith("\r\n") else "\n"
+    out = [header_raw if header_raw.endswith("\n") else header_raw + term]
+    rewritten: list[str] = []
+    for rec, raw in body:
+        key = rec[0]
+        if key in pending:
+            out.append(_cells_line(pending.pop(key), term))
+            rewritten.append(key)
+        else:
+            out.append(raw if raw.endswith("\n") else raw + term)
+    appended = [r["key"] for r in rows if r["key"] in pending]
+    for r in rows:
+        if r["key"] in pending:
+            out.append(_cells_line(pending.pop(r["key"]), term))
+    assert not pending, pending
+    with path.open("w", newline="") as fh:
+        fh.write("".join(out))
+    return {"path": str(path), "rewritten": rewritten, "appended": appended,
+            "untouched": len(body) - len(rewritten)}
+
+
+def paper_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
+    """(every cells.csv row this run can build, the reasons the rest were skipped)."""
+    a_rows, a_skipped = panel_a_cells(vol, all_res, cfg, opts)
+    b_rows, b_skipped = panel_b_cells(all_res, cfg, opts)
+    rows = a_rows + b_rows
+    skipped = a_skipped + b_skipped
+    # ONE RUN, OR SAY SO. `--exemplifier` is a substring and it is resolved per block, so on a
+    # volume that has accumulated run tags it can legitimately land on `<ckpt>@vllm` in one block
+    # and `<ckpt>@vllm:<tag>` in another -- two scoring runs, one set of paper rows, and nothing
+    # in the CSV saying which cell came from which. Not refused (a rerun of one block is normal),
+    # but never silent.
+    labels = sorted({lbl for res in all_res
+                     for lbl in [arms_of(res, cfg, opts["exemplifier"],
+                                         opts.get("nla", ""))["ex"][0]]
+                     if lbl is not None for lbl in [lbl.label]})
+    if len(labels) > 1:
+        skipped.append(
+            f"the Exemplifier resolved to MORE THAN ONE arm across the blocks ({', '.join(labels)}"
+            f"): panel a and panel b cells may come from different scoring runs. Narrow "
+            f"`--exemplifier` to one arm if that was not intended")
+    built = {r["key"] for r in rows}
+    missing = sorted(set(opts["owned"]) - built)
+    if missing:
+        skipped.append(
+            f"{len(missing)} owned key(s) not built by this run and LEFT AS THEY ARE in cells.csv "
+            f"(an empty `value` there already means 'expected, not yet measured'): "
+            f"{', '.join(missing)}")
+    return rows, skipped
+
+
+def render_cells(rows: list[dict], skipped: list[str], out: R.Out, opts: dict) -> None:
+    """The cells block of the combined document: what was written, and what was not, and why."""
+    out.table(
+        "cells", "Paper cells — `paper/numbers/cells.csv` rows this run builds",
+        (f"Module M1's own keys and no others. `value` carries the digits exactly as the tex "
+         f"prints them ({CELL_PLACES} decimals), because `\\N{{key}}` copies the field verbatim "
+         f"(`paper/numbers/README.md`). `lo`/`hi` is mean ± {CI_Z} × the DOCUMENT-CLUSTERED "
+         f"bootstrap SE, the same estimator every ± in this document uses, and not a percentile "
+         f"interval — `results.common.cluster_bootstrap` returns an SE and not its resample "
+         f"distribution, and a second resampler here would be a second estimator under one name. "
+         f"Ratio cells carry the denominator's corpus in their `note`: `--corpus-peak "
+         f"{opts['corpus_peak']}`. A cell that could not be built is in the list below with its "
+         f"reason and is NOT written — the placeholder row already in the CSV says 'expected, not "
+         f"yet measured', which is true, and a zero would not be."),
+        ["key", "value", "se", "lo", "hi", "n", "status", "run", "source", "date"],
+        [[r[c] for c in CELLS_COLUMNS[:-1]] for r in rows],
+        csv_header=list(CELLS_COLUMNS), csv_rows=[[r[c] for c in CELLS_COLUMNS] for r in rows])
+    if skipped:
+        out.section("#### Cells NOT written, and why\n\n"
+                    + "\n".join(f"- {s}" for s in skipped) + "\n")
+    for s in skipped:
+        out.note(s)
+
+
+# ---------------------------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------------------------
 
@@ -1249,10 +2213,37 @@ def main(
         help="refuse to read cos_centred.f16 above this size (the centred bo-k columns need it)")] = 128.0,
     exclusions: Annotated[bool, typer.Option(
         help="drop the rows in the set's own exclusions.json (the paper's n)")] = True,
+    corpus_peak: Annotated[str, typer.Option(
+        "--corpus-peak",
+        help="the panel b ratio DENOMINATOR: `stored` (sae_self's own 16M held-out max_act, the "
+             "default and what this file did before) or `top1_act:<volume-relative dir>` (M2's "
+             "scan of celeste-train10m, which spec §1.2/§1.4 asks for). An asked-for source that "
+             "is not on the volume RAISES and never falls back")] = CORPUS_PEAK_STORED,
+    cells: Annotated[str, typer.Option(
+        "--cells",
+        help="rewrite THIS module's keys in a cells.csv, in place. Empty (the default) writes "
+             "NOTHING, so the driver stays read-only; `default` resolves to the paper project's "
+             "own paper/numbers/cells.csv; anything else is taken as a path")] = "",
+    cells_date: Annotated[str, typer.Option(
+        help="the `date` column of every cell written -- the RUN date, not today's")] = "",
+    exemplifier: Annotated[str, typer.Option(
+        help="substring naming the Exemplifier arm for the paper's cells. No config field marks "
+             "it (`primary: true` is the DROPPED old primary) and no checkpoint name is spelled "
+             "in this file, so with no flag the MAEMM arms are those that are neither `role: "
+             "control` nor `type: nla`/`base` and the cells are SKIPPED when more than one is "
+             "present rather than guessed at")] = "",
+    nla: Annotated[str, typer.Option(
+        help="substring naming the NLA arm, where a block carries more than one `type: nla` "
+             "product (the stored 2026-07 directories and spec §7's R6 rerun)")] = "",
+    corpus_size: Annotated[float, typer.Option(
+        help="corpus size in millions the paired cells compare against (spec §1.4: 10M)")] = 10.0,
     figures: Annotated[bool, typer.Option(help="write figures/ (PDF + PNG)")] = True,
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ) -> None:
     assert set_, "--set <name> is required; config.yaml `heldout:` lists the declared sets"
+    # Resolved FIRST, before an hour of fetching: a typo in `--cells` must not be discovered after
+    # the run, and the write itself still happens last so a refused write costs the tables nothing.
+    cells_path = resolve_cells_path(cells)
     names = [x.strip() for x in set_.split(",") if x.strip()]
     assert len(names) == len(set(names)), f"--set names a block twice: {names}"
     cfg = R.load_config()
@@ -1267,7 +2258,7 @@ def main(
     # that were already written and cited.
     for name in names:
         res = analyse(vol, cfg, name, sources, boot, seed, check_arrays, check_arrays_max_mb,
-                      centred_bok_max_mb, exclusions)
+                      centred_bok_max_mb, exclusions, corpus_peak)
         sub = Path(out) / name.replace("2026-09-21_v3_", "").replace("/", "_")
         figs = make_figures(res, sub) if figures else []
         sanity = run_sanity(res, sanity_file, vol, cfg)
@@ -1316,10 +2307,34 @@ def main(
         f"- SEs and CIs: bootstrap over document clusters, {boot} resamples, seed {seed}",
         "- every number here is LIFTED from a block's own table; nothing is recomputed at this "
         "level",
+        f"- panel b ratio denominator: `--corpus-peak {corpus_peak}` — "
+        f"{all_res[0]['corpus_peak']['provenance']}",
         *[f"- exclusions, `{r['set']}`: {_exclusion_line(r)}" for r in all_res],
     ]
     o = R.Out(out, "Eval 1 — faithfulness, all blocks", pre)
+    # The paper's cells are built from the SAME objects the tables were, at this level and not per
+    # block, because panel a's rows span two blocks (her realact draw and `_ctrl`'s random floor)
+    # and a per-block writer could not see both.
+    cell_opts = {"boot": boot, "seed": seed, "date": cells_date or datetime.date.today().isoformat(),
+                 "exemplifier": exemplifier, "nla": nla, "corpus_size": corpus_size,
+                 "owned": M1_KEYS,
+                 "corpus_peak": corpus_peak}
+    cell_rows, cell_skipped = paper_cells(vol, all_res, cfg, cell_opts)
+    render_cells(cell_rows, cell_skipped, o, cell_opts)
     path = render_combined(all_res, o, all_sanity, hfigs, blocks)
+    # THE ONLY WRITE OUTSIDE `--out`, and it happens last: the tables are on disk before the
+    # paper's own CSV is touched, so a writer that refuses (a duplicate key, a column set that is
+    # not cells.csv's) costs the run nothing and leaves the numbers readable.
+    if cells_path is not None:
+        rec = write_cells(cells_path, cell_rows, M1_KEYS)
+        print(f"[faithfulness] cells {rec['path']}: {len(rec['rewritten'])} rewritten in place, "
+              f"{len(rec['appended'])} appended, {rec['untouched']} rows untouched")
+    else:
+        print(f"[faithfulness] cells: {len(cell_rows)} row(s) built, NOT written "
+              f"(pass --cells <path> to rewrite them in paper/numbers/cells.csv)")
+    for s in cell_skipped:
+        print(f"   CELL SKIPPED  {s}")
+
     flags = [(k, s) for k, recs in all_sanity.items() for s in recs if s["verdict"] == "FLAG"]
     print(f"\n[faithfulness] COMBINED {path}")
     print(f"[faithfulness] {len(all_res)} blocks, {len(headline_rows(all_res))} headline rows, "
