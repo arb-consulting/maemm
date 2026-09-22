@@ -864,12 +864,19 @@ ood_arms:
   arb_Arab:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/arb_Arab/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Arabic, lid: [arb_Arab], unspaced: false, licence: odc-by}
   hin_Deva:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/hin_Deva/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Devanagari, lid: [hin_Deva], unspaced: false, licence: odc-by}
   tha_Thai:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/tha_Thai/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 16], script: Thai, lid: [tha_Thai], unspaced: true, licence: odc-by}
-  cmn_Hani:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/cmn_Hani/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant], unspaced: true, licence: odc-by}
+  cmn_Hani:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/cmn_Hani/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: odc-by}
   jpn_Jpan:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/jpn_Jpan/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Jpan, lid: [jpn_Jpan], unspaced: true, licence: odc-by}
+
+  # `yue_Hant` is in the Chinese arms' lid lists because that is the label lid218e ACTUALLY
+  # returns for this text: measured 2026-09-22 on the arms' OWN corpus top-1 windows -- Chinese by
+  # construction -- it is the top label on 11/16 (`cmn_Hani`) and 12/16 (`ufw_zh`), with
+  # `zho_Hans` for the rest and `zho_Hant` essentially never. Without it the classifier's CEILING
+  # on those arms is 0.31 and 0.25, so a low rate measured against it says nothing about the
+  # model. See infra/2026-09-22_ood-lid-check.md.
 
   # --- ctrl (2): the same filter pipeline as our English corpus, at two scripts ------------------
   # ufw_zh separates "different filter pipeline" from "different script" against cmn_Hani.
-  ufw_zh:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_zh/ultrafineweb-zh-part-001-of-256.parquet], text: content, split: zh, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant], unspaced: true, licence: apache-2.0}
+  ufw_zh:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_zh/ultrafineweb-zh-part-001-of-256.parquet], text: content, split: zh, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: apache-2.0}
   # ufw_en is the PIPELINE CHECK (design §8 (a)): a fresh English draw through the new code path,
   # from part 0011 -- disjoint from the 16M corpus (parts 0009/0010) and from the old 8B corpus
   # (part 0001). NOTE (infra/2026-09-18_ood-eval-training-data.md): Ultra-FineWeb is NOT the

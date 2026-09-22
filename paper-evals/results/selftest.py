@@ -2479,6 +2479,78 @@ def R_outcome(lo, hi):
     return "exceeds" if lo > 0 else ("reversed" if hi < 0 else "inconclusive")
 
 
+def check_ood_lid_ranking():
+    """The language-id column must be read off the top-1 rollout BY SCORE, not rollout k=0.
+
+    The rollouts jsonl carries no score, so appending in file order gives the FIRST SAMPLED draw
+    at T = 1.0 -- an arbitrary one of 64. Measured cost of that bug on the real run
+    (infra/2026-09-22_ood-lid-check.md): jpn_Jpan 0.062 -> 0.562, ces_Latn 0.562 -> 0.812,
+    ell_Grek 0.500 -> 0.750. The fixture below is built so the k=0 answer and the top-1 answer
+    DISAGREE on every row; a reader that ignores the scores gets 0.0 where the truth is 1.0.
+    """
+    od = _ood()
+    n_rows, n_roll, width = 4, 3, 5
+    # rollout 0 is always the wrong language, rollout 2 always the right one and always best
+    texts = []
+    for row in range(n_rows):
+        for k in range(n_roll):
+            texts.append({"row": row, "text": ("WRONG" if k != 2 else "RIGHT")})
+    cos = np.full((n_rows, n_roll, width), np.nan, dtype=np.float32)
+    for row in range(n_rows):
+        cos[row, 0, :2] = 0.10
+        cos[row, 1, :2] = 0.20
+        cos[row, 2, :2] = 0.90          # the best, and the last in file order
+    with tempfile.TemporaryDirectory() as td:
+        mirror = Path(td)
+        rel = "maemms/m/scores/S__vllm__asym"
+        (mirror / rel).mkdir(parents=True)
+        cos.astype(np.float16).tofile(mirror / rel / "cos_asym.f16")
+        (mirror / rel / "index.json").write_text(json.dumps(
+            {"cos_asym.f16": {"dtype": "float16", "shape": [n_rows, n_roll, width]}}))
+        vol = R.Vol("", mirror, offline=True)
+        src = R.Source(maemm="m", base="b", engine="vllm", run_tag="asym",
+                       scores_rel=rel, rollouts_rel="")
+        src.per_target = {r: {"max_cos_asym": 0.9} for r in range(n_rows)}
+        ranked, note = od.ranked_texts(vol, src, "asym", texts)
+        assert all(v[0] == "RIGHT" for v in ranked.values()), ranked
+        assert "top-1 BY SCORE" in note, note
+        # and the cross-check must REFUSE a score array that is not the one per_target reports
+        src.per_target = {r: {"max_cos_asym": 0.5} for r in range(n_rows)}
+        try:
+            od.ranked_texts(vol, src, "asym", texts)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("ranking against an array that disagrees with per_target must stop")
+        # with no score array at all it falls back to file order AND SAYS SO
+        (mirror / rel / "index.json").write_text("{}")
+        vol2 = R.Vol("", mirror, offline=True)
+        ranked2, note2 = od.ranked_texts(vol2, src, "asym", texts)
+        assert ranked2[0][0] == "WRONG" and "k=0" in note2, note2
+
+
+def check_ood_lid_wantlist():
+    """An arm's want-list must contain the label the classifier actually returns for its text.
+
+    lid218e calls Chinese `yue_Hant` on this corpus: measured on the arms' OWN corpus windows --
+    Chinese by construction -- it is the top label 11/16 on cmn_Hani and 12/16 on ufw_zh. With
+    the old `[zho_Hans, zho_Hant]` list the CEILING was 0.31 / 0.25, so the rate said nothing
+    about the model. Checked against the REAL config, so dropping the label fails here.
+    """
+    cfg = R.load_config()
+    for arm in ("cmn_Hani", "ufw_zh"):
+        want = cfg["ood_arms"][arm]["lid"]
+        assert "yue_Hant" in want, (
+            f"ood_arms.{arm}.lid is {want}: lid218e labels this corpus's text `yue_Hant`, and "
+            f"without it the classifier's ceiling on this arm is 0.25-0.31 -- a rate measured "
+            f"against that is an artefact, not a finding (infra/2026-09-22_ood-lid-check.md)"
+        )
+    # a lang arm whose lid is null would silently fall through to the code_like branch
+    for arm, spec in cfg["ood_arms"].items():
+        if spec["family"] in ("lang", "ctrl"):
+            assert spec.get("lid"), f"lang/ctrl arm {arm} has no lid want-list"
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -2514,6 +2586,8 @@ CHECKS = [
     check_autointerp_cuts_catch_a_defect,
     check_ood_scan_key,
     check_ood_arm_table,
+    check_ood_lid_ranking,
+    check_ood_lid_wantlist,
 ]
 
 

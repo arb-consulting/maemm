@@ -2,6 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = ["numpy>=2", "typer>=0.15", "pyyaml>=6", "matplotlib>=3.9",
+#                 "transformers>=4.44",   # the tokenizer, for the classifier ceilings
 #                 "polars>=1", "rich>=13"]   # the last two: reconstruction/stats_ood.py
 # ///
 """Eval 3's arms table: the generalisation eval, from the products already on the volume.
@@ -50,6 +51,7 @@ from __future__ import annotations
 import math
 import re
 import sys
+import warnings
 from pathlib import Path
 from typing import Annotated
 
@@ -243,6 +245,72 @@ def rollouts_rel_of(vol: R.Vol, src: R.Source) -> str | None:
     return rel
 
 
+SCORE_ARRAY = {"asym": "cos_asym.f16", "centred": "cos_centred.f16", "raw": "cos.f16"}
+
+
+def per_rollout_scores(vol: R.Vol, src: R.Source, which: str):
+    """[N, n] per-rollout score of a scores directory, or None.
+
+    `cos_*.f16` is [N, n, T] with NaN outside the kept tokens, so a rollout's score is the nanmax
+    over its token axis -- the same reduction `score` itself does to build `max_cos_*`. Needed
+    because the rollouts jsonl carries NO score, so "the top-1 rollout" cannot be read off it:
+    appending in file order gives the FIRST SAMPLED draw at T = 1.0, an arbitrary one of 64.
+    Review R3 asks for the top-1 BY SCORE -- the rollout the headline best-of-64 is about.
+    """
+    import numpy as _np
+
+    name = SCORE_ARRAY[which]
+    idx = vol.json(f"{src.scores_rel}/index.json") or {}
+    meta = idx.get(name)
+    if not meta or "shape" not in meta:
+        return None
+    shape = tuple(int(x) for x in meta["shape"])
+    arr = vol.array(f"{src.scores_rel}/{name}", "float16", shape)
+    if arr is None:
+        return None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")           # an all-NaN rollout is legal; it scores NaN
+        return _np.nanmax(arr.astype(_np.float32), axis=-1)
+
+
+def ranked_texts(vol: R.Vol, src: R.Source, which: str, rows: list[dict]):
+    """({row -> [text] best-scoring FIRST}, a note). Falls back to file order, saying so."""
+    import numpy as _np
+
+    by_row: dict[int, list[str]] = {}
+    for r in rows:
+        by_row.setdefault(int(r["row"]), []).append(r.get("text", ""))
+    sc = per_rollout_scores(vol, src, which)
+    if sc is None:
+        return by_row, (
+            f"`{src.scores_rel}/{SCORE_ARRAY[which]}` is not on the volume, so the language-id "
+            f"column is taken on rollout k=0 -- the FIRST SAMPLED draw, not the top-1 by score. "
+            f"Read it as `lid_k0_rate`."
+        )
+    # CROSS-CHECK against the number `score` wrote for the same reduction. If these disagree the
+    # ranking is against a different array than the table's cosines and the column is not R3's.
+    worst, n_chk = 0.0, 0
+    for row, rec in src.per_target.items():
+        want = rec.get({"asym": "max_cos_asym", "centred": "max_cos_centred", "raw": "max_cos"}[which])
+        if want is None or row >= sc.shape[0]:
+            continue
+        got = float(_np.nanmax(sc[row]))
+        worst = max(worst, abs(got - float(want)))
+        n_chk += 1
+    assert n_chk and worst < 0.01, (
+        f"per-rollout {which} scores disagree with {src.scores_rel}/per_target.jsonl by {worst:.5f} "
+        f"over {n_chk} rows: the ranking would not be by the cosine this table reports"
+    )
+    out = {}
+    for row, texts in by_row.items():
+        if row < sc.shape[0] and len(texts) <= sc.shape[1]:
+            order = _np.argsort(-_np.nan_to_num(sc[row][: len(texts)], nan=-2.0))
+            out[row] = [texts[i] for i in order]
+        else:
+            out[row] = texts
+    return out, f"language-id taken on the top-1 BY SCORE ({which}); max |check| {worst:.5f}"
+
+
 def has_asym(src: R.Source) -> bool:
     """Does this scores directory carry the asymmetric cosine at all?
 
@@ -370,8 +438,57 @@ def _mean(vals) -> float | None:
     return float(np.mean(vals)) if vals else None
 
 
+def corpus_window_texts(vol: R.Vol, base: str, cdir: str, top1_rows, tok):
+    """The decoded corpus top-1 WINDOW for each (row -> (doc, start)), or {} if unavailable.
+
+    This text is in the arm's language BY CONSTRUCTION -- it is a window of that arm's own corpus
+    -- so a classifier's rate on it is the classifier's CEILING, not a property of the MAEMM.
+    Without the ceiling beside it a low rate is unreadable: it can mean the model did not produce
+    the language, or that the classifier cannot name it (lid218e labels Chinese `yue_Hant`), or
+    that the predicate needs a longer window than a rollout has (`code_like`).
+    """
+    docs = vol.jsonl(f"base/{base}/corpora/{cdir}/docs.jsonl") if cdir else None
+    if docs is None or tok is None:
+        return {}
+    idx = vol.json(f"base/{base}/corpora/{cdir}/index.json") or {}
+    meta = idx.get("tokens.i32")
+    if not meta or "shape" not in meta:
+        return {}
+    toks = vol.array(f"base/{base}/corpora/{cdir}/tokens.i32", "int32",
+                     tuple(int(x) for x in meta["shape"]))
+    if toks is None:
+        return {}
+    span = {int(d["doc"]): (int(d["offset"]), int(d["len"])) for d in docs}
+    out = {}
+    for row, (doc, start) in top1_rows.items():
+        if doc not in span:
+            continue
+        off, ln = span[doc]
+        a = off + start
+        b = min(a + PC.SCAN_BLOCK, off + ln)
+        if b > a:
+            out[row] = tok.decode([int(t) for t in toks[a:b]])
+    return out
+
+
+def load_tokenizer(cfg: dict, base: str):
+    """The base's tokenizer, or None with the reason printed. Only the ceilings need it."""
+    try:
+        from transformers import AutoTokenizer  # noqa: PLC0415
+    except ImportError:
+        print("[ood] transformers not installed: no classifier ceilings "
+              "(`uv run --with transformers ...`)", flush=True)
+        return None
+    try:
+        return AutoTokenizer.from_pretrained(cfg["bases"][base]["hf"])
+    except Exception as e:  # noqa: BLE001 -- an absent cache is a skip, not a failure
+        print(f"[ood] tokenizer unavailable ({type(e).__name__}): no classifier ceilings", flush=True)
+        return None
+
+
 def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_name: str,
-              lid_model: Path | None) -> tuple[dict[str, dict], str]:
+              lid_model: Path | None, which: str = "asym",
+              ceilings: dict[str, dict] | None = None) -> tuple[dict[str, dict], list[str]]:
     """{arm -> {lid_top1_rate, lid_top4_rate | code_like_top1_rate}} (review R3), and a note.
 
     The classifier is chosen by the ARM, not by the source: `ood_arms.<arm>.lid` is a list of the
@@ -380,19 +497,18 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
     """
     rel = rollouts_rel_of(vol, src)
     if rel is None:
-        return {}, f"`{src.scores_rel}/README.md` does not name its rollouts file: lid not run"
+        return {}, [f"`{src.scores_rel}/README.md` does not name its rollouts file: lid not run"]
     # Read the path the README gave, directly. `stats_ood.rollout_texts` composes
     # `maemms/{base}/{maemm}/...` from its own arguments, and `src.maemm` is the CONFIG KEY --
     # `<base>/<name>` -- so handing it that doubles the base and the fetch silently returns
     # nothing. One path, from the producer, is the whole point of reading the README.
     rows = vol.jsonl(rel)
     if not rows:
-        return {}, f"no rollout texts at {rel}: lid not run"
-    texts: dict[int, list[str]] = {}
-    for r in rows:
-        texts.setdefault(int(r["row"]), []).append(r.get("text", ""))
+        return {}, [f"no rollout texts at {rel}: lid not run"]
+    texts, rank_note = ranked_texts(vol, src, which, rows)
     model = mod.load_lid(lid_model)
     arms = cfg["ood_arms"]
+    ceilings = ceilings or {}
     out: dict[str, dict] = {}
     per_arm: dict[str, list[tuple[list[str], list[str] | None]]] = {}
     for r in ids:
@@ -401,27 +517,39 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
             per_arm.setdefault(r["arm"], []).append((t, arms[r["arm"]].get("lid")))
     for arm, items in per_arm.items():
         want = items[0][1]
+        ceil_txt = ceilings.get(arm) or {}
         if want is None:
+            # `code_like` needs R7's 512-token window; a rollout is <= 64 tokens and for SQL none
+            # of its nine markers can occur at all. Reported WITH the ceiling measured on the
+            # arm's own corpus windows, and marked not measurable when that ceiling is at or
+            # below the rate -- the column then carries no information either way.
             rates = [1.0 if code_like(t[0]) else 0.0 for t, _ in items]
+            ceil = (float(np.mean([1.0 if code_like(x) else 0.0 for x in ceil_txt.values()]))
+                    if ceil_txt else None)
             out[arm] = {"lid_top1_rate": None, "lid_top4_rate": None,
-                        "code_like_top1_rate": float(np.mean(rates))}
+                        "code_like_top1_rate": float(np.mean(rates)),
+                        "ceiling": ceil, "ceiling_kind": "code_like"}
             continue
         if model is None:
-            out[arm] = {"lid_top1_rate": None, "lid_top4_rate": None, "code_like_top1_rate": None}
+            out[arm] = {"lid_top1_rate": None, "lid_top4_rate": None, "code_like_top1_rate": None,
+                        "ceiling": None, "ceiling_kind": "lid"}
             continue
         t1, t4 = [], []
         for t, _ in items:
             labs = [mod.lid_label(model, x)[0] for x in t[:4]]
             t1.append(1.0 if labs and labs[0] in want else 0.0)
             t4.append(1.0 if any(x in want for x in labs) else 0.0)
+        ceil = (float(np.mean([1.0 if mod.lid_label(model, x)[0] in want else 0.0
+                               for x in ceil_txt.values()])) if ceil_txt else None)
         out[arm] = {"lid_top1_rate": float(np.mean(t1)), "lid_top4_rate": float(np.mean(t4)),
-                    "code_like_top1_rate": None}
-    note = "" if model is not None else (
-        "fastText lid218e was not loadable, so the language columns are absent on the lang/ctrl "
-        "arms (run with `--with fasttext --with huggingface-hub`); the code_like column is "
-        "unaffected, it is a regex in common.py"
-    )
-    return out, note
+                    "code_like_top1_rate": None, "ceiling": ceil, "ceiling_kind": "lid"}
+    notes = [rank_note]
+    if model is None:
+        notes.append(
+            "fastText lid218e was not loadable, so the language columns are absent on the "
+            "lang/ctrl arms (run with `--with fasttext --with huggingface-hub`)"
+        )
+    return out, notes
 
 
 # ---------------------------------------------------------------------------------------------
@@ -441,6 +569,10 @@ def main(
     out: Annotated[Path | None, typer.Option(help="output directory")] = None,
     data_dir: Annotated[Path | None, typer.Option(help="the local mirror")] = None,
     lid: Annotated[bool, typer.Option(help="run fastText lid218e on the rollouts (review R3)")] = True,
+    ceiling: Annotated[
+        bool, typer.Option(help="measure each classifier's ceiling on the arm's OWN corpus "
+                                "top-1 windows; needs transformers for the tokenizer")
+    ] = True,
     lid_model: Annotated[Path | None, typer.Option(help="a local lid218e model.bin")] = None,
     refetch: Annotated[bool, typer.Option()] = False,
     offline: Annotated[bool, typer.Option(help="read the mirror only; never call modal")] = False,
@@ -528,6 +660,26 @@ def main(
         ],
     )
 
+    # The classifiers' ceilings, measured on each arm's OWN corpus top-1 windows at the size the
+    # claim is read at. Computed once and shared by every source: it is a property of the corpus
+    # and the classifier, not of a checkpoint.
+    ceilings: dict[str, dict] = {}
+    tok = load_tokenizer(cfg, base) if ceiling else None
+    if tok is not None:
+        for arm, cdir in sorted(dir_of_arm.items()):
+            d = next((d for d, (c, mb) in scans.items() if c == cdir and (mb or 0) == size_m), None)
+            if d is None:
+                continue
+            rows_ = vol.jsonl(f"base/{base}/scan/{d}/topk.jsonl") or []
+            want = {}
+            for r in rows_:
+                if r.get("set", set_name) == set_name and r.get("top") and float(r["size"]) == size_m:
+                    want[int(r.get("set_row", r["row"]))] = (int(r["top"][0][0]), int(r["top"][0][1]))
+            got = corpus_window_texts(vol, base, cdir, want, tok)
+            if got:
+                ceilings[arm] = got
+        print(f"[ood] classifier ceilings from {len(ceilings)} arms' own corpus windows", flush=True)
+
     verdicts: dict[str, dict[str, str]] = {}
     superseded = [
         s_ for s_ in usable
@@ -571,21 +723,34 @@ def main(
         notes += skipped
         lids: dict[str, dict] = {}
         if lid:
-            lids, lnote = lid_rates(mod, vol, cfg, ids, src, set_name, lid_model)
-            if lnote:
-                notes.append(lnote)
+            lids, lnotes = lid_rates(
+                mod, vol, cfg, ids, src, set_name, lid_model, "asym", ceilings
+            )
+            notes += [f"`{src.label}`: {x}" for x in lnotes if x]
         lang_col = []
         for r in recs:
             li = lids.get(r["arm"], {})
-            r.update({k: li.get(k) for k in ("lid_top1_rate", "lid_top4_rate", "code_like_top1_rate")})
-            lang_col.append(
-                R.num(r["lid_top1_rate"], 3) if r["lid_top1_rate"] is not None
-                else (f"{R.num(r['code_like_top1_rate'], 3)} (code)"
-                      if r["code_like_top1_rate"] is not None else "—")
-            )
+            r.update({k: li.get(k) for k in ("lid_top1_rate", "lid_top4_rate",
+                                             "code_like_top1_rate", "ceiling", "ceiling_kind")})
+            ceil, kind = r.get("ceiling"), r.get("ceiling_kind")
+            rate = r["lid_top1_rate"] if r["lid_top1_rate"] is not None else r["code_like_top1_rate"]
+            if rate is None:
+                lang_col.append("—")
+            elif ceil is None:
+                lang_col.append(R.num(rate, 3) + (" (code)" if kind == "code_like" else ""))
+            elif kind == "code_like":
+                # NOT MEASURABLE, whatever the two numbers are. `code_like` needs 3 of 9 markers
+                # and is calibrated for R7's 512-token windows; a rollout is <= 64 tokens, and on
+                # SQL none of the nine markers can occur at all. The ceiling below -- the rate on
+                # the arm's OWN corpus windows, which are genuine code -- is 0.01-0.26, so the
+                # predicate barely fires on the thing it is supposed to detect and the rollout
+                # rate is uninterpretable in either direction.
+                lang_col.append(f"n/m ({R.num(rate, 2)} vs ceiling {R.num(ceil, 2)})")
+            else:
+                lang_col.append(f"{R.num(rate, 3)} / {R.num(ceil, 2)}")
         verdicts[src.label] = {r["arm"]: r["outcome"] for r in recs}
         header = ["arm", "family", "n", "bo64 (asym)", f"corpus {size_m:g}M",
-                  "control bo64", "Δ", "95% CI", "win", "outcome", "lang / code"]
+                  "control bo64", "Δ", "95% CI", "win", "outcome", "lang / ceiling"]
         rows_md = [
             [r["arm"], r["family"], r["n"], R.num(r["bo64_asym"]),
              R.num(r["corpus_top1"]), R.num(r["control_bo64"]),
@@ -596,13 +761,14 @@ def main(
         csv_header = ["arm", "family", "n", "bo64_asym", "bo64_centred", "bo64_raw", "corpus_top1",
                       "corpus_size_m", "control_bo64", "delta", "ci_lo", "ci_hi",
                       "se_clustered", "n_clusters", "win_frac", "outcome",
-                      "lid_top1_rate", "lid_top4_rate", "code_like_top1_rate"]
+                      "lid_top1_rate", "lid_top4_rate", "code_like_top1_rate",
+                      "classifier_ceiling", "ceiling_kind"]
         csv_rows = [
             [r["arm"], r["family"], r["n"], r["bo64_asym"], r["bo64_centred"], r["bo64_raw"],
              r["corpus_top1"],
              size_m, r["control_bo64"], r["delta"], r["ci_lo"], r["ci_hi"], r["se_clustered"],
              r["n_clusters"], r["win_frac"], r["outcome"], r["lid_top1_rate"],
-             r["lid_top4_rate"], r["code_like_top1_rate"]]
+             r["lid_top4_rate"], r["code_like_top1_rate"], r.get("ceiling"), r.get("ceiling_kind")]
             for r in recs
         ]
         o.table(
