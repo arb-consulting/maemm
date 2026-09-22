@@ -500,6 +500,51 @@ def table(
         print(f"wrote {len(rows)} cells rows to {cells_out}")
 
 
+@app.command()
+def fired(
+    top1_rel: Annotated[str, typer.Option("--top1-dir", help="a `top1_act` product directory, "
+                                          "volume-relative")],
+    data_dir: str = "results/data",
+    root: str = "",
+    no_fetch: bool = False,
+) -> None:
+    """Panel b's corpus comparator: does the COSINE top-1 corpus window make the feature fire?
+
+    Read from `top1_act`'s own rows, per corpus-frequency quartile. `stratum` is the draw's own
+    rarity band with 0 the RAREST (the density column on the same row is what it was cut on), so
+    it maps to the writing plan's `q1..q4` rarest-first in that order -- printed beside the
+    median density so the mapping is checkable and not merely asserted.
+
+    `fired` is the fraction whose top-1 window peaks above the checkpoint's own learned BatchTopK
+    gate -- `top1_act`'s `passes_gate`, the same gate `stats`, `score` and `scan` use. The median
+    peak is the raw pre-gate activation, not a ratio: panel b's ratio has the corpus peak as its
+    DENOMINATOR and is 1 by construction there (writing plan §2), which is why this reports the
+    fired fraction and the level rather than a ratio of 1.
+    """
+    vol = R.Vol(root, Path(data_dir), offline=no_fetch)
+    recs = vol.jsonl(f"{top1_rel.rstrip('/')}/top1_act.jsonl")
+    assert recs, f"no top1_act.jsonl under {top1_rel}"
+    gate = recs[0].get("gate")
+    by_q: dict[object, list[dict]] = {}
+    for r in recs:
+        by_q.setdefault(r.get("stratum"), []).append(r)
+    print(f"{top1_rel}  n = {len(recs)}  gate = {gate}")
+    print(f"{'stratum':>8} {'key':>4} {'n':>5} {'fired':>7} {'median peak':>12} "
+          f"{'median cos':>11} {'median density':>15}")
+    for st in sorted(by_q, key=lambda v: (v is None, v)):
+        rs = by_q[st]
+        f = float(np.mean([bool(r["passes_gate"]) for r in rs]))
+        pk = float(np.median([float(r["act_max"]) for r in rs]))
+        cs = float(np.median([float(r["top1_cos"]) for r in rs]))
+        de = [r.get("density") for r in rs if r.get("density") is not None]
+        dv = float(np.median(de)) if de else float("nan")
+        key = f"q{int(st) + 1}" if isinstance(st, int) else "-"
+        print(f"{str(st):>8} {key:>4} {len(rs):>5} {f:>7.4f} {pk:>12.4f} {cs:>11.4f} {dv:>15.3e}")
+    allf = float(np.mean([bool(r["passes_gate"]) for r in recs]))
+    allp = float(np.median([float(r["act_max"]) for r in recs]))
+    print(f"{'pooled':>8} {'-':>4} {len(recs):>5} {allf:>7.4f} {allp:>12.4f}")
+
+
 # ---------------------------------------------------------------------------------------------
 # selftest -- a synthetic scan directory, and every gate deliberately broken
 # ---------------------------------------------------------------------------------------------
