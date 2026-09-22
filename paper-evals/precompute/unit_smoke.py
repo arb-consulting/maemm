@@ -1994,6 +1994,68 @@ def check_scores_dir_puts_the_tag_where_rollout_stem_does():
     print("  scores_dir: __<engine>__<tag>, with the legacy order still readable")
 
 
+def check_both_tag_axes_reach_the_scores_path():
+    """`--run-tag` AND `--score-tag` are both in the scores directory name, and in that order.
+
+    THE REBASE HAZARD THIS EXISTS FOR. `evals/pipeline` and `evals/pipeline-ood` each gave
+    `scores_dir` a `tag` parameter, in the same position, with the same name, within a day of each
+    other -- and meant different things by it:
+
+      `--run-tag`   selects which rollouts FILE is scored;
+      `--score-tag` scores ONE rollouts file again under a second convention (`cos_asym` is why).
+
+    Keeping either side's resolution alone loses the other axis with NO error anywhere: the second
+    run writes the first run's directory, `--force` replaces it, and the only trace is a README
+    naming a different rollouts file. `score_tag_of` composes both; this check is on the
+    composition and on every call site, because a call site that builds the tag by hand is the
+    same defect wearing a different sleeve.
+    """
+    import ast
+
+    assert C.score_tag_of({}) == "", "an untagged run must keep the historical bare path"
+    assert C.score_tag_of({"run_tag": "mu-none"}) == "mu-none", (
+        "the RUN tag vanished from the scores path: two rollouts files would score into one dir")
+    assert C.score_tag_of({"score_tag": "asym"}) == "asym", (
+        "the SCORE tag vanished: a re-score of one rollouts file would overwrite the first result")
+    assert C.score_tag_of({"run_tag": "mu-none", "score_tag": "asym"}) == "mu-none__asym", (
+        "the two axes must BOTH appear, run tag first -- every score of one rollouts file sorts "
+        "together only if the run tag is the outer component")
+    # whitespace is not a tag, and `rollout_stem` would accept a padded one into a path
+    assert C.score_tag_of({"run_tag": "  ", "score_tag": "asym"}) == "asym"
+
+    # the two axes must land in DIFFERENT directories, which is the whole point
+    m, s = "qwen3-8b/2026-09-03_run1-rl", "s"
+    seen = {
+        C.scores_dir(m, s, "/vol", "vllm", C.score_tag_of(a), write=True)
+        for a in ({}, {"run_tag": "r"}, {"score_tag": "t"}, {"run_tag": "r", "score_tag": "t"})
+    }
+    assert len(seen) == 4, f"four (run tag, score tag) combinations share {4 - len(seen) + 1} paths: {seen}"
+
+    # EVERY call site composes it the same way. A `scores_dir(...)` whose tag argument is
+    # `args.get("run_tag")` or `args.get("score_tag")` alone silently drops the other axis.
+    root = Path(__file__).resolve().parent.parent
+    checked = 0
+    for rel in ("precompute/score.py", "precompute/centred.py", "autointerp/sae_self.py",
+                "autointerp/build.py"):
+        for node in ast.walk(ast.parse((root / rel).read_text())):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "scores_dir"):
+                continue
+            tag_arg = node.args[4] if len(node.args) > 4 else next(
+                (k.value for k in node.keywords if k.arg == "tag"), None)
+            if tag_arg is None:      # an untagged read of the historical path is legal
+                continue
+            checked += 1
+            ok = (isinstance(tag_arg, ast.Call) and isinstance(tag_arg.func, ast.Attribute)
+                  and tag_arg.func.attr == "score_tag_of")
+            assert ok, (
+                f"{rel}:{node.lineno} builds scores_dir's tag by hand instead of with "
+                f"C.score_tag_of(args). One of --run-tag / --score-tag will be missing from the "
+                f"path, and the run that collides with it will simply overwrite.")
+    assert checked >= 4, f"only {checked} tagged scores_dir call sites found; the check is not reaching them"
+    print(f"  scores path: run tag and score tag both in, {checked} call sites compose it")
+
+
 def check_return_arities():
     """Every loader returns as many values as its callers unpack -- checked with `ast`, on CPU.
 
@@ -2225,10 +2287,12 @@ def check_one_set_writers_tuple():
             for comp in node.comparators:
                 if isinstance(comp, ast.Attribute) and comp.attr == "SET_WRITERS":
                     reads.append(node.lineno)
-                if isinstance(comp, ast.Tuple) and any(
-                    isinstance(e, ast.Constant) and e.value in ("targets", "draw_sae2m")
-                    for e in comp.elts
-                ):
+                # BOTH names, which is the D6 tuple's shape. `targets` alone appears in the
+                # per-flag ownership asserts (`--arm` is a corpus/targets/ood_selfcheck flag),
+                # and the first version of this check called one of those a second D6 tuple.
+                if isinstance(comp, ast.Tuple) and {"targets", "draw_sae2m"} <= {
+                    e.value for e in comp.elts if isinstance(e, ast.Constant)
+                }:
                     literals.append(node.lineno)
         assert reads, (
             f"{rel}: no `in`/`not in` comparison against `C.SET_WRITERS`. The D6 guard has a "
@@ -2682,6 +2746,7 @@ CHECKS = [
     check_sae_column_slice_is_the_dictionary,
     check_gcg_never_loads_the_full_dictionary,
     check_scores_dir_puts_the_tag_where_rollout_stem_does,
+    check_both_tag_axes_reach_the_scores_path,
     check_return_arities,
     check_centred_uses_one_mu,
     check_every_set_writer_writes_the_contract,
