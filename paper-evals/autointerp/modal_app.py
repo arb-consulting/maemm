@@ -198,8 +198,22 @@ def main(
     pool_seed: int = 0,
     prefix_m: int = 0,
     batch: int = 0,
+    # THE TWO CORPORA (spec §3, decided 2026-09-22). `--corpus-name` is where the corpus arms'
+    # SHOWN examples come from and is also the corpus the three corpus-side GPU stages
+    # (`random_pool`, `examples_4m`, `examples_docmax`) read and key their output path by;
+    # `--test-corpus-name` is where `build`'s Delphi test windows and negatives come from.
+    # Both empty = the base's own corpus on both sides, which is every run made before
+    # 2026-09-23. The paper's run passes `--corpus-name celeste-train10m` and leaves the test
+    # side default, so the explainer never sees a window the judge then tests on.
+    corpus_name: str = "",
+    test_corpus_name: str = "",
     # build
     build_dir: str = "",
+    # A SECOND build, whose ROLLOUT-ONLY arms (the NLA ones) are scored inside this run against
+    # THIS run's test items. `build` takes one --maemm and the NLA verbalizer is not the MAEMM, so
+    # without it the NLA arms can only live in their own run directory -- and then they carry
+    # their own floor and their own nulls and `stats.paired()` has nothing to pair across the two.
+    build_dir_nla: str = "",
     n_feat: int = 0,
     feat_seed: int = 0,
     n_examples: int = 0,
@@ -310,7 +324,10 @@ def main(
         "pool_seed": pool_seed,
         "prefix_m": prefix_m,
         "batch": batch,
+        "corpus_name": corpus_name,
+        "test_corpus_name": test_corpus_name,
         "build_dir": build_dir.rstrip("/"),
+        "build_dir_nla": build_dir_nla.rstrip("/"),
         "n_feat": n_feat,
         "feat_seed": feat_seed,
         "n_examples": n_examples,

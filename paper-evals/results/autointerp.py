@@ -111,6 +111,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -839,6 +840,16 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
                      if r.get("n_batches")]
             items = [int(r["n_items"]) for r in cell.values() if r.get("n_items") is not None]
             refused = refusals.get(key, set())
+            # TPR and TNR beside the balanced accuracy, over the SAME features and with the same
+            # estimator. Balanced accuracy is their mean, so a table that prints only the mean
+            # cannot say which half moved -- and spec §3's failure analysis is entirely about the
+            # positive half ("the loss is recall"). `paper/numbers/cells.csv` takes `*.tpr` and
+            # `*.tnr` from here.
+            halves = {}
+            for half in ("tpr", "tnr"):
+                hv = values_of(cell, metric=half)
+                hm, hlo, hhi = boot_ci(hv.values(), boot, seed)
+                halves[half] = {"mean": hm, "lo": hlo, "hi": hhi, "n": len(hv)}
             base = {
                 "arm": key.label, "run": key.run, "arm_name": key.arm, "scorer": scorer,
                 "convention": DROPPED,
@@ -852,6 +863,7 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
                 "mean_n_items": float(np.mean(items)) if items else float("nan"),
                 "parse_rate": float(np.mean(parse)) if parse else float("nan"),
                 "run_dir": runs.get(key.run, ""),
+                "tpr": halves["tpr"], "tnr": halves["tnr"],
             }
             cells.append(base)
             # THE SECOND CONVENTION, and only where there is something to impute: an arm with no
@@ -969,6 +981,10 @@ def analyse(vol: R.Vol, runs: dict[str, str], sae: str, ref: str, boot: int, see
         "peak_strata": peak_rows, "peak_cuts": peak_cuts, "trends": trends, "record": record,
         "versus": versus, "vs_runs": vs_runs or {}, "vs_label": vs_label,
         "n_features": len({int(r["feature"]) for r in rows}),
+        # The per-feature values behind every cell, keyed (arm label, scorer). Exposed because
+        # `contrasts` is every arm against ONE reference, and `cells.csv` needs two contrasts with
+        # different references (`M - C16` and `M - NLA`), which cannot be recovered from two means.
+        "per_feature": {(k.label, sc): values_of(cell) for (k, sc), cell in by_cell.items()},
         "missing": missing, "notes": notes, "boot": boot, "seed": seed, "n_rows": len(rows),
     }
 
@@ -1725,6 +1741,170 @@ def make_figures(res: dict, out_dir: Path) -> list[str]:
 # ---------------------------------------------------------------------------------------------
 
 
+
+
+# ---------------------------------------------------------------------------------------------
+# `paper/numbers/cells.csv` -- the only place a printed number is allowed to come from
+# ---------------------------------------------------------------------------------------------
+# Nothing else in `results/` writes cells.csv: the faithfulness and OOD drivers stop at their own
+# tables and the rows were entered by hand. The plan's completion criterion is
+# `make_numbers.py --check` reporting no expected-but-unmeasured key, so eval 2's rows are written
+# from here instead -- one function, one file, and every row carrying its own provenance.
+#
+# The key grammar is `<eval>.<set>.<arm>.<metric>[.<k>][.<stratum>]` (paper/numbers/README.md),
+# and the ARM SLOT IS NOT THE ARM NAME: `M` prints as `mtop16`, `R-shuffled` as `floor`, and the
+# two nulls as `null` / `jnull`. An arm not in this map gets NO row rather than a guessed key,
+# because a key that does not match the writing plan's vocabulary is a silent warning in
+# `--check` and a wrong macro in the PDF.
+CELLS_COLUMNS = ["key", "value", "se", "lo", "hi", "n", "status", "run", "source", "date", "note"]
+CELL_ARM_SLOT = {
+    "C16": "c16", "DOCMAX": "c16", "M": "mtop16", "M-jac16": "mjac16", "M-cos16": "mcos16",
+    "NLA": "nla4", "NLA-1": "nla1", "NLA-desc": "nlab", "R-shuffled": "floor",
+    "C16-draw2": "null", "C16-judge2": "jnull", "C16-win": "c16win",
+}
+# scorer -> the metric slot of the balanced-accuracy cell, and of its refusal-corrected twin.
+CELL_SCORER_SLOT = {"detection": ("det", "detrc"), "fuzzing": ("fuzz", "fuzzrc")}
+# The two paired contrasts the main text prints, BY KEY SLOT: `diff` is the Exemplifier minus the
+# corpus arm and `diffnla` the Exemplifier minus NLA mode A. Named by slot and not by arm name
+# because the corpus arm is `C16` on a post-09-23 run and `DOCMAX` on the eval-2 blocks, and both
+# print as `c16`. They have DIFFERENT references, so neither comes out of `res["contrasts"]`,
+# which is every arm against one reference: both are computed here from `res["per_feature"]`.
+CELL_CONTRASTS = (("diff", "mtop16", "c16"), ("diffnla", "mtop16", "nla4"))
+CELL_PLACES = 3
+
+
+def _cell_num(x, places: int = CELL_PLACES) -> str:
+    """A number as it should PRINT, or "" when it is not finite. `value` is copied verbatim."""
+    return "" if x is None or not np.isfinite(float(x)) else f"{float(x):.{places}f}"
+
+
+def cells_rows(res: dict, *, set_slot: str, run_id: str, status: str, date: str,
+               run_label: str = "") -> tuple[list[dict], list[str]]:
+    """The `cells.csv` rows this run supports, and the notes about what it does NOT support.
+
+    One run label only: a cell key names an arm and a set, not a checkpoint, so two labels in one
+    invocation would silently write one of them. The caller picks with `--cells-run`.
+    """
+    labels = sorted({c["run"] for c in res["cells"]})
+    if not run_label:
+        assert len(labels) == 1, (
+            f"--cells needs ONE run label and this invocation carries {labels}: a cells key names "
+            f"an arm and a set, not a checkpoint, so name the one to write with --cells-run"
+        )
+        run_label = labels[0]
+    rows: list[dict] = []
+    gaps: list[str] = []
+    src = next((c["run_dir"] for c in res["cells"] if c["run"] == run_label), "")
+    source = f"runs/{src}/summary/scores.jsonl"
+    judge = res.get("record", {}).get("judge") if isinstance(res.get("record"), dict) else None
+
+    def add(key, value, *, se="", lo="", hi="", n="", note=""):
+        rows.append({"key": key, "value": value, "se": se, "lo": lo, "hi": hi, "n": n,
+                     "status": status, "run": run_id, "source": source, "date": date,
+                     "note": note})
+
+    chance = f"chance 0.5; judge {judge or res.get('judge') or 'claude-sonnet-5'}"
+    for c in res["cells"]:
+        if c["run"] != run_label:
+            continue
+        slot = CELL_ARM_SLOT.get(c["arm_name"])
+        if slot is None:
+            gaps.append(f"arm {c['arm_name']!r} has no cells key slot and was not written")
+            continue
+        det, rc = CELL_SCORER_SLOT[c["scorer"]]
+        if c["convention"] == IMPUTED:
+            # The refusal-corrected twin: the SAME answers with every refused feature scored at
+            # chance instead of dropped. Spec §3 requires refusals reported both ways.
+            add(f"ai.{set_slot}.{slot}.{rc}", _cell_num(c["mean"]),
+                lo=_cell_num(c["lo"]), hi=_cell_num(c["hi"]), n=c["n_features"],
+                note=f"{chance}; refusals scored at chance ({c.get('n_imputed')} of "
+                     f"{c['n_features']} features)")
+            continue
+        add(f"ai.{set_slot}.{slot}.{det}", _cell_num(c["mean"]),
+            lo=_cell_num(c["lo"]), hi=_cell_num(c["hi"]), n=c["n_features"],
+            note=f"{chance}; balanced accuracy; refusals dropped")
+        if c["scorer"] == "detection":
+            for half, hslot in (("tpr", "tpr"), ("tnr", "tnr")):
+                h = c.get(half) or {}
+                add(f"ai.{set_slot}.{slot}.{hslot}", _cell_num(h.get("mean")),
+                    lo=_cell_num(h.get("lo")), hi=_cell_num(h.get("hi")), n=h.get("n", ""),
+                    note=f"{chance}; detection {half.upper()}")
+    # The paired contrasts. Their sign is `arm - reference`, which is what the tex prints, and
+    # each is taken on the INTERSECTION of the two arms' features with both losses counted.
+    per_feature = res.get("per_feature") or {}
+    by_slot: dict[str, str] = {}
+    for c in res["cells"]:
+        if c["run"] == run_label and c["convention"] == DROPPED:
+            sl = CELL_ARM_SLOT.get(c["arm_name"])
+            if sl:
+                by_slot[sl] = c["arm"]
+    for slot, a_slot, b_slot in CELL_CONTRASTS:
+        for scorer, (det, _rc) in CELL_SCORER_SLOT.items():
+            a_lab, b_lab = by_slot.get(a_slot), by_slot.get(b_slot)
+            va = per_feature.get((a_lab, scorer)) if a_lab else None
+            vb = per_feature.get((b_lab, scorer)) if b_lab else None
+            if not va or not vb:
+                gaps.append(f"contrast {a_slot} - {b_slot} ({scorer}) is not in this run: "
+                            f"ai.{set_slot}.{slot}.{det} not written")
+                continue
+            pd = paired_diff(va, vb)
+            m, lo, hi = boot_ci(pd["d"], res.get("boot") or R.N_BOOT, res.get("seed") or R.BOOT_SEED)
+            add(f"ai.{set_slot}.{slot}.{det}", _cell_num(m),
+                lo=_cell_num(lo), hi=_cell_num(hi), n=pd["n_paired"],
+                note=f"paired {a_lab} - {b_lab}; {chance}; percentile bootstrap over features; "
+                     f"intersection of {pd['n_a']} and {pd['n_b']}")
+    # Per rarity quartile, detection only -- the appendix's `.q1..q4` rows.
+    for st in res.get("strata") or []:
+        if st.get("run") != run_label or st["scorer"] != "detection":
+            continue
+        slot = CELL_ARM_SLOT.get(st.get("arm_name") or "")
+        if slot is None or st.get("stratum") is None:
+            continue
+        add(f"ai.{set_slot}.{slot}.det.q{int(st['stratum']) + 1}", _cell_num(st["mean"]),
+            lo=_cell_num(st["lo"]), hi=_cell_num(st["hi"]), n=st["n"],
+            note=f"{chance}; rarity quartile {int(st['stratum']) + 1} of the draw, rarest first")
+    # WHAT THIS DRIVER CANNOT WRITE, stated rather than left as an empty row someone assumes is
+    # broken: the per-activation-band TPR keys (`...tpr.b1..b4`). `scores.jsonl` carries one TPR
+    # per (feature, arm) and the band of an ITEM lives in the build's per-feature jsonl, so those
+    # cells need a join over the build products that nothing here fetches.
+    gaps.append("per-band TPR keys `ai.<set>.<arm>.tpr.b1..b4` are NOT written: the band lives on "
+                "the build's test rows, not on scores.jsonl; they need a build-product join")
+    return rows, gaps
+
+
+def upsert_cells(path: Path, rows: list[dict]) -> dict:
+    """Write `rows` into `cells.csv` BY KEY: an existing key is rewritten in place, a new one is
+    appended. Every other row, and the column order, is left exactly as it was.
+
+    In place and not append-only because the plan has each module rewriting its own measured rows
+    (they carry old-convention values), and a second row for one key is an ERROR in
+    `make_numbers.py`, not a later-wins update.
+    """
+    import csv
+
+    assert path.exists(), f"no {path}: cells.csv is the paper's file and is never created here"
+    with open(path, newline="") as fh:
+        rd = csv.DictReader(fh)
+        header = list(rd.fieldnames or [])
+        existing = list(rd)
+    assert header == CELLS_COLUMNS, f"{path} has columns {header}, expected {CELLS_COLUMNS}"
+    by_key = {r["key"]: i for i, r in enumerate(existing)}
+    n_new = n_upd = 0
+    for r in rows:
+        row = {c: ("" if r.get(c) is None else str(r.get(c, ""))) for c in CELLS_COLUMNS}
+        if r["key"] in by_key:
+            existing[by_key[r["key"]]] = row
+            n_upd += 1
+        else:
+            existing.append(row)
+            n_new += 1
+    with open(path, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=CELLS_COLUMNS)
+        w.writeheader()
+        w.writerows(existing)
+    return {"path": str(path), "updated": n_upd, "added": n_new, "total": len(existing)}
+
+
 @app.command()
 def main(
     run: Annotated[list[str] | None, typer.Option(
@@ -1757,6 +1937,15 @@ def main(
     seed: Annotated[int, typer.Option(help="bootstrap seed")] = R.BOOT_SEED,
     figures: Annotated[bool, typer.Option(help="write figures/ (PDF + PNG)")] = True,
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
+    cells: Annotated[Path | None, typer.Option(
+        help="paper/numbers/cells.csv: rewrite this run's `ai.*` rows in place and append the "
+             "new ones. Nothing is written without it.")] = None,
+    cells_run: Annotated[str, typer.Option(help="which --run label the cells rows come from "
+                                                "(required when there is more than one)")] = "",
+    cells_set: Annotated[str, typer.Option(help="the key's `<set>` slot, e.g. l131k")] = "l131k",
+    cells_run_id: Annotated[str, typer.Option(help="the spec §7 run id for the `run` column")] = "R5",
+    cells_status: Annotated[str, typer.Option(help="placeholder|provisional|final")] = "provisional",
+    cells_date: Annotated[str, typer.Option(help="the `date` column (default: today)")] = "",
 ) -> None:
     runs = parse_runs(run)
     assert runs, (
@@ -1811,6 +2000,17 @@ def main(
                       for k, v in sorted(reg.items(), key=lambda kv: [str(x) for x in kv[0]])],
             "missing": res["missing"], "notes": res["notes"],
         }, fh, indent=1, default=str)
+
+    if cells is not None:
+        crows, cgaps = cells_rows(
+            res, set_slot=cells_set, run_id=cells_run_id, status=cells_status,
+            date=cells_date or time.strftime("%Y-%m-%d"), run_label=cells_run,
+        )
+        stat = upsert_cells(Path(cells), crows)
+        print(f"[autointerp] cells.csv: {stat['updated']} rows rewritten, {stat['added']} added, "
+              f"{stat['total']} rows in {stat['path']}")
+        for g in cgaps:
+            print(f"   CELLS GAP  {g}")
 
     print(f"\n[autointerp] {path}")
     print(f"[autointerp] {len(runs)} runs, {len(res['arms'])} arms, {res['n_rows']} score rows, "

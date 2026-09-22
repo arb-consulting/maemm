@@ -615,3 +615,83 @@ configured corpus to the pipeline's geometry and keeps the refusal on a corpus b
 `_load_targets` in `scan.py` returns 4 values. `score` refuses `--mu`.
 `OutDir(keep_existing=True)` is additive; `gcg` can opt into it by passing the flag (M3).
 
+---
+
+# M6 — SAE autointerp (branch `evals/m6-autointerp`, 2026-09-23)
+
+Module M6 of `evals/2026-09-23_implementation-plan.md`, branched from `6cdd429`. **Nothing here
+was run on the Modal volume except one $-capped API check** (below); no GPU, no scan, no corpus.
+
+## What changed
+
+1. **Two corpora, threaded end to end.** `--corpus-name` (the SHOWN examples) and
+   `--test-corpus-name` (the Delphi test windows) are now separate parameters of the autointerp
+   entrypoint (`modal_app.py`), and `build.run` resolves each side's `examples/`, `examples_4m/`
+   and `examples_docmax/` independently. Before this, `corpus_name` was absent from the entrypoint
+   altogether, so `args.get("corpus_name")` at `build.py:984` was always `""` and one `ex_dir` fed
+   both the explainer and the judge. `sae_self`'s three corpus-side stages (`random_pool`,
+   `examples_4m`, `examples_docmax`) read `--corpus-name` and key their output path by it, with
+   `""` resolving to today's path so nothing already on the volume moves.
+   - `_Corpus` is now per corpus: a stored `(doc, start, len)` indexes into ITS OWN `tokens.i32`.
+   - Document-level disjointness (A4) is asserted per feature within one corpus; across two, the
+     exclusion sets are empty and `build.json`'s `disjointness` field says the separation is the
+     corpora's. Doc ids are not comparable across corpora and are no longer compared.
+   - `build.json` gains `shown_corpus`, `test_corpus`, their `corpora:` keys, `two_corpora`,
+     `disjointness`, and a `pools` block naming the corpus and directory of every pool (asked for
+     by M9 so a per-feature page can label C16's corpus).
+2. **Arms.** `C16` is now the top 16 by peak activation with ONE WINDOW PER DOCUMENT
+   (`examples_docmax`) on the shown corpus, which is what spec §3 defines it as; the pilot's
+   window-ranked arm survives as `C16-win`. `C4` and the N = 40 point are dropped. New:
+   `M-jac16` (greedy farthest-point on content-word Jaccard of the rollout texts, CPU) and
+   `M-cos16` (greedy farthest-point on mutual cosine of `score`'s stored `best_act.f16` residuals
+   with `bases.<base>.whiten_mu` subtracted — no extra forward pass), plus `NLA-1`, the appendix's
+   one-output row. `DOCMAX` is kept as `C16`'s pre-09-23 label and running both names refuses.
+   The content-word tokenisation is copied from `runs/autointerp_pilot_diagnosis.py:33-48` so the
+   selection distance is the same quantity the sample-diversity analysis reports.
+3. **One run directory for all seven arm-variants.** `run --build-dir-nla` lifts the NLA arms out
+   of a second build (the verbalizer is a different `--maemm`, so they can never share a build)
+   and scores them on the PRIMARY build's test items. Only arms whose examples are all rollouts
+   may be lifted, asserted arm by arm, so A4 cannot be broken silently. The two builds' base, set,
+   sae, gate, seeds and feature list must agree.
+4. **`stats.paired()` asserts its intersection.** New `stats.pairing()` returns what each side
+   covered and what each lost; `paired()` asserts the pivot's row count equals that intersection
+   and takes `require_complete` for a caller that needs a complete pairing. The contrasts table
+   prints `n paired` and `n a/n b`.
+5. **Every table carries the protocol.** `stats.py` prints a `Protocol:` line — judge, fuzzing
+   protocol and its few-shot count (from `costs.json`, which already recorded it), and chance =
+   0.5 with the positive/negative counts it comes from. `n_shown_exceeding_corpus_peak` is now
+   counted per arm in `build.json` and printed as a column (closes the gap `SMOKES.md:3731`
+   records).
+6. **`results/autointerp.py` writes `paper/numbers/cells.csv`.** `--cells <path>` rewrites this
+   run's `ai.*` rows in place by key and appends new ones; `cells_rows()` maps arm names to the
+   writing plan's key slots (`M` → `mtop16`, `R-shuffled` → `floor`, …) and refuses to guess a
+   slot it does not know. Refusals are written both ways — the dropped convention as `.det`/
+   `.fuzz` and the chance-imputed one as `.detrc`/`.fuzzrc`, which the driver already computed.
+   TPR and TNR are aggregated beside balanced accuracy (spec §3's failure analysis is about the
+   positive half). Per-band TPR keys are NOT written and the driver says so on every run.
+7. **`config.yaml`'s `autointerp:` block** gains `examples_corpus: celeste-train10m` and
+   `test_corpus: ""`. `examples_corpus` RECORDS the protocol and is not applied silently — `build`
+   prints a loud note when the shown corpus differs from it — so a rebuild of a pre-09-23 product
+   from its own command line still reproduces that product.
+
+## Verified
+
+* `uv run autointerp/selfcheck.py` — ALL CHECKS PASSED, including the new `check_two_corpora`,
+  which drives the whole `build` stage on a synthetic two-corpus volume (no model, no API, no GPU)
+  and pins: C16 rendered from the shown corpus and test items from the test corpus (the two
+  corpora's token ids are a million apart, so the rendered text decides it); 16 examples on each
+  of `M`, `M-jac16`, `M-cos16`, three different selections seeded on the same top rollout;
+  `best_act.f16` read with no forward pass; the per-arm clamp counter in `build.json`.
+* `uv run results/selftest.py` — 34/34.
+* `ruff` clean on every file M6 owns (the 30 findings under `autointerp/third_party/` are
+  vendored Delphi and predate this branch).
+
+## Left open
+
+* **`--corpus-name train_parity_10m` still refuses** at `common.assert_corpus_geometry`: that
+  corpus declares 32/8 and the pipeline cuts 64/16. M0a change 11 is the fix (geometry line of the
+  `corpora:` block, which M0a owns). The full run cannot be launched before it lands. The new
+  selfcheck uses an UNREGISTERED corpus directory, for which `corpus_key_of_dir` returns `""` and
+  the geometry assert falls through — it proves the plumbing, not the geometry.
+* `results/selftest.py` has no check of the new cells emitter: M6 does not own that file. The
+  emitter was verified out of tree against `selftest`'s own synthetic fixtures (see the M6 report).

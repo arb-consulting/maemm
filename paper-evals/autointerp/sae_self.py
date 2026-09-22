@@ -40,6 +40,53 @@ import numpy as np
 
 import precompute.common as C
 
+# ---------------------------------------------------------------------------------------------
+# corpus-keyed product paths (M6, 2026-09-23)
+# ---------------------------------------------------------------------------------------------
+# The three corpus-side stages below (`random_pool`, `examples_4m`, `examples_docmax`) each read a
+# corpus and write one directory per (sae, set). Until now both halves were corpus-BLIND: the
+# reader called `C.load_corpus(base, root)` with no name and the writer keyed the path by set
+# alone, so a second corpus's products would have overwritten the first's under a path that says
+# nothing about which corpus they came from. `scan` and `top1_act` already key by corpus
+# (`common.sae_examples_dir`, `common.scan_dir`), and the autointerp run needs the shown examples
+# to come from the 10M training corpus while the test windows come from the 16M held-out one
+# (spec §3), so these three follow the same convention: EMPTY resolves to today's path, which
+# leaves every product already on the volume exactly where it is.
+
+
+def corpus_suffix(corpus_name: str) -> str:
+    """`__<corpus>` for a named corpus, "" for the base's own (today's unsuffixed path)."""
+    return f"__{corpus_name}" if corpus_name else ""
+
+
+def random_pool_dir(sae_key: str, set_name: str, root: str, corpus_name: str = "") -> str:
+    return f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}{corpus_suffix(corpus_name)}"
+
+
+def examples_4m_dir(sae_key: str, set_name: str, root: str, corpus_name: str = "") -> str:
+    """The nested-prefix example pool. NOTE the `_4m` in the directory name is a LITERAL and the
+    prefix size is `autointerp.corpus_prefix_m` / `--prefix-m`: a build at another prefix writes
+    into a directory still called `_4m`, and only `build.json`'s `corpus_prefix_m` records the
+    truth. Left as it is because the C4 arm is dropped (spec §3) and renaming it would strand the
+    products on the volume; do not read the name as the size."""
+    return f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}{corpus_suffix(corpus_name)}"
+
+
+def examples_docmax_dir(sae_key: str, set_name: str, root: str, corpus_name: str = "") -> str:
+    return f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}{corpus_suffix(corpus_name)}"
+
+
+def corpus_of(cfg: dict, args: dict) -> str:
+    """`--corpus-name` for a corpus-side stage, with its declared window geometry asserted.
+
+    `common.assert_corpus_geometry` refuses a corpus whose declared block/stride is not the one
+    every `windows_of` site cuts at, which is the check that stops a scan from writing a README
+    claiming 64/16 over 32/8 data.
+    """
+    name = str(args.get("corpus_name") or "")
+    C.assert_corpus_geometry(cfg, name)
+    return name
+
 # Rows handed to common.score_tokens per call, as precompute/score.py:50. It re-chunks internally
 # at common.SCORE_CHUNK, so this only bounds the fp32 residual the callback sees at once.
 SCORE_ROWS = 256
@@ -288,19 +335,25 @@ def run(cfg, args):
     if rdir:
         rpath, spath = f"{rdir}/rollouts.jsonl", f"{rdir}/rollouts.summary.json"
         sdir = f"{rdir}/scores"
+        assert os.path.exists(rpath), f"no rollouts at {rpath}"
+        recs = C.read_jsonl(rpath)
+        with open(spath) as fh:
+            rsum = json.load(fh)
     else:
-        rpath = C.rollouts_path(maemm, set_name, root, engine, tag)
-        spath = f"{C.rollouts_dir(maemm, root)}/{C.rollout_stem(set_name, engine, tag)}.summary.json"
+        roll_dir, stem = C.rollouts_dir(maemm, root), C.rollout_stem(set_name, engine, tag)
         sdir = C.scores_dir(maemm, args.get("score_name") or set_name, root, engine,
                             C.score_tag_of(args))
-    assert os.path.exists(rpath), f"no rollouts at {rpath}"
+        # ONE product, whether it was generated whole or in `--rows` chunks under the one run tag
+        # -- read exactly as `score` reads it (score.py:474). Reading `<stem>.jsonl` directly saw
+        # no chunk at all, and this stage cross-checks its own forward against a `score` run that
+        # DID see them: the mismatch would have surfaced as a missing-rollouts assert or, worse,
+        # as a grid that disagrees with the scores directory beside it.
+        recs, rsum, sources = C.read_rollouts(roll_dir, stem)
+        rpath = sources[0] if len(sources) == 1 else f"{roll_dir}/{stem}[chunked]"
     assert os.path.exists(sdir), (
         f"no scores at {sdir}: this stage re-runs `score`'s forward and cross-checks itself "
         f"against what that run stored, so `score` must have run on these rollouts first"
     )
-    recs = C.read_jsonl(rpath)
-    with open(spath) as fh:
-        rsum = json.load(fh)
     if rdir:
         engine = rsum.get("engine", engine)  # the directory names its own producer
     n = int(rsum["n"])
@@ -715,7 +768,8 @@ def run_random_pool(cfg, args):
 
     rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "random_pool")
     n_feat = len(feats)
-    toks, docs = C.load_corpus(base, root)
+    corpus_name = corpus_of(cfg, args)
+    toks, docs = C.load_corpus(base, root, corpus_name)
     wins = enumerate_windows(docs)
     rng = np.random.default_rng(seed)
     pick = np.sort(rng.choice(len(wins), size=min(n_win, len(wins)), replace=False))
@@ -770,7 +824,7 @@ def run_random_pool(cfg, args):
     zero = (mx == 0).sum(1)
     near = ((mx > 0) & (mx <= gate)).sum(1)
     above = (mx > gate).sum(1)
-    out = f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}"
+    out = random_pool_dir(sae_key, set_name, root, corpus_name)
     dense_bytes = n_feat * n_win * C.SCAN_BLOCK * 2
     with C.outdir(
         out,
@@ -889,7 +943,8 @@ def run_examples_4m(cfg, args):
 
     rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_4m")
     n_feat = len(feats)
-    toks, docs = C.load_corpus(base, root)
+    corpus_name = corpus_of(cfg, args)
+    toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     assert prefix_m in sizes, f"corpus has nested sizes {sizes}; {prefix_m}M is not one of them"
     keep_docs = [r for r in docs if int(r["size_tag"]) <= prefix_m]
@@ -972,7 +1027,7 @@ def run_examples_4m(cfg, args):
     tw = heap.win.cpu().numpy()
     ta = heap.arg.cpu().numpy()
     tp = heap.payload.cpu().numpy()
-    out = f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}"
+    out = examples_4m_dir(sae_key, set_name, root, corpus_name)
     per_feature = []
     ex_rows = 0
     nbytes = 0
@@ -1109,7 +1164,8 @@ def run_examples_docmax(cfg, args):
 
     rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_docmax")
     n_feat = len(feats)
-    toks, docs = C.load_corpus(base, root)
+    corpus_name = corpus_of(cfg, args)
+    toks, docs = C.load_corpus(base, root, corpus_name)
     print(f"[examples_docmax] {len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each",
           flush=True)
 
@@ -1253,7 +1309,7 @@ def run_examples_docmax(cfg, args):
     ta = heap.arg.cpu().numpy()
     tp = heap.payload.cpu().numpy()
     tw = win_heap.arg.cpu().numpy()  # the window ids, ranked by the SAME values
-    out = f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}"
+    out = examples_docmax_dir(sae_key, set_name, root, corpus_name)
     per_feature = []
     ex_rows = 0
     nbytes = 0
