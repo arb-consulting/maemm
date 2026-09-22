@@ -241,7 +241,13 @@ maemms:
     role: control           # stats.py: shown as "control" between the primary and the secondaries
     # The control's whole definition is "the primary with base weights", so it takes the primary's
     # input convention too: anything else would make it a control for a different experiment.
-    mu: null
+    # 2026-09-23: the primary's convention IS the base's archived whiten mean (bases.qwen36-27b
+    # .whiten_mu), so the control declares it rather than `null`. `mu: null` was an explicit
+    # statement that the control took a RAW activation, which made every --mu on a control run a
+    # recorded DEVIATION (common.mu_for) and left the pairing "control centred as the MAEMM"
+    # unenforceable -- spec §7 R4. Panel a row 7 differences the two, and two arms differenced
+    # across two means is not a difference.
+    mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
     # No train_max_new: nothing was trained. Everything else -- prompt, marker, inject layer/coef
     # and the `rollouts:` sampling block -- is the primary's, so the only difference from
     # 2026-09-10_rl-8x2048-full is the weights.
@@ -308,6 +314,13 @@ maemms:
       # record `amp` per run and per row, so which is which is never in doubt.
       amp: raw               # default input-amplitude convention; --amp overrides (writes a variant dir)
       amp_r: median          # r for `mu`/`raw` and the `exact` fallback: layer read_layer q[0.5] of stats/resid_norm_quantiles.json, or a number
+      # Tomas 2026-09-22: this arm generates with NO minimum length. The shared `rollouts:` block
+      # says min_new 16, which forces the verbalizer past its own stop and pads short
+      # <explanation> answers with continuation it would not have produced; the reference
+      # invocation sets none. Per-MAEMM here rather than in `rollouts:`, because changing the
+      # shared value would re-point every rollout product in the pipeline. rollouts_nla falls back
+      # to the shared value when this key is absent.
+      min_new: 0
     # Raw layer-42 block output, NO centring (the card and nla_meta.yaml; observations §5).
     # `nla.amp` stays the AMPLITUDE knob and is a different axis from this one: `mu` says which
     # mean is subtracted from the activation, `amp` says what norm the injected vector gets.

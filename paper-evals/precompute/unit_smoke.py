@@ -821,6 +821,201 @@ def check_outdir_keep_existing_and_section():
             raise AssertionError("outdir overwrote an existing directory without --force")
 
 
+def _writer_args():
+    return {"argv": ["x"], "repo_commit": "abc", "gpu": "CPU", "usd_per_s": 0.0, "force": False}
+
+
+def _legacy_outdir_write(path, name, rows, barrier):
+    """The PRE-2026-09-23 accumulating write, verbatim, for the mutation half of the two-writer
+    check: copytree the whole product directory into `<name>.tmp-<date>`, write there, then rmtree
+    the original and rename the temp over it (common.py:2689-2700, :2793-2795 at 6cdd429)."""
+    import shutil
+    import time as _t
+
+    tmp = path.with_name(f"{path.name}.tmp-{_t.strftime('%Y-%m-%d')}")
+    index = {}
+    if path.exists():
+        if tmp.exists():
+            shutil.rmtree(tmp)
+        shutil.copytree(path, tmp)
+        if (tmp / "index.json").exists():
+            index.update(json.loads((tmp / "index.json").read_text()))
+        for stale in ("README.md", "index.json"):
+            (tmp / stale).unlink(missing_ok=True)
+            index.pop(stale, None)
+    else:
+        tmp.mkdir(parents=True)
+    barrier.wait(timeout=60)
+    C.write_jsonl(tmp / name, rows)
+    index[name] = {"kind": "jsonl", "rows": len(rows)}
+    barrier.wait(timeout=60)
+    (tmp / "index.json").write_text(json.dumps(index, indent=1))
+    (tmp / "README.md").write_text("# legacy\n")
+    if path.exists():
+        shutil.rmtree(path)
+    tmp.rename(path)
+
+
+def _two_writer_child(path, name, rows, barrier, legacy):
+    """One of the two concurrent writers. Both barriers are inside the open product directory, so
+    the two runs' enter / write / commit phases are forced to interleave."""
+    path = Path(path)
+    if legacy:
+        _legacy_outdir_write(path, name, rows, barrier)
+        return
+    with C.outdir(path, _writer_args(), keep_existing=True) as od:
+        barrier.wait(timeout=60)
+        od.write_jsonl(name, rows)
+        barrier.wait(timeout=60)
+
+
+def _run_two_writers(td, legacy):
+    """(files present, index keys, child exit codes) after two concurrent writers of one product."""
+    import multiprocessing as mp
+
+    ctx = mp.get_context("fork")
+    d = Path(td) / "rollouts"
+    with C.outdir(d, _writer_args()) as od:  # the product already holds one set
+        od.write_jsonl("set0.jsonl", [{"z": 0}])
+    barrier = ctx.Barrier(2)
+    procs = [
+        ctx.Process(target=_two_writer_child, args=(str(d), f"set{i}.jsonl", [{"i": i}], barrier, legacy))
+        for i in (1, 2)
+    ]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join(120)
+    codes = [p.exitcode for p in procs]
+    files = sorted(p.name for p in d.iterdir() if p.is_file()) if d.exists() else []
+    idx = sorted(json.loads((d / "index.json").read_text())) if (d / "index.json").exists() else []
+    return files, idx, codes
+
+
+def check_two_writers_into_one_product():
+    """TWO CONCURRENT WRITERS of one accumulating product both survive -- and did not before.
+
+    `SMOKES.md:4349-4356`: two `rollouts_vllm` runs of one MAEMM shared `rollouts.tmp-<date>` and
+    the later rename silently discarded the earlier file. The additive write (common.OutDir) moves
+    only this run's own files in, so disjoint writers cannot touch each other.
+
+    The mutation half runs the SAME scenario through the pre-2026-09-23 copytree/rmtree/rename
+    code (`_legacy_outdir_write`) and asserts it does NOT get both files into the index: a gate
+    that has never been red is not a gate.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        files, idx, codes = _run_two_writers(td, legacy=False)
+        assert codes == [0, 0], f"a writer failed: exitcodes {codes}"
+        assert files == ["README.md", "index.json", "set0.jsonl", "set1.jsonl", "set2.jsonl"], files
+        assert idx == ["set0.jsonl", "set1.jsonl", "set2.jsonl"], (
+            f"the index must list the set already there and BOTH new ones, got {idx}"
+        )
+    print("  running the MUTATION (the legacy copytree write); the child traceback below "
+          "is the defect being demonstrated, not a failure of this check", flush=True)
+    with tempfile.TemporaryDirectory() as td:
+        files, idx, codes = _run_two_writers(td, legacy=True)
+        assert codes != [0, 0] or idx != ["set0.jsonl", "set1.jsonl", "set2.jsonl"], (
+            f"the legacy copytree write kept both writers (files {files}, index {idx}, "
+            f"exitcodes {codes}): the mutation did not apply, so this check proves nothing"
+        )
+        print(f"  mutation (legacy copytree write): exitcodes {codes}, index {idx}", flush=True)
+
+
+def check_rollout_chunk_stem_and_read():
+    """`--rows` chunks of ONE product under ONE run tag read back as ONE product.
+
+    `rollout_chunk_stem` leaves a whole-set run at its historical path (byte-compatible with every
+    product on the volume) and suffixes a chunk; `read_rollouts` concatenates the chunks, refuses
+    a directory holding both shapes, and refuses chunks that overlap or disagree.
+    """
+    assert C.rollout_chunk_stem("s__vllm", "") == "s__vllm"
+    assert C.rollout_chunk_stem("s__vllm", "0-7") == "s__vllm__rows0-7"
+    assert C.rollout_chunk_stem("s__vllm", "3,5,9-11") == "s__vllm__rows3_5_9-11"
+    try:
+        C.rollout_chunk_stem("s__vllm", "0-7 ; rm")
+    except AssertionError as e:
+        assert "row spec" in str(e), e
+    else:
+        raise AssertionError("rollout_chunk_stem accepted a non-spec")
+
+    def summ(rows, **kw):
+        return {"engine": "vllm", "n": 2, "max_new": 8, "rows": rows, "set": "s", **kw}
+
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        for name, rows in (("s__vllm__rows0-1", [0, 1]), ("s__vllm__rows2-3", [2, 3])):
+            C.write_jsonl(d / f"{name}.jsonl", [{"row": r, "k": 0} for r in rows])
+            (d / f"{name}.summary.json").write_text(json.dumps(summ(rows)))
+        recs, rsum, src = C.read_rollouts(str(d), "s__vllm")
+        assert [r["row"] for r in recs] == [0, 1, 2, 3], recs
+        assert rsum["rows"] == [0, 1, 2, 3] and rsum["n_targets"] == 4, rsum
+        assert rsum["chunks"] == ["s__vllm__rows0-1.jsonl", "s__vllm__rows2-3.jsonl"], rsum
+        assert len(src) == 2
+        # a whole-set file beside chunks of the same stem is a refusal, not a preference
+        C.write_jsonl(d / "s__vllm.jsonl", [{"row": 0, "k": 0}])
+        (d / "s__vllm.summary.json").write_text(json.dumps(summ([0])))
+        try:
+            C.read_rollouts(str(d), "s__vllm")
+        except AssertionError as e:
+            assert "claiming one product" in str(e), e
+        else:
+            raise AssertionError("read_rollouts preferred one shape over the other")
+        (d / "s__vllm.jsonl").unlink()
+        (d / "s__vllm.summary.json").unlink()
+        # overlapping chunks
+        (d / "s__vllm__rows2-3.summary.json").write_text(json.dumps(summ([1, 2, 3])))
+        try:
+            C.read_rollouts(str(d), "s__vllm")
+        except AssertionError as e:
+            assert "DISJOINT" in str(e), e
+        else:
+            raise AssertionError("read_rollouts merged overlapping chunks")
+        # chunks that are two experiments
+        (d / "s__vllm__rows2-3.summary.json").write_text(json.dumps(summ([2, 3], n=4)))
+        try:
+            C.read_rollouts(str(d), "s__vllm")
+        except AssertionError as e:
+            assert "one experiment" in str(e), e
+        else:
+            raise AssertionError("read_rollouts merged chunks that disagree on n")
+
+
+def check_nla_min_new_override():
+    """`nla.min_new` overrides the shared `rollouts:` block, and rollouts_nla reads it there.
+
+    The verbalizer stops on its own well before the shared 16, which pads short <explanation>
+    answers with continuation the checkpoint would not have produced (Tomas 2026-09-22). The
+    shared block is never edited -- that would re-point every rollout product -- so the key is
+    per-MAEMM with the shared value as the fallback.
+    """
+    cfg = C.load_config()
+    nla_keys = [k for k, v in cfg["maemms"].items() if v.get("type") == "nla"]
+    assert nla_keys, "no `type: nla` entry in config.yaml"
+    for k in nla_keys:
+        assert cfg["maemms"][k]["nla"].get("min_new") == 0, (
+            f"{k}: nla.min_new must be 0 (config.yaml), got {cfg['maemms'][k]['nla'].get('min_new')!r}"
+        )
+    assert int(cfg["rollouts"]["min_new"]) == 16, (
+        "the SHARED rollouts.min_new moved; it is never edited (every other arm reads it)"
+    )
+    src = (Path(__file__).resolve().parent / "rollouts_nla.py").read_text()
+    assert '"min_new": nla["min_new"] if "min_new" in nla else rl["min_new"]' in src, (
+        "rollouts_nla's sampling dict must take min_new from the `nla:` block with the shared "
+        "`rollouts:` value as the fallback, or the config key above is inert"
+    )
+    # the fallback itself: an entry without the key still generates under the shared value
+    spec = dict(cfg["maemms"][nla_keys[0]])
+    spec["nla"] = {k: v for k, v in spec["nla"].items() if k != "min_new"}
+    C._check_nla(nla_keys[0], spec, cfg["rollouts"])  # must not raise
+    spec["nla"] = {**spec["nla"], "min_new": -1}
+    try:
+        C._check_nla(nla_keys[0], spec, cfg["rollouts"])
+    except AssertionError as e:
+        assert "non-negative int" in str(e), e
+    else:
+        raise AssertionError("_check_nla accepted a negative nla.min_new")
+
+
 def check_sha256_of_index():
     """The cheap identity for a sharded 52 GiB model: index.json content + shard NAMES and SIZES."""
     with tempfile.TemporaryDirectory() as td:
@@ -2722,6 +2917,9 @@ CHECKS = [
     check_best_of_k_means,
     check_parse_rows_and_gen_seed,
     check_outdir_keep_existing_and_section,
+    check_two_writers_into_one_product,
+    check_rollout_chunk_stem_and_read,
+    check_nla_min_new_override,
     check_sha256_of_index,
     check_vllm_finish_ids,
     check_rename_lora_keys,

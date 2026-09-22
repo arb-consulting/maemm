@@ -432,17 +432,22 @@ def run(cfg, args):
     engine = args.get("engine") or "hf"
     if rdir:
         rpath, spath = f"{rdir}/rollouts.jsonl", f"{rdir}/rollouts.summary.json"
+        assert os.path.exists(rpath), (
+            f"no rollouts at {rpath}: run `--product rollouts_{engine} --set {set_name}` first"
+        )
+        recs = C.read_jsonl(rpath)
+        with open(spath) as fh:
+            rsum = json.load(fh)
+        sources = [rpath]
     else:
         tag = args.get("run_tag") or ""
         stem = C.rollout_stem(set_name, engine, tag)
-        rpath = C.rollouts_path(maemm, set_name, root, engine, tag)
-        spath = f"{C.rollouts_dir(maemm, root)}/{stem}.summary.json"
-    assert os.path.exists(rpath), (
-        f"no rollouts at {rpath}: run `--product rollouts_{engine} --set {set_name}` first"
-    )
-    recs = C.read_jsonl(rpath)
-    with open(spath) as fh:
-        rsum = json.load(fh)
+        # ONE product, whether it was generated in one call or in `--rows` chunks under the one
+        # run tag: `common.read_rollouts` concatenates the chunks and merges their summaries, so
+        # nothing downstream of here -- scores/, results.common.discover_sources, either OOD
+        # reader -- learns that the generation was chunked (common.rollout_chunk_stem).
+        recs, rsum, sources = C.read_rollouts(C.rollouts_dir(maemm, root), stem)
+        rpath = sources[0] if len(sources) == 1 else f"{C.rollouts_dir(maemm, root)}/{stem}[chunked]"
     if rdir:
         # the directory names its own producer (e.g. "hf-patchscope"); --engine does not apply
         engine = rsum["engine"]
@@ -591,7 +596,7 @@ def run(cfg, args):
                           C.score_tag_of(args), write=True)
     )
     inputs = {
-        "rollouts": rpath,
+        "rollouts": rpath if len(sources) == 1 else ", ".join(sources),
         "engine": engine,
         "dirs": dirs_src,
         "maemm": maemm or f"(none: --rollouts-dir {rdir})",

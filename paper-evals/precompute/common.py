@@ -16,6 +16,7 @@ import contextlib
 import hashlib
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -370,6 +371,10 @@ NLA_KEYS = (
     "amp",
     "amp_r",
 )
+# Sampling keys the `nla:` block may OVERRIDE per-MAEMM, falling back to the shared `rollouts:`
+# block when absent. Only `min_new`: the verbalizer's stop comes well before the shared 16, and
+# editing the shared block instead would re-point every rollout product in the pipeline.
+NLA_OPTIONAL_KEYS = ("min_new",)
 # What the SHARED `rollouts:` block must carry for the NLA arm to generate under it.
 NLA_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "min_new")
 
@@ -396,10 +401,18 @@ def _check_nla(key: str, spec: dict, rollouts: dict) -> None:
     )
     nla = spec.get("nla")
     assert isinstance(nla, dict), f"maemm {key!r}: a `type: nla` entry needs an `nla:` block, got {nla!r}"
-    missing, extra = sorted(set(NLA_KEYS) - set(nla)), sorted(set(nla) - set(NLA_KEYS))
+    allowed = set(NLA_KEYS) | set(NLA_OPTIONAL_KEYS)
+    missing, extra = sorted(set(NLA_KEYS) - set(nla)), sorted(set(nla) - allowed)
     assert not missing and not extra, (
-        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} -- missing {missing}, unexpected {extra}"
+        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} (optionally "
+        f"{list(NLA_OPTIONAL_KEYS)}) -- missing {missing}, unexpected {extra}"
     )
+    for field in NLA_OPTIONAL_KEYS:
+        if field in nla:
+            assert isinstance(nla[field], int) and not isinstance(nla[field], bool) and nla[field] >= 0, (
+                f"maemm {key!r}: nla.{field} overrides rollouts.{field} and must be a "
+                f"non-negative int, got {nla[field]!r}"
+            )
     for field in ("marker", "template", "amp"):
         assert isinstance(nla[field], str) and nla[field], (
             f"maemm {key!r}: nla.{field} must be a non-empty string, got {nla[field]!r}"
@@ -1361,6 +1374,113 @@ def rollouts_path(maemm_key: str, set_name: str, root: str = VOL, engine: str = 
 
 def rollouts_dir(maemm_key: str, root: str = VOL) -> str:
     return f"{maemm_dir(maemm_key, root)}/rollouts"
+
+
+ROWS_MARK = "__rows"
+
+
+def rollout_chunk_stem(stem: str, rows_spec: str = "") -> str:
+    """The file stem of ONE `--rows` chunk of the rollouts product `stem`.
+
+    A run over the whole set keeps the bare `rollout_stem` spelling, so every product written
+    before 2026-09-23 and every full-set run after it is the same path it always was. A run given
+    `--rows` writes `<stem>__rows<spec>.jsonl` instead, and the chunks of one (set, engine, tag)
+    live SIDE BY SIDE in the one accumulating `rollouts/` directory -- which is only possible
+    because the directory write is additive (OutDir). `read_rollouts` then reads all of them as
+    ONE product, so `score` scores one stem and `results.common.discover_sources` sees one source:
+    a per-chunk `--run-tag` would have made every chunk a separate arm in both OOD readers.
+
+    The spec is spelled into the name rather than reduced to (lo, hi) because `--rows 3,5,9-11` is
+    not an interval and a name that pretended it was would collide with `--rows 3-11`.
+    """
+    spec = (rows_spec or "").strip().replace(" ", "")
+    if not spec:
+        return stem
+    assert all(c in "0123456789,-" for c in spec), f"--rows {rows_spec!r} is not a row spec"
+    return f"{stem}{ROWS_MARK}{spec.replace(',', '_')}"
+
+
+def rollout_chunk_paths(out_dir: str, stem: str) -> list[str]:
+    """Every `--rows` chunk file of `stem` in `out_dir`, sorted by name. [] when there are none."""
+    import glob as _glob
+
+    return sorted(_glob.glob(f"{out_dir.rstrip('/')}/{stem}{ROWS_MARK}*.jsonl"))
+
+
+# Summary fields that every chunk of one product must agree on: they describe the EXPERIMENT, and
+# two chunks that disagree on one of them are two experiments wearing one stem.
+_CHUNK_INVARIANT = (
+    "maemm", "base", "set", "engine", "kind", "n", "bo", "seed", "max_new", "min_new",
+    "prompt", "prompt_tokens", "marker_pos", "inject_layer", "inject_coef",
+    "temperature", "top_p", "top_k", "weight_sha256", "score_max_length",
+)
+
+
+def read_rollouts(out_dir: str, stem: str):
+    """(rows, summary, sources) for the rollouts product `stem` -- whole, or as `--rows` chunks.
+
+    One of the two shapes, never both (both is a refusal: a full-set file and a chunk of the same
+    stem are two runs claiming one product, and silently preferring either is how a partial gets
+    scored as if it were complete):
+
+      * `<stem>.jsonl` + `<stem>.summary.json` -- one run over the whole set, the only shape any
+        product written before 2026-09-23 has;
+      * `<stem>__rows<spec>.jsonl` + summaries -- N chunks of ONE product under ONE `--run-tag`,
+        concatenated here. The chunks must cover disjoint target rows and agree on every field of
+        `_CHUNK_INVARIANT`; the merged summary carries the union of `rows` and a `chunks` list.
+    """
+    out_dir = out_dir.rstrip("/")
+    whole = f"{out_dir}/{stem}.jsonl"
+    chunks = rollout_chunk_paths(out_dir, stem)
+    if os.path.exists(whole) and chunks:
+        raise AssertionError(
+            f"{whole} and {len(chunks)} `{ROWS_MARK}` chunk(s) of the same stem are both in "
+            f"{out_dir} ({[os.path.basename(p) for p in chunks]}): that is a whole-set run and a "
+            f"chunked run claiming one product. Keep one and move the other aside."
+        )
+    if os.path.exists(whole):
+        with open(f"{out_dir}/{stem}.summary.json") as fh:
+            return read_jsonl(whole), json.load(fh), [whole]
+    assert chunks, (
+        f"no rollouts at {whole} and no {stem}{ROWS_MARK}*.jsonl chunk beside it: run "
+        f"`--product rollouts_* --set ...` first"
+    )
+    rows: list[dict] = []
+    summary: dict = {}
+    seen: dict[int, str] = {}
+    for path in chunks:
+        spath = path[: -len(".jsonl")] + ".summary.json"
+        assert os.path.exists(spath), f"chunk {path} has no {os.path.basename(spath)} beside it"
+        with open(spath) as fh:
+            s = json.load(fh)
+        if not summary:
+            summary = dict(s)
+        else:
+            bad = {
+                k: (summary.get(k), s.get(k))
+                for k in _CHUNK_INVARIANT
+                if summary.get(k) != s.get(k)
+            }
+            assert not bad, (
+                f"{os.path.basename(path)} disagrees with {os.path.basename(chunks[0])} on "
+                f"{bad}: the chunks of one product must be one experiment"
+            )
+        for r in s["rows"]:
+            assert int(r) not in seen, (
+                f"target row {r} is in both {seen[int(r)]} and {os.path.basename(path)}: the "
+                f"chunks of one product must cover DISJOINT rows"
+            )
+            seen[int(r)] = os.path.basename(path)
+        rows += read_jsonl(path)
+    summary["rows"] = sorted(seen)
+    summary["n_targets"] = len(seen)
+    summary["chunks"] = [os.path.basename(p) for p in chunks]
+    print(
+        f"[rollouts] {stem}: {len(chunks)} `{ROWS_MARK}` chunk(s), {len(seen)} target rows, "
+        f"{len(rows)} rollout rows",
+        flush=True,
+    )
+    return rows, summary, chunks
 
 
 def nla_variant_dir(maemm_key: str, set_name: str, amp: str, root: str = VOL) -> str:
@@ -2634,12 +2754,115 @@ def human(nbytes: int) -> str:
     raise AssertionError("unreachable")
 
 
+def _read_index(path: Path) -> dict[str, dict]:
+    """A product directory's `index.json`, or {} when it is absent or unreadable.
+
+    Never raises: the index is README metadata (no consumer in `paper-evals/` reads it), and a run
+    that has just produced a rollout does not fail because a concurrent writer was mid-replace.
+    """
+    try:
+        with open(path) as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError) as e:
+        if os.path.exists(path):
+            print(f"[outdir] could not read {path} ({e}); the README file table will be partial",
+                  flush=True)
+        return {}
+    if not isinstance(rec, dict):
+        return {}
+    return {k: v for k, v in rec.items() if k not in ("README.md", "index.json")}
+
+
+INDEX_LOCK = ".index.lock"
+
+
+@contextlib.contextmanager
+def _index_lock(product: Path, timeout: float = 60.0, stale: float = 900.0):
+    """Hold `<product>/.index.lock` while index.json and README.md are read-merged-written.
+
+    O_CREAT|O_EXCL, spun on with jitter, a stale lock broken after `stale` seconds, and -- after
+    `timeout` -- the merge proceeds UNLOCKED with a warning rather than failing a finished
+    rollout: the files themselves are already in place by then and the worst an unlocked merge
+    costs is a row of the README's file table (nothing in `paper-evals/` reads index.json).
+
+    The lock is a dotfile inside the product directory and is removed on release, so the
+    directory's committed contents are byte-identical to what the pre-2026-09-23 write produced.
+    """
+    lock = product / INDEX_LOCK
+    t0, fd = time.time(), None
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            break
+        except FileExistsError:
+            try:
+                age = time.time() - os.stat(lock).st_mtime
+            except OSError:
+                continue
+            if age > stale:
+                print(f"[outdir] breaking a stale {lock} ({age:.0f}s old)", flush=True)
+                with contextlib.suppress(OSError):
+                    os.unlink(lock)
+                continue
+            if time.time() - t0 > timeout:
+                print(f"[outdir] WARNING: {lock} held for {timeout:.0f}s; merging index.json "
+                      f"WITHOUT the lock (the product files are already in place)", flush=True)
+                break
+            time.sleep(0.005 + 0.02 * random.random())
+        except OSError as e:  # a filesystem with no O_EXCL: best effort, say so
+            print(f"[outdir] WARNING: cannot take {lock} ({e}); merging index.json unlocked",
+                  flush=True)
+            break
+    try:
+        yield
+    finally:
+        if fd is not None:
+            os.close(fd)
+            with contextlib.suppress(OSError):
+                os.unlink(lock)
+
+
+def _replace_atomically(path: Path, text: str) -> None:
+    """Write `text` to `path` through a sibling temp + os.replace, so no reader sees it half-written."""
+    tmp = path.with_name(f".{path.name}.tmp-{_tmp_stamp()}")
+    with open(tmp, "w") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+
+
+def _tmp_stamp() -> str:
+    """The unique component of an ADDITIVE product's staging directory.
+
+    It keeps the `.tmp-<date>` prefix that `reconstruction/stats.py:344-359` and
+    `gcg/modal_app.py:169` filter on, and appends pid + a random nibble so that two concurrent
+    writers into ONE accumulating product directory never share a staging directory. That sharing
+    is the whole of the silent loss recorded at `SMOKES.md:4349-4356`.
+    """
+    return f"{time.strftime('%Y-%m-%d')}-{os.getpid()}-{random.randrange(16**6):06x}"
+
+
 class OutDir:
     """Temp-and-rename output directory with a README and an array index (infra/design.md §1).
 
-    Writers write to `<name>.tmp-<date>/` and rename on completion; an existing `<name>/` is never
-    overwritten without force=True. On an exception the temp directory is LEFT IN PLACE and its
-    path printed, so a failed run is inspectable and never half-renamed.
+    ONE-SHOT products (the default) write to `<name>.tmp-<date>/` and rename on completion; an
+    existing `<name>/` is never overwritten without force=True. On an exception the temp directory
+    is LEFT IN PLACE and its path printed, so a failed run is inspectable and never half-renamed.
+
+    ACCUMULATING products (`keep_existing=True`: `rollouts/`, `stats/`, `sae/<name>/`, the scores
+    directory) are ADDITIVE since 2026-09-23. The old behaviour copytree'd the whole existing
+    directory into `<name>.tmp-<date>/` and, on commit, rmtree'd the original and renamed the temp
+    over it; two concurrent runs shared the date-stamped temp name and the later rename silently
+    discarded the earlier run's file (`SMOKES.md:4349-4356`). Now:
+
+      * `__enter__` creates `<name>/` if it is missing and stages this run's files in a temp
+        directory unique to the process; nothing that already exists is read, copied or removed;
+      * `__exit__` MOVES only the files this run wrote into `<name>/`, then merges its index
+        entries into `<name>/index.json` and rewrites `README.md`. Both are written through a
+        temp-and-`os.replace`, so a concurrent reader never sees a half-written one.
+
+    The on-disk result is byte-identical to what the copytree path produced for a single writer:
+    the same files, the same `index.json` mapping and the same README layout. What changes is only
+    that a second concurrent writer's file survives.
 
     The README is the only metadata (command line, date, repo commit, inputs, sizes, status,
     provenance). The one allowed sidecar is `index.json`: file -> {dtype, shape, bytes} for the raw
@@ -2666,8 +2889,10 @@ class OutDir:
         self.path = Path(path)
         self.force = force
         # keep_existing: an ACCUMULATING directory (rollouts/, which gains one <set>.jsonl per run)
-        # rather than a one-shot product. The existing directory is copied into the temp dir first,
-        # so the rename is still atomic and the caller's per-file overwrite rule is its own.
+        # rather than a one-shot product. This run's files are staged in a temp dir of its own and
+        # MOVED in one at a time on commit; nothing already in the directory is copied or removed,
+        # so two concurrent writers of disjoint files both survive. The caller's per-file overwrite
+        # rule is still its own (rollouts_vllm asserts the stem is free unless --force).
         self.keep_existing = keep_existing
         self.gpu = gpu
         self.usd_per_s = usd_per_s
@@ -2678,29 +2903,38 @@ class OutDir:
         self.status = status
         self.on_commit = on_commit  # e.g. modal.Volume.commit, called after the rename
         self.index: dict[str, dict] = {}
+        # the entries already in the product directory when an ADDITIVE run started: never written
+        # by this run, carried only so the README's file table lists the whole directory.
+        self.existing: dict[str, dict] = {}
         self.notes: list[str] = []
         self.sections: list[tuple[str, list[str]]] = []
-        self.tmp = self.path.with_name(f"{self.path.name}.tmp-{time.strftime('%Y-%m-%d')}")
+        # A one-shot product keeps the dated name: `gcg --resume-from` and the "re-run is the
+        # resume" convention both address `<name>.tmp-<date>` by that exact spelling. An
+        # accumulating product gets a per-process name in __enter__ instead.
+        self.tmp = self.path.with_name(
+            f"{self.path.name}.tmp-"
+            + (_tmp_stamp() if keep_existing else time.strftime("%Y-%m-%d"))
+        )
         # the product's own start, so `wall` and `cost` cover the whole call (model load included);
         # 0 means "measure from __enter__"
         self._t0 = t0
 
     def __enter__(self):
-        if self.path.exists() and self.keep_existing:
-            if self.tmp.exists():
-                print(f"[outdir] removing a leftover temp dir {self.tmp}", flush=True)
-                shutil.rmtree(self.tmp)
-            shutil.copytree(self.path, self.tmp)
-            existing = self.tmp / "index.json"
-            if existing.exists():
-                with open(existing) as fh:
-                    self.index.update(json.load(fh))
-            for stale in ("README.md", "index.json"):
-                (self.tmp / stale).unlink(missing_ok=True)
-                self.index.pop(stale, None)
+        if self.keep_existing:
+            # ADDITIVE. Nothing existing is read for correctness, copied or removed -- the only
+            # read is index.json, for the README's file table, and a failure to read it costs a
+            # table row and no data.
+            assert not self.tmp.exists(), f"staging dir {self.tmp} already exists"
+            self.tmp.mkdir(parents=True)
+            self.path.mkdir(parents=True, exist_ok=True)
+            self.existing = _read_index(self.path / "index.json")
             if not self._t0:
                 self._t0 = time.time()
-            print(f"[outdir] keeping the {len(self.index)} entries already in {self.path}", flush=True)
+            print(
+                f"[outdir] ADDITIVE into {self.path} ({len(self.existing)} entries already there); "
+                f"staging in {self.tmp}",
+                flush=True,
+            )
             return self
         if self.path.exists():
             assert self.force, (
@@ -2771,9 +3005,10 @@ class OutDir:
             lines += [f"- {k}: {v}" for k, v in self.provenance.items()] + [""]
         for title, body in self.sections:
             lines += [f"## {title}", ""] + list(body) + [""]
-        if self.index:
+        merged = self._merged_index()
+        if merged:
             lines += ["## Files", "", "| file | kind | dtype | shape | size |", "|---|---|---|---|---|"]
-            for name, meta in self.index.items():
+            for name, meta in merged.items():
                 lines.append(
                     f"| `{name}` | {meta['kind']} | {meta.get('dtype', '')} | "
                     f"{meta.get('shape', meta.get('rows', ''))} | {human(meta['bytes'])} |"
@@ -2783,15 +3018,65 @@ class OutDir:
             lines += ["## Notes", ""] + [f"- {n}" for n in self.notes] + [""]
         return "\n".join(lines)
 
+    def _merged_index(self) -> dict[str, dict]:
+        """What the whole product directory holds: what was there, plus what this run wrote."""
+        return {**self.existing, **self.index}
+
+    def _commit_additive(self) -> None:
+        """Move this run's files into the product directory, then merge index.json and README.md.
+
+        Per file, `os.replace` within one filesystem: atomic, and a concurrent writer of a
+        DIFFERENT file is untouched. `index.json` is a read-merge-write and so is racy in the
+        window between the read and the replace; it is re-read immediately before the write to
+        keep that window at a few milliseconds, and it carries no data -- every consumer in
+        `paper-evals/` reads the product's files directly and none reads index.json (grep says
+        so), so a lost entry costs a README row, never a rollout.
+        """
+        staged = sorted(self.tmp.iterdir(), key=lambda p: p.name)
+        wrote = [p.name for p in staged]
+        for p in staged:
+            if p.is_dir():
+                # A subdirectory is not a product file; move it whole and refuse to merge into an
+                # existing one rather than half-overwriting somebody else's subtree.
+                assert not (self.path / p.name).exists(), (
+                    f"{self.path / p.name} already exists; an additive product never merges into "
+                    f"an existing subdirectory"
+                )
+                shutil.move(str(p), str(self.path / p.name))
+            else:
+                os.replace(p, self.path / p.name)
+        idx = self.path / "index.json"
+        # The index merge is a read-modify-write and is the ONE part of the commit two writers
+        # share, so it is the one part that takes a lock. Everything above this line is already
+        # safe: each writer moved only its own files.
+        with _index_lock(self.path):
+            self.existing = {**_read_index(idx), **self.existing}
+            merged = self._merged_index()
+            for stale in ("README.md", "index.json"):
+                merged.pop(stale, None)
+            _replace_atomically(idx, json.dumps(merged, indent=1))
+            self.index["index.json"] = {"kind": "json", "bytes": idx.stat().st_size}
+            _replace_atomically(self.path / "README.md", self._readme())
+        self.tmp.rmdir()
+        print(
+            f"[outdir] ADDITIVE: moved {len(wrote)} file(s) into {self.path} "
+            f"({', '.join(wrote)}); the directory now holds {len(merged)} "
+            f"wall={self.wall():.1f}s cost=${self.cost_usd():.4f}",
+            flush=True,
+        )
+
     def __exit__(self, exc_type, exc, tb):
         if exc_type is not None:
             print(f"[outdir] FAILED: {exc_type.__name__}; temp dir kept at {self.tmp}", flush=True)
             return False  # never swallow
+        if self.keep_existing:
+            self._commit_additive()
+            if self.on_commit is not None:
+                self.on_commit()
+            return False
         self.write_json("index.json", self.index)
         with open(self.tmp / "README.md", "w") as fh:
             fh.write(self._readme())
-        if self.keep_existing and self.path.exists():
-            shutil.rmtree(self.path)
         self.tmp.rename(self.path)
         print(
             f"[outdir] wrote {self.path} ({human(dir_size(self.path))}) "

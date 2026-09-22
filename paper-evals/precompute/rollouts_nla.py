@@ -740,8 +740,12 @@ def run(cfg, args):
         f"{score_max_length} minus the sink: the tail would never be scored"
     )
     # The SHARED sampling constants -- the same T / top_p / top_k every MAEMM arm uses.
+    # ... with ONE per-MAEMM override: `nla.min_new`. The shared block's 16 forces this
+    # verbalizer past its own stop token, and the shared block is never edited because that would
+    # re-point every rollout product in the pipeline; so the key lives on the `nla:` sub-block and
+    # the shared value is the fallback (config.yaml maemms.<nla>.nla.min_new).
     samp = {"temperature": rl["temperature"], "top_p": rl["top_p"], "top_k": rl["top_k"],
-            "min_new": rl["min_new"]}
+            "min_new": nla["min_new"] if "min_new" in nla else rl["min_new"]}
     min_new = int(samp["min_new"])
     base_seed = int(rl["seed"])
     inj_layer, coef = int(spec["inject"]["layer"]), float(spec["inject"]["coef"])
@@ -764,7 +768,9 @@ def run(cfg, args):
         # Through common.rollout_stem, like rollouts_hf and rollouts_vllm: the HF-shaped stem IS
         # the bare set name, so spelling it here quietly ignored `--run-tag` and two runs of one
         # checkpoint on one set differing only in --mu would both claim `<set>.jsonl`.
-        stem = C.rollout_stem(set_name, "hf", args.get("run_tag") or "")
+        stem = C.rollout_chunk_stem(
+            C.rollout_stem(set_name, "hf", args.get("run_tag") or ""), args.get("rows", "")
+        )
         path = f"{out_dir}/{stem}.jsonl"
         summary_name = f"{stem}.summary.json"
     assert args.get("force") or not os.path.exists(path), (
@@ -983,7 +989,9 @@ def run(cfg, args):
         "amp": f"{amp} (r={r:.4f} from {r_src})",
         "weight sha256": sha["sha256"],
     }
-    keep = (not variant) and os.path.exists(out_dir)
+    # The shared `rollouts/` directory is ACCUMULATING and additive (common.OutDir); a
+    # `--amp` variant gets its own one-shot directory and stays on the rename path.
+    keep = not variant
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=keep) as od:
         C.note_convention(od, cen_notes)
         od.write_jsonl(f"{stem}.jsonl", out_rows)
