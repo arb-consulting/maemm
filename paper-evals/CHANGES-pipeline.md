@@ -351,3 +351,96 @@ The NLA arm-A marking rate recorded on this branch (26/32) was measured on the *
 and no longer describes the composed path: Ari's body mask now runs before `rel_fallback` decides
 whether a block is bare. It needs one NLA block rebuilt and `marking` re-read from `build.json`.
 No Modal run was made in this rebase.
+
+---
+
+## `evals/pipeline-ood` onto the rebased branch
+
+2026-09-22, the second half of the same rebase. `evals/pipeline-ood` (48ee63a) replayed onto
+`evals/pipeline-v2` at b74872f: the **28 non-merge commits of `e09a4a9..48ee63a`**, original
+messages kept, **none dropped** (each verified present by subject after the replay).
+
+The replay base is `e09a4a9`, the OOD branch's merge of `evals/pipeline-results`, NOT its fork
+point `44ca67c`. Everything before that merge — `44ca67c` itself and the results driver's
+`7ae3a1f` / `86a38f9` — is already in the base branch, and replaying it would have re-applied two
+commits whose `SMOKES.md` and `results/` content were conflict-resolved there.
+
+### Conflicts and how each was resolved
+
+| # | commit | file | base (pipeline-v2) | OOD | resolution |
+|---|---|---|---|---|---|
+| 12 | `70ac200` | `SMOKES.md` | the eval-1 / eval-2 / results sections | the OOD pilot section | **both**, appended in order |
+| 13 | `2daf562` | `results/selftest.py` | the results-driver and autointerp checks | `check_ood_scan_key`, `check_ood_arm_table` | **both** — two append-vs-append hunks, the check bodies and the registration list |
+| 14 | `6e27191` | `precompute/common.py` | `scores_dir(..., tag, write)` — `tag` is the RUN tag, plus the legacy-order read fallback | `scores_dir(..., tag)` — `tag` is the SCORE tag | **merged into two axes**, see below |
+| 15 | `6e27191` | `precompute/score.py` | passes `args["run_tag"]` | passes `args["score_tag"]` | **`C.score_tag_of(args)`**, which composes both |
+
+### Row 14/15: the same parameter, twice, meaning different things
+
+The two branches each gave `common.scores_dir` a `tag` parameter — same position, same name,
+within a day of each other — and meant different axes by it:
+
+* `--run-tag` (ours) selects which rollouts **file** is scored. Two run tags scored under one
+  convention are two different inputs.
+* `--score-tag` (OOD's) names only the **output**: one rollouts file scored again under a second
+  convention, or for a column the first run did not have. `cos_asym` is why it exists. Using
+  `--run-tag` for that instead sends `score` looking for a `<set>__<engine>__<tag>.jsonl` that was
+  never written, which is how the mu-stats arm failed on 2026-09-21.
+
+Taking either resolution alone **loses the other axis with no error anywhere**: the second run
+writes the first run's directory, `--force` replaces it, and the only surviving trace is a README
+naming a different rollouts file. `common.score_tag_of(args)` composes the pair, run tag first so
+every score of one rollouts file sorts together, and is now the only way any call site builds that
+component. `centred`, `autointerp/sae_self` and `autointerp/build` previously passed the run tag
+alone and so could not have found a `--score-tag` product at all; they now compose it too.
+`check_both_tag_axes_reach_the_scores_path` is mutation-tested against losing either side (M12,
+M13) and against a call site building the tag by hand (M14).
+
+### The three interlocks the previous section flagged, checked
+
+All three were named as what the OOD branch would meet. Outcome:
+
+1. **`scores_dir`'s tag** — a real collision, resolved above.
+2. **`C.SET_WRITERS` and its file map** — the OOD branch adds no set writer (`corpus --arm` and
+   `targets --arm` draw into products already under D6, and `ood_selfcheck` writes nothing), so
+   the tuple and the map are unchanged. But `check_one_set_writers_tuple` **fired a false
+   positive** on `modal_app`'s `--arm` ownership assert
+   (`product in ("corpus", "targets", "ood_selfcheck")`) because it matched on `"targets"` alone.
+   Narrowed to require BOTH `targets` and `draw_sae2m`, which is the D6 tuple's shape; M4 and M11
+   still go red. A check that fires on the wrong thing is a check nobody will keep.
+3. **`check_sidecar` returning a pair** — the OOD branch does not touch `rollouts_nla.py` and
+   unpacks `check_sidecar` nowhere. No interaction.
+
+### What merged clean and was checked rather than assumed
+
+None of these needed a resolution; each is recorded because the previous section's lesson was that
+this class does not announce itself.
+
+* **The scan axis composes rather than collides.** `common.scan_dir(base, set, root, corpus_name)`
+  is unchanged; `scan.py` builds the whole key `<corpus>[__<M>m][__<tag>]` and passes it as
+  `corpus_name`, and `results/ood.parse_scan_dir` splits it back on `__`. The mean/bound axis sits
+  inside the corpus component rather than beside it, so the two layers stack.
+* **`assert_corpus_geometry` is reached by the OOD launcher**, not bypassed:
+  `modal_app.main`'s `--corpus` resolution loop calls it once per named corpus before spawning.
+* **All 23 OOD corpora declare 64/16** in the `corpora:` section this branch introduced, so the
+  refusal accepts every one of them. `celeste-train10m` (32/8) remains the single blocked corpus —
+  H7's status is unchanged by the OOD work.
+* **The three OOD held-out sets declare the storage contract** (`storage: raw`, `mu_stored: null`,
+  `imported: true`) and pass `_check_heldout_storage`; `default_heldout` is still `2026-09-16_v1`.
+* **`cos`, `cos_centred` and `cos_asym` coexist** as three columns of one centred `score` run;
+  `cos_asym` is not a rename of either.
+* **`results/ood.rollouts_rel_of` reads the rollouts path out of the scores README** instead of
+  reconstructing it from the directory name, so the composed tag does not reach it.
+* Every `C.<name>` reference in `precompute/{nll,ood_selfcheck}.py`,
+  `reconstruction/stats_ood.py` and `results/ood.py` resolves against the merged `common.py`, with
+  no call passing more positionals than its target takes; 46 of the 62 modules import cleanly and
+  the other 16 fail only on absent optional third-party packages (`modal`, `torch`, `pandas`).
+
+### Left open
+
+* **`top1_act` and `gcg` address a scan as `scan_dir(base, set, root, corpus_name)` with the raw
+  corpus name**, so neither can name a bounded (`__4m`) or mean-tagged (`__mu-whiten`) scan. Not a
+  rebase defect — it is the same on the OOD branch alone — and currently harmless, because both
+  products need SAE rows and an OOD set has none. It becomes real the first time a bounded scan of
+  an SAE set is wanted.
+* H7 unchanged: the geometry is still not threaded, and `--corpus-name train_parity_10m` still
+  refuses.
