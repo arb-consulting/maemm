@@ -1,0 +1,968 @@
+# paper-evals: every model, SAE, MAEMM, target set and sampling constant used by precompute/.
+#
+# Keys `<base>/<name>` under `saes` and `maemms` are the directory names on the volume:
+#   /vol/base/<base>/sae/<name>/ and /vol/maemms/<base>/<maemm>/.
+# Base key spelling is `qwen36-27b` (infra/precompute-layout.md §1). An OLDER tree spelled
+# `qwen3.6-27b` exists under /vol/maemms/ from a previous pipeline; it is not ours and not touched.
+# Families are keyed BY NAME everywhere (never by list position) -- checklist item 38.
+
+bases:
+  qwen3-8b:
+    hf: Qwen/Qwen3-8B
+    read_layer: 27          # block OUTPUT of layer 27 (mxf/config.py profile qwen3-8b)
+    d: 4096
+    gpu: H100               # $3.95/h
+    n_layers: 36
+    # ||h|| at the marker of the inject layer under the CLEAN base, MEASURED 2026-09-15 by
+    # rollouts_hf's marker check (bf16, so quantized). Only used for full-parameter MAEMMs, which
+    # have no adapter to disable: see rollouts_hf.marker_check (checklist item 22).
+    marker_norm_base: 14.5
+    # Celeste's archived centring mean for this base, as a volume path. Used ONLY by the `mu_check`
+    # / `mu_diag` diagnostics, which compare OUR stats/mu.f32 against hers; nothing centres on it
+    # by virtue of being listed here (a product centres on the file its `mu:` / `--mu` names).
+    whiten_mu: /vol/archive/gavento-1/data/run1/acts/whiten_mu.npy
+  qwen36-27b:
+    hf: Qwen/Qwen3.6-27B
+    read_layer: 42          # mxf/config.py:6
+    d: 5120
+    gpu: H200               # $4.54/h
+    n_layers: 64            # 48 of them GatedDeltaNet -> the image needs flash-linear-attention
+    marker_norm_base: 14.062  # MEASURED 2026-09-15 by the rlI-150 rollouts run (see qwen3-8b above)
+    whiten_mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
+
+# A MU IS A FILE (Tomáš, 2026-09-21). Everywhere a centring mean is named in this file or on a
+# command line -- `maemms.<k>.mu`, `bases.<base>.whiten_mu`, `--mu` -- the value is one of:
+#   null        subtract nothing: the input/stored direction is a RAW unit activation
+#   <path>      a [d] float32 `.f32` or numpy `.npy` file. A path starting with `/` is absolute;
+#               anything else is relative to the run's --root (so a smoke under /vol/runs/... gets
+#               its own stats mean). `{base}` in the path expands to the base key, which is what
+#               lets one held-out entry describe the set on either base.
+#   unknown     (`maemms.<k>.mu` only) the checkpoint's training convention is not on the record.
+#               Nothing guesses one: every run of it must be told with --mu, as a deviation.
+# TWO AXES, and they are not the same one (M0a, 2026-09-23). `maemms.<k>.mu` is the INJECTION
+# convention -- what a checkpoint was trained to receive at its marker token. `bases.<base>
+# .whiten_mu` is the SCORING CONSTANT, the mean both arguments of every centred cosine are taken
+# about (`common.score_mu`), a property of the base and of no run. Before they were separated the
+# reported statistic depended on which checkpoint it reported on, so the old primary, the base
+# control and the NLA arm had no centred cosine at all and no two arms could be differenced.
+# There is no enum and no registry of mean NAMES: a new checkpoint trained on a new mean is a new
+# path in a config entry, and nothing else has to change.
+
+# NEW top level (2026-09-21): what a FAMILY is, independent of which set carries it.
+# NOT `families:` -- that name is already the per-set key `heldout.<set>.families` (config.yaml
+# below, read by common.families_for), and one name with two meanings in one file is exactly what a
+# reader gets wrong once and never notices.
+#   centrable: may a mean be subtracted from this family's rows at all? Only an ACTIVATION can be:
+#              an encoder column, a Gaussian draw and a subspace basis have no mean to subtract, and
+#              subtracting one anyway is a one-sided number, not a centred one.
+#   kind:      what the row IS. `activation` is the only kind `targets` stores `act.f32` for.
+family_kinds:
+  realact:      {centrable: true,  kind: activation}
+  # The OOD arm families (infra/2026-09-18_ood-eval-design.md §2). Every OOD row is a real
+  # activation read off the base at layer 42 -- the same object `realact` is, drawn from a
+  # different corpus -- so all four are centrable, and the mean they are centred on is the ENGLISH
+  # one (design §10 decision 10: a per-domain mu would change the inverter's input rather than
+  # test it). `diag` is the formula arm, a tokenizer-boundary diagnostic outside the conjunction.
+  lang:         {centrable: true,  kind: activation}
+  ctrl:         {centrable: true,  kind: activation}
+  code:         {centrable: true,  kind: activation}
+  math:         {centrable: true,  kind: activation}
+  diag:         {centrable: true,  kind: activation}
+  realact_long: {centrable: true,  kind: activation}   # centred at construction, by an UNVERIFIED mean
+  random:       {centrable: false, kind: synthetic}
+  sae:          {centrable: false, kind: dictionary}
+  sae2m_enc:    {centrable: false, kind: dictionary}   # the 2k set's legacy label; kept, not rewritten
+  bsf:          {centrable: false, kind: subspace}
+  jlens:        {centrable: false, kind: subspace}
+
+saes:
+  qwen3-8b/adamkarvonen-t2:
+    hf: adamkarvonen/qwen3-8b-saes
+    file: saes_Qwen_Qwen3-8B_batch_top_k/resid_post_layer_27/trainer_2/ae.pt
+    layer: 27
+    # The shipped max-activating windows the `repo_examples` product scores. NOT part of the SAE
+    # repo: they live in adamkarvonen's separate `sae_max_acts` DATASET repo, 30 windows of 32
+    # tokens per feature, and EVERY window carries the sink token at position 0 (her `_reencode`
+    # prepends the tokenizer's eos; Qwen3-8B has no bos) -- hence sink_first: true, which
+    # repo_examples asserts against the data before stripping column 0.
+    max_acts:
+      repo: adamkarvonen/sae_max_acts
+      repo_type: dataset
+      file: acts_Qwen_Qwen3-8B_layer_27_trainer_2_layer_percent_75_context_length_32.pt
+      windows: 30
+      sink_first: true
+  qwen36-27b/l42-1b:
+    # NOT ceselder/qwen36-27b-sae-l42 (the older repo master's code references): same width 131k
+    # and k=64, 4x the training tokens. File list verified 2026-09-15 with list_repo_files.
+    hf: ceselder/qwen36-27b-sae-l42-1b
+    file: saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt
+    layer: 42
+    # Shipped inside the SAE repo itself (no `repo:` key -> the sae's own `hf`), 32 windows of 32
+    # tokens per feature and NO sink prefix: position 0 is an ordinary corpus token, so all 32 ids
+    # are scored and score_tokens prepends its own sink.
+    max_acts:
+      file: maxacts/acts_Qwen_Qwen3.6-27B_layer_42_trainer_0_context_length_32.pt
+      windows: 32
+      sink_first: false
+
+  # The 2M SAE of the simple2m chain -- the dictionary the v2 checkpoint trains and is
+  # evaluated on. Weights published 2026-09-20 (Ari); snapshot de89b1c1 on the volume.
+  # From its own config.json / verify.json, not assumed:
+  #   F 2,097,152, d 5120, k 64, learned gate 1.682811975479126
+  #   EV 0.711, L0 67.45, 0 dead features, 100% fired over 20.0M eval tokens
+  #   norm_factor 83.37198739567428 and norm_factor_folded EQUAL to it -- the
+  #   normalisation is already folded into the shipped ae.pt, so raw layer-42
+  #   residuals feed straight in with no rescaling. (This is exactly the ambiguity
+  #   behind the OPEN 27B max-acts disagreement on l42-1b; here it is documented.)
+  qwen36-27b/sae2m:
+    hf: ceselder/qwen36-27b-sae2m-l42
+    file: saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt
+    layer: 42
+    # 5 end-anchored 32-token windows per feature over a 1.0B-token scan. The buffer
+    # convention is "[BOS]+ctx_len forwarded; BOS position dropped", so position 0 of a
+    # stored window is an ordinary corpus token -> sink_first false, as on l42-1b.
+    # UNVERIFIED: that maxacts_top5.pt has the same tensor layout repo_examples expects.
+    max_acts:
+      file: maxacts_top5.pt
+      windows: 5
+      sink_first: false
+
+# `mu:` (NEW 2026-09-21) is what the checkpoint was TRAINED to receive at the marker: `null` = a
+# unit activation with nothing subtracted, a path = a unit `act - mu` under the mean in that file.
+# It is the ONLY thing that tells `rollouts_*` / `score` which direction to hand a MAEMM, and every
+# such product takes `--mu <file>` to override it (recorded as a deviation). An entry with NO `mu:`
+# key cannot be run through a centring-aware product at all -- `common.input_mu` refuses rather
+# than guessing -- which is where the older 8B/LoRA entries sit: their training banks' convention
+# has never been established and inferring one from the file layout would be a guess wearing a
+# config key's authority. An explicit `mu: null` is a STATEMENT; an absent key is a gap.
+#
+# `compute: false` (default true) means the entry is DECLARED but nothing is generated for it in
+# this pipeline: it exists so the paper's model table, the prompt inventory and the `check` product
+# know about it. common.maemms_for() filters these out of every "all MAEMMs" iteration; `check`
+# resolves them too, but LENIENTLY -- an entry nobody computes need not be in the volume's HF cache.
+maemms:
+  qwen3-8b/2026-09-03_run1-rl:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/final    # volume path, not an HF repo
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+  qwen36-27b/2026-09-08_rlI-150:
+    type: lora
+    hf: ceselder/maemm-qwen36-27b-inverter-rlI-step150
+    subdir: step_150        # adapter_config.json lives here, not at the repo root
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
+  qwen36-27b/2026-09-10_rl-8x2048-full:
+    type: full              # 12 safetensors shards at the repo root; scoring uses the clean base
+    hf: ceselder/qwen36-27b-maemm-inverter-rl-8x2048
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 192
+    # UNESTABLISHED, and declared as such (Tomáš, 2026-09-21). `unknown` is not `null`: it says
+    # this checkpoint's training convention is not on the record, so no product will pick one for
+    # it and every run must be told with `--mu` (common.input_mu / mu_for refuse otherwise).
+    #
+    # The evidence points both ways. The eval plan (§1.1, §2.2) declares `none`, from Tomáš's
+    # recollection that the 09-10 chain took uncentred input. Against that: Celeste's ORIGINAL
+    # convention was targets `unit(act - whiten_mu)` with a RAW scorer (observations §2 -- she
+    # diagnosed the asymmetry herself in f9b5095 on 09-18, after this checkpoint launched), and
+    # the one number this checkpoint has on our volume -- cos_raw 0.5076 on rows 0-7 of
+    # `2026-09-16_v1` -- was measured against rows stored as `unit(X[p] - stats/mu.f32)`, which is
+    # a stats_mu-centred input, not a raw one.
+    #
+    # SETTLED EMPIRICALLY 2026-09-21, and this key is now the ANSWER, not the question. Two arms
+    # of this checkpoint were run on the SAME rows -- `2026-09-21_v3_realact`, her 512 realact
+    # targets, 64 rollouts each, `--run-tag mu-none` vs `--run-tag mu-stats` -- and scored by the
+    # same pass. On the headline n = 486 (the 26 ngram-overlap exclusions dropped):
+    #
+    #        statistic    --mu none   --mu stats_mu    delta    95% CI (doc-clustered)   rows won
+    #        mean_cos      0.8830       0.8881       +0.0051   [+0.0030, +0.0072]   322/486  66.3%
+    #        bo_8          0.9142       0.9188       +0.0046   [+0.0030, +0.0062]   324/486  66.7%
+    #        bo_64         0.9278       0.9322       +0.0044   [+0.0026, +0.0061]   334/486  68.7%
+    #
+    # stats_mu wins on every statistic, on two thirds of the rows individually, and the paired
+    # bootstrap over the 425 distinct documents (61 rows share one, so an unclustered SE would be
+    # too small -- activations.py:22-24) excludes zero in all three. The EFFECT IS SMALL, ~0.005
+    # of cosine, and that is part of the finding: this checkpoint is not very sensitive to the
+    # convention, which is why it stayed unsettled for so long and why the n=4 x 4 table in the
+    # §1.6 smoke (+0.023 mean_cos) over-read it. The sign is the durable part, not the size.
+    #
+    # This confirms what the record already pointed at -- Celeste's original convention was a
+    # CENTRED target (observations §2) -- and goes against the eval plan's §1.1/§2.2 `none`,
+    # which came from a recollection. The plan is wrong here and the arms are why.
+    #
+    # Products: maemms/qwen36-27b/2026-09-10_rl-8x2048-full/rollouts/2026-09-21_v3_realact__mu-{none,stats}.jsonl
+    # and scores/2026-09-21_v3_realact__mu-{none,stats}__vllm/. SMOKES.md 2026-09-21 carries the
+    # run record. NOT deleted: the arms are the evidence and both stay on the volume.
+    #
+    # The plan's separate reproduction check ("cos_raw within 0.01 of 0.5076" on rows 0-7 of
+    # `2026-09-16_v1`) is RETIRED, not pending (2026-09-23): the stored 0.5076 is the asymmetric
+    # `cos(h, unit(act - stats_mu))`, which no `score` run produces on a raw set under any flag,
+    # and it was never a gate -- `sanity.yaml` carried it with `compare: false`, printing two
+    # numbers and issuing no verdict. It is gone from that file with every other dated number.
+    mu: base/{base}/stats/mu.f32
+    primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
+  # The v2 / simple2m checkpoint (Ari 2026-09-19: the one to use for the experiments).
+  # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
+  # to pin: sha a1e4f299e0100a9340077c395504487375a63eec (config has no `revision:` key;
+  # common.py asserts a single snapshot in the cache, so fetch that one and only that one).
+  qwen36-27b/2026-09-18_rl-last16-lr5e-7:
+    type: full
+    hf: ceselder/maemm-27b-rl-last16-lr5e-7
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
+    train_data: celeste-v2-2026-09-17
+    # unit(act - whiten_mu) on realact rows; SAE rows are raw encoder/decoder columns either way
+    # (they are not centrable at all, family_kinds above). ESTABLISHED: both of this checkpoint's
+    # chains -- SFT bank ufw_ctx8_64_sft_4m_v3 and RL pool ufw_ctx64_2048_rl_500k_v3 -- were built
+    # with Celeste's whiten_mu (infra/2026-09-21_observations.md §2). MEASURED 2026-09-16
+    # (SMOKES.md:871): cos(our mu_512, this file) = 0.999897 on the 27B. The archived file is the
+    # EARLIER chain's and the v2 bundle ships no mu, so "is this the mean she used" is one line to
+    # Celeste, not a gate.
+    mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
+    # RL reward = max cosine over the LAST 16 generated tokens (--reward-window-last 16,
+    # confirmed by Ari 2026-09-19), not the whole span. lr 5e-7 flat after a 25-step
+    # warmup, 300 steps, 8x2048 per step, CISPO/GRPO. SFT init: the 8M-row simple2m mix.
+    # UNVERIFIED, both to be settled by the marker/greedy smoke before any paid run:
+    #   prompt        `celeste27b` is ASSUMED. The prompt is per-MAEMM special casing
+    #                 verified against each MAEMM's training code once; that has NOT been
+    #                 done for the simple2m chain. A one-token difference shifts the mean
+    #                 ~0.01 and is invisible to any distribution comparison (docs/, 3).
+    #   train_max_new 96 is from run_meta.json["argv"], which is STALE on three other
+    #                 fields (lr, reward window, init adapter) and so is not a source.
+    #   marker_norm   never measured for this checkpoint; bases.marker_norm_base 14.062 is
+    #                 the CLEAN base, and rollouts_hf.marker_check uses a divergence from
+    #                 it to prove a full-parameter MAEMM actually loaded.
+    # Not `primary: true` yet -- that demotes 2026-09-10_rl-8x2048-full and is Ari's call.
+    # Note this checkpoint's provenance is strictly better: Ultra-FineWeb en throughout
+    # with explicit doc ranges, against the current primary's unpinned FineFineWeb.
+  qwen36-27b/2026-09-16_base-control:
+    type: base              # the CLEAN base, no MAEMM weights: the untrained-base control
+    hf: Qwen/Qwen3.6-27B    # the same snapshot bases.qwen36-27b resolves to
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    role: control           # stats.py: shown as "control" between the primary and the secondaries
+    # The control's whole definition is "the primary with base weights", so it takes the primary's
+    # input convention too: anything else would make it a control for a different experiment.
+    # 2026-09-23: the primary's convention IS the base's archived whiten mean (bases.qwen36-27b
+    # .whiten_mu), so the control declares it rather than `null`. `mu: null` was an explicit
+    # statement that the control took a RAW activation, which made every --mu on a control run a
+    # recorded DEVIATION (common.mu_for) and left the pairing "control centred as the MAEMM"
+    # unenforceable -- spec §7 R4. Panel a row 7 differences the two, and two arms differenced
+    # across two means is not a difference.
+    mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
+    # No train_max_new: nothing was trained. Everything else -- prompt, marker, inject layer/coef
+    # and the `rollouts:` sampling block -- is the primary's, so the only difference from
+    # 2026-09-10_rl-8x2048-full is the weights.
+    note: untrained-base control for the primary (2026-09-10_rl-8x2048-full); identical prompt, marker, injection and sampling, base weights only
+  # The NLA activation-verbalizer baseline (Natural Language Autoencoder, EasyNLA / nanoNLA
+  # recipe, github.com/asherps/EasyNLA). NOT a MAEMM: a FULL merged bf16 Qwen3_5ForCausalLM
+  # (2 shards, 53.8 GB, model.safetensors.index.json present, tokenizer + chat_template.jinja +
+  # generation_config.json + nla_meta.yaml shipped) trained to VERBALIZE a layer-42 activation --
+  # warm-start SFT on ceselder/qwen3-8b-nla-L24-finefineweb-100k explanations, then GRPO against a
+  # reconstruction reward; the card claims held-out FVE ~= 75%. It is a `maemms:` entry because it
+  # shares everything the layout and the objective need: it is served like a `type: full` MAEMM,
+  # it takes ONE direction at ONE marker token of block 1's output under the same Karvonen
+  # norm-matched add, and its rows land in maemms/<base>/<entry>/{rollouts,scores} and go through
+  # the ONE clean-base scoring path (README "Methods"). What it does NOT share is the prompt, the
+  # marker and the output format, so `rollouts_nla` is its only generator and every product that
+  # injects with the MAEMM prompt (rollouts_hf, rollouts_vllm, parity_greedy) REFUSES type nla.
+  qwen36-27b/2026-07-14_nla-av:
+    type: nla
+    hf: ceselder/qwen3.6-27b-nla-av
+    revision: def1421d20fd949f9da13bfeeba1b600b31a654f   # asserted against the cached snapshot's dir name
+    inject: {layer: 1, coef: 1.0}     # Karvonen norm-matched add at block-1 output, as the MAEMMs
+    nla:
+      # tokens: block of nla_meta.yaml on the checkpoint. The hook injects ONLY where
+      # ids[p-1] == left_id and ids[p+1] == right_id (nla/injection.py), so the neighbours are
+      # part of the contract, not a diagnostic. The marker is NOT the last prompt token.
+      marker: "㈜"
+      marker_id: 158983
+      left_id: 29
+      right_id: 510
+      # nla_meta.yaml prompt_templates.actor, VERBATIM; rollouts_nla.check_sidecar asserts this is
+      # equal to the shipped sidecar's text (after strip) before it generates anything.
+      template: |
+        You are a meticulous AI researcher conducting an important investigation into activation vectors from a language model. Your overall task is to describe the semantic content of that activation vector.
+
+        We will pass the vector enclosed in <concept> tags into your context. You must then produce an explanation for the vector, enclosed within <explanation> tags. The explanation consists of 2-3 text snippets describing that vector.
+
+        Here is the vector:
+
+        <concept>{injection_char}</concept>
+
+        Please provide an explanation.
+      # SAMPLING: the shared `rollouts:` block, like every MAEMM arm (Tomas + Juan 2026-09-21).
+      # The checkpoint ships top_p 0.95 / top_k 20 in generation_config.json; that is not a
+      # convention anywhere and is recorded on the summary but NOT used. No nla.sampling key.
+      # Tomas 2026-09-21: the NLA arm generates at the checkpoint's NATIVE length. That is what the
+      # model card's own invocation uses and what the verbalizer's <explanation> answers are shaped
+      # like; cutting them at the pipeline's 64 would report this baseline on a fraction of its
+      # output. It costs the arm its comparability on generation length with the MAEMM arms, which
+      # is stated wherever the number appears rather than hidden.
+      max_new: 200
+      # The re-encode truncation `score` uses FOR THIS ARM, carried to it on the rollouts summary
+      # (common.encode_for_score / score_width_of; every other arm stays at SCORE_MAX_LENGTH = 95).
+      # 256 leaves room for the 200 generated tokens plus the sink plus re-tokenization expansion
+      # -- a decoded rollout does not always re-encode to the same id count (README, checklist
+      # item 8). A cosine from this arm is therefore a max over a WIDER window than the others'.
+      score_max_tokens: 256
+      card_max_new: 200      # the reference script's own default and the card's invocation
+      n: 4                   # texts per target, default; --n overrides
+      # Tomas 2026-09-21: `raw` is the HEADLINE input -- the scorer's own target direction, fed as
+      # is, which is also what every MAEMM arm is injected with, so the NLA column is read against
+      # them on the same input rather than on a reconstruction only this arm gets. `exact` and `mu`
+      # are the VARIANTS, run with --amp into variants/<set>__amp-<amp>/. NOTE the realact smoke
+      # rows already on the volume were generated under the old `exact` default; their summaries
+      # record `amp` per run and per row, so which is which is never in doubt.
+      amp: raw               # default input-amplitude convention; --amp overrides (writes a variant dir)
+      amp_r: median          # r for `mu`/`raw` and the `exact` fallback: layer read_layer q[0.5] of stats/resid_norm_quantiles.json, or a number
+      # Tomas 2026-09-22: this arm generates with NO minimum length. The shared `rollouts:` block
+      # says min_new 16, which forces the verbalizer past its own stop and pads short
+      # <explanation> answers with continuation it would not have produced; the reference
+      # invocation sets none. Per-MAEMM here rather than in `rollouts:`, because changing the
+      # shared value would re-point every rollout product in the pipeline. rollouts_nla falls back
+      # to the shared value when this key is absent.
+      min_new: 0
+    # Raw layer-42 block output, NO centring (the card and nla_meta.yaml; observations §5).
+    # `nla.amp` stays the AMPLITUDE knob and is a different axis from this one: `mu` says which
+    # mean is subtracted from the activation, `amp` says what norm the injected vector gets.
+    mu: null
+    compute: true
+  qwen36-27b/2026-09-05_rlE-250:
+    type: lora
+    hf: ceselder/maemm-qwen36-27b-inverter-rlE-step250   # adapter at the repo root
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96       # ASSUMED: mxf/config.py:72 RLConfig.max_new_tokens for the LoRA chain
+    compute: false
+
+  # --- declared only (compute: false): nothing is generated for these today ---------------------
+  qwen3-8b/2026-09-03_run1-sft:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/sft/final      # volume path, not an HF repo
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    compute: false
+    note: the SFT checkpoint run1's RL chain started from
+  qwen36-27b/2026-09-05_init-realact23m-sft:
+    type: lora
+    hf: ceselder/maemm-init-realact23m-sft
+    subdir: sft_final       # adapter_config.json lives here, not at the repo root
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    compute: false
+  qwen36-27b/2026-09-09_pretrain-104m-full:
+    type: full
+    hf: ceselder/qwen36-27b-maemm-inverter-pretrain-104m
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    compute: false
+    note: the full-parameter line's published init
+
+# NEW per-set keys (2026-09-21): the STORAGE CONTRACT of a set on disk. They say what `vecs.f16`
+# holds, which is the one thing a reader cannot tell by looking at it.
+#   storage: raw       -- `act.f32` is present and every direction is DERIVED at read time; nothing
+#                         stored encodes a centring choice. This is what `targets` writes from now
+#                         on, and what `common.dirs_for` can serve under ANY `--mu`.
+#            unit      -- `vecs.f16` is a stored unit direction under some mean. It can be served
+#                         only at the mean it was built with: without `act.f32` (or a raw
+#                         `act_norm` to solve with) un-centring is not possible.
+#            dirs_only -- `vecs.f16` is a direction that was never centred and never could be
+#                         (an encoder column, a Gaussian draw, a subspace basis).
+# `storage:` IS THE WHOLE CONTRACT (M0a, 2026-09-23). The `mu_stored:` / `family_mu:` keys that
+# used to name the mean a `unit` set was built under are DELETED, and so is the machinery that
+# read them: a stored unit direction cannot be moved to another mean without ||act||, so such a
+# set is served exactly as its producer shipped it and simply has no centred cosine -- `score`
+# writes NaN for its rows. The mean every centred number is reported about is now
+# `bases.<base>.whiten_mu` (`common.score_mu`) and is named nowhere per set.
+# A set written before these keys existed is described here, not rewritten in place.
+heldout:
+  2026-09-16_v1:
+    # WHICH dictionary this set's `sae` feature ids index. Its rows predate the per-row `sae_key`
+    # field, so without this declaration `common.sae_rows_of` REFUSES them rather than matching
+    # whatever --sae was typed -- every one of these 512 ids is also a valid index into the 2M
+    # encoder, so the wrong answer is silent.
+    sae_key: qwen36-27b/l42-1b
+    # Drawn 2026-09-16, BEFORE the raw-storage rule: its realact rows are stored already centred.
+    storage: unit
+    seed: 20260916
+    families:
+      realact: {n: 512}
+      random:  {n: 512}
+      sae:     {n: 512}
+      # No J-lens matrix exists on either base yet: the slot is declared so the set's shape is
+      # stable, and `status: empty` means targets.py writes zero rows for it.
+      jlens:   {n: 512, bases: [qwen36-27b], status: empty}
+    # (`realact_len: [1, 64]` was deleted 2026-09-21: dead since targets.py landed, which takes
+    # L ~ U[SPAN_MIN, SPAN_MAX] = U[16, 64] from its own module constants and never read this key.)
+    sae_min_fires: 20       # counted with the SAE's learned gate, not raw act > 0
+    sae_strata: 4           # rarity quartiles of the corpus fire count
+
+  # The RAW re-derive of 2026-09-16_v1 (2026-09-21). Same seed, same families, same sizes, same
+  # sae parameters -- `targets --re-derive` asserts all of that from config before it touches a
+  # GPU, because the rng stream is what makes "the same rows" true. What differs is the STORAGE:
+  # act.f32 + unit(act), with the mean applied at read time. `2026-09-16_v1` is not modified,
+  # replaced or removed by this; a re-derive only ever CREATES a set.
+  2026-09-21_v1raw:
+    # `imported: true` here means "nameable, never the default" (common.default_heldout's own
+    # words), NOT "drawn elsewhere". Without it this entry becomes sorted()[-1] and every product
+    # called without --set silently moves off `2026-09-16_v1`, which is the set the paper's tables
+    # are built on -- and onto a set that does not exist on the volume until `targets` has run.
+    # Drop the flag deliberately, in its own commit, when this set is adopted as the default.
+    imported: true
+    storage: raw
+    sae_key: qwen36-27b/l42-1b  # also stamped per row by targets.py; declared here for readers
+    seed: 20260916            # == 2026-09-16_v1, asserted
+    families:
+      realact: {n: 512}
+      random:  {n: 512}
+      sae:     {n: 512}
+      jlens:   {n: 512, bases: [qwen36-27b], status: empty}
+    sae_min_fires: 20
+    sae_strata: 4
+
+  # DRAWN, not drawn here: Ari's `features/draw_sae2m.py` wrote this set on 2026-09-20 (commit
+  # b767d1a, its own README on the volume) through `features/spawn.py`, which calls the Modal
+  # function directly and so BYPASSES `modal_app.main`'s "set_name in cfg['heldout']" assert --
+  # which is why the set exists on the volume without ever having been declared here. Declaring it
+  # now lets `--set 2026-09-20_sae2m_2k` through the entrypoint.
+  #
+  # `imported: true` keeps it OUT of the default-set rule: `sorted(cfg["heldout"])[-1]` would make
+  # this 2,000-row sae2m set the default of every product that omits --set, silently moving
+  # `2026-09-16_v1` off the tables. `common.default_heldout` takes the latest NON-imported set
+  # instead, and every entrypoint uses it.
+  #
+  # The family label here is `sae2m_enc` because that is what the rows ON THE VOLUME carry, and
+  # this file describes what exists. `features/draw_sae2m.py` emits `family: "sae"` -- the label
+  # every consumer actually filters on -- with the dictionary named per row in `sae_key`; the 2k
+  # set below predates that and is NOT rewritten in place, so autointerp keeps accepting the old
+  # label for it (FAMILIES in sae_self.py/build.py). A RE-DRAW carries `sae`.
+  # SETTLED 2026-09-21 by reading the volume (`modal volume get maemm
+  # base/qwen36-27b/heldout/2026-09-20_sae2m_2k/ids.jsonl`): all 2,000 rows carry
+  # `family: "sae2m_enc"` and NO `sae_key` field. Ari's 541b4b0 declares
+  # `families: {sae: {n: 2000}}` for this same set, which does not match what is on disk; this
+  # line does. A re-draw under the current draw_sae2m carries `sae` + `sae_key` and needs a new
+  # config entry, not an edit of this one.
+  2026-09-20_sae2m_2k:
+    imported: true
+    storage: dirs_only        # 2,000 unit encoder columns; nothing here was ever centred
+    sae_key: qwen36-27b/sae2m   # its rows carry no per-row sae_key; see 2026-09-16_v1 above
+    seed: 20260920            # scan's reservoir generator seeds off this
+    families:
+      sae2m_enc: {n: 2000, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
+
+  # The 131k-SAE counterpart of the 2,000-feature 2M set, drawn by
+  # features/draw_sae131k.py from pool_heldout/sae.parquet (13,107 features the EARLIER
+  # chains held out). Same shape and same 80/20 column, so the only difference between
+  # the two sets is the dictionary -- which is what makes the contrast measurable.
+  # Its held-out claim is WEAKER than the 2M set's and says so per row: it was
+  # established against the earlier chains, and near-duplication against the 1.85M 2M
+  # features the v2 checkpoint trained on is not established.
+  2026-09-21_sae131k_2k:
+    # NOT THE DEFAULT SET. `imported:` reads "nameable, never the default" (common.default_heldout)
+    # rather than "drawn elsewhere" -- `2026-09-21_sae2m_64` above carries it and was drawn on
+    # `evals/sae-smoke64`, in this repo. Without it this key sorts last among the non-imported
+    # sets and becomes the default of every product called without `--set`, moving them off
+    # `2026-09-16_v1`, which is the set the paper's tables are built on. On main alone that was
+    # invisible, because main has no results driver pinned to a set; here it is not.
+    # OPEN for Ari: if the 131k set IS meant to be the new default, this line is the one to
+    # delete, and `results/sanity.yaml` has to move with it.
+    imported: true
+    seed: 20260921
+    # The storage contract, added when this entry (Ari's, main bdb0705) met this branch's schema.
+    # `draw_sae131k` writes `unit(W_enc[:, f])` per row and no activations, exactly as the 2M draw
+    # does, so it is `dirs_only` on a null mean like its sibling. `_check_heldout_storage` refuses
+    # a set without it, and refused this one -- correctly: nothing could have served these rows at
+    # a centring, because nothing said what they were stored as.
+    storage: dirs_only
+    sae_key: qwen36-27b/l42-1b   # its rows carry the full key too; this is belt and braces
+    families:
+      sae: {n: 2000}
+    sae_min_fires: 20
+    sae_strata: 4
+
+  # The 2M side of the activation smoke (reconstruction/sae_smoke64.py): 64 features, 16 from
+  # each quartile of log10(gated fires at 16M) over the ELIGIBLE POOL (fires >= sae_min_fires and
+  # max_act > 0), drawn by `features/draw_sae2m.py --n 64 --stratified` at seed 20260920 (its
+  # DRAW_SEED; `--seed` overrides). The cuts and the per-quartile pool sizes are in the set's own
+  # README on the volume.
+  #
+  # STRATIFIED, so a mean over all 64 rows is a mean over four equally-weighted quartiles and NOT
+  # over the dictionary -- the smoke reports per stratum and the "all" row is a convenience. The
+  # standard 2k/40k draws stay uniform-with-recorded-quartiles for exactly this reason.
+  #
+  # `imported: true` for the same reason as the 2k set above: it is declared here only so
+  # `--set 2026-09-21_sae2m_64` gets past modal_app.main's "set_name in cfg['heldout']" assert,
+  # and `common.default_heldout` must keep returning `2026-09-16_v1`, the set the paper's tables
+  # are built on. The family is `sae` (not `sae2m_enc`): this set is drawn AFTER the 2026-09-21
+  # fix, so it carries the label every consumer filters on, with the dictionary in each row's
+  # `sae_key`.
+  # ---------------------------------------------------------------------------------------
+  # EVAL 1 (faithfulness): the frozen v3 target blocks, 2026-09-21.
+  #
+  # ONE logical set in SIX directories, because a directory carries ONE storage contract
+  # (`common.set_storage` returns a single `storage` kind and `dirs_for` branches on it once for
+  # all N rows) and these blocks genuinely do not share one. They are `--set`-ed separately and
+  # read together; row order within each block is FROZEN so every arm pairs.
+  #
+  #   2026-09-21_v3_realact    her 512 realact, RECOVERED TO RAW        raw
+  #   2026-09-21_v3_realact_long  her 512 realact_long, as shipped      unit (no centred reading)
+  #   2026-09-21_v3_subspace   her 512 bsf + 512 jlens, as shipped      dirs_only
+  #   2026-09-21_v3_ctrl       random + sae(131k), copied from v1raw    raw
+  #   2026-09-21_v3_ours       our 512 realact, copied from v1raw       raw
+  #   2026-09-21_v3_sae2m      2M enc + dec, drawn                      dirs_only
+  #
+  # `imported: true` on every one, for the reason the sets above carry it: `sorted()[-1]` would
+  # otherwise make one of these the default of every product that omits --set, silently moving
+  # `2026-09-16_v1` off the paper's tables. Drop the flag deliberately, in its own commit, when
+  # v3 is adopted as the default.
+
+  # HER 512 realact rows, the eval-1 HEADLINE block. Imported from Celeste's v2 bundle
+  # (`heldout/eval_directions_v3/realact.parquet`, snapshot celeste-v2-2026-09-17) and recovered
+  # from `unit(act - whiten_mu)` + `pool_act_norm` back to the RAW activation by the exact solve
+  # (`rollouts_nla.build_inputs(amp="exact")`). That is valid because her `pool_act_norm` is
+  # `||act||`, settled 2026-09-21 -- see the set's own `recovery.json` and README for the three
+  # readings, and `features/heldout_v3.py`'s docstring. Consequence: `vecs.f16` here is
+  # `unit(act)`, UNCENTRED, and her shipped direction is what `dirs_for(mu=<whiten_mu>)` returns.
+  # So `rl-last16` (whose `mu:` IS that file) runs this block with no --mu and no deviation.
+  #
+  # EXCLUSIONS are recorded in the set's `exclusions.json`, not applied: 26 of 512 rows at
+  # `ngram_overlap --side hers --n 7` coverage >= 0.05, headline n = 486. All 512 rows stay so
+  # every arm pairs; the tables drop them.
+  2026-09-21_v3_realact:
+    imported: true
+    storage: raw
+    families:
+      realact: {n: 512, bases: [qwen36-27b]}
+
+  # HER 512 realact_long rows, AS SHIPPED. Centred on `mu_long` -- the mean over all collected
+  # long-context activations, computed on the fly in `eval/build_ctx_eval.py:47-54` from
+  # `MAEMM_ACTS_LONG` (/root/pmx/bsf27b/acts_long) and NEVER WRITTEN TO A FILE. It is not
+  # `whiten_mu`: over these rows cos(direction, whiten_mu) has mean -0.0618 and
+  # ||mean(direction)|| is 0.1216, against -0.0198 / 0.0615 on realact. So `unknown` is the
+  # honest value and the rows are returned as shipped with a label -- nothing here re-centres
+  # them, and the file to ask Celeste for is that mean (or the acts_long dump it comes from).
+  # `rl-last16` ONLY; the old primary and NLA skip it (marked not runnable without raw).
+  2026-09-21_v3_realact_long:
+    imported: true
+    storage: unit
+    families:
+      realact_long: {n: 512, bases: [qwen36-27b]}
+
+  # HER bsf + jlens subspace bases, AS SHIPPED. Neither is an activation, so neither has a mean
+  # to subtract (config.yaml `family_kinds`) and every --mu is a no-op on them. `rl-last16` only,
+  # same labelling as the block above.
+  2026-09-21_v3_subspace:
+    imported: true
+    storage: dirs_only
+    families:
+      bsf:   {n: 512, bases: [qwen36-27b]}
+      jlens: {n: 512, bases: [qwen36-27b]}
+
+  # OUR controls, COPIED (not re-drawn) out of `2026-09-21_v1raw` rows 512-1535: the 512 Gaussian
+  # `random` rows and the 512 131k-SAE `sae` rows, with each row keeping its own fields plus
+  # `src_set`/`src_row`. Both families are non-centrable, so `act.f32` and `vecs.f16` are the same
+  # direction and the raw contract carries forward unchanged. The source set is not modified.
+  # `sae_key` is declared because every one of those 131k feature ids is ALSO a valid index into
+  # the 2M encoder (H1) -- the rows carry no per-row key, so this line is what makes them
+  # selectable at all.
+  2026-09-21_v3_ctrl:
+    imported: true
+    storage: raw
+    sae_key: qwen36-27b/l42-1b
+    families:
+      random: {n: 512, bases: [qwen36-27b]}
+      sae:    {n: 512, bases: [qwen36-27b]}
+
+  # OUR OWN 512 realact rows, the eval-1 SANITY block: `2026-09-21_v1raw` rows 0-511 copied
+  # forward (`heldout_v3 --block ours`), which are `2026-09-16_v1`'s realact draw re-forwarded
+  # under the raw contract by `targets --re-derive` -- the same targets every v1 table in the
+  # paper was built on. It is the internal control the HEADLINE (her 512) is read beside: same
+  # pipeline, same checkpoints, same n, targets drawn by us rather than by her.
+  #
+  # A centrable family in a COPIED block, which `--block ctrl` refuses: allowed here because the
+  # source is `storage: raw`, so `act.f32` is the activation before any mean was subtracted and
+  # the copy inherits no centring convention. `--mu` decides the injection per run.
+  #
+  # EXCLUSIONS, in the set's own `exclusions.json` and NOT applied: the six spans fully
+  # reproduced in her v2 training text at n=13 (rows 38, 45, 101, 318, 393, 446), headline
+  # n = 506. A DIFFERENT criterion and a DIFFERENT instrument from her block's 26 -- those are
+  # indices into HER 512 and the two lists must never be crossed (plan §2.1).
+  2026-09-21_v3_ours:
+    imported: true
+    storage: raw
+    families:
+      realact: {n: 512, bases: [qwen36-27b]}
+
+  # OUR 2M-SAE block: 512 features, density-stratified over the eligible eval-split pool at seed
+  # 20260921, with the 64 of `2026-09-21_sae2m_64` FORCED IN (`--include`) so the activation
+  # smoke's rows are nested inside the eval set rather than merely comparable. BOTH SIDES of the
+  # dictionary: rows 0-511 are `sae_side: enc` (unit(W_enc[:, f])) and rows 512-1023 are
+  # `sae_side: dec` (unit(W_dec[f])), the SAME features in the SAME order, so row i and row
+  # i+512 are one feature's two directions. The decoder half is what the 0.416 card gate needs.
+  # STRATIFIED, so a mean over all rows is a mean over four equally-weighted quartiles and NOT
+  # over the dictionary -- report per stratum.
+  2026-09-21_v3_sae2m:
+    imported: true
+    storage: dirs_only
+    sae_key: qwen36-27b/sae2m
+    seed: 20260921
+    families:
+      sae: {n: 1024, bases: [qwen36-27b]}   # 512 features x {enc, dec}
+    sae_min_fires: 20
+    sae_strata: 4
+
+  2026-09-21_sae2m_64:
+    imported: true
+    # The storage contract, added when this entry met the 2026-09-21 schema (it was drawn on
+    # `evals/sae-smoke64`, before it existed). Its rows DO carry a per-row `sae_key`, so the
+    # declaration below is belt and braces rather than the thing that makes them selectable.
+    storage: dirs_only
+    sae_key: qwen36-27b/sae2m
+    families:
+      sae: {n: 64, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
+  # --- the OOD generalisation sets (design infra/2026-09-18_ood-eval-design.md §2, §11 R5) -----
+  # `kind: ood` routes targets.py to the per-arm draw instead of the realact/random/sae families:
+  # the rows are the `arms` of `ood_arms:` below, n_per_arm each, family = the arm's family, and
+  # the draw continues each arm's permuted row stream from where its corpus stopped. `families`
+  # stays present and EMPTY so every existing consumer (load_config, families_for, `check`) keeps
+  # working -- an OOD set has no classic family.
+  2026-09-18_ood_v1:
+    imported: true          # nameable, never the default (common.default_heldout)
+    # STORAGE `raw` (plan §1.2, §4.3.1): act.f32 is X[p] as read, vecs.f16 is unit(act), and the
+    # centring is NAMED per run. The design fixes the ENGLISH stats/mu.f32 on every arm (§10
+    # decision 10) -- which is exactly what the old primary's own `mu:` resolves to -- but
+    # `rl-last16` was trained on `whiten_mu`, so the two checkpoints must read the same stored
+    # rows under different means. Storing a centred row would have made that a re-draw.
+    storage: raw
+    seed: 20260918
+    kind: ood
+    n_per_arm: 64
+    arms: all               # `all` = every key of ood_arms, in config order; or an explicit list
+    families: {}
+  # ----------------------------------------------------------------------------------------------
+  # THE QUARTER-SCALE RUN (2026-09-21, Tomáš: "OOD = 1/4 of the design's size").
+  #
+  # 16 targets per arm instead of 64, all 23 arms. This is an exact PREFIX of `2026-09-18_ood_v1`,
+  # not a different draw: `corpus --arm` writes a 320-document pool whose size is the constant
+  # `corpus.POOL_N`, independent of n; `targets` draws p and L for all 320 pool rows from
+  # `arm_rng(arm, seed)` BEFORE it selects any, and then takes the first n survivors of the
+  # raw-norm filter in pool order. Same seed and same corpus/pool boundary therefore give
+  # row i of this set == row i of the 64-target set, for i < 16, arm by arm. Topping up to the
+  # design's 64 later re-draws these 16 identically rather than invalidating them.
+  #
+  # It is a NEW set name rather than a smaller `2026-09-18_ood_v1`, because `targets` writes a set
+  # directory whole: reusing the name would need --force, which would rewrite the pilot's
+  # directory and orphan the scan/rollout/score row indices that point into it.
+  2026-09-21_ood_q1:
+    imported: true
+    storage: raw
+    seed: 20260918          # the design's seed, unchanged -- that is what makes it a prefix
+    kind: ood
+    n_per_arm: 16
+    arms: all
+    families: {}
+
+  # The R5 variant: same documents, same draw, p moved to the last token of its unit (wordend on
+  # the 12 spaced-script and code arms) or to the last byte piece of its character (charend on the
+  # 4 unspaced arms, and only where the token at p is a partial character). `ids.jsonl` records
+  # `variant_rule` and the original `p`.
+  2026-09-18_ood_v1_unitend:
+    imported: true
+    storage: raw
+    seed: 20260918
+    kind: ood
+    variant_of: 2026-09-18_ood_v1
+    n_per_arm: 64
+    arms: all
+    families: {}
+  # THE FULL-SCALE OOD SET (2026-09-23, eval plan M5 / spec section 2): 512 targets per arm, drawn
+  # from the 768-document pools of the arm corpora rebuilt on the 1/4/10M ladder.
+  #
+  # NOT a prefix of `2026-09-21_ood_q1` or `2026-09-18_ood_v1`, although the seed and the draw rule
+  # are theirs. Two things move: the corpus/pool boundary (a 10M corpus consumes rows the 4M one
+  # left to the pool, so the pool holds DIFFERENT documents) and `pool_n` itself, which is the size
+  # of the `rng.integers(..., size=pool_n)` draws of `p` and `L` in `targets._ood_arm_draw`, so the
+  # spans differ from row 0 on. A number from this set and a number from q1 are not paired.
+  #
+  # `imported: true` reads "nameable, never the default" (common.default_heldout), as on every set
+  # below 2026-09-16_v1: without it this key sorts last among the non-imported sets and would
+  # silently become the set every product called without --set draws on.
+  2026-09-23_ood_full:
+    imported: true
+    storage: raw
+    seed: 20260918          # the design's seed, unchanged
+    kind: ood
+    n_per_arm: 512
+    # 22 arms, NOT `all`: `formulas` is excluded. Its corpus could not be rebuilt with a
+    # 768-document pool inside the run's window at ANY of 10M, 4M or 1M (three attempts,
+    # 2026-09-23, each stopped before it wrote; the cost is its own reader, see the commit that
+    # set its ladder back to [1]). It is the DIAGNOSTIC arm, outside the 21-arm level-1
+    # conjunction, so the full-scale set runs without it and its quarter-scale row stands. The
+    # arm's `ood_arms:` entry is untouched and its 09-21 corpus is intact.
+    arms: [ces_Latn, rus_Cyrl, ell_Grek, arb_Arab, hin_Deva, tha_Thai, cmn_Hani, jpn_Jpan,
+           ufw_zh, ufw_en, python, javascript, c, rust, go, haskell, sql, shell,
+           owm, arxiv, lean, isabelle]
+    families: {}
+
+corpus:
+  dataset: openbmb/Ultra-FineWeb
+  # PINNED (D9, 2026-09-21). Streaming at `main` was the one violation of this branch's own
+  # no-unpinned-data rule: the published dataset can gain or reorder rows, and every doc id, scan
+  # window and top-k list on the volume indexes into the exact parquet bytes this corpus was built
+  # from. `null` here means "unpinned" and corpus.py REFUSES it -- resolve the revision (the
+  # dataset's current commit sha on the hub) and put it in, do not delete the key.
+  # The parquet sha256 of each part lands in the corpus README at build time.
+  revision: main
+  files:
+    - data/ultrafineweb_en/ultrafineweb-en-part-0009-of-2048.parquet
+    - data/ultrafineweb_en/ultrafineweb-en-part-0010-of-2048.parquet
+  tokens: 16000000          # 16M; nested subsets below are in MILLIONS of tokens
+  sizes: [1, 2, 4, 8, 16]
+  seed: 20260916
+
+# NEW top level (2026-09-21): every built corpus, by KEY. `corpus:` above stays as the BUILD recipe
+# of the original 16M held-out slice; this block is what a product names when it has to choose one.
+#   dir:   the directory under base/<base>/ -- "corpus" is the original unnamed one, anything else
+#          is corpora/<dir>/ (common.corpus_dir's `name`, Ari's --corpus-name).
+#   sizes: the nested snapshot ladder actually built, in MILLIONS of tokens; may be fractional.
+#   block/stride: the window geometry the scans over it use. A DIFFERENT geometry or ladder is a
+#          DIFFERENT corpus, never an edit: every stored scan window and top-k list indexes into
+#          one exact tokens.i32, and a rebuild in place silently invalidates all of them.
+# A number from one corpus is not comparable with a number from another. Products take
+# `--corpus <key>`, which resolves through here to `--corpus-name`.
+corpora:
+  heldout16m:
+    dir: corpus                     # base/<base>/corpus/, the original directory
+    sizes: [1, 2, 4, 8, 16]
+    block: 64
+    stride: 16
+    dataset: openbmb/Ultra-FineWeb
+    note: >-
+      OUR held-out slice (parts 0009/0010), built by `--product corpus`. Text the checkpoints did
+      not train on, so a corpus-search win here IS evidence about unseen text.
+  celeste-train10m:
+    dir: train_parity_10m           # base/<base>/corpora/train_parity_10m/
+    sizes: [1.25, 2.5, 5, 10]
+    block: 64
+    stride: 16
+    dataset: openbmb/Ultra-FineWeb
+    note: >-
+      Ari 2026-09-20, features/corpus_train_parity.py: the checkpoint's OWN training document
+      ranges (sft 5,500,001-5,698,523 and rl 9,500,000-9,599,841), 10M tokens at a 1.25/2.5/5/10M
+      ladder for parity with training, which saw 9-10M activations. It hands the search text the
+      model may have MEMORISED, so a win here is NOT evidence that retrieval beats generation on
+      unseen text -- the two claims must not be swapped. Her eval realacts are documents
+      [0, 100,000), so a target's own document cannot leak in.
+      WINDOW 64/16 since 2026-09-23 (M0a), was 32/8. Nothing on the volume was built at 32/8:
+      the corpus product is a tokens stream plus docs.jsonl and is GEOMETRY-FREE -- windows are
+      cut by the scan, at common.SCAN_BLOCK/SCAN_STRIDE, and no scan of this corpus exists. The
+      declared 32/8 therefore described a cut nothing performed, and `common.assert_corpus_
+      geometry` refused every scan of it (correctly: the README would have claimed 64/16 over
+      32/8 data). At 64/16 it matches `heldout16m` and the two corpora's cosines are finally
+      comparable -- which is what panel a row 3 differences.
+
+rollouts:
+  n: 64                     # rollouts per target
+  temperature: 1.0
+  max_new: 64
+  min_new: 16
+  top_p: 1.0
+  top_k: 0
+  seed: 1234                # rl/rl.py GEN_SEED
+
+modal:
+  volume: maemm
+  hf_home: /vol/hf
+  archive: /vol/archive/gavento-1        # read-only by convention
+  secrets: [hf-write]
+
+# ---------------------------------------------------------------------------------------------
+# The Delphi-style SAE autointerp evaluation (`autointerp/`, design
+# infra/2026-09-16_autointerp-design.md). APPENDED 2026-09-16; nothing above this line changed.
+# Models are ANTHROPIC ids (Tomas 2026-09-16: the direct Messages API, not OpenRouter, so no
+# `anthropic/` prefix). NOTE `temperature` below is recorded for the protocol but NOT SENT: the
+# parameter does not exist on the Anthropic Messages API for this model generation.
+autointerp:
+  explainer_model: claude-sonnet-5
+  scorer_model: claude-sonnet-5
+  # RECORDED, NOT SENT. `anthropic` 1.6.0's messages.create() has no `temperature` parameter for
+  # this model generation (MEASURED 2026-09-16: TypeError), so the design's "temperature 0" is not
+  # achievable on this API. Kept here as the protocol's stated intent; run.py asserts it is absent
+  # from every request body and says so in costs.json.
+  temperature: 0.0
+  # 600, not the lifted 300: MEASURED 2026-09-16 on the Anthropic API, 3 of 18 explainer
+  # answers hit a 300-token cap and had to be retried under A10. Output tokens are billed
+  # by use, so a higher cap costs nothing unless it is used, while a retry pays the whole
+  # 2.4k-token input again.
+  explainer_max_tokens: 600
+  scorer_max_tokens: 600        # MEASURED 2026-09-15: 64 and 300 truncate the narrating judge
+  n_examples: 16                # N in the substitution arms; ARM_SPECS pins every per-arm count
+  scorer_batch: 5               # Delphi's num_examples_per_scorer_prompt
+  n_pos: 20                     # test positives, 5 from each of the four stored activation bands
+  n_neg: 20                     # test negatives, zero-activation windows of the shared _random256
+  corpus_prefix_m: 4            # the "cheap corpus" nested size, in MILLIONS of tokens
+  # --- THE TWO CORPORA (spec §3, decided with Tomas 2026-09-22) ------------------------------
+  # The corpus arms' SHOWN examples and the Delphi TEST windows come from different scans, so the
+  # explainer is never shown a window the judge then tests on. These two keys RECORD the protocol;
+  # they are not applied silently -- `build` takes the shown corpus from `--corpus-name` and says
+  # on stdout when it differs from `examples_corpus`, so a rebuild of a pre-09-23 product with its
+  # own command line still reproduces that product. `test_corpus` IS the default for
+  # `--test-corpus-name`, and "" is the base's own 16M held-out corpus, which is what every build
+  # before 2026-09-23 used on both sides.
+  examples_corpus: celeste-train10m   # the 10M training corpus every other search number uses
+  test_corpus: ""                     # "" = the 16M held-out scan (base/<base>/corpus/)
+  pilot_features: 64            # 16 per density quartile
+  # RUN SCALE (Tomáš, 2026-09-21): the eval runs at **32 features per SAE** for now -- passed as
+  # `--n-feat 32` on the `build` stage, not a key here, because it is a per-run choice and not a
+  # protocol constant. The 09-21 plan's 256 (2M) + 128 (131k) is superseded. Companion decisions,
+  # recorded in SMOKES.md's runbook: GCG/EPO at 16 directions, patchscopes on Ari's implementation
+  # (7f3b511, do not write another), OOD at 1/4 of the design's size.
+  feat_seed: 1234
+  shuffle_seed: 20260916        # test-item order and the C4M mix; per feature, so arms stay paired
+  concurrency: 32
+  timeout_s: 90.0
+  max_cost_usd: 400.0           # hard ceiling on one `run` call's API spend (total budget ~$500)
+  probe_features: 8             # UNUSED since 2026-09-16: every stage is now projected with
+                                # messages.count_tokens BEFORE it is submitted, which lands before
+                                # any money is spent rather than after eight features.
+  # --- AMENDMENTS 2026-09-16 (coordinator, after two design reviews) --------------------------
+  # The shared negative pool: scan's `_random256` carries 256 windows and only a per-feature
+  # MAXIMUM, and 14 of the densest tested features cannot supply 20 zero-activation negatives from
+  # it. `random_pool` re-draws 2048 windows and stores per-token activations, which also makes
+  # near-miss negatives (0 < max <= gate) available at no extra cost.
+  random_pool_windows: 2048
+  random_pool_seed: 20260916
+  # Negative mix, summing to n_neg (amendment A5): 10 zero-activation windows (Delphi's published
+  # `non_activating_source "random"`, which stays the reference) + 10 near-miss windows with
+  # 0 < peak <= gate, which is what keeps the negative side off its ceiling. Every test row carries
+  # `src`, so the two halves are also reported apart.
+  n_neg_nearmiss: 10
+  # Where a near-miss negative comes from: `qband` = the stored q0..q3 rows that fall BELOW the
+  # gate (which gate-consistent positives release), `random` = the random pool's 0 < max <= gate
+  # windows.
+  nearmiss_source: qband
+  # Test positives are GATE-CONSISTENT: only a window whose stored peak pre-gate activation
+  # exceeds the SAE gate counts as a positive, and the band draw runs over gate-passing rows only.
+  gate_consistent_positives: true
+  # When the q-bands cannot supply n_pos gate-passing windows, fall back to the top-ranked windows
+  # BEYOND the ones any arm shows. Counted and flagged per feature, never silent.
+  allow_top_fallback: true
+  # The scorer-only floor arm: each feature's test set scored with another feature's description,
+  # under the same scorer prompts. No explainer call of its own.
+  floor_arm: R-shuffled
+  floor_source_arm: C16
+  # The JUDGE-ONLY floor (coordinator, 2026-09-16): draw 1 of C16 scored a SECOND time with the
+  # SAME description, scorer calls only. `C16-draw2` mixes judge variation with test-set-draw
+  # variation; this one isolates the judge half, which matters more now that the API has no
+  # temperature parameter and nothing is deterministic.
+  judge_floor_arm: C16-judge2
+  # --- Anthropic Messages API (Tomas 2026-09-16, replacing OpenRouter) ------------------------
+  # `sync` = messages.create through a bounded thread pool; `batch` = one Message Batch per stage
+  # at HALF price, latency measured on the pilot before the full run commits to it.
+  path: sync
+  # Refuse to run a stage projecting more than this without --approved. The projection comes from
+  # messages.count_tokens on a sample of the uncached jobs, so it lands before any money is spent.
+  stop_above_usd: 100.0
+
+# ---------------------------------------------------------------------------------------------
+# The OOD generalisation evaluation (languages, scripts, code, maths), design
+# infra/2026-09-18_ood-eval-design.md. APPENDED 2026-09-18; nothing above this line changed.
+#
+# SIZES, 2026-09-23 (eval plan M5): every ladder gained 10, the full run's own-domain search
+# size, keeping 1 and 4 as the nested prefixes the per-target columns read; the four arms that
+# already reached 16M keep it, and `formulas` gained 4 so that every arm carries the same 1/4/10
+# prefix. The ladder is what `corpus --arm` budgets for (sizes[-1]), so a rebuild at this ladder
+# is a DIFFERENT corpus and a DIFFERENT pool than the 09-18/09-21 one in the same directory.
+#
+# EXCEPT `shell`, which stays at [1, 4]: 5,639 of its 10,000 smol-xl files go into 4M, so 10M
+# plus a 768-document pool wants more rows than the file list has. Ruling 2026-09-23: its top
+# size is 4M and is stated in its own row of the appendix table (spec 2026-09-22 section 2).
+# AND `formulas`, also [1, 4], for a different reason: it reaches 10M (552k formulas at 65
+# tokens each) but its reader joins rows one at a time into >= 512-token synthetic documents,
+# and the 10M build had not finished a first block in 8 minutes. It is the DIAGNOSTIC arm,
+# outside the 21-arm conjunction, so spec 2026-09-22 section 2 already lets it carry a
+# smaller size. Ruling 2026-09-23: 1M -- the size the 09-21 pilot proved -- stated in its row.
+# 4M was tried first and stopped at the same 10-minute mark as 10M.
+#
+# One entry per ARM. An arm is a (source, slice) pair that gets its OWN in-domain corpus under
+# base/<base>/corpora/<arm>/ and its own 64 targets inside the held-out set 2026-09-18_ood_v1.
+# Corpus documents and target documents of an arm come from ONE seeded permutation of the source
+# slice's rows, consumed in order: the corpus takes rows until its token budget, the targets take
+# the rows AFTER it (`stream.json` in the corpus dir records where to continue). Disjointness is
+# therefore by construction, not by a check.
+#
+# Fields:
+#   family     lang | ctrl | code | math | diag -- the stratification key beside `arm`
+#   reader     parquet | jsonl | jsonl_zst | formulas (precompute/corpus.py:READERS)
+#   dataset    HF dataset repo id; `files` are repo-relative paths read IN THIS ORDER
+#   text       the column (parquet) or json key (jsonl) the document text lives in
+#   sizes      nested corpus sizes in MILLIONS of tokens; the largest is the arm's token budget
+#   script     the Unicode script the arm's text is expected to be in (stats_ood.py's
+#              script-fraction classifier and targets.py's `char_type` covariate)
+#   lid        the acceptable fastText labels for R3 as a LIST, or null where language id is not
+#              meaningful (code and maths arms report `code_like` instead). The model is lid218e
+#              (`facebook/fasttext-language-identification`, Tomas 2026-09-18, preferred over
+#              community re-uploads of lid.176): its FLORES-200 labels ARE our arm ids for seven of
+#              the eight language arms, and Chinese is `zho_Hans`/`zho_Hant` there, not `cmn_Hani`.
+#   unspaced   true where the script has no whitespace word boundaries: `tok_class` is then the
+#              single class `unspaced` and `n_subtokens` is null (design §3), and the _unitend
+#              variant moves p to the last byte piece of its CHARACTER rather than of its word
+#   licence    what the appendix must say (design §9)
+ood_arms:
+  # --- lang (8): FineWeb-2 `test`, the dataset authors' own held-out split -----------------------
+  ces_Latn:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ces_Latn/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Latin, lid: [ces_Latn], unspaced: false, licence: odc-by}
+  rus_Cyrl:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/rus_Cyrl/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Cyrillic, lid: [rus_Cyrl], unspaced: false, licence: odc-by}
+  ell_Grek:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ell_Grek/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Greek, lid: [ell_Grek], unspaced: false, licence: odc-by}
+  arb_Arab:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/arb_Arab/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Arabic, lid: [arb_Arab], unspaced: false, licence: odc-by}
+  hin_Deva:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/hin_Deva/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Devanagari, lid: [hin_Deva], unspaced: false, licence: odc-by}
+  tha_Thai:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/tha_Thai/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10, 16], script: Thai, lid: [tha_Thai], unspaced: true, licence: odc-by}
+  cmn_Hani:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/cmn_Hani/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: odc-by}
+  jpn_Jpan:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/jpn_Jpan/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Jpan, lid: [jpn_Jpan], unspaced: true, licence: odc-by}
+
+  # `yue_Hant` is in the Chinese arms' lid lists because that is the label lid218e ACTUALLY
+  # returns for this text: measured 2026-09-22 on the arms' OWN corpus top-1 windows -- Chinese by
+  # construction -- it is the top label on 11/16 (`cmn_Hani`) and 12/16 (`ufw_zh`), with
+  # `zho_Hans` for the rest and `zho_Hant` essentially never. Without it the classifier's CEILING
+  # on those arms is 0.31 and 0.25, so a low rate measured against it says nothing about the
+  # model. See infra/2026-09-22_ood-lid-check.md.
+
+  # --- ctrl (2): the same filter pipeline as our English corpus, at two scripts ------------------
+  # ufw_zh separates "different filter pipeline" from "different script" against cmn_Hani.
+  ufw_zh:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_zh/ultrafineweb-zh-part-001-of-256.parquet], text: content, split: zh, sizes: [1, 4, 10], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: apache-2.0}
+  # ufw_en is the PIPELINE CHECK (design §8 (a)): a fresh English draw through the new code path,
+  # from part 0011 -- disjoint from the 16M corpus (parts 0009/0010) and from the old 8B corpus
+  # (part 0001). NOTE (infra/2026-09-18_ood-eval-training-data.md): Ultra-FineWeb is NOT the
+  # primary MAEMM's training corpus (that is m-a-p/FineFineWeb), so this arm is a convention check,
+  # not an in-training-distribution row.
+  ufw_en:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_en/ultrafineweb-en-part-0011-of-2048.parquet], text: content, split: en, sizes: [1, 4, 10, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: apache-2.0}
+
+  # --- code (8): the-stack-smol-xl, 10,000 random files per language, `data/<lang>/data.json` ----
+  # The file is JSON LINES despite the .json name (MEASURED 2026-09-18); `content` is the source and
+  # `max_stars_repo_licenses` is the per-file licence R8 prints beside an example.
+  python:     {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/python/data.json], text: content, sizes: [1, 4, 10, 16], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  javascript: {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/javascript/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  c:          {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/c/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  rust:       {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/rust/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  go:         {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/go/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  haskell:    {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/haskell/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  sql:        {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/sql/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  shell:      {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/shell/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+
+  # --- math (4) ---------------------------------------------------------------------------------
+  owm:        {family: math, reader: parquet, dataset: open-web-math/open-web-math, files: [data/train-00000-of-00114-5a023365406cb9c4.parquet], text: text, split: train, sizes: [1, 4, 10, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: odc-by}
+  # Proof-Pile-2 declares NO licence on the HF repo (design §9); arXiv content is under arXiv's own
+  # licences, which is why R8 never prints an example from this arm.
+  arxiv:      {family: math, reader: jsonl_zst, dataset: EleutherAI/proof-pile-2, files: [arxiv/test/arXiv_000.jsonl.zst, arxiv/test/arXiv_001.jsonl.zst, arxiv/test/arXiv_002.jsonl.zst, arxiv/test/arXiv_003.jsonl.zst, arxiv/test/arXiv_004.jsonl.zst, arxiv/test/arXiv_005.jsonl.zst, arxiv/test/arXiv_006.jsonl.zst, arxiv/test/arXiv_007.jsonl.zst, arxiv/test/arXiv_008.jsonl.zst, arxiv/test/arXiv_009.jsonl.zst, arxiv/test/arXiv_010.jsonl.zst, arxiv/test/arXiv_011.jsonl.zst, arxiv/test/arXiv_012.jsonl.zst, arxiv/test/arXiv_013.jsonl.zst, arxiv/test/arXiv_014.jsonl.zst, arxiv/test/arXiv_015.jsonl.zst, arxiv/test/arXiv_016.jsonl.zst, arxiv/test/arXiv_017.jsonl.zst, arxiv/test/arXiv_018.jsonl.zst, arxiv/test/arXiv_019.jsonl.zst], text: text, split: test, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "UNSTATED on the HF repo; arXiv's own per-paper licences"}
+  lean:       {family: math, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/lean/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  isabelle:   {family: math, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/isabelle/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+
+  # --- diag (1): a DIAGNOSTIC of the tokenizer boundary, outside the level-1 conjunction ---------
+  # `formulas` rows are single LaTeX formulas; the reader joins consecutive permuted rows with a
+  # blank line into synthetic documents of >= 512 tokens (design §2). The image column of
+  # `cleaned_formulas` is never read (2.8 GB of it); only `latex_formula`.
+  formulas:   {family: diag, reader: formulas, dataset: OleehyO/latex-formulas, files: [cleaned_formulas/train-00000-of-00006.parquet, cleaned_formulas/train-00001-of-00006.parquet, cleaned_formulas/train-00002-of-00006.parquet, cleaned_formulas/train-00003-of-00006.parquet, cleaned_formulas/train-00004-of-00006.parquet, cleaned_formulas/train-00005-of-00006.parquet], text: latex_formula, split: train, sizes: [1], script: Latin, lid: null, unspaced: false, licence: openrail}

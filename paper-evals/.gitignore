@@ -1,0 +1,7 @@
+# LEGACY local working directories (reconstruction/stats.py): fetched volume files and the
+# tables it writes. Both are reproducible from the volume, and data/ holds run-sized arrays.
+# Nothing defaults here since 2026-09-23 -- a reader's mirror and output now land OUTSIDE
+# `paper-evals/`, which Modal mounts into every image build (precompute/common.py: `mirror_dir`,
+# `out_dir`). Still ignored because an older checkout has them.
+reconstruction/data/
+reconstruction/out/

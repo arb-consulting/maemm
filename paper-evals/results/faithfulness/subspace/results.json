@@ -1,0 +1,591 @@
+{
+ "set": "2026-09-21_v3_subspace",
+ "base": "qwen36-27b",
+ "root": "/vol",
+ "cos": [
+  {
+   "family": "bsf",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "cosine": "cos_raw",
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bo": {
+    "1": {
+     "mean": 0.31769920703125,
+     "se": 0.009805421901479804,
+     "se_iid": 0.009697111348856632,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "2": {
+     "mean": 0.33282904296875004,
+     "se": 0.009699497882825219,
+     "se_iid": 0.009607057672575999,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "4": {
+     "mean": 0.345124779296875,
+     "se": 0.009578869612129132,
+     "se_iid": 0.009502924915856414,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "8": {
+     "mean": 0.35522402539062503,
+     "se": 0.009459187528969305,
+     "se_iid": 0.009391785330361844,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "16": {
+     "mean": 0.363893232421875,
+     "se": 0.009334324438551657,
+     "se_iid": 0.009268746926858702,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "32": {
+     "mean": 0.371141748046875,
+     "se": 0.009224628038995129,
+     "se_iid": 0.009164282664891676,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "64": {
+     "mean": 0.37779322070312504,
+     "se": 0.009117366779101934,
+     "se_iid": 0.00905650353763021,
+     "n_rows": 512,
+     "n_clusters": 512
+    }
+   },
+   "bo_source": "per_target.jsonl",
+   "n_rows": 512,
+   "n_clusters": 512
+  },
+  {
+   "family": "jlens",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "cosine": "cos_raw",
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bo": {
+    "1": {
+     "mean": 0.105806751953125,
+     "se": 0.0020021773743748874,
+     "se_iid": 0.002017848632963067,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "2": {
+     "mean": 0.111228564453125,
+     "se": 0.0020301132426158775,
+     "se_iid": 0.0020477335915583647,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "4": {
+     "mean": 0.115782779296875,
+     "se": 0.002053288910992493,
+     "se_iid": 0.0020731183287877137,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "8": {
+     "mean": 0.1196892109375,
+     "se": 0.002073157494794608,
+     "se_iid": 0.0020939697039481114,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "16": {
+     "mean": 0.12321894140625,
+     "se": 0.002093681936384973,
+     "se_iid": 0.0021137811837532443,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "32": {
+     "mean": 0.126346501953125,
+     "se": 0.0021152964278151774,
+     "se_iid": 0.0021362485434697934,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "64": {
+     "mean": 0.129339541015625,
+     "se": 0.0021454409931695047,
+     "se_iid": 0.002167396478083451,
+     "n_rows": 512,
+     "n_clusters": 512
+    }
+   },
+   "bo_source": "per_target.jsonl",
+   "n_rows": 512,
+   "n_clusters": 512
+  }
+ ],
+ "sae": [],
+ "checks": [
+  {
+   "kind": "cos_centred bo-k",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "(all)",
+   "skipped": "no family of `2026-09-21_v3_subspace` is centrable (['bsf', 'jlens']), so a centred cosine would be NaN on every row -- the array is not read"
+  },
+  {
+   "kind": "cos",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "(all)",
+   "skipped": "cos.f16 is 12.6 MB, over --check-arrays-max-mb 8"
+  }
+ ],
+ "sanity": [
+  {
+   "name": "card realact, rl-last16 bo4 centred",
+   "expect": 0.78,
+   "tol": 0.05,
+   "provenance": "Celeste's card for rl-last16 at bo4 on her 512 realact rows, centred, her scorer. infra/2026-09-21_evals-plan-main.md \u00a72.3. DIFFERENT DENOMINATOR AND DIFFERENT DRAW: the tolerance is a STATED band, not a measured one -- her rows are her draw, her scorer is not this one, and our exclusions take the block to n = 486. A pass is consistency, not reproduction; a miss of this size is not by itself evidence of a wrong mu.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "realact",
+   "metric": "cos_centred.bo4",
+   "verdict": "absent",
+   "why": "no `cos_centred.bo4` for family `realact` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card realact_long, rl-last16 bo4 centred",
+   "expect": 0.716,
+   "tol": 0.05,
+   "provenance": "Same card, the realact_long block (plan \u00a72.3). DIFFERENT DENOMINATOR, AND WORSE THAN THE REALACT ONE: `2026-09-21_v3_realact_long` is `storage: unit` with `family_mu: unknown`, so our centred column there is read at `whiten_mu` and not at the `mu_long` those rows were built under -- SMOKES.md 2026-09-21 records cos_raw 0.4360 against cos_centred 0.6991 on exactly this block, the one family where the centred number is far ABOVE the raw one. Read this line as \"the labelled number is in the card's neighbourhood\", never as a reproduction.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "realact_long",
+   "metric": "cos_centred.bo4",
+   "verdict": "absent",
+   "why": "no `cos_centred.bo4` for family `realact_long` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card 2M encoder fired fraction, rl-last16",
+   "expect": 0.344,
+   "tol": 0.08,
+   "provenance": "A firing rate has no denominator, so this is the one card number that does not depend on whose corpus peak is used -- the only gate here that is NOT a different-denominator comparison. It remains a different DRAW (her 512 features against our stratified 512). plan \u00a72.3; reconstruction/sae_smoke64.py CARD[\"qwen36-27b/sae2m\"].",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/enc",
+   "metric": "fired.item",
+   "verdict": "absent",
+   "why": "no `fired.item` for family `sae/sae2m/enc` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card 2M decoder fired fraction, rl-last16",
+   "expect": 0.416,
+   "tol": 0.08,
+   "provenance": "\"the 0.416 card gate needs it\" -- plan \u00a72.1 puts the decoder block in the set for exactly this line, and it is why `sae_self --sae-side dec` exists. Same denominator-free rate as the encoder row above, same different-draw caveat. The PAIR is the finding: her card reads the decoder side HIGHER than the encoder side (0.416 vs 0.344), so the two gates should miss in the same direction or not at all.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/dec",
+   "metric": "fired.item",
+   "verdict": "absent",
+   "why": "no `fired.item` for family `sae/sae2m/dec` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card 131k normalised activation, rl-last16 bo4 median ratio",
+   "expect": 0.824,
+   "tol": 0.15,
+   "provenance": "Her card's `norm_act` for rl-last16 at bo4 on her 512-feature 131k set (reconstruction/sae_smoke64.py CARD[\"qwen36-27b/l42-1b\"], quoted in sae_smoke64.md). DIFFERENT DENOMINATOR, and this one is not a band -- it is a different quantity: her ratio divides by her corpus peak from the 1.0B-token scan and ours divides by OUR 16M `max_act` (sae_self.py:383), which is a smaller corpus and therefore a smaller peak and a larger ratio. `compare: false` so both numbers print with no verdict; a tolerance here would assert a comparability that does not exist. `corpus_peak_1b` is on the rows if anyone wants to compute her denominator properly, which is a separate piece of work.",
+   "compare": false,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "ratio.bo4.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo4.median` for family `sae/l42-1b` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 131k, rl-last16 bo1 median ratio",
+   "expect": 0.76,
+   "tol": 0.1,
+   "provenance": "reconstruction/sae_smoke64.md headline, 64 features, n=16, HF engine. Same denominator as ours (16M max_act); the band covers the different draw and the n = 16 vs 64 gap. SMOKES.md 2026-09-21 reports the 512-feature run at 0.719 against this 0.76.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/l42-1b` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 131k, old primary mu-none bo1 median ratio",
+   "expect": 0.83,
+   "tol": 0.1,
+   "provenance": "sae_smoke64.md, the EXISTING vLLM product at n=64 over 64 of the 512 sae rows of 2026-09-16_v1. A run of this driver over a different row subset of the same dictionary is a different draw of features; the band is wide for that reason. TAG NAMED: the old primary has two arms on every eval-1 set, and `sae`/`random` rows are not centrable, so the two arms' products for this family are bit-identical -- `mu-none` is the one that exists everywhere. SMOKES.md 2026-09-21: 0.803 at 512 features.",
+   "compare": true,
+   "verdict": "absent",
+   "why": "`source: rl-8x2048-full@vllm:mu-none` matched 0 of the sources present (2026-09-18_rl-last16-lr5e-7@vllm)"
+  },
+  {
+   "name": "sae_smoke64 131k, rl-last16 feature firing fraction",
+   "expect": 0.92,
+   "tol": 0.12,
+   "provenance": "sae_smoke64.md, \"features firing 92%\" on the 131k side. A rate, so no denominator question. SMOKES.md 2026-09-21: 0.932 at 512 features.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "fired.feature",
+   "verdict": "absent",
+   "why": "no `fired.feature` for family `sae/l42-1b` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 2M enc, rl-last16 bo1 median ratio",
+   "expect": 0.23,
+   "tol": 0.1,
+   "provenance": "sae_smoke64.md, 2M side, set 2026-09-21_sae2m_64, 16 per quartile. Our 16M denominator on both sides. Family is `sae/sae2m/enc` because the v3 set carries `sae_side` and splits; on the 64-feature smoke root (which does not) the same gate resolves as `sae/sae2m`. SMOKES.md 2026-09-21: 0.239 at 512 features.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 2M, rl-last16 bo1 median ratio (unsided sets)",
+   "expect": 0.23,
+   "tol": 0.1,
+   "provenance": "The same gate for a set whose rows carry no `sae_side` (`2026-09-21_sae2m_64`, `2026-09-20_sae2m_2k`), where the family label has no side component. Exactly one of this gate and the `/enc` one above resolves on any given set; the other is `absent`, which is the correct outcome and not a failure.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 2M enc, old primary mu-none bo1 median ratio",
+   "expect": 0.1,
+   "tol": 0.08,
+   "provenance": "sae_smoke64.md 2M side, old primary at n=16 HF. SMOKES.md 2026-09-21 reads 0.095 at 512 features against that 0.102. The band is wide because n = 16 there and 64 here.",
+   "compare": true,
+   "verdict": "absent",
+   "why": "`source: rl-8x2048-full@vllm:mu-none` matched 0 of the sources present (2026-09-18_rl-last16-lr5e-7@vllm)"
+  },
+  {
+   "name": "sae_smoke64 2M enc, NLA bo1 median ratio",
+   "expect": 0.24,
+   "tol": 0.1,
+   "provenance": "sae_smoke64.md 2M side, NLA at n=4, 200 tokens, 256-token scoring window. SMOKES.md 2026-09-21 reads 0.233 at 512 features against that 0.242. NO RUN TAG: on the v3 sets the NLA products sit under `scores/<set>` with none; the `amp-exact` gate below is the v1raw shape of the same arm.",
+   "compare": true,
+   "verdict": "absent",
+   "why": "`source: 2026-07-14_nla-av` matched 0 of the sources present (2026-09-18_rl-last16-lr5e-7@vllm)"
+  },
+  {
+   "name": "old primary mu-none, realact mean cos (2026-09-21 v1raw smoke, n=4)",
+   "expect": 0.876,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, \"the two old-primary arms\": realact rows 0-3 of 2026-09-21_v1raw, n=4, HF, --mu none. Resolves on v1raw only; `absent` on every v3 set, where the same arm's number is the 486-row one below.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-none",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "old primary mu-stats, realact mean cos (2026-09-21 v1raw smoke, n=4)",
+   "expect": 0.8989,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, the same table's stats_mu arm. v1raw only.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-stats",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "old primary mu-stats, realact bo4 (v1raw smoke)",
+   "expect": 0.9339,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-stats",
+   "metric": "cos_raw.bo4",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "old primary mu-none, realact bo4 (v1raw smoke)",
+   "expect": 0.9034,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-none",
+   "metric": "cos_raw.bo4",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "rl-last16 realact mean centred cos (v1raw smoke, n=4)",
+   "expect": 0.7518,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, \"cos_centred, first numbers\", rl-last16 under whiten_mu on 2026-09-21_v1raw rows 0-3. v1raw only; on `2026-09-21_v3_realact` the recorded number is 0.7590 over 486 rows (gate below).",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_centred.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 rl-last16, realact mean cos_raw (n = 486)",
+   "expect": 0.886,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, rl-last16 x `2026-09-21_v3_realact`, n = 486 after the 26-row `hers_n7.exclude.json` list -- which this driver now applies from the set's own `exclusions.json`. Same rows, same product, a different reader.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 rl-last16, realact mean cos_centred (n = 486)",
+   "expect": 0.759,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, same row, centred column. NOTE that SMOKES read this from `per_target.jsonl`'s `mean_cos_centred` and this driver recomputes the whole centred ladder from `cos_centred.f16`; the two agreeing to 4 dp is the point of the gate.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_centred.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 rl-last16, ours realact mean cos_raw (n = 506)",
+   "expect": 0.8884,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, the `ours` block -- our own v1 realact draw, 6 rows excluded by a DIFFERENT instrument (n=13 full reproduction in her v2 text) from the 26 of the `_realact` block.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_ours` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 rl-last16, ours realact mean cos_centred (n = 506)",
+   "expect": 0.7668,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, the `ours` block, centred column.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_centred.bo1",
+   "why": "`set: 2026-09-21_v3_ours` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 old primary mu-stats, realact mean cos_raw (n = 486)",
+   "expect": 0.8881,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, and the arm the \"old primary's mu, SETTLED\" section declares the winner (+0.0051 over mu-none, doc-clustered 95% CI [+0.0030, +0.0072]).",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full@vllm:mu-stats",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 old primary mu-none, realact mean cos_raw (n = 486)",
+   "expect": 0.883,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, the losing arm of the same pair.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full@vllm:mu-none",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 old primary mu-stats, realact bo64 (n = 486)",
+   "expect": 0.9322,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, \"The old primary's mu, SETTLED\", bo_64 row.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full@vllm:mu-stats",
+   "metric": "cos_raw.bo64",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 rl-last16, subspace/bsf mean cos_raw",
+   "expect": 0.3177,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. `bsf` has NO exclusions -- all 512 rows in both -- so this one IS a rounding-tolerance gate and a miss is a reader defect.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "bsf",
+   "metric": "cos_raw.bo1",
+   "ours": 0.31769920703125,
+   "n": 512,
+   "diff": -7.929687499963478e-07,
+   "verdict": "pass",
+   "why": "|0.3177 \u2212 0.3177| = 0.0000 vs tol 0.0005"
+  },
+  {
+   "name": "eval1 rl-last16, subspace/jlens mean cos_raw",
+   "expect": 0.1058,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "jlens",
+   "metric": "cos_raw.bo1",
+   "ours": 0.105806751953125,
+   "n": 512,
+   "diff": 6.7519531249948805e-06,
+   "verdict": "pass",
+   "why": "|0.1058 \u2212 0.1058| = 0.0000 vs tol 0.0005"
+  },
+  {
+   "name": "eval1 rl-last16, realact_long mean cos_raw",
+   "expect": 0.436,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "realact_long",
+   "metric": "cos_raw.bo1",
+   "verdict": "absent",
+   "why": "no `cos_raw.bo1` for family `realact_long` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 rl-last16, ctrl/random mean cos_raw",
+   "expect": 0.0338,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "random",
+   "metric": "cos_raw.bo1",
+   "verdict": "absent",
+   "why": "no `cos_raw.bo1` for family `random` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 NLA, realact mean cos_raw (n = 486)",
+   "expect": 0.8075,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, NLA n=4 on `2026-09-21_v3_realact`, n = 486 after exclusions -- which this driver now applies.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "2026-07-14_nla-av",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "eval1 rl-last16, 2M enc median bo1 ratio (512 features)",
+   "expect": 0.239,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table, rl-last16 x 2M, `med bo1 ratio` over the 512 ENCODER features. Same rows, same product, a different reader: a rounding tolerance.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 rl-last16, 131k median bo1 ratio (512 features)",
+   "expect": 0.719,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table, rl-last16 x 131k l42-1b. Rounding tolerance.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/l42-1b` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 old primary mu-none, 2M enc median bo1 ratio",
+   "expect": 0.095,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table. Rounding tolerance.",
+   "compare": true,
+   "verdict": "absent",
+   "why": "`source: rl-8x2048-full@vllm:mu-none` matched 0 of the sources present (2026-09-18_rl-last16-lr5e-7@vllm)"
+  },
+  {
+   "name": "eval1 NLA, 2M enc median bo1 ratio",
+   "expect": 0.233,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table, NLA n=4. Rounding tolerance.",
+   "compare": true,
+   "verdict": "absent",
+   "why": "`source: 2026-07-14_nla-av` matched 0 of the sources present (2026-09-18_rl-last16-lr5e-7@vllm)"
+  },
+  {
+   "name": "old primary, sae rows, v1raw vs v1 on the shared rows",
+   "expect": null,
+   "tol": 0.01,
+   "provenance": "The `sae` family is not centrable, so both sets store unit(W_enc[:, f]) and `cos_raw` is the same statistic on both. The two runs differ in engine (vLLM there, HF here), n (64 vs 4) and nothing else, so a difference is sampling, not convention. The tolerance is loose because n = 4 here.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "sae/l42-1b",
+   "source": "rl-8x2048-full:mu-none",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "old primary, realact rows, v1raw vs v1 on the shared rows",
+   "expect": null,
+   "tol": null,
+   "provenance": "NOT the same statistic, and printed for the record only. `2026-09-16_v1` is `storage: unit` with its realact rows already centred on stats/mu.f32, so its `cos` has a CENTRED target and a raw scorer -- Celeste's asymmetry -- while a raw set's `cos` centres neither side. A tolerance here would assert a comparability that does not exist.",
+   "compare": false,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-stats",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "rl-last16, ctrl sae rows, v3_ctrl vs the 131k rows of v1raw",
+   "expect": null,
+   "tol": null,
+   "provenance": "`2026-09-21_v3_ctrl` was built `--dirs-from \u2026/2026-09-21_v1raw --rows 512-1535`, so its sae rows ARE v1raw's rows 1024-1535 -- but RENUMBERED, and this gate intersects on the row INDEX. So it compares v3_ctrl row r against v1raw row r, which are different targets, and it is `compare: false` for that reason: it exists to print the two numbers side by side while a row-mapping gate does not exist. `src_set` / `src_row` are on the v3_ctrl rows and are what a proper version of this would join on.",
+   "compare": false,
+   "verdict": "absent",
+   "family": "sae/l42-1b",
+   "source": "rl-last16",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_ctrl` \u2014 this run is `2026-09-21_v3_subspace`"
+  },
+  {
+   "name": "old primary v1 realact mean cos, 0.5076",
+   "expect": 0.5076,
+   "tol": null,
+   "provenance": "SMOKES.md 2026-09-15, rows 0-7 of 2026-09-16_v1. NOT THE SAME STATISTIC as a raw set's `cos`: the stored 0.5076 is cos(h, unit(act - stats_mu)) -- target centred, scorer raw, Celeste's asymmetry -- and on a `storage: raw` set `score` produces cos (neither side centred) and cos_centred (both), never that third column. SMOKES.md 2026-09-21 records this as plan gate 2 being unevaluable rather than failed. Printed for the record with no verdict; delete the line or restate the gate against cos_centred once that is decided. The BARE selector is deliberate: on a set with two old-primary arms this resolves `absent` (matched 2 of the sources), which is right -- the 0.5076 belongs to neither arm.",
+   "compare": false,
+   "verdict": "absent",
+   "why": "`source: rl-8x2048-full` matched 0 of the sources present (2026-09-18_rl-last16-lr5e-7@vllm)"
+  }
+ ],
+ "missing": [
+  "`qwen36-27b/2026-07-14_nla-av`: no scores directory for `2026-09-21_v3_subspace` under `maemms/qwen36-27b/2026-07-14_nla-av/scores/`",
+  "`qwen36-27b/2026-09-08_rlI-150`: no scores directory for `2026-09-21_v3_subspace` under `maemms/qwen36-27b/2026-09-08_rlI-150/scores/`",
+  "`qwen36-27b/2026-09-10_rl-8x2048-full`: no scores directory for `2026-09-21_v3_subspace` under `maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/`",
+  "`qwen36-27b/2026-09-16_base-control`: no scores directory for `2026-09-21_v3_subspace` under `maemms/qwen36-27b/2026-09-16_base-control/scores/`"
+ ],
+ "notes": []
+}

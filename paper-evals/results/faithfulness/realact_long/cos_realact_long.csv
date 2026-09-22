@@ -1,0 +1,15 @@
+family,source,maemm,engine,run_tag,mu,n,n_rows,n_clusters,cosine,bo_source,k,mean,se_cluster,se_iid
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_centred,cos_centred.f16 (recomputed),1,0.699148,0.006278,0.006114
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_centred,cos_centred.f16 (recomputed),2,0.730122,0.006066,0.005917
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_centred,cos_centred.f16 (recomputed),4,0.751462,0.005859,0.005711
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_centred,cos_centred.f16 (recomputed),8,0.76689,0.00567,0.005516
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_centred,cos_centred.f16 (recomputed),16,0.778711,0.005507,0.005349
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_centred,cos_centred.f16 (recomputed),32,0.788647,0.005336,0.005176
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_centred,cos_centred.f16 (recomputed),64,0.796978,0.005181,0.005023
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,1,0.435958,0.008212,0.0082
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,2,0.457822,0.008093,0.008095
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,4,0.473655,0.00798,0.007992
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,8,0.485613,0.007881,0.007898
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,16,0.494928,0.007793,0.007822
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,32,0.502752,0.007721,0.007761
+realact_long,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,64,0.509368,0.007623,0.007667

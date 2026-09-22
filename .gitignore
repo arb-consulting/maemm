@@ -18,6 +18,12 @@ ckpts/
 *.safetensors
 *.parquet
 
+# Reader outputs: `precompute/common.out_dir` defaults here, BESIDE paper-evals/ and never
+# inside it -- Modal mounts paper-evals/ into every image build and a write under it kills any
+# launch racing the hash. $MAEMM_OUT moves it; the mirror (a pure volume cache) goes to
+# $XDG_CACHE_HOME instead, outside the repo entirely.
+_out/
+
 # logs / runs
 wandb/
 logs/

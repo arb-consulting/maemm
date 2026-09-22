@@ -1,0 +1,1478 @@
+{
+ "set": "2026-09-21_v3_ctrl",
+ "base": "qwen36-27b",
+ "root": "/vol",
+ "cos": [
+  {
+   "family": "random",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "cosine": "cos_raw",
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "mu-none",
+   "maemm": "qwen36-27b/2026-09-10_rl-8x2048-full",
+   "mu": null,
+   "bo": {
+    "1": {
+     "mean": 0.027968410156249998,
+     "se": 0.00048584179797525796,
+     "se_iid": 0.0004801386113458982,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "2": {
+     "mean": 0.031150232421875,
+     "se": 0.00048134100005311223,
+     "se_iid": 0.00047599854680256074,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "4": {
+     "mean": 0.033933878906250006,
+     "se": 0.00047520062576406866,
+     "se_iid": 0.0004709550874278027,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "8": {
+     "mean": 0.036461328125,
+     "se": 0.00047325123365625624,
+     "se_iid": 0.0004696224757865877,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "16": {
+     "mean": 0.03866676171875,
+     "se": 0.0004734351864287967,
+     "se_iid": 0.0004704909151518285,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "32": {
+     "mean": 0.040751544921874994,
+     "se": 0.00047389575163892705,
+     "se_iid": 0.0004715611277559452,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "64": {
+     "mean": 0.042708556640625,
+     "se": 0.00048196815132524594,
+     "se_iid": 0.00047947105491602244,
+     "n_rows": 512,
+     "n_clusters": 512
+    }
+   },
+   "bo_source": "per_target.jsonl",
+   "n_rows": 512,
+   "n_clusters": 512
+  },
+  {
+   "family": "random",
+   "source": "2026-07-14_nla-av",
+   "cosine": "cos_raw",
+   "n": 4,
+   "engine": "hf",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-07-14_nla-av",
+   "mu": null,
+   "bo": {
+    "1": {
+     "mean": 0.030781591796875,
+     "se": 0.0005195670945620167,
+     "se_iid": 0.0005168281644427846,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "2": {
+     "mean": 0.033031554687500006,
+     "se": 0.0005240706921285675,
+     "se_iid": 0.0005206726402865558,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "4": {
+     "mean": 0.035070736328125,
+     "se": 0.0005278381751839148,
+     "se_iid": 0.000525768183347608,
+     "n_rows": 512,
+     "n_clusters": 512
+    }
+   },
+   "bo_source": "per_target.jsonl",
+   "n_rows": 512,
+   "n_clusters": 512
+  },
+  {
+   "family": "random",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "cosine": "cos_raw",
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "mu": "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+   "bo": {
+    "1": {
+     "mean": 0.033838378906249994,
+     "se": 0.00050716743750422,
+     "se_iid": 0.0005049961749640046,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "2": {
+     "mean": 0.03663989453125,
+     "se": 0.0005080631585541166,
+     "se_iid": 0.000505721020627423,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "4": {
+     "mean": 0.03906582421875,
+     "se": 0.0005086624115025974,
+     "se_iid": 0.0005058417985297513,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "8": {
+     "mean": 0.041194470703125,
+     "se": 0.0005085270900746487,
+     "se_iid": 0.000505772769023717,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "16": {
+     "mean": 0.043099306640625,
+     "se": 0.0005099399830542038,
+     "se_iid": 0.0005075592489040972,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "32": {
+     "mean": 0.044806251953125,
+     "se": 0.0005122288231884424,
+     "se_iid": 0.0005082950679879827,
+     "n_rows": 512,
+     "n_clusters": 512
+    },
+    "64": {
+     "mean": 0.046434431640625,
+     "se": 0.0005181715107114789,
+     "se_iid": 0.0005121352911528303,
+     "n_rows": 512,
+     "n_clusters": 512
+    }
+   },
+   "bo_source": "per_target.jsonl",
+   "n_rows": 512,
+   "n_clusters": 512
+  }
+ ],
+ "sae": [
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "stratum": null,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "mu-none",
+   "maemm": "qwen36-27b/2026-09-10_rl-8x2048-full",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 512,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.8028330331907709,
+     "mean": 0.7290468188687357,
+     "se_iid": 0.017387798862885398,
+     "n": 512
+    },
+    "2": {
+     "median": 0.8607199873030578,
+     "mean": 0.7935500818286776,
+     "se_iid": 0.018027196701903746,
+     "n": 512
+    },
+    "4": {
+     "median": 0.9142631699172054,
+     "mean": 0.8458604684123524,
+     "se_iid": 0.018465863311508905,
+     "n": 512
+    },
+    "8": {
+     "median": 0.948671586518787,
+     "mean": 0.8913884747750731,
+     "se_iid": 0.01877624550786053,
+     "n": 512
+    },
+    "16": {
+     "median": 0.9801727120727598,
+     "mean": 0.9296754599785332,
+     "se_iid": 0.0189714285579261,
+     "n": 512
+    },
+    "32": {
+     "median": 1.0011953041291584,
+     "mean": 0.9645796898709598,
+     "se_iid": 0.019149745933012028,
+     "n": 512
+    },
+    "64": {
+     "median": 1.0314671015343946,
+     "mean": 0.9997937835677321,
+     "se_iid": 0.019297670240100664,
+     "n": 512
+    }
+   },
+   "item_fired": 0.86993408203125,
+   "feat_firing": 0.943359375
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "stratum": 0,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "mu-none",
+   "maemm": "qwen36-27b/2026-09-10_rl-8x2048-full",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.4169489453513342,
+     "mean": 0.5162201647236166,
+     "se_iid": 0.05103352158690454,
+     "n": 128
+    },
+    "2": {
+     "median": 0.5408761385850029,
+     "mean": 0.5852399950447986,
+     "se_iid": 0.054876761088100315,
+     "n": 128
+    },
+    "4": {
+     "median": 0.6211825256774571,
+     "mean": 0.6392218676980597,
+     "se_iid": 0.05752790378663592,
+     "n": 128
+    },
+    "8": {
+     "median": 0.6839637604771344,
+     "mean": 0.6884418296602739,
+     "se_iid": 0.05950967244026544,
+     "n": 128
+    },
+    "16": {
+     "median": 0.733489670968755,
+     "mean": 0.7270416486731273,
+     "se_iid": 0.06074131499780262,
+     "n": 128
+    },
+    "32": {
+     "median": 0.8183165166344578,
+     "mean": 0.7665526483304339,
+     "se_iid": 0.061861691889810534,
+     "n": 128
+    },
+    "64": {
+     "median": 0.8713859126011191,
+     "mean": 0.8083001869821318,
+     "se_iid": 0.062778794717631,
+     "n": 128
+    }
+   },
+   "item_fired": 0.6002197265625,
+   "feat_firing": 0.7890625
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "stratum": 1,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "mu-none",
+   "maemm": "qwen36-27b/2026-09-10_rl-8x2048-full",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.9079300469843892,
+     "mean": 0.8872484632601233,
+     "se_iid": 0.02431005904101675,
+     "n": 128
+    },
+    "2": {
+     "median": 0.9592886820837783,
+     "mean": 0.9510914851656306,
+     "se_iid": 0.02375919074920294,
+     "n": 128
+    },
+    "4": {
+     "median": 0.9990706935829107,
+     "mean": 1.003519995199623,
+     "se_iid": 0.023330535140564816,
+     "n": 128
+    },
+    "8": {
+     "median": 1.037176093555702,
+     "mean": 1.0478831786503613,
+     "se_iid": 0.023042364252854008,
+     "n": 128
+    },
+    "16": {
+     "median": 1.0612813697551533,
+     "mean": 1.0833560940416058,
+     "se_iid": 0.023306431215265495,
+     "n": 128
+    },
+    "32": {
+     "median": 1.0938713755113079,
+     "mean": 1.1148768938482039,
+     "se_iid": 0.023782722297013205,
+     "n": 128
+    },
+    "64": {
+     "median": 1.126544131168993,
+     "mean": 1.1484064337811402,
+     "se_iid": 0.024104572711455965,
+     "n": 128
+    }
+   },
+   "item_fired": 0.9691162109375,
+   "feat_firing": 0.9921875
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "stratum": 2,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "mu-none",
+   "maemm": "qwen36-27b/2026-09-10_rl-8x2048-full",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.8255060694999724,
+     "mean": 0.812934312615678,
+     "se_iid": 0.021883061624216178,
+     "n": 128
+    },
+    "2": {
+     "median": 0.8935227885830463,
+     "mean": 0.872804147066792,
+     "se_iid": 0.022061646390769064,
+     "n": 128
+    },
+    "4": {
+     "median": 0.9400398104845659,
+     "mean": 0.9218159338627394,
+     "se_iid": 0.022043215472845216,
+     "n": 128
+    },
+    "8": {
+     "median": 0.9773701635325385,
+     "mean": 0.9637216862380888,
+     "se_iid": 0.022038305785540436,
+     "n": 128
+    },
+    "16": {
+     "median": 1.0035899254035885,
+     "mean": 1.0011812596033902,
+     "se_iid": 0.021905776862136222,
+     "n": 128
+    },
+    "32": {
+     "median": 1.030457047006635,
+     "mean": 1.033683554152138,
+     "se_iid": 0.02174293612393476,
+     "n": 128
+    },
+    "64": {
+     "median": 1.0539719121332485,
+     "mean": 1.0641259943292847,
+     "se_iid": 0.02171675621198958,
+     "n": 128
+    }
+   },
+   "item_fired": 0.97314453125,
+   "feat_firing": 1.0
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "stratum": 3,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "mu-none",
+   "maemm": "qwen36-27b/2026-09-10_rl-8x2048-full",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.7690428559667566,
+     "mean": 0.699784334875525,
+     "se_iid": 0.02399565537186737,
+     "n": 128
+    },
+    "2": {
+     "median": 0.8249646192446018,
+     "mean": 0.7650647000374888,
+     "se_iid": 0.02397408521833391,
+     "n": 128
+    },
+    "4": {
+     "median": 0.8735274178557336,
+     "mean": 0.8188840768889875,
+     "se_iid": 0.023775148456433557,
+     "n": 128
+    },
+    "8": {
+     "median": 0.907917405540523,
+     "mean": 0.8655072045515684,
+     "se_iid": 0.023503410534523216,
+     "n": 128
+    },
+    "16": {
+     "median": 0.9475934612335997,
+     "mean": 0.9071228375960094,
+     "se_iid": 0.022946605321144897,
+     "n": 128
+    },
+    "32": {
+     "median": 0.9837193666074855,
+     "mean": 0.943205663153063,
+     "se_iid": 0.02256033122092321,
+     "n": 128
+    },
+    "64": {
+     "median": 1.0149911202584434,
+     "mean": 0.9783425191783719,
+     "se_iid": 0.022381037273407463,
+     "n": 128
+    }
+   },
+   "item_fired": 0.937255859375,
+   "feat_firing": 0.9921875
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-07-14_nla-av",
+   "stratum": null,
+   "n": 4,
+   "engine": "hf",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-07-14_nla-av",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 512,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.5052157904824035,
+     "mean": 0.45712964972925924,
+     "se_iid": 0.014830689916995893,
+     "n": 512
+    },
+    "2": {
+     "median": 0.5646132103736721,
+     "mean": 0.5086698861194807,
+     "se_iid": 0.015956304308546287,
+     "n": 512
+    },
+    "4": {
+     "median": 0.6193765409021852,
+     "mean": 0.553197062209856,
+     "se_iid": 0.016850126983464355,
+     "n": 512
+    }
+   },
+   "item_fired": 0.74609375,
+   "feat_firing": 0.798828125
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-07-14_nla-av",
+   "stratum": 0,
+   "n": 4,
+   "engine": "hf",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-07-14_nla-av",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.019177250912974175,
+     "mean": 0.20274641179957145,
+     "se_iid": 0.03258218222120913,
+     "n": 128
+    },
+    "2": {
+     "median": 0.026252489544639747,
+     "mean": 0.23857299529543408,
+     "se_iid": 0.036599293694523256,
+     "n": 128
+    },
+    "4": {
+     "median": 0.04384069471601722,
+     "mean": 0.2698016842459746,
+     "se_iid": 0.039651013017832276,
+     "n": 128
+    }
+   },
+   "item_fired": 0.310546875,
+   "feat_firing": 0.3984375
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-07-14_nla-av",
+   "stratum": 1,
+   "n": 4,
+   "engine": "hf",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-07-14_nla-av",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.6089850087730013,
+     "mean": 0.5246757906784068,
+     "se_iid": 0.028508457369702058,
+     "n": 128
+    },
+    "2": {
+     "median": 0.6598473571451693,
+     "mean": 0.5842209262268576,
+     "se_iid": 0.030293562068514565,
+     "n": 128
+    },
+    "4": {
+     "median": 0.6981723655528462,
+     "mean": 0.6372813303433849,
+     "se_iid": 0.03186146538029974,
+     "n": 128
+    }
+   },
+   "item_fired": 0.8203125,
+   "feat_firing": 0.8671875
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-07-14_nla-av",
+   "stratum": 2,
+   "n": 4,
+   "engine": "hf",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-07-14_nla-av",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.5839984445040373,
+     "mean": 0.5527746931919335,
+     "se_iid": 0.02387556003514101,
+     "n": 128
+    },
+    "2": {
+     "median": 0.6296156643498237,
+     "mean": 0.6114502839731785,
+     "se_iid": 0.025056009655489844,
+     "n": 128
+    },
+    "4": {
+     "median": 0.6829967203222438,
+     "mean": 0.6577540398266063,
+     "se_iid": 0.025693905538724728,
+     "n": 128
+    }
+   },
+   "item_fired": 0.919921875,
+   "feat_firing": 0.9609375
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-07-14_nla-av",
+   "stratum": 3,
+   "n": 4,
+   "engine": "hf",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-07-14_nla-av",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.5678687521777246,
+     "mean": 0.5483217032471253,
+     "se_iid": 0.020313262488780365,
+     "n": 128
+    },
+    "2": {
+     "median": 0.6143689772939009,
+     "mean": 0.6004353389824528,
+     "se_iid": 0.021067636652143555,
+     "n": 128
+    },
+    "4": {
+     "median": 0.6591985457937162,
+     "mean": 0.6479511944234582,
+     "se_iid": 0.021847013952780603,
+     "n": 128
+    }
+   },
+   "item_fired": 0.93359375,
+   "feat_firing": 0.96875
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "stratum": null,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 512,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.718495092854972,
+     "mean": 0.6276105587737388,
+     "se_iid": 0.016363207769434826,
+     "n": 512
+    },
+    "2": {
+     "median": 0.7786399569998932,
+     "mean": 0.6865179986789975,
+     "se_iid": 0.0172124699211768,
+     "n": 512
+    },
+    "4": {
+     "median": 0.8256461920115739,
+     "mean": 0.7375745051934328,
+     "se_iid": 0.017846500374579122,
+     "n": 512
+    },
+    "8": {
+     "median": 0.8642594339879432,
+     "mean": 0.78058249331009,
+     "se_iid": 0.018448279969408166,
+     "n": 512
+    },
+    "16": {
+     "median": 0.8982073003454583,
+     "mean": 0.8185279014805082,
+     "se_iid": 0.01891986555707671,
+     "n": 512
+    },
+    "32": {
+     "median": 0.9314106680381232,
+     "mean": 0.8526255907719322,
+     "se_iid": 0.01931939393121664,
+     "n": 512
+    },
+    "64": {
+     "median": 0.958315466775232,
+     "mean": 0.8865251310094516,
+     "se_iid": 0.01984911932473631,
+     "n": 512
+    }
+   },
+   "item_fired": 0.83233642578125,
+   "feat_firing": 0.931640625
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "stratum": 0,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.08933962938263426,
+     "mean": 0.3455340165459069,
+     "se_iid": 0.04182428925366864,
+     "n": 128
+    },
+    "2": {
+     "median": 0.12148644555530969,
+     "mean": 0.3965430841621017,
+     "se_iid": 0.04567364054946722,
+     "n": 128
+    },
+    "4": {
+     "median": 0.1623047803102355,
+     "mean": 0.44425265742601444,
+     "se_iid": 0.04891680518827161,
+     "n": 128
+    },
+    "8": {
+     "median": 0.2229687900808246,
+     "mean": 0.4893538206373313,
+     "se_iid": 0.05214707732113623,
+     "n": 128
+    },
+    "16": {
+     "median": 0.270955003956891,
+     "mean": 0.5266816238982293,
+     "se_iid": 0.054414425657643796,
+     "n": 128
+    },
+    "32": {
+     "median": 0.32330793061590446,
+     "mean": 0.5576543869896513,
+     "se_iid": 0.05571541225133099,
+     "n": 128
+    },
+    "64": {
+     "median": 0.3734995263834263,
+     "mean": 0.6011969695626176,
+     "se_iid": 0.05829998591725233,
+     "n": 128
+    }
+   },
+   "item_fired": 0.4979248046875,
+   "feat_firing": 0.75
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "stratum": 1,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.8066940044304942,
+     "mean": 0.7561672125128149,
+     "se_iid": 0.02770434221548843,
+     "n": 128
+    },
+    "2": {
+     "median": 0.85940056862731,
+     "mean": 0.8148020232557247,
+     "se_iid": 0.028632529894760922,
+     "n": 128
+    },
+    "4": {
+     "median": 0.9001095764110572,
+     "mean": 0.8643536864666319,
+     "se_iid": 0.029063361953312914,
+     "n": 128
+    },
+    "8": {
+     "median": 0.9437994324235719,
+     "mean": 0.9046473152013905,
+     "se_iid": 0.02949073849780172,
+     "n": 128
+    },
+    "16": {
+     "median": 0.9723179812465527,
+     "mean": 0.9428235810776657,
+     "se_iid": 0.02970002931121938,
+     "n": 128
+    },
+    "32": {
+     "median": 0.9999483800621567,
+     "mean": 0.977627848921361,
+     "se_iid": 0.0304349506273154,
+     "n": 128
+    },
+    "64": {
+     "median": 1.0290975534584463,
+     "mean": 1.0096523553031498,
+     "se_iid": 0.0313708485214351,
+     "n": 128
+    }
+   },
+   "item_fired": 0.930908203125,
+   "feat_firing": 0.9921875
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "stratum": 2,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.7473156196839223,
+     "mean": 0.74111398615882,
+     "se_iid": 0.02013474813597936,
+     "n": 128
+    },
+    "2": {
+     "median": 0.806261314523961,
+     "mean": 0.8040084079928456,
+     "se_iid": 0.02063835361814979,
+     "n": 128
+    },
+    "4": {
+     "median": 0.8528696732462789,
+     "mean": 0.8563269386663409,
+     "se_iid": 0.02092922224028509,
+     "n": 128
+    },
+    "8": {
+     "median": 0.8927026300793066,
+     "mean": 0.8979104637295061,
+     "se_iid": 0.021242635395688502,
+     "n": 128
+    },
+    "16": {
+     "median": 0.9242308278313462,
+     "mean": 0.9353564138995357,
+     "se_iid": 0.021639609580681386,
+     "n": 128
+    },
+    "32": {
+     "median": 0.9630979588087829,
+     "mean": 0.9706226021405422,
+     "se_iid": 0.022049236409537206,
+     "n": 128
+    },
+    "64": {
+     "median": 0.9937995605950372,
+     "mean": 0.9994066757044692,
+     "se_iid": 0.02247417888070438,
+     "n": 128
+    }
+   },
+   "item_fired": 0.9716796875,
+   "feat_firing": 0.9921875
+  },
+  {
+   "family": "sae/l42-1b",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "stratum": 3,
+   "n": 64,
+   "engine": "vllm",
+   "run_tag": "",
+   "maemm": "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+   "sae_key": "qwen36-27b/l42-1b",
+   "sae_side": "",
+   "n_features": 128,
+   "gate": 1.5845966339111328,
+   "per_k": {
+    "1": {
+     "median": 0.7139274502834585,
+     "mean": 0.6676270198774137,
+     "se_iid": 0.0227259183473452,
+     "n": 128
+    },
+    "2": {
+     "median": 0.7761877480044634,
+     "mean": 0.7307184793053185,
+     "se_iid": 0.022819018565192046,
+     "n": 128
+    },
+    "4": {
+     "median": 0.8215371619236491,
+     "mean": 0.7853647382147442,
+     "se_iid": 0.0227474239285914,
+     "n": 128
+    },
+    "8": {
+     "median": 0.862273122189347,
+     "mean": 0.8304183736721321,
+     "se_iid": 0.022810913059246214,
+     "n": 128
+    },
+    "16": {
+     "median": 0.9063890198747775,
+     "mean": 0.869249987046602,
+     "se_iid": 0.023018867201772437,
+     "n": 128
+    },
+    "32": {
+     "median": 0.9448841166255888,
+     "mean": 0.9045975250361747,
+     "se_iid": 0.023481677602605423,
+     "n": 128
+    },
+    "64": {
+     "median": 0.9845061167075124,
+     "mean": 0.93584452346757,
+     "se_iid": 0.023937877785121665,
+     "n": 128
+    }
+   },
+   "item_fired": 0.9288330078125,
+   "feat_firing": 0.9921875
+  }
+ ],
+ "checks": [
+  {
+   "kind": "cos_centred bo-k",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "family": "(all)",
+   "skipped": "no family of `2026-09-21_v3_ctrl` is centrable (['random', 'sae']), so a centred cosine would be NaN on every row -- the array is not read"
+  },
+  {
+   "kind": "cos_centred bo-k",
+   "source": "2026-07-14_nla-av",
+   "family": "(all)",
+   "skipped": "no family of `2026-09-21_v3_ctrl` is centrable (['random', 'sae']), so a centred cosine would be NaN on every row -- the array is not read"
+  },
+  {
+   "kind": "cos_centred bo-k",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "(all)",
+   "skipped": "no family of `2026-09-21_v3_ctrl` is centrable (['random', 'sae']), so a centred cosine would be NaN on every row -- the array is not read"
+  },
+  {
+   "kind": "sae_self",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "family": "sae/l42-1b",
+   "rows": 512,
+   "n_mismatches": 0,
+   "worst_excess": -0.000155,
+   "gate": 1.5845966339111328,
+   "product": "maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/2026-09-21_v3_ctrl__mu-none__vllm/sae_self"
+  },
+  {
+   "kind": "sae_self",
+   "source": "2026-07-14_nla-av",
+   "family": "sae/l42-1b",
+   "rows": 512,
+   "n_mismatches": 0,
+   "worst_excess": -0.000153,
+   "gate": 1.5845966339111328,
+   "product": "maemms/qwen36-27b/2026-07-14_nla-av/scores/2026-09-21_v3_ctrl/sae_self"
+  },
+  {
+   "kind": "sae_self",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "rows": 512,
+   "n_mismatches": 0,
+   "worst_excess": -0.000153,
+   "gate": 1.5845966339111328,
+   "product": "maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7/scores/2026-09-21_v3_ctrl__vllm/sae_self"
+  },
+  {
+   "kind": "cos",
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "family": "(all)",
+   "skipped": "cos.f16 is 12.6 MB, over --check-arrays-max-mb 8"
+  },
+  {
+   "kind": "cos",
+   "source": "2026-07-14_nla-av",
+   "family": "(all)",
+   "rows": 1024,
+   "n_mismatches": 0,
+   "worst_excess": -0.0002,
+   "product": "maemms/qwen36-27b/2026-07-14_nla-av/scores/2026-09-21_v3_ctrl"
+  },
+  {
+   "kind": "cos",
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "(all)",
+   "skipped": "cos.f16 is 12.6 MB, over --check-arrays-max-mb 8"
+  }
+ ],
+ "sanity": [
+  {
+   "name": "card realact, rl-last16 bo4 centred",
+   "expect": 0.78,
+   "tol": 0.05,
+   "provenance": "Celeste's card for rl-last16 at bo4 on her 512 realact rows, centred, her scorer. infra/2026-09-21_evals-plan-main.md \u00a72.3. DIFFERENT DENOMINATOR AND DIFFERENT DRAW: the tolerance is a STATED band, not a measured one -- her rows are her draw, her scorer is not this one, and our exclusions take the block to n = 486. A pass is consistency, not reproduction; a miss of this size is not by itself evidence of a wrong mu.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "realact",
+   "metric": "cos_centred.bo4",
+   "verdict": "absent",
+   "why": "no `cos_centred.bo4` for family `realact` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card realact_long, rl-last16 bo4 centred",
+   "expect": 0.716,
+   "tol": 0.05,
+   "provenance": "Same card, the realact_long block (plan \u00a72.3). DIFFERENT DENOMINATOR, AND WORSE THAN THE REALACT ONE: `2026-09-21_v3_realact_long` is `storage: unit` with `family_mu: unknown`, so our centred column there is read at `whiten_mu` and not at the `mu_long` those rows were built under -- SMOKES.md 2026-09-21 records cos_raw 0.4360 against cos_centred 0.6991 on exactly this block, the one family where the centred number is far ABOVE the raw one. Read this line as \"the labelled number is in the card's neighbourhood\", never as a reproduction.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "realact_long",
+   "metric": "cos_centred.bo4",
+   "verdict": "absent",
+   "why": "no `cos_centred.bo4` for family `realact_long` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card 2M encoder fired fraction, rl-last16",
+   "expect": 0.344,
+   "tol": 0.08,
+   "provenance": "A firing rate has no denominator, so this is the one card number that does not depend on whose corpus peak is used -- the only gate here that is NOT a different-denominator comparison. It remains a different DRAW (her 512 features against our stratified 512). plan \u00a72.3; reconstruction/sae_smoke64.py CARD[\"qwen36-27b/sae2m\"].",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/enc",
+   "metric": "fired.item",
+   "verdict": "absent",
+   "why": "no `fired.item` for family `sae/sae2m/enc` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card 2M decoder fired fraction, rl-last16",
+   "expect": 0.416,
+   "tol": 0.08,
+   "provenance": "\"the 0.416 card gate needs it\" -- plan \u00a72.1 puts the decoder block in the set for exactly this line, and it is why `sae_self --sae-side dec` exists. Same denominator-free rate as the encoder row above, same different-draw caveat. The PAIR is the finding: her card reads the decoder side HIGHER than the encoder side (0.416 vs 0.344), so the two gates should miss in the same direction or not at all.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/dec",
+   "metric": "fired.item",
+   "verdict": "absent",
+   "why": "no `fired.item` for family `sae/sae2m/dec` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "card 131k normalised activation, rl-last16 bo4 median ratio",
+   "expect": 0.824,
+   "tol": 0.15,
+   "provenance": "Her card's `norm_act` for rl-last16 at bo4 on her 512-feature 131k set (reconstruction/sae_smoke64.py CARD[\"qwen36-27b/l42-1b\"], quoted in sae_smoke64.md). DIFFERENT DENOMINATOR, and this one is not a band -- it is a different quantity: her ratio divides by her corpus peak from the 1.0B-token scan and ours divides by OUR 16M `max_act` (sae_self.py:383), which is a smaller corpus and therefore a smaller peak and a larger ratio. `compare: false` so both numbers print with no verdict; a tolerance here would assert a comparability that does not exist. `corpus_peak_1b` is on the rows if anyone wants to compute her denominator properly, which is a separate piece of work.",
+   "compare": false,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "ratio.bo4.median",
+   "ours": 0.8256461920115739,
+   "n": 512,
+   "diff": 0.0016461920115738993,
+   "verdict": "no verdict",
+   "why": "declared not the same statistic (`compare: false`)"
+  },
+  {
+   "name": "sae_smoke64 131k, rl-last16 bo1 median ratio",
+   "expect": 0.76,
+   "tol": 0.1,
+   "provenance": "reconstruction/sae_smoke64.md headline, 64 features, n=16, HF engine. Same denominator as ours (16M max_act); the band covers the different draw and the n = 16 vs 64 gap. SMOKES.md 2026-09-21 reports the 512-feature run at 0.719 against this 0.76.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "ratio.bo1.median",
+   "ours": 0.718495092854972,
+   "n": 512,
+   "diff": -0.04150490714502797,
+   "verdict": "pass",
+   "why": "|0.7185 \u2212 0.7600| = 0.0415 vs tol 0.1"
+  },
+  {
+   "name": "sae_smoke64 131k, old primary mu-none bo1 median ratio",
+   "expect": 0.83,
+   "tol": 0.1,
+   "provenance": "sae_smoke64.md, the EXISTING vLLM product at n=64 over 64 of the 512 sae rows of 2026-09-16_v1. A run of this driver over a different row subset of the same dictionary is a different draw of features; the band is wide for that reason. TAG NAMED: the old primary has two arms on every eval-1 set, and `sae`/`random` rows are not centrable, so the two arms' products for this family are bit-identical -- `mu-none` is the one that exists everywhere. SMOKES.md 2026-09-21: 0.803 at 512 features.",
+   "compare": true,
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "family": "sae/l42-1b",
+   "metric": "ratio.bo1.median",
+   "ours": 0.8028330331907709,
+   "n": 512,
+   "diff": -0.02716696680922903,
+   "verdict": "pass",
+   "why": "|0.8028 \u2212 0.8300| = 0.0272 vs tol 0.1"
+  },
+  {
+   "name": "sae_smoke64 131k, rl-last16 feature firing fraction",
+   "expect": 0.92,
+   "tol": 0.12,
+   "provenance": "sae_smoke64.md, \"features firing 92%\" on the 131k side. A rate, so no denominator question. SMOKES.md 2026-09-21: 0.932 at 512 features.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "fired.feature",
+   "ours": 0.931640625,
+   "n": 512,
+   "diff": 0.01164062499999996,
+   "verdict": "pass",
+   "why": "|0.9316 \u2212 0.9200| = 0.0116 vs tol 0.12"
+  },
+  {
+   "name": "sae_smoke64 2M enc, rl-last16 bo1 median ratio",
+   "expect": 0.23,
+   "tol": 0.1,
+   "provenance": "sae_smoke64.md, 2M side, set 2026-09-21_sae2m_64, 16 per quartile. Our 16M denominator on both sides. Family is `sae/sae2m/enc` because the v3 set carries `sae_side` and splits; on the 64-feature smoke root (which does not) the same gate resolves as `sae/sae2m`. SMOKES.md 2026-09-21: 0.239 at 512 features.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 2M, rl-last16 bo1 median ratio (unsided sets)",
+   "expect": 0.23,
+   "tol": 0.1,
+   "provenance": "The same gate for a set whose rows carry no `sae_side` (`2026-09-21_sae2m_64`, `2026-09-20_sae2m_2k`), where the family label has no side component. Exactly one of this gate and the `/enc` one above resolves on any given set; the other is `absent`, which is the correct outcome and not a failure.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 2M enc, old primary mu-none bo1 median ratio",
+   "expect": 0.1,
+   "tol": 0.08,
+   "provenance": "sae_smoke64.md 2M side, old primary at n=16 HF. SMOKES.md 2026-09-21 reads 0.095 at 512 features against that 0.102. The band is wide because n = 16 there and 64 here.",
+   "compare": true,
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-09-10_rl-8x2048-full@vllm:mu-none` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "sae_smoke64 2M enc, NLA bo1 median ratio",
+   "expect": 0.24,
+   "tol": 0.1,
+   "provenance": "sae_smoke64.md 2M side, NLA at n=4, 200 tokens, 256-token scoring window. SMOKES.md 2026-09-21 reads 0.233 at 512 features against that 0.242. NO RUN TAG: on the v3 sets the NLA products sit under `scores/<set>` with none; the `amp-exact` gate below is the v1raw shape of the same arm.",
+   "compare": true,
+   "source": "2026-07-14_nla-av",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-07-14_nla-av` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "old primary mu-none, realact mean cos (2026-09-21 v1raw smoke, n=4)",
+   "expect": 0.876,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, \"the two old-primary arms\": realact rows 0-3 of 2026-09-21_v1raw, n=4, HF, --mu none. Resolves on v1raw only; `absent` on every v3 set, where the same arm's number is the 486-row one below.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-none",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "old primary mu-stats, realact mean cos (2026-09-21 v1raw smoke, n=4)",
+   "expect": 0.8989,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, the same table's stats_mu arm. v1raw only.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-stats",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "old primary mu-stats, realact bo4 (v1raw smoke)",
+   "expect": 0.9339,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-stats",
+   "metric": "cos_raw.bo4",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "old primary mu-none, realact bo4 (v1raw smoke)",
+   "expect": 0.9034,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, the same table's bo_4 column. v1raw only.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-none",
+   "metric": "cos_raw.bo4",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "rl-last16 realact mean centred cos (v1raw smoke, n=4)",
+   "expect": 0.7518,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, \"cos_centred, first numbers\", rl-last16 under whiten_mu on 2026-09-21_v1raw rows 0-3. v1raw only; on `2026-09-21_v3_realact` the recorded number is 0.7590 over 486 rows (gate below).",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_centred.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 rl-last16, realact mean cos_raw (n = 486)",
+   "expect": 0.886,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, rl-last16 x `2026-09-21_v3_realact`, n = 486 after the 26-row `hers_n7.exclude.json` list -- which this driver now applies from the set's own `exclusions.json`. Same rows, same product, a different reader.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 rl-last16, realact mean cos_centred (n = 486)",
+   "expect": 0.759,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, same row, centred column. NOTE that SMOKES read this from `per_target.jsonl`'s `mean_cos_centred` and this driver recomputes the whole centred ladder from `cos_centred.f16`; the two agreeing to 4 dp is the point of the gate.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_centred.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 rl-last16, ours realact mean cos_raw (n = 506)",
+   "expect": 0.8884,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, the `ours` block -- our own v1 realact draw, 6 rows excluded by a DIFFERENT instrument (n=13 full reproduction in her v2 text) from the 26 of the `_realact` block.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_ours` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 rl-last16, ours realact mean cos_centred (n = 506)",
+   "expect": 0.7668,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, the `ours` block, centred column.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-last16",
+   "metric": "cos_centred.bo1",
+   "why": "`set: 2026-09-21_v3_ours` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 old primary mu-stats, realact mean cos_raw (n = 486)",
+   "expect": 0.8881,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, and the arm the \"old primary's mu, SETTLED\" section declares the winner (+0.0051 over mu-none, doc-clustered 95% CI [+0.0030, +0.0072]).",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full@vllm:mu-stats",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 old primary mu-none, realact mean cos_raw (n = 486)",
+   "expect": 0.883,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, the losing arm of the same pair.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full@vllm:mu-none",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 old primary mu-stats, realact bo64 (n = 486)",
+   "expect": 0.9322,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21, \"The old primary's mu, SETTLED\", bo_64 row.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full@vllm:mu-stats",
+   "metric": "cos_raw.bo64",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 rl-last16, subspace/bsf mean cos_raw",
+   "expect": 0.3177,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. `bsf` has NO exclusions -- all 512 rows in both -- so this one IS a rounding-tolerance gate and a miss is a reader defect.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "bsf",
+   "metric": "cos_raw.bo1",
+   "verdict": "absent",
+   "why": "no `cos_raw.bo1` for family `bsf` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 rl-last16, subspace/jlens mean cos_raw",
+   "expect": 0.1058,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "jlens",
+   "metric": "cos_raw.bo1",
+   "verdict": "absent",
+   "why": "no `cos_raw.bo1` for family `jlens` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 rl-last16, realact_long mean cos_raw",
+   "expect": 0.436,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "realact_long",
+   "metric": "cos_raw.bo1",
+   "verdict": "absent",
+   "why": "no `cos_raw.bo1` for family `realact_long` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 rl-last16, ctrl/random mean cos_raw",
+   "expect": 0.0338,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table. All 512 rows, no exclusions.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "random",
+   "metric": "cos_raw.bo1",
+   "ours": 0.033838378906249994,
+   "n": 512,
+   "diff": 3.837890624999729e-05,
+   "verdict": "pass",
+   "why": "|0.0338 \u2212 0.0338| = 0.0000 vs tol 0.0005"
+  },
+  {
+   "name": "eval1 NLA, realact mean cos_raw (n = 486)",
+   "expect": 0.8075,
+   "tol": 0.0005,
+   "provenance": "SMOKES.md 2026-09-21 summary table, NLA n=4 on `2026-09-21_v3_realact`, n = 486 after exclusions -- which this driver now applies.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "2026-07-14_nla-av",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v3_realact` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "eval1 rl-last16, 2M enc median bo1 ratio (512 features)",
+   "expect": 0.239,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table, rl-last16 x 2M, `med bo1 ratio` over the 512 ENCODER features. Same rows, same product, a different reader: a rounding tolerance.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-09-18_rl-last16-lr5e-7@vllm` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 rl-last16, 131k median bo1 ratio (512 features)",
+   "expect": 0.719,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table, rl-last16 x 131k l42-1b. Rounding tolerance.",
+   "compare": true,
+   "source": "2026-09-18_rl-last16-lr5e-7@vllm",
+   "family": "sae/l42-1b",
+   "metric": "ratio.bo1.median",
+   "ours": 0.718495092854972,
+   "n": 512,
+   "diff": -0.000504907145027933,
+   "verdict": "pass",
+   "why": "|0.7185 \u2212 0.7190| = 0.0005 vs tol 0.002"
+  },
+  {
+   "name": "eval1 old primary mu-none, 2M enc median bo1 ratio",
+   "expect": 0.095,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table. Rounding tolerance.",
+   "compare": true,
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-09-10_rl-8x2048-full@vllm:mu-none` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "eval1 NLA, 2M enc median bo1 ratio",
+   "expect": 0.233,
+   "tol": 0.002,
+   "provenance": "SMOKES.md 2026-09-21 SAE table, NLA n=4. Rounding tolerance.",
+   "compare": true,
+   "source": "2026-07-14_nla-av",
+   "family": "sae/sae2m/enc",
+   "metric": "ratio.bo1.median",
+   "verdict": "absent",
+   "why": "no `ratio.bo1.median` for family `sae/sae2m/enc` on `2026-07-14_nla-av` in this run (the family or the best-of-k is not present on this set)"
+  },
+  {
+   "name": "old primary, sae rows, v1raw vs v1 on the shared rows",
+   "expect": null,
+   "tol": 0.01,
+   "provenance": "The `sae` family is not centrable, so both sets store unit(W_enc[:, f]) and `cos_raw` is the same statistic on both. The two runs differ in engine (vLLM there, HF here), n (64 vs 4) and nothing else, so a difference is sampling, not convention. The tolerance is loose because n = 4 here.",
+   "compare": true,
+   "verdict": "absent",
+   "family": "sae/l42-1b",
+   "source": "rl-8x2048-full:mu-none",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "old primary, realact rows, v1raw vs v1 on the shared rows",
+   "expect": null,
+   "tol": null,
+   "provenance": "NOT the same statistic, and printed for the record only. `2026-09-16_v1` is `storage: unit` with its realact rows already centred on stats/mu.f32, so its `cos` has a CENTRED target and a raw scorer -- Celeste's asymmetry -- while a raw set's `cos` centres neither side. A tolerance here would assert a comparability that does not exist.",
+   "compare": false,
+   "verdict": "absent",
+   "family": "realact",
+   "source": "rl-8x2048-full:mu-stats",
+   "metric": "cos_raw.bo1",
+   "why": "`set: 2026-09-21_v1raw` \u2014 this run is `2026-09-21_v3_ctrl`"
+  },
+  {
+   "name": "rl-last16, ctrl sae rows, v3_ctrl vs the 131k rows of v1raw",
+   "expect": null,
+   "tol": null,
+   "provenance": "`2026-09-21_v3_ctrl` was built `--dirs-from \u2026/2026-09-21_v1raw --rows 512-1535`, so its sae rows ARE v1raw's rows 1024-1535 -- but RENUMBERED, and this gate intersects on the row INDEX. So it compares v3_ctrl row r against v1raw row r, which are different targets, and it is `compare: false` for that reason: it exists to print the two numbers side by side while a row-mapping gate does not exist. `src_set` / `src_row` are on the v3_ctrl rows and are what a proper version of this would join on.",
+   "compare": false,
+   "family": "sae/l42-1b",
+   "source": "rl-last16",
+   "metric": "cos_raw.bo1",
+   "verdict": "absent",
+   "why": "`sae/l42-1b` has no row carrying `bo_1` in BOTH `2026-09-18_rl-last16-lr5e-7@vllm` on `2026-09-21_v3_ctrl` and `2026-09-18_rl-last16-lr5e-7` on `2026-09-21_v1raw`"
+  },
+  {
+   "name": "old primary v1 realact mean cos, 0.5076",
+   "expect": 0.5076,
+   "tol": null,
+   "provenance": "SMOKES.md 2026-09-15, rows 0-7 of 2026-09-16_v1. NOT THE SAME STATISTIC as a raw set's `cos`: the stored 0.5076 is cos(h, unit(act - stats_mu)) -- target centred, scorer raw, Celeste's asymmetry -- and on a `storage: raw` set `score` produces cos (neither side centred) and cos_centred (both), never that third column. SMOKES.md 2026-09-21 records this as plan gate 2 being unevaluable rather than failed. Printed for the record with no verdict; delete the line or restate the gate against cos_centred once that is decided. The BARE selector is deliberate: on a set with two old-primary arms this resolves `absent` (matched 2 of the sources), which is right -- the 0.5076 belongs to neither arm.",
+   "compare": false,
+   "source": "2026-09-10_rl-8x2048-full@vllm:mu-none",
+   "family": "realact",
+   "metric": "cos_raw.bo1",
+   "verdict": "absent",
+   "why": "no `cos_raw.bo1` for family `realact` on `2026-09-10_rl-8x2048-full@vllm:mu-none` in this run (the family or the best-of-k is not present on this set)"
+  }
+ ],
+ "missing": [
+  "`qwen36-27b/2026-09-08_rlI-150`: no scores directory for `2026-09-21_v3_ctrl` under `maemms/qwen36-27b/2026-09-08_rlI-150/scores/`",
+  "`qwen36-27b/2026-09-16_base-control`: no scores directory for `2026-09-21_v3_ctrl` under `maemms/qwen36-27b/2026-09-16_base-control/scores/`"
+ ],
+ "notes": []
+}

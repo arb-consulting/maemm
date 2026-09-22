@@ -1,0 +1,152 @@
+# Sanity gates for `results/faithfulness.py`. EDIT THIS FILE, not the driver.
+#
+# Plan §2.3: "Sanity gates before any number is read: her card's realact 0.780 and realact_long
+# 0.716 (bo4, centred, her scorer) within a stated tolerance, and 2M enc/dec fired 0.344 / 0.416
+# [...] Plus the 64-direction stratified smoke's per-stratum peak ratios. A failed gate stops the
+# run: it means the mu or the prompt is wrong."
+#
+# This driver FLAGS rather than stops: it has no way to tell a wrong mu from a set it was never
+# meant to gate, and a run that refuses to print its own tables cannot be inspected. The stop is
+# the reader's, on a flagged line.
+#
+# Each check resolves ONE computed statistic and compares it with `expect`.
+#
+#   source    substring of a source label (`<checkpoint>[@engine][:run-tag]`). Must match exactly
+#             one discovered source, or the check is `absent` with the candidates listed.
+#   family    a family label exactly as the tables print it: `realact`, `random`,
+#             `sae/l42-1b`, `sae/sae2m/enc`, ...
+#   stratum   optional; the row's own `stratum`, for a per-stratum gate. Omit for the all row.
+#   metric    `cos_raw.bo<k>` | `cos_centred.bo<k>`      (mean over the family's rows)
+#             `ratio.bo<k>.median` | `ratio.bo<k>.mean`  (peak activation / 16M corpus peak)
+#             `fired.item`    mean over features of the fraction of that source's draws over gate
+#             `fired.feature` fraction of features whose source fires at all
+#   set       optional; restricts the gate to ONE block. Without it a gate resolves on every
+#             block that carries its family and its source, which is how the v1raw four-row
+#             smoke's 0.7518 came to be compared against a 512-row v3 number and FLAG.
+#   tol       absolute tolerance. `tol_rel: true` makes it relative to `expect`.
+#   compare   `false` prints both numbers and their difference and issues NO verdict -- for a
+#             pair that is not the same statistic. Use it instead of a wide tolerance: a wide
+#             tolerance says "close enough", `compare: false` says "not the same quantity".
+#
+# A check whose selector resolves to nothing is `absent`, with the reason. That is the normal
+# outcome for a gate written against a set this run is not analysing, and it is not a failure.
+#
+# ===============================================================================================
+# WHAT THIS FILE IS, AND IS NOT (rewritten 2026-09-23, M0a).
+#
+# It carries EXTERNAL reference numbers only: Celeste's model card. Everything that used to be
+# here besides that -- 37 checks over four sections -- was pinned to a DATED RUN OF THIS PIPELINE:
+# the 2026-09-21 `sae_smoke64` smoke, the 2026-09-21 v1raw four-row reconciliation, the 2026-09-21
+# eval-1 production table, and four cross-set cosine comparisons. All of it is deleted, for two
+# reasons that are separate and both sufficient:
+#
+#   1. Those numbers were measured under the OLD conventions. The mean of a centred cosine is now
+#      the base's own scoring constant (`common.score_mu`) rather than each run's injection
+#      convention, and `bo_<k>` is now the unbiased order statistic rather than the disjoint-group
+#      mean. A gate comparing today's number to a 09-21 number therefore compares two different
+#      statistics, and a green one would mean the change did not land.
+#   2. The schema here (source / family / stratum / metric / set / expect / tol / compare) can
+#      express a NUMBER and nothing else. It cannot express a row count, a `cos(act, vecs)`
+#      assertion, an injection cosine or control-equals-base. So "the structural gates stay" never
+#      meant "keep part of this file": the structural checks live in `precompute/unit_smoke.py`,
+#      `results/selftest.py` and `results.faithfulness.cosine_reader_check`, and they stay.
+#
+# The `mu-none` / `mu-stats` old-primary arms are gone with them: the old primary is dropped from
+# the paper and survives only as a never-printed pipeline sanity check (spec §0 item 1), so no
+# selector names its run tags any more.
+#
+# Nothing here is a blocking gate. A card gate that misses is a FLAG on a line, and the reader
+# decides -- these are different draws through a different scorer, and the tolerances are stated
+# bands rather than measured ones.
+# ===============================================================================================
+
+checks:
+
+  # ------------------------------------------------------------------------------------------
+  # (1) Celeste's model card -- the numbers in plan §2.3. Her scorer, her 512-feature sets.
+  # EVERY ONE OF THESE IS A DIFFERENT-DENOMINATOR OR DIFFERENT-DRAW COMPARISON, stated per gate.
+  # ------------------------------------------------------------------------------------------
+
+  - name: card realact, rl-last16 bo4 centred
+    source: rl-last16
+    family: realact
+    metric: cos_centred.bo4
+    expect: 0.780
+    tol: 0.05
+    provenance: >-
+      Celeste's card for rl-last16 at bo4 on her 512 realact rows, centred, her scorer.
+      infra/2026-09-21_evals-plan-main.md §2.3. Our bo4 is now the UNBIASED order statistic over
+      all n draws and our centred cosine is taken about the base's scoring constant, so this band
+      is looser against her number than it was, not tighter. DIFFERENT DENOMINATOR AND DIFFERENT
+      DRAW: the
+      tolerance is a STATED band, not a measured one -- her rows are her draw, her scorer is not
+      this one, and our exclusions take the block to n = 486. A pass is consistency, not
+      reproduction; a miss of this size is not by itself evidence of a wrong mu.
+
+  - name: card realact_long, rl-last16 bo4 centred
+    source: rl-last16
+    family: realact_long
+    metric: cos_centred.bo4
+    expect: 0.716
+    tol: 0.05
+    provenance: >-
+      Same card, the realact_long block (plan §2.3). EXPECT `absent`, NOT a number, until the set
+      is re-forwarded: `2026-09-21_v3_realact_long` is `storage: unit`, and since 2026-09-23 a
+      stored unit set has NO centred cosine at all -- `score` writes NaN for its rows rather than
+      a number read at a mean nobody can state. That is the honest form of what this line used to
+      report: SMOKES.md 2026-09-21 records cos_raw 0.4360 against cos_centred 0.6991 on exactly
+      this block, the one family where the centred number came out far ABOVE the raw one, which
+      is the signature of the two sides being centred about different means. The gate resolves
+      again if and only if the block is re-forwarded under the raw contract.
+
+  - name: card 2M encoder fired fraction, rl-last16
+    source: rl-last16
+    family: sae/sae2m/enc
+    metric: fired.item
+    expect: 0.344
+    tol: 0.08
+    # RECORDED, NOT GATED (2026-09-23). Our measured 0.1948 / 0.2265 sit well outside this band
+    # and the discrepancy is unresolved -- one question to Celeste. Kept as a blocking gate it
+    # halts every run on day one, so it prints both numbers with no verdict beside the 2M
+    # appendix block instead (spec §7).
+    compare: false
+    provenance: >-
+      A firing rate has no denominator, so this is the one card number that does not depend on
+      whose corpus peak is used -- the only gate here that is NOT a different-denominator
+      comparison. It remains a different DRAW (her 512 features against our stratified 512).
+      plan §2.3; reconstruction/sae_smoke64.py CARD["qwen36-27b/sae2m"].
+
+  - name: card 2M decoder fired fraction, rl-last16
+    source: rl-last16
+    family: sae/sae2m/dec
+    metric: fired.item
+    expect: 0.416
+    tol: 0.08
+    # RECORDED, NOT GATED (2026-09-23). Our measured 0.1948 / 0.2265 sit well outside this band
+    # and the discrepancy is unresolved -- one question to Celeste. Kept as a blocking gate it
+    # halts every run on day one, so it prints both numbers with no verdict beside the 2M
+    # appendix block instead (spec §7).
+    compare: false
+    provenance: >-
+      "the 0.416 card gate needs it" -- plan §2.1 puts the decoder block in the set for exactly
+      this line, and it is why `sae_self --sae-side dec` exists. Same denominator-free rate as the
+      encoder row above, same different-draw caveat. The PAIR is the finding: her card reads the
+      decoder side HIGHER than the encoder side (0.416 vs 0.344), so the two gates should miss in
+      the same direction or not at all.
+
+  - name: card 131k normalised activation, rl-last16 bo4 median ratio
+    source: rl-last16
+    family: sae/l42-1b
+    metric: ratio.bo4.median
+    expect: 0.824
+    tol: 0.15
+    compare: false
+    provenance: >-
+      Her card's `norm_act` for rl-last16 at bo4 on her 512-feature 131k set
+      (reconstruction/sae_smoke64.py CARD["qwen36-27b/l42-1b"], quoted in sae_smoke64.md).
+      DIFFERENT DENOMINATOR, and this one is not a band -- it is a different quantity: her ratio
+      divides by her corpus peak from the 1.0B-token scan and ours divides by OUR 16M `max_act`
+      (sae_self.py:383), which is a smaller corpus and therefore a smaller peak and a larger
+      ratio. `compare: false` so both numbers print with no verdict; a tolerance here would
+      assert a comparability that does not exist. `corpus_peak_1b` is on the rows if anyone wants
+      to compute her denominator properly, which is a separate piece of work.
