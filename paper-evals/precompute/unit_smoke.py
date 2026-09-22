@@ -2056,8 +2056,18 @@ def check_every_set_writer_writes_the_contract():
     import ast
 
     root = Path(__file__).resolve().parent.parent
-    for rel in ("precompute/targets.py", "features/draw_sae2m.py", "features/heldout_v2.py",
-                "features/heldout_v3.py"):
+    # FROM `C.SET_WRITERS`, not a second hand-kept list: the D6 tuple and this one had already
+    # drifted (`draw_sae131k` arrived on main writing no contract at all, and `spawn.py` held a
+    # third copy that knew about neither it nor `heldout_v3`). `heldout_v2` is not a D6 writer --
+    # it predates the entrypoint assert -- so it is named separately.
+    rels = {"targets": "precompute/targets.py", "draw_sae2m": "features/draw_sae2m.py",
+            "draw_sae131k": "features/draw_sae131k.py", "heldout_v3": "features/heldout_v3.py"}
+    unmapped = sorted(set(C.SET_WRITERS) - set(rels))
+    assert not unmapped, (
+        f"C.SET_WRITERS names {unmapped}, which this check has no source file for: a new set "
+        f"writer must be added here, or it can be born writing no storage contract at all"
+    )
+    for rel in [rels[k] for k in C.SET_WRITERS] + ["features/heldout_v2.py"]:
         src = (root / rel).read_text()
         assert C.STORAGE_FILE in src, (
             f"{rel} draws a held-out set but never writes {C.STORAGE_FILE}: common.set_storage "
@@ -2073,6 +2083,122 @@ def check_every_set_writer_writes_the_contract():
         assert kinds, f"{rel} writes {C.STORAGE_FILE} but names no storage kind from {list(C.STORAGE_KINDS)}"
 
 
+
+
+def check_draws_call_finish_with_its_signature():
+    """`features/draw_*.py` call `draw_sae2m._finish` with the arity it actually has.
+
+    The defect this is for arrived through a merge, not through an edit: `_finish` gained a
+    `peak16` parameter on this branch (between `gated_full` and `cuts`), and `draw_sae131k.py` --
+    written against the older 16-argument signature on main -- kept calling it positionally. Git
+    reported no conflict, because the two changes are in different files. The call bound `cuts` to
+    `peak16` and the meta dict to `cuts`, then raised `TypeError` on the missing `meta_extra`.
+
+    Positional binding across a module boundary is the whole hazard, so the check counts
+    positionals rather than trusting that a call which parses is a call that binds.
+    """
+    import ast
+    import inspect
+
+    from features.draw_sae2m import _finish
+
+    params = list(inspect.signature(_finish).parameters)
+    n_required = len([p for p in inspect.signature(_finish).parameters.values()
+                      if p.default is inspect.Parameter.empty])
+    root = Path(__file__).resolve().parent.parent
+    seen = 0
+    for path in sorted((root / "features").glob("draw_*.py")):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == "_finish"):
+                continue
+            seen += 1
+            n_pos = len(node.args)
+            kw = {k.arg for k in node.keywords if k.arg}
+            assert n_pos + len(kw) >= n_required, (
+                f"{path.name}:{node.lineno} calls _finish with {n_pos} positional + {len(kw)} "
+                f"keyword arguments; it takes {n_required} required, {params}. A short positional "
+                f"call does not fail where it is written -- it binds every argument after the "
+                f"missing one to the wrong parameter.")
+            assert n_pos <= len(params), (
+                f"{path.name}:{node.lineno} passes {n_pos} positional arguments to a _finish that "
+                f"takes {len(params)}: {params}")
+    assert seen >= 2, f"found only {seen} _finish call sites; the check is not reaching them"
+    print(f"  _finish: {seen} call sites, all binding {n_required} parameters")
+
+
+def check_no_draw_stamps_a_bare_sae_key():
+    """No draw overwrites the full `<base>/<name>` sae_key with a bare dictionary name.
+
+    `draw_sae131k.py` did: `_finish` stamped `sae_key: "qwen36-27b/l42-1b"` per row and the caller
+    then replaced it with `"l42-1b"`. `common.sae_rows_of` matches the FULL key, so every row
+    missed -- and because the rows ARE keyed, just wrongly, the unkeyed branch's loud assert never
+    fired. `scan` would have run with `n_feat = 0`, which is not an error condition anywhere. A
+    silent empty selection is the worst shape this class of defect takes, so it gets a check that
+    names the shape rather than the one file that had it.
+    """
+    import ast
+
+    root = Path(__file__).resolve().parent.parent
+    for path in sorted((root / "features").glob("draw_*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.Assign):
+                continue
+            for tgt in node.targets:
+                if not (isinstance(tgt, ast.Subscript) and isinstance(tgt.slice, ast.Constant)
+                        and tgt.slice.value == "sae_key"):
+                    continue
+                val = node.value
+                assert not (isinstance(val, ast.Constant) and isinstance(val.value, str)), (
+                    f"{path.name}:{node.lineno} assigns a LITERAL sae_key {val.value!r}. It must "
+                    f"be the full `<base>/<name>` config key (C.sae_key_for), or common.sae_rows_of "
+                    f"selects nothing and says nothing.")
+    print("  draws: no literal sae_key overwrites the full config key")
+
+
+def check_one_set_writers_tuple():
+    """`modal_app` and `features/spawn` enforce D6 off the SAME tuple.
+
+    Both had their own copy and the copies had drifted: modal_app knew `heldout_v3`, spawn did
+    not, and neither knew `draw_sae131k`. `spawn.py` is the path that bypasses `modal_app.main`
+    entirely -- which is how a set got onto the volume without ever being declared -- so its guard
+    being the weaker of the two is the wrong way round.
+    """
+    import ast
+
+    # ON THE COMPARISON, not on the text. The first version of this check asked whether the source
+    # contained the string "C.SET_WRITERS" -- and stayed GREEN under the mutation that put the
+    # literal tuple back in the assert, because the COMMENT above the assert names the constant.
+    # A grep for a symbol finds the prose about the symbol too.
+    root = Path(__file__).resolve().parent.parent
+    for rel in ("precompute/modal_app.py", "features/spawn.py"):
+        tree = ast.parse((root / rel).read_text())
+        reads, literals = [], []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Compare):
+                continue
+            for comp in node.comparators:
+                if isinstance(comp, ast.Attribute) and comp.attr == "SET_WRITERS":
+                    reads.append(node.lineno)
+                if isinstance(comp, ast.Tuple) and any(
+                    isinstance(e, ast.Constant) and e.value in ("targets", "draw_sae2m")
+                    for e in comp.elts
+                ):
+                    literals.append(node.lineno)
+        assert reads, (
+            f"{rel}: no `in`/`not in` comparison against `C.SET_WRITERS`. The D6 guard has a "
+            f"second copy of the tuple again, and a copy is a thing that drifts")
+        assert not literals, (
+            f"{rel}:{literals[0]} compares a product against a LITERAL set-writer tuple. There is "
+            f"one such tuple and it lives in common.py")
+        lits = [n for n in ast.walk(tree)
+                if isinstance(n, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == "SET_WRITERS" for t in n.targets)]
+        assert not lits, f"{rel}:{lits[0].lineno} redefines SET_WRITERS; common.py owns it"
+    assert "draw_sae131k" in C.SET_WRITERS, (
+        "draw_sae131k WRITES a held-out set and --force rmtrees what is there; it must be under D6")
+    print(f"  D6: one SET_WRITERS tuple, {list(C.SET_WRITERS)}")
 
 
 def check_corpus_axis():
@@ -2175,6 +2301,9 @@ CHECKS = [
     check_return_arities,
     check_centred_uses_one_mu,
     check_every_set_writer_writes_the_contract,
+    check_draws_call_finish_with_its_signature,
+    check_no_draw_stamps_a_bare_sae_key,
+    check_one_set_writers_tuple,
     check_corpus_axis,
     check_rollouts_nla_selftest,
 ]

@@ -100,14 +100,16 @@ def main() -> None:
 
     args = {k: getattr(a, k) for k in DEFAULTS if k not in _LOCAL_ONLY}
     args["heldout"] = a.heldout or a.set
+    # paper-evals/ is this file's parent; spawn is run as `python -m features.spawn` from it, but
+    # be explicit so a direct invocation resolves the same way. Hoisted out of the `--corpus`
+    # branch below on 2026-09-21: the D6 guard reads `C.SET_WRITERS` and fires on EVERY spawn, not
+    # only the ones that name a corpus.
+    from pathlib import Path as _P
+
+    sys.path.insert(0, str(_P(__file__).resolve().parent.parent))
+    import precompute.common as C
+
     if a.corpus:
-        # paper-evals/ is this file's parent; spawn is run as `python -m features.spawn` from it,
-        # but be explicit so a direct invocation resolves the same way.
-        from pathlib import Path as _P
-
-        sys.path.insert(0, str(_P(__file__).resolve().parent.parent))
-        import precompute.common as C
-
         assert not a.corpus_name, (
             f"pass --corpus {a.corpus!r} OR --corpus-name {a.corpus_name!r}, not both: the key "
             f"resolves to the directory name and two sources for one value can only disagree"
@@ -118,7 +120,7 @@ def main() -> None:
     # The same D6 guard modal_app.main applies: a product that WRITES a set is never given the
     # live default. This path bypasses that entrypoint entirely, which is exactly how the hazard
     # got here in the first place.
-    assert args["heldout"] or a.product not in ("targets", "draw_sae2m"), (
+    assert args["heldout"] or a.product not in C.SET_WRITERS, (
         f"product {a.product!r} WRITES a held-out set, so it needs an explicit --set <name> (D6)"
     )
     # The container has no checkout; modal_app records this in every README.

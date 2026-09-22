@@ -304,10 +304,6 @@ PRODUCTS = {
 CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred", "heldout_v3")
 # Products that need --maemm.
 MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
-# Products that WRITE a held-out set. They must be told which by name -- D6. An omitted --set used
-# to resolve to `common.default_heldout(cfg)`, which is the LIVE set every table is built on, and
-# `--force` would then rmtree it. There is no safe default for "where do I write a new set".
-SET_WRITERS = ("targets", "draw_sae2m", "heldout_v3")
 
 
 def _run(product, args, gpu_label):
@@ -484,7 +480,7 @@ def main(
     # D6: a set WRITER is never given a default. `draw_sae2m` and `targets` create a directory and
     # `--force` rmtrees what is there, so an omitted --set resolving to the live default set is one
     # keystroke away from destroying the set the paper's tables are built on.
-    assert not (product in SET_WRITERS and not (set or heldout)), (
+    assert not (product in C.SET_WRITERS and not (set or heldout)), (
         f"product {product!r} WRITES a held-out set, so it needs an explicit --set <name>: an "
         f"omitted one would resolve to {default!r}, the live default set, and --force would "
         f"replace it (D6). config.yaml declares {sorted(cfg['heldout'])}."

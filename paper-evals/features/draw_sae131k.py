@@ -63,7 +63,10 @@ def build(cfg, args):
     import pandas as pd
 
     base, root = args["base"], args["root"]
-    sae_key = args["sae"] if "/" in args.get("sae", "") else f"{base}/{args.get('sae')}"
+    # ONE --sae syntax in the whole CLI (fd502c1). The inline form this file was written with
+    # accepted a bare name where every other product refuses one, and produced the literal string
+    # "qwen36-27b/None" rather than asserting when --sae was omitted.
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
     spec = cfg["bases"][base]
     set_name = args["heldout"] or time.strftime("%Y-%m-%d") + "_sae131k"
     out_dir = C.heldout_dir(base, set_name, root)
@@ -92,9 +95,16 @@ def build(cfg, args):
     set_name, out_dir, rows, vecs, meta = _finish(
         cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
         peak_by_id, "log10_pool_peak_act", f"pool_heldout/sae.parquet ({len(ids):,})",
-        False, None, cuts, {"pool": len(ids), "eligible": int(len(ids))})
+        # `peak16` (the 16M-corpus peak) is None here: this draw reads the 1B pool's `act`, and
+        # `corpus_peak_16m` is a different quantity on a different corpus. The slot was added to
+        # `_finish` on this branch AFTER draw_sae131k was written against the 16-argument
+        # signature, which bound `cuts` to `peak16` and raised a TypeError on the meta dict.
+        False, None, None, cuts, {"pool": len(ids), "eligible": int(len(ids))})
     for r in rows:
-        r["sae_key"] = "l42-1b"
+        # NOT `r["sae_key"] = "l42-1b"`, which is what this loop used to do. `_finish` already
+        # stamps the FULL config key, and `common.sae_rows_of` matches on the full key -- a bare
+        # name matches nothing, and because the row IS keyed (just wrongly) the unkeyed branch's
+        # loud assert never fires: `scan` would simply run with n_feat = 0.
         r["heldout_note"] = HELDOUT_NOTE
     return set_name, out_dir, rows, vecs, meta
 
@@ -104,8 +114,29 @@ def run(cfg, args):
     with C.outdir(out_dir, args, inputs={"sae": args.get("sae"), "pool": POOL}) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
-        od.note(f"{len(rows)} features of the 131k SAE (l42-1b), family tag 'sae', "
-                f"sae_key 'l42-1b' -- feature ids are NOT comparable with sae2m's")
+        # THE STORAGE CONTRACT (H4), the same one `draw_sae2m.run` writes. Without it
+        # `common.set_storage` refuses the set outright and somebody has to hand-write a
+        # `heldout:` entry -- which is exactly what `2026-09-21_sae131k_2k` needed on the way in.
+        # `dirs_only`: these rows are unit encoder columns, never centred and not centrable, so no
+        # `--mu` applies to them at all.
+        od.write_json(
+            "storage.json",
+            {
+                "storage": "dirs_only",
+                "mu_stored": None,
+                "family_mu": {},
+                "families": {"sae": "dictionary"},
+                "sae_key": meta["sae_key"],
+                "sae_sides": meta["sides"],
+                "note": (
+                    "unit dictionary columns -- unit(W_enc[:, f]) of the 131k `l42-1b` SAE: "
+                    "never centred, not centrable (config.yaml family_kinds), so every --mu is "
+                    "a no-op on them"
+                ),
+            },
+        )
+        od.note(f"{len(rows)} features of the 131k SAE, family tag 'sae', sae_key "
+                f"{rows[0]['sae_key']!r} -- feature ids are NOT comparable with sae2m's")
         od.note(f"{meta['n_fit']} train / {meta['n_report']} test, seed {DRAW_SEED}; "
                 f"BOTH halves are unseen -- this splits our analysis, not the training")
         od.note(f"strata: {meta['stratum_stat']} quartiles over the drawn set, recorded "

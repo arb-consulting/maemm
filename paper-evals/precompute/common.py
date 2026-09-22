@@ -56,6 +56,15 @@ AMP_MODES = ("exact", "mu", "raw")
 # nothing else changes. That is what lets a new SAE / MAEMM land as a config-only edit.
 FAMILY_KINDS = ("activation", "synthetic", "dictionary", "subspace")
 STORAGE_KINDS = ("raw", "unit", "dirs_only")
+# Products that WRITE a held-out set. They must be told which by name -- D6. An omitted --set
+# used to resolve to `default_heldout(cfg)`, the LIVE set every table is built on, and `--force`
+# would then rmtree it. There is no safe default for "where do I write a new set".
+#
+# HERE, not in modal_app, because `features/spawn.py` enforces the same guard and bypasses
+# modal_app entirely -- which is how the hazard reached the volume in the first place. Two copies
+# of this tuple had already drifted apart by 2026-09-21: modal_app knew about `heldout_v3` and
+# spawn did not, and neither knew about `draw_sae131k`.
+SET_WRITERS = ("targets", "draw_sae2m", "draw_sae131k", "heldout_v3")
 # "this arrived centred on a mean nobody here holds" -- legal in `family_mu` / `mu_stored` only.
 MU_UNKNOWN = "unknown"
 # Accepted on-disk forms of a mean. Anything else is a typo, not a format.
