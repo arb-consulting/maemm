@@ -265,6 +265,42 @@ def check_exact_cos_asks_for_both_cosines_and_reduces_them_alike():
     print("  exact_cos: both cosines from one forward, reduced alike, argmaxes apart")
 
 
+def check_every_stream_key_is_a_logical_name():
+    """`prior` is keyed by the LOGICAL stream name, everywhere it is read.
+
+    MEASURED THE CHEAP WAY 2026-09-23, minutes after the first launch: three lines still read
+    `prior.get("finals.jsonl")` after the dict's keys became `finals` / `trajectory` / `top64`.
+    They returned nothing and raised nothing, so a resumed chunk would have written the carried
+    directions into its FILES and left them out of its mean, its SE and its per-direction table --
+    a wrong number with no symptom. `ast` checks it for free: every subscript and `.get` of `prior`
+    must name one of STREAMS.
+    """
+    import ast
+
+    src = (HERE / "gcg.py").read_text()
+    bad = []
+    for node in ast.walk(ast.parse(src)):
+        key = None
+        if (isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name)
+                and node.value.id == "prior" and isinstance(node.slice, ast.Constant)):
+            key = node.slice.value
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+              and node.func.attr == "get" and isinstance(node.func.value, ast.Name)
+              and node.func.value.id == "prior" and node.args
+              and isinstance(node.args[0], ast.Constant)):
+            key = node.args[0].value
+        if key is not None and key not in G.STREAMS:
+            bad.append((node.lineno, key))
+    assert not bad, (
+        f"gcg.py reads `prior` with {bad}, which is not one of {list(G.STREAMS)}. A file name "
+        f"there returns nothing and raises nothing: the carried directions reach the files and "
+        f"not the aggregates."
+    )
+    # MUTATION: the check sees a file-name key when there is one
+    assert [k for k in ("finals.jsonl",) if k not in G.STREAMS], "STREAMS swallowed a file name"
+    print(f"  prior: every key is a logical stream name ({len(G.STREAMS)} of them)")
+
+
 def check_the_scoring_mean_has_exactly_one_source():
     """`score_mu_spec` is the base's whiten_mu -- and M0a's function the moment it exists."""
     cfg = {"bases": {"b": {"whiten_mu": "/vol/archive/x.npy", "d": 4}}}
@@ -294,6 +330,7 @@ CHECKS = [
     check_the_collision_gate_refuses_all_three_shapes,
     check_a_committed_chunk_is_reused_not_rerun,
     check_exact_cos_asks_for_both_cosines_and_reduces_them_alike,
+    check_every_stream_key_is_a_logical_name,
     check_the_scoring_mean_has_exactly_one_source,
 ]
 

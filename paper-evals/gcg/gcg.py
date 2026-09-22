@@ -165,8 +165,6 @@ _BULKY_FINAL_KEYS = ("ids", "init_ids", "per_token_cos")
 
 # The three per-direction streams, in the order a direction writes them; `--resume-from` copies
 # exactly these out of a kept temp dir.
-RESUME_STREAMS = ("finals.jsonl", "trajectory.jsonl", "top64.jsonl")
-
 # The three streams as LOGICAL names. `chunk_files` turns them into the file names one call writes.
 STREAMS = ("finals", "trajectory", "top64")
 
@@ -1767,9 +1765,12 @@ def run(cfg, args):
             f"{resume_from} ({len(done_rows)} of {len(sel)} directions carried, not re-run here)"
         )
 
-    all_finals: list[dict] = list(prior.get("finals.jsonl", []))
-    all_top: list[dict] = list(prior.get("top64.jsonl", []))
-    all_traj: list[dict] = list(prior.get("trajectory.jsonl", []))
+    # `prior` is keyed by the LOGICAL stream name (STREAMS), not by the file name -- the file name
+    # is per chunk. Reading it with the old `finals.jsonl` key silently returned nothing, which
+    # would have put the carried directions in the FILES and left them out of every aggregate.
+    all_finals: list[dict] = list(prior.get("finals", []))
+    all_top: list[dict] = list(prior.get("top64", []))
+    all_traj: list[dict] = list(prior.get("trajectory", []))
     runs: dict[str, dict] = {}
     # keep_existing = ADDITIVE (M0a, 2026-09-23): the chunks of one arm share its directory, each
     # staging in a temp of its own and moving in only its own four files. A whole-family run is a
