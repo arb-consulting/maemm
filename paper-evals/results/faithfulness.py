@@ -299,16 +299,50 @@ class CorpusPeaks:
     one a cell was built from, so the table cannot be misread whichever M2 lands.
     """
 
-    def __init__(self, spec: str, by_row: dict[int, float] | None, provenance: str, rel: str = ""):
+    def __init__(self, spec: str, by_row: dict[int, float] | None, provenance: str, rel: str = "",
+                 set_name: str = "", sae_key: str = ""):
         self.spec = spec
         self.by_row = by_row
         self.provenance = provenance
         self.rel = rel
+        # WHAT THE ROW NUMBERS MEAN, read off the product's own `summary.json`. `by_row` is keyed
+        # by the SET ROW of the set `top1_act` ran on and a row number means nothing outside it.
+        self.set_name = set_name
+        self.sae_key = sae_key
         self.missing_rows: list[int] = []
 
     @property
     def is_stored(self) -> bool:
         return self.by_row is None
+
+    def applies_to(self, set_name: str, sae_key: str) -> tuple[bool, str]:
+        """(may this product answer for that family, why not) -- the SET and the DICTIONARY.
+
+        THE ROW JOIN IS NOT SELF-DESCRIBING. `2026-09-21_v3_ctrl`'s 131k features sit at rows
+        512-1023 and `2026-09-21_v3_sae2m`'s decoder half sits at exactly the same numbers, so a
+        `top1_act` product of the first answers every question the second asks -- and answers all
+        512 of them with ANOTHER DICTIONARY's feature, silently, in a cell that prints as a
+        perfectly ordinary ratio. `discover_families` already refuses to guess a dictionary from a
+        feature id for this exact reason ("every 131k id is also a valid 2M index"); the
+        denominator is the same join and gets the same refusal.
+
+        `stored` needs no check: `sae_self` records each feature's `corpus_peak` in the family's
+        own product, so it cannot be another set's number. A product whose `summary.json` states
+        neither field is REFUSED rather than trusted -- an absent check is not a passed one.
+        """
+        if self.is_stored:
+            return True, ""
+        if not self.set_name or not self.sae_key:
+            return False, (
+                f"`{self.rel}` states no `set`/`sae` in its summary.json, so which set its row "
+                f"numbers index is unstated and a row join onto `{set_name}` cannot be checked")
+        if self.set_name != set_name or self.sae_key != sae_key:
+            return False, (
+                f"`{self.rel}` is indexed by the rows of set `{self.set_name}`, dictionary "
+                f"`{self.sae_key}`; this family is set `{set_name}`, dictionary `{sae_key}`. The "
+                f"row numbers overlap and mean different features, so the denominator is ABSENT "
+                f"here rather than taken from the other product")
+        return True, ""
 
     def of(self, row: int, stored: float) -> tuple[float, str]:
         if self.by_row is None:
@@ -363,6 +397,7 @@ def corpus_peaks(vol: R.Vol, spec: str) -> CorpusPeaks:
     assert by_row, f"{rel}/top1_act.jsonl carries {len(recs)} rows and not one `act_max`"
     summary = vol.json(f"{rel}/summary.json") or {}
     size = summary.get("corpus_size_m")
+    prod_set, prod_sae = str(summary.get("set") or ""), str(summary.get("sae") or "")
     prov = (
         f"`{rel}` top1_act.jsonl `act_max`: the pre-gate activation of the COSINE top-1 corpus "
         f"window of each feature"
@@ -372,11 +407,12 @@ def corpus_peaks(vol: R.Vol, spec: str) -> CorpusPeaks:
         + f" ({len(by_row)} features). A lower bound on the feature's peak over that corpus, not "
           f"a scan max_act"
     )
-    return CorpusPeaks(spec, by_row, prov, rel)
+    return CorpusPeaks(spec, by_row, prov, rel, prod_set, prod_sae)
 
 
 def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict],
-              vol: R.Vol, peak_src: CorpusPeaks | None = None) -> tuple[list[dict], list[dict], dict]:
+              vol: R.Vol, peak_src: CorpusPeaks | None = None,
+              set_name: str = "") -> tuple[list[dict], list[dict], dict]:
     """(aggregate rows incl. per stratum, per-feature rows, the reader check) for one SAE family.
 
     Per feature, `peaks_of` gives one peak activation per rollout; `bo_ladder` turns those
@@ -407,6 +443,14 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
         return [], [], {"absent": act if isinstance(act, str) else rel}
     gate = float(meta["gate"])
     denom = peak_src or CorpusPeaks(CORPUS_PEAK_STORED, None, STORED_PEAK_PROVENANCE)
+    # A `top1_act` product of ANOTHER set indexes rows this family also has, so it is refused per
+    # family and the ratios become ABSENT rather than another dictionary's number. Every cell
+    # without a denominator (the ratios) is then skipped and listed; the fired cells have no
+    # denominator and are unaffected, which is the split the 2M block needs.
+    applies, why = denom.applies_to(set_name, fam.sae_key)
+    if not applies:
+        denom = CorpusPeaks(denom.spec, {}, f"NO DENOMINATOR -- {why}", denom.rel,
+                            denom.set_name, denom.sae_key)
     stored = {int(p["row"]): p for p in meta.get("per_target", [])}
     want = set(rows)
     feats: list[dict] = []
@@ -675,7 +719,7 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
             continue
         for src in usable:
             if dict_family:
-                aggs, feats, chk = sae_cells(fam, rows, src, ids, vol, peak_src)
+                aggs, feats, chk = sae_cells(fam, rows, src, ids, vol, peak_src, set_name)
                 sae_rows += aggs
                 for f in feats:
                     sae_feats.append({**f, "family": fam.label, "source": src.label})
@@ -2013,6 +2057,18 @@ def panel_b_cells(all_res: list[dict], cfg: dict, opts: dict):
         denoms = sorted({a["corpus_peak_source"] for a in aggs})
         assert len(denoms) == 1, f"`sae.{key_set}` spans {len(denoms)} ratio denominators: {denoms}"
         denom = denoms[0]
+        # EVERY ratio of this dictionary is absent -- say why HERE, once, instead of letting the
+        # keys fall into the generic "not built by this run" list at the end. An empty `per_k` on
+        # every aggregate means the source `--corpus-peak` names answered for none of these
+        # features, and on the real volume that is a product of ANOTHER SET whose row numbers
+        # collide with this one's (`CorpusPeaks.applies_to`). The fired cells below are unaffected.
+        if all(not a["per_k"] for a in aggs):
+            skipped.append(
+                f"every `sae.{key_set}.ex.ratio.*` cell SKIPPED and not written: no feature of "
+                f"this dictionary has a corpus-peak denominator ("
+                f"{sum(a['n_no_denominator'] for a in aggs if a['stratum'] is None)} of "
+                f"{sum(a['n_features'] for a in aggs if a['stratum'] is None)} features). The "
+                f"denominator source is: {denom}")
         # A RATIO IS ONLY `final` ON THE SPEC'S DENOMINATOR. Spec §1.2 and §1.4 say the ratio's
         # denominator is the feature's peak on the 10M TRAINING corpus (`celeste-train10m`), which
         # M2's scan produces; the default `stored` denominator is `sae_self`'s own 16M held-out

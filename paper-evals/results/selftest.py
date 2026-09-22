@@ -2913,16 +2913,23 @@ def _m1_scan(root: Path, key: str = M1_CORPUS_KEY, top1: dict | None = None,
     return f"{M1_RA}__{key}"
 
 
-def _m1_top1_act(root: Path, rel: str, act_max: float = M1_TOP1_PEAK) -> str:
-    """M2's `top1_act` product on the 10M training corpus, in its own layout."""
+def _m1_top1_act(root: Path, rel: str, act_max: float = M1_TOP1_PEAK,
+                 set_name: str = M1_CT, sae_key: str = M1_SAE, summary: bool = True) -> str:
+    """M2's `top1_act` product on the 10M training corpus, in its own layout.
+
+    `set_name` / `sae_key` are what the product's `summary.json` says its ROW NUMBERS index. They
+    are parameters because a product of another set carries the same row numbers and must not be
+    allowed to answer for this one.
+    """
     d = root / rel
     d.mkdir(parents=True, exist_ok=True)
     with open(d / "top1_act.jsonl", "w") as fh:
         for i in range(8):
             fh.write(json.dumps({"row": 2 + i, "feature": 1000 + i, "stratum": i // 2,
                                  "act_max": act_max, "gate": M1_GATE, "size": 10}) + "\n")
-    (d / "summary.json").write_text(json.dumps(
-        {"corpus_size_m": 10, "sae": M1_SAE, "set": M1_CT, "n_features": 8}))
+    if summary:
+        (d / "summary.json").write_text(json.dumps(
+            {"corpus_size_m": 10, "sae": sae_key, "set": set_name, "n_features": 8}))
     return rel
 
 
@@ -3380,6 +3387,59 @@ def check_m1_corpus_denominator_is_a_parameter():
         assert math.isnan(v) and peaks.missing_rows == [3], (v, peaks.missing_rows)
 
 
+def check_m1_denominator_of_another_set_is_refused():
+    """A `top1_act` product of ANOTHER set must not answer this family's rows.
+
+    THE ROW JOIN IS NOT SELF-DESCRIBING, and on the real volume the two sets collide exactly:
+    `2026-09-21_v3_ctrl`'s 131k features are rows 512-1023 and `2026-09-21_v3_sae2m`'s decoder
+    half is rows 512-1023, so the 131k `top1_act` answers every question the 2M decoder block
+    asks and answers all of them with another dictionary's feature. `discover_families` already
+    refuses to guess a dictionary from a feature id ("every 131k id is also a valid 2M index");
+    this is the same join and gets the same refusal.
+
+    The refusal is per FAMILY and not a raise: the ratios go absent and are listed, while the
+    fired cells -- which have no denominator -- still land. That is the split the 2M block needs.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _m1_mirror(root)
+        good = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__ok")
+        # the SAME rows and the same act_max, but the summary says another set
+        other = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/OTHER__10m",
+                             set_name="ANOTHER_SET")
+        # ... and another whose summary says another DICTIONARY
+        wrong_sae = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__sae2m",
+                                 sae_key=f"{M1_BASE}/sae2m")
+        # ... and one that states neither, which is refused rather than trusted
+        silent = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__nosum",
+                              summary=False)
+
+        ok_rows, _ = _m1_cells(root, corpus=False, corpus_peak=f"top1_act:{good}")
+        by_ok = _m1_by_key(ok_rows)
+        assert by_ok["sae.l131k.ex.ratio.bo1.q1"]["value"] == f"{M1_RATIO_TOP1[0]:.4f}", by_ok
+
+        for rel, wanted in ((other, "ANOTHER_SET"), (wrong_sae, "sae2m"), (silent, "states no")):
+            rows, skipped = _m1_cells(root, corpus=False, corpus_peak=f"top1_act:{rel}")
+            by = _m1_by_key(rows)
+            for s_ in range(4):
+                q = f"sae.l131k.ex.ratio.bo1.q{s_ + 1}"
+                assert q not in by, f"{rel}: {q} was built from another product's rows: {by[q]}"
+            # the fired cells are untouched: they have no denominator
+            assert by["sae.l131k.ex.fired.bo1.q1"]["value"] == f"{M1_FIRED[0]:.4f}", by
+            joined = " | ".join(skipped)
+            assert wanted in joined, (rel, joined)
+            assert "NO DENOMINATOR" in joined or "no denominator" in joined.lower(), joined
+
+        # THE MUTATION. Point the refused product's summary back at this set and dictionary and
+        # the ratios must come back -- so the refusal above is about the stated provenance and
+        # not about some other difference between the two products.
+        (root / other / "summary.json").write_text(json.dumps(
+            {"corpus_size_m": 10, "sae": M1_SAE, "set": M1_CT, "n_features": 8}))
+        back, _ = _m1_cells(root, corpus=False, corpus_peak=f"top1_act:{other}")
+        bb = _m1_by_key(back)
+        assert bb["sae.l131k.ex.ratio.bo1.q1"]["value"] == f"{M1_RATIO_TOP1[0]:.4f}", bb
+
+
 def check_m1_missing_corpus_search_skips_and_lists():
     """No `results/corpus_search.py` -> the paired cells are SKIPPED and LISTED, never zero-filled.
 
@@ -3611,6 +3671,7 @@ CHECKS = [
     check_m1_panel_b_cells_and_the_gate,
     check_m1_cells_writer_keeps_the_file_s_line_endings,
     check_m1_corpus_denominator_is_a_parameter,
+    check_m1_denominator_of_another_set_is_refused,
     check_m1_missing_corpus_search_skips_and_lists,
     check_m1_paired_cells_read_m2s_scan,
     check_m1_cells_end_to_end,
