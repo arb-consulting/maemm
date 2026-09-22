@@ -91,7 +91,7 @@ def build(cfg, args):
     stratum = np.searchsorted(cuts, np.log10(np.maximum(peak, 1e-6)), side="right")
     side = np.where(rng.random(N_FEATURES) < FIT_FRACTION, "train", "test")
 
-    peak_by_id = dict(zip(drawn.tolist(), peak.tolist()))
+    peak_by_id = dict(zip(drawn.tolist(), peak.tolist(), strict=True))
     set_name, out_dir, rows, vecs, meta = _finish(
         cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
         peak_by_id, "log10_pool_peak_act", f"pool_heldout/sae.parquet ({len(ids):,})",

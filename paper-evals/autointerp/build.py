@@ -54,8 +54,7 @@ import time
 import numpy as np
 
 import precompute.common as C
-from precompute.rollouts_nla import (explanation_body, explanation_token_mask,
-                                     extract_explanation)
+from precompute.rollouts_nla import explanation_body, explanation_token_mask
 
 # The held-out families whose targets ARE SAE features, so a "the feature's own activation on
 # this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
@@ -1497,8 +1496,14 @@ def run(cfg, args):
                 "n_dup_rollouts_total": sum(f.get("n_dup_rollouts", 0) for f in feat_table),
                 "n_shown_exceeding_corpus_peak": n_exceed_peak,
                 "rollout_mark": rollout_mark,
-                # Arm A rollouts whose `<explanation>` never closed, so the full decode was shown.
-                "n_nla_body_missing": n_nla_body_missing,
+                # Arm A: how every shown rollout's <explanation> body was found, summed over
+                # features. `unclosed` ran into max_new; `none` had no tag and was shown whole.
+                # (This replaced a single `n_nla_body_missing` counter in the 2026-09-21 rebase,
+                # when the branch's own body slicer gave way to the shared three-state mask.)
+                "nla_tag_status": {
+                    k: sum(f.get("nla_tag_status", {}).get(k, 0) for f in feat_table)
+                    for k in sorted({k for f in feat_table for k in f.get("nla_tag_status", {})})
+                },
                 # Per arm: how many blocks each marking rule produced, and how many reached the
                 # explainer with NOTHING marked. The last number is the one to read against a
                 # gate-marked build of the same features.

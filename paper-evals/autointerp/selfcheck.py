@@ -498,8 +498,8 @@ def check_nla_body_tokens():
     bad = "pre<explanation>never closed"
     b_mask, b_status = explanation_token_mask(B.token_pieces(tok, [ord(c) for c in bad]))
     assert b_status == "unclosed", b_status
-    assert "".join(c for c, m in zip(bad, b_mask) if m) == "never closed", \
-        "".join(c for c, m in zip(bad, b_mask) if m)
+    kept_bad = "".join(c for c, m in zip(bad, b_mask, strict=True) if m)
+    assert kept_bad == "never closed", kept_bad
 
     # NO tag at all keeps every token and says so, rather than dropping the feature and
     # shrinking this arm relative to the others in a paired comparison.

@@ -173,7 +173,7 @@ def main() -> None:
          "started": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=1))
     print("\n" + json.dumps(calls, indent=1))
     print(f"\nstate: {STATE / (a.heldout + '.json')}")
-    print(f"status: python -m features.pipeline --status")
+    print("status: python -m features.pipeline --status")
 
     if a.watch:
         for stage, cid in calls.items():
