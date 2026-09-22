@@ -2886,6 +2886,11 @@ def check_ood_config():
     assert len(C.ood_set_arms(cfg, "2026-09-18_ood_v1")) == 23
     assert cfg["heldout"]["2026-09-18_ood_v1_unitend"]["variant_of"] == "2026-09-18_ood_v1"
     assert C.families_for(cfg, "2026-09-18_ood_v1", "qwen36-27b") == {}
+    # The full-scale set is 22 arms: `formulas` is out (its corpus could not be rebuilt with a
+    # 768-doc pool in the run's window at any size). A later "restore it" must fail here first.
+    full = C.ood_set_arms(cfg, "2026-09-23_ood_full")
+    assert len(full) == 22 and "formulas" not in full and set(full) | {"formulas"} == set(arms), full
+    assert cfg["heldout"]["2026-09-23_ood_full"]["n_per_arm"] == 512
 
 
 def check_span_in_corpus():

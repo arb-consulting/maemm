@@ -699,7 +699,15 @@ heldout:
     seed: 20260918          # the design's seed, unchanged
     kind: ood
     n_per_arm: 512
-    arms: all
+    # 22 arms, NOT `all`: `formulas` is excluded. Its corpus could not be rebuilt with a
+    # 768-document pool inside the run's window at ANY of 10M, 4M or 1M (three attempts,
+    # 2026-09-23, each stopped before it wrote; the cost is its own reader, see the commit that
+    # set its ladder back to [1]). It is the DIAGNOSTIC arm, outside the 21-arm level-1
+    # conjunction, so the full-scale set runs without it and its quarter-scale row stands. The
+    # arm's `ood_arms:` entry is untouched and its 09-21 corpus is intact.
+    arms: [ces_Latn, rus_Cyrl, ell_Grek, arb_Arab, hin_Deva, tha_Thai, cmn_Hani, jpn_Jpan,
+           ufw_zh, ufw_en, python, javascript, c, rust, go, haskell, sql, shell,
+           owm, arxiv, lean, isabelle]
     families: {}
 
 corpus:
