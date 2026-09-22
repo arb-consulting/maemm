@@ -219,3 +219,135 @@ which the brief did not ask for. The 131k `sae` block comes in via `--block ctrl
 8. **D4 changes `span_text` on 21/512 rows**, so `--re-derive`'s byte-identity assert exempts
    exactly the clamped rows and requires the new text to be a SUFFIX of the old. Rows gain
    `L_shown` beside `L`.
+
+---
+
+## Rebase onto `arb/main` bdb0705
+
+`evals/pipeline-v2`, 2026-09-22. `evals/pipeline` (b017f5d) and the four commits
+`evals/pipeline-autointerp` gained after the `93fd441` merge (2d9a15e..8c2a6bb), replayed onto
+`arb/main` at bdb0705. 63 commits, none dropped, original messages kept. `evals/pipeline-ood` is
+NOT in this branch yet.
+
+The three cherry-picks of Ari's work at the base of `evals/pipeline` (`640238c` / `6ad2872` /
+`d6fff69`) were **skipped**: his `b60330d` on main carries the same content. Verified rather than
+assumed — `features/{doc_dedup,ngram_overlap,corpus_train_parity}.py`, `precompute/{scan,stats,
+top1_act}.py` are byte-identical blobs at d6fff69 and at bdb0705.
+
+**Residue the three carried that `b60330d` did NOT take**, and where it is now:
+
+| from | residue | where it went |
+|---|---|---|
+| `640238c` | `patchscopes.cell_name`: the prompt-specific floor cell (`FLOOR_CELL-<p>`), after a measured P1 run overwrote two P2 floors | survives — this branch's own `patchscopes.py` work is replayed over main's `PS_LAYERS` change, and the two are disjoint |
+| `d6fff69` | `config.yaml`: `seed: 20260920` on `2026-09-20_sae2m_2k` (`scan` reads it and KeyErrors without one), `sae_min_fires`, `sae_strata` | re-applied in the `fb4e544` conflict resolution, row 1 below |
+| `d6fff69` | `spawn.py`: `corpus_name` in `DEFAULTS` | already on main, inline; main also repeats `"subset"` twice in that dict literal, deduped here |
+| `640238c` | `autointerp/sae_self.py`, `features/draw_sae2m.py` (in Ari's `a07cc70`, never in our cherry-pick) | not lost: both files are rewritten by this branch's own commits |
+
+### Conflicts and how each was resolved
+
+| # | commit | file | main (bdb0705) | ours | resolution |
+|---|---|---|---|---|---|
+| 1 | `fb4e544` | `config.yaml` | `2026-09-20_sae2m_2k` carries only `imported: true` | adds `storage: dirs_only`, `mu_stored: null`, keeps `seed: 20260920` | **ours** — storage/centring is this branch's layer, and the `seed` is `d6fff69` residue `scan` needs |
+| 2 | `b43eb9b` | `features/spawn.py` | `DEFAULTS` has `corpus_name` inline, and `"subset"` twice | adds `corpus_name` again plus `centering`, `re_derive` | **merge** — main's inline `corpus_name`, ours for the two new flags; main's duplicate `"subset"` dropped |
+| 3 | `2c114cb` | `features/spawn.py` | as above | renames `centering` → `mu` | **ours** for `mu`, main's `corpus_name` kept |
+| 4 | `3fc101d` | `features/spawn.py` | as above | adds `"corpus": ""` | **both** — `--corpus` (keyed, ours) and `--corpus-name` (directory, Ari's) are different flags |
+| 5 | `08cbafd` | `config.yaml` | comment on the `sae2m_2k` family label, still carrying the OPEN question | same comment, SETTLED by reading `ids.jsonl` off the volume (2,000 rows `family: sae2m_enc`, no `sae_key`) | **ours** — same claim with the evidence attached |
+| 6 | `d548f6a` | `precompute/common.py` | `SCAN_BLOCK = 64`, per-corpus-override comment deleted | the H7 block comment: geometry is a CONSTANT, `corpora:` declares per-corpus block/stride, `assert_corpus_geometry` refuses a mismatch | **ours** — see H7 below |
+| 7 | `1b032fa` | `precompute/modal_app.py` | `PRODUCTS` gains `draw_sae131k` | `PRODUCTS` gains `heldout_v3` | **both** |
+| 8 | `7ae3a1f` | `SMOKES.md` | this branch's own eval-1 section (reordered by the merge flattening) | the `results/` driver section | **both**, in the branch's own chronological order |
+| 9 | `8d307fd` | `autointerp/build.py` | Ari's `if is_nla:` branch — slice to the `<explanation>` body via `explanation_token_mask`, stamp `tag_status`, re-rank rollouts by IN-BODY peak | `render_example(..., rel_fallback=rel_fallback)`, relative marking for the generated-text arms | **merge** — Ari's branch kept, `rel_fallback` threaded through BOTH `render_example` calls |
+| 10 | `d95dd94` | `autointerp/build.py`, `unit_smoke.py` | Ari's `explanation_token_mask` (already in, from row 9) | our independent `nla_body_tokens` — the same fix, written differently | **Ari's, and this is a decision against the letter of the resolution list.** See below. |
+| 11 | `e8bb816` | `SMOKES.md` | — | append | **both** |
+
+Everything else auto-merged. `rollouts_nla.py`, `patchscopes.py` and `config.yaml` merged
+**textually clean** in both directions, and three of the worst problems were in exactly those
+files — see "what merged clean and was still broken".
+
+### Row 10: why Ari's body slicer won although the list says ours does
+
+The resolution list puts "NLA-A body slicing" on our side. Both sides fixed the same defect in the
+same loop, independently, and Ari's is the better of the two:
+
+| | Ari (`explanation_token_mask`) | ours (`nla_body_tokens`) |
+|---|---|---|
+| unclosed tag | body = everything after `<explanation>` | **the FULL raw decode**, counted |
+| boundary token | dropped (containment) | kept (overlap) |
+| bookkeeping | `tag_status` per example, 3 states | one boolean |
+| ranking | rollouts re-ranked by IN-BODY peak | unchanged |
+| shared with | `rollouts_nla`, i.e. one slicer for every judge-facing consumer | `build.py` only |
+
+Ours falls back to the whole decode exactly where the defect lives — an answer that ran into
+`max_new` reaches the judge with its opening tag and chat preamble intact, which is what Juan's
+review was about. Keeping two slicers in one file was the other hazard. `nla_body_tokens` is
+**dropped**; both of our checks are **retargeted** at the surviving function rather than deleted,
+and the `unclosed` case is now the thing they pin, so the difference between the two
+implementations is what goes red if anyone reintroduces the weaker one.
+
+### What merged clean and was still broken
+
+None of these produced a conflict marker. Each is a change on one side disagreeing with a change
+on the other, in a different file.
+
+1. **The merged tree could not `load_config` — for every product, not just the NLA ones.** main
+   deleted `nla.sampling` (shared sampling across the baselines); our `NLA_KEYS` still demanded
+   it. Resolved in main's direction; the `sampling` guard moved to the shared `rollouts:` block
+   rather than being deleted with the key it guarded.
+   **`min_new` moves 0 → 16** as a side effect, which is in neither commit message. Nothing on the
+   volume is affected — both scored `nla-av` sets predate bdb0705 — but the next NLA run generates
+   under a 16-token floor, against a deliberate `min_new: 0` ("the NLA answer is short, so a floor
+   would only pad it"). **Open for Tomáš.**
+2. **`2026-09-21_sae131k_2k` (main's set) declared no storage contract**, so
+   `_check_heldout_storage` refused it. `storage: dirs_only` / `mu_stored: null` /
+   `sae_key: qwen36-27b/l42-1b`, which is what `draw_sae131k` writes.
+3. **…and it would have become `default_heldout`.** It carries no `imported:`, so it sorts last
+   among the non-imported sets and becomes the default of every product called without `--set`,
+   moving them off `2026-09-16_v1` — the set the tables are built on. Invisible on main, which has
+   no results driver. `imported: true` added. **Open for Ari:** if the 131k set IS meant to be the
+   new default, that is the line to delete, and `results/sanity.yaml` moves with it.
+4. **`features/draw_sae131k.py` could not run.** `_finish` gained a `peak16` parameter here after
+   that file was written against the 16-argument signature, so the positional call bound `cuts` to
+   `peak16` and raised `TypeError` on `meta_extra`.
+5. **…and would have selected nothing if it had.** It overwrote `_finish`'s per-row `sae_key` with
+   the bare `"l42-1b"`; `sae_rows_of` matches the full key, and because the rows ARE keyed the
+   unkeyed branch's loud assert never fires. `scan` would have run with `n_feat = 0`.
+6. **…and wrote no `storage.json`**, which is why the set needed a hand-written config entry.
+7. **`rollouts_nla.write_nla_readme` raises `NameError`.** It reads `samp['temperature']` and
+   never binds `samp` — the shared-sampling change moved the dict into `run`. It is called AFTER
+   the generation. `ruff check` on bdb0705's own file under bdb0705's own `ruff.toml` reports it
+   three times (F821); nothing ran it.
+8. **"recorded on the summary, not used" was true of a `print()` and nothing else.** The shipped
+   `generation_config.json` constants now reach the summary as `shipped_generation_config`, and
+   the asserts removed in the same commit are replaced by that record.
+9. **D6 had three set-writer tuples.** `modal_app`'s knew `heldout_v3`, `spawn`'s did not, neither
+   knew `draw_sae131k` — and `spawn` is the path that bypasses `modal_app.main`, i.e. the one that
+   let a set reach the volume undeclared. One tuple now, `common.SET_WRITERS`, read by both.
+
+### H7: still open
+
+`assert_corpus_geometry` is **kept**. Ari's `scan` does not handle geometry — it cuts 64/16
+whatever the corpus declares and writes a README saying 64/16 next to a corpus README saying 32/8
+— so the condition under which the refusal was to be dropped does not hold.
+
+The cost is that `features/pipeline.py` shipped a default this pipeline cannot run
+(`--corpus-name train_parity_10m`, cut at 32/8 by `features/corpus_train_parity.py:60`). **The
+chain's default is now the plain `corpus/`** (`heldout16m`, 64/16) so the one-command chain works;
+`--corpus-name train_parity_10m` still refuses, with the reason. Threading `block`/`stride` from
+the `corpora:` entry through the eleven `windows_of(` call sites, plus the window-id join check
+stored top-k lists need, is the real fix and is **not done**.
+
+### C7: `scores_dir` now spells the tag where `rollout_stem` does
+
+Ours, not main's. `scores_dir` took no `tag`, so a tagged score run could only name itself through
+`--score-name <set>__<tag>` and landed on `<set>__<tag>__<engine>` while its rollouts were at
+`<set>__<engine>__<tag>`. `results/common.parse_scores_dir` already read either order — its
+docstring records the six eval-1 arms that went into the paper's CSV as HF when they were vLLM —
+but the writer still disagreed with itself. `tag` is now the fifth parameter, `write=True` marks
+the writing call sites, and a reader falls back to the legacy spelling when the canonical path is
+absent. No untagged and no HF product moves: at `hf` the two spellings are the same string.
+
+### Not re-measured
+
+The NLA arm-A marking rate recorded on this branch (26/32) was measured on the **unmasked** decode
+and no longer describes the composed path: Ari's body mask now runs before `rel_fallback` decides
+whether a block is bare. It needs one NLA block rebuilt and `marking` re-read from `build.json`.
+No Modal run was made in this rebase.
