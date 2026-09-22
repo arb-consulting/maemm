@@ -85,6 +85,67 @@ def _forward_acts(model, read_layer, sae, rows, feats, sink, pad_id):
     return act.masked_fill(~keep, 0.0), keep
 
 
+def scan_key_of(corpus_dir: str, max_size: int, run_tag: str) -> str:
+    """The `common.scan_dir` key a `scan` call wrote, from the SAME three inputs scan.py used.
+
+    `scan.py` builds it as `<corpus label>[__<M>m][__<tag>]`, and drops the corpus half entirely
+    for the single unbounded scan of the base's own English `corpus/` so that every path measured
+    before 2026-09-21 keeps its name. Reproduced here rather than guessed, because this product's
+    whole failure mode is naming a DIFFERENT scan from the one it then joins against.
+
+    Note what the two halves are: `corpus_dir` is the corpus DIRECTORY (what `--corpus-name`
+    takes and what `common.load_corpus` opens), while the return value is the SCAN key (what
+    `common.scan_dir` and `common.sae_examples_dir` take). They are not the same string as soon
+    as a run carries a `--run-tag`, and reading the scan of one while loading the corpus of
+    another is a silent cross-corpus join.
+    """
+    label = corpus_dir or "corpus"
+    sub = bool(max_size) or bool(corpus_dir)
+    key = (label + (f"__{max_size}m" if max_size else "")) if sub else ""
+    if run_tag:
+        key = f"{key}__{run_tag}" if key else run_tag
+    return key
+
+
+def resolve_scan(base: str, root: str, set_name: str, scan_key: str) -> str:
+    """The scan DIRECTORY carrying `set_name`'s rows at `scan_key`, found rather than assumed.
+
+    `common.scan_dir` names a scan after its `--set` set, and `scan --with-set` then carries other
+    sets' rows inside it: the eval-1 scans of 2026-09-23 are `scan/2026-09-21_v3_realact__<key>/`
+    and carry the 131k feature rows of `2026-09-21_v3_ctrl`. So the directory this product wants
+    is not always `scan_dir(set_name, key)`, and guessing it wrong is not a crash -- with a
+    `--force` it is a wrong join. Preferred name first; otherwise every `scan/*__<key>` whose
+    topk.jsonl actually contains rows of this set, and exactly one of them, named out loud.
+    """
+    preferred = C.scan_dir(base, set_name, root, scan_key)
+    if os.path.exists(f"{preferred}/topk.jsonl"):
+        return preferred
+    parent = f"{C.base_dir(base, root)}/scan"
+    cands = []
+    for name in sorted(os.listdir(parent)) if os.path.isdir(parent) else []:
+        if not (name == scan_key or name.endswith(f"__{scan_key}") if scan_key else True):
+            continue
+        path = f"{parent}/{name}/topk.jsonl"
+        if os.path.exists(path) and any(
+            r.get("set") == set_name for r in C.read_jsonl(path)
+        ):
+            cands.append(f"{parent}/{name}")
+    assert cands, (
+        f"no scan at {preferred}/topk.jsonl and no `scan/*__{scan_key}` on this root carries rows "
+        f"of set {set_name!r}: run `--product scan` with the matching --corpus and --run-tag first"
+    )
+    assert len(cands) == 1, (
+        f"{len(cands)} scans at key {scan_key!r} carry rows of {set_name!r} ({cands}); nothing "
+        f"here can choose between them, and joining the wrong one is silent"
+    )
+    print(
+        f"[top1_act] {preferred} is not on this root; reading {cands[0]}, a scan whose --set was "
+        f"another bank of the same call (scan --with-set)",
+        flush=True,
+    )
+    return cands[0]
+
+
 def run(cfg, args):
     import torch
 
@@ -95,15 +156,31 @@ def run(cfg, args):
     batch_rows = int(args.get("batch") or BATCH)
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 
-    corpus_name = args.get("corpus_name") or ""
-    ex_dir = C.sae_examples_dir(sae_key, set_name, root, corpus_name=corpus_name)
-    out = f"{C.sae_dir(sae_key, root)}/top1_act/{set_name}"
+    # THE TWO NAMES, kept apart (the cross-corpus bug, fixed 2026-09-23). `--corpus <key>` is
+    # resolved on the client into the corpus DIRECTORY; the SCAN key additionally carries the
+    # `__<M>m` bound and the `--run-tag`. Before this, `scan_dir` was handed the directory while
+    # `load_corpus` was handed nothing at all -- so a run asked for the train-parity scan and
+    # joined its window ids against the DEFAULT 16M English corpus, silently, with every
+    # `windows_of` id landing in a different document. Both names are printed and both go into
+    # `summary.json`, so a product can be checked without re-deriving them.
+    corpus_dir = args.get("corpus_name") or ""
+    assert "," not in corpus_dir, (
+        f"--corpus resolved to several corpora ({corpus_dir!r}); `top1_act` is about ONE corpus "
+        f"scan and would otherwise silently take the first"
+    )
+    max_size = int(args.get("max_size") or 0)
+    scan_key = scan_key_of(corpus_dir, max_size, (args.get("run_tag") or "").strip())
+    C.assert_corpus_geometry(cfg, corpus_dir)
+    ex_dir = C.sae_examples_dir(sae_key, set_name, root, corpus_name=scan_key)
+    # KEYED BY THE SCAN, not by the set alone: a second corpus used to overwrite the first here
+    # and then refuse without --force, so the 10M and the 16M numbers could not coexist.
+    out = f"{C.sae_dir(sae_key, root)}/top1_act/{set_name}" + (f"__{scan_key}" if scan_key else "")
     assert args.get("force") or not os.path.exists(out), (
         f"{out} already exists; refusing to overwrite without --force"
     )
     assert os.path.isdir(ex_dir), f"{ex_dir} is missing: run `--product scan --base {base}` first"
 
-    toks, docs = C.load_corpus(base, root)
+    toks, docs = C.load_corpus(base, root, corpus_dir)
     sizes = C.corpus_sizes(docs)
     size = sizes[-1]
     ids_rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
@@ -118,11 +195,21 @@ def run(cfg, args):
     assert sae_rows, f"held-out set {set_name} on {base} has no sae rows of {sae_key}"
     by_row = {r["row"]: r for r in sae_rows}
 
+    # JOINED ON (set, set_row), never on `row`. `scan --with-set` puts several banks in one
+    # topk.jsonl and re-indexes `row` to the position WITHIN the scan, so joining on `row` reads
+    # whichever bank happens to sit at this set's offsets -- the 131k feature rows of a three-set
+    # scan are offset by 1,024. Sets drawn before `--with-set` carry set == the set and set_row ==
+    # row, so the single-set case is unchanged.
+    scan_path = f"{resolve_scan(base, root, set_name, scan_key)}/topk.jsonl"
+    print(f"[top1_act] corpus dir {corpus_dir or 'corpus'!r} -> scan {scan_path}", flush=True)
     top1 = {}
-    for r in C.read_jsonl(f"{C.scan_dir(base, set_name, root, corpus_name)}/topk.jsonl"):
-        if r["size"] == size and r["row"] in by_row:
-            assert r["top"], f"row {r['row']} has an empty top-k at size {size}M"
-            top1[r["row"]] = r["top"][0]
+    for r in C.read_jsonl(scan_path):
+        if r["size"] != size or r.get("set", set_name) != set_name:
+            continue
+        row = int(r.get("set_row", r["row"]))
+        if row in by_row:
+            assert r["top"], f"row {row} has an empty top-k at size {size}M"
+            top1[row] = r["top"][0]
     missing = sorted(set(by_row) - set(top1))
     assert not missing, f"topk.jsonl has no size-{size}M line for rows {missing[:8]} (+{len(missing)})"
 
@@ -224,6 +311,9 @@ def run(cfg, args):
         "base": base,
         "sae": sae_key,
         "set": set_name,
+        "corpus_dir": corpus_dir or "corpus",
+        "scan_key": scan_key,
+        "scan": scan_path,
         "corpus_size_m": size,
         "n_features": len(recs),
         "n_joined": n_joined,
@@ -245,7 +335,8 @@ def run(cfg, args):
     }
 
     inputs = {
-        "scan": C.scan_dir(base, set_name, root, corpus_name),
+        "scan": scan_path,
+        "corpus": C.corpus_dir(base, root, corpus_dir),
         "heldout": C.heldout_dir(base, set_name, root),
         "examples": ex_dir,
         "sae": sae_key,
@@ -295,3 +386,81 @@ def run(cfg, args):
         "gate": gate,
         "forward_seconds": round(fwd_s, 1),
     }
+
+
+def _selftest() -> None:
+    """`python precompute/top1_act.py` -- the two name rules, and the join, on synthetic files."""
+    import json
+    import shutil
+    import tempfile
+
+    checks = mut = 0
+    # scan_key_of reproduces the directory names actually on the volume
+    for args, want in [
+        (("train_parity_10m", 0, "paper0923"), "train_parity_10m__paper0923"),
+        (("", 0, "paper0923"), "paper0923"),
+        (("", 0, ""), ""),
+        (("train_parity_10m", 0, ""), "train_parity_10m"),
+        (("ufw_en", 4, "mu-whiten"), "ufw_en__4m__mu-whiten"),   # 2026-09-21_ood_q1__ufw_en__1m__mu-whiten
+        (("", 4, ""), "corpus__4m"),                              # 2026-09-21_ood_q1__corpus__4m
+    ]:
+        got = scan_key_of(*args)
+        assert got == want, f"scan_key_of{args} = {got!r}, want {want!r}"
+        checks += 1
+    # the corpus DIRECTORY and the SCAN key are different strings the moment a tag is used
+    assert scan_key_of("train_parity_10m", 0, "paper0923") != "train_parity_10m"
+    checks += 1
+
+    tmp = tempfile.mkdtemp(prefix="top1act-selftest-")
+    try:
+        root = tmp
+        base, key = "qwen36-27b", "train_parity_10m__paper0923"
+        d = f"{C.base_dir(base, root)}/scan/2026-09-21_v3_realact__{key}"
+        os.makedirs(d, exist_ok=True)
+        with open(f"{d}/topk.jsonl", "w", encoding="utf-8") as fh:
+            for r in [{"row": 0, "set": "2026-09-21_v3_realact", "set_row": 0, "size": 10,
+                       "top": [[1, 0, 0, 0.4]]},
+                      {"row": 1024, "set": "2026-09-21_v3_ctrl", "set_row": 512, "size": 10,
+                       "top": [[2, 0, 0, 0.3]]}]:
+                fh.write(json.dumps(r) + "\n")
+        # the ctrl set's scan is found although the directory is named after the realact bank
+        got = resolve_scan(base, root, "2026-09-21_v3_ctrl", key)
+        assert got == d, got
+        checks += 1
+        assert resolve_scan(base, root, "2026-09-21_v3_realact", key) == d
+        checks += 1
+        # the PREFERRED name wins outright: with a scan of its own on the root, the set is not
+        # put to a search at all, so an ambiguity among the other banks cannot reach it
+        own = f"{C.base_dir(base, root)}/scan/2026-09-21_v3_ctrl__{key}"
+        os.makedirs(own, exist_ok=True)
+        shutil.copy(f"{d}/topk.jsonl", f"{own}/topk.jsonl")
+        assert resolve_scan(base, root, "2026-09-21_v3_ctrl", key) == own
+        checks += 1
+        shutil.rmtree(own)
+
+        # MUTATION: a set that is in no scan must refuse, not fall back to the only directory
+        try:
+            resolve_scan(base, root, "2026-09-21_v3_sae2m", key)
+        except AssertionError as e:
+            assert "carries rows of set" in str(e), str(e)
+            mut += 1
+        else:
+            raise AssertionError("resolve_scan returned a scan that does not carry the set")
+        # MUTATION: two scans at one key carrying the set must refuse rather than pick one
+        d2 = f"{C.base_dir(base, root)}/scan/2026-09-21_v3_ours__{key}"
+        os.makedirs(d2, exist_ok=True)
+        shutil.copy(f"{d}/topk.jsonl", f"{d2}/topk.jsonl")
+        try:
+            resolve_scan(base, root, "2026-09-21_v3_ctrl", key)
+        except AssertionError as e:
+            assert "nothing " in str(e) and "choose between" in str(e), str(e)
+            mut += 1
+        else:
+            raise AssertionError("two candidate scans did not refuse")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    print(f"top1_act selftest OK: {checks} checks, {mut} mutation gates")
+
+
+if __name__ == "__main__":  # pragma: no cover -- `uv run --offline python precompute/top1_act.py`
+    _selftest()
