@@ -51,11 +51,17 @@ MARKER = " ?"  # mxf/prompts.py:4
 AMP_MODES = ("exact", "mu", "raw")
 
 # --- the centring vocabulary (2026-09-21, branch `evals/pipeline`) -----------------------------
-# A MU IS A FILE. Wherever a centring mean appears -- `maemms.<k>.mu`, `heldout.<set>.mu_stored`,
-# `heldout.<set>.family_mu.<fam>`, `--mu` -- the value is null (subtract nothing), or a path to a
-# [d] `.f32` / `.npy` file, or the string `unknown` (stored rows only). There is no enum and no
-# registry of mean NAMES: a checkpoint trained on a new mean is a new path in a config entry, and
-# nothing else changes. That is what lets a new SAE / MAEMM land as a config-only edit.
+# A MU IS A FILE. Wherever a centring mean appears -- `maemms.<k>.mu`, `bases.<base>.whiten_mu`,
+# `--mu` -- the value is null (subtract nothing), or a path to a [d] `.f32` / `.npy` file, or the
+# string `unknown` (a checkpoint's own `mu:` only). There is no enum and no registry of mean
+# NAMES: a checkpoint trained on a new mean is a new path in a config entry, and nothing else
+# changes. That is what lets a new SAE / MAEMM land as a config-only edit.
+#
+# TWO AXES SINCE 2026-09-23 (M0a). `maemms.<k>.mu` (`input_mu`) is the INJECTION convention -- what
+# a checkpoint was trained to receive. `bases.<base>.whiten_mu` (`score_mu`) is the SCORING
+# CONSTANT, the mean both arguments of every centred cosine are taken about, a property of the
+# base and of no run. The per-set `mu_stored` / `family_mu` layer that used to name a third thing
+# is deleted: a stored unit direction cannot be re-centred, so such a set has no centred reading.
 FAMILY_KINDS = ("activation", "synthetic", "dictionary", "subspace")
 STORAGE_KINDS = ("raw", "unit", "dirs_only")
 # Products that WRITE a held-out set. They must be told which by name -- D6. An omitted --set
@@ -67,7 +73,8 @@ STORAGE_KINDS = ("raw", "unit", "dirs_only")
 # of this tuple had already drifted apart by 2026-09-21: modal_app knew about `heldout_v3` and
 # spawn did not, and neither knew about `draw_sae131k`.
 SET_WRITERS = ("targets", "draw_sae2m", "draw_sae131k", "heldout_v3")
-# "this arrived centred on a mean nobody here holds" -- legal in `family_mu` / `mu_stored` only.
+# "considered, not established" -- legal in a checkpoint's own `maemms.<k>.mu` only. Every run of
+# such a checkpoint must be told the convention with --mu, recorded as a choice, not a reading.
 MU_UNKNOWN = "unknown"
 # Accepted on-disk forms of a mean. Anything else is a typo, not a format.
 MU_SUFFIXES = (".f32", ".npy")
@@ -551,19 +558,6 @@ def mu_label(mu, base: str = "", root: str = VOL) -> str:
     return resolve_mu_path(mu, base, root) if base else str(mu)
 
 
-def mu_of_family(cfg: dict, set_name: str, family: str):
-    """The mean `family`'s rows of the CONFIGURED set `set_name` were stored under.
-
-    `family_mu` first, then the set-wide `mu_stored`, then -- for a family that cannot be centred
-    at all -- None. Returns a path, None or `unknown`.
-    """
-    spec = cfg["heldout"][set_name]
-    fam_mu = spec.get("family_mu") or {}
-    if family in fam_mu:
-        return fam_mu[family]
-    return spec.get("mu_stored")
-
-
 def input_mu(cfg: dict, maemm_key: str):
     """The mean `maemm_key` was TRAINED to receive: a path, or None. Refuses rather than defaulting.
 
@@ -623,32 +617,17 @@ def _check_heldout_storage(cfg: dict, set_name: str, spec: dict) -> None:
         f"heldout {set_name!r}: `storage` must be one of {list(STORAGE_KINDS)}, got {storage!r} -- "
         f"a set with no declared storage contract cannot be served at any centring"
     )
-    assert "mu_stored" in spec, (
-        f"heldout {set_name!r}: `mu_stored` must be present (null when the set is not centred as a "
-        f"whole); an absent key and an explicit null are the same thing to yaml and must not be"
-    )
-    _check_mu_value(spec["mu_stored"], f"heldout[{set_name!r}].mu_stored", allow_unknown=True)
     sk = spec.get("sae_key")
     assert sk is None or sk in cfg["saes"], (
         f"heldout {set_name!r}: sae_key {sk!r} is not an SAE in config.yaml ({sorted(cfg['saes'])})"
     )
-    fam_mu = spec.get("family_mu") or {}
-    assert isinstance(fam_mu, dict), f"heldout {set_name!r}: family_mu must be a mapping"
-    assert not fam_mu or storage == "unit", (
-        f"heldout {set_name!r}: family_mu only means something on a `storage: unit` set (this one "
-        f"is {storage!r}); a raw set derives every direction and a dirs_only set never centred one"
-    )
-    for fam, name in fam_mu.items():
-        assert fam in spec["families"], (
-            f"heldout {set_name!r}: family_mu names family {fam!r}, which the set does not draw "
-            f"({sorted(spec['families'])})"
-        )
-        _check_mu_value(name, f"heldout[{set_name!r}].family_mu[{fam!r}]", allow_unknown=True)
-    if storage == "unit":
-        assert spec["mu_stored"] is not None or set(fam_mu) >= set(spec["families"]), (
-            f"heldout {set_name!r}: a `storage: unit` set stores directions under SOME mean, so it "
-            f"must say which -- either one `mu_stored` for the set or a `family_mu` entry for "
-            f"every family (missing {sorted(set(spec['families']) - set(fam_mu))})"
+    for dead in ("mu_stored", "family_mu"):
+        assert dead not in spec, (
+            f"heldout {set_name!r} still declares `{dead}:`. The stored-convention layer was "
+            f"deleted on 2026-09-23 (M0a): a `storage: unit` set's rows are served EXACTLY as the "
+            f"producer shipped them and simply have no centred cosine, because unit(act) and mu do "
+            f"not give unit(act - mu) without ||act||. The mean of every reported centred number "
+            f"is now the base's own scoring constant, `common.score_mu`."
         )
 
 
@@ -667,7 +646,13 @@ def family_centrable(cfg: dict, family: str) -> bool:
 
 
 def set_storage(cfg: dict, set_dir: str, root: str = VOL) -> dict:
-    """The storage contract of the set at `set_dir`: {storage, mu_stored, family_mu, source}.
+    """The storage contract of the set at `set_dir`: {storage, source}.
+
+    WHAT `vecs.f16` HOLDS, and nothing about a mean: `raw` (act.f32 is there and every direction is
+    derived from it at read time), `unit` (a stored direction, as the producer shipped it, which
+    cannot be re-centred) or `dirs_only`. The `mu_stored` / `family_mu` fields the pre-2026-09-23
+    contract carried are IGNORED where an old storage.json still has them -- see
+    `_check_heldout_storage`.
 
     Resolution order, because three kinds of directory reach this function:
       1. `<set_dir>/storage.json`, which every set drawn after 2026-09-21 writes;
@@ -679,36 +664,22 @@ def set_storage(cfg: dict, set_dir: str, root: str = VOL) -> dict:
     if os.path.exists(path):
         with open(path) as fh:
             rec = json.load(fh)
-        for field in ("storage", "mu_stored"):
-            assert field in rec, f"{path} is missing {field!r}"
+        assert "storage" in rec, f"{path} is missing 'storage'"
         assert rec["storage"] in STORAGE_KINDS, f"{path}: storage {rec['storage']!r} is not a kind"
-        return {
-            "storage": rec["storage"],
-            "mu_stored": rec["mu_stored"],
-            "family_mu": dict(rec.get("family_mu") or {}),
-            "source": path,
-        }
+        return {"storage": rec["storage"], "source": path}
     name = os.path.basename(set_dir.rstrip("/"))
     assert name in cfg["heldout"], (
         f"{set_dir} carries no {STORAGE_FILE} and {name!r} is not a set declared in config.yaml, so "
-        f"nothing states whether its vecs.f16 is centred. Declare it under `heldout:` (storage / "
-        f"mu_stored / family_mu) or re-draw the set, which writes the contract itself."
+        f"nothing states what its vecs.f16 holds. Declare it under `heldout:` (which needs "
+        f"only `storage:`) or re-draw the set, which writes the contract itself."
     )
-    spec = cfg["heldout"][name]
-    return {
-        "storage": spec["storage"],
-        "mu_stored": spec["mu_stored"],
-        "family_mu": dict(spec.get("family_mu") or {}),
-        "source": f"config.yaml heldout.{name}",
-    }
+    return {"storage": cfg["heldout"][name]["storage"], "source": f"config.yaml heldout.{name}"}
 
 
 def storage_record(cfg: dict, set_name: str, families, sae_key: str = "") -> dict:
     """The `storage.json` a freshly drawn `storage: raw` set writes. See `set_storage`."""
     return {
         "storage": "raw",
-        "mu_stored": None,
-        "family_mu": {},
         # Which dictionary this set's SAE feature ids index. Every row of a set drawn now also
         # carries its own `sae_key`, so this is belt and braces -- but it is what
         # `common.declared_sae_key` reads, and a set that loses its config entry keeps it.
@@ -736,13 +707,16 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
          recorded as a DEVIATION in the product README, not accepted quietly. `--mu none` is the
          explicit way to say "subtract nothing";
       2. the MAEMM's `mu:`, for the products that have a `--maemm` in scope;
-      3. the SET's own stored convention, for a legacy `storage: unit` / `dirs_only` set -- which
-         is what keeps every `scan` / `gcg` / `repo_examples` number measured between 2026-09-16
-         and 2026-09-21 reproducible to the digit;
-      4. refuse. A `storage: raw` set read by a product with no MAEMM (scan, gcg, patchscopes,
-         repo_examples) has no convention anywhere in scope, and defaulting it to raw would
-         silently re-point the corpus search baseline and the GCG ceiling at a different target
-         vector than every stored number. That is the one failure this whole layer exists to stop.
+      3. refuse. A set read by a product with no MAEMM (scan, gcg, patchscopes, repo_examples) has
+         no convention anywhere in scope, and defaulting one would silently re-point the corpus
+         search baseline and the GCG ceiling at a different target vector than every stored
+         number. That is the one failure this whole layer exists to stop.
+
+    THE SET'S OWN STORED CONVENTION IS NO LONGER A SOURCE (2026-09-23, M0a). `mu_stored` /
+    `family_mu` are deleted: a `storage: unit` set's rows are served exactly as the producer
+    shipped them and have no centred reading at all, so there was nothing for the third branch to
+    resolve. Note that this is the INJECTION convention; the mean every centred cosine is REPORTED
+    about is `score_mu`, the base's constant, and is not resolved here.
     """
     say = notes if notes is not None else []
     want = (args.get("mu") or "").strip()
@@ -785,38 +759,13 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
         say.append(f"mu={mu_label(own, base, root)} from config.yaml maemms.{maemm_key}.mu")
         return own, f"maemms.{maemm_key}.mu"
     contract = set_storage(cfg, set_dir, root)
-    storage = contract["storage"]
-    assert storage != "raw", (
-        f"{set_dir} is `storage: raw` ({contract['source']}): its vecs.f16 is unit(act), UNCENTRED, "
-        f"and this product has no --maemm to take a convention from. Pass --mu <file> (or "
-        f"--mu none). Defaulting it would silently move this product's target vector away from "
-        f"every stored number."
+    raise AssertionError(
+        f"{set_dir} is `storage: {contract['storage']}` ({contract['source']}) and this product "
+        f"has no --maemm to take an injection convention from. Pass --mu <file> (or --mu none); "
+        f"`scan` also takes --centre, which is the base's own scoring constant on both sides. "
+        f"Defaulting it would silently move this product's target vector away from every stored "
+        f"number."
     )
-    if storage == "dirs_only":
-        say.append(
-            f"mu=none from the set's own contract ({contract['source']}): `storage: dirs_only`, "
-            f"nothing in it was ever centred"
-        )
-        return None, f"set contract ({contract['source']})"
-    rows = read_jsonl(f"{set_dir.rstrip('/')}/ids.jsonl")
-    fams = sorted({r["family"] for r in rows if family_centrable(cfg, r["family"])})
-    name = os.path.basename(set_dir.rstrip("/"))
-    means = {contract["family_mu"].get(f, contract["mu_stored"]) for f in fams}
-    if not fams:
-        means = {None}
-    assert len(means) == 1, (
-        f"{set_dir} is `storage: unit` and its centrable families {fams} are stored under "
-        f"{sorted(mu_label(m, base, root) for m in means)} -- more than one convention, so there "
-        f"is no single default. Pass --mu and run the families that match it."
-    )
-    got = means.pop()
-    say.append(
-        f"mu={mu_label(got, base, root)} defaulted from the set's own stored convention "
-        f"({contract['source']}); this set predates raw storage, so it can only be served at the "
-        f"mean it was built with"
-    )
-    del name
-    return got, f"set contract ({contract['source']})"
 
 
 def note_convention(od, notes) -> None:
@@ -834,9 +783,10 @@ def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None
 
         storage: raw        -> unit(act - mu) for a centrable family, unit(act) for every other row
                                (there is no mean to subtract from an encoder column)
-        storage: unit       -> the stored row, ASSERTING the family's own mean IS `mu`; a family
-                               whose mean is `unknown` is returned with a warning and a label
-                               instead of a refusal (plan §1.4)
+        storage: unit       -> the stored row AS THE PRODUCER SHIPPED IT, unchanged, whatever `mu`
+                               says: unit(act) and mu do not give unit(act - mu) without ||act||,
+                               so such a set has no centred reading at any mean and `score` writes
+                               NaN for its cos_centred (M0a, 2026-09-23)
         storage: dirs_only  -> the stored row (no family in such a set is centrable)
 
     `mu` is None or a path, and is always EXPLICIT: the four products with no MAEMM in scope (scan,
@@ -870,7 +820,7 @@ def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None
         apath = f"{set_dir}/act.f32"
         assert os.path.exists(apath), (
             f"{set_dir} declares `storage: raw` ({contract['source']}) but has no act.f32; a raw "
-            f"set derives every direction from it. Re-draw, or `--product targets --re-derive`."
+            f"set derives every direction from it. Re-draw the set."
         )
         act = read_array(apath, "float32", (n, d)).astype(np.float32)
         arr = load_mu(cfg, base, mu, root)
@@ -878,6 +828,30 @@ def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None
         if arr is not None:
             cen = np.array([family_centrable(cfg, f) for f in fams], dtype=bool)
             out[cen] -= arr[None, :]
+            # THE ROWS A MEAN IS APPLIED TO ARE EXACTLY THE ROWS THAT HAVE A RAW ACTIVATION.
+            # `2026-09-21_v3_ctrl` is the set that makes this a live question: it mixes `random`
+            # draws and 131k encoder columns in one `storage: raw` directory, so `act.f32` holds
+            # rows that are NOT activations. Subtracting a residual-stream mean from an encoder
+            # column or a Gaussian draw gives cos(h - mu, v): the activation moved and the target
+            # stood still, a one-sided number that looks like a centred one. `family_kinds:` is
+            # the only thing that separates them, so the separation is asserted here and not
+            # merely performed -- and it is asserted as a POST-CONDITION on the array, not as a
+            # restatement of the line above, so a future `out[...] -=` elsewhere in this branch
+            # trips it too.
+            # Read straight off `cfg["family_kinds"]` rather than through `family_centrable`,
+            # which is what computed `cen` above: a post-condition that called the same function
+            # as the code it guards would agree with it by construction and guard nothing.
+            moved = np.abs(out - act).max(axis=1) > 0
+            bad = [
+                (i, fams[i]) for i in range(n)
+                if bool(moved[i]) and not cfg["family_kinds"][fams[i]]["centrable"]
+            ]
+            assert not bad, (
+                f"{set_dir}: a mean was subtracted from rows {bad[:8]} whose family is not "
+                f"`centrable` (config.yaml family_kinds). An encoder column, a Gaussian draw and "
+                f"a subspace basis have no mean; cos(h - mu, v) against one is one-sided and is "
+                f"not a centred number."
+            )
             say.append(
                 f"directions derived from {apath} at mu={label}: unit(act - mu) on "
                 f"{int(cen.sum())} centrable rows "
@@ -896,41 +870,18 @@ def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None
         )
         return _unit_rows(v)
 
-    # storage: unit -- the stored row is a direction under SOME mean, and without act.f32 (or a raw
-    # act_norm to solve with, rollouts_nla.build_inputs) it cannot be moved to another one.
-    fam_mu = contract["family_mu"]
-    stored = contract["mu_stored"]
-    labelled, mismatched = [], []
-    for fam in sorted(set(fams)):
-        own = fam_mu.get(fam, stored)
-        if own == MU_UNKNOWN:
-            labelled.append(fam)
-            continue
-        if not family_centrable(cfg, fam):
-            continue  # an encoder column is the same object under every mean
-        own_path = resolve_mu_path(own, base, root) if own else None
-        want_path = resolve_mu_path(mu, base, root) if mu else None
-        if own_path != want_path:
-            mismatched.append((fam, own))
-    assert not mismatched, (
-        f"{set_dir} is `storage: unit` ({contract['source']}) and its "
-        + ", ".join(f"{f!r} rows are stored under {mu_label(m, base, root)}" for f, m in mismatched)
-        + f", but this run asks for mu={label}. A stored unit direction cannot be re-centred -- "
-        f"unit(act) and mu do not give unit(act - mu) without ||act||. Re-derive the set at "
-        f"`storage: raw` (`--product targets --re-derive <set>`), or run at the mean it was built "
-        f"with and say so."
-    )
-    if labelled:
-        msg = (
-            f"{set_dir}: families {labelled} arrived already centred on a mean nobody here holds "
-            f"(family_mu: {MU_UNKNOWN}). Their rows are returned AS SHIPPED, under the producer's "
-            f"convention, NOT at mu={label}; every number read off them is labelled."
-        )
-        print(f"[dirs_for] WARNING: {msg}", flush=True)
-        say.append(msg)
+    # storage: unit -- the stored row is a direction under the PRODUCER's convention and cannot be
+    # moved to another one: unit(act) and mu do not give unit(act - mu) without ||act||. Until
+    # 2026-09-23 this branch carried a `mu_stored` / `family_mu` contract that named that
+    # convention per family, asserted it against the run's `mu` and labelled an `unknown` one. The
+    # whole layer is gone (M0a): the rows come back as shipped, and the centred cosine such a set
+    # has is NONE -- `score` writes NaN for every one of its rows rather than a number whose mean
+    # nobody can state. Reading it is still exact for the UNCENTRED cosine, which is what every
+    # number measured between 2026-09-16 and 2026-09-21 was.
     say.append(
-        f"{set_dir} is `storage: unit` ({contract['source']}): stored directions returned as they "
-        f"are, which matches mu={label} for every centrable family that names a mean"
+        f"{set_dir} is `storage: unit` ({contract['source']}): the stored vecs.f16 rows are "
+        f"returned UNCHANGED, under whatever convention the producer used, and mu={label} does "
+        f"not apply to any of them. There is no centred number for this set."
     )
     return _unit_rows(v)
 

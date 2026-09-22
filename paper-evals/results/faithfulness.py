@@ -32,9 +32,11 @@ WHAT IT BUILDS, for every (family x source x run-tag) present on the volume for 
       numbers, the `sae_smoke64.md` medians and the old primary's recorded values, each with its
       own stated tolerance and a pass / FLAG / absent verdict per line.
 
-  figures per-family bo-k curves per source; per-stratum firing and ratio bars per SAE family;
-      and, for any checkpoint with two run tags on this set, the two arms compared row by row --
-      which on the current products is the old primary's `mu-none` against `mu-stats`. PDF + PNG.
+  figures per-family bo-k curves per source; per-stratum firing and ratio bars per SAE family.
+      PDF + PNG. (The two-arm row-by-row figure went with the old primary's `mu-none` /
+      `mu-stats` arms on 2026-09-23: the old primary is dropped from the paper and survives only
+      as a never-printed pipeline sanity check, and no other checkpoint carries two run tags on
+      one set.)
 
 NOTHING IS KEYED ON A CHECKPOINT OR A DICTIONARY NAME. Sources come from iterating `config.yaml`'s
 `maemms:` against the volume's scores directories, families from the rows' own fields. A new SAE
@@ -998,50 +1000,11 @@ def make_figures(res: dict, out_dir: Path) -> list[str]:
         fig.tight_layout()
         names.append(R.savefig(fig, out_dir, f"strata_{family.replace('/', '_')}"))
 
-    # (3) two arms of one checkpoint, row by row. On the current products this is the old
-    # primary's `mu-none` against `mu-stats`; the figure is emitted for ANY checkpoint that has
-    # two run tags on this set, because that is what a run tag is for.
-    by_ckpt: dict[str, list[R.Source]] = {}
-    for s in res["sources"]:
-        by_ckpt.setdefault(f"{s.maemm}@{s.engine}", []).append(s)
-    for ckpt, arms in sorted(by_ckpt.items()):
-        if len(arms) < 2:
-            continue
-        a, b = arms[0], arms[1]
-        shared = sorted(set(a.per_target) & set(b.per_target))
-        if not shared:
-            continue
-        fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.6))
-        fams = {res["ids"][r]["family"] for r in shared}
-        R.style_axes(axes[0], xlabel=f"{a.label}   mean cos", ylabel=f"{b.label}   mean cos",
-                     title="per row")
-        lo, hi = 1.0, 0.0
-        for i, fam in enumerate(sorted(fams)):
-            rows = [r for r in shared if res["ids"][r]["family"] == fam]
-            xs = [float(a.per_target[r]["mean_cos"]) for r in rows]
-            ys = [float(b.per_target[r]["mean_cos"]) for r in rows]
-            lo, hi = min(lo, *xs, *ys), max(hi, *xs, *ys)
-            axes[0].scatter(xs, ys, s=42, color=R.PALETTE[i % len(R.PALETTE)], label=fam,
-                            zorder=3, edgecolor=R.SURFACE, linewidth=1.0)
-        pad = 0.05 * max(hi - lo, 1e-3)
-        axes[0].plot([lo - pad, hi + pad], [lo - pad, hi + pad], color=R.INK_MUTED,
-                     linewidth=1.0, linestyle="--", zorder=2)
-        axes[0].legend(fontsize=7, loc="upper left")
-        R.style_axes(axes[1], ylabel="mean cos over the family's rows", title="family means")
-        labels = sorted(fams)
-        for j, src in enumerate((a, b)):
-            xs = [i + (j - 0.5) * 0.4 for i in range(len(labels))]
-            ys = [float(np.mean([src.per_target[r]["mean_cos"] for r in shared
-                                 if res["ids"][r]["family"] == f])) for f in labels]
-            axes[1].bar(xs, ys, width=0.36, color=colours.get(src.label, R.PALETTE[j]),
-                        label=src.label, zorder=3, edgecolor=R.SURFACE, linewidth=1.0)
-        axes[1].set_xticks(range(len(labels)))
-        axes[1].set_xticklabels(labels)
-        axes[1].legend(fontsize=7)
-        fig.suptitle(f"two arms of `{ckpt}` on {len(shared)} shared rows — set {res['set']}",
-                     color=R.INK, fontsize=11, x=0.02, ha="left")
-        fig.tight_layout()
-        names.append(R.savefig(fig, out_dir, f"arms_{ckpt.replace('/', '_').replace('@', '_')}"))
+    # (3) The two-arm row-by-row figure was DELETED on 2026-09-23 (M0a). It compared two run
+    # tags of one checkpoint on one set, and the only pair that ever existed was the old
+    # primary's `mu-none` against `mu-stats` -- the reconciliation that settled that
+    # checkpoint's `mu:` key and is now recorded in config.yaml rather than redrawn every run.
+    # The old primary is dropped from the paper; nothing else carries two run tags on one set.
 
     return names
 

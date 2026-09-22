@@ -1288,7 +1288,7 @@ def check_storage_contract():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         sdir = root / "base" / "tb" / "heldout" / "s1"
-        _write_set(sdir, rows, act, {"storage": "raw", "mu_stored": None, "family_mu": {}})
+        _write_set(sdir, rows, act, {"storage": "raw"})
         mu = rng.normal(size=(D,)).astype(np.float32) * 3.0
         mupath = root / "mu.f32"
         C.write_array(mupath, mu, "float32")
@@ -1322,13 +1322,81 @@ def check_storage_contract():
             raise AssertionError("dirs_for served a `storage: raw` set that has no act.f32")
 
 
-def check_unit_set_refuses():
-    """A stored `unit` set is served at ITS mean, refuses another, and LABELS an unknown one.
+def check_no_mean_reaches_a_row_without_a_raw_activation():
+    """A mean is applied to exactly the `centrable` rows -- asserted, not merely performed.
 
-    The three outcomes are the whole design: a known mismatch is a wrong number waiting to happen
-    and must raise; a match is the legacy path that has to keep reproducing every number measured
-    before 2026-09-21; an `unknown` mean is Celeste's imported families, which are run as shipped
-    with a label rather than refused (plan §1.4).
+    The set this is for is `2026-09-21_v3_ctrl`, which mixes 512 `random` Gaussian draws with the
+    512 131k encoder columns in ONE `storage: raw` directory: its `act.f32` holds rows that are
+    not activations at all. cos(h - mu, encoder column) is a one-sided number wearing a centred
+    number's name, and `family_kinds:` is the only thing standing between the two.
+
+    Both halves here: the guarantee holds on a ctrl-shaped set, and the assertion inside
+    `dirs_for` FIRES when the family table is mutated to call a dictionary column centrable --
+    a gate that has never been red is unevaluated.
+    """
+    import numpy as np
+
+    cfg = _conv_cfg()
+    rng = np.random.default_rng(23)
+    fams = ["realact", "random", "sae", "random", "sae"]
+    act = rng.normal(size=(len(fams), D)).astype(np.float32) * 30.0
+    rows = [{"row": i, "family": f, "id": i} for i, f in enumerate(fams)]
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        sdir = root / "v3_ctrl_shaped"
+        _write_set(sdir, rows, act, {"storage": "raw"})
+        mupath = root / "mu.f32"
+        C.write_array(mupath, rng.normal(size=(D,)).astype(np.float32) * 3.0, "float32")
+
+        got = C.dirs_for(cfg, "tb", str(sdir), str(mupath), str(root))
+        raw = C.dirs_for(cfg, "tb", str(sdir), None, str(root))
+        for i, fam in enumerate(fams):
+            moved = float(np.abs(got[i] - raw[i]).max())
+            if fam == "realact":
+                assert moved > 1e-3, f"row {i} ({fam}) did not move under a mean"
+            else:
+                assert moved == 0.0, (
+                    f"row {i} ({fam}) MOVED under a mean ({moved:.2e}); it has no raw activation "
+                    f"to centre and cos(h - mu, v) against it is one-sided"
+                )
+
+        # THE MUTATION: call the dictionary family centrable and the assertion must fire.
+        bent = {**cfg, "family_kinds": {**cfg["family_kinds"],
+                                        "sae": {"centrable": True, "kind": "dictionary"}}}
+        moved_now = C.dirs_for(bent, "tb", str(sdir), str(mupath), str(root))
+        assert np.abs(moved_now[2] - raw[2]).max() > 1e-3, (
+            "the mutation did not apply: the sae row still did not move, so the check below "
+            "would pass for the wrong reason"
+        )
+        # ... and with the table honest again, the post-condition catches a hand-bent array.
+        real_centrable = C.family_centrable
+        try:
+            C.family_centrable = lambda cfg_, f: True  # the subtraction reaches every row
+            try:
+                C.dirs_for(cfg, "tb", str(sdir), str(mupath), str(root))
+            except AssertionError as e:
+                assert "not `centrable`" in str(e), f"wrong assert fired: {e}"
+            else:
+                raise AssertionError(
+                    "dirs_for subtracted a mean from a non-centrable row and said nothing"
+                )
+        finally:
+            C.family_centrable = real_centrable
+
+
+def check_unit_set_is_served_as_shipped():
+    """A stored `unit` set comes back UNCHANGED under every mu, and states that it has no mean.
+
+    Until 2026-09-23 this branch carried a `mu_stored` / `family_mu` contract: the set named the
+    mean each family was built under, `dirs_for` asserted the run's `mu` matched it, and an
+    `unknown` mean was returned with a label. All of it is deleted (M0a). A stored unit direction
+    cannot be moved to another mean without ||act||, so there was never anything the contract
+    could DO except refuse -- and the refusal made a legacy set unreadable rather than readable at
+    the one thing it is good for, the uncentred cosine. The replacement is: serve the rows as
+    shipped, and let `score` write NaN for the centred cosine of such a set.
+
+    Checked both ways round, because "unchanged under every mu" is the whole claim: two different
+    means, and the declared keys refused at config load so the dead contract cannot come back.
     """
     import numpy as np
 
@@ -1343,27 +1411,36 @@ def check_unit_set_refuses():
         for path in (mu_a, mu_b):
             C.write_array(path, rng.normal(size=(D,)).astype(np.float32), "float32")
 
-        sdir = root / "known"
-        _write_set(sdir, rows, None, {"storage": "unit", "mu_stored": None,
-                                      "family_mu": {"realact": str(mu_a), "sae": None}}, vecs=v)
-        got = C.dirs_for(cfg, "tb", str(sdir), str(mu_a), str(root))
-        assert np.abs(got - v).max() < 1e-3, "the set's own mean must return the stored rows"
-        try:
-            C.dirs_for(cfg, "tb", str(sdir), str(mu_b), str(root))
-        except AssertionError as e:
-            assert "cannot be re-centred" in str(e), f"wrong assert for a mismatched mean: {e}"
-        else:
-            raise AssertionError("dirs_for served a `storage: unit` set under the WRONG mean")
+        sdir = root / "unitset"
+        _write_set(sdir, rows, None, {"storage": "unit"}, vecs=v)
+        for mu in (None, str(mu_a), str(mu_b)):
+            notes: list[str] = []
+            got = C.dirs_for(cfg, "tb", str(sdir), mu, str(root), notes)
+            assert np.abs(got - v).max() < 1e-3, (
+                f"a `storage: unit` set moved under mu={mu!r}; its rows are the producer's and "
+                f"nothing here may re-centre them"
+            )
+            assert any("no centred number" in n for n in notes), (
+                f"the product README must SAY that this set has no centred reading, got {notes}"
+            )
 
-        udir = root / "unknown"
-        _write_set(udir, rows, None, {"storage": "unit", "mu_stored": None,
-                                      "family_mu": {"realact": C.MU_UNKNOWN, "sae": None}}, vecs=v)
-        notes: list[str] = []
-        got = C.dirs_for(cfg, "tb", str(udir), str(mu_b), str(root), notes)
-        assert np.abs(got - v).max() < 1e-3, "an `unknown` mean must still return the stored rows"
-        assert any(C.MU_UNKNOWN in n and "realact" in n for n in notes), (
-            f"an `unknown` family must be LABELLED into the product README, got notes {notes}"
-        )
+        # the deleted contract cannot be reintroduced through config without the loader saying so
+        bad = {"storage": "unit", "families": {"realact": {"n": 1}}, "mu_stored": None}
+        try:
+            C._check_heldout_storage(cfg, "s1", bad)
+        except AssertionError as e:
+            assert "deleted on 2026-09-23" in str(e), f"wrong assert for a revived mu_stored: {e}"
+        else:
+            raise AssertionError("_check_heldout_storage accepted a `mu_stored:` key")
+
+        # An OLD storage.json on the volume still carries the dead fields; they are IGNORED, not
+        # a refusal -- no set on the volume is re-drawn for this change.
+        legacy = root / "legacy"
+        _write_set(legacy, rows, None,
+                   {"storage": "unit", "mu_stored": str(mu_a), "family_mu": {"realact": "x"}},
+                   vecs=v)
+        got = C.set_storage(cfg, str(legacy), str(root))
+        assert sorted(got) == ["source", "storage"] and got["storage"] == "unit", got
 
         # A directory with neither a storage.json nor a config entry has no stated contract.
         bare = root / "bare"
@@ -1494,7 +1571,7 @@ def check_sae_key_selector():
             "config.yaml must declare which dictionary 2026-09-16_v1's sae ids index"
         )
         with open(d / C.STORAGE_FILE, "w") as fh:
-            json.dump({"storage": "raw", "mu_stored": None, "sae_key": "qwen36-27b/sae2m"}, fh)
+            json.dump({"storage": "raw", "sae_key": "qwen36-27b/sae2m"}, fh)
         assert C.declared_sae_key(cfg, str(d)) == "qwen36-27b/sae2m", "storage.json must win"
         bare = Path(td) / "nowhere"
         bare.mkdir()
@@ -1512,13 +1589,16 @@ def check_family_kinds_table():
     for set_name, spec in cfg["heldout"].items():
         for fam in spec["families"]:
             assert fam in cfg["family_kinds"], f"heldout {set_name} family {fam} has no family_kinds"
-        for fam, mu in (spec.get("family_mu") or {}).items():
-            assert mu is None or mu == C.MU_UNKNOWN or str(mu).endswith(C.MU_SUFFIXES), (
-                f"heldout {set_name} family_mu[{fam}] = {mu!r} is not null, {C.MU_UNKNOWN!r} or a "
-                f"{'/'.join(C.MU_SUFFIXES)} path -- a mu is a FILE, never a name"
-            )
     for fam, fspec in cfg["family_kinds"].items():
         assert fspec["centrable"] == (fspec["kind"] == "activation"), fam
+    # THE SCORING CONSTANT is a file path on every base, since every centred number in the
+    # pipeline is taken about it and a base without one can report no centred cosine at all.
+    for b in cfg["bases"]:
+        mu = C.score_mu(cfg, b)
+        assert str(mu).endswith(C.MU_SUFFIXES), (
+            f"bases[{b}].whiten_mu = {mu!r} is not a {'/'.join(C.MU_SUFFIXES)} path -- a mu is a "
+            f"FILE, never a name"
+        )
     for key, spec in cfg["maemms"].items():
         if "mu" in spec:
             # Three legal states: null, a file path, or `unknown` -- "considered, not established",
@@ -1626,7 +1706,7 @@ def check_set_on_disk():
     import numpy as np
 
     cfg = _conv_cfg()
-    cfg["heldout"]["s1"] = {"storage": "raw", "mu_stored": None,
+    cfg["heldout"]["s1"] = {"storage": "raw",
                             "families": {"realact": {"n": 2}, "random": {"n": 2}}}
     fams = cfg["heldout"]["s1"]["families"]
     rows = [{"row": i, "family": f, "id": i}
@@ -1636,7 +1716,7 @@ def check_set_on_disk():
         root = Path(td)
         assert C.check_set_on_disk(cfg, "tb", "s1", fams, str(root))["status"] == "absent"
         sdir = root / "base" / "tb" / "heldout" / "s1"
-        _write_set(sdir, rows, act, {"storage": "raw", "mu_stored": None, "family_mu": {}})
+        _write_set(sdir, rows, act, {"storage": "raw"})
         got = C.check_set_on_disk(cfg, "tb", "s1", fams, str(root))
         assert got["status"] == "ok", got
         assert "storage raw" in got["detail"], got
@@ -1731,7 +1811,7 @@ def check_heldout_v3_ours_block():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         src = root / "base" / "tb" / "heldout" / "v1raw"
-        _write_set(src, rows_src, act, {"storage": "raw", "mu_stored": None, "family_mu": {}})
+        _write_set(src, rows_src, act, {"storage": "raw"})
         args = {"base": "tb", "root": str(root), "dirs_from": str(src), "rows": "0-15"}
 
         notes: list[str] = []
@@ -1767,8 +1847,7 @@ def check_heldout_v3_ours_block():
         # set has no act.f32 to open -- which is red either way, and the message names the file.)
         unit_src = root / "base" / "tb" / "heldout" / "v1unit"
         vecs = act / np.linalg.norm(act, axis=1, keepdims=True)
-        _write_set(unit_src, rows_src, None, {"storage": "unit", "mu_stored": None,
-                                              "family_mu": {"realact": "mu.f32"}}, vecs=vecs)
+        _write_set(unit_src, rows_src, None, {"storage": "unit"}, vecs=vecs)
         try:
             heldout_v3._block_ctrl(cfg, {**args, "dirs_from": str(unit_src)}, [],
                                    block="ours", allow_centrable=True, exclude=())
@@ -1866,7 +1945,7 @@ def check_sae_self_side_flag():
         hdir.mkdir(parents=True)
         C.write_jsonl(hdir / "ids.jsonl", [{**r, "sae_key": sae_key} for r in rows])
         with open(hdir / C.STORAGE_FILE, "w") as fh:
-            json.dump({"storage": "dirs_only", "mu_stored": None, "sae_key": sae_key}, fh)
+            json.dump({"storage": "dirs_only", "sae_key": sae_key}, fh)
         args = {"base": base, "root": td, "heldout": "fixture_sides", "sae": sae_key}
         _meta, sel, feats, key, side = _sae_rows(cfg, args, "sae_self")
         assert (sel, feats, key, side) == ([0, 1, 4], [10, 11, 12], sae_key, "enc"), (
@@ -2544,8 +2623,18 @@ def check_corpus_axis():
     assert C.corpus_key_of_dir(cfg, "train_parity_10m") == "celeste-train10m"
     assert C.corpus_key_of_dir(cfg, "nothing-like-this") == ""
     assert C.assert_corpus_geometry(cfg, "") == (C.SCAN_BLOCK, C.SCAN_STRIDE)
+    # EVERY configured corpus must match the geometry the pipeline actually cuts at, or it cannot
+    # be scanned. `celeste-train10m` declared 32/8 until 2026-09-23 and was refused here; it is
+    # 64/16 now (nothing was built at 32/8 -- the corpus product is a geometry-free token stream).
+    for key, spec in cfg["corpora"].items():
+        got = C.assert_corpus_geometry(cfg, spec["dir"])
+        assert got == (C.SCAN_BLOCK, C.SCAN_STRIDE), f"corpus {key}: {got}"
+    # and the refusal itself still fires, on a corpus built to disagree
+    bad = {**cfg, "corpora": {**cfg["corpora"],
+                              "bad": {**cfg["corpora"]["celeste-train10m"],
+                                      "dir": "bad_dir", "block": 32, "stride": 8}}}
     try:
-        C.assert_corpus_geometry(cfg, "train_parity_10m")
+        C.assert_corpus_geometry(bad, "bad_dir")
     except AssertionError as e:
         assert "declares window 32/8" in str(e), f"wrong assert for a mismatched geometry: {e}"
     else:
@@ -2946,7 +3035,8 @@ CHECKS = [
     check_strip_repo_sink,
     check_sae_key_for,
     check_storage_contract,
-    check_unit_set_refuses,
+    check_no_mean_reaches_a_row_without_a_raw_activation,
+    check_unit_set_is_served_as_shipped,
     check_two_cosines,
     check_sae_key_selector,
     check_family_kinds_table,

@@ -3,7 +3,7 @@
     ids.jsonl     one row per target: row, family, id, stratum + the family's own fields
     act.f32       [N, d] the RAW vector of each row, before any mean was subtracted
     vecs.f16      [N, d] UNIT rows = unit(act), UNCENTRED; row i is ids.jsonl line i
-    storage.json  the set's storage contract (raw / mu_stored / family_mu), common.set_storage
+    storage.json  the set's storage contract (`storage:` alone), common.set_storage
     mu_512.f32    [d] DIAGNOSTIC ONLY (see below): the mean of the 512-token no-sink windows
     leakage.jsonl cos > 0.999 hits against the archived 8B training banks (checklist item 35)
 
@@ -30,7 +30,7 @@ SUPERSEDED (kept for the record, because every set drawn before 2026-09-21 follo
 CENTRING MEAN (Tomáš, 2026-09-15, checklist item 77) -- a realact target is `unit(X[p] - mu)` with
 `mu` = `stats/mu.f32` and that subtraction happens exactly ONCE, here at construction." Those sets
 are `storage: unit` in config.yaml and `common.dirs_for` serves them only at the mean they were
-built with; `--re-derive` (below) turns one into a `storage: raw` set without re-sampling it.
+built with, and has no centred reading at all (common.dirs_for).
 
 `mu_512.f32` -- the read-layer mean over ALL positions of the 512-token, NO-sink windows this draw
 forwards, which is what Celeste subtracts (data/build_universal_bank.py:310) -- is still computed
@@ -393,124 +393,6 @@ def _leakage(cfg, args, rows, vecs, od):
     return hits
 
 
-# `--re-derive`: how close the re-forwarded direction must sit to the one stored under the old
-# convention before the two are called the same draw. MEASURED basis: the old vecs.f16 is an f16
-# round trip of a fp32 unit vector (~1e-3 per component, ~1e-6 on the cosine), so 0.9999 is two
-# orders of magnitude above the storage noise and far below a genuinely different position.
-RE_DERIVE_COS = 0.9999
-# Fields of ids.jsonl that must reproduce EXACTLY. `span_text` is checked separately (the D4 clamp
-# legitimately changes it on the rows whose slice used to run off the document's front) and
-# `L_shown` did not exist before 2026-09-21.
-RE_DERIVE_EXACT = ("family", "id", "stratum", "doc", "part", "part_row", "p", "L", "act_norm")
-
-
-def _re_derive_check(cfg, args, old_set, rows, v, a, od):
-    """`--re-derive <old set>`: assert the new RAW draw IS the old one, re-forwarded.
-
-    The claim being checked is that nothing was re-SAMPLED. It holds by construction -- the whole
-    rng stream (`sel`, `p_all`, `l_all`, `ii`, `pp`, `targets.py:81-91`) is drawn before `mu` is
-    used for anything but a print, and the acceptance filter is on the RAW norm (`:114-115`) -- so
-    the same (doc, p, L) must come back. This function is what turns "by construction" into a
-    check, and it is the only thing standing between a re-derived set and a silently different one.
-
-    Three assertions:
-      1. every field of RE_DERIVE_EXACT is identical, row for row, including the row ORDER;
-      2. `span_text` is identical except on rows where `p - L + 1 < 0`, where the new text must be
-         a SUFFIX of the old one -- that is exactly what clamping at the document start does (D4);
-      3. `cos(dirs_for(new, centering=<the old set's own mean>), old vecs.f16) > RE_DERIVE_COS`,
-         i.e. re-centring the new raw rows under the old convention reproduces the old file.
-
-    The residual risk `targets.py:92`'s GPU median leaves is stated in the README, not asserted: a
-    boundary candidate could flip on a different H200 and the (doc, p, L) tuples would then differ.
-    That costs the re-forward, not a wrong number -- assertion 1 catches it loudly.
-    """
-    import numpy as np
-
-    base, root = args["base"], args["root"]
-    old_dir = C.heldout_dir(base, old_set, root)
-    assert os.path.exists(f"{old_dir}/ids.jsonl"), (
-        f"--re-derive {old_set}: no {old_dir}/ids.jsonl on {root}; there is nothing to reproduce"
-    )
-    old_rows = C.read_jsonl(f"{old_dir}/ids.jsonl")
-    assert len(old_rows) == len(rows), (
-        f"--re-derive {old_set}: the old set has {len(old_rows)} rows and this draw made "
-        f"{len(rows)} -- the two config entries do not describe the same draw"
-    )
-    bad = []
-    clamped, suffix_ok = 0, 0
-    for i, (new, old) in enumerate(zip(rows, old_rows, strict=True)):
-        for field in RE_DERIVE_EXACT:
-            if field in old and new.get(field) != old.get(field):
-                bad.append(f"row {i} {field}: {new.get(field)!r} != {old.get(field)!r}")
-        if "span_text" not in old:
-            continue
-        if new["span_text"] == old["span_text"]:
-            continue
-        if int(new.get("p", 0)) - int(new.get("L", 0)) + 1 < 0:
-            clamped += 1
-            suffix_ok += int(old["span_text"].endswith(new["span_text"]))
-        else:
-            bad.append(f"row {i} span_text changed on an UNCLAMPED row")
-    assert not bad, (
-        f"--re-derive {old_set}: the re-derived draw is not the old draw -- "
-        f"{len(bad)} mismatches, first 5: {bad[:5]}"
-    )
-    assert suffix_ok == clamped, (
-        f"--re-derive {old_set}: {clamped - suffix_ok} of {clamped} clamped rows' new span_text is "
-        f"not a suffix of the old one; the D4 clamp only ever REMOVES leading foreign tokens"
-    )
-
-    d = cfg["bases"][base]["d"]
-    old_v = C.read_array(f"{old_dir}/vecs.f16", "float16", (len(old_rows), d)).astype(np.float32)
-    old_v /= np.maximum(np.linalg.norm(old_v, axis=1, keepdims=True), 1e-12)
-    a_np = a.numpy().astype(np.float32)
-    per_fam = {}
-    worst = 1.0
-    for fam in sorted({r["family"] for r in rows}):
-        ix = np.array([i for i, r in enumerate(rows) if r["family"] == fam])
-        name = C.mu_of_family(cfg, old_set, fam)
-        mu = None if name == C.MU_UNKNOWN else C.load_mu(cfg, base, name, root)
-        redone = a_np[ix] - (mu[None, :] if mu is not None else 0.0)
-        redone = redone / np.maximum(np.linalg.norm(redone, axis=1, keepdims=True), 1e-12)
-        cos = np.einsum("nd,nd->n", redone, old_v[ix])
-        per_fam[fam] = {
-            "mu": C.mu_label(name, base, root), "n": int(len(ix)),
-            "min_cos": round(float(cos.min()), 8),
-        }
-        worst = min(worst, float(cos.min()))
-        assert float(cos.min()) > RE_DERIVE_COS, (
-            f"--re-derive {old_set}: re-centring the new act.f32 under the old set's own mean "
-            f"{C.mu_label(name, base, root)} does not reproduce its {fam} rows -- min cos "
-            f"{float(cos.min()):.6f} <= "
-            f"{RE_DERIVE_COS}. Either the forward moved or the old set's recorded mean is wrong."
-        )
-    od.write_json(
-        "re_derive.json",
-        {"old_set": old_set, "old_dir": old_dir, "rows": len(rows),
-         "spans_clamped": clamped, "per_family": per_fam, "min_cos": round(worst, 8)},
-    )
-    od.section(
-        "Re-derive",
-        [
-            f"This set is `{old_set}` RE-DERIVED, not re-sampled: the same config seed and the same "
-            "family order reproduce the same rng stream, and the acceptance filter is on the raw "
-            "norm, so the same (doc, p, L) comes back. What changed is the STORAGE -- `act.f32` "
-            "plus `vecs.f16 = unit(act)` instead of a direction with a mean already subtracted.",
-            "",
-            f"- every one of {list(RE_DERIVE_EXACT)} is identical row for row, in row order;",
-            f"- `span_text` is identical except on the {clamped} rows whose slice used to run off "
-            "the document's front (D4), where the new text is a suffix of the old one;",
-            f"- re-centring the new `act.f32` under each family's own OLD mean reproduces the old "
-            f"`vecs.f16` to min cos {worst:.8f} (> {RE_DERIVE_COS}): {per_fam}.",
-            "",
-            "NOT asserted: `targets.py`'s presample median is a GPU median, so a candidate sitting "
-            "exactly on the 10x norm boundary could flip on a different H200 and change the draw. "
-            "That would fail the first check loudly and cost one re-forward, not a wrong number.",
-        ],
-    )
-    return {"old_set": old_set, "spans_clamped": clamped, "min_cos": round(worst, 8), "per_family": per_fam}
-
-
 IMPORT_FAMS = ("realact", "random", "sae")  # FAMILY_ORDER restricted to what run1's cache holds
 
 
@@ -608,12 +490,10 @@ def import_run1(cfg, args):
             "storage.json",
             {
                 "storage": "unit",
-                "mu_stored": None,
                 # Which mean run1's archived eval cache centred `realact_dirs` on is NOT recorded
-                # anywhere we hold, so it is labelled rather than asserted: common.dirs_for returns
-                # these rows with a warning and a README label instead of a number that claims a
-                # convention. random / sae were never centred at all.
-                "family_mu": {"realact": C.MU_UNKNOWN, "random": None, "sae": None},
+                # anywhere we hold. Since 2026-09-23 that needs no key: a `storage: unit` set is
+                # served exactly as shipped and has no centred reading at any mean, so there is
+                # nothing to declare and nothing to get wrong.
                 "note": (
                     "imported verbatim from run1's archived eval cache; no act.f32 exists, so these "
                     "directions cannot be moved to another mean"
@@ -642,57 +522,6 @@ def run(cfg, args):
     assert base, "product targets needs --base"
     spec = cfg["bases"][base]
     hspec = cfg["heldout"][set_name]
-    # `--re-derive <old>` re-forwards an existing set under the RAW storage contract instead of
-    # re-sampling it. It is a pure VERIFICATION flag here: the draw itself is the ordinary one, so
-    # the new config entry must describe the same draw as the old -- same seed, same families, same
-    # family sizes, same sae parameters -- or the rng streams part company and "the same rows" is
-    # a claim nobody checked.
-    re_derive = (args.get("re_derive") or "").strip()
-    if re_derive:
-        assert re_derive in cfg["heldout"], (
-            f"--re-derive {re_derive!r} is not a set in config.yaml ({sorted(cfg['heldout'])})"
-        )
-        # A RE-DERIVE NEVER REMOVES OR OVERWRITES A SET (Tomáš, 2026-09-21). It exists to make an
-        # existing set readable under the raw contract, and a migration that can destroy the thing
-        # it is migrating is worth less than no migration. Three guards, all before the GPU:
-        #   1. the output is not the source -- the old set is READ, never rewritten;
-        #   2. the output does not already exist;
-        #   3. --force is REFUSED outright, because --force is the flag that rmtrees.
-        # The alternative shape -- writing act.f32 additively INTO the source directory and
-        # keeping its old vecs.f16/README, with storage.json saying which is canonical -- is NOT
-        # implemented: it would leave one directory holding two conventions, which is the thing
-        # this whole branch is removing. Write a new set name and keep both.
-        assert re_derive != set_name, (
-            f"--re-derive {re_derive!r} into itself: give --set a NEW name (the old set is read, "
-            f"never rewritten -- infra/design.md §1)"
-        )
-        assert not args.get("force"), (
-            "--re-derive does not take --force. --force rmtrees the output directory "
-            "(common.OutDir.__enter__), and a migration that can destroy an existing set is not "
-            "one. Pick a --set name that does not exist yet."
-        )
-        assert not os.path.exists(C.heldout_dir(base, set_name, root)), (
-            f"--re-derive {re_derive} --set {set_name}: "
-            f"{C.heldout_dir(base, set_name, root)} already exists. A re-derive only ever CREATES "
-            f"a set; it will not add to, replace or merge with one. Pick a new name."
-        )
-        old = cfg["heldout"][re_derive]
-        same = ["seed", "sae_strata", "sae_min_fires"]
-        for field in same:
-            assert hspec.get(field) == old.get(field), (
-                f"--re-derive {re_derive}: heldout.{set_name}.{field} is {hspec.get(field)!r} but "
-                f"the old set's is {old.get(field)!r}; a re-derive must describe the SAME draw"
-            )
-        assert {f: s["n"] for f, s in hspec["families"].items()} == {
-            f: s["n"] for f, s in old["families"].items()
-        }, (
-            f"--re-derive {re_derive}: the families differ ({hspec['families']} vs "
-            f"{old['families']}); the draw order and sizes set the rng stream"
-        )
-        assert hspec.get("storage") == "raw", (
-            f"--re-derive writes a RAW set, so heldout.{set_name}.storage must be `raw`, not "
-            f"{hspec.get('storage')!r}"
-        )
     fams = C.families_for(cfg, set_name, base)
     seed = int(hspec["seed"])
     # WHICH SAE the `sae` family's feature ids belong to. `qwen36-27b` has carried two since
@@ -787,7 +616,6 @@ def run(cfg, args):
             f"draw order {FAMILY_ORDER} from ONE np.random.default_rng({seed}); the random family "
             f"uses a separate torch.Generator().manual_seed({seed}) (Celeste's convention)"
         )
-        redone = _re_derive_check(cfg, args, re_derive, rows, v, a, od) if re_derive else None
         od.note("vecs.f16 rows are unit in fp32 before the cast; the f16 round-trip is ~1e-3 off unit")
         od.note(
             "STORAGE: `raw` (storage.json). act.f32 [N, d] fp32 is the row's vector before any "
@@ -801,7 +629,6 @@ def run(cfg, args):
         "rows": len(rows),
         "families": {f: sum(1 for r in rows if r["family"] == f) for f in FAMILY_ORDER},
         "leakage_hits": len(hits),
-        "re_derive": redone,
     }
 
 

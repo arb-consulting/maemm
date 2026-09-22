@@ -481,10 +481,6 @@ def main(
     # carries the ladder, the geometry and the provenance sentence, a directory name carries none.
     # Also comma-separated, for the same reason.
     corpus_name: str = "",
-    # targets: re-forward an EXISTING set under the raw storage contract (act.f32 + unit(act))
-    # instead of re-sampling it, asserting row for row that it is the same draw. The named set is
-    # only READ; --set gives the new one. See precompute/targets.py:_re_derive_check.
-    re_derive: str = "",
     # rollouts_nla: which input-amplitude convention to inject ("" = the entry's own nla.amp).
     # A NON-default value writes maemms/<base>/<nla>/variants/<set>__amp-<amp>/ instead of the
     # accumulating rollouts/ directory (precompute/rollouts_nla.py's docstring says what each is).
@@ -586,7 +582,6 @@ def main(
         "mu": mu,
         "centre": centre,
         "corpus_name": corpus_name,
-        "re_derive": re_derive,
         "arm": arm,
         "max_size": max_size,
         "with_set": with_set,
@@ -663,44 +658,16 @@ def main(
             f"nothing to product {product!r}"
         )
     if with_set:
-        # A `--with-set` bank is resolved by the SAME `--mu` as the primary set, and `dirs_for`
-        # returns the WHOLE set array by contract (row selection is the caller's), so a family
-        # filter does NOT save a set whose stored centring disagrees. That assert fires inside
-        # the container, after the base model load; config says enough to refuse here instead.
-        asked = (mu or "").strip()
         for extra in [x for x in with_set.split(",") if x]:
             name = extra.partition(":")[0]
             assert name in cfg["heldout"], (
                 f"--with-set names {name!r}, which is not a set in config.yaml"
             )
-            spec = cfg["heldout"][name]
-            if spec.get("storage") != "unit" or not asked or asked.lower() in ("none", "null"):
-                continue
-            stored = dict(spec.get("family_mu") or {})
-            if spec.get("mu_stored") is not None:
-                stored.setdefault("*", spec["mu_stored"])
-            for fam, own in stored.items():
-                if own is None or own == C.MU_UNKNOWN:
-                    continue
-                if fam != "*" and not C.family_centrable(cfg, fam):
-                    continue  # nothing was subtracted from it, so no mean can disagree
-                if C.resolve_mu_path(own, base, VOL) != C.resolve_mu_path(asked, base, VOL):
-                    raise AssertionError(
-                        f"--with-set {name}: it is `storage: unit` and its {fam!r} rows are stored "
-                        f"under {own}, but this run asks for --mu {asked}. A stored unit direction "
-                        f"cannot be re-centred, and `dirs_for` refuses the WHOLE set regardless of "
-                        f"the family filter in `--with-set {extra}`. Drop the bank, or run at the "
-                        f"mean it was built with."
-                    )
-
-    if re_derive:
-        assert product == "targets", (
-            f"--re-derive is a `targets` flag (re-forward an existing set under raw storage) and "
-            f"means nothing to product {product!r}"
-        )
-        assert re_derive in cfg["heldout"], (
-            f"--re-derive {re_derive!r} is not a set in config.yaml ({sorted(cfg['heldout'])})"
-        )
+            # The stored-convention guard that used to live here (a `storage: unit` bank whose
+            # `family_mu` disagreed with --mu) went with `mu_stored` / `family_mu` on 2026-09-23:
+            # a unit bank is now served exactly as shipped and simply has no centred reading.
+            # What `--centre` needs instead -- every bank `storage: raw` -- is asserted in
+            # scan._load_targets, where the set directory is actually in hand.
     # --amp belongs to rollouts_nla alone, and is checked HERE as well as there so --dry-run
     # actually covers it: a typo would otherwise reach the container and cost a scheduled H200.
     if amp:

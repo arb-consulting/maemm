@@ -31,15 +31,20 @@ bases:
     whiten_mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
 
 # A MU IS A FILE (Tomáš, 2026-09-21). Everywhere a centring mean is named in this file or on a
-# command line -- `maemms.<k>.mu`, `heldout.<set>.mu_stored`, `heldout.<set>.family_mu.<fam>`,
-# `--mu` -- the value is one of:
+# command line -- `maemms.<k>.mu`, `bases.<base>.whiten_mu`, `--mu` -- the value is one of:
 #   null        subtract nothing: the input/stored direction is a RAW unit activation
 #   <path>      a [d] float32 `.f32` or numpy `.npy` file. A path starting with `/` is absolute;
 #               anything else is relative to the run's --root (so a smoke under /vol/runs/... gets
 #               its own stats mean). `{base}` in the path expands to the base key, which is what
 #               lets one held-out entry describe the set on either base.
-#   unknown     (family_mu / mu_stored only) it arrived centred on a mean nobody here holds. Its
-#               rows are returned with a label, never re-derived.
+#   unknown     (`maemms.<k>.mu` only) the checkpoint's training convention is not on the record.
+#               Nothing guesses one: every run of it must be told with --mu, as a deviation.
+# TWO AXES, and they are not the same one (M0a, 2026-09-23). `maemms.<k>.mu` is the INJECTION
+# convention -- what a checkpoint was trained to receive at its marker token. `bases.<base>
+# .whiten_mu` is the SCORING CONSTANT, the mean both arguments of every centred cosine are taken
+# about (`common.score_mu`), a property of the base and of no run. Before they were separated the
+# reported statistic depended on which checkpoint it reported on, so the old primary, the base
+# control and the NLA arm had no centred cosine at all and no two arms could be differenced.
 # There is no enum and no registry of mean NAMES: a new checkpoint trained on a new mean is a new
 # path in a config entry, and nothing else has to change.
 
@@ -63,7 +68,7 @@ family_kinds:
   code:         {centrable: true,  kind: activation}
   math:         {centrable: true,  kind: activation}
   diag:         {centrable: true,  kind: activation}
-  realact_long: {centrable: true,  kind: activation}   # centred, mean UNVERIFIED -- see heldout.*.family_mu
+  realact_long: {centrable: true,  kind: activation}   # centred at construction, by an UNVERIFIED mean
   random:       {centrable: false, kind: synthetic}
   sae:          {centrable: false, kind: dictionary}
   sae2m_enc:    {centrable: false, kind: dictionary}   # the 2k set's legacy label; kept, not rewritten
@@ -193,9 +198,10 @@ maemms:
     # run record. NOT deleted: the arms are the evidence and both stay on the volume.
     #
     # The plan's separate reproduction check ("cos_raw within 0.01 of 0.5076" on rows 0-7 of
-    # `2026-09-16_v1`) is still NOT evaluated -- see SMOKES.md: the stored 0.5076 is the
-    # asymmetric `cos(h, unit(act - stats_mu))`, which a raw set's `score` does not produce under
-    # any flag combination.
+    # `2026-09-16_v1`) is RETIRED, not pending (2026-09-23): the stored 0.5076 is the asymmetric
+    # `cos(h, unit(act - stats_mu))`, which no `score` run produces on a raw set under any flag,
+    # and it was never a gate -- `sanity.yaml` carried it with `compare: false`, printing two
+    # numbers and issuing no verdict. It is gone from that file with every other dated number.
     mu: base/{base}/stats/mu.f32
     primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
   # The v2 / simple2m checkpoint (Ari 2026-09-19: the one to use for the experiments).
@@ -367,12 +373,12 @@ maemms:
 #                         `act_norm` to solve with) un-centring is not possible.
 #            dirs_only -- `vecs.f16` is a direction that was never centred and never could be
 #                         (an encoder column, a Gaussian draw, a subspace basis).
-#   mu_stored:  the mean the WHOLE set was centred on, as a FILE PATH (see "A MU IS A FILE"), or
-#               null when it is not one mean for the whole set.
-#   family_mu:  per family, for a `storage: unit` set whose families do not share one convention.
-#               null = that family was never centred; `unknown` = it arrived centred on a mean
-#               nobody here holds, and `dirs_for` returns it with a label instead of a number
-#               anyone can re-derive.
+# `storage:` IS THE WHOLE CONTRACT (M0a, 2026-09-23). The `mu_stored:` / `family_mu:` keys that
+# used to name the mean a `unit` set was built under are DELETED, and so is the machinery that
+# read them: a stored unit direction cannot be moved to another mean without ||act||, so such a
+# set is served exactly as its producer shipped it and simply has no centred cosine -- `score`
+# writes NaN for its rows. The mean every centred number is reported about is now
+# `bases.<base>.whiten_mu` (`common.score_mu`) and is named nowhere per set.
 # A set written before these keys existed is described here, not rewritten in place.
 heldout:
   2026-09-16_v1:
@@ -383,13 +389,6 @@ heldout:
     sae_key: qwen36-27b/l42-1b
     # Drawn 2026-09-16, BEFORE the raw-storage rule: its realact rows are stored already centred.
     storage: unit
-    mu_stored: null           # not one mean for the whole set -- per family below
-    family_mu:
-      # `{base}` expands to the base key, so one entry describes the set on either base.
-      realact: base/{base}/stats/mu.f32   # targets.py stored unit(X[p] - stats/mu.f32)
-      random:  null           # a torch.randn draw; nothing was ever subtracted
-      sae:     null           # unit(W_enc[:, f]); an encoder column has no mean
-      jlens:   null           # declared-empty slot, zero rows
     seed: 20260916
     families:
       realact: {n: 512}
@@ -416,7 +415,6 @@ heldout:
     # Drop the flag deliberately, in its own commit, when this set is adopted as the default.
     imported: true
     storage: raw
-    mu_stored: null           # nothing stored is centred; --mu decides per run
     sae_key: qwen36-27b/l42-1b  # also stamped per row by targets.py; declared here for readers
     seed: 20260916            # == 2026-09-16_v1, asserted
     families:
@@ -452,7 +450,6 @@ heldout:
   2026-09-20_sae2m_2k:
     imported: true
     storage: dirs_only        # 2,000 unit encoder columns; nothing here was ever centred
-    mu_stored: null
     sae_key: qwen36-27b/sae2m   # its rows carry no per-row sae_key; see 2026-09-16_v1 above
     seed: 20260920            # scan's reservoir generator seeds off this
     families:
@@ -482,7 +479,6 @@ heldout:
     # a set without it, and refused this one -- correctly: nothing could have served these rows at
     # a centring, because nothing said what they were stored as.
     storage: dirs_only
-    mu_stored: null
     sae_key: qwen36-27b/l42-1b   # its rows carry the full key too; this is belt and braces
     families:
       sae: {n: 2000}
@@ -514,7 +510,7 @@ heldout:
   # read together; row order within each block is FROZEN so every arm pairs.
   #
   #   2026-09-21_v3_realact    her 512 realact, RECOVERED TO RAW        raw
-  #   2026-09-21_v3_realact_long  her 512 realact_long, as shipped      unit (family_mu unknown)
+  #   2026-09-21_v3_realact_long  her 512 realact_long, as shipped      unit (no centred reading)
   #   2026-09-21_v3_subspace   her 512 bsf + 512 jlens, as shipped      dirs_only
   #   2026-09-21_v3_ctrl       random + sae(131k), copied from v1raw    raw
   #   2026-09-21_v3_ours       our 512 realact, copied from v1raw       raw
@@ -540,7 +536,6 @@ heldout:
   2026-09-21_v3_realact:
     imported: true
     storage: raw
-    mu_stored: null           # nothing stored is centred; --mu decides per run
     families:
       realact: {n: 512, bases: [qwen36-27b]}
 
@@ -555,9 +550,6 @@ heldout:
   2026-09-21_v3_realact_long:
     imported: true
     storage: unit
-    mu_stored: null           # per family below
-    family_mu:
-      realact_long: unknown
     families:
       realact_long: {n: 512, bases: [qwen36-27b]}
 
@@ -567,7 +559,6 @@ heldout:
   2026-09-21_v3_subspace:
     imported: true
     storage: dirs_only
-    mu_stored: null
     families:
       bsf:   {n: 512, bases: [qwen36-27b]}
       jlens: {n: 512, bases: [qwen36-27b]}
@@ -582,7 +573,6 @@ heldout:
   2026-09-21_v3_ctrl:
     imported: true
     storage: raw
-    mu_stored: null
     sae_key: qwen36-27b/l42-1b
     families:
       random: {n: 512, bases: [qwen36-27b]}
@@ -595,8 +585,8 @@ heldout:
   # pipeline, same checkpoints, same n, targets drawn by us rather than by her.
   #
   # A centrable family in a COPIED block, which `--block ctrl` refuses: allowed here because the
-  # source is `storage: raw` with `mu_stored: null`, so `act.f32` is the activation before any
-  # mean was subtracted and the copy inherits no centring convention. `--mu` decides per run.
+  # source is `storage: raw`, so `act.f32` is the activation before any mean was subtracted and
+  # the copy inherits no centring convention. `--mu` decides the injection per run.
   #
   # EXCLUSIONS, in the set's own `exclusions.json` and NOT applied: the six spans fully
   # reproduced in her v2 training text at n=13 (rows 38, 45, 101, 318, 393, 446), headline
@@ -605,7 +595,6 @@ heldout:
   2026-09-21_v3_ours:
     imported: true
     storage: raw
-    mu_stored: null           # nothing stored is centred; --mu decides per run
     families:
       realact: {n: 512, bases: [qwen36-27b]}
 
@@ -620,7 +609,6 @@ heldout:
   2026-09-21_v3_sae2m:
     imported: true
     storage: dirs_only
-    mu_stored: null
     sae_key: qwen36-27b/sae2m
     seed: 20260921
     families:
@@ -634,7 +622,6 @@ heldout:
     # `evals/sae-smoke64`, before it existed). Its rows DO carry a per-row `sae_key`, so the
     # declaration below is belt and braces rather than the thing that makes them selectable.
     storage: dirs_only
-    mu_stored: null
     sae_key: qwen36-27b/sae2m
     families:
       sae: {n: 64, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
@@ -652,7 +639,6 @@ heldout:
     # `rl-last16` was trained on `whiten_mu`, so the two checkpoints must read the same stored
     # rows under different means. Storing a centred row would have made that a re-draw.
     storage: raw
-    mu_stored: null
     seed: 20260918
     kind: ood
     n_per_arm: 64
@@ -675,7 +661,6 @@ heldout:
   2026-09-21_ood_q1:
     imported: true
     storage: raw
-    mu_stored: null
     seed: 20260918          # the design's seed, unchanged -- that is what makes it a prefix
     kind: ood
     n_per_arm: 16
@@ -689,7 +674,6 @@ heldout:
   2026-09-18_ood_v1_unitend:
     imported: true
     storage: raw
-    mu_stored: null
     seed: 20260918
     kind: ood
     variant_of: 2026-09-18_ood_v1
@@ -736,8 +720,8 @@ corpora:
   celeste-train10m:
     dir: train_parity_10m           # base/<base>/corpora/train_parity_10m/
     sizes: [1.25, 2.5, 5, 10]
-    block: 32
-    stride: 8
+    block: 64
+    stride: 16
     dataset: openbmb/Ultra-FineWeb
     note: >-
       Ari 2026-09-20, features/corpus_train_parity.py: the checkpoint's OWN training document
@@ -745,8 +729,14 @@ corpora:
       ladder for parity with training, which saw 9-10M activations. It hands the search text the
       model may have MEMORISED, so a win here is NOT evidence that retrieval beats generation on
       unseen text -- the two claims must not be swapped. Her eval realacts are documents
-      [0, 100,000), so a target's own document cannot leak in. Window 32/8, NOT the 64/16 of
-      heldout16m: no number from the two corpora is comparable.
+      [0, 100,000), so a target's own document cannot leak in.
+      WINDOW 64/16 since 2026-09-23 (M0a), was 32/8. Nothing on the volume was built at 32/8:
+      the corpus product is a tokens stream plus docs.jsonl and is GEOMETRY-FREE -- windows are
+      cut by the scan, at common.SCAN_BLOCK/SCAN_STRIDE, and no scan of this corpus exists. The
+      declared 32/8 therefore described a cut nothing performed, and `common.assert_corpus_
+      geometry` refused every scan of it (correctly: the README would have claimed 64/16 over
+      32/8 data). At 64/16 it matches `heldout16m` and the two corpora's cosines are finally
+      comparable -- which is what panel a row 3 differences.
 
 rollouts:
   n: 64                     # rollouts per target

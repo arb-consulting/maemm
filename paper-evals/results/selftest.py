@@ -189,7 +189,7 @@ checks:
     source: "ckpt-one:arm-a"
     family: realact
     metric: cos_raw.bo1
-    expect: 0.5076
+    expect: 0.3125
     compare: false
 """
 
@@ -213,7 +213,7 @@ def write_mirror(root: Path) -> None:
         for r in IDS:
             fh.write(json.dumps(r) + "\n")
     (hd / "storage.json").write_text(json.dumps(
-        {"storage": "raw", "mu_stored": None, "family_mu": {}, "sae_key": "B/sae-one"}))
+        {"storage": "raw", "sae_key": "B/sae-one"}))
 
     _write_scores(root, f"{BASE}/ckpt-one", f"{SET}__arm-a", PT_A, BEST_A, BEST_A_C,
                   mu="/mu.npy", sae_rows=[4, 5, 6, 7])
@@ -574,7 +574,7 @@ def check_centred_bok_is_recomputed_from_the_array():
         with open(hd / "ids.jsonl", "w") as fh:
             for r in ids:
                 fh.write(json.dumps(r) + "\n")
-        (hd / "storage.json").write_text(json.dumps({"storage": "raw", "mu_stored": None}))
+        (hd / "storage.json").write_text(json.dumps({"storage": "raw"}))
         d = root / f"maemms/{BASE}/ckpt-one/scores/CB__arm-a"
         d.mkdir(parents=True, exist_ok=True)
         with open(d / "per_target.jsonl", "w") as fh:
@@ -928,7 +928,10 @@ def check_render_and_figures():
             for ext in ("pdf", "png"):
                 p = out_dir / "figures" / f"{f}.{ext}"
                 assert p.exists() and p.stat().st_size > 1000, p
-        assert any(f.startswith("arms_") for f in figs), figs
+        # The two-arm figure went with the old primary's mu-none / mu-stats arms (M0a,
+        # 2026-09-23): this fixture still carries two run tags of one checkpoint, so its ABSENCE
+        # is the assertion -- a stale `arms_*` here would mean the deletion did not land.
+        assert not any(f.startswith("arms_") for f in figs), figs
         assert any(f.startswith("strata_") for f in figs), figs
         assert any(f.startswith("bok_") for f in figs), figs
 
