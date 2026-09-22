@@ -65,6 +65,13 @@ BOOT = 10_000
 BOOT_SEED = 20260918
 ALPHA = 0.05
 BO_KS = (1, 4, 64)
+# The nested corpus sizes the per-target and per-arm columns are built for, in MILLIONS. It is a
+# UNION over arms, not a ladder any one arm has: `config.yaml`'s `ood_arms:` gives 1/4/10 to every
+# arm, 16 to the four that reach it (`tha_Thai ufw_en python owm`) and stops `shell` at 4 and
+# `formulas` at 1. A size an arm does not carry simply has no scan, and the column stays null --
+# which is why this is one constant read in three places rather than three literals that drifted
+# apart: before 2026-09-23 all three said (1, 4, 16) and no 10M column could reach the table.
+CORPUS_SIZES = (1, 4, 10, 16)
 # The arms of the level-1 conjunction: everything except the `diag` formula arm and the `ufw_en`
 # pipeline check (design §0: 21 arms = lang 8, code 8, math 4, ufw_zh).
 CONJUNCTION_EXCLUDE = ("formulas", "ufw_en")
@@ -659,7 +666,7 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
                     float(bo_unbiased(s.best[i : i + 1], k)[0]) if i is not None else None
                 )
         for sub, top1 in scans.items():
-            for size in (1, 4, 16):
+            for size in CORPUS_SIZES:
                 v = top1.get((set_name, row, size))
                 if v is not None:
                     rec[f"corpus_{sub}_{size}m"] = v
@@ -709,11 +716,11 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
                 col = f"bo{k}_{label}"
                 if col in sel.columns and sel[col].null_count() < sel.height:
                     rec[col] = round(float(sel[col].mean()), 4)
-        for size in (1, 4, 16):
+        for size in CORPUS_SIZES:
             col = in_domain({"arm": arm}, size)
             if col and sel[col].null_count() < sel.height:
                 rec[f"corpus_{size}m"] = round(float(sel[col].mean()), 4)
-        for size in (1, 4, 16):
+        for size in CORPUS_SIZES:
             col = f"corpus_corpus-4m_{size}m"
             if col not in sel.columns:
                 col = f"corpus_corpus_{size}m"
@@ -1185,7 +1192,7 @@ def selfcheck() -> None:
             for r in ids:
                 if r["arm"] != arm:
                     continue
-                for size in (1, 4):
+                for size in (1, 4, 10):   # 10 so the fixture exercises the full-run column
                     lines.append({
                         "row": r["row"], "set": OOD_SET, "set_row": r["row"], "family": r["family"],
                         "arm": arm, "corpus": arm, "size": size,

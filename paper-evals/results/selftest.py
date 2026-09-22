@@ -74,6 +74,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import results.autointerp as A  # noqa: E402
+import precompute.common as PC  # noqa: E402
 import results.common as R  # noqa: E402
 import results.faithfulness as F  # noqa: E402
 
@@ -2567,6 +2568,63 @@ def R_outcome(lo, hi):
     return "exceeds" if lo > 0 else ("reversed" if hi < 0 else "inconclusive")
 
 
+def check_ood_bo8_headline():
+    """The bo8 pair, its verdict, and the cells map (M5, 2026-09-23).
+
+    Spec section 2's headline is bo8 against the own-domain corpus, not bo64, so `arm_rows` has to
+    pair the RECOMPUTED bo8 with the same target's corpus cell and run the estimator on THAT. The
+    numbers here make the two disagree on purpose: bo64 sits at 0.70 against a 0.50 corpus
+    (`exceeds`) while bo8 sits at 0.44 (`reversed`), so a table that carried the bo64 verdict into
+    `outcome8` would be caught here rather than in the paper.
+    """
+    od = _ood()
+    ids, per_target, top1, bo8 = [], {}, {}, {}
+    for i in range(8):
+        ids.append({"row": i, "arm": "a", "family": "lang", "doc": 100 + i})
+        w = 0.01 if i % 2 else -0.01
+        per_target[i] = {"bo_64": 0.65 + w, "bo_c_64": 0.70 + w, "bo_a_64": 0.68 + w}
+        top1[(i, 10.0)] = 0.50
+        bo8[i] = 0.44 + w
+    # one row has NO bo8 (fewer than 8 finite centred draws): it must drop out of the bo8 pair and
+    # stay in the bo64 one, which is the whole reason the two pairs are collected separately.
+    del bo8[7]
+
+    def boot_ci(d):
+        m = float(np.mean(d))
+        h = 3.0 * float(np.std(d, ddof=1)) / math.sqrt(d.size) if d.size > 1 else 1.0
+        return m, m - h, m + h
+
+    src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
+    src.per_target = per_target
+    recs, skipped = od.arm_rows(ids, src, {"a": top1}, 10.0, "centred", boot_ci, R_outcome, None,
+                                bo8=bo8)
+    assert not skipped, skipped
+    r = recs[0]
+    assert r["n"] == 8 and r["n8"] == 7, f"the bo8 pair drops the row with no bo8: {r}"
+    assert abs(r["delta"] - 0.20) < 1e-6, r          # bo64 0.70 - corpus 0.50
+    assert abs(r["delta8"] + 0.06) < 0.01, r         # bo8 0.44 - corpus 0.50
+    assert r["outcome"] == "exceeds" and r["outcome8"] == "reversed", (
+        f"the verdict must follow the bo8 pair, not the bo64 one: {r}"
+    )
+    # no bo8 at all -> no bo8 verdict, and the bo64 columns are untouched
+    recs2, _ = od.arm_rows(ids, src, {"a": top1}, 10.0, "centred", boot_ci, R_outcome, None)
+    assert recs2[0]["delta8"] is None and recs2[0]["outcome8"] == "no bo8 pairs", recs2[0]
+
+    # the cells key map, read off `paper/numbers/cells.csv`'s existing ids
+    want = {"ces_Latn": "ces", "rus_Cyrl": "rus", "ell_Grek": "ell", "arb_Arab": "arb",
+            "hin_Deva": "hin", "tha_Thai": "tha", "cmn_Hani": "cmn", "jpn_Jpan": "jpn",
+            "ufw_zh": "zh", "ufw_en": "en", "python": "python", "javascript": "javascript",
+            "c": "c", "rust": "rust", "go": "go", "haskell": "haskell", "sql": "sql",
+            "shell": "shell", "owm": "owm", "arxiv": "arxiv", "lean": "lean",
+            "isabelle": "isabelle", "formulas": "formulas"}
+    got = {a: od.cell_id_of(a) for a in want}
+    assert got == want, {a: (got[a], want[a]) for a in want if got[a] != want[a]}
+    cfg = PC.load_config()
+    assert set(want) == set(cfg["ood_arms"]), "the cells map and ood_arms have drifted apart"
+    assert od.arm_size_m(cfg, "shell") == 4.0 and od.arm_size_m(cfg, "formulas") == 1.0
+    assert od.arm_size_m(cfg, "tha_Thai") == 16.0 and od.arm_size_m(cfg, "ces_Latn") == 10.0
+
+
 def check_ood_lid_ranking():
     """The language-id column must be read off the top-1 rollout BY SCORE, not rollout k=0.
 
@@ -2676,6 +2734,7 @@ CHECKS = [
     check_autointerp_cuts_catch_a_defect,
     check_ood_scan_key,
     check_ood_arm_table,
+    check_ood_bo8_headline,
     check_ood_lid_ranking,
     check_ood_lid_wantlist,
 ]

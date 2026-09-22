@@ -51,6 +51,7 @@ from __future__ import annotations
 import math
 import re
 import sys
+import time
 import warnings
 from pathlib import Path
 from typing import Annotated
@@ -469,6 +470,11 @@ def arm_rows(
             continue
         pairs, raw, cen, asy, ctrl, corp, docs = [], [], [], [], [], [], []
         cen8, ctrl8 = [], []
+        # THE HEADLINE PAIR (spec section 2): bo8 minus the SAME target's corpus top-1. Collected
+        # separately from the bo64 pair because a row can have one and not the other -- bo8 is
+        # recomputed from the array and is absent for a row with fewer than 8 finite centred
+        # draws, where bo64 is read from a column that is there or not for different reasons.
+        pairs8, docs8 = [], []
         for r in rows:
             pt = src.per_target.get(int(r["row"]))
             if pt is None:
@@ -492,6 +498,10 @@ def arm_rows(
                     ctrl.append(cb)
             c = top1.get((int(r["row"]), size_m))
             m = bo64_of(pt, which)
+            m8 = bo8.get(int(r["row"])) if bo8 is not None else None
+            if c is not None and m8 is not None and math.isfinite(float(m8)):
+                pairs8.append(float(m8) - c)
+                docs8.append(r.get("doc", ("row", int(r["row"]))))
             if c is None or m is None:
                 continue
             corp.append(c)
@@ -521,6 +531,22 @@ def arm_rows(
         _, se_cl, _, n_clust = (
             R.cluster_bootstrap(d, docs) if comparable else (None, None, None, len(set(docs)))
         )
+        # The same estimator on the headline pair. `outcome8` is the three-state verdict spec
+        # section 2 asks for -- exceeds / inconclusive / reversed on bo8 against the own-domain
+        # corpus at the size this table is read at -- and it is the one the `diff.verdict` cells
+        # carry. `outcome` (bo64) stays beside it: it is what the quarter-scale run reported and
+        # dropping it would make the two runs look like they disagreed when they measured
+        # different quantities.
+        d8 = np.asarray(pairs8, dtype=float) if pairs8 else np.zeros(0)
+        if comparable and d8.size > 1:
+            mean8, lo8, hi8 = boot_ci(d8)
+            _, se_cl8, _, n_clust8 = R.cluster_bootstrap(d8, docs8)
+            out8 = outcome(lo8, hi8)
+            win8 = float((d8 > 0).mean())
+        else:
+            mean8 = lo8 = hi8 = se_cl8 = win8 = None
+            n_clust8 = len(set(docs8))
+            out8 = "not comparable" if not comparable else "no bo8 pairs"
         recs.append(
             {
                 "arm": arm,
@@ -536,6 +562,14 @@ def arm_rows(
                 "delta": mean,
                 "ci_lo": lo,
                 "ci_hi": hi,
+                "n8": int(d8.size),
+                "delta8": mean8,
+                "ci8_lo": lo8,
+                "ci8_hi": hi8,
+                "se8_clustered": se_cl8,
+                "n8_clusters": n_clust8,
+                "win8_frac": win8,
+                "outcome8": out8,
                 "comparable": comparable,
                 "se_clustered": se_cl,
                 "n_clusters": n_clust,
@@ -550,6 +584,104 @@ def arm_rows(
 def _mean(vals) -> float | None:
     vals = [v for v in vals if v is not None and math.isfinite(float(v))]
     return float(np.mean(vals)) if vals else None
+
+
+def cell_id_of(arm: str) -> str:
+    """The `ood.<id>.*` fragment `paper/numbers/cells.csv` spells this arm with.
+
+    The keys were written by the drafter before this driver existed, so the map is READ OFF the
+    existing rows and not invented here: `ufw_en` -> `en` and `ufw_zh` -> `zh` (the pipeline
+    checks, named for their language rather than their source), every script arm by its language
+    subtag (`arb_Arab` -> `arb`), every code and maths arm by its own name.
+    """
+    if arm.startswith("ufw_"):
+        return arm[4:]
+    return arm.split("_")[0]
+
+
+def arm_size_m(cfg: dict, arm: str) -> float | None:
+    """The arm's OWN top corpus size in millions -- what `corp10.mtok` prints.
+
+    Not every arm is at 10M: `shell` stops at 4 and `formulas` at 1 (their sources cannot reach
+    it), and four arms carry 16. Spec section 2 asks for the achieved size to be stated per arm,
+    so the cell exists for every arm and is not assumed.
+    """
+    sizes = (cfg.get("ood_arms", {}).get(arm) or {}).get("sizes") or []
+    return float(sizes[-1]) if sizes else None
+
+
+def write_cells(out_dir: Path, cfg: dict, src: R.Source, recs: list[dict], size_m: float,
+                set_name: str, ctrl_src) -> Path:
+    """The `paper/numbers/cells.csv` rows this source's table supports, as their own CSV.
+
+    Columns are the numbers layer's own: key,value,se,lo,hi,n,status,run,source,date,note. Written
+    beside the table rather than appended to `cells.csv` directly -- that file is outside this
+    repo and is merged by the session that reads the run, and a driver that edits it on every
+    invocation would rewrite rows other modules own.
+
+    `status` is `provisional` for every row: the value is measured, and `final` is a judgement
+    about the run it came from that this function cannot make.
+    """
+    import csv as _csv
+
+    today = time.strftime("%Y-%m-%d")
+    prov = f"results/ood.py on {set_name} @ {src.label}"
+    rows: list[list] = []
+
+    def put(key, value, *, se=None, lo=None, hi=None, n=None, note=""):
+        if value is None:
+            return
+        rows.append([key, value, se or "", lo if lo is not None else "",
+                     hi if hi is not None else "", n if n is not None else "",
+                     "provisional", "R4", prov, today, note])
+
+    for r in recs:
+        cid = cell_id_of(r["arm"])
+        asz = arm_size_m(cfg, r["arm"])
+        size_note = "" if asz == 10 else f"own-domain corpus at {asz:g}M, not 10M"
+        put(f"ood.{cid}.diff.cos.bo8", R.num(r["delta8"], 4), lo=R.num(r["ci8_lo"], 4),
+            hi=R.num(r["ci8_hi"], 4), n=r["n8"], se=R.num(r.get("se8_clustered"), 4),
+            note=f"bo8 centred minus own-domain corpus top-1; {size_note or 'corpus at 10M'}")
+        if r.get("outcome8"):
+            put(f"ood.{cid}.diff.verdict", r["outcome8"], n=r["n8"],
+                note="three-state verdict on the bo8 pair, 10,000-resample percentile CI")
+        put(f"ood.{cid}.ex.cos.bo8", R.num(r["bo8_centred"], 4), n=r["n"],
+            note="Exemplifier bo8, centred both sides")
+        put(f"ood.{cid}.corp10.cos", R.num(r["corpus_top1"], 4), n=r["n"], note=size_note)
+        put(f"ood.{cid}.corp10.mtok", f"{asz:g}" if asz else None, note=size_note)
+        put(f"ood.{cid}.base.cos.bo8", R.num(r.get("control_bo8"), 4), n=r["n"],
+            note=f"untrained base under the same injection ({ctrl_src.label if ctrl_src else '?'})")
+        put(f"ood.{cid}.base.bpb", R.num(r.get("bpb_ctx"), 4), n=r.get("nll_n"),
+            note="bits per byte of the arm's own text under the untrained base (precompute/nll.py)")
+        rate = r["lid_top1_rate"] if r["lid_top1_rate"] is not None else r["code_like_top1_rate"]
+        if r.get("ceiling_kind") == "code_like":
+            # NEVER the bare rate: `code_like` is not measurable on a <= 64-token rollout, and a
+            # number without its ceiling reads as a measurement. The ceiling goes in the note.
+            put(f"ood.{cid}.ex.lid", "n/m", n=r["n"],
+                note=f"code_like not measurable on a rollout; rate {R.num(rate, 3)} vs ceiling "
+                     f"{R.num(r.get('ceiling'), 3)} on the arm's own corpus windows")
+        else:
+            put(f"ood.{cid}.ex.lid", R.num(rate, 3), n=r["n"],
+                note=f"fastText lid218e top-1 rollout; ceiling {R.num(r.get('ceiling'), 3)}")
+        put(f"ood.{cid}.corp10.lid", R.num(r.get("ceiling"), 3), n=r["n"],
+            note="the classifier's rate on the arm's OWN corpus top-1 windows, i.e. its ceiling")
+
+    conj = [r for r in recs if r["arm"] not in ("formulas", "ufw_en")]
+    have = [r for r in conj if r.get("outcome8") in ("exceeds", "inconclusive", "reversed")]
+    if have:
+        for key, want in (("nexceed", "exceeds"), ("ninconcl", "inconclusive"),
+                          ("nreversed", "reversed")):
+            put(f"ood.conj.diff.{key}", sum(1 for r in have if r["outcome8"] == want),
+                n=len(have),
+                note=f"level-1 conjunction, {len(have)} of {len(conj)} arms with a bo8 verdict")
+
+    path = out_dir / f"cells_{src.label.replace('/', '_').replace(':', '__').replace('@', '_at_')}.csv"
+    with open(path, "w", newline="") as fh:
+        w = _csv.writer(fh)
+        w.writerow(["key", "value", "se", "lo", "hi", "n", "status", "run", "source", "date",
+                    "note"])
+        w.writerows(rows)
+    return path
 
 
 def corpus_window_texts(vol: R.Vol, base: str, cdir: str, top1_rows, tok):
@@ -812,6 +944,79 @@ def main(
                 ceilings[arm] = got
         print(f"[ood] classifier ceilings from {len(ceilings)} arms' own corpus windows", flush=True)
 
+    # THE BASE'S PREDICTABILITY COVARIATE (spec section 6 item 6). `precompute/nll.py` writes
+    # per_target.jsonl for the set; `stats_ood.load_nll` reads it and nothing in THIS file did
+    # until 2026-09-23. It is a property of the base and the target, not of a checkpoint, so it is
+    # loaded once here and joined onto every source's rows. Absent product -> the column is None
+    # and a note says so, which is the honest state before `--product nll` has run on the set.
+    nll_by_row = mod.load_nll(vol, base, set_name)
+    nll_by_arm: dict[str, dict[str, float]] = {}
+    if nll_by_row:
+        by_arm_vals: dict[str, list[tuple[float, float]]] = {}
+        for r in ids:
+            nr = nll_by_row.get(int(r["row"]))
+            if nr is not None:
+                by_arm_vals.setdefault(r["arm"], []).append(
+                    (float(nr["nll_ctx"]), float(nr["bpb_ctx"]))
+                )
+        for arm, vals in by_arm_vals.items():
+            nll_by_arm[arm] = {
+                "nll_ctx": float(np.mean([a for a, _ in vals])),
+                "bpb_ctx": float(np.mean([b for _, b in vals])),
+                "nll_n": len(vals),
+            }
+        notes.append(
+            f"base predictability covariate from `base/{base}/nll/{set_name}/per_target.jsonl`, "
+            f"{len(nll_by_row)} targets over {len(nll_by_arm)} arms (bits per byte of the arm's "
+            f"own text under the untrained base)"
+        )
+    else:
+        notes.append(
+            f"NO `base/{base}/nll/{set_name}/` on the volume: the per-arm `bpb` column is empty. "
+            f"Run `--product nll --base {base} --set {set_name}`"
+        )
+
+    # THE RANDOM FLOOR PER CORPUS (spec section 2, controls). It is the scan's OWN per-target
+    # quantiles over every window of that arm's corpus -- what an arbitrary window of this corpus
+    # scores against this target -- read at the size the table is read at.
+    #
+    # IT IS NOT `stats_ood`'s `chance_pairwise_cos` (stats_ood.py, the `vecs.f16` read): that is
+    # the mean cosine BETWEEN TWO TARGETS of the same arm, a property of the target geometry, and
+    # it says nothing about what the corpus search can reach. The plan asked M5 to decide which of
+    # the two is spec section 2's floor and record it. This is the decision: the scan quantile is,
+    # the pairwise target cosine is not, and no new GPU work is needed for either.
+    floor_by_arm: dict[str, dict[str, float]] = {}
+    for arm, cdir in sorted(dir_of_arm.items()):
+        d = next((d_ for d_, (c_, mb_) in scans.items() if c_ == cdir and (mb_ or 0) == size_m), None)
+        if d is None:
+            continue
+        idx_j = vol.json(f"base/{base}/scan/{d}/index.json") or {}
+        meta = idx_j.get("quantiles.f16")
+        if not meta or "shape" not in meta:
+            continue
+        q = vol.array(f"base/{base}/scan/{d}/quantiles.f16", "float16",
+                      tuple(int(x) for x in meta["shape"]))
+        if q is None:
+            continue
+        spec_sizes = [float(x) for x in (cfg["ood_arms"].get(arm, {}).get("sizes") or [])]
+        scanned = [x for x in spec_sizes if x <= size_m]
+        if size_m not in scanned:
+            continue
+        si = scanned.index(size_m)
+        rows_here = [int(r["row"]) for r in ids if r["arm"] == arm]
+        if not rows_here or si >= q.shape[1]:
+            continue
+        sel = q[np.asarray(rows_here), si, :]
+        floor_by_arm[arm] = {
+            "floor_median": float(np.mean(sel[:, 0])),
+            "floor_p99": float(np.mean(sel[:, -1])),
+        }
+    notes.append(
+        f"random floor per corpus: the scan's own per-target window quantiles at {size_m:g}M, "
+        f"{len(floor_by_arm)} arms. NOT the target-vs-target `chance_pairwise_cos` of "
+        f"`stats_ood`, which measures the target geometry and not the corpus"
+    )
+
     verdicts: dict[str, dict[str, str]] = {}
     superseded = [
         s_ for s_ in usable
@@ -881,6 +1086,8 @@ def main(
             notes += [f"`{src.label}`: {x}" for x in lnotes if x]
         lang_col = []
         for r in recs:
+            r.update(nll_by_arm.get(r["arm"], {"nll_ctx": None, "bpb_ctx": None, "nll_n": None}))
+            r.update(floor_by_arm.get(r["arm"], {"floor_median": None, "floor_p99": None}))
             li = lids.get(r["arm"], {})
             r.update({k: li.get(k) for k in ("lid_top1_rate", "lid_top4_rate",
                                              "code_like_top1_rate", "ceiling", "ceiling_kind")})
@@ -907,25 +1114,37 @@ def main(
         rows_md = [
             [r["arm"], r["family"], r["n"], R.num(r["bo8_centred"]), R.num(r["bo64_centred"]),
              R.num(r["corpus_top1"]), R.num(r["control_bo8"]), R.num(r["control_bo64"]),
-             R.num(r["delta"]), f"[{R.num(r['ci_lo'], 3)}, {R.num(r['ci_hi'], 3)}]",
-             R.num(r["win_frac"], 2), r["outcome"], lc]
+             R.num(r["delta8"]), f"[{R.num(r['ci8_lo'], 3)}, {R.num(r['ci8_hi'], 3)}]",
+             R.num(r["win8_frac"], 2), r["outcome8"], lc]
             for r, lc in zip(recs, lang_col, strict=True)
         ]
         csv_header = ["arm", "family", "n", "bo8_centred", "bo64_centred", "bo64_asym", "bo64_raw",
                       "corpus_top1",
-                      "corpus_size_m", "control_bo8", "control_bo64", "delta", "ci_lo", "ci_hi",
+                      "corpus_size_m", "arm_size_m", "control_bo8", "control_bo64",
+                      "delta8", "ci8_lo", "ci8_hi", "se8_clustered", "n8", "n8_clusters",
+                      "win8_frac", "outcome8",
+                      "delta", "ci_lo", "ci_hi",
                       "se_clustered", "n_clusters", "win_frac", "outcome",
+                      "floor_median", "floor_p99", "nll_ctx", "bpb_ctx", "nll_n",
                       "lid_top1_rate", "lid_top4_rate", "code_like_top1_rate",
                       "classifier_ceiling", "ceiling_kind"]
         csv_rows = [
             [r["arm"], r["family"], r["n"], r["bo8_centred"], r["bo64_centred"], r["bo64_asym"],
              r["bo64_raw"], r["corpus_top1"],
-             size_m, r["control_bo8"], r["control_bo64"], r["delta"], r["ci_lo"], r["ci_hi"],
+             size_m, arm_size_m(cfg, r["arm"]), r["control_bo8"], r["control_bo64"],
+             r["delta8"], r["ci8_lo"], r["ci8_hi"], r["se8_clustered"], r["n8"], r["n8_clusters"],
+             r["win8_frac"], r["outcome8"],
+             r["delta"], r["ci_lo"], r["ci_hi"],
              r["se_clustered"],
-             r["n_clusters"], r["win_frac"], r["outcome"], r["lid_top1_rate"],
+             r["n_clusters"], r["win_frac"], r["outcome"],
+             r.get("floor_median"), r.get("floor_p99"), r.get("nll_ctx"), r.get("bpb_ctx"),
+             r.get("nll_n"),
+             r["lid_top1_rate"],
              r["lid_top4_rate"], r["code_like_top1_rate"], r.get("ceiling"), r.get("ceiling_kind")]
             for r in recs
         ]
+        cells_path = write_cells(out_dir, cfg, src, recs, size_m, set_name, ctrl_src)
+        notes.append(f"cells rows for `paper/numbers/cells.csv` written to `{cells_path.name}`")
         o.table(
             f"arms_{src.label.replace('/', '_').replace(':', '__').replace('@', '_at_')}",
             f"Arms — {src.label}"
@@ -937,8 +1156,11 @@ def main(
             f"the same set at the same mean lands in the same cell. `bo8 (centred)` is "
             f"RECOMPUTED from `cos_centred.f16` -- no `bo_c_8` column is stored anywhere -- and "
             f"an em dash there is a row with fewer than 8 finite centred draws, never a zero. The "
-            f"asymmetric and raw cosines are in the CSV and are read by nothing. Δ is still bo64 "
-            f"minus the corpus top-1; re-pointing the verdict at bo8 is M5's. The control column "
+            f"asymmetric and raw cosines are in the CSV and are read by nothing. Δ AND THE "
+            f"VERDICT ARE THE bo8 PAIR (M5, 2026-09-23): bo8 minus the same target's corpus "
+            f"top-1, which is spec section 2's headline contrast; the bo64 Δ the quarter-scale "
+            f"run reported is `delta`/`outcome` in the CSV, beside it, because the two are "
+            f"different quantities and not a disagreement. The control column "
             f"is "
             f"{'`' + ctrl_src.label + '`' if ctrl_src else 'absent'}. `lang / code` is the rate at "
             f"which the top-1 rollout comes back in the arm's own language (fastText lid218e), or "
