@@ -52,6 +52,7 @@ sys.path.insert(0, str(PAPER_EVALS))
 
 import precompute.common as C  # noqa: E402  (the ONE script table, code-like rule and arm table)
 from reconstruction.stats import Scores, Vol  # noqa: E402
+
 # THE best-of-k estimator of the pipeline, one definition for the whole results layer
 # (M0a, 2026-09-23). `reconstruction/stats.py` has its own copy of the same order
 # statistic; `results/selftest.check_one_bo_estimator` holds the layers to one number.
@@ -95,6 +96,68 @@ def outcome(lo: float, hi: float) -> str:
     if hi < 0:
         return "reversed"
     return "inconclusive"
+
+
+def resolve_mu(mu, base: str) -> str:
+    """A `mu:` value as one comparable string. `{base}` expands; None/none is the literal "none".
+
+    A DELIBERATE DUPLICATE of `results/ood.C_resolve_mu`, held to one rule by `selfcheck`
+    (`resolve_mu agrees with results/ood.C_resolve_mu`) in the same way
+    `results/selftest.check_one_bo_estimator` holds the two best-of-k copies together. The two
+    drivers share `results.common` and `precompute.common` but neither owns a module the other
+    imports for this, and a reader that normalises mu paths differently from the reader beside it
+    is how "the control is paired" becomes true in one table and false in the other.
+
+    config spells a mu RELATIVE to --root (`base/<base>/stats/mu.f32`) while a product records the
+    ABSOLUTE path it read (`/vol/base/...`): same file, two spellings, and comparing them raw calls
+    every pair incomparable.
+    """
+    if mu is None or str(mu).strip().lower() in ("", "none", "null"):
+        return "none"
+    t = str(mu).strip().replace("{base}", base)
+    for pre in ("/vol/", "vol/", "/"):
+        if t.startswith(pre):
+            t = t[len(pre):]
+            break
+    return t
+
+
+def declared_mu(cfg: dict, key: str, base: str) -> str:
+    """The mean `config.yaml` DECLARES this checkpoint was trained to receive, as one string.
+
+    `precompute.common.input_mu` refuses an entry with no `mu:` key at all rather than guessing. A
+    bare checkpoint name is prefixed with the base, the way `tables` accepts `--maemm`.
+    """
+    full = key if "/" in key else f"{base}/{key}"
+    return resolve_mu(C.input_mu(cfg, full), base)
+
+
+def assert_control_paired(cfg: dict, base: str, maemm_key: str, control_key: str) -> None:
+    """SPEC §7 R4: a control may only be differenced against a MAEMM that DECLARES the same mean.
+
+    LOUD, because the failure it guards is silent. Every `maemm_vs_control` cell below is
+    `bo64_maemm - bo64_control` on the same targets, which is a control only when both arms were
+    injected at the same centring; at two means it is the difference of two angles to two
+    different vectors, and this file had **no mu, `centred` or `whiten` reference anywhere** before
+    today -- `--control` resolved into whatever `--stem` named and `tables` checked only that the
+    key was in `cfg["maemms"]`.
+
+    As of 2026-09-23 the base control `qwen36-27b/2026-09-16_base-control` declares the 27B
+    `whiten_mu` path in `config.yaml` (it was `mu: null` before, an explicit statement that it took
+    a RAW activation), so the pairing HOLDS for the intended pair -- rl-last16 against that
+    control. It does not hold for the old primary, which declares `base/{base}/stats/mu.f32`.
+    """
+    a, b = declared_mu(cfg, maemm_key, base), declared_mu(cfg, control_key, base)
+    assert a == b and a != "unknown", (
+        f"CONTROL NOT PAIRED (spec §7 R4): maemm {maemm_key!r} declares mu={a!r} and control "
+        f"{control_key!r} declares mu={b!r} in config.yaml. The control is 'the MAEMM with base "
+        f"weights', so it takes the MAEMM's input convention; at two means it is a control for a "
+        f"different experiment and `maemm_vs_control` is not a difference. As of 2026-09-23 "
+        f"`qwen36-27b/2026-09-16_base-control` declares the 27B whiten_mu path (it was `null` "
+        f"before), so the intended pair -- rl-last16 against that control -- does pair; the old "
+        f"primary `2026-09-10_rl-8x2048-full` declares `base/{{base}}/stats/mu.f32` and does not. "
+        f"Fix the config or pass a control drawn at this MAEMM's mean; nothing here will guess."
+    )
 
 
 def derangement(n: int, seed: int = BOOT_SEED) -> np.ndarray:
@@ -529,6 +592,18 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
     stem = args["stem"]
     out_dir.mkdir(parents=True, exist_ok=True)
     notes: list[str] = []
+
+    # SPEC §7 R4: THE BASE CONTROL IS RESOLVED FROM CONFIG WITH ITS CENTRING DECLARED. `--control`
+    # is otherwise resolved into whatever `--stem` names, and a control at the wrong mean produces
+    # a `maemm_vs_control` column that looks exactly like a good one. FIRST, before a single
+    # volume read: an unpaired pair is a config fact, and finding it out after the fetches is
+    # finding it out late.
+    if maemm and control:
+        assert_control_paired(cfg, base, maemm, control)
+        notes.append(
+            f"control `{control}` and maemm `{maemm}` both declare "
+            f"mu={declared_mu(cfg, control, base)} (spec §7 R4, checked)"
+        )
 
     ids = load_ood_ids(vol, base, set_name)
     assert ids, f"no held-out set at base/{base}/heldout/{set_name}/ids.jsonl"
@@ -1129,8 +1204,11 @@ def selfcheck() -> None:
                 for r in ids
             ) + "\n"
         )
-        # scores: 64 rollouts per target, the primary above the corpus and the control below it
-        shapes = (("2026-09-10_rl-8x2048-full", 0.30, 0.70), ("2026-09-16_base-control", 0.05, 0.20))
+        # scores: 64 rollouts per target, the MAEMM above the corpus and the control below it.
+        # THE PAIR IS rl-last16 AGAINST THE BASE CONTROL, not the old primary: since 2026-09-23 the
+        # control declares the 27B whiten_mu path while the old primary declares stats/mu.f32, so
+        # `assert_control_paired` (spec §7 R4) refuses that pair -- which is exactly what it is for.
+        shapes = (("2026-09-18_rl-last16-lr5e-7", 0.30, 0.70), ("2026-09-16_base-control", 0.05, 0.20))
         for label, lo_, hi_ in shapes:
             sd = tmp / f"maemms/{BASE}/{label}/scores/{OOD_SET}__vllm"
             sd.mkdir(parents=True)
@@ -1151,7 +1229,7 @@ def selfcheck() -> None:
         vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
         out = tmp / "out"
         res = build_tables(vol, cfg, out, {
-            "base": BASE, "set": OOD_SET, "maemm": "2026-09-10_rl-8x2048-full",
+            "base": BASE, "set": OOD_SET, "maemm": "2026-09-18_rl-last16-lr5e-7",
             "control": "2026-09-16_base-control", "stem": f"{OOD_SET}__vllm",
             "lid": False, "lid_model": None,
         })
@@ -1211,6 +1289,204 @@ def selfcheck() -> None:
         ok.append("rollouts path from the scores README, with the pre-README fallback")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+    # --- spec §7 R4: the control pairing, in both readers ---------------------------------------
+    # BOTH readers' assertions are exercised here because `results/ood.py` has NO self-test entry
+    # point of its own -- it is one `main` command and nothing else. `results/selftest.py` does
+    # carry three ood checks (`check_ood_arm_table`, `check_ood_lid_ranking`, `check_ood_scan_key`),
+    # but that file is not this module's to edit and `check_ood_arm_table` still INJECTS `"asym"`
+    # into `arm_rows`, so nothing over there covers change 3, change 5 or the recomputed bo8.
+    import importlib  # noqa: PLC0415
+
+    cfg = yaml.safe_load(CONFIG.read_text())
+    R_ood = importlib.import_module("results.ood")
+
+    # the two mu normalisers, held to one rule
+    for probe in (None, "none", "null", "", "base/{base}/stats/mu.f32",
+                  "/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy",
+                  "vol/base/x/mu.f32", "/base/x/mu.f32", "unknown"):
+        assert resolve_mu(probe, BASE) == R_ood.C_resolve_mu(probe, BASE), (
+            f"stats_ood.resolve_mu and results/ood.C_resolve_mu disagree on {probe!r}: "
+            f"{resolve_mu(probe, BASE)!r} vs {R_ood.C_resolve_mu(probe, BASE)!r}")
+
+    PAIR = ("2026-09-18_rl-last16-lr5e-7", "2026-09-16_base-control")
+    # (a) the intended pair passes on the REAL config, in both readers
+    assert_control_paired(cfg, BASE, *PAIR)
+    R_ood.assert_control_paired(cfg, BASE, *PAIR)
+    declared = declared_mu(cfg, PAIR[1], BASE)
+    assert declared == "archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy", (
+        f"the base control no longer declares the 27B whiten_mu path: {declared!r}. The pairing "
+        f"assertion is only a gate while config.yaml:255 carries it; `mu: null` would make every "
+        f"pair below fail and this check is what says so out loud.")
+
+    # (b) a MISMATCHED pair must raise, in both readers. The mutation is asserted to have
+    # APPLIED first -- a gate that has never been red is not a gate.
+    bad = {**cfg, "maemms": dict(cfg["maemms"])}
+    ck = f"{BASE}/{PAIR[1]}"
+    bad["maemms"][ck] = {**bad["maemms"][ck], "mu": "base/{base}/stats/mu.f32"}
+    assert declared_mu(bad, PAIR[1], BASE) != declared_mu(cfg, PAIR[1], BASE), (
+        "the mutation did not apply: the mismatched-pair check would pass vacuously")
+    for name, fn in (("stats_ood", assert_control_paired), ("results/ood", R_ood.assert_control_paired)):
+        try:
+            fn(bad, BASE, *PAIR)
+        except AssertionError as e:
+            msg = str(e)
+            assert PAIR[0] in msg and PAIR[1] in msg, f"{name}: the keys are not in the message: {msg}"
+            assert "whiten_mu.npy" in msg and "stats/mu.f32" in msg, (
+                f"{name}: both mu values must be in the message: {msg}")
+        else:
+            raise AssertionError(f"{name}.assert_control_paired accepted a control at another mean")
+
+    # (c) the REAL old primary against the REAL control is a mismatch, and stays one
+    try:
+        assert_control_paired(cfg, BASE, "2026-09-10_rl-8x2048-full", PAIR[1])
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError(
+            "the old primary declares stats/mu.f32 and the control declares whiten_mu; the "
+            "pairing assertion must refuse it")
+
+    # (d) a checkpoint with no `mu:` key at all is refused by input_mu, not defaulted
+    gap = {**cfg, "maemms": dict(cfg["maemms"])}
+    gap["maemms"][ck] = {k: v for k, v in gap["maemms"][ck].items() if k != "mu"}
+    assert "mu" not in gap["maemms"][ck], "the mutation did not apply"
+    try:
+        declared_mu(gap, PAIR[1], BASE)
+    except AssertionError as e:
+        assert "no `mu:` key" in str(e), str(e)
+    else:
+        raise AssertionError("a `maemms:` entry with no mu: key must be refused, not defaulted")
+    # (e) and `build_tables` itself must refuse it, BEFORE any volume read -- the helper being
+    # correct is worth nothing if the driver never calls it.
+    tmp_r4 = Path(tempfile.mkdtemp(prefix="stats_ood_r4_"))
+    try:
+        vol_r4 = Vol("full", tmp_r4, "uvx modal", False, True, offline=True)
+        try:
+            build_tables(vol_r4, cfg, tmp_r4 / "out", {
+                "base": BASE, "set": OOD_SET, "maemm": "2026-09-10_rl-8x2048-full",
+                "control": PAIR[1], "stem": f"{OOD_SET}__vllm", "lid": False, "lid_model": None,
+            })
+        except AssertionError as e:
+            assert "CONTROL NOT PAIRED" in str(e), (
+                f"build_tables failed for another reason, so the pairing is not what it checked "
+                f"first: {e}")
+        else:
+            raise AssertionError("build_tables tabulated a control declared at another mean")
+    finally:
+        shutil.rmtree(tmp_r4, ignore_errors=True)
+    ok.append("control pairing on declared mu (both readers; passing pair, mutated pair, real "
+              "old primary, missing key, and build_tables refusing before any fetch)")
+
+    # --- panel c's bo8, recomputed from cos_centred.f16 against a hand-worked number -------------
+    # Spec §2 names `bo_c_8` and NO such column exists anywhere in paper-evals/: `score` stores the
+    # centred ladder at k = 64 only. `results/ood.centred_bo_k` therefore recomputes it from the
+    # array through `results.common.bo_unbiased`, and this is the only test of that path.
+    tmp = Path(tempfile.mkdtemp(prefix="stats_ood_bo8_"))
+    try:
+        rel = "maemms/b/m/scores/s__vllm"
+        sd = tmp / rel
+        sd.mkdir(parents=True)
+        n_t, n_k, width = 3, 10, 4
+        arr = np.full((n_t, n_k, width), np.nan, dtype=np.float16)
+        # row 0: all 10 rollouts finite, per-rollout best (r+1)/32
+        for r in range(10):
+            arr[0, r, 1] = np.float16((r + 1) / 32)
+            arr[0, r, 2] = np.float16((r + 1) / 32 - 1 / 32)   # not the max, so the nanmax matters
+        # row 1: rollouts 0 and 1 have NO kept token at all -> 8 finite draws
+        for r in range(2, 10):
+            arr[1, r, 1] = np.float16((r - 1) / 32)
+        # row 2: only 7 finite draws -> NO bo8 at all, never a clamped k
+        for r in range(7):
+            arr[2, r, 1] = np.float16((r + 1) / 32)
+        arr.tofile(sd / "cos_centred.f16")
+        # a DECOY raw cosine in the same directory: reading `cos.f16` would give 0.9 everywhere
+        np.full((n_t, n_k, width), np.float16(0.9), dtype=np.float16).tofile(sd / "cos.f16")
+        (sd / "index.json").write_text(json.dumps({
+            "cos_centred.f16": {"shape": [n_t, n_k, width]},
+            "cos.f16": {"shape": [n_t, n_k, width]},
+        }))
+        vol_r = R_ood.R.Vol("", tmp, offline=True)
+        src = R_ood.R.Source(maemm="b/m", base="b", engine="vllm", run_tag="",
+                             scores_rel=rel, rollouts_rel="", role="primary",
+                             rows_meta={"rows": [10, 11, 12], "n": n_k})
+        got, note = R_ood.centred_bo_k(vol_r, src, 8)
+
+        # HAND-WORKED. bo8 of n = 10 draws is sum_i x_(i) C(i-1,7)/C(10,8); C(10,8) = 45 and the
+        # only non-zero weights are i = 8, 9, 10 with C(7,7) = 1, C(8,7) = 8, C(9,7) = 36:
+        #   (1*8/32 + 8*9/32 + 36*10/32) / 45 = 440/1440
+        want0 = 440 / 1440
+        assert abs(got[10] - want0) < 1e-6, f"row 0: {got[10]!r} != {want0!r} ({note})"
+        # row 1: the 2 NaN draws are DROPPED, so it is bo8 of 8 draws = the max, 8/32.
+        assert abs(got[11] - 8 / 32) < 1e-6, f"row 1: {got[11]!r} != 0.25 ({note})"
+        # and dropping is not filling: filling the 2 NaNs with 0 gives 350/1440, a different number
+        filled = np.concatenate([np.zeros(2), np.arange(1, 9) / 32])
+        assert abs(float(R_ood.R.bo_unbiased(filled, 8)) - 350 / 1440) < 1e-9
+        assert abs(got[11] - 350 / 1440) > 1e-3, (
+            "the NaN draws were FILLED rather than dropped: the bo8 is the 10-draw estimator's")
+        # row 2 has 7 finite draws: absent, never clamped to bo7
+        assert 12 not in got, f"a row with 7 finite draws must carry no bo8, got {got.get(12)!r}"
+        assert "fewer than 8 finite draws" in note, note
+        # the decoy: reading cos.f16 would have made every row 0.9
+        assert max(got.values()) < 0.4, f"centred_bo_k read the wrong array: {got!r}"
+
+        # a source with no centred cosine at all is a skip WITH A REASON, not an empty column
+        sd2 = tmp / "maemms/b/m/scores/none"
+        sd2.mkdir(parents=True)
+        (sd2 / "index.json").write_text(json.dumps({"cos.f16": {"shape": [1, 1, 1]}}))
+        got2, note2 = R_ood.centred_bo_k(
+            vol_r, R_ood.R.Source(maemm="b/m", base="b", engine="vllm", run_tag="",
+                                  scores_rel="maemms/b/m/scores/none", rollouts_rel=""), 8)
+        assert got2 == {} and "not on the volume" in note2, (got2, note2)
+        # AND IT MUST REACH THE TABLE. A correct estimator that no column carries is the
+        # "silently absent" failure spec §2 is about, so `arm_rows` is called with the maps and
+        # the record is read back. `a_none` has no bo8 for any of its rows and must carry None --
+        # which `R.num` prints as an em dash -- rather than a zero or a partial mean.
+        ids8, pt8, top8 = [], {}, {}
+        bo8_map, ctrl8_map = {}, {}
+        for j, arm in enumerate(("a_has", "a_none")):
+            for i in range(4):
+                rw = 10 * j + i
+                ids8.append({"row": rw, "arm": arm, "family": "lang", "doc": 900 + rw})
+                pt8[rw] = {"bo_64": 0.60, "bo_c_64": 0.70, "bo_a_64": 0.65}
+                top8[(rw, 1.0)] = 0.50
+                if arm == "a_has":
+                    bo8_map[rw] = 0.40 + 0.01 * i      # mean 0.415
+                    ctrl8_map[rw] = 0.10 + 0.01 * i    # mean 0.115
+        src8 = R_ood.R.Source(maemm="m", base="b", engine="vllm", run_tag="",
+                              scores_rel="", rollouts_rel="")
+        src8.per_target = pt8
+        recs8, _ = R_ood.arm_rows(
+            ids8, src8, {"a_has": top8, "a_none": top8}, 1.0, "centred",
+            lambda d: (float(np.mean(d)), float(np.mean(d)) - 0.01, float(np.mean(d)) + 0.01),
+            outcome, None, bo8=bo8_map, control_bo8=ctrl8_map)
+        by8 = {r["arm"]: r for r in recs8}
+        assert abs(by8["a_has"]["bo8_centred"] - 0.415) < 1e-9, by8["a_has"]
+        assert abs(by8["a_has"]["control_bo8"] - 0.115) < 1e-9, by8["a_has"]
+        assert by8["a_none"]["bo8_centred"] is None and by8["a_none"]["control_bo8"] is None, (
+            "an arm with no recomputed bo8 must carry None (an em dash), never a zero or a "
+            "partial mean")
+        assert R_ood.R.num(by8["a_none"]["bo8_centred"]) == "—"
+        ok.append("panel c's bo8 recomputed from cos_centred.f16 (hand-worked 440/1440, NaN "
+                  "dropped not filled, short row absent, absent array named) and carried into "
+                  "arm_rows' record")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # --- results/ood.py reads `centred`, and nothing reads `asym` by omission --------------------
+    import inspect  # noqa: PLC0415
+
+    body = inspect.getsource(R_ood.main)
+    assert '"asym"' not in body, (
+        "results/ood.main still passes the literal \"asym\": the arms table and the language-id "
+        "column would be read on `cos_asym`, which spec §2 says is printed nowhere")
+    assert body.count('"centred"') >= 2, "both call sites must pass `centred`"
+    assert inspect.signature(R_ood.lid_rates).parameters["which"].default == "centred", (
+        "lid_rates still defaults to `asym`, so a caller that omits `which` reads the wrong array")
+    assert R_ood.BO64["centred"] == "bo_c_64" and R_ood.SCORE_ARRAY["centred"] == "cos_centred.f16"
+    assert "bo_a_64" in R_ood.BO64.values(), (
+        "the asym column map is kept on purpose -- cos_asym stays on disk, read by no driver")
+    ok.append("results/ood reads `centred` at both call sites and by lid_rates' default")
 
     # --- the shared classifiers ----------------------------------------------------------------
     assert C.code_like("def f(x):\n    return {1: 2};\nimport os\n")

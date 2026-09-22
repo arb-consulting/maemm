@@ -117,6 +117,44 @@ def C_resolve_mu(mu, base: str) -> str:
     return t
 
 
+def declared_mu(cfg: dict, key: str, base: str) -> str:
+    """The mean `config.yaml` DECLARES this checkpoint was trained to receive, as one string.
+
+    `precompute.common.input_mu` refuses an entry with no `mu:` key at all rather than guessing,
+    and `C_resolve_mu` puts the answer in the same spelling as a product-recorded mean. A bare
+    checkpoint name is prefixed with the base, the way `reconstruction/stats_ood.tables` accepts
+    `--maemm`, so both readers resolve the same key the same way.
+    """
+    full = key if "/" in key else f"{base}/{key}"
+    return C_resolve_mu(PC.input_mu(cfg, full), base)
+
+
+def assert_control_paired(cfg: dict, base: str, maemm_key: str, control_key: str) -> None:
+    """SPEC §7 R4: a control may only be differenced against a MAEMM that DECLARES the same mean.
+
+    LOUD, because the failure it guards is silent: the control column sits beside Δ and reads as
+    "what the untrained base scores on the same targets", which it only is when both arms were
+    injected at the same centring. Two cosines taken about two different means are two angles to
+    two different vectors and their difference is not a margin.
+
+    As of 2026-09-23 the base control `qwen36-27b/2026-09-16_base-control` declares the 27B
+    `whiten_mu` path in `config.yaml` (it was `mu: null` before, which was an explicit statement
+    that it took a RAW activation), so the pairing HOLDS for the intended pair -- rl-last16
+    against that control. It does not hold for the old primary, which declares `stats/mu.f32`.
+    """
+    a, b = declared_mu(cfg, maemm_key, base), declared_mu(cfg, control_key, base)
+    assert a == b and a != "unknown", (
+        f"CONTROL NOT PAIRED (spec §7 R4): maemm {maemm_key!r} declares mu={a!r} and control "
+        f"{control_key!r} declares mu={b!r} in config.yaml. The control column is the same targets "
+        f"under the same injection with base weights; at two means it is a control for a different "
+        f"experiment and the difference is not a difference. As of 2026-09-23 "
+        f"`qwen36-27b/2026-09-16_base-control` declares the 27B whiten_mu path (it was `null` "
+        f"before), so the intended pair -- rl-last16 against that control -- does pair; the old "
+        f"primary `2026-09-10_rl-8x2048-full` declares `base/{{base}}/stats/mu.f32` and does not. "
+        f"Fix the config or tabulate the two generations separately; nothing here will guess."
+    )
+
+
 def C_corpus_dir(cfg: dict, arm: str) -> str:
     """The corpus DIRECTORY of an OOD arm, through `corpora:` -- never the arm id by assumption.
 
@@ -215,9 +253,26 @@ def load_ood_ids(vol: R.Vol, base: str, set_name: str) -> list[dict]:
 
 
 # `score`'s three cosines, by the key its per_target.jsonl uses:
-#   asym     cos(h,      unit(act - mu))   THE SCAN'S CONVENTION -- the only one Δ can use
-#   centred  cos(h - mu, unit(act - mu))   the pipeline's symmetric headline
+#   asym     cos(h,      unit(act - mu))   the PRE-M0a scan convention
+#   centred  cos(h - mu, unit(act - mu))   THE ONE THIS FILE READS since 2026-09-23
 #   raw      cos(h,      unit(act))        both sides uncentred
+#
+# `centred` IS THE READ (M0a change 3; spec §2, "centred against centred on both sides of every
+# arm"). Both maps below stay exactly as they are -- the columns are on the products and the CSV
+# carries all three -- but nothing selects `asym` any more: **`cos_asym.f16` and `bo_a_64` stay on
+# disk and are read by NO driver**, not here and not in `reconstruction/stats_ood.py`. They are
+# kept because deleting a stored column makes every product written before today unreadable, not
+# because anything prints them.
+#
+# A `centred` READ IS ONLY VALID AGAINST A SCAN RUN WITH `--centre`. Before M0a the scan's window
+# side was uncentred (`normalize(h) @ v`) while its target side was centred, so differencing a
+# doubly-centred MAEMM cosine against a singly-centred corpus top-1 was meaningless -- the defect
+# `results/ood/tables.md:103-105` describes and the reason `cos_asym` was added at all
+# (`SMOKES.md:4483-4490`). `precompute/scan.py --centre` is what buys this read.
+# AND NOTHING HERE CAN CATCH THE MIX: `scan_dirs_of` filters scans by SET only, and
+# `top1_by_corpus` is keyed on (corpus, mean) alone, so an OLD UNCENTRED scan of the same set at
+# the same mean lands in the same cell as a `--centre` one and is differenced silently. The guard
+# is a set directory that only centred scans ever wrote, not code.
 BO64 = {"asym": "bo_a_64", "centred": "bo_c_64", "raw": "bo_64"}
 
 
@@ -313,6 +368,68 @@ def bo64_of(rec: dict, which: str) -> float | None:
     return None if v is None else float(v)
 
 
+def has_col(src: R.Source, which: str) -> bool:
+    """Does this scores directory carry the bo64 column this table actually READS?
+
+    Sibling of `has_asym`, and the predicate the CONTROL column has to be chosen by: since M0a the
+    read is `centred`, so picking the control by `bo_a_64` would happily pick a directory whose
+    `bo_c_64` is empty -- exactly the silently-empty-column-beside-a-stated-Δ failure that choice
+    exists to prevent.
+    """
+    return any(BO64[which] in r for r in src.per_target.values())
+
+
+PANEL_BO_K = 8
+
+
+def centred_bo_k(vol: R.Vol, src: R.Source, k: int = PANEL_BO_K) -> tuple[dict[int, float], str]:
+    """({row: unbiased best-of-k of `cos_centred`}, a note) -- computed from the ARRAY.
+
+    SPEC §2 NAMES `bo_c_8` AND NO SUCH COLUMN EXISTS anywhere in `paper-evals/`: `score` stores the
+    centred ladder at k = 64 only (`BO64` above), so panel c's headline -- the Exemplifier's bo8
+    against the own-domain corpus -- has to be recomputed from `cos_centred.f16` or it is silently
+    absent from the one table the panel is drawn from.
+
+    THE SAME PATH AS `results/faithfulness.centred_bok`, deliberately and not by coincidence: per
+    (row, rollout) the best over the kept tokens -- `per_rollout_scores`, the nanmax `score` itself
+    does, which is `results.common.best_per_rollout(..., empty=nan)` over the whole array at once --
+    and then `results.common.bo_unbiased`, THE best-of-k estimator of this pipeline (M0a), over the
+    rollouts. A NaN draw is a rollout with no kept centred token: it is DROPPED, never filled, and
+    the estimator is applied to the finite ones at the same k. A row with fewer than k finite draws
+    has NO bo-k and is left out rather than clamped to a smaller k, so the cell prints an em dash
+    rather than a number of a different quantity.
+
+    Reads the whole `cos_centred.f16`, which is the same array `ranked_texts` ranks the language-id
+    column on; `Vol` caches by existence, so the two share one fetch.
+    """
+    sc = per_rollout_scores(vol, src, "centred")
+    if sc is None:
+        return {}, (
+            f"`{src.scores_rel}/{SCORE_ARRAY['centred']}` is not on the volume, so this source has "
+            f"no bo{k} column (a run that centred on nothing writes no centred cosine at all)"
+        )
+    order = [int(r) for r in src.rows_meta.get("rows", [])] or list(range(sc.shape[0]))
+    out: dict[int, float] = {}
+    n_nan_rows = n_short = 0
+    for i, row in enumerate(order):
+        if i >= sc.shape[0]:
+            break
+        best = sc[i]
+        live = best[np.isfinite(best)]
+        if live.size < best.size:
+            n_nan_rows += 1
+        if live.size < k:
+            n_short += 1
+            continue
+        out[row] = float(R.bo_unbiased(live, k))
+    note = f"bo{k} (centred) recomputed from `{SCORE_ARRAY['centred']}` on {len(out)} rows"
+    if n_nan_rows:
+        note += f"; {n_nan_rows} rows had a rollout with no kept centred token (dropped, not filled)"
+    if n_short:
+        note += f"; {n_short} rows had fewer than {k} finite draws and carry NO bo{k}"
+    return out, note
+
+
 # ---------------------------------------------------------------------------------------------
 # the per-arm table
 # ---------------------------------------------------------------------------------------------
@@ -328,8 +445,15 @@ def arm_rows(
     outcome,
     control: dict[int, dict] | None,
     comparable: bool = True,
+    bo8: dict[int, float] | None = None,
+    control_bo8: dict[int, float] | None = None,
 ) -> tuple[list[dict], list[str]]:
-    """One record per arm: both cosines, the corpus cell, Δ with its CI, and the verdict."""
+    """One record per arm: the cosines, the corpus cell, Δ with its CI, and the verdict.
+
+    `bo8` / `control_bo8` are `centred_bo_k`'s {row: bo8} maps -- recomputed from the array, since
+    no `bo_c_8` column exists -- and an arm whose rows are all absent from them carries None there,
+    which prints as an em dash.
+    """
     by_arm: dict[str, list[dict]] = {}
     for r in ids:
         by_arm.setdefault(r["arm"], []).append(r)
@@ -344,6 +468,7 @@ def arm_rows(
             skipped.append(f"arm `{arm}`: no scan of its own corpus, so no in-domain cell")
             continue
         pairs, raw, cen, asy, ctrl, corp, docs = [], [], [], [], [], [], []
+        cen8, ctrl8 = [], []
         for r in rows:
             pt = src.per_target.get(int(r["row"]))
             if pt is None:
@@ -355,6 +480,12 @@ def arm_rows(
             raw.append(bo64_of(pt, "raw"))
             cen.append(bo64_of(pt, "centred"))
             asy.append(bo64_of(pt, "asym"))
+            # SPEC §2's headline cell, and the only one in this table that is RECOMPUTED rather
+            # than read: there is no `bo_c_8` column to read (`centred_bo_k`).
+            if bo8 is not None:
+                cen8.append(bo8.get(int(r["row"])))
+            if control_bo8 is not None:
+                ctrl8.append(control_bo8.get(int(r["row"])))
             if control is not None and int(r["row"]) in control:
                 cb = bo64_of(control[int(r["row"])], which)
                 if cb is not None:
@@ -397,9 +528,11 @@ def arm_rows(
                 "n": int(d.size) if comparable else len([x for x in asy if x is not None]),
                 "bo64_asym": _mean(asy),
                 "bo64_centred": _mean(cen),
+                "bo8_centred": _mean(cen8),
                 "bo64_raw": _mean(raw),
                 "corpus_top1": float(np.mean(corp)) if corp else None,
                 "control_bo64": _mean(ctrl) if ctrl else None,
+                "control_bo8": _mean(ctrl8),
                 "delta": mean,
                 "ci_lo": lo,
                 "ci_hi": hi,
@@ -468,7 +601,7 @@ def load_tokenizer(cfg: dict, base: str):
 
 
 def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_name: str,
-              lid_model: Path | None, which: str = "asym",
+              lid_model: Path | None, which: str = "centred",
               ceilings: dict[str, dict] | None = None) -> tuple[dict[str, dict], list[str]]:
     """{arm -> {lid_top1_rate, lid_top4_rate | code_like_top1_rate}} (review R3), and a note.
 
@@ -614,14 +747,32 @@ def main(
         "scans read: " + ", ".join(f"`{d}` at mu={scan_mus[d]}" for d in sorted(scan_mus))
     )
 
-    # The control column must come from a directory that HAS the asymmetric cosine, or the column
-    # is silently empty beside a Δ that is stated in it.
+    # The control column must come from a directory that HAS the cosine this table READS, or the
+    # column is silently empty beside a Δ that is stated in it. Since M0a that is `centred`, not
+    # `asym` -- see `has_col`.
     ctrls = [s for s in usable if s.role == "control"]
-    ctrl_src = next((s for s in ctrls if has_asym(s)), None) or (ctrls[0] if ctrls else None)
+    ctrl_src = (next((s for s in ctrls if has_col(s, "centred")), None)
+                or (ctrls[0] if ctrls else None))
     control = ctrl_src.per_target if ctrl_src else None
     for s_ in ctrls:
         if s_ is not ctrl_src:
             notes.append(f"control `{s_.label}` not used: superseded by `{ctrl_src.label}`")
+    # SPEC §7 R4, first half: THE CONTROL IS RESOLVED FROM CONFIG WITH ITS CENTRING DECLARED.
+    # `input_mu` refuses a `maemms:` entry that has no `mu:` key at all, so a control whose
+    # convention was never established stops the table here instead of becoming an unlabelled
+    # column; the pairing itself is asserted per source below, where the MAEMM is known.
+    if ctrl_src is not None:
+        notes.append(
+            f"control `{ctrl_src.label}` is `{ctrl_src.maemm}`, which config.yaml declares at "
+            f"mu={declared_mu(cfg, ctrl_src.maemm, base)}; the run itself recorded "
+            f"mu={C_resolve_mu(ctrl_src.mu, base)}"
+        )
+    # Panel c's tick (spec §4: "untrained base bo8"), recomputed once from the control's own
+    # `cos_centred.f16` and shared by every source's table.
+    ctrl_bo8: dict[int, float] = {}
+    if ctrl_src is not None:
+        ctrl_bo8, ctrl_bo8_note = centred_bo_k(vol, ctrl_src)
+        notes.append(f"control `{ctrl_src.label}`: {ctrl_bo8_note}")
 
     o = R.Out(
         out_dir,
@@ -676,6 +827,24 @@ def main(
         if src.role == "control" or src in superseded:
             continue
         got_mu = C_resolve_mu(src.mu, base)
+        # SPEC §7 R4, second half: the control column that is about to be printed beside this
+        # source's Δ must be a control FOR THIS SOURCE. Asserted on what config DECLARES, which is
+        # the thing R4 asks for and the thing a reader of the table can check.
+        if ctrl_src is not None:
+            assert_control_paired(cfg, base, src.maemm, ctrl_src.maemm)
+            # The declared pairing is config-level and cannot separate two RUNS of the same control
+            # key at two means, which is exactly what this set carries (`…@vllm` and
+            # `…@vllm:mu-stats__asym`). A note, not an assertion: the column is still the right
+            # checkpoint, and which run is chosen is `has_col`'s order, not a declared fact.
+            ctrl_run_mu = C_resolve_mu(ctrl_src.mu, base)
+            if ctrl_run_mu != got_mu:
+                notes.append(
+                    f"CONTROL RUN MEAN DIFFERS: source `{src.label}` recorded mu={got_mu} and the "
+                    f"control run `{ctrl_src.label}` recorded mu={ctrl_run_mu}. Both checkpoints "
+                    f"DECLARE the same mean, so the pairing assertion passes, but the two products "
+                    f"were scored about different vectors and the `control bo64`/`control bo8` "
+                    f"cells are not this source's control. Read them as a separate measurement."
+                )
         # THE SCAN AT THIS SOURCE'S OWN MEAN, arm by arm. Not "the scan", and not the one named on
         # the command line: a checkpoint trained on whiten_mu is differenced against the whiten_mu
         # scan and the old primary against the stats_mu one, from the same table.
@@ -697,15 +866,17 @@ def main(
                 f"source `{src.label}` (mu={got_mu}): arms with no scan of their own corpus at "
                 f"that mean: " + ", ".join(f"`{a}`" for a in missing)
             )
+        src_bo8, bo8_note = centred_bo_k(vol, src)
+        notes.append(f"`{src.label}`: {bo8_note}")
         recs, skipped = arm_rows(
-            ids, src, top1_by_arm, size_m, "asym", mod.boot_ci, mod.outcome, control,
-            comparable=comparable,
+            ids, src, top1_by_arm, size_m, "centred", mod.boot_ci, mod.outcome, control,
+            comparable=comparable, bo8=src_bo8, control_bo8=ctrl_bo8,
         )
         notes += skipped
         lids: dict[str, dict] = {}
         if lid:
             lids, lnotes = lid_rates(
-                mod, vol, cfg, ids, src, set_name, lid_model, "asym", ceilings
+                mod, vol, cfg, ids, src, set_name, lid_model, "centred", ceilings
             )
             notes += [f"`{src.label}`: {x}" for x in lnotes if x]
         lang_col = []
@@ -730,24 +901,27 @@ def main(
             else:
                 lang_col.append(f"{R.num(rate, 3)} / {R.num(ceil, 2)}")
         verdicts[src.label] = {r["arm"]: r["outcome"] for r in recs}
-        header = ["arm", "family", "n", "bo64 (asym)", f"corpus {size_m:g}M",
-                  "control bo64", "Δ", "95% CI", "win", "outcome", "lang / ceiling"]
+        header = ["arm", "family", "n", "bo8 (centred)", "bo64 (centred)", f"corpus {size_m:g}M",
+                  "control bo8", "control bo64", "Δ", "95% CI", "win", "outcome",
+                  "lang / ceiling"]
         rows_md = [
-            [r["arm"], r["family"], r["n"], R.num(r["bo64_asym"]),
-             R.num(r["corpus_top1"]), R.num(r["control_bo64"]),
+            [r["arm"], r["family"], r["n"], R.num(r["bo8_centred"]), R.num(r["bo64_centred"]),
+             R.num(r["corpus_top1"]), R.num(r["control_bo8"]), R.num(r["control_bo64"]),
              R.num(r["delta"]), f"[{R.num(r['ci_lo'], 3)}, {R.num(r['ci_hi'], 3)}]",
              R.num(r["win_frac"], 2), r["outcome"], lc]
             for r, lc in zip(recs, lang_col, strict=True)
         ]
-        csv_header = ["arm", "family", "n", "bo64_asym", "bo64_centred", "bo64_raw", "corpus_top1",
-                      "corpus_size_m", "control_bo64", "delta", "ci_lo", "ci_hi",
+        csv_header = ["arm", "family", "n", "bo8_centred", "bo64_centred", "bo64_asym", "bo64_raw",
+                      "corpus_top1",
+                      "corpus_size_m", "control_bo8", "control_bo64", "delta", "ci_lo", "ci_hi",
                       "se_clustered", "n_clusters", "win_frac", "outcome",
                       "lid_top1_rate", "lid_top4_rate", "code_like_top1_rate",
                       "classifier_ceiling", "ceiling_kind"]
         csv_rows = [
-            [r["arm"], r["family"], r["n"], r["bo64_asym"], r["bo64_centred"], r["bo64_raw"],
-             r["corpus_top1"],
-             size_m, r["control_bo64"], r["delta"], r["ci_lo"], r["ci_hi"], r["se_clustered"],
+            [r["arm"], r["family"], r["n"], r["bo8_centred"], r["bo64_centred"], r["bo64_asym"],
+             r["bo64_raw"], r["corpus_top1"],
+             size_m, r["control_bo8"], r["control_bo64"], r["delta"], r["ci_lo"], r["ci_hi"],
+             r["se_clustered"],
              r["n_clusters"], r["win_frac"], r["outcome"], r["lid_top1_rate"],
              r["lid_top4_rate"], r["code_like_top1_rate"], r.get("ceiling"), r.get("ceiling_kind")]
             for r in recs
@@ -757,10 +931,15 @@ def main(
             f"Arms — {src.label}"
             + ("" if src.centred else "  (this run centred on NOTHING: `--mu none`)"),
             f"bo64 against the in-domain {size_m:g}M corpus search, paired per target. BOTH "
-            f"SIDES ARE THE ASYMMETRIC CONVENTION -- `cos(h, unit(act - mu))`, uncentred scorer "
-            f"against the centred target -- which is what `scan` computes for a corpus window and "
-            f"what the paper's bo64 0.569 and corpus 0.351 are stated in. The symmetric cosines "
-            f"(`cos_centred`, `cos`) are in the CSV. The control column is "
+            f"SIDES ARE THE CENTRED CONVENTION -- `cos(h - mu, unit(act - mu))`, spec §2's "
+            f"'centred against centred' -- which holds ONLY IF the scan behind the corpus column "
+            f"ran with `--centre`; nothing in this file can verify that, and an uncentred scan of "
+            f"the same set at the same mean lands in the same cell. `bo8 (centred)` is "
+            f"RECOMPUTED from `cos_centred.f16` -- no `bo_c_8` column is stored anywhere -- and "
+            f"an em dash there is a row with fewer than 8 finite centred draws, never a zero. The "
+            f"asymmetric and raw cosines are in the CSV and are read by nothing. Δ is still bo64 "
+            f"minus the corpus top-1; re-pointing the verdict at bo8 is M5's. The control column "
+            f"is "
             f"{'`' + ctrl_src.label + '`' if ctrl_src else 'absent'}. `lang / code` is the rate at "
             f"which the top-1 rollout comes back in the arm's own language (fastText lid218e), or "
             f"the code-like rate where fastText is not meaningful. **READ THE CONVENTION NOTE "
@@ -828,35 +1007,45 @@ def main(
         "\n".join([
             "### The cosine convention, and what Δ here is and is not",
             "",
-            "`scan` scores a corpus window as `normalize(h) @ v` with `v = unit(act - mu)`: the "
-            "corpus activation UNCENTRED against a CENTRED target (precompute/scan.py; design §4, "
-            "'uncentred cosine in the scan'). That is the paper's convention and it is unchanged "
-            "-- the English reference below reproduces the design's R1 numbers to the digit "
-            "(0.3137 / 0.3511 / 0.3851 at 1/4/16M, own document top-1 on 114 of 512 targets at "
-            "4M).",
+            "SINCE M0a (2026-09-23) BOTH SIDES ARE CENTRED, and about the SAME constant. `score` "
+            "centres on the scoring constant -- `bases.<base>.whiten_mu`, read by "
+            "`precompute.common.score_mu`, the one mean both arguments of every centred cosine "
+            "are taken about and deliberately decoupled from each MAEMM's injection `mu:` -- and "
+            "`precompute/scan.py --centre` subtracts the same constant from every corpus window "
+            "before the dot product. `cos_centred` on the MAEMM side against a `--centre` scan's "
+            "top-1 is therefore one convention applied to both sides, which is what makes Δ a "
+            "paired difference rather than the subtraction of two angles to two different "
+            "vectors. Second sentence of the same fact: this file no longer reads `cos_asym` at "
+            "all, and `bo_a_64` / `cos_asym.f16` remain on disk read by no driver.",
             "",
-            "`score` on this branch emits two SYMMETRIC cosines instead: `cos` = "
-            "cos(h, unit(act)) and `cos_centred` = cos(h - mu, unit(act - mu)). Neither is "
-            "`cos(h, unit(act - mu))`, the asymmetric number the paper's bo64 0.569 is, and on a "
-            "`storage: raw` set there is no flag that produces it -- the legacy path got it for "
-            "free because a `storage: unit` set's stored rows ARE `unit(act - mu)`, so `dirs` was "
-            "already the centred target.",
+            "WHAT THIS FILE CANNOT CHECK, stated because the failure is silent. `scan_dirs_of` "
+            "selects scans by SET, and `top1_by_corpus` is keyed on (corpus, mean) alone: a scan "
+            "run WITHOUT `--centre`, at the same mean and on the same set, lands in exactly the "
+            "same cell and would be differenced without a word. Nothing in a scan's `topk.jsonl` "
+            "distinguishes the two modes; the scan's own README states which mode it ran in, and "
+            "the operational guard is a set directory that only centred scans ever wrote. Before "
+            "M0a the window side was uncentred while the target side was centred, so a `centred` "
+            "read was meaningless and `cos_asym` existed precisely to work around it "
+            "(`results/ood/tables.md:103-105`, `SMOKES.md:4483-4490`).",
             "",
             "Consequences, stated rather than smoothed:",
             "",
-            "- the CORPUS side of every Δ is exactly the paper's; the MAEMM side is not, so the "
-            "MAGNITUDE of Δ here is not comparable with the design's English margin of +0.218 "
-            "(4M) or +0.256 (1M), and neither is bo64 comparable with 0.569;",
-            "- the pre-registered claim is a per-arm SIGN ('the best of 64 rollouts aligns more "
-            "closely than the best corpus window'), and a sign is testable under any one "
-            "convention applied to both sides of the comparison -- which is why the verdicts are "
-            "reported and the margins are labelled;",
-            "- both cosines are in the CSV, so the arms can be re-read under either without "
-            "re-running anything on the GPU.",
-            "",
-            "Closing this properly means one of: `score` gaining the asymmetric cosine on a raw "
-            "set, or the scan centring its corpus activations to match `cos_centred`. The second "
-            "invalidates the frozen English reference; the first does not. Not decided here.",
+            "- the paper's frozen English numbers are ASYMMETRIC-convention numbers (bo64 0.569, "
+            "corpus 0.351 at 4M, margin +0.218 / +0.256 at 4M / 1M), so neither the bo8/bo64 "
+            "columns above nor Δ is comparable with them by MAGNITUDE. The English reference "
+            "table above is recomputed from the frozen 2026-09-16 UNCENTRED scan and stays in its "
+            "own convention on purpose;",
+            "- the per-arm claim is a SIGN ('the best of k rollouts aligns more closely than the "
+            "best corpus window'), and a sign is testable under any one convention applied to "
+            "both sides -- which is what the outcome column reports;",
+            "- `bo8 (centred)` is RECOMPUTED from `cos_centred.f16` through the pipeline's one "
+            "best-of-k estimator (`results.common.bo_unbiased`, the unbiased order statistic over "
+            "all finite draws), because `score` stores the centred ladder at k = 64 only and no "
+            "`bo_c_8` column exists anywhere. A row with fewer than 8 finite centred draws carries "
+            "NO bo8 and prints an em dash rather than a clamped k, which would be a different "
+            "quantity under the same name;",
+            "- all three cosines are in the CSV, so the arms can be re-read under any of them "
+            "without re-running anything on the GPU.",
             "",
         ])
     )
