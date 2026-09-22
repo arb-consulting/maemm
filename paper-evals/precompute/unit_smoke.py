@@ -2858,13 +2858,16 @@ def check_ood_config():
     # 2026-09-23 (eval plan M5): every ladder carries the 1/4/10 prefix -- 10 is the full run's
     # own-domain search size and 1/4 are the nested prefixes the per-target columns read -- and
     # the four arms of review R2 that reached 16M keep it on the end.
-    assert all(s["sizes"][:3] == [1, 4, 10] for a, s in arms.items() if a != "shell"), (
-        {a: s["sizes"] for a, s in arms.items() if a != "shell" and s["sizes"][:3] != [1, 4, 10]}
+    SHORT = ("shell", "formulas")  # the two arms that carry a smaller own-domain size, by ruling
+    assert all(s["sizes"][:3] == [1, 4, 10] for a, s in arms.items() if a not in SHORT), (
+        {a: s["sizes"] for a, s in arms.items() if a not in SHORT and s["sizes"][:3] != [1, 4, 10]}
     )
-    # `shell` is the one arm whose source cannot reach 10M: 5,639 of its 10,000 smol-xl files go
-    # into 4M, so 10M plus a 768-doc pool wants more rows than the file list has. Ruling
-    # 2026-09-23: it keeps [1, 4] and states its top size in its own row.
-    assert arms["shell"]["sizes"] == [1, 4]
+    # `shell`: 5,639 of its 10,000 smol-xl files go into 4M, so 10M plus a 768-doc pool wants more
+    # rows than the file list has. `formulas`: the diagnostic arm, whose reader joins single
+    # formulas into >= 512-token documents too slowly to reach 10M in the run's window (spec
+    # section 2 lets it carry a smaller size). Both ruled to [1, 4] on 2026-09-23, both state
+    # their top size in their own row.
+    assert [a for a in SHORT if arms[a]["sizes"] != [1, 4]] == []
     assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 10, 16]] == [
         "tha_Thai",
         "ufw_en",
@@ -2877,7 +2880,6 @@ def check_ood_config():
         "jpn_Jpan",
         "ufw_zh",
     ], "the four unspaced arms of review R5"
-    assert arms["formulas"]["sizes"] == [1, 4, 10]  # was [1]; 4 added so the prefix is uniform
     assert C.is_ood_set(cfg, "2026-09-18_ood_v1")
     assert not C.is_ood_set(cfg, "2026-09-16_v1")
     assert len(C.ood_set_arms(cfg, "2026-09-18_ood_v1")) == 23
