@@ -1513,67 +1513,126 @@ CELL_DICTIONARIES = {
     "s2menc": ("sae2m", "enc"),
     "s2mdec": ("sae2m", "dec"),
 }
-# The names M2's `results/corpus_search.py` may export for its per-target top-1 reader, tried in
-# order. A module that is there but exports none of them is a CONTRACT MISMATCH and raises -- that
-# is a different thing from the module not existing, and reporting it as "absent" would send the
-# reader looking for a run that has already happened.
-CORPUS_SEARCH_EXPORTS = ("corpus_top1", "top1_by_row", "top1_cosines")
+# What M2's `results/corpus_search.py` ACTUALLY exports, and what this driver calls. `read_top1`
+# is its reader of `scan/<dir>/topk.jsonl`, keyed by (set, set_row) and returning a `Top1` whose
+# `by_size[size][set_row]` is the rank-0 cosine; `assert_complete` is M2's own gate that every
+# selected row carries every nested size. BOTH are required: reading the top-1 without running
+# that gate would take a paired difference over whatever rows happened to survive each snapshot.
+# A module that is there but is missing one of them is a CONTRACT MISMATCH and raises -- that is a
+# different thing from the module not existing, and reporting it as "absent" would send the reader
+# looking for a run that has already happened.
+CORPUS_SEARCH_EXPORTS = ("read_top1", "assert_complete")
 CORPUS_SEARCH_SIGNATURE = (
-    "corpus_top1(vol=..., base=..., set_name=..., rows=[int], size=float) -> {row: top-1 cosine}"
+    "read_top1(vol=..., base=..., scan_dir=..., set_name=..., family=..., apply_exclusions=...) "
+    "-> Top1 with .by_size[size][set_row], .corpus, .exclusion_note; assert_complete(Top1)"
 )
 
 
-def corpus_top1_missing(keys: list[str]) -> str:
-    """The stub: say which cells are skipped and that `results/corpus_search.py` is the input.
+def corpus_top1_missing(keys: list[str], why: str) -> str:
+    """Say which cells are skipped and WHY the corpus comparator did not answer.
 
     One line, printed and returned, because the two ways this is read are a terminal during the
-    run and the `## Skipped and absent` block of the document afterwards. It fills nothing.
+    run and the `## Skipped and absent` block of the document afterwards. It fills nothing:
+    "the corpus scored 0" and "nobody ran the corpus scan" are opposite findings, and a paired
+    difference against a zero-filled comparator is the Exemplifier's own number wearing a
+    comparison's name.
     """
     line = (
         f"corpus comparator ABSENT -- {len(keys)} cell(s) SKIPPED and not written: "
-        f"{', '.join(sorted(keys))}. The missing input is `results/corpus_search.py` (module M2), "
-        f"which reads `scan/<set>/topk.jsonl` and is the ONE reader of it; this driver does not "
-        f"read topk.jsonl itself. Nothing is zero-filled: a corpus that scored 0 and a corpus scan "
-        f"nobody ran are opposite findings"
+        f"{', '.join(sorted(keys))}. {why}. The comparator is `results/corpus_search.py` (module "
+        f"M2), which reads `scan/<dir>/topk.jsonl` and is the ONE reader of it; this driver does "
+        f"not read topk.jsonl itself. Nothing is zero-filled: a corpus that scored 0 and a corpus "
+        f"scan nobody ran are opposite findings"
     )
     print(f"   MISSING  {line}", flush=True)
     return line
 
 
-def corpus_top1_fn():
-    """(M2's per-target top-1 reader, its provenance) or (None, why it is not there)."""
+def corpus_search_module():
+    """(M2's module, its provenance prefix) or (None, why it is not there)."""
     if CORPUS_SEARCH is None:
         return None, (
             "`results/corpus_search.py` is not importable (module M2 writes it); "
-            f"expected export: {CORPUS_SEARCH_SIGNATURE}"
+            f"expected exports: {CORPUS_SEARCH_SIGNATURE}"
         )
-    for name in CORPUS_SEARCH_EXPORTS:
-        fn = getattr(CORPUS_SEARCH, name, None)
-        if callable(fn):
-            return fn, f"results.corpus_search.{name}"
-    raise AssertionError(
-        f"`results/corpus_search.py` is importable but exports none of {CORPUS_SEARCH_EXPORTS}; "
-        f"it defines {sorted(n for n in dir(CORPUS_SEARCH) if not n.startswith('_'))}. That is a "
-        f"CONTRACT MISMATCH, not an absent product -- the expected export is "
-        f"{CORPUS_SEARCH_SIGNATURE}"
-    )
-
-
-def corpus_top1_for(vol: R.Vol, res: dict, rows: list[int], size: float):
-    """({row: corpus top-1 at `size`M}, provenance) or (None, why), through M2's reader only."""
-    fn, prov = corpus_top1_fn()
-    if fn is None:
-        return None, prov
-    try:
-        got = fn(vol=vol, base=res["base"], set_name=res["set"], rows=list(rows), size=size)
-    except TypeError as exc:
+    absent = [n for n in CORPUS_SEARCH_EXPORTS if not callable(getattr(CORPUS_SEARCH, n, None))]
+    if absent:
         raise AssertionError(
-            f"{prov} refused this call ({exc}). The hook's contract is {CORPUS_SEARCH_SIGNATURE}, "
-            f"called by keyword so the parameter NAMES are the contract and their order is not"
-        ) from exc
-    assert isinstance(got, dict), f"{prov} returned {type(got).__name__}, not a {{row: cosine}} dict"
-    out = {int(r): float(v) for r, v in got.items() if v is not None and math.isfinite(float(v))}
-    return out, f"{prov} at {size:g}M ({len(out)} of {len(rows)} targets)"
+            f"`results/corpus_search.py` is importable but does not export {absent}; it defines "
+            f"{sorted(n for n in dir(CORPUS_SEARCH) if not n.startswith('_'))}. That is a "
+            f"CONTRACT MISMATCH, not an absent product -- the expected exports are "
+            f"{CORPUS_SEARCH_SIGNATURE}"
+        )
+    return CORPUS_SEARCH, "results.corpus_search.read_top1"
+
+
+def corpus_scan_dir(base: str, set_name: str, spec: str) -> str:
+    """`--corpus-scan` -> the scan DIRECTORY NAME `read_top1` takes.
+
+    `read_top1` addresses the product as `base/<base>/scan/<dir>/topk.jsonl`, so what travels is
+    the directory name and not a path. Three spellings are accepted because the run ledger records
+    the product in all three, and they resolve to one directory:
+
+      `<set>__<corpus key>`          the directory, as `precompute.common.scan_dir` composed it
+      `<corpus key>`                 the corpus key alone, composed here onto this block's set
+      `base/<base>/scan/<dir>`       the full volume-relative path, prefix stripped
+
+    The corpus key is not optional and is never defaulted. Her block was scanned against TWO
+    corpora under this run tag -- the 10M training corpus and the 16M held-out one -- and their
+    top-1s are different numbers about different questions (spec §1.4), so a driver that guessed
+    would print one under the other's label and look principled doing it.
+    """
+    spec = (spec or "").strip().strip("/")
+    assert spec, "corpus_scan_dir was handed an empty --corpus-scan; the caller checks first"
+    prefix = f"base/{base}/scan/"
+    if "/" in spec:
+        assert spec.startswith(prefix), (
+            f"--corpus-scan {spec!r} looks like a path but does not start with `{prefix}`. Give "
+            f"the scan directory `<set>__<corpus key>`, the corpus key alone, or the full "
+            f"volume-relative path under that prefix")
+        spec = spec[len(prefix):].strip("/")
+        assert spec and "/" not in spec, (
+            f"--corpus-scan names more than one directory level below `{prefix}`")
+    return spec if spec == set_name or spec.startswith(f"{set_name}__") else f"{set_name}__{spec}"
+
+
+def corpus_top1_for(vol: R.Vol, res: dict, rows: list[int], size: float, scan_spec: str):
+    """({row: corpus top-1 at `size`M}, provenance) or (None, why), through M2's reader only.
+
+    The exclusions travel with the call: her block's headline n is the post-`exclusions.json` one
+    (486 of 512 at the paper's scale) and `ex_bo8` upstream is already cut to it, so asking M2 for
+    the unexcluded corpus side would put a 512-row comparator beside a 486-row mean and leave the
+    difference over the intersection with nothing in the output saying which cut produced it.
+    `read_top1` REFUSES when the file it is told to apply is not on the volume, which is the gate
+    this driver wants: an absent exclusion list is not an empty one.
+    """
+    mod, prov = corpus_search_module()
+    if mod is None:
+        return None, prov
+    if not (scan_spec or "").strip():
+        return None, (
+            "`--corpus-scan` is unset, so no scan was named. The comparator is a (set x corpus) "
+            f"product and this file will not guess which one: pass the corpus key, e.g. "
+            f"`--corpus-scan <corpus key>` -> base/{res['base']}/scan/{res['set']}__<corpus key>")
+    scan_dir = corpus_scan_dir(res["base"], res["set"], scan_spec)
+    apply_excl = bool(res["exclusions"].get("applied"))
+    top1 = mod.read_top1(vol=vol, base=res["base"], scan_dir=scan_dir, set_name=res["set"],
+                         family="realact", apply_exclusions=apply_excl)
+    mod.assert_complete(top1)
+    assert size in top1.by_size, (
+        f"`base/{res['base']}/scan/{scan_dir}/topk.jsonl` carries sizes {top1.sizes} and no "
+        f"{size:g}M. The paired cells are specified at {size:g}M (spec §1.4); a scan that stopped "
+        f"short is a different product, not a smaller one")
+    want = {int(r) for r in rows}
+    out = {int(r): float(v) for r, v in top1.by_size[size].items()
+           if int(r) in want and math.isfinite(float(v))}
+    prov = (
+        f"{prov} at {size:g}M from `base/{res['base']}/scan/{scan_dir}/topk.jsonl`, corpus "
+        f"`{top1.corpus or '(unnamed)'}`, family realact, rank-0 cosine centred both sides; "
+        + (top1.exclusion_note or "NO exclusions applied")
+        + f" ({len(out)} of {len(want)} targets)"
+    )
+    return out, prov
 
 
 # --- building one row --------------------------------------------------------------------------
@@ -1806,9 +1865,10 @@ def panel_a_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
             skipped.append(f"`{'`, `'.join(paired_keys)}` and `fid.ra.nla.dex` SKIPPED: the "
                            f"Exemplifier arm has no per-row centred bo8 on `{res['set']}`")
         else:
-            corp, corp_prov = corpus_top1_for(vol, res, sorted(ex_bo8), opts["corpus_size"])
+            corp, corp_prov = corpus_top1_for(vol, res, sorted(ex_bo8), opts["corpus_size"],
+                                              opts.get("corpus_scan", ""))
             if corp is None:
-                skipped.append(corpus_top1_missing(paired_keys) + f" [{corp_prov}]")
+                skipped.append(corpus_top1_missing(paired_keys, corp_prov))
             else:
                 diff, win, shared = paired(ex_bo8, corp, res["ids"], boot, seed)
                 if diff is None:
@@ -1816,9 +1876,12 @@ def panel_a_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
                                    f"{corp_prov} share no target")
                 else:
                     src_rel = src_by_label[ex_src.label].scores_rel
+                    # The corpus is named from the PRODUCT (`corp_prov` carries the scan
+                    # directory, the corpus label and the exclusion line), never from a literal
+                    # here: her block was scanned against two corpora under one run tag.
                     pair_note = (f"paired on {len(shared)} shared targets; Exemplifier bo8 "
                                  f"(cos_centred) minus corpus top-1 at "
-                                 f"{opts['corpus_size']:g}M on celeste-train10m; {corp_prov}; "
+                                 f"{opts['corpus_size']:g}M; {corp_prov}; "
                                  f"95% = mean +/- 1.96 x doc-clustered bootstrap SE over "
                                  f"{diff['clusters']} documents, {boot} resamples, seed {seed}")
                     rows.append(cell("fid.ra.diff.cos.bo8", diff["mean"], se=diff["se"],
@@ -2178,7 +2241,9 @@ def render_cells(rows: list[dict], skipped: list[str], out: R.Out, opts: dict) -
          f"interval — `results.common.cluster_bootstrap` returns an SE and not its resample "
          f"distribution, and a second resampler here would be a second estimator under one name. "
          f"Ratio cells carry the denominator's corpus in their `note`: `--corpus-peak "
-         f"{opts['corpus_peak']}`. A cell that could not be built is in the list below with its "
+         f"{opts['corpus_peak']}`; the two PAIRED cells carry the scan their comparator came "
+         f"from: `--corpus-scan {opts.get('corpus_scan') or '(unset — they are skipped)'}`. "
+         f"A cell that could not be built is in the list below with its "
          f"reason and is NOT written — the placeholder row already in the CSV says 'expected, not "
          f"yet measured', which is true, and a zero would not be."),
         ["key", "value", "se", "lo", "hi", "n", "status", "run", "source", "date"],
@@ -2243,6 +2308,14 @@ def main(
              "product (the stored 2026-07 directories and spec §7's R6 rerun)")] = "",
     corpus_size: Annotated[float, typer.Option(
         help="corpus size in millions the paired cells compare against (spec §1.4: 10M)")] = 10.0,
+    corpus_scan: Annotated[str, typer.Option(
+        "--corpus-scan",
+        help="the corpus-search product the PAIRED cells (`fid.ra.diff.cos.bo8`, "
+             "`fid.ra.ex.win.bo8`) are taken against: the corpus key (`<corpus key>`), the scan "
+             "directory (`<set>__<corpus key>`) or its full volume-relative path. Read through "
+             "M2's `results.corpus_search.read_top1`. Unset (the default) SKIPS those two cells "
+             "and says so -- her block is scanned against two corpora under one run tag and "
+             "their top-1s are different numbers")] = "",
     figures: Annotated[bool, typer.Option(help="write figures/ (PDF + PNG)")] = True,
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ) -> None:
@@ -2315,6 +2388,8 @@ def main(
         "level",
         f"- panel b ratio denominator: `--corpus-peak {corpus_peak}` — "
         f"{all_res[0]['corpus_peak']['provenance']}",
+        f"- paired-cell corpus comparator: `--corpus-scan "
+        f"{corpus_scan or '(unset — the two paired cells are skipped and listed)'}`",
         *[f"- exclusions, `{r['set']}`: {_exclusion_line(r)}" for r in all_res],
     ]
     o = R.Out(out, "Eval 1 — faithfulness, all blocks", pre)
@@ -2324,7 +2399,7 @@ def main(
     cell_opts = {"boot": boot, "seed": seed, "date": cells_date or datetime.date.today().isoformat(),
                  "exemplifier": exemplifier, "nla": nla, "corpus_size": corpus_size,
                  "owned": M1_KEYS,
-                 "corpus_peak": corpus_peak}
+                 "corpus_peak": corpus_peak, "corpus_scan": corpus_scan}
     cell_rows, cell_skipped = paper_cells(vol, all_res, cfg, cell_opts)
     render_cells(cell_rows, cell_skipped, o, cell_opts)
     path = render_combined(all_res, o, all_sanity, hfigs, blocks)

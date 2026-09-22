@@ -76,6 +76,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import precompute.common as PC  # noqa: E402
 import results.autointerp as A  # noqa: E402
 import results.common as R  # noqa: E402
+import results.corpus_search as CS  # noqa: E402
 import results.faithfulness as F  # noqa: E402
 
 BASE = "B"
@@ -2762,8 +2763,17 @@ M1_RND = {0: [0.0625] * M1_N, 1: [0.0625] * M1_N}          # raw only: `random` 
 M1_EX_BO1 = (0.46875 + 0.5 + 0.25 + 0.75) / 4       # 0.4921875
 M1_EX_BO8 = (0.6875 + 0.5 + 0.25 + 0.75) / 4        # 0.546875
 M1_EX_BO8_ROW = {0: 0.6875, 1: 0.5, 2: 0.25, 3: 0.75}
-# The corpus comparator's top-1 per target, the stub M2 stands in for.
+# The corpus comparator's top-1 per target, as M2's `read_top1` reads it off a scan `topk.jsonl`
+# written into the mirror below. NOT a stub: the driver's contract is M2's real reader, and a fake
+# module standing in for it is exactly the thing that let the two disagree unnoticed.
 M1_CORPUS = {0: 0.5, 1: 0.25, 2: 0.5, 3: 0.5}
+# The SAME rows on a DIFFERENT corpus, in a second scan directory. Her block is scanned against
+# two corpora under one run tag and the driver must read the one it was told to; every value here
+# is higher, so reading the wrong directory flips the win fraction as well as the difference.
+M1_CORPUS_OTHER = {r: v + 0.125 for r, v in M1_CORPUS.items()}
+M1_CORPUS_KEY = "train10m__tag"          # the corpus key `--corpus-scan` takes
+M1_CORPUS_KEY_OTHER = "held16m__tag"
+M1_SIZES = (5.0, 10.0)                   # the nested ladder; the cells are specified at 10M
 M1_DIFF = (0.1875 + 0.25 - 0.25 + 0.25) / 4         # 0.109375
 M1_WIN = 3 / 4
 M1_NLA_DEX = (0.5625 + 0.375 + 0.125 + 0.625) / 4   # 0.421875
@@ -2859,6 +2869,10 @@ def _m1_mirror(root: Path, gate: float = M1_GATE) -> None:
                   {r: [0.1875] * M1_N for r in range(4)}, M1_CTL_C)
     _m1_write_arm(root, f"{M1_BASE}/nla-ckpt", M1_RA, M1_RA_IDS, M1_NLA_N,
                   {r: [0.25] * M1_NLA_N for r in range(4)}, M1_NLA_C)
+    # the two corpus-search scans: the one the paired cells are specified against, and the
+    # held-out one beside it that the driver must NOT read unless it is named
+    _m1_scan(root, M1_CORPUS_KEY, M1_CORPUS)
+    _m1_scan(root, M1_CORPUS_KEY_OTHER, M1_CORPUS_OTHER)
     # the control block: the random floor (raw only) and the feature block
     peaks = {}
     for i in range(8):
@@ -2866,6 +2880,37 @@ def _m1_mirror(root: Path, gate: float = M1_GATE) -> None:
     raw_ct = {0: M1_RND[0], 1: M1_RND[1], **{2 + i: [0.03125] * M1_N for i in range(8)}}
     _m1_write_arm(root, f"{M1_BASE}/ex-ckpt", M1_CT, M1_CT_IDS, M1_N, raw_ct, None,
                   sae=peaks, gate=gate)
+
+
+def _m1_scan(root: Path, key: str = M1_CORPUS_KEY, top1: dict | None = None,
+             sizes=M1_SIZES) -> str:
+    """One corpus-search scan in `precompute/scan.py`'s own layout, and its directory name.
+
+    `topk.jsonl` is one line per (target row, corpus size) with `top` = up to 64 entries
+    `[doc, window start, argmax within the window, cos]`, rank 0 being the best. The join key is
+    (`set`, `set_row`) and never `row`, because `--with-set` re-indexes `row` to the position
+    WITHIN the scan -- so this fixture writes `row` SHIFTED by ten and a second set's rows ahead
+    of hers, and a reader that joined on `row` reads the wrong bank's numbers.
+    """
+    top1 = M1_CORPUS if top1 is None else top1
+    d = root / f"base/{M1_BASE}/scan/{M1_RA}__{key}"
+    d.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for si, size in enumerate(sizes):
+        for r in range(10):          # ten rows of ANOTHER set, sitting at scan rows 0..9
+            lines.append({"row": si * 14 + r, "set": "OTHER", "set_row": r,
+                          "family": "realact", "arm": None, "corpus": key, "size": size,
+                          "top": [[99, 0, 0, 0.999]]})
+        for r in sorted(top1):
+            # the 5M rung sits BELOW the 10M one, which is what a nested ladder looks like
+            cos = round(top1[r] - (0.0625 if size != 10.0 else 0.0), 5)
+            lines.append({"row": si * 14 + 10 + r, "set": M1_RA, "set_row": r,
+                          "family": "realact", "arm": None, "corpus": key, "size": size,
+                          "top": [[M1_RA_IDS[r]["doc"], 8 * r, 3, cos], [0, 0, 0, cos - 0.5]]})
+    with open(d / "topk.jsonl", "w") as fh:
+        for line in lines:
+            fh.write(json.dumps(line) + "\n")
+    return f"{M1_RA}__{key}"
 
 
 def _m1_top1_act(root: Path, rel: str, act_max: float = M1_TOP1_PEAK) -> str:
@@ -2897,24 +2942,23 @@ def _m1_analyse(root: Path, corpus_peak: str = F.CORPUS_PEAK_STORED):
 
 def _m1_opts(**kw) -> dict:
     opts = {"boot": 400, "seed": 1, "date": "2026-09-24", "exemplifier": "ex-ckpt",
-            "corpus_size": 10.0, "owned": F.M1_KEYS, "corpus_peak": F.CORPUS_PEAK_STORED}
+            "corpus_size": 10.0, "owned": F.M1_KEYS, "corpus_peak": F.CORPUS_PEAK_STORED,
+            "corpus_scan": M1_CORPUS_KEY}
     opts.update(kw)
     return opts
 
 
-class _FakeCorpusSearch:
-    """M2's module, stood in for: the one export this driver looks for, and nothing else."""
-
-    @staticmethod
-    def corpus_top1(*, vol, base, set_name, rows, size):
-        assert size == 10.0, size
-        return {r: M1_CORPUS[r] for r in rows if r in M1_CORPUS}
-
-
 def _m1_cells(root: Path, *, corpus: bool, corpus_peak: str = F.CORPUS_PEAK_STORED, **kw):
+    """`paper_cells` with M2's REAL `results.corpus_search` behind it (`corpus=False` removes it).
+
+    The comparator is not stubbed. `corpus_top1_for` calls `read_top1` and `assert_complete` on
+    the scan written by `_m1_scan`, so what this exercises is the contract between the two files
+    -- which is the thing that was broken: the driver looked for exports M2 never had, and every
+    run reported the paired cells ABSENT while the scan sat on the volume.
+    """
     vol, all_res = _m1_analyse(root, corpus_peak)
     before = F.CORPUS_SEARCH
-    F.CORPUS_SEARCH = _FakeCorpusSearch if corpus else None
+    F.CORPUS_SEARCH = CS if corpus else None
     try:
         return F.paper_cells(vol, all_res, M1_CFG, _m1_opts(corpus_peak=corpus_peak, **kw))
     finally:
@@ -3362,18 +3406,125 @@ def check_m1_missing_corpus_search_skips_and_lists():
         with_it, _ = _m1_cells(root, corpus=True)
         assert {"fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8"} <= set(_m1_by_key(with_it)), with_it
 
-        # a module that IS there but exports nothing this driver knows is a CONTRACT MISMATCH and
-        # raises -- reporting it as "absent" would send the reader looking for a run that happened
+        # THE MODULE IS THERE AND NO SCAN WAS NAMED: the same two cells are skipped, and for a
+        # DIFFERENT stated reason. Her block is scanned against two corpora under one run tag, so
+        # "which scan" is not a default; a driver that picked one would print the held-out number
+        # under the training corpus's label.
+        rows_ns, skipped_ns = _m1_cells(root, corpus=True, corpus_scan="")
+        by_ns = _m1_by_key(rows_ns)
+        for key in ("fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8"):
+            assert key not in by_ns, f"{key} was written with no --corpus-scan: {by_ns.get(key)}"
+        joined_ns = " | ".join(skipped_ns)
+        assert "--corpus-scan` is unset" in joined_ns, joined_ns
+
+        # a module that IS there but does not export what this driver calls is a CONTRACT
+        # MISMATCH and raises -- reporting it as "absent" would send the reader looking for a run
+        # that has already happened. This is the defect that was in the file: the driver looked
+        # for `corpus_top1` / `top1_by_row` / `top1_cosines` and M2 exports `read_top1`.
         before = F.CORPUS_SEARCH
         F.CORPUS_SEARCH = type("Empty", (), {"__doc__": "no exports"})
         try:
-            F.corpus_top1_fn()
+            F.corpus_search_module()
         except AssertionError as exc:
             assert "CONTRACT MISMATCH" in str(exc), exc
+            assert "read_top1" in str(exc), exc
         else:
             raise AssertionError("an incompatible corpus_search module was treated as absent")
         finally:
             F.CORPUS_SEARCH = before
+        # and the real module satisfies it, which is what makes the probe above a real gate
+        mod, prov = F.corpus_search_module()
+        assert mod is CS and "read_top1" in prov, (mod, prov)
+
+
+def check_m1_paired_cells_read_m2s_scan():
+    """The paired cells come from M2's `read_top1` on the scan `--corpus-scan` names -- and MOVE.
+
+    The defect this covers: `corpus_top1_for` looked for exports `results/corpus_search.py` never
+    had, so `fid.ra.diff.cos.bo8` and `fid.ra.ex.win.bo8` were reported ABSENT on every run while
+    the scan sat on the volume. A green "the cells appear" is not enough to catch that coming
+    back, because a comparator wired to the wrong scan also makes them appear; so this asserts the
+    VALUES against the fixture's literals, asserts the decoy scan's values are NOT what lands, and
+    then MUTATES the named scan and requires the assertion to go red.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _m1_mirror(root)
+
+        # the scan is addressed three ways and they are ONE directory
+        for spec in (M1_CORPUS_KEY,
+                     f"{M1_RA}__{M1_CORPUS_KEY}",
+                     f"base/{M1_BASE}/scan/{M1_RA}__{M1_CORPUS_KEY}"):
+            assert F.corpus_scan_dir(M1_BASE, M1_RA, spec) == f"{M1_RA}__{M1_CORPUS_KEY}", spec
+        try:
+            F.corpus_scan_dir(M1_BASE, M1_RA, "somewhere/else/entirely")
+        except AssertionError as exc:
+            assert "does not start with" in str(exc), exc
+        else:
+            raise AssertionError("a path outside the scan directory was accepted")
+
+        rows, skipped = _m1_cells(root, corpus=True)
+        by = _m1_by_key(rows)
+        d, w = by["fid.ra.diff.cos.bo8"], by["fid.ra.ex.win.bo8"]
+        assert d["value"] == f"{M1_DIFF:.4f}", d
+        assert w["value"] == f"{M1_WIN:.4f}", w
+        assert d["n"] == "4" and w["n"] == "4", (d, w)
+        # the provenance travels into the note: the scan, the corpus label, the reader
+        for c in (d, w):
+            assert f"{M1_RA}__{M1_CORPUS_KEY}/topk.jsonl" in c["note"], c["note"]
+            assert "results.corpus_search.read_top1" in c["note"], c["note"]
+            assert "10M" in c["note"], c["note"]
+        assert not [x for x in skipped if "fid.ra.diff" in x], skipped
+
+        # THE DECOY. The held-out scan carries every row 0.125 higher, so reading it would give a
+        # difference 0.125 lower and a win fraction of 1/2, not 3/4. Naming it must produce THOSE
+        # numbers -- which proves the driver reads the directory it is told to and not the first
+        # one under `scan/`.
+        rows_o, _ = _m1_cells(root, corpus=True, corpus_scan=M1_CORPUS_KEY_OTHER)
+        bo = _m1_by_key(rows_o)
+        want_o = sum(M1_EX_BO8_ROW[r] - M1_CORPUS_OTHER[r] for r in range(4)) / 4
+        assert bo["fid.ra.diff.cos.bo8"]["value"] == f"{want_o:.4f}", bo["fid.ra.diff.cos.bo8"]
+        assert bo["fid.ra.diff.cos.bo8"]["value"] != d["value"], (bo, d)
+        assert M1_CORPUS_KEY_OTHER in bo["fid.ra.diff.cos.bo8"]["note"], bo
+
+        # A SIZE THE SCAN DOES NOT CARRY is a refusal, not a nearest rung: the cells are specified
+        # at 10M and a scan that stopped short is a different product.
+        try:
+            _m1_cells(root, corpus=True, corpus_size=2.5)
+        except AssertionError as exc:
+            assert "no 2.5M" in str(exc), exc
+        else:
+            raise AssertionError("a corpus size absent from the scan was silently substituted")
+
+        # THE MUTATION. Row 2 is the one target the Exemplifier loses on. Lift its corpus top-1 at
+        # 10M and the difference, the win fraction and nothing else must move; a driver that had
+        # cached, stubbed or defaulted the comparator stays green here and must not.
+        moved = {**M1_CORPUS, 2: 0.125}
+        _m1_scan(root, M1_CORPUS_KEY, moved)
+        rows_m, _ = _m1_cells(root, corpus=True)
+        bm = _m1_by_key(rows_m)
+        want_m = sum(M1_EX_BO8_ROW[r] - moved[r] for r in range(4)) / 4
+        assert bm["fid.ra.diff.cos.bo8"]["value"] == f"{want_m:.4f}", bm["fid.ra.diff.cos.bo8"]
+        assert bm["fid.ra.diff.cos.bo8"]["value"] != d["value"], "the mutation did not move the cell"
+        assert bm["fid.ra.ex.win.bo8"]["value"] == "1.0000", bm["fid.ra.ex.win.bo8"]
+        # and the cells that do NOT read the scan are untouched by it
+        assert bm["fid.ra.ex.cos.bo8"]["value"] == by["fid.ra.ex.cos.bo8"]["value"], bm
+
+        # A RAGGED LADDER is M2's own gate and it must reach this driver rather than being caught
+        # by nothing: a row with a 10M top-1 and no 2.5M one is a product defect.
+        _m1_scan(root, M1_CORPUS_KEY, M1_CORPUS)
+        path = root / f"base/{M1_BASE}/scan/{M1_RA}__{M1_CORPUS_KEY}/topk.jsonl"
+        kept = [line for line in path.read_text().splitlines()
+                if not (json.loads(line)["set"] == M1_RA
+                        and json.loads(line)["set_row"] == 1
+                        and json.loads(line)["size"] == 5.0)]
+        path.write_text("\n".join(kept) + "\n")
+        try:
+            _m1_cells(root, corpus=True)
+        except AssertionError as exc:
+            assert "absent at some size" in str(exc), exc
+        else:
+            raise AssertionError("a ragged size ladder reached the paired cells")
 
 
 def check_m1_cells_end_to_end():
@@ -3461,6 +3612,7 @@ CHECKS = [
     check_m1_cells_writer_keeps_the_file_s_line_endings,
     check_m1_corpus_denominator_is_a_parameter,
     check_m1_missing_corpus_search_skips_and_lists,
+    check_m1_paired_cells_read_m2s_scan,
     check_m1_cells_end_to_end,
 ]
 
