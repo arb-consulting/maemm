@@ -73,8 +73,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import autointerp.build as AB  # noqa: E402
 import precompute.common as PC  # noqa: E402
 import results.autointerp as A  # noqa: E402
+import results.autointerp_cases as AC  # noqa: E402
 import results.common as R  # noqa: E402
 import results.corpus_search as CS  # noqa: E402
 import results.faithfulness as F  # noqa: E402
@@ -4344,6 +4346,79 @@ def check_m1_cells_end_to_end():
         assert all(len(r) == len(F.CELLS_COLUMNS) for r in recs)
 
 
+# --- the case-study page: one stored `block` back into its example windows -----------------------
+
+
+def check_autointerp_cases_block_split():
+    """`autointerp_cases.split_block` inverts `build.exemplar_block`, marks, newlines and all.
+
+    THE WHOLE PER-ARM DIVERSITY TABLE RESTS ON THIS. The mean pairwise Jaccard printed for an arm
+    is `build.content_words` over the texts recovered here, and the block is the only place those
+    texts exist -- the build stores the provenance of each example but not its text. Three ways the
+    inverse can go wrong, all of them present in this fixture and each changing a number:
+
+      * a CORPUS WINDOW CONTAINS NEWLINES, so an example is not a line: splitting on lines would
+        make example 1 into four examples, and example 4's own text carries a line reading
+        `Example 9:  ` that a numbering-agnostic split would turn into a fifth example;
+      * a MARKED TOKEN CAN BE A NEWLINE, so the `Activations:` line is itself not always one line.
+        `rpartition("\n")` took the tail of the pair list on the first real feature this ran on,
+        which is why the reader looks for the last `\nActivations: ` instead;
+      * the `Activations:` line REPEATS every marked token, so leaving it in the text adds those
+        tokens a second time to the content-word set. The check asserts it changes the Jaccard
+        rather than trusting that it would.
+
+    No mirror and no volume: `exemplar_block` is a pure function of the example dicts, so the
+    fixture is the dicts.
+    """
+    ex = [
+        # a corpus window with interior newlines and two marked runs
+        {"text_marked": "the quarterly<< dividend>> was\napproved by the\nboard\nyesterday",
+         "activations": [(" dividend", 7)], "n_marked": 1},
+        # a marked token that IS a newline: the pair list spans two lines
+        {"text_marked": "revenue rose<<\n>>guidance unchanged",
+         "activations": [("\n", 4), (" rose", 2)], "n_marked": 2},
+        # nothing marked at all, so `exemplar_block` writes no `Activations:` line
+        {"text_marked": "an unmarked rollout about turbines", "activations": [], "n_marked": 0},
+        # a text that itself contains a line looking like the next example's header
+        {"text_marked": "see below\nExample 9:  not a boundary<< here>>",
+         "activations": [(" here", 3)], "n_marked": 1},
+    ]
+    block = AB.exemplar_block(ex)
+    shown = AC.split_block(block, ex)
+    assert len(shown) == len(ex), [s.marked for s in shown]
+    for got, want in zip(shown, ex, strict=True):
+        assert got.marked == want["text_marked"], (got.marked, want["text_marked"])
+        assert got.plain == want["text_marked"].replace("<<", "").replace(">>", "")
+        assert bool(got.acts_line) == bool(want["activations"]), (got.acts_line, want)
+    # the newline-marked example's `Activations:` line really does span two lines, so this fixture
+    # exercises the branch and is not merely asserting an easy case
+    assert "\n" in shown[1].acts_line, shown[1].acts_line
+    assert shown[1].n_folds == shown[1].marked.count("\n") + shown[1].acts_line.count("\n")
+
+    # the statistic the page prints, and what leaving the `Activations:` line in would do to it
+    good = AC.mean_pairwise_jaccard(shown)
+    dirty = AC.mean_pairwise_jaccard(
+        [AC.Shown(marked=s.marked, plain=s.plain + "\n" + s.acts_line, acts_line="", meta=s.meta)
+         for s in shown])
+    assert good is not None and dirty is not None and abs(good - dirty) > 1e-9, (good, dirty)
+    # and it IS `M-jac16`'s own distance: the same pairs off `jaccard_distances`
+    d = AB.jaccard_distances([{"text": s.plain} for s in shown])
+    iu = np.triu_indices(len(shown), k=1)
+    assert abs(good - float(np.mean(1.0 - d[iu]))) < 1e-12, (good, d)
+
+    # the `Example 9:  ` line inside example 4 stayed in its text rather than becoming a boundary
+    assert "Example 9:  not a boundary" in shown[3].plain, shown[3].plain
+
+    # a block holding MORE examples than the caller's rows is REFUSED, not read as fewer: the
+    # extra one would otherwise be swallowed into the last example's text and change its Jaccard
+    try:
+        AC.split_block(block, ex[:3])
+    except AssertionError as exc:
+        assert "boundaries and the build stored 3" in str(exc), exc
+    else:
+        raise AssertionError("a block with more examples than the build stored was accepted")
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -4383,6 +4458,8 @@ CHECKS = [
     check_autointerp_band_recall,
     check_autointerp_band_cells_and_contrasts,
     check_autointerp_bands_catch_a_defect,
+    # the four-arm case-study page -- the block reader every per-arm statistic is taken over
+    check_autointerp_cases_block_split,
     check_ood_scan_key,
     check_ood_arm_table,
     check_ood_bo8_headline,
