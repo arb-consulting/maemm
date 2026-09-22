@@ -348,47 +348,190 @@ def _sae(cfg, args, sae, n, strata, min_fires, rng, od):
     return rows, [dirs[i] for i in range(len(feats))]
 
 
-def _leakage(cfg, args, rows, vecs, od):
-    """cos > 0.999 of every realact / sae direction against the archived 8B training banks."""
-    import torch
+def open_bank(path: str, d: int):
+    """`(n_rows, read(start, m) -> [m, d] float32)` for ONE bank of stored directions.
 
-    base, d = args["base"], cfg["bases"][args["base"]]["d"]
+    Two shapes exist in this project and both are read here, sequentially, with no mmap: a RAW
+    `.f32` / `.f16` file laid out as [.., d] rows (the 8B archive's `pool_train/vecs.f32`) and a
+    numpy `.npy` (Celeste's tier-B `simple2m/*/dirs_f16.npy`). A file whose size is not a whole
+    number of [.., d] rows is a wrong `d` or a truncated fetch and stops the run rather than being
+    scanned short -- a leak check that silently reads half a bank reports "no hits" for the half it
+    never looked at.
+    """
+    import numpy as np
+
+    assert os.path.exists(path), f"missing direction bank {path}"
+    if path.endswith(".npy"):
+        with open(path, "rb") as fh:
+            version = np.lib.format.read_magic(fh)
+            reader = {(1, 0): np.lib.format.read_array_header_1_0,
+                      (2, 0): np.lib.format.read_array_header_2_0}
+            assert version in reader, f"{path}: unsupported .npy version {version}"
+            shape, fortran, dt = reader[version](fh)
+            off = fh.tell()
+        assert not fortran, f"{path}: Fortran-ordered .npy; the row reader below assumes C order"
+        assert len(shape) == 2 and shape[1] == d, (
+            f"{path} is {shape}, expected [.., {d}] rows -- wrong d for this bank?"
+        )
+        n_rows, isz = int(shape[0]), int(dt.itemsize)
+        want = off + n_rows * d * isz
+        assert os.path.getsize(path) == want, (
+            f"{path}: header says {shape} {dt} ({want} B with a {off} B header) but the file is "
+            f"{os.path.getsize(path)} B -- a TRUNCATED fetch, not a bank"
+        )
+    else:
+        dt = {".f32": np.dtype("float32"), ".f16": np.dtype("float16")}.get(path[-4:])
+        assert dt is not None, f"{path}: a raw bank must end .f32 or .f16 (or be a .npy)"
+        off, isz, nbytes = 0, int(dt.itemsize), os.path.getsize(path)
+        n_rows = nbytes // (isz * d)
+        assert n_rows * isz * d == nbytes, (
+            f"{path} is not a whole number of [.., {d}] {dt} rows -- wrong d for this bank?"
+        )
+
+    def read(start: int, m: int):
+        blk = np.fromfile(path, dtype=dt, count=m * d, offset=off + start * d * isz)
+        assert blk.size == m * d, f"{path}: short read of {blk.size} of {m * d} values at row {start}"
+        return blk.reshape(m, d).astype(np.float32)
+
+    return n_rows, read
+
+
+def leak_scan(dirs, banks, d: int, *, thr: float = LEAK_COS, chunk: int = LEAK_CHUNK,
+              device: str = "numpy", max_hits: int = 10_000, label: str = "leakage"):
+    """Max cosine of every row of `dirs` [N, d] against every row of every bank in `banks`.
+
+    `banks` is `[(name, path), ...]`; `dirs` is already the direction each target row carries (the
+    caller decides whether that is `unit(act)` or `unit(act - mu)`) and is re-normalised here.
+    Returns
+
+        {"n": N, "banks": [{name, path, rows, seconds, max_cos, n_hits}, ...],
+         "best": [N] float32,        the running max cosine of each target row
+         "best_bank": [N] str, "best_row": [N] int,     where that max came from
+         "per_bank": {name: [N] float32},   the same max restricted to one bank
+         "hits": [{target, bank, bank_row, cos}, ...],  every pair above `thr`, capped
+         "n_hits": total number of pairs above `thr`, including any past the cap}
+
+    `per_bank` is what lets a caller cut the result BOTH ways -- per target block and per bank --
+    without a second pass; it is [n_banks, N] floats and costs nothing beside the arrays scanned.
+
+    ONE pass over the banks serves every target row the caller has: the tier-B arrays are 92 GB and
+    the read dominates the matmul by an order of magnitude, so a caller with three blocks to check
+    concatenates them into `dirs` and splits the result by row range afterwards. `device` is
+    `numpy` (the CPU product) or `cuda` (inside a GPU product that already holds a device).
+    """
+    import numpy as np
+
+    v = np.asarray(dirs, dtype=np.float32)
+    assert v.ndim == 2 and v.shape[1] == d, f"{label}: dirs is {v.shape}, expected [.., {d}]"
+    v = v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
+    n = v.shape[0]
+    assert n, f"{label}: no target rows to check"
+    assert device in ("numpy", "cuda"), f"{label}: device must be numpy or cuda, got {device!r}"
+    if device == "cuda":
+        import torch
+
+        vt = torch.from_numpy(v).cuda()
+
+    best = np.full(n, -2.0, dtype=np.float32)
+    best_bank = [""] * n
+    best_row = np.full(n, -1, dtype=np.int64)
+    per_bank: dict = {}
+    hits: list[dict] = []
+    n_hits = 0
+    report = []
+    for name, path in banks:
+        assert name not in per_bank, f"{label}: two banks are both named {name!r}"
+        n_rows, read = open_bank(path, d)
+        bbest = np.full(n, -2.0, dtype=np.float32)
+        brow = np.full(n, -1, dtype=np.int64)
+        t0, bhits = time.time(), 0
+        for s in range(0, n_rows, chunk):
+            m = min(chunk, n_rows - s)
+            blk = read(s, m)
+            blk /= np.maximum(np.linalg.norm(blk, axis=1, keepdims=True), 1e-12)
+            if device == "cuda":
+                cos = (torch.from_numpy(blk).cuda() @ vt.T).cpu().numpy()
+            else:
+                cos = blk @ v.T  # [m, n]
+            cmax = cos.max(axis=0)
+            upd = cmax > bbest
+            brow[upd] = s + cos.argmax(axis=0)[upd]
+            bbest[upd] = cmax[upd]
+            a_rows, t_cols = np.nonzero(cos > thr)
+            bhits += int(a_rows.size)
+            for a_row, t_col in zip(a_rows.tolist(), t_cols.tolist(), strict=True):
+                if len(hits) < max_hits:
+                    hits.append({"target": int(t_col), "bank": name,
+                                 "bank_row": int(s + a_row), "cos": float(cos[a_row, t_col])})
+        upd = bbest > best
+        best_row[upd] = brow[upd]
+        for j in np.nonzero(upd)[0]:
+            best_bank[int(j)] = name
+        best[upd] = bbest[upd]
+        per_bank[name] = bbest
+        n_hits += bhits
+        secs = time.time() - t0
+        report.append({"name": name, "path": path, "rows": n_rows, "seconds": round(secs, 1),
+                       "max_cos": round(float(bbest.max()), 6), "n_hits": bhits})
+        print(
+            f"[{label}] {name}: {n_rows} rows in {secs:.0f}s, max cos {float(bbest.max()):.6f}, "
+            f"{bhits} hits > {thr}",
+            flush=True,
+        )
+    return {"n": n, "banks": report, "best": best, "best_bank": best_bank, "best_row": best_row,
+            "per_bank": per_bank, "hits": hits, "n_hits": n_hits, "thr": thr}
+
+
+def archived_banks(cfg, base: str):
+    """The direction banks a DRAWN set is checked against at draw time, for this base.
+
+    The 8B has run1's and run2's `pool_train/vecs.f32` in the archive and they are cheap, so the
+    draw pays for them. The 27B's banks are Celeste's tier-B training directions
+    (`data/celeste-v2-2026-09-17/simple2m/*/dirs_f16.npy`, 8.94M rows / 92 GB): the same check, an
+    order of magnitude more reading, and it covers blocks that are not being drawn -- so it is the
+    `tierb` PRODUCT (`precompute/tierb.py`) and is not folded into every draw. `_leakage` says so
+    by name rather than reporting "no banks exist", which was true until 2026-09-22 and is not now.
+    """
     if base != "qwen3-8b":
-        od.note("leakage check: skipped (only the 8B training banks are in the archive)")
+        return []
+    return [(run, f"{cfg['modal']['archive']}/data/{run}/bank/pool_train/vecs.f32")
+            for run in ("run1", "run2")]
+
+
+def _leakage(cfg, args, rows, vecs, od):
+    """cos > 0.999 of every realact / sae direction against the archived training banks."""
+    base, d = args["base"], cfg["bases"][args["base"]]["d"]
+    banks = archived_banks(cfg, base)
+    if not banks:
+        od.note(
+            f"leakage check: NOT RUN at draw time for base {base!r}. The banks that exist for it "
+            f"are Celeste's tier-B training directions (8.94M rows, 92 GB), which are checked by "
+            f"the `tierb` product against whichever blocks are named there -- see "
+            f"precompute/tierb.py and results/tierb/."
+        )
         return []
     idx = [i for i, r in enumerate(rows) if r["family"] in ("realact", "sae")]
-    v = torch.nn.functional.normalize(torch.stack([vecs[i] for i in idx]).float(), dim=-1).cuda()
-    hits = []
-    for run in ("run1", "run2"):
-        path = f"{cfg['modal']['archive']}/data/{run}/bank/pool_train/vecs.f32"
-        assert os.path.exists(path), f"missing archived bank {path}"
-        n_rows = os.path.getsize(path) // (4 * d)
-        assert n_rows * 4 * d == os.path.getsize(path), (
-            f"{path} is not a whole number of [.., {d}] f32 rows -- wrong d for this archive?"
-        )
-        t0 = time.time()
-        for s in range(0, n_rows, LEAK_CHUNK):
-            m = min(LEAK_CHUNK, n_rows - s)
-            blk = np.fromfile(path, dtype=np.float32, count=m * d, offset=s * d * 4).reshape(m, d)
-            b = torch.nn.functional.normalize(torch.from_numpy(blk).cuda(), dim=-1)
-            cos = b @ v.T  # [m, n_targets]
-            hi = (cos > LEAK_COS).nonzero()
-            for a_row, t_col in hi.cpu().numpy():
-                j = idx[int(t_col)]
-                hits.append(
-                    {
-                        "row": rows[j]["row"],
-                        "family": rows[j]["family"],
-                        "archive": run,
-                        "archive_row": int(s + a_row),
-                        "cos": float(cos[a_row, t_col]),
-                    }
-                )
-        print(f"[leakage] {run}: {n_rows} bank rows in {time.time() - t0:.0f}s, {len(hits)} hits", flush=True)
+    import numpy as np
+
+    def _np(x):  # `vecs` is a list of torch rows here and a list of arrays in tierb.py
+        return x.detach().cpu().numpy() if hasattr(x, "detach") else np.asarray(x)
+
+    res = leak_scan(np.stack([_np(vecs[i]) for i in idx]), banks, d,
+                    device="cuda", label="leakage")
+    hits = [
+        {
+            "row": rows[idx[h["target"]]]["row"],
+            "family": rows[idx[h["target"]]]["family"],
+            "archive": h["bank"],
+            "archive_row": h["bank_row"],
+            "cos": h["cos"],
+        }
+        for h in res["hits"]
+    ]
     od.note(
         f"leakage: cos > {LEAK_COS} of every realact and sae direction against "
-        f"run1+run2 pool_train/vecs.f32 in the archive; {len(hits)} hits, reported only "
-        "(checklist item 35 says report, never remove)"
+        f"{'+'.join(n for n, _ in banks)} pool_train/vecs.f32 in the archive; {res['n_hits']} hits, "
+        "reported only (checklist item 35 says report, never remove)"
     )
     return hits
 

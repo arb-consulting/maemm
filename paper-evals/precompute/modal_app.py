@@ -318,6 +318,7 @@ PRODUCTS = {
     "heldout_v3": _heldout_v3,
     "nll": _script("nll"),
     "ood_selfcheck": _script("ood_selfcheck"),
+    "tierb": _script("tierb"),
 }
 # `corpus` is CPU AND the only product that goes to the network: the Ultra-FineWeb parquet parts
 # are not in the volume's HF cache, so corpus.py flips HF_HUB_OFFLINE off for itself. `mu_check`
@@ -325,7 +326,10 @@ PRODUCTS = {
 # `centred` is CPU too: it only re-reads the arrays `score` already wrote (best_act, cos, norm).
 # `heldout_v3` neither forwards nor loads a model: it reads Celeste's frozen parquets off the
 # volume, solves a 512x5120 quadratic in numpy, or copies a row range out of an existing set.
-CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred", "heldout_v3")
+# `tierb` reads 92 GB of fp16 directions off the volume and multiplies them by ~1.5k target rows:
+# the READ dominates by an order of magnitude, so a GPU would buy minutes of matmul at $4.54/h and
+# the scan runs in numpy on the CPU function (M8).
+CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred", "heldout_v3", "tierb")
 # Products that need --maemm.
 MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
 

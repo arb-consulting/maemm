@@ -3104,7 +3104,152 @@ def check_three_cosines():
     )
 
 
+def check_tierb_scan_finds_a_planted_duplicate():
+    """`targets.leak_scan` / `open_bank` against a bank with a duplicate PLANTED at a known row.
+
+    The fixture is a synthetic pair in the tier-B shape -- an fp16 `.npy` bank and a block of
+    target directions -- carrying, deliberately:
+
+      * target 0 = bank row 7 EXACTLY (cos 1.0), the duplicate the check exists to find;
+      * target 1 = a bank row perturbed to cos ~0.9995, ABOVE the 0.999 threshold but not equal,
+        which is the case a `==`-style check would miss;
+      * target 2 = a bank row perturbed to cos ~0.998, just BELOW the threshold -- so the check
+        can go red by reporting three hits instead of two;
+      * target 3 = orthogonal to everything, the clean row;
+      * a SECOND bank holding target 4's duplicate, so the per-bank split and the `best_bank`
+        attribution are exercised rather than assumed;
+      * a bank whose row count is not a multiple of the chunk size, so the last short chunk runs.
+
+    Every expected cosine is computed here from the fixture's OWN construction (the planted angle),
+    not from a second call of the code under test.
+    """
+    import numpy as np
+
+    from precompute import targets as T
+
+    d, n_bank = 64, 300  # 300 is not a multiple of CHUNK below: the last chunk is short
+    rng = np.random.default_rng(20260923)
+
+    def unit(x):
+        return (x / np.linalg.norm(x, axis=-1, keepdims=True)).astype(np.float32)
+
+    bank_a = unit(rng.normal(size=(n_bank, d)))
+    bank_b = unit(rng.normal(size=(50, d)))
+
+    def rotate(v, cos_want):
+        """A unit vector at exactly `cos_want` from `v`: cos*v + sin*w with w unit and orthogonal."""
+        w = rng.normal(size=d).astype(np.float32)
+        w -= (w @ v) * v
+        w = w / np.linalg.norm(w)
+        out = cos_want * v + np.sqrt(1.0 - cos_want**2) * w
+        return unit(out)
+
+    tgt = np.stack([
+        bank_a[7].copy(),            # 0: exact duplicate of bank_a row 7
+        rotate(bank_a[123], 0.9995),  # 1: above the threshold, not equal
+        rotate(bank_a[200], 0.998),   # 2: below the threshold
+        unit(rng.normal(size=d)),     # 3: unrelated
+        bank_b[11].copy(),            # 4: duplicate, in the SECOND bank
+    ])
+
+    with tempfile.TemporaryDirectory() as td:
+        pa, pb = f"{td}/a.npy", f"{td}/b.npy"
+        np.save(pa, bank_a.astype(np.float16))
+        np.save(pb, bank_b.astype(np.float16))
+
+        n_rows, read = T.open_bank(pa, d)
+        assert n_rows == n_bank, f"open_bank read {n_rows} rows of a {n_bank}-row .npy"
+        blk = read(7, 1)
+        assert blk.shape == (1, d) and blk.dtype == np.float32, (blk.shape, blk.dtype)
+        assert np.allclose(blk[0], bank_a[7].astype(np.float16).astype(np.float32)), (
+            "open_bank's row 7 is not the .npy's row 7: the header offset is wrong"
+        )
+        try:
+            T.open_bank(pa, d + 1)
+            raise AssertionError("open_bank accepted the wrong d for a .npy bank")
+        except AssertionError as e:
+            assert "expected [.., 65] rows" in str(e), e
+
+        res = T.leak_scan(tgt, [("a", pa), ("b", pb)], d, chunk=128, device="numpy", label="smoke")
+
+    # fp16 storage moves every cosine by ~1e-3 at most; the planted values are the reference.
+    tol = 3e-3
+    assert res["n"] == 5 and len(res["banks"]) == 2, res["banks"]
+    assert [b["rows"] for b in res["banks"]] == [n_bank, 50], res["banks"]
+    want = [1.0, 0.9995, 0.998, None, 1.0]
+    for i, w in enumerate(want):
+        if w is None:
+            assert res["best"][i] < 0.5, f"target 3 should match nothing, got {res['best'][i]}"
+            continue
+        assert abs(float(res["best"][i]) - w) < tol, (i, float(res["best"][i]), w)
+    assert res["best_bank"] == ["a", "a", "a", "a", "b"], res["best_bank"]
+    assert [int(res["best_row"][i]) for i in (0, 1, 2, 4)] == [7, 123, 200, 11], res["best_row"]
+
+    # THE COUNT the appendix sentence reports: rows whose max cosine is above 0.999. THREE of the
+    # five, not four -- target 2 was planted at 0.998 and sits below the threshold by construction,
+    # which is what makes this an assertion about the threshold and not about the fixture's size.
+    above = [i for i in range(5) if float(res["best"][i]) > T.LEAK_COS]
+    assert above == [0, 1, 4], (
+        f"rows above {T.LEAK_COS} should be the two exact duplicates and the 0.9995 row, got {above}"
+    )
+    assert res["n_hits"] == 3, f"expected 3 (target, bank row) pairs above the threshold, got {res['n_hits']}"
+    assert sorted((h["target"], h["bank"], h["bank_row"]) for h in res["hits"]) == [
+        (0, "a", 7), (1, "a", 123), (4, "b", 11)
+    ], res["hits"]
+
+    # The per-bank split: bank `b` knows nothing about targets 0-3, bank `a` nothing about 4.
+    assert float(res["per_bank"]["b"][0]) < 0.5, res["per_bank"]["b"][:4]
+    assert float(res["per_bank"]["a"][4]) < 0.5, res["per_bank"]["a"][4]
+    assert abs(float(res["per_bank"]["a"][0]) - 1.0) < tol
+
+    # RED CHECK: the same fixture with the planted duplicate REMOVED must report zero hits, so a
+    # scan that reported hits unconditionally could not pass the assertions above.
+    with tempfile.TemporaryDirectory() as td:
+        clean = bank_a.copy()
+        clean[7] = unit(rng.normal(size=d))
+        clean[123] = unit(rng.normal(size=d))
+        np.save(f"{td}/a.npy", clean.astype(np.float16))
+        res2 = T.leak_scan(tgt[:4], [("a", f"{td}/a.npy")], d, chunk=128, device="numpy",
+                           label="smoke-clean")
+    assert res2["n_hits"] == 0, (
+        f"with the planted rows replaced the scan must find nothing, got {res2['n_hits']} hits"
+    )
+
+
+def check_tierb_blocks_and_banks_are_declared():
+    """`precompute/tierb.py`'s two tables against the record they come from.
+
+    Not a re-derivation: the row counts are the bundle survey's
+    (`infra/2026-09-18_celeste-v2-data.md` §1.1) and the sets are config.yaml's, so a typo in
+    either table is caught here rather than after 92 GB of reading.
+    """
+    from precompute import tierb
+
+    cfg = C.load_config()
+    assert tierb.BASE in cfg["bases"], tierb.BASE
+    assert sum(n for _, n in tierb.BANKS) == 8_941_132, (
+        f"the six tier-B arrays hold 8,941,132 rows per the bundle survey, the table sums to "
+        f"{sum(n for _, n in tierb.BANKS)}"
+    )
+    assert len(tierb.BANKS) == 6 and len({n for n, _ in tierb.BANKS}) == 6, tierb.BANKS
+    for _, set_name, family, centring in tierb.BLOCKS:
+        assert set_name in cfg["heldout"], f"tierb names set {set_name!r}, not in config.yaml"
+        assert family in cfg["family_kinds"], f"tierb names family {family!r}, not in family_kinds"
+        assert centring in (None, "score"), centring
+        if centring == "score":
+            assert cfg["family_kinds"][family]["centrable"], (
+                f"tierb asks for a centred reading of {family!r}, which family_kinds says has no "
+                f"mean to subtract -- the centred and uncentred blocks would be identical"
+            )
+    # The centring caveat is the reason `ours` appears twice; if it stops appearing twice the
+    # docstring's claim ("the pair is the answer") is no longer what the code does.
+    ours = [b for b in tierb.BLOCKS if b[1] == "2026-09-21_v3_ours"]
+    assert {b[3] for b in ours} == {None, "score"}, ours
+
+
 CHECKS = [
+    check_tierb_scan_finds_a_planted_duplicate,
+    check_tierb_blocks_and_banks_are_declared,
     check_three_cosines,
     check_sae_key_for_rows,
     check_scan_masks_on_label,
