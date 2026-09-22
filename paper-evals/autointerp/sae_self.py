@@ -291,7 +291,7 @@ def run(cfg, args):
     else:
         rpath = C.rollouts_path(maemm, set_name, root, engine, tag)
         spath = f"{C.rollouts_dir(maemm, root)}/{C.rollout_stem(set_name, engine, tag)}.summary.json"
-        sdir = C.scores_dir(maemm, args.get("score_name") or set_name, root, engine)
+        sdir = C.scores_dir(maemm, args.get("score_name") or set_name, root, engine, tag)
     assert os.path.exists(rpath), f"no rollouts at {rpath}"
     assert os.path.exists(sdir), (
         f"no scores at {sdir}: this stage re-runs `score`'s forward and cross-checks itself "

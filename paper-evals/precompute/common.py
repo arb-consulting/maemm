@@ -1278,8 +1278,43 @@ def nla_variant_dir(maemm_key: str, set_name: str, amp: str, root: str = VOL) ->
     return f"{maemm_dir(maemm_key, root)}/variants/{set_name}__amp-{amp}"
 
 
-def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf") -> str:
-    return f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(set_name, engine)}"
+def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf",
+               tag: str = "", write: bool = False) -> str:
+    """`<root>/maemms/<base>/<maemm>/scores/<set>[__<engine>][__<tag>]` -- `rollout_stem`'s layout.
+
+    `tag` IS IN THE SAME POSITION AS `rollout_stem`'s, which is the whole point of it existing
+    here (C7, infra/2026-09-22_inventory-alignment.md). This function took no tag, so a tagged
+    score run could only name itself through `--score-name <set>__<tag>` -- and `rollout_stem`
+    then treated that whole string as the set and appended `__<engine>` AFTER the tag. On the
+    volume:
+
+        rollouts/ 2026-09-21_v3_ctrl__vllm__mu-none.jsonl     <- engine, then tag
+        scores/   2026-09-21_v3_ctrl__mu-none__vllm/          <- tag, then engine
+
+    One pair of products, two orders. `results/common.parse_scores_dir` was already patched to
+    read the engine part wherever it sits, and its docstring records what the first version cost:
+    six of eval 1's arms went into the paper's own CSV as HF when they were vLLM. Any future tool
+    joining a rollout to its score by tag inherits the same trap. Writers are canonical from here.
+
+    A READER (the default) falls back to the legacy `<set>__<tag>__<engine>` spelling when the
+    canonical path is absent and the legacy one is there, exactly as `sae_examples_dir` does for
+    its own rename, so the products already on the volume stay readable. Only `engine != "hf"`
+    can differ: at `hf` the two spellings are the same string.
+    """
+    tag = (tag or "").strip()
+    canonical = f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(set_name, engine, tag)}"
+    if write or not tag or engine == "hf":
+        return canonical
+    legacy = f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(f'{set_name}__{tag}', engine)}"
+    if not os.path.exists(canonical) and os.path.exists(legacy):
+        print(
+            f"[scores] {canonical} is absent; reading the LEGACY {legacy} (written before "
+            f"2026-09-21, when scores/ took its run tag through --score-name and so spelled it "
+            f"after the engine instead of before). Same product, older name.",
+            flush=True,
+        )
+        return legacy
+    return canonical
 
 
 # ---------------------------------------------------------------------------------------------

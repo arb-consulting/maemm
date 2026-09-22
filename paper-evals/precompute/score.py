@@ -551,7 +551,8 @@ def run(cfg, args):
     out = (
         f"{rdir}/scores"
         if rdir
-        else C.scores_dir(maemm, args.get("score_name") or set_name, root, engine)
+        else C.scores_dir(maemm, args.get("score_name") or set_name, root, engine,
+                          args.get("run_tag") or "", write=True)
     )
     inputs = {
         "rollouts": rpath,

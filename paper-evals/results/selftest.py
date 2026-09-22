@@ -311,9 +311,11 @@ def check_parse_scores_dir():
     assert F.R.parse_scores_dir("S__mu-none", "S") == ("hf", "mu-none")
     assert F.R.parse_scores_dir("S__vllm__mu-none", "S") == ("vllm", "mu-none")
     # THE OTHER ORDER, which is the one eval 1's old-primary arms are actually written in:
-    # `score --score-name <set>__<tag> --engine vllm` gives `<set>__<tag>__<engine>`, because
-    # `scores_dir` has no tag parameter and folds the tag into the set name. Reading that as
+    # `score --score-name <set>__<tag> --engine vllm` gave `<set>__<tag>__<engine>`, because
+    # `scores_dir` took no tag and the tag could only enter through the set name. Reading that as
     # engine `hf` with the tag `mu-none__vllm` put "hf" in the paper's CSV for six vLLM arms.
+    # `scores_dir` takes a `tag` in `rollout_stem`'s position since 2026-09-21 and WRITES the
+    # canonical order, but this reader keeps both: the products on the volume did not move.
     assert F.R.parse_scores_dir("S__mu-none__vllm", "S") == ("vllm", "mu-none")
     assert F.R.parse_scores_dir("S__mu-stats__vllm", "S") == ("vllm", "mu-stats")
     # A directory that merely starts with the set name is ANOTHER set, not an untagged run of

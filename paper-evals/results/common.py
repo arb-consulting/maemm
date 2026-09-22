@@ -379,8 +379,8 @@ def parse_scores_dir(name: str, set_name: str) -> tuple[str, str] | None:
 
     THE ENGINE PART IS FOUND WHEREVER IT IS, not only first. `rollout_stem` puts it before the tag,
     but a `score --score-name <set>__<tag> --engine vllm` run -- which is how eval 1's two
-    old-primary arms were written, because `scores_dir` takes no tag of its own -- lands on
-    `<set>__<tag>__<engine>` instead. The first version of this function required the engine part
+    old-primary arms were written, because `scores_dir` took no tag of its own until 2026-09-21 --
+    lands on `<set>__<tag>__<engine>` instead. The first version of this function required the engine part
     to come first, so it read `2026-09-21_v3_sae2m__mu-none__vllm` as engine `hf` with the tag
     `mu-none__vllm`: a vLLM product labelled HF in the paper's own CSV, on six of eval 1's arms.
     MEASURED on the real directory names 2026-09-21. Only the FIRST engine-valued part is taken,

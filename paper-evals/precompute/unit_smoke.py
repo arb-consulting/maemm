@@ -1953,6 +1953,46 @@ RETURN_ARITY = {
 }
 
 
+def check_scores_dir_puts_the_tag_where_rollout_stem_does():
+    """`scores_dir` and `rollout_stem` spell one (set, engine, tag) triple the SAME way.
+
+    C7. `scores_dir` took no tag, so a tagged score run could only name itself through
+    `--score-name <set>__<tag>`, and `rollout_stem` then appended `__<engine>` after the tag. The
+    volume carries the mismatched pair: `rollouts/...__vllm__mu-none.jsonl` beside
+    `scores/...__mu-none__vllm/`. `results.common.parse_scores_dir` already reads either order and
+    its docstring records what the first, order-dependent version cost -- six of eval 1's arms
+    labelled HF in the paper's CSV when they were vLLM. This check is on the WRITER, so the two
+    cannot drift apart again.
+    """
+    import tempfile
+
+    maemm, set_name = "qwen3-8b/2026-09-03_run1-rl", "s"
+    for engine in C.ENGINES:
+        for tag in ("", "mu-none"):
+            want = C.rollout_stem(set_name, engine, tag)
+            got = C.scores_dir(maemm, set_name, "/vol", engine, tag, write=True)
+            assert got.endswith("/" + want), (
+                f"scores_dir({engine!r}, tag={tag!r}) -> {got}, but rollout_stem spells the same "
+                f"triple {want!r}. The score directory must follow the rollouts file it scored.")
+    # untagged paths do not move: every product already on the volume keeps its name
+    assert C.scores_dir(maemm, set_name) == "/vol/maemms/qwen3-8b/2026-09-03_run1-rl/scores/s"
+
+    # THE READER'S FALLBACK, on a real directory rather than on the docstring's promise.
+    with tempfile.TemporaryDirectory() as td:
+        legacy = C.scores_dir(maemm, f"{set_name}__mu-none", td, "vllm", write=True)
+        os.makedirs(legacy)
+        got = C.scores_dir(maemm, set_name, td, "vllm", "mu-none")
+        assert got == legacy, (
+            f"a scores directory written under the OLD spelling is no longer found: asked for "
+            f"tag `mu-none`, got {got}, the product is at {legacy}")
+        # ...and the canonical path wins as soon as it exists
+        canon = C.scores_dir(maemm, set_name, td, "vllm", "mu-none", write=True)
+        os.makedirs(canon)
+        assert C.scores_dir(maemm, set_name, td, "vllm", "mu-none") == canon, (
+            "the legacy directory shadowed the canonical one")
+    print("  scores_dir: __<engine>__<tag>, with the legacy order still readable")
+
+
 def check_return_arities():
     """Every loader returns as many values as its callers unpack -- checked with `ast`, on CPU.
 
@@ -2301,6 +2341,7 @@ CHECKS = [
     check_nla_arm_a_reads_the_body,
     check_sae_column_slice_is_the_dictionary,
     check_gcg_never_loads_the_full_dictionary,
+    check_scores_dir_puts_the_tag_where_rollout_stem_does,
     check_return_arities,
     check_centred_uses_one_mu,
     check_every_set_writer_writes_the_contract,
