@@ -2855,7 +2855,13 @@ def check_ood_config():
     for spec in arms.values():
         fams[spec["family"]] = fams.get(spec["family"], 0) + 1
     assert fams == {"lang": 8, "ctrl": 2, "code": 8, "math": 4, "diag": 1}, fams
-    assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 16]] == [
+    # 2026-09-23 (eval plan M5): every ladder carries the 1/4/10 prefix -- 10 is the full run's
+    # own-domain search size and 1/4 are the nested prefixes the per-target columns read -- and
+    # the four arms of review R2 that reached 16M keep it on the end.
+    assert all(s["sizes"][:3] == [1, 4, 10] for s in arms.values()), (
+        {a: s["sizes"] for a, s in arms.items() if s["sizes"][:3] != [1, 4, 10]}
+    )
+    assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 10, 16]] == [
         "tha_Thai",
         "ufw_en",
         "python",
@@ -2867,7 +2873,7 @@ def check_ood_config():
         "jpn_Jpan",
         "ufw_zh",
     ], "the four unspaced arms of review R5"
-    assert arms["formulas"]["sizes"] == [1]
+    assert arms["formulas"]["sizes"] == [1, 4, 10]  # was [1]; 4 added so the prefix is uniform
     assert C.is_ood_set(cfg, "2026-09-18_ood_v1")
     assert not C.is_ood_set(cfg, "2026-09-16_v1")
     assert len(C.ood_set_arms(cfg, "2026-09-18_ood_v1")) == 23
