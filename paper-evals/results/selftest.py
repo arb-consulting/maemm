@@ -3165,6 +3165,16 @@ def check_m1_panel_b_cells_and_the_gate():
             if ".ratio." in k:
                 assert "16M HELD-OUT" in r["note"], (k, r["note"])
         assert by["sae.l131k.ex.ratio.bo1.q1"]["run"] == "R1"
+        # A RATIO ON THE 16M DENOMINATOR IS `provisional`, NEVER `final` (spec §1.2/§1.4: the
+        # denominator is the 10M TRAINING corpus). The FIRED cells have no denominator and stay
+        # `final`, so the two series of panel b can land on different days without either one
+        # claiming a convention it does not have.
+        for k, r in by.items():
+            if ".ratio." in k:
+                assert r["status"] == "provisional", (k, r["status"])
+                assert "NOT the 10M training corpus" in r["note"], (k, r["note"])
+            if ".fired." in k:
+                assert r["status"] == "final", (k, r["status"])
 
         # THE GATE MUTATION: a product whose gate is not the 1.5846 the spec names must refuse.
         root2 = Path(td) / "moved-gate"
@@ -3175,6 +3185,40 @@ def check_m1_panel_b_cells_and_the_gate():
             assert "1.5846" in str(exc) and "Refusing" in str(exc), exc
         else:
             raise AssertionError("a 131k block with the wrong gate produced fired cells anyway")
+
+
+def check_m1_cells_writer_keeps_the_file_s_line_endings():
+    """A CRLF `cells.csv` stays CRLF, and every untouched row survives BYTE for byte.
+
+    The real file is CRLF. `Path.read_text()` translates that to LF on the way in, which made the
+    writer's own byte-identity assertion compare the rewrite against the already-translated text
+    and pass while every one of 413 lines changed on disk -- a whole-file diff in a file six
+    builders share, for one row rewritten. So the terminator is read off the header line and the
+    read and the write both pass `newline=""`. MEASURED 2026-09-23 on the real file.
+    """
+    import results.faithfulness as F
+
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "cells.csv"
+        crlf = (
+            "key,value,se,lo,hi,n,status,run,source,date,note\r\n"
+            "fid.ra.ex.cos.bo1,0.1,,,,,placeholder,R1,x,2026-09-01,mine\r\n"
+            "zzz.other.builder.key,0.9,,,,,final,R9,y,2026-09-01,\"not mine, quoted\"\r\n"
+        )
+        path.write_bytes(crlf.encode())
+        before = path.read_bytes().split(b"\r\n")
+        F.write_cells(path, [F.cell("fid.ra.ex.cos.bo1", 0.5, run="R1", date="2026-09-23",
+                                    source="s", note="rewritten")],
+                      {"fid.ra.ex.cos.bo1"})
+        raw = path.read_bytes()
+        assert b"\r\n" in raw, "the CRLF terminators did not survive the rewrite"
+        assert raw.count(b"\r\n") == 3, raw
+        assert b"\n" not in raw.replace(b"\r\n", b""), "a bare LF was written into a CRLF file"
+        after = raw.split(b"\r\n")
+        # the other builder's row and the header, byte for byte
+        assert after[0] == before[0], (after[0], before[0])
+        assert after[2] == before[2], (after[2], before[2])
+        assert b"0.5000" in after[1], after[1]
 
 
 def check_m1_corpus_denominator_is_a_parameter():
@@ -3355,6 +3399,7 @@ CHECKS = [
     check_m1_cells_writer_rewrites_in_place,
     check_m1_panel_a_cells,
     check_m1_panel_b_cells_and_the_gate,
+    check_m1_cells_writer_keeps_the_file_s_line_endings,
     check_m1_corpus_denominator_is_a_parameter,
     check_m1_missing_corpus_search_skips_and_lists,
     check_m1_cells_end_to_end,

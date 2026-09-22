@@ -1944,6 +1944,19 @@ def panel_b_cells(all_res: list[dict], cfg: dict, opts: dict):
         denoms = sorted({a["corpus_peak_source"] for a in aggs})
         assert len(denoms) == 1, f"`sae.{key_set}` spans {len(denoms)} ratio denominators: {denoms}"
         denom = denoms[0]
+        # A RATIO IS ONLY `final` ON THE SPEC'S DENOMINATOR. Spec §1.2 and §1.4 say the ratio's
+        # denominator is the feature's peak on the 10M TRAINING corpus (`celeste-train10m`), which
+        # M2's scan produces; the default `stored` denominator is `sae_self`'s own 16M held-out
+        # `max_act`. The two are different corpora, so a ratio taken against the second is a
+        # provisional number wearing the paper's key, and marking it `final` would be the exact
+        # thing plan §2 forbids ("a cell is never left carrying a number from a different
+        # convention"). The FIRED cells are unaffected -- `peak > gate` has no denominator -- so
+        # they stay `final` and the panel's two series can land on different days.
+        ratio_status = "final" if denom != STORED_PEAK_PROVENANCE else "provisional"
+        ratio_caveat = ("" if ratio_status == "final" else
+                        "; PROVISIONAL: this denominator is the 16M held-out max_act, NOT the 10M "
+                        "training corpus spec §1.4 names -- rerun with --corpus-peak <M2's 10M "
+                        "top1_act path> when that product lands")
         stat = next((a.get("stratum_stat") for a in aggs if a.get("stratum_stat")), None)
         stat_note = f"strata are quartiles of {stat}" if stat else "stratum statistic not recorded"
         product = next((a.get("product", "") for a in aggs), "")
@@ -1962,10 +1975,10 @@ def panel_b_cells(all_res: list[dict], cfg: dict, opts: dict):
                         seen.add(key)
                         rows.append(cell(
                             key, a["per_k"][k]["median"], n=a["per_k"][k]["n"], run="R1",
-                            date=date, source=product,
+                            status=ratio_status, date=date, source=product,
                             note=(f"{a['source']}; MEDIAN over features of peak / corpus peak at "
                                   f"bo{k}; denominator: {denom}; {where}; gate "
-                                  f"{a['gate']:.{GATE_PLACES}f}{miss}")))
+                                  f"{a['gate']:.{GATE_PLACES}f}{miss}{ratio_caveat}")))
                 if k in a.get("fired_k", {}):
                     key = f"sae.{key_set}.ex.fired.bo{k}{slot}"
                     if key in opts["owned"] and key not in seen:
@@ -1994,7 +2007,13 @@ def _cells_records(path: Path) -> list[tuple[list[str], str]]:
     """
     import csv
 
-    text = path.read_text()
+    # `newline=""` and NOT the default: universal-newline translation would turn this file's CRLF
+    # terminators into LF on the way in, the byte-identity assertion below would compare the
+    # rewrite against the ALREADY-TRANSLATED text and pass, and the write would reflow all 413
+    # lines of a file six builders share. MEASURED 2026-09-23 on the real `cells.csv`, which is
+    # CRLF: every line came back changed for one row rewritten.
+    with path.open(newline="") as fh:   # `Path.read_text(newline=)` is 3.13+
+        text = fh.read()
     lines = text.splitlines(keepends=True)
     seen: list[str] = []
 
@@ -2015,12 +2034,18 @@ def _cells_records(path: Path) -> list[tuple[list[str], str]]:
     return out
 
 
-def _cells_line(row: dict) -> str:
+def _cells_line(row: dict, terminator: str = "\n") -> str:
+    """One CSV line, ending with the terminator THE FILE ALREADY USES.
+
+    `cells.csv` is CRLF today. A row written with a bare LF into a CRLF file is a second line
+    ending in a file six builders diff, so the terminator is a parameter and `write_cells` reads
+    it off the header line rather than assuming either one.
+    """
     import csv
     import io
 
     buf = io.StringIO()
-    csv.writer(buf, lineterminator="\n").writerow([row[c] for c in CELLS_COLUMNS])
+    csv.writer(buf, lineterminator=terminator).writerow([row[c] for c in CELLS_COLUMNS])
     return buf.getvalue()
 
 
@@ -2084,21 +2109,24 @@ def write_cells(path: Path, rows: list[dict], owned: set[str]) -> dict:
     assert not dup_file, f"{path} already carries {dup_file} more than once"
 
     pending = {r["key"]: r for r in rows}
-    out = [header_raw if header_raw.endswith("\n") else header_raw + "\n"]
+    # The terminator the file already uses, taken from its own header line.
+    term = "\r\n" if header_raw.endswith("\r\n") else "\n"
+    out = [header_raw if header_raw.endswith("\n") else header_raw + term]
     rewritten: list[str] = []
     for rec, raw in body:
         key = rec[0]
         if key in pending:
-            out.append(_cells_line(pending.pop(key)))
+            out.append(_cells_line(pending.pop(key), term))
             rewritten.append(key)
         else:
-            out.append(raw if raw.endswith("\n") else raw + "\n")
+            out.append(raw if raw.endswith("\n") else raw + term)
     appended = [r["key"] for r in rows if r["key"] in pending]
     for r in rows:
         if r["key"] in pending:
-            out.append(_cells_line(pending.pop(r["key"])))
+            out.append(_cells_line(pending.pop(r["key"]), term))
     assert not pending, pending
-    path.write_text("".join(out))
+    with path.open("w", newline="") as fh:
+        fh.write("".join(out))
     return {"path": str(path), "rewritten": rewritten, "appended": appended,
             "untouched": len(body) - len(rewritten)}
 
