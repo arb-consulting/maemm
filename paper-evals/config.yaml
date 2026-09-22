@@ -680,6 +680,34 @@ heldout:
     n_per_arm: 64
     arms: all
     families: {}
+  # THE FULL-SCALE OOD SET (2026-09-23, eval plan M5 / spec section 2): 512 targets per arm, drawn
+  # from the 768-document pools of the arm corpora rebuilt on the 1/4/10M ladder.
+  #
+  # NOT a prefix of `2026-09-21_ood_q1` or `2026-09-18_ood_v1`, although the seed and the draw rule
+  # are theirs. Two things move: the corpus/pool boundary (a 10M corpus consumes rows the 4M one
+  # left to the pool, so the pool holds DIFFERENT documents) and `pool_n` itself, which is the size
+  # of the `rng.integers(..., size=pool_n)` draws of `p` and `L` in `targets._ood_arm_draw`, so the
+  # spans differ from row 0 on. A number from this set and a number from q1 are not paired.
+  #
+  # `imported: true` reads "nameable, never the default" (common.default_heldout), as on every set
+  # below 2026-09-16_v1: without it this key sorts last among the non-imported sets and would
+  # silently become the set every product called without --set draws on.
+  2026-09-23_ood_full:
+    imported: true
+    storage: raw
+    seed: 20260918          # the design's seed, unchanged
+    kind: ood
+    n_per_arm: 512
+    # 22 arms, NOT `all`: `formulas` is excluded. Its corpus could not be rebuilt with a
+    # 768-document pool inside the run's window at ANY of 10M, 4M or 1M (three attempts,
+    # 2026-09-23, each stopped before it wrote; the cost is its own reader, see the commit that
+    # set its ladder back to [1]). It is the DIAGNOSTIC arm, outside the 21-arm level-1
+    # conjunction, so the full-scale set runs without it and its quarter-scale row stands. The
+    # arm's `ood_arms:` entry is untouched and its 09-21 corpus is intact.
+    arms: [ces_Latn, rus_Cyrl, ell_Grek, arb_Arab, hin_Deva, tha_Thai, cmn_Hani, jpn_Jpan,
+           ufw_zh, ufw_en, python, javascript, c, rust, go, haskell, sql, shell,
+           owm, arxiv, lean, isabelle]
+    families: {}
 
 corpus:
   dataset: openbmb/Ultra-FineWeb
@@ -845,6 +873,22 @@ autointerp:
 # The OOD generalisation evaluation (languages, scripts, code, maths), design
 # infra/2026-09-18_ood-eval-design.md. APPENDED 2026-09-18; nothing above this line changed.
 #
+# SIZES, 2026-09-23 (eval plan M5): every ladder gained 10, the full run's own-domain search
+# size, keeping 1 and 4 as the nested prefixes the per-target columns read; the four arms that
+# already reached 16M keep it, and `formulas` gained 4 so that every arm carries the same 1/4/10
+# prefix. The ladder is what `corpus --arm` budgets for (sizes[-1]), so a rebuild at this ladder
+# is a DIFFERENT corpus and a DIFFERENT pool than the 09-18/09-21 one in the same directory.
+#
+# EXCEPT `shell`, which stays at [1, 4]: 5,639 of its 10,000 smol-xl files go into 4M, so 10M
+# plus a 768-document pool wants more rows than the file list has. Ruling 2026-09-23: its top
+# size is 4M and is stated in its own row of the appendix table (spec 2026-09-22 section 2).
+# AND `formulas`, also [1, 4], for a different reason: it reaches 10M (552k formulas at 65
+# tokens each) but its reader joins rows one at a time into >= 512-token synthetic documents,
+# and the 10M build had not finished a first block in 8 minutes. It is the DIAGNOSTIC arm,
+# outside the 21-arm conjunction, so spec 2026-09-22 section 2 already lets it carry a
+# smaller size. Ruling 2026-09-23: 1M -- the size the 09-21 pilot proved -- stated in its row.
+# 4M was tried first and stopped at the same 10-minute mark as 10M.
+#
 # One entry per ARM. An arm is a (source, slice) pair that gets its OWN in-domain corpus under
 # base/<base>/corpora/<arm>/ and its own 64 targets inside the held-out set 2026-09-18_ood_v1.
 # Corpus documents and target documents of an arm come from ONE seeded permutation of the source
@@ -871,14 +915,14 @@ autointerp:
 #   licence    what the appendix must say (design §9)
 ood_arms:
   # --- lang (8): FineWeb-2 `test`, the dataset authors' own held-out split -----------------------
-  ces_Latn:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ces_Latn/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Latin, lid: [ces_Latn], unspaced: false, licence: odc-by}
-  rus_Cyrl:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/rus_Cyrl/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Cyrillic, lid: [rus_Cyrl], unspaced: false, licence: odc-by}
-  ell_Grek:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ell_Grek/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Greek, lid: [ell_Grek], unspaced: false, licence: odc-by}
-  arb_Arab:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/arb_Arab/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Arabic, lid: [arb_Arab], unspaced: false, licence: odc-by}
-  hin_Deva:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/hin_Deva/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Devanagari, lid: [hin_Deva], unspaced: false, licence: odc-by}
-  tha_Thai:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/tha_Thai/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 16], script: Thai, lid: [tha_Thai], unspaced: true, licence: odc-by}
-  cmn_Hani:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/cmn_Hani/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: odc-by}
-  jpn_Jpan:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/jpn_Jpan/test/000_00000.parquet], text: text, split: test, sizes: [1, 4], script: Jpan, lid: [jpn_Jpan], unspaced: true, licence: odc-by}
+  ces_Latn:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ces_Latn/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Latin, lid: [ces_Latn], unspaced: false, licence: odc-by}
+  rus_Cyrl:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/rus_Cyrl/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Cyrillic, lid: [rus_Cyrl], unspaced: false, licence: odc-by}
+  ell_Grek:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/ell_Grek/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Greek, lid: [ell_Grek], unspaced: false, licence: odc-by}
+  arb_Arab:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/arb_Arab/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Arabic, lid: [arb_Arab], unspaced: false, licence: odc-by}
+  hin_Deva:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/hin_Deva/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Devanagari, lid: [hin_Deva], unspaced: false, licence: odc-by}
+  tha_Thai:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/tha_Thai/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10, 16], script: Thai, lid: [tha_Thai], unspaced: true, licence: odc-by}
+  cmn_Hani:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/cmn_Hani/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: odc-by}
+  jpn_Jpan:   {family: lang, reader: parquet, dataset: HuggingFaceFW/fineweb-2, files: [data/jpn_Jpan/test/000_00000.parquet], text: text, split: test, sizes: [1, 4, 10], script: Jpan, lid: [jpn_Jpan], unspaced: true, licence: odc-by}
 
   # `yue_Hant` is in the Chinese arms' lid lists because that is the label lid218e ACTUALLY
   # returns for this text: measured 2026-09-22 on the arms' OWN corpus top-1 windows -- Chinese by
@@ -889,33 +933,33 @@ ood_arms:
 
   # --- ctrl (2): the same filter pipeline as our English corpus, at two scripts ------------------
   # ufw_zh separates "different filter pipeline" from "different script" against cmn_Hani.
-  ufw_zh:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_zh/ultrafineweb-zh-part-001-of-256.parquet], text: content, split: zh, sizes: [1, 4], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: apache-2.0}
+  ufw_zh:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_zh/ultrafineweb-zh-part-001-of-256.parquet], text: content, split: zh, sizes: [1, 4, 10], script: Han, lid: [zho_Hans, zho_Hant, yue_Hant], unspaced: true, licence: apache-2.0}
   # ufw_en is the PIPELINE CHECK (design §8 (a)): a fresh English draw through the new code path,
   # from part 0011 -- disjoint from the 16M corpus (parts 0009/0010) and from the old 8B corpus
   # (part 0001). NOTE (infra/2026-09-18_ood-eval-training-data.md): Ultra-FineWeb is NOT the
   # primary MAEMM's training corpus (that is m-a-p/FineFineWeb), so this arm is a convention check,
   # not an in-training-distribution row.
-  ufw_en:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_en/ultrafineweb-en-part-0011-of-2048.parquet], text: content, split: en, sizes: [1, 4, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: apache-2.0}
+  ufw_en:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_en/ultrafineweb-en-part-0011-of-2048.parquet], text: content, split: en, sizes: [1, 4, 10, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: apache-2.0}
 
   # --- code (8): the-stack-smol-xl, 10,000 random files per language, `data/<lang>/data.json` ----
   # The file is JSON LINES despite the .json name (MEASURED 2026-09-18); `content` is the source and
   # `max_stars_repo_licenses` is the per-file licence R8 prints beside an example.
-  python:     {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/python/data.json], text: content, sizes: [1, 4, 16], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
-  javascript: {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/javascript/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
-  c:          {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/c/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
-  rust:       {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/rust/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
-  go:         {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/go/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
-  haskell:    {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/haskell/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
-  sql:        {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/sql/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  python:     {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/python/data.json], text: content, sizes: [1, 4, 10, 16], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  javascript: {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/javascript/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  c:          {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/c/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  rust:       {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/rust/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  go:         {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/go/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  haskell:    {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/haskell/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  sql:        {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/sql/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
   shell:      {family: code, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/shell/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
 
   # --- math (4) ---------------------------------------------------------------------------------
-  owm:        {family: math, reader: parquet, dataset: open-web-math/open-web-math, files: [data/train-00000-of-00114-5a023365406cb9c4.parquet], text: text, split: train, sizes: [1, 4, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: odc-by}
+  owm:        {family: math, reader: parquet, dataset: open-web-math/open-web-math, files: [data/train-00000-of-00114-5a023365406cb9c4.parquet], text: text, split: train, sizes: [1, 4, 10, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: odc-by}
   # Proof-Pile-2 declares NO licence on the HF repo (design §9); arXiv content is under arXiv's own
   # licences, which is why R8 never prints an example from this arm.
-  arxiv:      {family: math, reader: jsonl_zst, dataset: EleutherAI/proof-pile-2, files: [arxiv/test/arXiv_000.jsonl.zst, arxiv/test/arXiv_001.jsonl.zst, arxiv/test/arXiv_002.jsonl.zst, arxiv/test/arXiv_003.jsonl.zst, arxiv/test/arXiv_004.jsonl.zst, arxiv/test/arXiv_005.jsonl.zst, arxiv/test/arXiv_006.jsonl.zst, arxiv/test/arXiv_007.jsonl.zst, arxiv/test/arXiv_008.jsonl.zst, arxiv/test/arXiv_009.jsonl.zst, arxiv/test/arXiv_010.jsonl.zst, arxiv/test/arXiv_011.jsonl.zst, arxiv/test/arXiv_012.jsonl.zst, arxiv/test/arXiv_013.jsonl.zst, arxiv/test/arXiv_014.jsonl.zst, arxiv/test/arXiv_015.jsonl.zst, arxiv/test/arXiv_016.jsonl.zst, arxiv/test/arXiv_017.jsonl.zst, arxiv/test/arXiv_018.jsonl.zst, arxiv/test/arXiv_019.jsonl.zst], text: text, split: test, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "UNSTATED on the HF repo; arXiv's own per-paper licences"}
-  lean:       {family: math, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/lean/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
-  isabelle:   {family: math, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/isabelle/data.json], text: content, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  arxiv:      {family: math, reader: jsonl_zst, dataset: EleutherAI/proof-pile-2, files: [arxiv/test/arXiv_000.jsonl.zst, arxiv/test/arXiv_001.jsonl.zst, arxiv/test/arXiv_002.jsonl.zst, arxiv/test/arXiv_003.jsonl.zst, arxiv/test/arXiv_004.jsonl.zst, arxiv/test/arXiv_005.jsonl.zst, arxiv/test/arXiv_006.jsonl.zst, arxiv/test/arXiv_007.jsonl.zst, arxiv/test/arXiv_008.jsonl.zst, arxiv/test/arXiv_009.jsonl.zst, arxiv/test/arXiv_010.jsonl.zst, arxiv/test/arXiv_011.jsonl.zst, arxiv/test/arXiv_012.jsonl.zst, arxiv/test/arXiv_013.jsonl.zst, arxiv/test/arXiv_014.jsonl.zst, arxiv/test/arXiv_015.jsonl.zst, arxiv/test/arXiv_016.jsonl.zst, arxiv/test/arXiv_017.jsonl.zst, arxiv/test/arXiv_018.jsonl.zst, arxiv/test/arXiv_019.jsonl.zst], text: text, split: test, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "UNSTATED on the HF repo; arXiv's own per-paper licences"}
+  lean:       {family: math, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/lean/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
+  isabelle:   {family: math, reader: jsonl, dataset: bigcode/the-stack-smol-xl, files: [data/isabelle/data.json], text: content, sizes: [1, 4, 10], script: Latin, lid: null, unspaced: false, licence: "The Stack (permissive-only, per-file)"}
 
   # --- diag (1): a DIAGNOSTIC of the tokenizer boundary, outside the level-1 conjunction ---------
   # `formulas` rows are single LaTeX formulas; the reader joins consecutive permuted rows with a

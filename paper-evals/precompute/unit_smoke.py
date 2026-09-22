@@ -2874,7 +2874,21 @@ def check_ood_config():
     for spec in arms.values():
         fams[spec["family"]] = fams.get(spec["family"], 0) + 1
     assert fams == {"lang": 8, "ctrl": 2, "code": 8, "math": 4, "diag": 1}, fams
-    assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 16]] == [
+    # 2026-09-23 (eval plan M5): every ladder carries the 1/4/10 prefix -- 10 is the full run's
+    # own-domain search size and 1/4 are the nested prefixes the per-target columns read -- and
+    # the four arms of review R2 that reached 16M keep it on the end.
+    SHORT = ("shell", "formulas")  # the two arms that carry a smaller own-domain size, by ruling
+    assert all(s["sizes"][:3] == [1, 4, 10] for a, s in arms.items() if a not in SHORT), (
+        {a: s["sizes"] for a, s in arms.items() if a not in SHORT and s["sizes"][:3] != [1, 4, 10]}
+    )
+    # `shell`: 5,639 of its 10,000 smol-xl files go into 4M, so 10M plus a 768-doc pool wants more
+    # rows than the file list has. `formulas`: the diagnostic arm, whose reader joins single
+    # formulas into >= 512-token documents too slowly to reach 10M in the run's window (spec
+    # section 2 lets it carry a smaller size). Both ruled to [1, 4] on 2026-09-23, both state
+    # their top size in their own row (`shell` 4M, `formulas` 1M).
+    assert arms["shell"]["sizes"] == [1, 4]
+    assert arms["formulas"]["sizes"] == [1]
+    assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 10, 16]] == [
         "tha_Thai",
         "ufw_en",
         "python",
@@ -2886,12 +2900,16 @@ def check_ood_config():
         "jpn_Jpan",
         "ufw_zh",
     ], "the four unspaced arms of review R5"
-    assert arms["formulas"]["sizes"] == [1]
     assert C.is_ood_set(cfg, "2026-09-18_ood_v1")
     assert not C.is_ood_set(cfg, "2026-09-16_v1")
     assert len(C.ood_set_arms(cfg, "2026-09-18_ood_v1")) == 23
     assert cfg["heldout"]["2026-09-18_ood_v1_unitend"]["variant_of"] == "2026-09-18_ood_v1"
     assert C.families_for(cfg, "2026-09-18_ood_v1", "qwen36-27b") == {}
+    # The full-scale set is 22 arms: `formulas` is out (its corpus could not be rebuilt with a
+    # 768-doc pool in the run's window at any size). A later "restore it" must fail here first.
+    full = C.ood_set_arms(cfg, "2026-09-23_ood_full")
+    assert len(full) == 22 and "formulas" not in full and set(full) | {"formulas"} == set(arms), full
+    assert cfg["heldout"]["2026-09-23_ood_full"]["n_per_arm"] == 512
 
 
 def check_span_in_corpus():
