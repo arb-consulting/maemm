@@ -808,3 +808,120 @@ failure is a loud missing `tested.json`, never a silent read of another corpus.
 key rule including `train_parity_10m__paper0923`, agreement with `scan_key_of`, producer and
 consumer landing on the same three directories, and the MUTATION that keying by the bare corpus
 directory disagrees — run red by hand before it was run green.
+
+---
+
+# M3 — the discrete-search chunks and the centred rescoring (branch `evals/m3-discrete`, 2026-09-23)
+
+Branch `evals/m3-discrete`, rebased onto `evals/m0a-conventions` (`fe72e8b`) so it builds on the
+additive product write rather than around it. Files touched: `gcg/gcg.py`, `gcg/modal_app.py`, and
+two new files, `gcg/collect.py` and `gcg/selftest.py`. **Nothing in `precompute/` or `config.yaml`
+was edited** — see "What M3 needs from other owners" below.
+
+### 1. A chunk of an arm is a set of FILES, not a directory
+
+`gcg_dir` is `gcg/<set>/<family>/<arm>` and carries no `--rows` component, so the plan's "8 chunks
+in parallel" would have shared one output directory and one `<arm>.tmp-<date>`: the second
+`OutDir.__enter__` deleted the first's streamed temp. M0a's additive write removes the second half
+of that (each call now stages in `<arm>.tmp-<date>-<pid>-<hex>` and moves in only its own files),
+and this branch adds the first half — **names**. A call given `--rows` writes
+
+    finals__rows<spec>.jsonl  trajectory__rows<spec>.jsonl  top64__rows<spec>.jsonl
+    summary__rows<spec>.json
+
+through `common.rollout_chunk_stem`, the same spelling the rollouts chunks use, into the arm's one
+directory. A call with no `--rows` keeps the historical `finals.jsonl`, so every product on the
+volume reads as it always did.
+
+`<spec>` is built from the PARSED selection (`rows_spec_of`), not from the string the caller typed:
+`--rows 0-3` and `--rows 3,1,0,2` are one chunk with one set of names, which is what lets a retry
+find its own partial instead of writing a second copy beside it.
+
+`assert_writable` makes the refusal `OutDir` can no longer make, because `os.replace` overwrites
+silently: this chunk already committed, a chunk beside the arm's whole-set product, and a whole-set
+run beside chunks. The last two are the shape `common.read_rollouts` refuses on the reading side.
+
+### 2. The resume is the re-run, and nothing is ever deleted
+
+`find_partial` looks for kept staging directories of this arm that hold **this chunk's** streams,
+takes the fullest, drops a torn last line, keeps only WHOLE directions (every `pop` member present
+in finals and the same rows in all three streams), and writes them to a fresh
+`<arm>.carry-<date>-<pid>-<hex>` that the call resumes from. The staging directory it read is left
+exactly where it was: this path copies out of a partial, it never removes one. So the launcher's
+`<cmd> && break` retry loop is now a resume, `--resume-from <dir>` still names one by hand, and
+`--no-auto-resume` turns the automatic half off.
+
+Two more re-entry cases that used to cost a container: a chunk that is already committed for this
+row selection and this arm configuration is **returned** (`existing_chunk`) with no model load, and
+a resume that carries *every* direction now commits them instead of asserting.
+
+### 3. Both cosines, from one forward
+
+The objective is unchanged and stays the **uncentred** cosine — that is what the loop selects on,
+and the whole of the loop is untouched. At the end of each direction the finals' single
+`common.score_ids` call (`exact_cos`) now also asks for the **centred** one,
+`max_t cos(unit(h_t - mu), unit(act - mu))`, which M0a's `dirs_centred`/`mu` pair produces from the
+same forward for one extra einsum. Every final carries `cos_centred` and `argmax_centred` beside
+`cos`; the summary's `mean_per_dir_best_cos_centred` is the centred rescoring **of the member the
+objective selected**, not the best centred value over the Pareto front — taking the latter would be
+a centred search the run did not do, and the paper's §5 sentence 6 says it does not have one.
+
+The mean is `score_mu_spec`, the one place this file names the scoring constant. It calls
+`common.score_mu` when that exists and otherwise reads `bases.<base>.whiten_mu` — see below.
+
+### 4. Reading it back
+
+`gcg/collect.py` (new, local, CPU) is the union reader: it takes an arm directory, refuses a
+whole-set product beside chunks, refuses overlapping chunks and chunks that disagree on the
+experiment, and prints the arm's `cos_centred` and `cos` means with a standard error over
+directions. `gcg/selftest.py` (new) is M3's CPU unit smoke — 8 checks, each with a mutation half
+that breaks its own input and asserts the gate fires.
+
+### What M3 needs from other owners
+
+* **M0a, the scoring-mean function.** Step 2 of M0a had not landed when this was written.
+  `gcg.score_mu_spec` is the single placeholder: it looks up `common.score_mu` by name and falls
+  back to `bases.<base>.whiten_mu`, the same constant. When M0a lands, either the name matches and
+  nothing changes, or `M0A_SCORE_MU_FN` at the top of `gcg/gcg.py` is a one-line edit.
+  `check_the_scoring_mean_has_exactly_one_source` fails loudly the moment the name appears, so the
+  adoption cannot be forgotten.
+* Nothing else. No `config.yaml` key and no `common.py` change was needed; `_load_targets` returns
+  two values as `unit_smoke.RETURN_ARITY` pins it (the second is now a `Targets` named tuple).
+
+### Checks
+
+`uv run gcg/selftest.py` 8/8, `uv run precompute/unit_smoke.py` 69/69, `uvx ruff check gcg/` clean.
+`_load_targets` was additionally run on the REAL `2026-09-21_v3_realact` bytes on CPU before any
+GPU call: 512 rows, all centrable, `dirs == dirs_centred` to 0 when `--mu` is the scoring mean, and
+`cos(uncentred dir, centred dir) = 0.7176` on row 0 when it is not.
+
+### One consequence of 16 writers, recorded before it surprises a reader
+
+The additive write keeps every chunk's **data files** — each container creates four files nobody
+else names, and a Modal volume commit of a new file is additive. What it does not keep is the
+arm directory's `README.md` and `index.json`: `_index_lock` is a file in the product directory, and
+a Modal container does not see another container's uncommitted (or post-mount) writes, so with 16
+chunks running at once the lock does not bind across them and the last committer's README wins.
+The arm README will therefore describe ONE chunk's call, not sixteen.
+
+This is why `gcg/collect.py` reads `summary__rows*.json` — one per chunk, each written by the
+container that produced it and never merged — and never `index.json`. A reader who trusts the arm
+README's file table for a 16-way arm is reading one sixteenth of it.
+
+### Integration fix on merge (2026-09-23)
+
+M3 was written on `fe72e8b`, before M0a, and `gcg/selftest.py`'s
+`check_the_scoring_mean_has_exactly_one_source` asserted that `common.score_mu` did NOT yet exist
+so that the integration would trip over the placeholder rather than past it. It did, on this
+merge: the check went red with "M0a's scoring-mean function has landed". Resolved the way the
+check's own message asks — `gcg.score_mu_spec`'s name lookup was already reaching M0a's function
+with no edit (it is by name), so what changed is the premise: the check now pins that
+`common.score_mu` IS there, that gcg delegates to it (swapping the function swaps the answer), and
+that with the name removed the fallback still refuses on a base with no `whiten_mu` rather than
+computing a mean. The PLACEHOLDER note in `gcg/gcg.py` is updated to say M0a has landed. 9/9.
+
+**Flagged, not changed:** `autointerp/build.py:1373` and `features/heldout_v3.py:206` still read
+`cfg["bases"][base]["whiten_mu"]` directly rather than through `common.score_mu`, whose docstring
+says it should be read "here and nowhere else". build.py's use is `M-cos16`'s selection residual
+(not a reported cosine) and heldout_v3's is her rows' own stored convention, so both are arguably
+outside that rule — but they are the two remaining direct readers and they belong to other owners.
