@@ -482,3 +482,61 @@ to close when H7 is done, not before.
   an SAE set is wanted.
 * H7 unchanged: the geometry is still not threaded, and `--corpus-name train_parity_10m` still
   refuses.
+
+---
+
+## M9: the per-feature autointerp page (`results/feature_page.py`)
+
+Euan's debugging page and the paper's appendix example page are one generator (spec §3, §6 item 7):
+one Markdown file per DICTIONARY, features in stratum order, and per feature the covariates, a
+header line of which arms beat or lose to the reference on detection, then per arm the explainer's
+input block verbatim, the explanation, and detection and fuzzing balanced accuracy with n, TPR/TNR
+and chance. A summary table (arm × mean, n, refusals) and an index sorted by `--sort-arm` minus
+`--ref` sit at the top. `--features`, `--limit` and `--order delta` cut the short appendix version.
+
+**Two directories, and the run says which.** The scores and explanations are in the run directory;
+the rendered blocks are in the BUILD directory, which is a different product with a different name
+(`build.py:1105` vs `run.py:1024`), and `summary/build.json` is a copy of the build's manifest with
+no path back to itself. The build directory is therefore read off `summary/README.md`'s `- build:`
+input (`run.py:1450`) — `stats_ood.rollouts_rel_from_readme`'s rule on the run/build pair. **Two
+prefixes come off, not one**: the README records the container path `/vol/<root>/base/...`, so
+stripping only `/vol/` leaves `--root` on and addresses `tmp/sae-smoke64/tmp/sae-smoke64/...`,
+which finds nothing and reports every feature file absent. `--build <label>=<rel>` overrides it.
+
+**An arm is a name found in the run, never a list here.** Arms come from `scores.jsonl` and the
+build's `kind: "arm"` rows in the build's own order; `--ref` (default `C16`) and `--sort-arm`
+(default `M-top16`) are flags resolved against what the run contains, and an unresolvable one is
+named beside the arms that do exist while the page still renders. `M-jac16` and `M-cos16` need no
+edit here. A bare `--ref` resolves INSIDE EACH RUN, because every run directory carries its own
+copy of the corpus arms and one name under two labels is two measurements.
+
+**A refusal leaves no score row, so an arm list built from the scores drops it silently.** The
+per-feature arm list is the union of the scored arms and the explain stage's, so a refused
+(feature, arm) appears on its feature with what it showed the explainer, the refusal, and the
+statement that it has no score. Mutation-tested against the 32-feature 2026-09-21 pilot:
+
+  M1 the `--root` prefix is not stripped from the README path  -> RED (no example block survives)
+  M2 the per-feature arm list is built from the scores alone   -> RED (the refusal vanishes)
+
+**Read, never recomputed, and every number cites its file.** The only arithmetic is the
+arm-minus-reference difference and the summary means, both labelled derived; a null `bal_acc` is an
+absent measurement and is never imputed at chance. The page states on every feature that a
+per-feature difference carries no interval — the paired bootstrap is `results/autointerp.py`'s
+contrast table (spec §3: no anecdotal-wins subsection). Cross-check on the pilot: the page's
+`M` − `DOCMAX` detection means differ by −0.1425 over 31 features and `NLA-desc` reads 0.5178
+detection / 0.5261 fuzzing, which are the recorded numbers in `infra/2026-09-21_autointerp-cases.md`
+and `autointerp/README.md`.
+
+**Model-generated text is rendered on the page and nowhere else.** Blocks and explanations go
+inside a fence grown past any backtick run in the text, verbatim and unreflowed; none of it reaches
+a log entry, a commit message or a `cells.csv` note.
+
+**Left open.** (a) The corpus parameter is not a field: `build.json` records `corpus_prefix_m`,
+`positive_source` and the pool paths, and the corpus name survives only as a `__<name>` suffix
+inside `build.json["examples"]` — `examples_4m` and `examples_docmax` carry no such marker, so the
+page prints the paths and cannot label M6's two corpora. An explicit `corpus_name` (and a per-pool
+corpus label) in `build.py`'s `build.json` dict would close it. (b) Per-item verdicts exist in
+`<scorer>/batches.jsonl` (`items`/`labels`/`preds`) and are not rendered; the case studies used
+them, and they are the obvious next block. (c) `block` cannot be split back into its examples —
+corpus documents contain newlines and no per-example offset is stored — so the page shows the
+block whole beside a per-example metadata table aligned by the build's own ordering.
