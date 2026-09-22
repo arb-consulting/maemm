@@ -253,14 +253,18 @@ def render(res: dict) -> str:
                  "may be quoted, because an injected cosine without its matched floor is mostly "
                  "measuring that fluent English has a non-trivial cosine with a real direction.\n")
 
-    hdr = ["cell", "layer", "n rows", "n docs", "bo1 centred", "bo8 centred",
-           "bo1 raw", "bo8 raw", "lift bo8 over floor", "beats its floor", "sign-test p"]
+    # One lift triple PER k, not a hardcoded bo8 column: the smoke runs at n = 2, where k = 8 does
+    # not exist, and a table that can only render the lift at one k shows an empty column and says
+    # nothing about why. The columns follow CELL_KS, so they follow whatever the appendix prints.
+    hdr = ["cell", "layer", "n rows", "n docs",
+           *[f"bo{k} centred" for k in CELL_KS], *[f"bo{k} raw" for k in CELL_KS]]
+    for k in CELL_KS:
+        hdr += [f"lift bo{k} over floor", f"beats floor bo{k}", f"sign-test p bo{k}"]
     L.append("| " + " | ".join(hdr) + " |")
     L.append("|" + "---|" * len(hdr))
     for c in sorted(res["cells"].values(), key=lambda x: (x["layer"] is not None, x["layer"] or 0)):
         cen, raw = centred_of(c), raw_of(c)
-        lift = (c.get("lift") or {}).get(8, {})
-        L.append("| " + " | ".join([
+        cols = [
             f"`{c['cell']}`",
             "— (floor)" if c["layer"] is None else str(c["layer"]),
             str(cen.get("n_rows", len(c["rows"]))),
@@ -269,10 +273,15 @@ def render(res: dict) -> str:
               for k in CELL_KS],
             *[fmt(raw["bo"][k]["mean"], raw["bo"][k]["se"]) if raw and k in raw["bo"] else ""
               for k in CELL_KS],
-            fmt(lift["mean"], lift["se"]) if lift else "",
-            f"{lift['win']:.3f}" if lift and np.isfinite(lift["win"]) else "",
-            f"{lift['sign_p']:.3g}" if lift and np.isfinite(lift["sign_p"]) else "",
-        ]) + " |")
+        ]
+        for k in CELL_KS:
+            lift = (c.get("lift") or {}).get(k, {})
+            cols += [
+                fmt(lift["mean"], lift["se"]) if lift else "",
+                f"{lift['win']:.3f}" if lift and np.isfinite(lift["win"]) else "",
+                f"{lift['sign_p']:.3g}" if lift and np.isfinite(lift["sign_p"]) else "",
+            ]
+        L.append("| " + " | ".join(cols) + " |")
     L.append("")
     for c in sorted(res["cells"].values(), key=lambda x: (x["layer"] is not None, x["layer"] or 0)):
         i = c["bok_info"]
