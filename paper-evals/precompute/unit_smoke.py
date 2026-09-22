@@ -1947,6 +1947,9 @@ RETURN_ARITY = {
     ("gcg/gcg.py", "_load_targets"): 2,
     ("autointerp/sae_self.py", "_sae_rows"): 5,
     ("precompute/common.py", "mu_for"): 2,
+    # 2 since 2026-09-21: it hands back the shipped generation_config so the summary can carry it.
+    # The one unpack site is `rollouts_nla.run`, on a GPU, after the weights are loaded.
+    ("precompute/rollouts_nla.py", "check_sidecar"): 2,
 }
 
 

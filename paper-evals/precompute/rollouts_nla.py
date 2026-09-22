@@ -507,8 +507,8 @@ def template_sha256(spec: dict) -> str:
 # ---------------------------------------------------------------------------------------------
 
 
-def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> dict:
-    """Assert `config.yaml`'s `nla:` block still matches the shipped checkpoint. Returns the sidecar.
+def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> tuple[dict, dict]:
+    """Assert `config.yaml`'s `nla:` block still matches the checkpoint. (sidecar, shipped sampling).
 
     `nla_meta.yaml` is the injection contract as the checkpoint's authors published it, and
     `generation_config.json` is the sampling they shipped it with. Everything in the config was
@@ -576,7 +576,11 @@ def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> dic
         f"rollouts: block like every other arm",
         flush=True,
     )
-    return side
+    # RETURNED, not just printed. "recorded on the summary" was the stated reason for keeping the
+    # shipped constants at all, and until this returned them it was true of a print() and of
+    # nothing else -- while the asserts that used to catch a re-fetched revision drifting on
+    # top_k were removed in the same change. A claim about a record needs the record.
+    return side, shipped
 
 
 def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, mpos: int) -> str:
@@ -589,6 +593,11 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
     """
     spec = cfg["maemms"][maemm_key]
     nla = spec["nla"]
+    # FROM cfg, the same place `run` takes it. `samp` was a free name here after the shared-
+    # sampling change (main bdb0705) -- the `## Sampling` bullet below reads it, the function
+    # never bound it, and nothing at module scope defines it. Every NLA run that wrote a README
+    # would have raised NameError after the generation it had already paid for.
+    samp = {k: cfg["rollouts"][k] for k in C.NLA_SAMPLING_KEYS}
     path = f"{C.maemm_dir(maemm_key, args['root'])}/README.md"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path) and not args.get("force"):
@@ -646,8 +655,9 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         "## Sampling",
         "",
         f"- sampling: the SHARED rollouts: block (T {samp['temperature']}, top_p {samp['top_p']}, "
-        f"top_k {samp['top_k']}) as every MAEMM arm. The checkpoint ships top_p 0.95 / top_k 20 "
-        "in generation_config.json; recorded, not used.",
+        f"top_k {samp['top_k']}) as every MAEMM arm. What the checkpoint ships in "
+        f"generation_config.json is on the rollouts summary as `shipped_generation_config`; "
+        "recorded, not used.",
         f"- max_new {nla['max_new']}: the checkpoint's NATIVE length (Tomas 2026-09-21) -- the "
         f"card's own invocation is `--max-new-tokens {nla['card_max_new']}` and that is the "
         "reference script's default too. NOT the pipeline's `rollouts.max_new`, which every MAEMM "
@@ -795,7 +805,8 @@ def run(cfg, args):
         f"{os.path.basename(weights)!r} and not the pinned revision {spec['revision']!r}: the HF "
         f"cache holds a different commit of {spec['hf']} than config.yaml names"
     )
-    side = check_sidecar(weights, spec, int(cfg["bases"][base]["read_layer"]), int(cfg["bases"][base]["d"]))
+    side, shipped = check_sidecar(weights, spec, int(cfg["bases"][base]["read_layer"]),
+                                  int(cfg["bases"][base]["d"]))
     # `load_maemm` takes its non-lora branch for anything whose type is not "lora": tokenizer +
     # AutoModelForCausalLM from the snapshot, bf16, sdpa -- which is exactly how the card says to
     # load this merged checkpoint. It returns the config `type` verbatim, so `kind` is "nla" here.
@@ -919,6 +930,11 @@ def run(cfg, args):
         "min_p": 0.0,
         "max_new": max_new,
         "min_new": min_new,
+        # What the CHECKPOINT ships in its generation_config.json, which is NOT what it was run
+        # with: this arm samples under the shared `rollouts:` block like every other. Here so the
+        # divergence is on the record rather than in a print the log rotates away.
+        "shipped_generation_config": shipped,
+        "sampling_source": "config.yaml rollouts: (shared with every MAEMM arm)",
         # `score` reads this off the summary and re-encodes at it instead of the protocol's
         # SCORE_MAX_LENGTH, then records it in its own rows.json (common.score_width_of). It
         # travels with the ROLLOUTS so the scorer cannot be pointed at a window this generation
