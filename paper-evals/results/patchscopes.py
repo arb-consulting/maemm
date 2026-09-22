@@ -69,10 +69,22 @@ FLOOR_PREFIX = "floor"
 # reads; k = 64 is only for a comparator that is itself a maximum over a corpus, which a floor is
 # not. Both are the unbiased order-statistic estimator over all n draws, same as every other arm.
 CELL_KS = (1, 8)
-# `<eval>.<set>.<arm>.<metric>[.<k>]` (paper/numbers/README.md). The grammar has no layer slot, so
-# the layer rides in the ARM slot -- the plan's Open 3 ruling. An unknown arm VALUE warns and does
-# not error, which is why this is legal at all.
-KEY_EVAL, KEY_SET, KEY_METRIC = "fid", "ra", "cos"
+# THE k THE APPENDIX PRINTS, pinned by the table's own caption, not chosen here:
+# `appendix/eval-inversion.tex:174` -- "centred cosine, best-of-8 from 64 continuations, by patched
+# layer". bo1 is carried in `tables.md` for context and is not a printed cell.
+KEY_K = 8
+# `<eval>.<set>.<arm>.<metric>[.<k>][.<stratum>]` (paper/numbers/README.md). THE LAYER IS A
+# STRATUM, NOT AN ARM. The plan's Open 3 offered both and said "if the layer should instead be a
+# stratum, say so and the grammar's `stratum` vocabulary grows"; the writer has since answered by
+# putting twelve `fid.ra.{ps,psfloor}.cos.l<L>` / `fid.ra.ps.dfloor.l<L>` placeholders in
+# `cells.csv` and citing exactly those in `appendix/eval-inversion.tex:183-186`. The tex is the
+# customer, so these are the keys, and the plan's `ps8`/`psfloor8` arm-slot spelling is dead.
+KEY_EVAL, KEY_SET = "fid", "ra"
+# The paired lift gets a 95% percentile bootstrap CI over document clusters at the resample count
+# the headline table's caption states (`eval-inversion.tex:66`, "10,000 resamples"), which is a
+# different number from `results.common.N_BOOT` = 2000 used for the plain SEs.
+BOOT_CI = 10_000
+CI_ALPHA = 0.05
 
 
 def cell_layer(cell: str) -> int | None:
@@ -133,6 +145,37 @@ def discover_cells(vol: R.Vol, base: str, set_name: str, ps_tag: str) -> list[st
     return sorted(out, key=lambda c: (cell_layer(c) is not None, cell_layer(c) or 0))
 
 
+def cluster_percentile_ci(values, clusters, n_boot: int, seed: int, alpha: float = CI_ALPHA):
+    """(mean, bootstrap sd, lo, hi) -- the SAME cluster bootstrap as `results.common`, read as
+    percentiles instead of as a standard deviation.
+
+    `results.common.cluster_bootstrap` is the estimator and returns only (mean, sd, n, n_clusters);
+    it does not expose the bootstrap distribution, and it is M0a's file. The appendix table asks for
+    a percentile interval (`eval-inversion.tex:176`, "the 95% document-clustered bootstrap CI"), so
+    the resampling loop is repeated here -- ratio of sums over clusters drawn with replacement,
+    identical to `common.py:536-540`. To keep the duplicate honest, `paired_lift` asserts that this
+    function's sd agrees with `cluster_bootstrap`'s at the same seed and resample count; if the two
+    ever drift apart, the assert fires rather than a number quietly changing convention.
+    """
+    vals = np.asarray(list(values), dtype=np.float64)
+    keys = list(clusters)
+    assert len(keys) == vals.size, f"{vals.size} values against {len(keys)} cluster labels"
+    order: dict = {}
+    for i, key in enumerate(keys):
+        order.setdefault(key, []).append(i)
+    groups = [np.asarray(v, dtype=np.int64) for v in order.values()]
+    mean = float(vals.mean())
+    if len(groups) < 2:
+        return mean, float("nan"), float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    sums = np.array([vals[g].sum() for g in groups])
+    counts = np.array([g.size for g in groups], dtype=np.float64)
+    pick = rng.integers(0, len(groups), size=(n_boot, len(groups)))
+    boot = sums[pick].sum(axis=1) / counts[pick].sum(axis=1)
+    lo, hi = np.quantile(boot, [alpha / 2, 1 - alpha / 2])
+    return mean, float(boot.std(ddof=1)), float(lo), float(hi)
+
+
 def paired_lift(inj_bok: dict[int, dict[int, float]], floor_bok: dict[int, dict[int, float]],
                 rows: list[int], ids: dict[int, dict], k: int, boot: int, seed: int) -> dict:
     """The per-row bo-k lift of an injected cell over its floor: mean, clustered SE, sign test.
@@ -147,10 +190,21 @@ def paired_lift(inj_bok: dict[int, dict[int, float]], floor_bok: dict[int, dict[
     if not shared:
         return {}
     d = np.array([inj_bok[r][k] - floor_bok[r][k] for r in shared], dtype=np.float64)
-    mean, se, n_items, n_clusters = R.cluster_bootstrap(d, F._clusters_for(shared, ids), boot, seed)
+    cl = F._clusters_for(shared, ids)
+    mean, se, n_items, n_clusters = R.cluster_bootstrap(d, cl, boot, seed)
+    # The printed interval is a PERCENTILE one at the caption's resample count, not mean +- 1.96 se.
+    ci_mean, ci_sd, lo, hi = cluster_percentile_ci(d, cl, BOOT_CI, seed)
+    # The duplicate resampling loop must be the same estimator: at the same seed and count it has
+    # to reproduce `results.common.cluster_bootstrap` exactly, not merely closely.
+    _, se_same, _, _ = R.cluster_bootstrap(d, cl, BOOT_CI, seed)
+    assert abs(ci_sd - se_same) < 1e-12 and abs(ci_mean - mean) < 1e-12, (
+        f"the percentile bootstrap here and results.common.cluster_bootstrap disagree at "
+        f"seed {seed}, {BOOT_CI} resamples: sd {ci_sd} vs {se_same}, mean {ci_mean} vs {mean}"
+    )
     p, win, m = S.sign_test(d)
     return {"mean": mean, "se": se, "se_iid": R.se_iid(d), "n_rows": n_items,
-            "n_clusters": n_clusters, "sign_p": p, "win": win, "n_nonties": m}
+            "n_clusters": n_clusters, "sign_p": p, "win": win, "n_nonties": m,
+            "lo": lo, "hi": hi, "boot_ci": BOOT_CI}
 
 
 def fmt(mean: float, se: float, nd: int = 4) -> str:
@@ -209,7 +263,9 @@ def analyse(vol: R.Vol, cfg: dict, base: str, set_name: str, ps_tag: str,
         shared = [r for r in c["rows"] if r in set(floor["rows"])]
         c["lift"] = {k: paired_lift(c["bok"], floor["bok"], shared, ids, k, boot, seed)
                      for k in CELL_KS}
+    n_roll = {c["src"].n for c in cells.values()}
     return {"base": base, "set": set_name, "ps_tag": ps_tag, "ids": ids, "exclusions": exc,
+            "n_rollouts": (n_roll.pop() if len(n_roll) == 1 else sorted(n_roll)),
             "apply_exclusions": apply_exclusions, "realact": realact, "cells": cells,
             "floor": floor["cell"] if floor else None, "pending": pending,
             "boot": boot, "seed": seed}
@@ -298,57 +354,77 @@ def render(res: dict) -> str:
 
 
 def cells_rows(res: dict, run_id: str, date: str, status: str) -> list[dict]:
-    """The `paper/numbers/cells.csv` rows M7 owns, one per (layer, arm, k).
+    """The twelve `paper/numbers/cells.csv` rows the appendix table cites, all at bo8.
 
-    The floor keys are per layer and carry the SAME value four times, because there is one floor
-    cell: the paper's table prints a floor beside each layer, and `\\N{fid.ra.psfloor14.cos.bo8}`
-    has to resolve. The note says so on every one of them rather than leaving a reader to wonder
-    why four measurements agree to the digit.
+    THE KEYS ARE THE TEX'S, NOT THE PLAN'S. `appendix/eval-inversion.tex:183-186` prints, per
+    layer, `\\N{fid.ra.psfloor.cos.l<L>}`, `\\N{fid.ra.ps.cos.l<L>}`, `\\N{fid.ra.ps.dfloor.l<L>}`
+    and `\\Nci{fid.ra.ps.dfloor.l<L>}` -- the layer in the STRATUM slot, and a `dfloor` metric for
+    the paired lift. `cells.csv` already carries those twelve as `placeholder` rows, so these
+    REPLACE them in place; the plan's `fid.ra.ps8.cos.bo8` arm-slot spelling is not cited anywhere
+    and is not emitted.
+
+    `k` is not in the key because the caption fixes it: "centred cosine, best-of-8 from 64
+    continuations" (`eval-inversion.tex:174`). `KEY_K` is that 8 and is quoted in every note.
+
+    The four `psfloor` rows carry the SAME measurement, because there is one floor cell and the
+    floor arm installs no hook, so it cannot depend on the patched layer. Every one of them says so.
+    `\\Nci` needs `lo`/`hi`, so `dfloor` rows carry the percentile interval and the other two do not.
     """
     floor = res["cells"].get(res["floor"]) if res["floor"] else None
     rows = []
-    layers = sorted(c["layer"] for c in res["cells"].values() if c["layer"] is not None)
     base_note = (
-        f"cos_centred from cos_centred.f16 (recomputed); {res['set']} realact block minus its own "
-        f"exclusions.json rows; whiten_mu centred (common.score_mu, both arguments); doc-clustered "
-        f"bootstrap SE, {res['boot']} resamples, seed {res['seed']}"
+        f"centred cosine, best-of-{KEY_K} from n={res.get('n_rollouts', 64)} continuations; "
+        f"cos_centred recomputed from cos_centred.f16; {res['set']} realact minus its own "
+        f"exclusions.json rows; whiten_mu centred (common.score_mu, both arguments); "
+        f"document-clustered bootstrap"
     )
     for c in sorted(res["cells"].values(), key=lambda x: (x["layer"] is None, x["layer"] or 0)):
         if c["layer"] is None:
             continue
         cen = centred_of(c)
-        if not cen:
+        if not cen or KEY_K not in cen["bo"]:
             continue
-        for k in CELL_KS:
-            if k not in cen["bo"]:
-                continue
-            cell = cen["bo"][k]
+        L = c["layer"]
+        cell = cen["bo"][KEY_K]
+        rows.append({
+            "key": f"{KEY_EVAL}.{KEY_SET}.ps.cos.l{L}",
+            "value": f"{cell['mean']:.4f}", "se": f"{cell['se']:.4f}", "lo": "", "hi": "",
+            "n": str(cell["n_rows"]), "status": status, "run": run_id,
+            "source": c["src"].scores_rel, "date": date,
+            "note": (f"Patchscopes P2 entity-description prompt, rule `replace` at alpha 2 "
+                     f"(the placeholder residual set to 2*||h||*unit(v), NOT norm-matched), "
+                     f"patched at block {L}; {base_note}, {res['boot']} resamples, "
+                     f"seed {res['seed']}; {cell['n_clusters']} documents"),
+        })
+        if floor is not None:
+            fcen = centred_of(floor)
+            fcell = fcen["bo"][KEY_K]
             rows.append({
-                "key": f"{KEY_EVAL}.{KEY_SET}.ps{c['layer']}.{KEY_METRIC}.bo{k}",
-                "value": f"{cell['mean']:.4f}", "se": f"{cell['se']:.4f}", "lo": "", "hi": "",
-                "n": str(cell["n_rows"]), "status": status, "run": run_id,
-                "source": c["src"].scores_rel, "date": date,
-                "note": (f"Patchscopes P2/replace2 patched at block {c['layer']}, bo{k}; "
-                         f"{base_note}; {cell['n_clusters']} documents"),
+                "key": f"{KEY_EVAL}.{KEY_SET}.psfloor.cos.l{L}",
+                "value": f"{fcell['mean']:.4f}", "se": f"{fcell['se']:.4f}", "lo": "", "hi": "",
+                "n": str(fcell["n_rows"]), "status": status, "run": run_id,
+                "source": floor["src"].scores_rel, "date": date,
+                "note": (f"no-injection floor for block {L}: the same prompt and sampling with no "
+                         f"patch. ONE floor cell serves all four layers -- the floor arm installs "
+                         f"no hook at all, so it cannot depend on the patched layer, and the four "
+                         f"psfloor rows carry the same measurement by construction; {base_note}, "
+                         f"{res['boot']} resamples, seed {res['seed']}; "
+                         f"{fcell['n_clusters']} documents"),
             })
-    if floor is not None:
-        cen = centred_of(floor)
-        for layer in layers:
-            for k in CELL_KS:
-                if not cen or k not in cen["bo"]:
-                    continue
-                cell = cen["bo"][k]
-                rows.append({
-                    "key": f"{KEY_EVAL}.{KEY_SET}.psfloor{layer}.{KEY_METRIC}.bo{k}",
-                    "value": f"{cell['mean']:.4f}", "se": f"{cell['se']:.4f}", "lo": "", "hi": "",
-                    "n": str(cell["n_rows"]), "status": status, "run": run_id,
-                    "source": floor["src"].scores_rel, "date": date,
-                    "note": (f"Patchscopes no-injection floor, bo{k}; ONE floor cell serves every "
-                             f"layer — the floor arm installs no hook, so it does not depend on "
-                             f"the patched layer, and the four per-layer floor keys carry the same "
-                             f"measurement by construction; {base_note}; "
-                             f"{cell['n_clusters']} documents"),
-                })
+        lift = (c.get("lift") or {}).get(KEY_K, {})
+        if lift:
+            rows.append({
+                "key": f"{KEY_EVAL}.{KEY_SET}.ps.dfloor.l{L}",
+                "value": f"{lift['mean']:+.4f}", "se": f"{lift['se']:.4f}",
+                "lo": f"{lift['lo']:.4f}", "hi": f"{lift['hi']:.4f}",
+                "n": str(lift["n_rows"]), "status": status, "run": run_id,
+                "source": c["src"].scores_rel, "date": date,
+                "note": (f"patched minus floor at block {L}, PAIRED on the target; 95% "
+                         f"document-clustered percentile bootstrap CI, {lift['boot_ci']} resamples, "
+                         f"seed {res['seed']} (the SE column is the same estimator at "
+                         f"{res['boot']}); {lift['win']:.3f} of targets ahead, exact sign test "
+                         f"p = {lift['sign_p']:.3g}; {base_note}; {lift['n_clusters']} documents"),
+            })
     return rows
 
 
@@ -490,10 +566,26 @@ def selftest(base: str = "qwen36-27b") -> int:
     def _c6(res_on, _off):
         rows = cells_rows(res_on, "R11", "2026-09-23", "final")
         keys = {r["key"]: r for r in rows}
-        assert "fid.ra.ps14.cos.bo1" in keys and "fid.ra.psfloor14.cos.bo1" in keys, sorted(keys)
+        # THE KEYS THE TEX CITES (appendix/eval-inversion.tex:183-186), at bo8 and no other k.
+        want = {"fid.ra.ps.cos.l14", "fid.ra.psfloor.cos.l14", "fid.ra.ps.dfloor.l14"}
+        assert want <= set(keys), sorted(keys)
+        assert not [k for k in keys if ".bo" in k], f"no k slot belongs in these keys: {sorted(keys)}"
         cen = centred_of(res_on["cells"][f"floor__{SELF_TAG}"])
-        assert keys["fid.ra.psfloor14.cos.bo1"]["value"] == f"{cen['bo'][1]['mean']:.4f}"
-        assert keys["fid.ra.psfloor14.cos.bo1"]["source"].endswith(f"floor__{SELF_TAG}/scores")
+        assert keys["fid.ra.psfloor.cos.l14"]["value"] == f"{cen['bo'][KEY_K]['mean']:.4f}"
+        assert keys["fid.ra.psfloor.cos.l14"]["source"].endswith(f"floor__{SELF_TAG}/scores")
+        # only the dfloor row carries a CI, and it must bracket its own point estimate
+        d = keys["fid.ra.ps.dfloor.l14"]
+        assert d["lo"] and d["hi"] and float(d["lo"]) <= float(d["value"]) <= float(d["hi"]), d
+        # AND IT MUST BE THE RIGHT WIDTH. `lo <= value <= hi` alone is satisfied by any absurdly
+        # wide interval -- a mutant returning mean +- 99 passed this check until the band below was
+        # added. A percentile 95% interval from a well-behaved cluster bootstrap has a half-width
+        # near 1.96 SE; the band is loose enough for five clusters and tight enough to catch a
+        # degenerate or runaway interval.
+        half = (float(d["hi"]) - float(d["lo"])) / 2
+        se = float(d["se"])
+        assert se > 0 and 1.0 * se <= half <= 3.5 * se, (
+            f"dfloor CI half-width {half:.5f} against SE {se:.5f} -- expected ~1.96 SE")
+        assert not keys["fid.ra.ps.cos.l14"]["lo"] and not keys["fid.ra.psfloor.cos.l14"]["lo"]
         assert all(int(r["n"]) == len(kept) for r in rows), [r["n"] for r in rows]
 
     @check("MUTATION: moving a kept row's array moves the number by exactly its share")
