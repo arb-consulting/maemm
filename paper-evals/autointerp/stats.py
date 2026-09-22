@@ -61,22 +61,34 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 # lets one CONTRASTS table serve a MAEMM run (no NLA arms) and an NLA run (no M arms) without
 # either of them carrying a row of NaNs. VERIFIED 2026-09-21, not changed.
 CONTRASTS = [
+    # THE PAPER'S CONTRASTS (spec §3, 2026-09-23). C16 is the corpus arm -- the top 16 by peak
+    # activation, one window per document, on the SHOWN corpus -- and every M arm is read against
+    # it. The three M arms show the same 64 rollouts and differ only in which 16 are chosen, so
+    # M-jac16 - M and M-cos16 - M isolate the selection and nothing else.
     ("substitution", "M", "C16"),
+    ("selection: jaccard farthest-point - top16", "M-jac16", "M"),
+    ("selection: cosine farthest-point - top16", "M-cos16", "M"),
+    ("jaccard selection vs corpus", "M-jac16", "C16"),
+    ("cosine selection vs corpus", "M-cos16", "C16"),
+    # The NLA baseline (Tomas, 2026-09-21). `NLA` is the verbalizer's four outputs as explainer
+    # examples (mode A, the headline); `NLA-1` is the one-output sensitivity row; `NLA-desc` is
+    # the verbalizer's own text used AS the description, with no explainer call (mode B). None is
+    # matched-N against C16, which is a property of the baseline at its own operating point and is
+    # stated rather than corrected for.
+    ("NLA (mode A, 4 outputs) vs corpus", "NLA", "C16"),
+    ("NLA (mode A) vs maemm rollouts", "NLA", "M"),
+    ("NLA one output - four outputs", "NLA-1", "NLA"),
+    ("NLA text as description (mode B) vs corpus", "NLA-desc", "C16"),
+    ("NLA text as description vs NLA examples", "NLA-desc", "NLA"),
+    # Pilot-only descriptive points (A8, A9) and the pre-09-23 arm names. Skipped automatically in
+    # a run that does not carry them -- see the note above.
     ("enrichment", "C4M", "C4"),
-    ("cheap corpus", "C4", "C16"),
     ("matched-N enrichment", "C16M16", "C32"),
     ("corpus N: 8 - 16 (descriptive)", "C16-N8", "C16"),
     ("corpus N: 32 - 16 (descriptive)", "C32", "C16"),
-    # The NLA baseline (Tomas, 2026-09-21), present only in an NLA run. `NLA` is the verbalizer's
-    # rollouts as explainer examples; `NLA-desc` is the verbalizer's own text used AS the
-    # description, with no explainer call. Both are read against the cheap-corpus arm C4, which is
-    # the reference arm an NLA run builds (`scan`'s 16M `examples/` does not exist for sae2m).
-    # NOTE neither is matched-N against C4: the NLA arm shows 4 examples to C4's 16.
-    ("NLA vs cheap corpus", "NLA", "C4"),
-    ("NLA text as description vs cheap corpus", "NLA-desc", "C4"),
-    ("NLA text as description vs NLA examples", "NLA-desc", "NLA"),
     ("maemm N: 8 - 16 (descriptive)", "M-N8", "M"),
     ("maemm N: 32 - 16 (descriptive)", "M-N32", "M"),
+    ("window-ranked corpus - document-ranked corpus", "C16-win", "C16"),
 ]
 # Amendment A7: the null is a SECOND, DISJOINT test draw scored with C16's own description, not a
 # temperature-0 repeat. Its per-feature difference is the test-set sampling noise every contrast is
@@ -121,8 +133,40 @@ def ci_str(m: float, lo: float, hi: float, nd: int = 4) -> str:
     return f"{m:+.{nd}f} [{lo:+.{nd}f}, {hi:+.{nd}f}]"
 
 
-def paired(df: pl.DataFrame, a: str, b: str, scorer: str, metric: str = "bal_acc"):
-    """(features, d) -- the per-feature difference arm `a` minus arm `b` for one scorer."""
+def pairing(df: pl.DataFrame, a: str, b: str, scorer: str, metric: str = "bal_acc") -> dict:
+    """What pairing `a` against `b` costs: the two feature sets, their intersection, and the loss.
+
+    `paired()` pivots and calls `.drop_nulls()`, which INTERSECTS silently: a feature scored for
+    one arm and not the other simply disappears, and two arms with disjoint coverage return two
+    empty arrays that every consumer reads as "this contrast is not in this run". A dropped
+    feature is a real event -- an explainer refusal, an empty description, an unparsed batch --
+    and it is counted here so the table can print it instead of the reader inferring it.
+    """
+    sub = df.filter(pl.col("scorer") == scorer)
+    got = {}
+    for arm in (a, b):
+        rows = sub.filter((pl.col("arm") == arm) & pl.col(metric).is_not_null())
+        got[arm] = set(rows["feature"].to_list())
+    both = got[a] & got[b]
+    return {
+        "arm_a": a, "arm_b": b, "scorer": scorer, "metric": metric,
+        "n_a": len(got[a]), "n_b": len(got[b]), "n_paired": len(both),
+        "lost_by_a": sorted(got[b] - got[a]), "lost_by_b": sorted(got[a] - got[b]),
+        "complete": bool(both) and got[a] == got[b],
+    }
+
+
+def paired(df: pl.DataFrame, a: str, b: str, scorer: str, metric: str = "bal_acc",
+           require_complete: bool = False):
+    """(features, d) -- the per-feature difference arm `a` minus arm `b` for one scorer.
+
+    The pivot below intersects the two arms' features. That is the right estimator -- the contrast
+    is paired -- but it used to happen SILENTLY, so an arm covering fewer features than the other
+    was indistinguishable from an arm covering all of them. The intersection is now ASSERTED
+    against `pairing()`'s count, and `require_complete` turns "the two sides cover different
+    features" from a countable fact into a refusal for a caller that needs one.
+    """
+    info = pairing(df, a, b, scorer, metric)
     sub = df.filter(pl.col("scorer") == scorer)
     wide = (
         sub.filter(pl.col("arm").is_in([a, b]))
@@ -130,7 +174,21 @@ def paired(df: pl.DataFrame, a: str, b: str, scorer: str, metric: str = "bal_acc
         .drop_nulls()
     )
     if a not in wide.columns or b not in wide.columns or not len(wide):
+        assert not info["n_paired"], (
+            f"{a} - {b} ({scorer}, {metric}): pairing() finds {info['n_paired']} shared features "
+            f"but the pivot produced none -- the two disagree, which means one of them is wrong"
+        )
         return np.zeros(0, dtype=int), np.zeros(0)
+    assert len(wide) == info["n_paired"], (
+        f"{a} - {b} ({scorer}, {metric}): the pivot kept {len(wide)} features and the "
+        f"intersection of the two arms' feature sets is {info['n_paired']}"
+    )
+    if require_complete:
+        assert info["complete"], (
+            f"{a} - {b} ({scorer}): {a} is missing {len(info['lost_by_a'])} features the "
+            f"reference has and {b} is missing {len(info['lost_by_b'])}; this contrast was asked "
+            f"for on a complete pairing"
+        )
     return wide["feature"].to_numpy(), (wide[a] - wide[b]).to_numpy()
 
 
@@ -263,6 +321,22 @@ def main(
     )
     lines += [""]
 
+    # THE PROTOCOL LABEL. Every table in this file carries it: the fuzzing column of a `legacy`
+    # run and of a `delphi` run are two different measurements (upstream sends three fuzzing
+    # few-shot turns, the legacy prompt is zero-shot), and they were previously distinguishable
+    # only by opening `summary/costs.json`. Chance is 0.5 by construction -- the test set is 20
+    # positives and 20 negatives and the metric is balanced accuracy -- and it is printed rather
+    # than assumed, together with the judge, because spec §3 requires every autointerp number to
+    # carry its chance level, its n and its judge.
+    fuzz_proto = str(costs.get("fuzz_protocol", "(unrecorded: run predates the flag)"))
+    fuzz_shots = costs.get("fuzz_shots", "?")
+    protocol_label = (
+        f"judge `{costs['model']}`, detection few-shot 3, fuzzing protocol **`{fuzz_proto}`** "
+        f"({fuzz_shots} few-shot turns), chance = 0.5 (balanced accuracy on "
+        f"{binfo['n_pos']} positives + {binfo['n_neg']} negatives)"
+    )
+    exceed_by_arm = binfo.get("n_shown_exceeding_corpus_peak_by_arm") or {}
+    lines += [f"**Protocol:** {protocol_label}.", ""]
     lines += ["## Per-arm balanced accuracy", ""]
     rows = []
     for view in NEG_VIEWS:
@@ -280,11 +354,12 @@ def main(
                     f"{m:.4f} [{lo:.4f}, {hi:.4f}]",
                     *[f"{np.quantile(v, q):.3f}" for q in QUANTS],
                     f"{float((v <= 0.5 + 1e-9).mean()):.3f}",
+                    exceed_by_arm.get(a_, "-"),
                 ])
     lines += md_table(
         rows,
         ["negatives", "scorer", "arm", "mean N shown", "n", "mean [95% CI]",
-         *[f"q{int(q * 100)}" for q in QUANTS], "frac <= 0.5"],
+         *[f"q{int(q * 100)}" for q in QUANTS], "frac <= 0.5", "n shown > corpus peak"],
     )
     lines += [
         "",
@@ -295,7 +370,10 @@ def main(
         f"description under a fixed derangement. It should sit at 0.5; how far it sits above 0.5 "
         f"is how much of every other arm's number is available without knowing anything about the "
         f"feature. **`C16-draw2`** is C16's own description on the second, disjoint test draw "
-        f"(A7) -- the null.",
+        f"(A7) -- the null. `n shown > corpus peak` is `build.json`'s per-arm count of shown "
+        f"examples whose activation EXCEEDS the feature's corpus peak, where Delphi's "
+        f"`ceil(10*act/peak)` quantisation clamps at 10 and hides the excess: zero for a corpus "
+        f"arm by construction, non-zero only for generated text. Protocol: {protocol_label}.",
         "",
     ]
 
@@ -340,7 +418,11 @@ def main(
 
     # ---- contrasts --------------------------------------------------------------------------
     lines += ["## Paired contrasts (features as the unit, percentile bootstrap, B = "
-              f"{N_BOOT:,})", ""]
+              f"{N_BOOT:,})", "",
+              f"Protocol: {protocol_label}. Every contrast is on the INTERSECTION of the two "
+              f"arms' features, and `n a`/`n b` below say what each side covered before the "
+              f"intersection: an arm that covers fewer features than another is a real property "
+              f"of the design, and an arm that de-pairs silently is a defect.", ""]
     rows = []
     for metric in METRICS:
         for scorer in scorers:
@@ -359,8 +441,10 @@ def main(
                 # table did -- compares a mean to a per-feature spread and reads as "inside the
                 # noise" for effects that are in fact many times the null's mean.
                 outside = "yes" if np.isfinite(lo) and not (lo <= nmean <= hi) else "no"
+                pi = pairing(df, a, b, scorer, metric)
                 rows.append([
-                    f"`{metric}`", scorer, label, f"`{a}` - `{b}`", len(d), ci_str(m, lo, hi),
+                    f"`{metric}`", scorer, label, f"`{a}` - `{b}`", len(d),
+                    f"{pi['n_a']}/{pi['n_b']}", ci_str(m, lo, hi),
                     f"{win:.3f}" if np.isfinite(win) else "-",
                     f"{nwin:.3f}" if np.isfinite(nwin) else "-",
                     f"{p:.4f}" if np.isfinite(p) else "-",
@@ -369,7 +453,8 @@ def main(
                 ])
     lines += md_table(
         rows,
-        ["metric", "scorer", "contrast", "arms", "n", "mean diff [95% CI]", "win frac",
+        ["metric", "scorer", "contrast", "arms", "n paired", "n a/n b", "mean diff [95% CI]",
+         "win frac",
          "NULL win frac", "sign p", "null mean diff", "null mean per-feature |diff|",
          "CI clears 0", "CI excludes null mean"],
     )

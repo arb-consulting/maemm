@@ -47,6 +47,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -58,13 +59,16 @@ import precompute.common as C  # noqa: E402
 from autointerp import build as B  # noqa: E402
 from autointerp import chain as CH  # noqa: E402
 from autointerp import run as R  # noqa: E402
+from autointerp import sae_self as SS  # noqa: E402
 
 # Captured at IMPORT, because `main()` rebinds `R.Claude` to the stub: a body that looked up
 # `R.Claude` at call time would find the stub and recurse into itself.
 _REAL_CLAUDE = R.Claude
 
 N_FEAT = 6
-N_ARMS = ("C16", "C4", "M", "C4M", "C32", "C16M16")
+# The arms the paper's run builds (build.FULL_ARMS), so the fabricated build
+# directories below carry the same names the real products do.
+N_ARMS = ("C16", "M", "M-jac16", "M-cos16")
 STRATA = 4
 
 
@@ -672,12 +676,13 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     assert B._covariate({"gated_fires": None}, "fires_gated", "gated_fires") is None
 
     # (c) the arm/maemm guard, both directions.
-    assert B.check_arm_maemm(["C4", "NLA"], "b/nla", "nla") is True
-    assert B.check_arm_maemm(["C4", "C16", "M"], "b/maemm", "full") is False
+    assert B.check_arm_maemm(["C16", "NLA"], "b/nla", "nla") is True
+    assert B.check_arm_maemm(["C16", "M", "M-cos16"], "b/maemm", "full") is False
     for arms, mtype, needle in (
-        (["C4", "M"], "nla", "may only build"),
-        (["C4", "C16M16"], "nla", "may only build"),
-        (["C4", "NLA"], "full", "point --maemm at the `type: nla` entry"),
+        (["C16", "M"], "nla", "may only build"),
+        (["C16", "M-jac16"], "nla", "may only build"),
+        (["C16", "M-cos16"], "nla", "may only build"),
+        (["C16", "NLA"], "full", "point --maemm at the `type: nla` entry"),
     ):
         try:
             B.check_arm_maemm(arms, "b/x", mtype)
@@ -698,7 +703,7 @@ def check_corpus_fallback():
     substitute, a C16 arm does not -- which is what these two checks pin.
     """
     # (a) the refusal: any arm whose corpus source is "c16", named, with the scan product named.
-    for arms in (["C16", "NLA"], ["C4", "C32"], ["C4M", "C16M16"]):
+    for arms in (["C16-win", "NLA"], ["C16", "C32"], ["C4M", "C16M16"]):
         try:
             B.check_corpus_source(arms, False, "/v/sae/x/examples", "b/x", 4)
         except AssertionError as e:
@@ -709,9 +714,14 @@ def check_corpus_fallback():
         else:
             raise AssertionError(f"check_corpus_source accepted {arms} with no scan examples/")
     # ...and the arms that need no c16 pool go through, with the source recorded.
-    src = B.check_corpus_source(["C4", "NLA", "M"], False, "/v/sae/x/examples", "b/x", 4)
+    src = B.check_corpus_source(["C16", "NLA", "M"], False, "/v/sae/x/examples", "b/x", 4)
     assert src == "examples_4m (the 4M prefix; scan's examples/ is absent)", src
-    assert B.check_corpus_source(["C16", "C4"], True, "/v/e", "b/x", 4) == "examples/ (scan, 16M)"
+    assert B.check_corpus_source(["C16-win", "C4M"], True, "/v/e", "b/x", 4) == \
+        "examples/ (scan, the test corpus)"
+    # The two sides can be on different corpora: the LABEL follows the test side, the refusal the
+    # shown side. A shown side with examples/ and a test side without must say `examples_4m`.
+    assert B.check_corpus_source(["C16-win"], True, "/v/e", "b/x", 4, t_use_examples=False) == \
+        "examples_4m (the 4M prefix; scan's examples/ is absent)"
 
     # (b) the pool: with examples/ present the 4M rows are NOT candidates (they are what C4
     # shows); without it they are, band-labelled exactly as the docmax rows are.
@@ -824,6 +834,261 @@ def check_chain(cfg, tmp: Path, base: str, set_name: str):
     print(f"[selfcheck] chain OK: stages {stages}, wrote pilot.md / results.md / results-rlI.md")
 
 
+
+# ---------------------------------------------------------------------------------------------
+# The two-corpus build, end to end on a synthetic volume (M6, 2026-09-23)
+# ---------------------------------------------------------------------------------------------
+
+SC_SHOWN = "selfcheck_shown10m"   # deliberately NOT a registered `corpora:` key: the geometry
+SC_TEST = ""                      # assert is exercised by the registered ones, not by a fixture
+SC_NROLL = 64
+SC_NFEAT = 3
+SC_TOKW = 16
+SC_DOCLEN = 64
+
+
+class _FakeAutoTokenizer:
+    """`build.run` does `from transformers import AutoTokenizer`; the CPU selfcheck container has
+    no transformers and no model. Decoding is the only thing build asks of it."""
+
+    @staticmethod
+    def from_pretrained(_path):
+        return _StubTok()
+
+
+def _ex_row(row, kind, doc, act, ln=SC_DOCLEN):
+    """One stored example window, in `scan`'s own schema (precompute/scan.py:486-501)."""
+    acts = [0.0] * ln
+    acts[3] = float(act)
+    return {"row": row, "kind": kind, "window": doc, "doc": doc, "start": 0, "len": ln,
+            "max_act": float(act), "argmax": 3, "acts": acts}
+
+
+def _write_corpus(root, base, name, n_docs):
+    import numpy as np
+
+    d = C.corpus_dir(base, str(root), name)
+    Path(d).mkdir(parents=True, exist_ok=True)
+    docs = [{"doc": i, "offset": i * SC_DOCLEN, "len": SC_DOCLEN, "size_tag": 16}
+            for i in range(n_docs)]
+    C.write_jsonl(f"{d}/docs.jsonl", docs)
+    # Token ids are the DOCUMENT's index times 1000 plus the position, so a recovered window says
+    # which corpus and which document it came from and a cross-corpus mix-up is visible in the
+    # rendered text rather than being a plausible-looking string.
+    off = 1 if name else 0
+    toks = np.arange(n_docs * SC_DOCLEN, dtype=np.int32) + off * 1_000_000
+    toks.tofile(f"{d}/tokens.i32")
+    return d
+
+
+def _write_two_corpus_volume(cfg, tmp: Path, base: str):
+    """A whole synthetic volume: two corpora, two example pools, sae_self, scores, random pool."""
+    import numpy as np
+
+    root, set_name = str(tmp / "vol2"), "selfcheck_2corp"
+    sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][0]
+    maemm = [k for k in cfg["maemms"]
+             if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] != "nla"][0]
+    feats = [11, 22, 33][:SC_NFEAT]
+    rows = list(range(SC_NFEAT))
+    gate, peak = 1.0, 8.0
+
+    # ---- corpora. The SHOWN one carries 24 documents (the C16 arm needs 16) and the TEST one 96
+    # (bands, near-misses and the random pool, over two disjoint draws). Document ids OVERLAP
+    # between them on purpose: they are different documents that share an integer, which is
+    # exactly what the cross-corpus disjointness rule has to not be fooled by.
+    _write_corpus(tmp / "vol2", base, "", 96)
+    _write_corpus(tmp / "vol2", base, SC_SHOWN, 24)
+
+    # ---- held-out set
+    hdir = C.heldout_dir(base, set_name, root)
+    Path(hdir).mkdir(parents=True, exist_ok=True)
+    C.write_jsonl(f"{hdir}/ids.jsonl", [
+        {"row": r, "family": "sae", "id": f, "sae_key": sae_key, "stratum": i % 4,
+         "density": 1e-5, "fires_gated": 90 + i}
+        for i, (r, f) in enumerate(zip(rows, feats, strict=True))
+    ])
+
+    sdir_sae = C.sae_dir(sae_key, root)
+    mx = np.zeros(max(feats) + 1, dtype=np.float16)
+    for f in feats:
+        mx[f] = peak
+    Path(sdir_sae).mkdir(parents=True, exist_ok=True)
+    mx.tofile(f"{sdir_sae}/max_act.f16")
+
+    # ---- SHOWN examples: examples_docmax on the shown corpus, one window per document.
+    exdoc = SS.examples_docmax_dir(sae_key, set_name, root, SC_SHOWN)
+    Path(exdoc).mkdir(parents=True, exist_ok=True)
+    json.dump({"features": feats}, open(f"{exdoc}/tested.json", "w"))
+    for r, f in zip(rows, feats, strict=True):
+        C.write_jsonl(f"{exdoc}/{f}.jsonl",
+                      [_ex_row(r, "docmax", doc, peak - 0.1 * doc) for doc in range(24)])
+
+    # ---- TEST examples: scan's band rows on the default corpus, plus a `top` tier.
+    exd = C.sae_examples_dir(sae_key, set_name, root, corpus_name=SC_TEST, write=True)
+    Path(exd).mkdir(parents=True, exist_ok=True)
+    json.dump({"features": feats}, open(f"{exd}/tested.json", "w"))
+    for r, f in zip(rows, feats, strict=True):
+        rws = []
+        doc = 0
+        for qi, band in enumerate(B.BANDS):          # 4 gate-passing windows per band
+            for _ in range(4):
+                rws.append(_ex_row(r, band, doc, peak * (qi + 1) / 4 - 0.01))
+                doc += 1
+        for _ in range(6):                           # below-gate band rows = the near-miss pool
+            rws.append(_ex_row(r, "q0", doc, gate * 0.5))
+            doc += 1
+        for _ in range(4):
+            rws.append(_ex_row(r, "top", doc, peak))
+            doc += 1
+        C.write_jsonl(f"{exd}/{f}.jsonl", rws)
+
+    # ---- TEST document-diverse pool (A4's own pool), also on the test corpus, on documents no
+    # band row uses. Without it `build` refuses rather than drawing a knowingly short test set.
+    t_exdoc = SS.examples_docmax_dir(sae_key, set_name, root, SC_TEST)
+    Path(t_exdoc).mkdir(parents=True, exist_ok=True)
+    json.dump({"features": feats}, open(f"{t_exdoc}/tested.json", "w"))
+    for r, f in zip(rows, feats, strict=True):
+        C.write_jsonl(f"{t_exdoc}/{f}.jsonl",
+                      [_ex_row(r, "docmax", doc, peak * 0.9) for doc in range(26, 40)])
+
+    # ---- the shared negative pool, on the TEST corpus, over documents no band row uses.
+    pdir = SS.random_pool_dir(sae_key, set_name, root, SC_TEST)
+    Path(pdir).mkdir(parents=True, exist_ok=True)
+    n_win = 40
+    wins = [{"window": i, "doc": 40 + i, "start": 0, "len": SC_DOCLEN} for i in range(n_win)]
+    C.write_jsonl(f"{pdir}/windows.jsonl", wins)
+    json.dump({"n_windows": n_win, "features": feats, "gate": gate},
+              open(f"{pdir}/pool.json", "w"))
+    pm = np.zeros((len(feats), n_win), dtype=np.float16)
+    pm[:, n_win // 2:] = np.float16(gate * 0.5)      # half zero-activation, half near-miss
+    pm.tofile(f"{pdir}/max_act.f16")
+    np.zeros(len(feats) * n_win + 1, dtype=np.int64).tofile(f"{pdir}/tok_off.i64")
+    np.zeros(0, dtype=np.int16).tofile(f"{pdir}/tok_pos.i16")
+    np.zeros(0, dtype=np.float16).tofile(f"{pdir}/tok_val.f16")
+
+    # ---- sae_self: per-token activations on the MAEMM's own rollouts.
+    sdir = C.scores_dir(maemm, set_name, root, "vllm", "")
+    self_dir = f"{sdir}/sae_self"
+    Path(self_dir).mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(7)
+    acts = rng.random((len(rows), SC_NROLL, SC_TOKW)).astype(np.float16) * 4.0
+    ids = np.zeros((len(rows), SC_NROLL, SC_TOKW), dtype=np.int32)
+    for i in range(len(rows)):
+        for k in range(SC_NROLL):
+            # A rollout's vocabulary is a function of k, so the 64 texts are genuinely different
+            # and a content-word Jaccard over them is not degenerate.
+            ids[i, k] = np.arange(SC_TOKW) + 10 * (k % 8) + 100 * (k // 8) + 1000 * i
+    acts.tofile(f"{self_dir}/sae_self.f16")
+    ids.tofile(f"{self_dir}/sae_self_ids.i32")
+    json.dump({
+        "gate": gate, "rows": rows, "n": SC_NROLL, "width": SC_TOKW,
+        "checks": {"argmax_ok": True, "csr_value_mismatches": 0, "csr_membership_mismatches": 0},
+        "per_target": [{"row": r, "fire_fraction": 0.5} for r in rows],
+    }, open(f"{self_dir}/sae_self.json", "w"))
+
+    # ---- score's first-pass residuals, which M-cos16 reads and nothing else here does.
+    d_model = int(cfg["bases"][base]["d"])
+    best = rng.standard_normal((len(rows), SC_NROLL, d_model)).astype(np.float16)
+    mu = np.full(d_model, 3.0, dtype=np.float32)     # a LARGE shared mean, the thing to subtract
+    best = (best.astype(np.float32) + mu[None, None, :]).astype(np.float16)
+    best.tofile(f"{sdir}/best_act.f16")
+    json.dump({"rows": rows, "n": SC_NROLL, "families": ["sae"] * len(rows),
+               "score_max_length": SC_TOKW, "mu": None}, open(f"{sdir}/rows.json", "w"))
+    Path(f"{root}/base/{base}/stats").mkdir(parents=True, exist_ok=True)
+    mu.tofile(f"{root}/base/{base}/stats/selfcheck_mu.f32")
+    return root, set_name, sae_key, maemm, feats
+
+
+def check_two_corpora(cfg, tmp: Path, base: str):
+    """The WHOLE `build` stage, on CPU, with the shown examples and the test windows on DIFFERENT
+    corpora -- the one thing the 2026-09-22 spec update bought, and the one thing no other check
+    here reaches, because every other check starts from a fabricated build directory.
+
+    What it pins, all of it MEASURED from the products the run writes:
+      * `C16`'s examples come from the SHOWN corpus and the test items from the TEST corpus, by
+        the token ids each one recovers (the two corpora are numbered a million apart);
+      * `M`, `M-jac16` and `M-cos16` each show exactly 16 of the SAME 64 rollouts, and the three
+        selections are different sets;
+      * `M-cos16` reads `best_act.f16` and takes no forward pass -- the fixture provides no model;
+      * `build.json` records both corpora, the disjointness regime and the per-arm count of shown
+        examples above the feature's corpus peak;
+      * and the MUTATION: with the shown corpus pointed at the test corpus the C16 examples stop
+        coming from the shown corpus, which is what makes the first assertion a test.
+    """
+
+    cfg = json.loads(json.dumps(cfg))                # a private copy: this check edits it
+    root, set_name, sae_key, maemm, feats = _write_two_corpus_volume(cfg, tmp, base)
+    # A small test set, so the fixture needs tens of documents and not thousands. The ARM counts
+    # are NOT touched: N = 16 per arm is what is under test.
+    cfg["autointerp"].update({"n_pos": 4, "n_neg": 4, "n_neg_nearmiss": 2,
+                              "random_pool_windows": 40})
+    cfg["bases"][base]["whiten_mu"] = "base/{base}/stats/selfcheck_mu.f32"
+    arms = "C16,M,M-jac16,M-cos16"
+
+    def build(name, shown, test=""):
+        args = {"base": base, "maemm": maemm, "sae": sae_key, "heldout": set_name, "root": root,
+                "engine": "vllm", "arms": arms, "n_feat": len(feats), "build_dir": name,
+                "corpus_name": shown, "test_corpus_name": test, "force": True, "argv": ["selfcheck"]}
+        return B.run(cfg, args), f"{C.base_dir(base, root)}/autointerp/{set_name}/{name}"
+
+    real_snapshot, real_tf = C.snapshot, sys.modules.get("transformers")
+    C.snapshot = lambda *_a, **_k: "(selfcheck stub tokenizer)"
+    sys.modules["transformers"] = types.SimpleNamespace(AutoTokenizer=_FakeAutoTokenizer)
+    try:
+        _res, out = build("two_corpora", SC_SHOWN, SC_TEST)
+        info = json.load(open(f"{out}/build.json"))
+        assert info["two_corpora"] is True and info["shown_corpus"] == SC_SHOWN, info
+        assert "by corpus separation" in info["disjointness"], info["disjointness"]
+
+        rows = C.read_jsonl(f"{out}/{feats[0]}.jsonl")
+        arm_rows = {r["arm"]: r for r in rows if r["kind"] == "arm"}
+        assert set(arm_rows) == {"C16", "M", "M-jac16", "M-cos16"}, sorted(arm_rows)
+        for a in ("C16", "M", "M-jac16", "M-cos16"):
+            assert arm_rows[a]["n"] == 16, f"arm {a} shows {arm_rows[a]['n']} examples, not 16"
+        # THE SPLIT ITSELF, read off the rendered text. The shown corpus's token ids are offset by
+        # 1,000,000 and the test corpus's are not, so one substring decides which memmap each
+        # block came out of. `_StubTok` decodes id i as "t<i> ".
+        assert "t1000" in arm_rows["C16"]["block"], "C16 was not rendered from the shown corpus"
+        tests = [r for r in rows if r["kind"] == "test"]
+        assert tests, "no draw-1 test items"
+        assert all("t1000" not in t["text"] for t in tests), (
+            "a test item was rendered from the SHOWN corpus -- the split does not hold"
+        )
+        # The three M arms are the same 64 rollouts, differently chosen.
+        sel = {a: [e["k"] for e in arm_rows[a]["examples"]] for a in ("M", "M-jac16", "M-cos16")}
+        assert all(len(set(v)) == 16 for v in sel.values()), sel
+        assert sel["M"] == sorted(sel["M"], key=lambda k: sel["M"].index(k))
+        for a, b in (("M-jac16", "M"), ("M-cos16", "M"), ("M-cos16", "M-jac16")):
+            assert set(sel[a]) != set(sel[b]), f"{a} selected exactly the same 16 rollouts as {b}"
+        assert sel["M-jac16"][0] == sel["M"][0] == sel["M-cos16"][0], (
+            "every selection arm is seeded with the top-activation rollout"
+        )
+        # The per-arm clamp counter reaches build.json (plan M6; SMOKES.md:3731's table gap).
+        by_arm = info["n_shown_exceeding_corpus_peak_by_arm"]
+        assert set(by_arm) >= set(arm_rows), by_arm
+        assert by_arm["C16"] == 0, "a corpus window cannot exceed the feature's own corpus peak"
+
+        # ---- the MUTATION: one corpus on both sides, everything else identical.
+        _res2, out2 = build("one_corpus", SC_TEST, SC_TEST)
+        info2 = json.load(open(f"{out2}/build.json"))
+        assert info2["two_corpora"] is False and "asserted per feature" in info2["disjointness"]
+        rows2 = C.read_jsonl(f"{out2}/{feats[0]}.jsonl")
+        c16_2 = next(r for r in rows2 if r["kind"] == "arm" and r["arm"] == "C16")
+        assert "t1000" not in c16_2["block"], (
+            "the shown-corpus assertion above does not discriminate: C16 renders from the shown "
+            "corpus even when the shown corpus IS the test corpus"
+        )
+    finally:
+        C.snapshot = real_snapshot
+        if real_tf is None:
+            sys.modules.pop("transformers", None)
+        else:
+            sys.modules["transformers"] = real_tf
+    print(f"[selfcheck] two corpora OK: C16 from {SC_SHOWN}, test items from the default corpus, "
+          f"16 examples on each of M / M-jac16 / M-cos16, best_act read with no GPU")
+
+
 def main() -> int:
     cfg = C.load_config()
     base = "qwen36-27b"
@@ -848,6 +1113,7 @@ def main() -> int:
         check_nla_arms(cfg, tmp, base)
         check_scores_subset(tmp)
         check_corpus_fallback()
+        check_two_corpora(cfg, tmp, base)
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE

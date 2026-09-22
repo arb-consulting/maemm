@@ -775,6 +775,16 @@ autointerp:
   n_pos: 20                     # test positives, 5 from each of the four stored activation bands
   n_neg: 20                     # test negatives, zero-activation windows of the shared _random256
   corpus_prefix_m: 4            # the "cheap corpus" nested size, in MILLIONS of tokens
+  # --- THE TWO CORPORA (spec §3, decided with Tomas 2026-09-22) ------------------------------
+  # The corpus arms' SHOWN examples and the Delphi TEST windows come from different scans, so the
+  # explainer is never shown a window the judge then tests on. These two keys RECORD the protocol;
+  # they are not applied silently -- `build` takes the shown corpus from `--corpus-name` and says
+  # on stdout when it differs from `examples_corpus`, so a rebuild of a pre-09-23 product with its
+  # own command line still reproduces that product. `test_corpus` IS the default for
+  # `--test-corpus-name`, and "" is the base's own 16M held-out corpus, which is what every build
+  # before 2026-09-23 used on both sides.
+  examples_corpus: celeste-train10m   # the 10M training corpus every other search number uses
+  test_corpus: ""                     # "" = the 16M held-out scan (base/<base>/corpus/)
   pilot_features: 64            # 16 per density quartile
   # RUN SCALE (Tomáš, 2026-09-21): the eval runs at **32 features per SAE** for now -- passed as
   # `--n-feat 32` on the `build` stage, not a key here, because it is a per-run choice and not a
