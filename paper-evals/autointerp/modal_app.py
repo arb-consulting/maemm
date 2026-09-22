@@ -70,6 +70,10 @@ LLM_SECRETS = [*SECRETS, modal.Secret.from_name("anthropic")]
 
 # stage -> (module, function). `random_pool` is P1's sibling: the same SAE-encode machinery over
 # corpus windows instead of rollouts, so it lives in sae_self.py rather than in a file of its own.
+# The stages that walk a corpus themselves, and so may be told WHICH one. Every other stage
+# reads a product whose path already names the corpus it came from.
+CORPUS_STAGES = ("random_pool", "examples_4m", "examples_docmax")
+
 STAGES = {
     "sae_self": ("sae_self", "run"),
     "random_pool": ("sae_self", "run_random_pool"),
@@ -238,6 +242,14 @@ def main(
     # CONTAINER-SIDE, and only for `--stage run`: it prints the request shapes this run would send
     # (from the build already on the volume) and returns. It still STARTS A CONTAINER.
     dry_run: bool = False,
+    # WHICH CORPUS the corpus-side stages walk, by `corpora:` key (M2, 2026-09-23). Resolves to
+    # the directory name and is geometry-checked on the client, exactly as
+    # `precompute/modal_app.py` does it, so a corpus this pipeline would cut at the wrong window
+    # size stops the launch instead of the container. It reaches `random_pool`, `examples_4m` and
+    # `examples_docmax`; the other stages read a product and take the corpus from its path.
+    # M6's SECOND corpus parameter (C16 examples from the training scan, Delphi test windows from
+    # the held-out one) is the consumer half of this and is M6's to add beside it.
+    corpus: str = "",
     # LOCAL: run every assert above, print what would be sent, and return WITHOUT `.remote()` --
     # what `precompute/modal_app.py --dry-run` does. It is a second flag rather than a reuse of
     # `dry_run` because that name is already taken here by the container-side meaning above, and
@@ -292,8 +304,19 @@ def main(
     if maemm:
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    corpus_name = ""
+    if corpus:
+        assert stage in CORPUS_STAGES, (
+            f"--corpus names the corpus a CORPUS-SIDE stage walks ({sorted(CORPUS_STAGES)}); "
+            f"stage {stage!r} reads a product and takes the corpus from that product's path"
+        )
+        corpus_name = C.corpus_key_name(cfg, corpus)
+        blk, strd = C.corpus_geometry(cfg, corpus)
+        C.assert_corpus_geometry(cfg, corpus_name)
+        print(f"[launch] corpus {corpus} -> dir {corpus_name or 'corpus'}, window {blk}/{strd}")
     args = {
         "base": base,
+        "corpus_name": corpus_name,
         "maemm": maemm,
         "sae": sae,
         "sae_side": sae_side,

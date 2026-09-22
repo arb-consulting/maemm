@@ -171,7 +171,16 @@ def run(cfg, args):
     max_size = int(args.get("max_size") or 0)
     scan_key = scan_key_of(corpus_dir, max_size, (args.get("run_tag") or "").strip())
     C.assert_corpus_geometry(cfg, corpus_dir)
-    ex_dir = C.sae_examples_dir(sae_key, set_name, root, corpus_name=scan_key)
+    # The scan directory FIRST, because the examples half of a `scan` call is keyed by the same
+    # string as its topk half -- the scan's own `--set`, which `--with-set` makes different from
+    # this product's. `write=True` on purpose: the reader branch of `sae_examples_dir` falls back
+    # to the legacy unkeyed `examples/` when the keyed path is absent, and here that fallback
+    # would be a silent cross-set, cross-corpus read of whatever was scanned in September.
+    scan_path_dir = resolve_scan(base, root, set_name, scan_key)
+    scan_set = os.path.basename(scan_path_dir)
+    if scan_key and scan_set.endswith(f"__{scan_key}"):
+        scan_set = scan_set[: -len(f"__{scan_key}")]
+    ex_dir = C.sae_examples_dir(sae_key, scan_set, root, write=True, corpus_name=scan_key)
     # KEYED BY THE SCAN, not by the set alone: a second corpus used to overwrite the first here
     # and then refuse without --force, so the 10M and the 16M numbers could not coexist.
     out = f"{C.sae_dir(sae_key, root)}/top1_act/{set_name}" + (f"__{scan_key}" if scan_key else "")
@@ -200,7 +209,7 @@ def run(cfg, args):
     # whichever bank happens to sit at this set's offsets -- the 131k feature rows of a three-set
     # scan are offset by 1,024. Sets drawn before `--with-set` carry set == the set and set_row ==
     # row, so the single-set case is unchanged.
-    scan_path = f"{resolve_scan(base, root, set_name, scan_key)}/topk.jsonl"
+    scan_path = f"{scan_path_dir}/topk.jsonl"
     print(f"[top1_act] corpus dir {corpus_dir or 'corpus'!r} -> scan {scan_path}", flush=True)
     top1 = {}
     for r in C.read_jsonl(scan_path):
@@ -313,6 +322,7 @@ def run(cfg, args):
         "set": set_name,
         "corpus_dir": corpus_dir or "corpus",
         "scan_key": scan_key,
+        "scan_set": scan_set,
         "scan": scan_path,
         "corpus_size_m": size,
         "n_features": len(recs),

@@ -1101,6 +1101,7 @@ def run_examples_docmax(cfg, args):
     import torch
 
     from precompute.scan import _ex, _Heap
+    from precompute.top1_act import scan_key_of
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
     assert base, "product examples_docmax needs --base"
@@ -1109,9 +1110,21 @@ def run_examples_docmax(cfg, args):
 
     rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_docmax")
     n_feat = len(feats)
-    toks, docs = C.load_corpus(base, root)
-    print(f"[examples_docmax] {len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each",
-          flush=True)
+    # WHICH CORPUS (M2, 2026-09-23). This stage walks a corpus of its own; before today it walked
+    # the base's default 16M one and said so nowhere, so the C16 arm's examples and the corpus
+    # search they are meant to comment on came from two different texts. `--corpus <key>` is
+    # resolved to a directory on the client exactly as `precompute/modal_app.py` does it, and the
+    # product is KEYED by the same string a `scan` of that corpus and tag would use -- so M6's
+    # consumer names one key for both halves. Empty is the default corpus and today's path.
+    corpus_dir = args.get("corpus_name") or ""
+    assert "," not in corpus_dir, (
+        f"--corpus resolved to several corpora ({corpus_dir!r}); this stage builds ONE pool"
+    )
+    C.assert_corpus_geometry(cfg, corpus_dir)
+    prod_key = scan_key_of(corpus_dir, 0, (args.get("run_tag") or "").strip())
+    toks, docs = C.load_corpus(base, root, corpus_dir)
+    print(f"[examples_docmax] corpus {corpus_dir or 'corpus'} (key {prod_key or '-'}): "
+          f"{len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each", flush=True)
 
     model, tok = C.load_base(cfg, base)
     # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
@@ -1253,7 +1266,8 @@ def run_examples_docmax(cfg, args):
     ta = heap.arg.cpu().numpy()
     tp = heap.payload.cpu().numpy()
     tw = win_heap.arg.cpu().numpy()  # the window ids, ranked by the SAME values
-    out = f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}"
+    out = (f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}"
+           + (f"__{prod_key}" if prod_key else ""))
     per_feature = []
     ex_rows = 0
     nbytes = 0
@@ -1261,7 +1275,8 @@ def run_examples_docmax(cfg, args):
         out,
         args,
         inputs={
-            "corpus": C.corpus_dir(base, root),
+            "corpus": C.corpus_dir(base, root, corpus_dir),
+            "corpus key": prod_key or "-",
             "heldout": C.heldout_dir(base, set_name, root),
             "sae": sae_key,
             "docs": len(docs),
