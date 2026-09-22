@@ -158,6 +158,7 @@ def main(
     filter_oversample: float = 0.0,
     seed: int = 0,
     resume_from: str = "",
+    no_auto_resume: bool = False,
 ):
     """One (base, family, arm) search run. `--arm <mode>-<init>`, or `--mode` and `--init`.
 
@@ -166,8 +167,17 @@ def main(
     the mode (gcg: 150 x 1 x 512 at lambda 0; epo: 300 x 3 x 85 at
     lambda 0.1/0.19/0.37) and is overridable for a cheap shakeout, e.g. `--iters 10 --rows 0`.
 
-    `--resume-from /vol/.../<arm>.tmp-<date>` carries the finished directions of a kept temp dir
-    into this call and runs only the rest of `--rows`; the output is the ordinary arm dir.
+    `--rows` ALSO makes the call a CHUNK: it writes `finals__rows<spec>.jsonl` and its three
+    siblings into the arm's one directory through the additive product write, so 4-16 chunks of one
+    arm run in parallel without collision and `gcg/collect.py` reads their union. A call with no
+    `--rows` keeps the historical whole-family product.
+
+    RESUME IS THE RE-RUN. A failed chunk leaves its staging directory
+    `<arm>.tmp-<date>-<pid>-<hex>` on the volume (printed by `[outdir] FAILED`), and re-running the
+    same command finds it, carries the whole directions out of it and runs only what is left --
+    nothing is deleted, ever. `--resume-from <dir>` names one by hand instead;
+    `--no-auto-resume` turns the automatic half off. A chunk that is already committed is returned
+    without starting a container's search at all.
     """
     sys.path.insert(0, str(LOCAL_ROOT))
     import precompute.common as C
@@ -211,6 +221,7 @@ def main(
         "filter_oversample": filter_oversample,
         "seed": seed,
         "resume_from": resume_from.rstrip("/"),
+        "no_auto_resume": no_auto_resume,
         # The container has no git checkout, so the commit every README records is captured here.
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,

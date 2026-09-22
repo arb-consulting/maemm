@@ -34,17 +34,50 @@ GCG IS EPO AT pop=1, lambda=0, so there is one loop. Each EPO member holds its o
 selected by its own `L_lambda`, so the per-member finals trace a Pareto front in one run at no extra
 forward. All pop members of one run start from the SAME init (as in the fork) except `random32`,
 which draws one string per member.
+
+CHUNKS (2026-09-23). A 64-direction 27B `epo` arm is ~15.5 GPU-h and does not fit one container, so
+it is cut into `--rows` chunks that run in parallel. `gcg_dir` is `gcg/<set>/<family>/<arm>` with NO
+`--rows` component, so every chunk of one arm writes into ONE directory -- which is safe exactly
+because that write is M0a's ADDITIVE one (`common.OutDir`, keep_existing, 2026-09-23): each call
+stages in a temp directory unique to its process and moves in only its own files, so nothing a
+sibling chunk wrote is copied, renamed over or removed. What makes the files disjoint is their
+NAMES: a call given `--rows` writes `finals__rows<spec>.jsonl`, `trajectory__rows<spec>.jsonl`,
+`top64__rows<spec>.jsonl` and `summary__rows<spec>.json` through `common.rollout_chunk_stem`, the
+same spelling the rollouts chunks use, and `gcg/collect.py` reads the union back as one product. A
+run with no `--rows` keeps the bare `finals.jsonl` spelling every product on the volume already has,
+and a whole-set file beside chunks of the same arm is a refusal on both sides.
+
+A RE-RUN NEVER DESTROYS A PARTIAL (2026-09-23). An additive call's staging directory is
+`<arm>.tmp-<date>-<pid>-<hex>`, so a retry can no longer delete the temp its predecessor streamed
+into (the one-shot path's `<arm>.tmp-<date>` collision, `common.py:2712-2714`, is what the old
+plan's `<cmd> && break` retry loop walked into). `find_partial` then makes the retry a RESUME: it
+looks for kept staging directories holding this chunk's own streams, repairs a torn last line into
+`<arm>.carry-<stamp>`, and carries the whole directions from it. Nothing is ever deleted.
+`--resume-from` still names a directory by hand; `--no-auto-resume` turns the automatic half off. A
+call whose chunk is already complete returns that product instead of paying for a container.
+
+TWO COSINES ON THE FINALS (2026-09-23). The objective is still the uncentred cosine -- that is what
+the loop selects on and what every column but one reports. The PRINTED number of the paper's
+discrete-search rows is the CENTRED rescoring of the same final string,
+`max_t cos(unit(h_t - mu), unit(act - mu))` with the same mean on both sides, which
+`common.score_ids` produces from the same forward when handed `dirs_centred` and `mu`
+(`common.py:2141-2154`). So `cos_centred` on a final is a rescoring through the headline scorer,
+not a second search, and the two rows are a lower bound on what a centred search would reach. The
+mean is `score_mu_spec` below -- one name, M0a's constant.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import os
+import random
 import re
 import shutil
 import time
 import zlib
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 
@@ -57,6 +90,33 @@ import precompute.common as C
 # eval/eval_universal.py:138's truncation, named once in common.py. A string longer than this would
 # be scored shorter than it was optimised; `common.score_ids` refuses such a row outright.
 MAX_REENC_TOK = C.SCORE_MAX_LENGTH
+
+# The name of M0a's scoring-mean function in precompute/common.py, tried first by `score_mu_spec`.
+# PLACEHOLDER (M3, 2026-09-23): M0a had not landed when this was written, so the fallback below
+# spells the same constant from config. When M0a lands, point this string at their function (or
+# leave it: the lookup is by name and starts working the moment the name exists).
+M0A_SCORE_MU_FN = "score_mu"
+
+
+def score_mu_spec(cfg: dict, base: str):
+    """The mean BOTH sides of the centred cosine are centred on, as config spells a mu (a path).
+
+    THE SCORING CONSTANT IS NOT THIS MODULE'S TO CHOOSE. M0a owns it and exposes it as one function
+    in `precompute/common.py`; this is the single place gcg spells the name, so adopting M0a's
+    function is one line. The fallback is the same constant read straight from config --
+    `bases.<base>.whiten_mu`, which plan §1's ownership table names as the scoring constant -- and
+    it is deliberately NOT a locally computed mean: a product that cannot find the file stops.
+    """
+    fn = getattr(C, M0A_SCORE_MU_FN, None)
+    if fn is not None:
+        return fn(cfg, base)
+    spec = cfg["bases"][base].get("whiten_mu")
+    assert spec, (
+        f"the centred rescoring has no mean: precompute/common.py exposes no {M0A_SCORE_MU_FN}() "
+        f"and bases.{base}.whiten_mu is unset. See gcg/gcg.py:score_mu_spec -- this is M3's "
+        f"placeholder for M0a's scoring-mean function, not a licence to compute one here."
+    )
+    return spec
 
 # The candidate alphabet size, PER BASE: the fork's single 94,325 is Qwen3-8B's (vocab 151,669) and
 # says nothing about the 27B, whose vocab is 248,077. `None` means "not measured yet": the run
@@ -106,6 +166,40 @@ _BULKY_FINAL_KEYS = ("ids", "init_ids", "per_token_cos")
 # The three per-direction streams, in the order a direction writes them; `--resume-from` copies
 # exactly these out of a kept temp dir.
 RESUME_STREAMS = ("finals.jsonl", "trajectory.jsonl", "top64.jsonl")
+
+# The three streams as LOGICAL names. `chunk_files` turns them into the file names one call writes.
+STREAMS = ("finals", "trajectory", "top64")
+
+
+def rows_spec_of(rows: list[int]) -> str:
+    """A canonical `--rows` spelling of a selection: "0-3", "4-6,8", "7".
+
+    The chunk's file names are built from THIS, not from the string the caller typed, so two calls
+    that select the same rows write the same files whatever spelling they used -- which is what
+    makes a re-run find its own partial instead of writing a second copy beside it.
+    """
+    assert rows, "a row selection is never empty"
+    parts, lo, hi = [], rows[0], rows[0]
+    for r in rows[1:]:
+        if r == hi + 1:
+            hi = r
+            continue
+        parts.append(f"{lo}-{hi}" if lo != hi else f"{lo}")
+        lo = hi = r
+    parts.append(f"{lo}-{hi}" if lo != hi else f"{lo}")
+    return ",".join(parts)
+
+
+def chunk_files(rows_spec: str) -> dict[str, str]:
+    """logical stream -> the file this call writes. `finals.jsonl`, or `finals__rows0-3.jsonl`.
+
+    `common.rollout_chunk_stem` is M0a's spelling of "one `--rows` chunk of one product", used here
+    unchanged so a reader of either product learns the convention once. An empty spec is the
+    whole-set run and keeps the historical names.
+    """
+    out = {k: f"{C.rollout_chunk_stem(k, rows_spec)}.jsonl" for k in STREAMS}
+    out["summary"] = f"{C.rollout_chunk_stem('summary', rows_spec)}.json"
+    return out
 
 MODES = ("gcg", "epo")
 INITS = ("random32", "corpus")
@@ -303,13 +397,20 @@ def shape_sweep(model, tok, ids, d_cpu, read_layer, device, shapes=(1, 8, 32, 12
 
 def exact_cos(
     model, tok, id_lists, d_cpu, read_layer, sbatch, device, want_tokens=False,
-    sae=None, feature_id=None,
+    sae=None, feature_id=None, d_centred_cpu=None, mu=None,
 ):
     """THE scoring path: `max_t cos(unit(h_t), d)` over `common.score_ids`' kept tokens.
 
     One direction, many id lists -- the direction is broadcast to one row per candidate. This is the
     product's only cosine; there is no faster in-loop variant to drift from, which is what the fork
     needed its end-of-direction check to prove and what is now true by construction.
+
+    `d_centred_cpu` + `mu` additionally read the CENTRED cosine
+    `max_t cos(unit(h_t - mu), unit(act - mu))` off the SAME forward -- `common.score_ids` takes the
+    pair and adds one einsum (`common.py:2141-2154`). It is RECORDED, never optimised: the loop
+    selects on the uncentred number throughout, and the centred one is computed once, on the
+    finals, because it is the column the paper prints (module docstring). Passing one of the two
+    without the other is refused by `score_ids`, not by a check here, so there is one rule.
 
     `sae` + `feature_id` additionally read that feature's PRE-GATE activation
     (`common.sae_encode`, relu((h - b_dec) @ W_enc[:, f] + b_enc[f])) off the SAME forward, per
@@ -321,6 +422,10 @@ def exact_cos(
 
     n = len(id_lists)
     dirs = d_cpu.detach().cpu().float().unsqueeze(0).expand(n, -1)
+    dirs_c = (
+        None if d_centred_cpu is None
+        else d_centred_cpu.detach().cpu().float().unsqueeze(0).expand(n, -1)
+    )
     acts = torch.full((n, C.SCORE_WIDTH), float("nan")) if sae is not None else None
 
     def on_chunk(s, h, _cos, keep, _ids):
@@ -332,6 +437,7 @@ def exact_cos(
     out = C.score_ids(
         model, tok, id_lists, dirs, read_layer, sbatch=sbatch, device=device,
         on_chunk=None if sae is None else on_chunk,
+        dirs_centred=dirs_c, mu=mu,
     )
     best, arg = C.agg(out["cos"], out["keep"])
     res = {
@@ -339,6 +445,14 @@ def exact_cos(
         "cos": best.numpy().astype(np.float32),
         "amax": (arg - 1).numpy().astype(np.int32),
     }
+    if dirs_c is not None:
+        # The centred cosine is reduced the SAME way -- max over kept positions, through common.agg
+        # -- and its argmax is recorded separately because the two maxima need not land on the same
+        # token: centring moves the ranking, which is the whole reason the printed column is a
+        # rescoring of the string rather than a relabelling of the loop's own number.
+        best_c, arg_c = C.agg(out["cos_centred"], out["keep"])
+        res["cos_centred"] = best_c.numpy().astype(np.float32)
+        res["amax_centred"] = (arg_c - 1).numpy().astype(np.int32)
     if want_tokens:
         cos = out["cos"]
         keep = out["keep"]
@@ -773,8 +887,14 @@ class _TopSet:
 def run_direction(
     a, model, tok, dev, alpha, alpha_t, w_e32, d_cpu, row, fam, lams, rng, arm,
     sink_id, mdtype, read_layer, alpha_sp, init_ctx, span_text, sae_ctx=None, family_row=None,
+    d_centred_cpu=None, mu_vec=None,
 ):
-    """One direction, one arm. Returns (per-member finals, top64 rows, trajectory rows, timings)."""
+    """One direction, one arm. Returns (per-member finals, top64 rows, trajectory rows, timings).
+
+    `d_centred_cpu` + `mu_vec` are the centred rescoring's two halves; when both are given every
+    final also carries `cos_centred`. They reach ONE call -- the end-of-direction `fresh` one --
+    and no part of the loop sees them.
+    """
     import torch
 
     pop = a["pop"]
@@ -955,7 +1075,7 @@ def run_direction(
     feat = sae_ctx["feature_id"] if sae_ctx else None
     fresh = exact_cos(
         model, tok, ids_l, d_cpu, read_layer, a["sbatch"], dev, want_tokens=True,
-        sae=sae, feature_id=feat,
+        sae=sae, feature_id=feat, d_centred_cpu=d_centred_cpu, mu=mu_vec,
     )
     rebatch = exact_cos(model, tok, ids_l, d_cpu, read_layer, C.SCORE_CHUNK, dev)
     nl, ent = mean_nll(model, torch.as_tensor(cur, device=dev), want_entropy=True)
@@ -1039,6 +1159,16 @@ def run_direction(
             "lam": lams[m], "init": a["init"], "seq_len": t_len, "iters": a["iters"],
             "string": tok.decode(ids), "ids": ids,
             "cos": round(float(fresh["cos"][m]), 6),
+            # THE PRINTED COLUMN of the paper's discrete-search rows: the same final string
+            # rescored under the headline centring, from the same forward as `cos`. None when the
+            # family is not centrable -- see `_load_targets`.
+            "cos_centred": (
+                None if "cos_centred" not in fresh
+                else round(float(fresh["cos_centred"][m]), 6)
+            ),
+            "argmax_centred": (
+                None if "amax_centred" not in fresh else int(fresh["amax_centred"][m])
+            ),
             "cos_loop": round(float(cur_cos[m]), 6),
             "cos_rebatch": round(float(rebatch["cos"][m]), 6),
             "nll": round(float(nl[m]), 6),
@@ -1110,6 +1240,177 @@ def run_direction(
 # ---------------------------------------------------------------------------------------------
 
 
+def read_jsonl_tolerant(path: Path, what: str) -> list[dict]:
+    """Every COMPLETE json line of a STREAMED file. A torn last line is dropped, loudly.
+
+    `C.read_jsonl` is right for a committed product and wrong here: these files are read out of a
+    staging directory a container died in, and the one thing a kill mid-`write` leaves is a
+    truncated final line. Dropping it costs the direction it belonged to, which is re-run; refusing
+    to parse it would cost every direction before it, which is the loss this path exists to avoid.
+    A torn line anywhere but at the end is a different failure and is NOT tolerated.
+    """
+    rows, text = [], path.read_text()
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            assert i == len(lines) - 1, (
+                f"{path}: line {i + 1} of {len(lines)} is not json, and it is not the last line. "
+                f"A streamed file is torn only at its end; this one is damaged in the middle and "
+                f"is not carried."
+            )
+            print(f"[gcg] {what}: dropping a torn last line of {path.name}", flush=True)
+    return rows
+
+
+def find_partial(out_dir: str, files: dict[str, str], pop: int) -> str:
+    """A kept staging directory holding whole directions of THIS chunk -> a repaired carry dir.
+
+    WHY THIS EXISTS. The launcher retries a failed chunk by re-running the same command. Under the
+    additive write each attempt stages in `<arm>.tmp-<date>-<pid>-<hex>`, so the predecessor's
+    partial is no longer deleted -- but nothing reads it either, and a 4-direction EPO chunk that
+    died on direction 4 would pay for the first three again. This finds it.
+
+    Returns the path of a NEW `<arm>.carry-<stamp>` directory holding only whole directions (all
+    `pop` members in finals, and the same rows in all three streams), under the file names this
+    chunk resumes from, or "" when there is nothing to carry. The staging directory it read is
+    LEFT WHERE IT IS: this path never deletes a partial, it only copies out of one.
+    """
+    out = Path(out_dir)
+    cands = sorted(out.parent.glob(f"{out.name}.tmp-*")) if out.parent.exists() else []
+    best: tuple[int, dict[str, list[dict]], Path] | None = None
+    for d in cands:
+        if not d.is_dir() or not (d / files["finals"]).is_file():
+            continue
+        streams = {}
+        try:
+            for k in STREAMS:
+                streams[k] = read_jsonl_tolerant(d / files[k], f"carry from {d.name}") if (
+                    d / files[k]).is_file() else []
+        except (AssertionError, OSError) as e:
+            print(f"[gcg] carry: skipping {d.name}: {e}", flush=True)
+            continue
+        whole = {
+            r for r in {int(f["row"]) for f in streams["finals"]}
+            if sum(1 for f in streams["finals"] if int(f["row"]) == r) == pop
+            and all(any(int(x["row"]) == r for x in streams[k]) for k in STREAMS)
+        }
+        if whole and (best is None or len(whole) > best[0]):
+            best = (len(whole), {k: [r for r in v if int(r["row"]) in whole] for k, v in
+                                streams.items()}, d)
+    if best is None:
+        return ""
+    n, kept, src = best
+    # the same unique-per-attempt spelling the additive staging directory uses, so two carries
+    # never write into one directory and neither can shadow the other's files
+    carry = out.with_name(
+        f"{out.name}.carry-{time.strftime('%Y-%m-%d')}-{os.getpid()}-{random.randrange(16**4):04x}"
+    )
+    carry.mkdir(parents=True)
+    for k in STREAMS:
+        C.write_jsonl(carry / files[k], kept[k])
+    print(
+        f"[gcg] carry: {n} whole direction(s) recovered from {src} into {carry} -- the staging "
+        f"directory is left in place, nothing was deleted",
+        flush=True,
+    )
+    return str(carry)
+
+
+def assert_writable(out_dir: str, files: dict[str, str], chunked: bool, force: bool) -> None:
+    """Refuse a write that would overwrite another run's files in the arm's shared directory.
+
+    THE ADDITIVE WRITE MOVES EACH FILE IN WITH `os.replace`, which overwrites silently -- so the
+    refusal a one-shot product gets from `OutDir` has to be made here, per file. Three shapes are
+    refused:
+
+      * this exact chunk is already there (re-running it is a no-op, see `existing_chunk`; only
+        --force overwrites it);
+      * a `--rows` chunk into a directory that holds the arm's WHOLE-SET product;
+      * a whole-set run into a directory that holds chunks.
+
+    The last two are the shape `common.read_rollouts` refuses on the reading side: one arm
+    described twice, where preferring either silently reads a partial as if it were complete.
+    """
+    outp = Path(out_dir)
+    clash = sorted(n for n in files.values() if (outp / n).is_file())
+    assert not clash or force, (
+        f"{out_dir} already holds {clash} -- this exact chunk has been written. Re-running it is a "
+        f"no-op (see `existing_chunk`); overwriting it takes --force."
+    )
+    if chunked:
+        whole = [n for n in chunk_files("").values() if (outp / n).is_file()]
+        assert not whole or force, (
+            f"{out_dir} holds the WHOLE-SET product {whole} of this arm; a `--rows` chunk beside it "
+            f"would make one arm two experiments (common.read_rollouts refuses the same shape). "
+            f"Write the chunks to a new arm (`--arm-suffix`) or move the whole-set product aside."
+        )
+    else:
+        parts = sorted(f.name for f in (outp.glob("finals__rows*.jsonl") if outp.is_dir() else []))
+        assert not parts or force, (
+            f"{out_dir} holds `--rows` chunks {parts[:4]} of this arm; a whole-set run beside them "
+            f"would make one arm two experiments. Use --arm-suffix, or read the chunks with "
+            f"gcg/collect.py."
+        )
+
+
+def existing_chunk(out_dir: str, files: dict[str, str], sel: list[int], a: dict) -> dict | None:
+    """This chunk's own committed product, when it already covers exactly this call. Else None.
+
+    The retry loop cannot tell "the container failed" from "the container finished and the local
+    client dropped", and the second case is the one that used to cost a whole second run (or, with
+    a one-shot write, a `--force` refusal loop). A chunk that is already on the volume for THIS row
+    selection and THIS arm configuration is returned as the result, with no model load and no GPU.
+    A summary that disagrees on any of it is NOT reused: it falls through to the ordinary write,
+    whose own guard refuses to overwrite it.
+    """
+    path = Path(out_dir) / files["summary"]
+    if not path.is_file():
+        return None
+    with open(path) as fh:
+        prev = json.load(fh)
+    want = {k: a[k] for k in ("mode", "init", "iters", "pop", "children", "seq_len", "topk")}
+    got = {k: prev.get("config", {}).get(k) for k in want}
+    if prev.get("rows") != list(sel) or got != want:
+        why = []
+        if prev.get("rows") != list(sel):
+            why.append(f"rows {prev.get('rows', [])[:4]}... vs {list(sel)[:4]}...")
+        if got != want:
+            why.append(f"config {({k: (got[k], want[k]) for k in want if got[k] != want[k]})}")
+        print(
+            f"[gcg] {path} exists but is a DIFFERENT call ({'; '.join(why)}); not reusing it",
+            flush=True,
+        )
+        return None
+    tot = prev.get("totals", {})
+    print(
+        f"[gcg] {path.name} already covers these {len(sel)} directions at this configuration; "
+        f"returning the committed product without starting a search",
+        flush=True,
+    )
+    return {
+        "arm": prev["arm"],
+        "family": prev["family"],
+        "n_directions": prev["n_directions"],
+        "n_directions_run": 0,
+        "sae": prev.get("sae"),
+        "mean_final_cos": prev["mean_final_cos"],
+        "mean_init_cos": prev["mean_init_cos"],
+        "mean_nll": prev["mean_nll"],
+        "cand_forwards": tot.get("cand_forwards", 0),
+        "filter_reject_rate": tot.get("filter_reject_rate", 0.0),
+        "alphabet_size": prev.get("alphabet_size", 0),
+        "cos_check_same_batch_max": tot.get("cos_check_same_batch_max", 0.0),
+        "cos_check_rebatch_max": tot.get("cos_check_rebatch_max", 0.0),
+        "out": out_dir,
+        "reused": True,
+    }
+
+
 def resolve_config(cfg, args):
     """The per-arm configuration, mode defaults filled in and every value asserted."""
     mode, init = args.get("mode") or "", args.get("init") or ""
@@ -1167,8 +1468,24 @@ def resolve_config(cfg, args):
     return a, lams, arm_name(mode, init, a["arm_suffix"])
 
 
+class Targets(NamedTuple):
+    """What one held-out set hands the search: the direction it optimises, and the one it is scored on.
+
+    ONE object rather than four return values on purpose -- `unit_smoke.check_return_arities` pins
+    `_load_targets` at two, and an arity is the seam that broke this file's siblings before
+    (`RETURN_ARITY`, measured the expensive way on 2026-09-21).
+    """
+
+    dirs: object          # [N, d] fp32 unit -- the OBJECTIVE's target, resolved by --mu
+    dirs_centred: object  # [N, d] fp32 unit(act - score_mu), or None when no mean is available
+    centrable: object     # [N] bool -- False where the family has no mean (an encoder column)
+    mu: object            # [d] float32 numpy, the mean BOTH sides of cos_centred use, or None
+    mu_spec: object       # how --mu spells the objective's mean (a path, or None)
+    score_mu_spec: object # how the SCORING mean is spelled (M0a's constant), or None
+
+
 def _load_targets(cfg, args, notes=None):
-    """(rows meta, [N, d] unit fp32 directions on the cpu) for the held-out set.
+    """(rows meta, Targets) for the held-out set.
 
     The OBJECTIVE is still the uncentred cosine (module docstring) -- that half is untouched. What
     is resolved here is the other half, the TARGET: `vecs.f16` stopped being a fixed object on
@@ -1176,6 +1493,14 @@ def _load_targets(cfg, args, notes=None):
     computed against whichever direction `--mu` names. This file has no `--maemm` in scope, so on
     a raw set common.mu_for refuses rather than defaulting; on the legacy sets every
     published gcg number reproduces because the set's own stored convention is the default.
+
+    SECOND, since 2026-09-23: the directions of the CENTRED rescoring, `unit(act - score_mu)` with
+    `score_mu` the one scoring constant (`score_mu_spec`). They are a second `dirs_for` call rather
+    than a copy of the first, so the printed column is centred on the scoring mean whatever `--mu`
+    the search was run at -- and when the two agree, which is the production case, the second call
+    is the same tensor by construction. A family that is not `centrable` (an encoder column has no
+    mean) gets no centred direction at all and no `cos_centred`: `cos(h - mu, encoder column)` is
+    the one-sided number this column exists to replace, not a centred one.
     """
     import torch
 
@@ -1188,7 +1513,27 @@ def _load_targets(cfg, args, notes=None):
     assert vecs.shape == (len(rows), d_model), f"{hdir}: dirs_for returned {vecs.shape}"
     v = torch.as_tensor(np.asarray(vecs), dtype=torch.float32)
     v = torch.nn.functional.normalize(v, dim=-1)
-    return rows, v
+
+    cen = np.asarray(
+        [bool(cfg["family_kinds"][r["family"]]["centrable"]) for r in rows], dtype=bool
+    )
+    smu_spec, v_cen, smu = score_mu_spec(cfg, base), None, None
+    if cen.any():
+        smu = C.load_mu(cfg, base, smu_spec, root)
+        cvecs = C.dirs_for(cfg, base, hdir, smu_spec, root, None)
+        assert cvecs.shape == (len(rows), d_model), f"{hdir}: dirs_for returned {cvecs.shape}"
+        v_cen = torch.nn.functional.normalize(
+            torch.as_tensor(np.asarray(cvecs), dtype=torch.float32), dim=-1
+        )
+        if notes is not None:
+            notes.append(
+                f"cos_centred on every final of a centrable family: max over kept tokens of "
+                f"cos(unit(h - mu), unit(act - mu)) at mu={C.mu_label(smu_spec, base, root)} "
+                f"(the SCORING mean, on both sides), rescored through common.score_ids from the "
+                f"same forward as `cos`. The objective the search optimised is `cos`, uncentred, "
+                f"at mu={C.mu_label(mu, base, root)}"
+            )
+    return rows, Targets(v, v_cen, cen, smu, mu, smu_spec)
 
 
 def _load_scan_top(cfg, args, n_rows):
@@ -1219,7 +1564,8 @@ def run(cfg, args):
     read_layer = cfg["bases"][base]["read_layer"]
 
     cen_notes: list[str] = []
-    rows_meta, dirs = _load_targets(cfg, args, notes=cen_notes)
+    rows_meta, tgt = _load_targets(cfg, args, notes=cen_notes)
+    dirs = tgt.dirs
     # --rows indexes WITHIN the family, not the concatenated set: the held-out set lays the
     # families out end to end (realact 0-511, random 512-1023, sae 1024-1535 at 512 each), so
     # `--family sae --rows 0-7` is global rows 1024-1031. Every output row carries BOTH -- `row`
@@ -1237,6 +1583,20 @@ def run(cfg, args):
     fams = sorted({rows_meta[i]["family"] for i in sel})
     assert fams == [family], f"row selection crossed families: {fams}"
 
+    # THE CHUNK. A call given `--rows` is one chunk of an arm and writes its own four files into the
+    # arm's ONE directory through M0a's additive write; a call over the whole family keeps the
+    # historical single-product spelling and the one-shot write. `rows_spec` comes from the parsed
+    # selection, not from the string the caller typed, so `--rows 0-3` and `--rows 0,1,2,3` are one
+    # chunk and the second one finds the first's product instead of writing a second copy.
+    out_dir = C.gcg_dir(base, set_name, family, arm, root)
+    chunked = bool((args.get("rows") or "").strip())
+    rows_spec = rows_spec_of(sel_local) if chunked else ""
+    files = chunk_files(rows_spec)
+    if not args.get("force"):
+        done = existing_chunk(out_dir, files, sel, a)
+        if done is not None:
+            return done
+
     # --resume-from: finish an arm whose call died (e.g. on the Modal function timeout) from its KEPT
     # temp dir instead of re-running it. Only whole directions are carried: a direction's three
     # streams are written together after it returns, and the checks below refuse anything else.
@@ -1245,38 +1605,36 @@ def run(cfg, args):
     # The guard compares what finals.jsonl records (family, mode, init, iters, seq_len, lambda per
     # member); topk/tau/children/oversample/seed are not in the finals and are NOT checked.
     resume_from = (args.get("resume_from") or "").rstrip("/")
+    if not resume_from and not args.get("no_auto_resume"):
+        resume_from = find_partial(out_dir, files, a["pop"])
     done_rows: set[int] = set()
     prior: dict[str, list[dict]] = {}
     if resume_from:
         rdir = Path(resume_from)
-        out_path = Path(C.gcg_dir(base, set_name, family, arm, root))
-        tmp_path = out_path.with_name(f"{out_path.name}.tmp-{time.strftime('%Y-%m-%d')}")
-        # OutDir.__enter__ removes a leftover temp dir of today's name (and, with --force, the final
-        # dir) BEFORE anything is copied, so resuming from either would delete the input.
-        assert rdir.resolve() not in (out_path.resolve(), tmp_path.resolve()), (
-            f"--resume-from {rdir} is this call's own output or temp dir, which OutDir clears on "
-            f"entry; resume from a temp dir of an earlier date or of another arm name"
+        assert rdir.resolve() != Path(out_dir).resolve(), (
+            f"--resume-from {rdir} is this call's own output directory; resume from a kept staging "
+            f"directory (`<arm>.tmp-<date>-<pid>-<hex>`, printed by `[outdir] FAILED`) or from the "
+            f"`<arm>.carry-<stamp>` directory the automatic carry writes"
         )
-        for name in RESUME_STREAMS:
-            assert (rdir / name).is_file(), f"--resume-from {rdir} has no {name}"
-            prior[name] = C.read_jsonl(str(rdir / name))
-        done_rows = {int(f["row"]) for f in prior["finals.jsonl"]}
+        for k in STREAMS:
+            assert (rdir / files[k]).is_file(), f"--resume-from {rdir} has no {files[k]}"
+            prior[k] = read_jsonl_tolerant(rdir / files[k], "resume")
+        done_rows = {int(f["row"]) for f in prior["finals"]}
         extra = sorted(done_rows - set(sel))
         assert not extra, (
             f"--resume-from {rdir} carries rows {extra[:8]} outside this --rows selection; the "
             f"per-arm summary is over the selection, so pass a --rows that covers them"
         )
-        assert done_rows != set(sel), f"--resume-from {rdir} already has all {len(sel)} directions"
-        for name in RESUME_STREAMS[1:]:
-            got = {int(r["row"]) for r in prior[name]}
+        for k in STREAMS[1:]:
+            got = {int(r["row"]) for r in prior[k]}
             assert got == done_rows, (
-                f"--resume-from {rdir}: {name} and finals.jsonl disagree on rows "
+                f"--resume-from {rdir}: {files[k]} and {files['finals']} disagree on rows "
                 f"{sorted(got ^ done_rows)[:8]} -- a partly written direction"
             )
         want = {"family": family, "mode": a["mode"], "init": a["init"], "iters": a["iters"],
                 "seq_len": a["seq_len"]}
         for row in sorted(done_rows):
-            fin = [f for f in prior["finals.jsonl"] if f["row"] == row]
+            fin = [f for f in prior["finals"] if f["row"] == row]
             assert sorted(f["member"] for f in fin) == list(range(a["pop"])), (
                 f"--resume-from {rdir}: row {row} has members {sorted(f['member'] for f in fin)}, "
                 f"want 0..{a['pop'] - 1}"
@@ -1287,10 +1645,19 @@ def run(cfg, args):
                     f"--resume-from {rdir}: row {row} member {f['member']} was run as {got} at "
                     f"lambda {f['lam']}; this call is {want} at lambda {lams[f['member']]}"
                 )
+        # EVERY direction carried is not an error: a container killed between its last direction and
+        # its commit leaves exactly that, and the call finishes by committing the carried streams.
+        # It still costs a model load, which is why it says so.
+        if done_rows == set(sel):
+            print(
+                f"[gcg] resume: all {len(sel)} directions are already in {rdir}; this call only "
+                f"commits them to {out_dir} and runs no search",
+                flush=True,
+            )
         print(
             f"[gcg] resume: {len(done_rows)} of {len(sel)} directions carried from {rdir} "
-            f"({len(prior['finals.jsonl'])} finals, {len(prior['trajectory.jsonl'])} trajectory, "
-            f"{len(prior['top64.jsonl'])} top64 rows); {len(sel) - len(done_rows)} to run",
+            f"({len(prior['finals'])} finals, {len(prior['trajectory'])} trajectory, "
+            f"{len(prior['top64'])} top64 rows); {len(sel) - len(done_rows)} to run",
             flush=True,
         )
     n_todo = len(sel) - len(done_rows)
@@ -1378,7 +1745,8 @@ def run(cfg, args):
             flush=True,
         )
 
-    out_dir = C.gcg_dir(base, set_name, family, arm, root)
+    assert_writable(out_dir, files, chunked, bool(args.get("force")))
+
     inputs = {
         "heldout": C.heldout_dir(base, set_name, root),
         "family": family,
@@ -1386,6 +1754,8 @@ def run(cfg, args):
         "directions": len(sel),
         "read_layer": read_layer,
         "arm": arm,
+        "chunk": f"{files['finals']} (--rows {rows_spec})" if chunked else "whole family, one product",
+        "score_mu": C.mu_label(tgt.score_mu_spec, base, root) if tgt.mu is not None else "none",
     }
     if sae_ctx is not None:
         inputs["sae"] = f"{sae_ctx['key']} (gate {sae_ctx['sae'].threshold:.4f})"
@@ -1401,17 +1771,20 @@ def run(cfg, args):
     all_top: list[dict] = list(prior.get("top64.jsonl", []))
     all_traj: list[dict] = list(prior.get("trajectory.jsonl", []))
     runs: dict[str, dict] = {}
-    with C.outdir(out_dir, args, inputs=inputs) as od:
+    # keep_existing = ADDITIVE (M0a, 2026-09-23): the chunks of one arm share its directory, each
+    # staging in a temp of its own and moving in only its own four files. A whole-family run is a
+    # one-shot product and keeps the temp-and-rename it always had.
+    with C.outdir(out_dir, args, inputs=inputs, keep_existing=chunked) as od:
         C.note_convention(od, cen_notes)
         # Streamed, not buffered: an 8-direction epo run is ~20 GPU-minutes and a crash at
-        # direction 7 must not throw away the six that finished (OutDir keeps the temp dir).
-        # On --resume-from the carried streams are copied in byte for byte and appended to.
-        for name in prior:
-            shutil.copyfile(Path(resume_from) / name, od.file(name))
+        # direction 7 must not throw away the six that finished (the staging dir is kept).
+        # On a resume the carried streams are copied in byte for byte and appended to.
+        for k in prior:
+            shutil.copyfile(Path(resume_from) / files[k], od.file(files[k]))
         mode = "a" if prior else "w"
-        fh_fin = open(od.file("finals.jsonl"), mode)
-        fh_tr = open(od.file("trajectory.jsonl"), mode)
-        fh_top = open(od.file("top64.jsonl"), mode)
+        fh_fin = open(od.file(files["finals"]), mode)
+        fh_tr = open(od.file(files["trajectory"]), mode)
+        fh_top = open(od.file(files["top64"]), mode)
         try:
             n_run = 0
             for row in sel:
@@ -1427,6 +1800,11 @@ def run(cfg, args):
                     a, model, tok, dev, alpha, alpha_t, w_e32, dirs[row], row, fam, lams, rng,
                     arm, sink_id, mdtype, read_layer, alpha_sp, init_ctx,
                     rows_meta[row].get("span_text"), sae_ctx, local_of[row],
+                    d_centred_cpu=(
+                        None if tgt.dirs_centred is None or not tgt.centrable[row]
+                        else tgt.dirs_centred[row]
+                    ),
+                    mu_vec=None if not tgt.centrable[row] else tgt.mu,
                 )
                 for r in fin:
                     fh_fin.write(json.dumps(r) + "\n")
@@ -1461,9 +1839,9 @@ def run(cfg, args):
         # OutDir.write_jsonl builds these entries for files it writes itself; these three are
         # streamed above, so their index entries are registered by hand.
         for name, n in (
-            ("finals.jsonl", len(all_finals)),
-            ("trajectory.jsonl", len(all_traj)),
-            ("top64.jsonl", len(all_top)),
+            (files["finals"], len(all_finals)),
+            (files["trajectory"], len(all_traj)),
+            (files["top64"], len(all_top)),
         ):
             od.index[name] = {"kind": "jsonl", "rows": n, "bytes": od.file(name).stat().st_size}
 
@@ -1485,12 +1863,50 @@ def run(cfg, args):
         drawn = float(sum(runs[r]["timings"]["filter_drawn"] for r in runs))
         kept = float(sum(runs[r]["timings"]["filter_kept"] for r in runs))
         tot["filter_reject_rate"] = 1.0 - kept / max(1.0, drawn)
-        tot["cos_check_same_batch_max"] = max(runs[r]["timings"]["cos_check_same_batch"] for r in runs)
-        tot["cos_check_rebatch_max"] = max(runs[r]["timings"]["cos_check_rebatch"] for r in runs)
+        # `default=`: a call that carried every direction ran no CHECK of its own, and an empty
+        # max() would turn "there was nothing left to do" into a crash after the model load.
+        tot["cos_check_same_batch_max"] = max(
+            (runs[r]["timings"]["cos_check_same_batch"] for r in runs), default=0.0
+        )
+        tot["cos_check_rebatch_max"] = max(
+            (runs[r]["timings"]["cos_check_rebatch"] for r in runs), default=0.0
+        )
 
         sae_rows = [f for f in all_finals if "sae_peak_act" in f]
+        cen_vals = [f["cos_centred"] for f in all_finals if f.get("cos_centred") is not None]
+
+        def _centred_of_reported(r):
+            """The centred cosine OF THE FINAL THIS ROW REPORTS -- the member with the best `cos`.
+
+            Not `max(cos_centred)` over the members: the arm's number is the string the objective
+            selected, and rescoring it is the point (spec §1.4, "what is optimised is not what is
+            reported"). Taking the best centred value instead would be a second, centred search
+            over the Pareto front, which is exactly the bound the paper says it does NOT have.
+            """
+            fs = [f for f in all_finals if f["row"] == r]
+            best_f = max(fs, key=lambda f: f["cos"])
+            return best_f.get("cos_centred")
+
+        per_dir_cen = [_centred_of_reported(r) for r in sel]
         summary = {
             "base": base, "set": set_name, "family": family, "arm": arm, "config": a,
+            "arm_base": arm_name(a["mode"], a["init"]), "arm_suffix": a["arm_suffix"],
+            "rows_spec": rows_spec, "chunked": chunked,
+            "files": {k: files[k] for k in (*STREAMS, "summary")},
+            # The centred rescoring: the mean, and the column the paper prints. `score_mu` is the
+            # ONE scoring constant (gcg.score_mu_spec); `mu` is what the SEARCH optimised against.
+            "score_mu": C.mu_label(tgt.score_mu_spec, base, root) if tgt.mu is not None else None,
+            "mu": C.mu_label(tgt.mu_spec, base, root),
+            "n_cos_centred": len(cen_vals),
+            "cos_centred_is": (
+                "the centred rescoring of the member with the best uncentred cos, per direction"
+            ),
+            "mean_final_cos_centred": float(np.mean(cen_vals)) if cen_vals else None,
+            "mean_per_dir_best_cos_centred": (
+                float(np.mean([x for x in per_dir_cen if x is not None]))
+                if any(x is not None for x in per_dir_cen) else None
+            ),
+            "per_dir_best_cos_centred": per_dir_cen,
             "lams": lams, "rows": sel, "family_rows": sel_local, "families": fams,
             "read_layer": read_layer, "d": cfg["bases"][base]["d"],
             "vocab": int(n_vocab),
@@ -1567,7 +1983,7 @@ def run(cfg, args):
             "totals": tot,
             "wall_min": (time.time() - t_start) / 60.0,
         }
-        od.write_json("summary.json", summary)
+        od.write_json(files["summary"], summary)
 
         od.section(
             "Objective",
@@ -1607,6 +2023,16 @@ def run(cfg, args):
                     else f"{sm['frac_peak_at_cos_argmax']:.3f} of the "
                     f"{sm['n_rows_peak_defined']} finals where it fires somewhere"
                 )
+            )
+        if summary["mean_per_dir_best_cos_centred"] is not None:
+            od.note(
+                f"CENTRED RESCORING (the column the paper prints): mean over directions of the "
+                f"reported final's `cos_centred` = "
+                f"**{summary['mean_per_dir_best_cos_centred']:.4f}**, against "
+                f"{summary['mean_per_dir_best_cos']:.4f} for the uncentred objective the search "
+                f"optimised. Both come off ONE `common.score_ids` forward per direction "
+                f"(`exact_cos`), at score_mu={summary['score_mu']} on both sides; no separate "
+                f"`score` pass is run and the search never saw the centred number"
             )
         od.note(
             f"alphabet {len(alpha)} ids of a {n_vocab}-id vocabulary (expected "
