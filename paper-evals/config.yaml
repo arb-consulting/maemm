@@ -869,7 +869,8 @@ autointerp:
 # tokens each) but its reader joins rows one at a time into >= 512-token synthetic documents,
 # and the 10M build had not finished a first block in 8 minutes. It is the DIAGNOSTIC arm,
 # outside the 21-arm conjunction, so spec 2026-09-22 section 2 already lets it carry a
-# smaller size. Ruling 2026-09-23: 4M, stated in its row.
+# smaller size. Ruling 2026-09-23: 1M -- the size the 09-21 pilot proved -- stated in its row.
+# 4M was tried first and stopped at the same 10-minute mark as 10M.
 #
 # One entry per ARM. An arm is a (source, slice) pair that gets its OWN in-domain corpus under
 # base/<base>/corpora/<arm>/ and its own 64 targets inside the held-out set 2026-09-18_ood_v1.
@@ -947,4 +948,4 @@ ood_arms:
   # `formulas` rows are single LaTeX formulas; the reader joins consecutive permuted rows with a
   # blank line into synthetic documents of >= 512 tokens (design §2). The image column of
   # `cleaned_formulas` is never read (2.8 GB of it); only `latex_formula`.
-  formulas:   {family: diag, reader: formulas, dataset: OleehyO/latex-formulas, files: [cleaned_formulas/train-00000-of-00006.parquet, cleaned_formulas/train-00001-of-00006.parquet, cleaned_formulas/train-00002-of-00006.parquet, cleaned_formulas/train-00003-of-00006.parquet, cleaned_formulas/train-00004-of-00006.parquet, cleaned_formulas/train-00005-of-00006.parquet], text: latex_formula, split: train, sizes: [1, 4], script: Latin, lid: null, unspaced: false, licence: openrail}
+  formulas:   {family: diag, reader: formulas, dataset: OleehyO/latex-formulas, files: [cleaned_formulas/train-00000-of-00006.parquet, cleaned_formulas/train-00001-of-00006.parquet, cleaned_formulas/train-00002-of-00006.parquet, cleaned_formulas/train-00003-of-00006.parquet, cleaned_formulas/train-00004-of-00006.parquet, cleaned_formulas/train-00005-of-00006.parquet], text: latex_formula, split: train, sizes: [1], script: Latin, lid: null, unspaced: false, licence: openrail}

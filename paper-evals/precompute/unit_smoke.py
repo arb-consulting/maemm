@@ -2866,8 +2866,9 @@ def check_ood_config():
     # rows than the file list has. `formulas`: the diagnostic arm, whose reader joins single
     # formulas into >= 512-token documents too slowly to reach 10M in the run's window (spec
     # section 2 lets it carry a smaller size). Both ruled to [1, 4] on 2026-09-23, both state
-    # their top size in their own row.
-    assert [a for a in SHORT if arms[a]["sizes"] != [1, 4]] == []
+    # their top size in their own row (`shell` 4M, `formulas` 1M).
+    assert arms["shell"]["sizes"] == [1, 4]
+    assert arms["formulas"]["sizes"] == [1]
     assert [a for a, s in arms.items() if s["sizes"] == [1, 4, 10, 16]] == [
         "tha_Thai",
         "ufw_en",
