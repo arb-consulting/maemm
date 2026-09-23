@@ -74,7 +74,7 @@ def _C():
 
 @app.function(image=_image, volumes=VOLUMES, timeout=3 * 3600, cpu=8)
 def example_texts(set_name: str, ex_dir: str = "", k_prompt: int = 8, k_corpus: int = 32,
-                  features_json: str = "", out: str = ""):
+                  features_json: str = "", out: str = "", corpus_name: str = ""):
     """Per feature: corpus windows as text, the peak token marked for the prompt, and the bars."""
     C = _C()
     from transformers import AutoTokenizer
@@ -82,7 +82,10 @@ def example_texts(set_name: str, ex_dir: str = "", k_prompt: int = 8, k_corpus: 
     t0 = time.time()
     cfg = C.load_config()
     tok = AutoTokenizer.from_pretrained(C.snapshot(cfg, cfg["bases"][BASE]["hf"]))
-    toks, docs = C.load_corpus(BASE, VOL)
+    # `corpus_name` MUST match the corpus the examples dir was scanned on: its doc/start fields index
+    # THAT corpus, and the default one decodes unrelated text at the same offsets without error
+    # (the paper's sets were scanned on `train_parity_10m`)
+    toks, docs = C.load_corpus(BASE, VOL, corpus_name)
     off = {int(d["doc"]): int(d["offset"]) for d in docs}
     rows = C.read_jsonl(f"{C.heldout_dir(BASE, set_name, VOL)}/ids.jsonl")
     # the paper's v3 sets mix families (`random` rows carry direction indices in the same id
@@ -240,8 +243,80 @@ def score_texts(texts: str, out: str = ""):
     return meta
 
 
+LABEL_PROMPT = """Below are {n} text excerpts from a web corpus. In each, ONE token is wrapped in \
+<<double angle brackets>>: the token where a single feature inside a language model fires most strongly. \
+All excerpts are for the SAME feature. Characterise what the feature responds to.
+
+{windows}
+
+Answer with ONLY a JSON object:
+{{"category": one of {cats},
+ "description": "<= 15 words: what the feature fires on",
+ "depends_on": one of ["token_identity", "local_phrase", "document_format", "long_range_context", "repetition"],
+ "marked_token_type": one of ["content_word", "function_word", "subword_piece", "punctuation", "whitespace", "digit", "symbol", "other"]}}
+
+Category guide: topic = words about a subject area; specific_entity = one particular name/term/entity; \
+lexical = a specific word or morpheme across topics; syntactic_role = a grammatical position or construction; \
+punctuation_boundary = clause/sentence/item boundaries; whitespace_layout = newlines, spacing, indentation; \
+numbers_dates = numerals, dates, quantities, citation years; list_table_structure = list items, bullets, table cells, \
+numbering; boilerplate_template = recurring site/legal/navigation/template text; repetition_copy = the token repeats \
+something earlier in the text; code_markup_url = code, markup, URLs, paths, emails; non_english = another language or \
+script; document_position = start/end of a document or section, headers, titles; other = none of these."""
+LABEL_CATS = ["topic", "specific_entity", "lexical", "syntactic_role", "punctuation_boundary", "whitespace_layout",
+              "numbers_dates", "list_table_structure", "boilerplate_template", "repetition_copy", "code_markup_url",
+              "non_english", "document_position", "other"]
+
+
+@app.function(image=_image, volumes=VOLUMES, secrets=SECRETS, timeout=6 * 3600, cpu=4)
+def label_features(examples: str, model: str = "claude-sonnet-5", n_windows: int = 8, workers: int = 16,
+                   out: str = ""):
+    """Blind category label per feature from its marked top corpus windows (no pass/fail shown)."""
+    import concurrent.futures as cf
+
+    import anthropic
+
+    client = anthropic.Anthropic()
+    rows = [json.loads(l) for l in open(examples)]
+    t0 = time.time()
+
+    def one(r):
+        ws = [w.replace("«", "<<").replace("»", ">>") for w in r["marked"][:n_windows]]
+        block = "\n\n".join(f"[{i + 1}] {w}" for i, w in enumerate(ws))
+        prompt = LABEL_PROMPT.format(n=len(ws), windows=block, cats=json.dumps(LABEL_CATS))
+        try:
+            resp = client.messages.create(model=model, max_tokens=2000,
+                                          messages=[{"role": "user", "content": prompt}])
+        except anthropic.APIStatusError as e:
+            return r, None, f"api {e.status_code}"
+        if resp.stop_reason == "refusal":
+            return r, None, "refusal"
+        txt = "".join(b.text for b in resp.content if b.type == "text").strip()
+        a, b = txt.find("{"), txt.rfind("}")
+        try:
+            lab = json.loads(txt[a:b + 1])
+        except Exception:
+            return r, None, "unparsed"
+        return r, lab, ""
+
+    dest = out or _out("labels.jsonl")
+    fails = {}
+    with open(dest, "w") as fh, cf.ThreadPoolExecutor(workers) as ex:
+        for i, (r, lab, err) in enumerate(ex.map(one, rows)):
+            if err:
+                fails[err] = fails.get(err, 0) + 1
+            fh.write(json.dumps({"feature": int(r["feature"]), "label": lab, "error": err}) + "\n")
+            if i % 200 == 0:
+                print(f"[label] {i}/{len(rows)} failures {fails}", flush=True)
+    vol.commit()
+    meta = {"model": model, "features": len(rows), "failures": fails, "out": dest,
+            "seconds": round(time.time() - t0, 1)}
+    print("[label] " + json.dumps(meta), flush=True)
+    return meta
+
+
 @app.function(image=_image, volumes=VOLUMES, timeout=2 * 3600, cpu=8, memory=65536)
-def token_mechanics(set_name: str, ex_dir: str = "", max_peaks: int = 16, lookback: int = 512, out: str = ""):
+def token_mechanics(set_name: str, ex_dir: str = "", max_peaks: int = 16, lookback: int = 512, out: str = "",
+                    corpus_name: str = ""):
     """Per feature, WHAT KIND OF TOKEN EVENT it fires on, from its top corpus peaks.
 
     Peaks are deduplicated by (doc, absolute position): scan windows are 64 tokens every 16, so one
@@ -259,7 +334,10 @@ def token_mechanics(set_name: str, ex_dir: str = "", max_peaks: int = 16, lookba
     t0 = time.time()
     cfg = C.load_config()
     tok = AutoTokenizer.from_pretrained(C.snapshot(cfg, cfg["bases"][BASE]["hf"]))
-    toks, docs = C.load_corpus(BASE, VOL)
+    # `corpus_name` MUST match the corpus the examples dir was scanned on: its doc/start fields index
+    # THAT corpus, and the default one decodes unrelated text at the same offsets without error
+    # (the paper's sets were scanned on `train_parity_10m`)
+    toks, docs = C.load_corpus(BASE, VOL, corpus_name)
     off = {int(d["doc"]): int(d["offset"]) for d in docs}
     rows = C.read_jsonl(f"{C.heldout_dir(BASE, set_name, VOL)}/ids.jsonl")
     feats = [int(r["id"]) for r in rows if r.get("family", "sae") == "sae"]
