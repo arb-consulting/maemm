@@ -57,6 +57,7 @@ def main():
     ap.add_argument("--perdir", action="append", required=True, metavar="[TAG=]PATH",
                     help="repeatable: perdir json from modal_8b_verbalization.eval_dirs; TAG= labels the curve")
     ap.add_argument("--sae-match", default=None, help="sae_match_8b.npz from scan_fire (rarity axis)")
+    ap.add_argument("--stem", default="", help="output basename; default is the 8B figure name")
     ap.add_argument("--out", required=True)
     ap.add_argument("--criteria", default="bar,norm,top16,last,null",
                     help="comma list of criteria to plot: bar,norm,top16,last,null")
@@ -126,10 +127,20 @@ def main():
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
     ax.legend(frameon=False, fontsize=8.2, loc="best")
-    ax.set_title(f"Qwen3-8B inverter: where it fails, by feature rarity  (n={len(feat)}, "
+    # The model NAME comes from the dump, not from this file. It was the literal "Qwen3-8B" while
+    # the SAE size and layer beside it were read from the data -- so pointing this script at a 27B
+    # dump produced a correct figure captioned with the wrong model (caught 2026-09-23).
+    _m = (s.get("_meta") or {}).get("model") or d.get("model") or "inverter"
+    _m = str(_m).split("/")[-1]
+    ax.set_title(f"{_m} inverter: where it fails, by feature rarity  (n={len(feat)}, "
                  f"{d.get('d_sae', '?')}-feature SAE @L{d.get('read_layer', '?')})",
                  fontweight="bold", color=INK, fontsize=12, loc="left")
-    stem = "fig6_8b_unverbalized_by_criterion" if len(tags) == 1 else "fig8_8b_before_after"
+    # `--stem` because these names are hardcoded to the 8B run. Pointing this script at a 27B dump
+    # silently OVERWROTE fig6_8b_unverbalized_by_criterion.{png,pdf,json} -- committed artifacts
+    # that appendix_verbalization.tex cites (caught and restored 2026-09-23). The defaults are
+    # unchanged, so every existing invocation still writes exactly where it did.
+    stem = a.stem or ("fig6_8b_unverbalized_by_criterion" if len(tags) == 1
+                      else "fig8_8b_before_after")
     for e in ("png", "pdf"):
         fig.savefig(f"{a.out}/{stem}.{e}", dpi=170, bbox_inches="tight")
 

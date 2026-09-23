@@ -1849,6 +1849,21 @@ def load_maemm(cfg: dict, base: str, maemm_key: str, device: str = "cuda"):
         import torch
         from peft import PeftModel
 
+        # `parent:` -- a LoRA whose base is ANOTHER MAEMM rather than the clean base. Needed the
+        # moment you train an adapter on top of a full-parameter checkpoint (2026-09-23: the
+        # rare-feature LoRA over rl-last16): without it the adapter loads onto the UNTRAINED base,
+        # every product runs, and the tables report a model nobody trained. The parent is resolved
+        # through this same function, so a parent may itself be `full`, `lora` or `base`.
+        parent = spec.get("parent")
+        if parent:
+            assert parent in cfg["maemms"], f"unknown parent {parent!r} of {maemm_key!r}"
+            assert parent != maemm_key, f"maemm {maemm_key!r} is its own parent"
+            model, tok, pkind = load_maemm(cfg, base, parent, device=device)
+            print(f"[load] parent {parent} ({pkind}) under adapter {path}", flush=True)
+            model = PeftModel.from_pretrained(model, path, is_trainable=False,
+                                              torch_dtype=torch.bfloat16)
+            model.eval()
+            return model, tok, "lora"
         model, tok = load_base(cfg, base, device=device)
         t0 = time.time()
         model = PeftModel.from_pretrained(model, path, is_trainable=False, torch_dtype=torch.bfloat16)

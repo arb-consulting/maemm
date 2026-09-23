@@ -208,6 +208,28 @@ maemms:
   # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
   # to pin: sha a1e4f299e0100a9340077c395504487375a63eec (config has no `revision:` key;
   # common.py asserts a single snapshot in the cache, so fetch that one and only that one).
+  qwen36-27b/2026-09-23_rare-lora:
+    # The rare-feature LoRA (Ari, 2026-09-23): trained on 64,432 mined spans over 4,027 rare
+    # l42-1b features (log10 fire rate < -3.75), bank at runs/2026-09-23_rare-train/bank.
+    # `parent:` is load-bearing. This adapter was trained ON TOP OF the pinned full-parameter
+    # checkpoint, so without it PeftModel would attach to the UNTRAINED base: every product would
+    # run, nothing would error, and the tables would report a model nobody trained. The marker-norm
+    # self-check would catch it (294.0 trained vs 14.062 clean, /vol/README.md §1) -- but only if
+    # somebody read it.
+    type: lora
+    parent: qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    src: /vol/runs/2026-09-23_rare-train/adapter
+    # INHERITED from the parent, not chosen. This LoRA added SAE-direction training on top of
+    # rl-last16; it did not retrain what the parent expects to receive on a realact row, so the
+    # composite model's convention is still the parent's whiten_mu. For the rows this adapter was
+    # actually trained on it is moot: the rare5k bank is `storage: dirs_only` -- unit(W_enc[:, f])
+    # columns, "never centred, not centrable ... every --mu is a no-op on them" -- and /vol/README.md
+    # §3 says the same of every `sae` row. So this key only bites if somebody evaluates realact
+    # through this adapter, which is exactly when a wrong value would be worth 0.26 of score.
+    mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
   qwen36-27b/2026-09-18_rl-last16-lr5e-7:
     type: full
     hf: ceselder/maemm-27b-rl-last16-lr5e-7
@@ -462,6 +484,38 @@ heldout:
   # Its held-out claim is WEAKER than the 2M set's and says so per row: it was
   # established against the earlier chains, and near-duplication against the 1.85M 2M
   # features the v2 checkpoint trained on is not established.
+  2026-09-23_sae131k_rwtest2k:
+    # The rare-weighted TEST set (Ari, 2026-09-23). Same decile shape as the rw10k training draw
+    # and disjoint from BOTH it and 2026-09-21_sae131k_2k, so it is clean for either arm.
+    # WHY IT EXISTS: 2026-09-21_sae131k_2k is a faithful random sample of the dictionary, which
+    # means its rare tail is as thin as the dictionary's -- 166 features below log10 rate -4.5,
+    # and the leftmost point of the rarity curve rests on ~50. This set has 839 below -4.5, so the
+    # region where verbalization actually fails is measured from hundreds rather than tens. The 8B
+    # oversampled rare in its TEST set for the same reason (59.2% of it in the rarest decile).
+    # Keep 2026-09-21_sae131k_2k as well: its representative spread is what detects damage to
+    # features a training run never touched, which is how the 2026-09-23 forgetting was caught.
+    imported: true
+    seed: 20260924
+    storage: dirs_only
+    sae_key: qwen36-27b/l42-1b
+    families:
+      sae: {n: 2000}
+    sae_min_fires: 20
+  2026-09-23_sae131k_rw10k:
+    # The RARE-WEIGHTED training draw (Ari, 2026-09-23). Replaces 2026-09-22_sae131k_rare5k, which
+    # was 100% deciles 0-1 and caused catastrophic forgetting: training on it took the UNTOUCHED
+    # deciles 2-9 from 3.9% to 15.0% unverbalized and collapsed the marker norm 294.0 -> 62.25.
+    # Shape copied from the 8B run that worked (commit d6148fb, reconstructed from its committed
+    # train_features.json): decile shares 51.9/25.1/7.9/7.2 then ~1.3 each for 4-9, over the
+    # ELIGIBLE dictionary. Oversamples rare heavily but keeps every decile represented, so the
+    # model has something to hold onto. Disjoint from 2026-09-21_sae131k_2k by construction.
+    imported: true
+    seed: 20260923
+    storage: dirs_only
+    sae_key: qwen36-27b/l42-1b
+    families:
+      sae: {n: 10000}
+    sae_min_fires: 20
   2026-09-22_sae131k_rare5k:
     # The RARE-MINING training draw (Ari, 2026-09-22). 5,000 features of `l42-1b` sampled from
     # /vol/shared/rare-mining/rare_pool.parquet: the 25,094 features with log10(act>0 rate) <
@@ -807,8 +861,14 @@ modal:
 # `anthropic/` prefix). NOTE `temperature` below is recorded for the protocol but NOT SENT: the
 # parameter does not exist on the Anthropic Messages API for this model generation.
 autointerp:
-  explainer_model: claude-sonnet-5
-  scorer_model: claude-sonnet-5
+  # Opus 5, the current generation (Ari, 2026-09-23). Was claude-sonnet-5. 2.5x sonnet-5's
+  # rate ($5/$25 vs $2/$10 per MTok), so `stop_above_usd` below is the binding number now,
+  # NOT max_cost_usd -- a run that cost ~$50 on sonnet lands near the $100 stop.
+  explainer_model: claude-opus-5
+  # The scorer is the higher-volume half (one call per test window, scorer_batch 5), so it
+  # dominates the bill. Same model as the explainer for now; splitting them -- opus to
+  # explain, sonnet to score -- is the obvious cost lever if the cap bites.
+  scorer_model: claude-opus-5
   # RECORDED, NOT SENT. `anthropic` 1.6.0's messages.create() has no `temperature` parameter for
   # this model generation (MEASURED 2026-09-16: TypeError), so the design's "temperature 0" is not
   # achievable on this API. Kept here as the protocol's stated intent; run.py asserts it is absent
