@@ -34,6 +34,27 @@ this set's provenance as equal to the 2M set's.
 
 Strata are quartiles of log10 peak activation over the drawn set, recorded rather than
 sampled, as in `draw_sae2m`.
+
+## The decoder twin of an existing set (`--sides dec --dirs-from <set> --rows <spec>`)
+
+    modal run precompute/modal_app.py --product draw_sae131k --base qwen36-27b \
+        --sae qwen36-27b/l42-1b --set 2026-09-24_v3_ctrl_dec --sides dec \
+        --dirs-from /vol/base/qwen36-27b/heldout/2026-09-21_v3_ctrl --rows 512-1023
+
+NOT a draw. It takes the feature ids of `--rows` of an existing set, in that order, and writes
+one row per feature whose vector is `unit(W_dec[f])` -- the decoder direction of the same
+feature -- so the encoder and decoder runs pair feature for feature with no re-sampling. Every
+copied row must be an ENCODER row of `--sae` (`common.sae_rows_of(..., side="enc")`), and the
+source's own vectors are checked against `unit(W_enc[:, f])` re-read from the checkpoint before
+anything is written, so a row range that is not this dictionary's encoder columns refuses.
+
+`storage: raw` (not `dirs_only` as the draw above): `act.f32` holds the unit decoder rows and
+`vecs.f16` is the same thing in fp16. The family is `sae`, which `family_kinds:` calls
+non-centrable, so `common.dirs_for` returns `unit(act)` at every `--mu` -- the injection is the
+raw unit decoder direction, exactly as the encoder rows of the source are injected raw -- and
+`scan --centre`, which requires `storage: raw` on every bank, can read it. Each row carries
+`sae_side: "dec"` (what `common.sae_rows_of`, `sae_self --sae-side dec` and `build --sae-side
+dec` select on) and `vector: "dec"`, plus `ids_from_set` / `ids_from_row` naming the source row.
 """
 from __future__ import annotations
 
@@ -45,7 +66,7 @@ import numpy as np
 
 import precompute.common as C
 
-from .draw_sae2m import _finish
+from .draw_sae2m import _columns, _finish
 
 N_FEATURES = 2_000
 FIT_FRACTION = 0.8
@@ -109,7 +130,174 @@ def build(cfg, args):
     return set_name, out_dir, rows, vecs, meta
 
 
+def _paired(args) -> bool:
+    """True for the decoder-twin mode, refusing every half-specified form of it.
+
+    `--sides` defaults to `enc` and, without `--dirs-from`, reproduces the 2k draw byte for byte.
+    `dec` needs a source set and a row range; `enc` WITH a source is a copy of encoder rows,
+    which is `heldout_v3 --block ctrl`'s job, and `enc,dec` would duplicate the source's own
+    encoder rows under a second name.
+    """
+    sides = str(args.get("sides") or "enc").strip()
+    src = (args.get("dirs_from") or "").strip()
+    if sides == "enc" and not src:
+        return False
+    assert sides == "dec", (
+        f"draw_sae131k --sides {sides!r}: the 131k draw is encoder-only, and the one other form "
+        f"is `--sides dec --dirs-from <set dir> --rows <spec>`, the decoder twin of an existing "
+        f"set's encoder rows. A copy of encoder rows is `heldout_v3 --block ctrl`.")
+    assert src and (args.get("rows") or "").strip(), (
+        "draw_sae131k --sides dec copies the FEATURE IDS of an existing set: pass --dirs-from <that "
+        "set's directory> and --rows <the range of its encoder rows>. It never draws, because the "
+        "point is to pair row for row with the encoder run.")
+    return True
+
+
+def build_paired(cfg, args):
+    """(set_name, out_dir, rows, act [n, d] fp32 unit, meta) -- `unit(W_dec[f])` for the source's f.
+
+    The source's rows are copied field by field (stratum, density, max_act, ...) with `row`
+    renumbered from 0, `sae_side`/`vector` set to `dec`, and the source named in `ids_from_set` /
+    `ids_from_row`. The source's own `src_set`/`src_row` are dropped: they state where the ENCODER
+    vector's bytes came from, and these rows carry different bytes.
+    """
+    base, root = args["base"], args["root"]
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    d = int(cfg["bases"][base]["d"])
+    set_name = args["heldout"]
+    assert set_name, "draw_sae131k --sides dec writes a held-out set and needs an explicit --set (D6)"
+    out_dir = C.heldout_dir(base, set_name, root)
+    assert args.get("force") or not os.path.exists(out_dir), (
+        f"{out_dir} already exists; refusing to overwrite without --force")
+
+    src = args["dirs_from"].rstrip("/")
+    src_name = os.path.basename(src)
+    assert src_name != set_name, f"--dirs-from {src} is the set being written"
+    src_rows = C.read_jsonl(f"{src}/ids.jsonl")
+    want = C.parse_rows(args["rows"], len(src_rows))
+    sel = [src_rows[i] for i in want]
+    # EVERY copied row must be an encoder row of THIS dictionary. `sae_rows_of` is the one rule
+    # (per-row sae_key, or the set's declared one for unkeyed rows); a range that strays into the
+    # `random` block or onto another dictionary's ids refuses here, by row.
+    enc = C.sae_rows_of(sel, sae_key, side="enc", declared=C.declared_sae_key(cfg, src, root),
+                        where=src)
+    stray = sorted({r["row"] for r in sel} - {r["row"] for r in enc})
+    assert not stray, (
+        f"--rows {args['rows']} of {src_name} include rows {stray[:8]} that are not encoder rows "
+        f"of {sae_key!r} (families {sorted({src_rows[i]['family'] for i in stray})}); the decoder "
+        f"twin is defined only for encoder rows of the dictionary it reads")
+    drawn = np.asarray([int(r["id"]) for r in sel], dtype=np.int64)
+    assert len(np.unique(drawn)) == len(drawn), (
+        f"--rows {args['rows']} of {src_name} repeat a feature id; the twin set would carry one "
+        f"feature twice and every per-feature join downstream would be ambiguous")
+
+    cols, gate, d_sae = _columns(C.sae_path(cfg, sae_key), d, drawn, ("enc", "dec"))
+    col_enc = cols["enc"].numpy().astype(np.float64)
+    col_dec = cols["dec"].numpy().astype(np.float32)
+
+    # THE SOURCE IS WHAT IT SAYS IT IS: its stored vectors must be this dictionary's encoder
+    # columns for exactly these ids. act.f32 when the source is raw (fp32, so ~1e-7 off), else
+    # vecs.f16 (~1e-3 off after the fp16 round trip).
+    if os.path.exists(f"{src}/act.f32"):
+        sv = C.read_array(f"{src}/act.f32", "float32", (len(src_rows), d))[np.asarray(want)]
+        src_arr = "act.f32"
+    else:
+        sv = C.read_array(f"{src}/vecs.f16", "float16", (len(src_rows), d))[np.asarray(want)]
+        src_arr = "vecs.f16"
+    sv = sv.astype(np.float64)
+    sv /= np.maximum(np.linalg.norm(sv, axis=1, keepdims=True), 1e-12)
+    cos_src = (sv * col_enc).sum(1)
+    assert float(cos_src.min()) > 0.999, (
+        f"{src_name} rows {want[int(np.argmin(cos_src))]}.. are NOT unit(W_enc[:, f]) of "
+        f"{sae_key} for their own ids: min cos {float(cos_src.min()):.6f} over {len(want)} rows "
+        f"({src_arr}). The feature ids and the stored vectors disagree, so a decoder twin keyed "
+        f"on those ids would pair against something else.")
+    cos_ed = (col_enc * col_dec.astype(np.float64)).sum(1)
+    norms = np.linalg.norm(col_dec.astype(np.float64), axis=1)
+    assert float(np.abs(norms - 1).max()) < 1e-5, f"decoder rows not unit: {norms.min()}..{norms.max()}"
+
+    rows = []
+    for j, (i, r) in enumerate(zip(want, sel, strict=True)):
+        keep = {k: v for k, v in r.items() if k not in ("row", "src_set", "src_row")}
+        rows.append({
+            "row": j,
+            **keep,
+            "family": "sae",
+            "sae_key": sae_key,
+            # `sae_side` is the SELECTOR (common.sae_rows_of, sae_self/build --sae-side);
+            # `vector` says the same thing in the words of the eval plan.
+            "sae_side": "dec",
+            "vector": "dec",
+            "ids_from_set": src_name,
+            "ids_from_row": int(i),
+        })
+    meta = {
+        "sae_key": sae_key,
+        "sides": ["dec"],
+        "d_sae": int(d_sae),
+        "gate": gate,
+        "ids_from": src,
+        "ids_from_rows": args["rows"],
+        "n": len(rows),
+        "src_vectors_checked": src_arr,
+        "src_vs_unit_enc_min_cos": round(float(cos_src.min()), 7),
+        "cos_enc_dec": {q: round(float(np.quantile(cos_ed, p)), 4)
+                        for q, p in (("min", 0.0), ("q25", 0.25), ("median", 0.5),
+                                     ("q75", 0.75), ("max", 1.0))},
+    }
+    return set_name, out_dir, rows, col_dec, meta
+
+
+def run_paired(cfg, args):
+    set_name, out_dir, rows, act, meta = build_paired(cfg, args)
+    inputs = {"sae": args.get("sae"), "ids_from": meta["ids_from"], "rows": meta["ids_from_rows"]}
+    with C.outdir(out_dir, args, inputs=inputs) as od:
+        od.write_jsonl("ids.jsonl", rows)
+        # RAW: act.f32 IS the unit decoder row and vecs.f16 is unit(act) -- the contract
+        # `common.dirs_for` reads. Non-centrable family, so no --mu ever moves either.
+        od.write_array("act.f32", act, "float32")
+        od.write_array("vecs.f16", act, "float16")
+        od.write_json(
+            "storage.json",
+            {
+                "storage": "raw",
+                "mu_stored": None,
+                "family_mu": {},
+                "families": {"sae": cfg["family_kinds"]["sae"]["kind"]},
+                "sae_key": meta["sae_key"],
+                "sae_sides": meta["sides"],
+                "ids_from": {"set": os.path.basename(meta["ids_from"]),
+                             "rows": meta["ids_from_rows"]},
+                "note": (
+                    "RAW STORAGE of unit dictionary rows -- unit(W_dec[f]) of the 131k `l42-1b` "
+                    "SAE for the feature ids of " + os.path.basename(meta["ids_from"]) + " rows "
+                    + meta["ids_from_rows"] + ", in that order. act.f32 is the unit decoder row "
+                    "and vecs.f16 is unit(act); family `sae` is not centrable (config.yaml "
+                    "family_kinds), so every --mu is a no-op on them"
+                ),
+            },
+        )
+        od.note(
+            f"DECODER TWIN, not a draw: {len(rows)} rows, row j = unit(W_dec[f]) for the feature f "
+            f"of `{os.path.basename(meta['ids_from'])}` row {rows[0]['ids_from_row']} + j "
+            f"(`--rows {meta['ids_from_rows']}`), same order, same per-row fields. `sae_side: dec` "
+            f"and `vector: dec` on every row; `ids_from_set` / `ids_from_row` name the source row.")
+        od.note(
+            f"source checked before writing: its {meta['src_vectors_checked']} rows are "
+            f"unit(W_enc[:, f]) of {meta['sae_key']} for their own ids, min cos "
+            f"{meta['src_vs_unit_enc_min_cos']}. cos(unit enc, unit dec) per feature: "
+            f"{meta['cos_enc_dec']}.")
+        od.note(f"gate {meta['gate']}; F = {meta['d_sae']:,}. The ACTIVATION of feature f is its "
+                f"ENCODER readout whichever direction was injected; `sae_self --sae-side dec` "
+                f"reads these rows' stored vectors and skips the encoder-column cross-check.")
+        od.note("HELD-OUT PROVENANCE is the source set's; nothing about it changes here.")
+    print(json.dumps({"set": set_name, "dir": out_dir, **meta}, indent=1), flush=True)
+    return {"product": "draw_sae131k", "set": set_name, **meta}
+
+
 def run(cfg, args):
+    if _paired(args):
+        return run_paired(cfg, args)
     set_name, out_dir, rows, vecs, meta = build(cfg, args)
     with C.outdir(out_dir, args, inputs={"sae": args.get("sae"), "pool": POOL}) as od:
         od.write_jsonl("ids.jsonl", rows)

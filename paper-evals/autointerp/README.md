@@ -196,6 +196,19 @@ costs ($0.0085 explain, $0.00302 detection, $0.00194 fuzzing):
 `stats.py` also gained an analysis-only robustness table (no API calls): the four headline contrasts
 recomputed over the features that needed **no top-fallback positive**.
 
+**Implemented 2026-09-23, run as M6-dec — the decoder-twin build (`--sae-side dec --products-set`).**
+A set of `sae_side: dec` rows (`features/draw_sae131k.py --sides dec --dirs-from <set> --rows <spec>`,
+e.g. `2026-09-24_v3_ctrl_dec`, the decoder rows of `2026-09-21_v3_ctrl` rows 512-1023) is built with
+`--set <twin> --sae-side dec --products-set <encoder set>`: the M arms come from the twin's own
+rollouts and `sae_self__dec`, and every CORPUS-SIDE pool (shown `examples_docmax`, the scan's
+`examples/`, the Delphi test bands, the `random_pool` negatives) is read from the encoder set, joined
+by feature id. The build refuses unless the two sets carry the same feature ids of the dictionary in
+the same order, and `build.json` records both under `set_sides`. The C16 arm, the test items and so
+the three nulls are identical to the encoder build's, so a run with `--cache-dir` pointing at the
+encoder run's cache replays them. Checked in `selfcheck.check_products_set` (identity of C16 blocks
+and test items, three mutation gates); `scan` selects encoder rows only, so a twin set's scan writes
+no second `examples/` (`unit_smoke.check_feature_keyed_products_select_encoder_rows`).
+
 **NOT implemented**: the simulation, surprisal, embedding and intruder scorers (Delphi ships them;
 the design asks for detection and fuzzing only), and any 8B row.
 

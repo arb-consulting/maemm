@@ -180,11 +180,18 @@ def main(
     # WHICH SAE of the base: required once a base carries more than one (qwen36-27b does, since
     # sae2m). sae_self, build and chain all resolve it through common.sae_key_for.
     sae: str = "",
-    # WHICH SIDE of the dictionary `sae_self` works on: `enc` (default, every set before
-    # 2026-09-21 and every product already on the volume) or `dec`, the `unit(W_dec[f])` half of a
-    # `draw_sae2m --sides enc,dec` set. `sae_self` ONLY -- build/scan/repo_examples keep the
-    # enc-only filter, and the three corpus-side stages here refuse it (sae_self.sae_side_of).
+    # WHICH SIDE of the dictionary `sae_self` / `build` work on: `enc` (default, every set before
+    # 2026-09-21 and every product already on the volume) or `dec`, the `unit(W_dec[f])` rows of
+    # a `draw_sae2m --sides enc,dec` set or a `draw_sae131k --sides dec` twin. scan/repo_examples
+    # keep the enc-only filter, and the three corpus-side stages here refuse it
+    # (sae_self.sae_side_of).
     sae_side: str = "",
+    # build: the set whose CORPUS-SIDE products (examples_docmax, random_pool, examples_4m and the
+    # scan's examples/) this build reads, when they are another set's. For a decoder twin: `--set`
+    # names the twin (its rows, its sae_self, its score residuals -> the M arms) and
+    # `--products-set` the encoder set whose pools are defined by the same features' activations.
+    # Refused unless both sets carry the same feature ids in the same order (build.run).
+    products_set: str = "",
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
     rows: str = "",
@@ -309,6 +316,12 @@ def main(
         )
     if stage == "chain" and maemm2:
         assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
+    if products_set:
+        assert stage == "build", (
+            f"--products-set names the set whose corpus-side pools a BUILD reads; it means nothing "
+            f"to stage {stage!r}")
+        assert products_set in cfg["heldout"], (
+            f"--products-set {products_set!r} is not a set in config.yaml")
     if sae_side:
         # Checked LOCALLY as well as container-side, so a typo does not cost a container start.
         from autointerp.sae_self import sae_side_of
@@ -344,6 +357,7 @@ def main(
         "maemm": maemm,
         "sae": sae,
         "sae_side": sae_side,
+        "products_set": products_set,
         "heldout": set_name,
         "rows": rows,
         "root": root.rstrip("/") or VOL,

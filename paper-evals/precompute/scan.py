@@ -336,8 +336,17 @@ def run(cfg, args):
     # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
     # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
     # encoder, silently (common.sae_rows_of).
+    # ENCODER ROWS ONLY (2026-09-23, M6-dec), as `top1_act`, `repo_examples` and `build` already
+    # select. `examples/` is keyed on the FEATURE -- the windows where its encoder readout fires --
+    # so a `sae_side: dec` row is the same feature a second time: in a paired enc+dec set it would
+    # be tested twice under one `<feature>.jsonl`, and in a decoder-only twin set (e.g.
+    # `2026-09-24_v3_ctrl_dec`) it would write a SECOND examples/ directory covering the encoder
+    # set's features at the same corpus key, which `autointerp/build.resolve_examples` then refuses
+    # as ambiguous for every later build of the encoder set. The TARGET side of the scan (the
+    # corpus top-k cosine per row) still covers every row, decoder rows included.
     sae_sel = C.sae_rows_of(
-        rows, sae_key, declared=C.declared_sae_key(cfg, C.heldout_dir(base, set_name, root), root),
+        rows, sae_key, side="enc",
+        declared=C.declared_sae_key(cfg, C.heldout_dir(base, set_name, root), root),
         where=C.heldout_dir(base, set_name, root),
     ) if sae_key else []
     tested = [int(r["id"]) for r in sae_sel]

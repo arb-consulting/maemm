@@ -578,6 +578,22 @@ heldout:
       random: {n: 512, bases: [qwen36-27b]}
       sae:    {n: 512, bases: [qwen36-27b]}
 
+  # The DECODER TWIN of `2026-09-21_v3_ctrl` rows 512-1023 (M6-dec, 2026-09-23): the SAME 512
+  # 131k feature ids in the SAME order, each row unit(W_dec[f]) instead of unit(W_enc[:, f]).
+  # Written by `draw_sae131k --sides dec --dirs-from .../2026-09-21_v3_ctrl --rows 512-1023`,
+  # which checks the source rows ARE this dictionary's encoder columns before writing. Rows carry
+  # `sae_side: dec` (sae_self / build select on it with `--sae-side dec`), `vector: dec`, and
+  # `ids_from_set`/`ids_from_row`. Raw, non-centrable: the injection is the raw unit decoder row
+  # at every --mu. The autointerp build reads its corpus-side products (docmax, random pool,
+  # examples) from the ENCODER set by `--products-set 2026-09-21_v3_ctrl` -- they are defined by
+  # the feature's activation, which is the encoder readout whatever was injected.
+  2026-09-24_v3_ctrl_dec:
+    imported: true
+    storage: raw
+    sae_key: qwen36-27b/l42-1b
+    families:
+      sae:    {n: 512, bases: [qwen36-27b]}
+
   # OUR OWN 512 realact rows, the eval-1 SANITY block: `2026-09-21_v1raw` rows 0-511 copied
   # forward (`heldout_v3 --block ours`), which are `2026-09-16_v1`'s realact draw re-forwarded
   # under the raw contract by `targets --re-derive` -- the same targets every v1 table in the

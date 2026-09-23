@@ -693,10 +693,17 @@ def main(
         assert product == "heldout_v3", (
             f"--block is a `heldout_v3` flag (which block of the v3 set to write) and means "
             f"nothing to product {product!r}")
-    if stratified or seed or sides:
+    if stratified or seed:
         assert product == "draw_sae2m", (
-            f"--stratified/--seed/--sides are `draw_sae2m` flags (how the target set is sampled "
-            f"and which dictionary sides become rows) and mean nothing to product {product!r}"
+            f"--stratified/--seed are `draw_sae2m` flags (how the target set is sampled) and mean "
+            f"nothing to product {product!r}"
+        )
+    if sides:
+        # `draw_sae131k --sides dec --dirs-from <set> --rows <spec>` is the decoder twin of an
+        # existing set's encoder rows (features/draw_sae131k.py); every other product ignores it.
+        assert product in ("draw_sae2m", "draw_sae131k"), (
+            f"--sides is a draw flag (which dictionary sides become rows): `draw_sae2m`, or "
+            f"`draw_sae131k --sides dec --dirs-from ...`. It means nothing to product {product!r}"
         )
     # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
     # MAEMM_PRODUCTS call that must be allowed without --maemm.
@@ -708,7 +715,11 @@ def main(
     # `ood_selfcheck` is CPU unless its GPU stage is asked for: `readers` is network-bound and
     # MEASURED 2026-09-18 at minutes per arm, which on an H200 is real money for a check.
     cpu_selfcheck = product == "ood_selfcheck" and "nll" not in (stages or "readers,covariates")
-    if product in CPU_PRODUCTS or (product == "targets" and import_run1) or cpu_selfcheck:
+    # `draw_sae131k --dirs-from` (the decoder twin) reads 512 columns out of one 131k checkpoint
+    # and forwards nothing, like `heldout_v3`; the 2k DRAW keeps its old placement.
+    twin = product == "draw_sae131k" and bool(dirs_from)
+    if (product in CPU_PRODUCTS or (product == "targets" and import_run1) or cpu_selfcheck
+            or twin):
         fn, label = cpu, "CPU"
     else:
         assert base, f"product {product!r} needs --base to choose the GPU"
