@@ -84,7 +84,8 @@ MEASURED_SET = "2026-09-21_sae131k_2k"
 
 @app.function(image=_base, volumes=VOLUMES, timeout=4 * 3600, cpu=8)
 def build_targets(set_name: str = RARE_SET, top_k: int = 16, max_len: int = 64,
-                  out_dir: str = "", min_act: float = 0.0):
+                  out_dir: str = "", min_act: float = 0.0, ex_dir_override: str = "",
+                  features_json: str = "", min_rel: float = 0.0, workers: int = 32):
     """Mined windows -> (feature, span text) pairs. CPU: it decodes tokens, it runs no model."""
     import sys
     sys.path.insert(0, REMOTE_ROOT)
@@ -98,26 +99,50 @@ def build_targets(set_name: str = RARE_SET, top_k: int = 16, max_len: int = 64,
     toks, docs = C.load_corpus(BASE, VOL)
     off = {int(d["doc"]): int(d["offset"]) for d in docs}
     rows_meta = C.read_jsonl(f"{C.heldout_dir(BASE, set_name, VOL)}/ids.jsonl")
-    train = [r for r in rows_meta if r.get("side") == "train"]
-    ex_dir = C.sae_examples_dir(SAE, set_name, VOL)
+    if features_json:
+        # Arm B: train on an explicit list (the failing features of the TRAIN clusters) rather than
+        # the draw's own `side`, which knows nothing about clusters.
+        want = set(int(x) for x in json.load(open(features_json))["features"])
+        train = [r for r in rows_meta if int(r["id"]) in want]
+    else:
+        train = [r for r in rows_meta if r.get("side") == "train"]
+    # a `--max-size N` scan keys its examples by CORPUS, so the path carries `__corpus__Nm`
+    # and the default lookup misses it. Name it explicitly rather than reconstruct it.
+    ex_dir = ex_dir_override or C.sae_examples_dir(SAE, set_name, VOL)
     print(f"[build] {len(train)} train-side features of {len(rows_meta)}; examples at {ex_dir}",
           flush=True)
 
-    out, missing, kept_feats = [], 0, 0
-    for i, r in enumerate(train):
+    # `min_rel`: keep a window only if it reaches that fraction of THIS feature's 16M corpus peak.
+    # An absolute `min_act` does not transfer across SAEs: the 8B's 10 was ~10% of its median peak
+    # (~103); on this SAE (median ~24) the same 10 is ~41%, and MEASURED 2026-09-23 it kept only 56%
+    # of the rarest decile against 71-83% elsewhere -- quietly undoing the rare-weighting.
+    max_act16 = C.read_array(f"{C.sae_dir(SAE, VOL)}/max_act.f16", "float16", (131072,))
+
+    import concurrent.futures as cf
+
+    def _read(r):
         f = int(r["id"])
         p = f"{ex_dir}/{f}.jsonl"
         if not os.path.exists(p):
+            return r, None
+        return r, [json.loads(l) for l in open(p)]
+
+    out, missing, kept_feats = [], 0, 0
+    with cf.ThreadPoolExecutor(workers) as pool_:          # the volume reads dominate; overlap them
+        loaded = list(pool_.map(_read, train))
+    for i, (r, ws) in enumerate(loaded):
+        f = int(r["id"])
+        if ws is None:
             missing += 1
             continue
-        ws = [json.loads(l) for l in open(p)]
         # `kind` MATTERS. An examples file holds the max-activating windows (`top`) AND the
         # activation-BAND samples (`q0`..`q3`) autointerp draws its test items from, and a window
         # can appear as both. Reading the file undifferentiated put band samples into the training
         # set and double-counted every window that was in two kinds: MEASURED 2026-09-23, 32,595
         # of 64,432 spans were exact duplicates and the median feature had 8 unique spans, not 16.
         ws = [w for w in ws if w.get("kind") == "top"]
-        ws = [w for w in ws if float(w["max_act"]) >= min_act]
+        floor = max(min_act, min_rel * float(max_act16[f]))
+        ws = [w for w in ws if float(w["max_act"]) >= floor]
         ws.sort(key=lambda w: -float(w["max_act"]))
         seen_ds = set()                       # belt and braces: one row per (doc, start)
         ws = [w for w in ws
@@ -146,6 +171,7 @@ def build_targets(set_name: str = RARE_SET, top_k: int = 16, max_len: int = 64,
     meta = {"set": set_name, "sae": SAE, "train_features": len(train),
             "features_with_spans": kept_feats, "features_missing_examples": missing,
             "spans": len(out), "top_k": top_k, "max_len": max_len, "min_act": min_act,
+            "min_rel": min_rel,
             "examples_dir": ex_dir, "seconds": round(time.time() - t0, 1)}
     json.dump(meta, open(f"{dest}/build_targets.json", "w"), indent=1)
     vol.commit()
@@ -414,7 +440,8 @@ _train_image = (
               volumes=VOLUMES, timeout=10 * 3600)
 def train_rare_mp(bank: str = "", maemm: str = "", n_gpu: int = 4, lr: float = 3e-5,
                   batch_size: int = 64, epochs: int = 1, max_seq: int = 192,
-                  run_name: str = "rare-rw10k", extra: str = ""):
+                  run_name: str = "rare-rw10k", extra: str = "", save_dir: str = "",
+                  n_ckpts: int = 5):
     """torchrun sft/pretrain.py over the mined bank, LoRA on top of the pinned full checkpoint."""
     import subprocess
     import sys
@@ -425,13 +452,25 @@ def train_rare_mp(bank: str = "", maemm: str = "", n_gpu: int = 4, lr: float = 3
     parent = maemm or MAEMM
     base_dir = C.maemm_weights_path(cfg, parent)          # the full-model dir, resolved not typed
     src = bank or f"{VOL}/runs/{time.strftime('%Y-%m-%d')}_rare-train/bank"
-    save = f"{VOL}/runs/{time.strftime('%Y-%m-%d')}_rare-train/mp_adapter"
+    save = save_dir or f"{VOL}/runs/{time.strftime('%Y-%m-%d')}_rare-train/mp_adapter"
     os.makedirs(save, exist_ok=True)
     assert os.path.exists(f"{src}/records.jsonl"), f"no bank at {src}"
     assert os.path.exists(f"{base_dir}/config.json"), f"--policy-base is not a full model: {base_dir}"
 
+    # The same LoRA the single-GPU `train_rare` uses: attention + MLP projections on the layers
+    # AFTER the injection site. pretrain.py's default is 'all-linear' on every layer, which (a) puts
+    # an adapter on block 1, where the 2026-09-23 run collapsed the marker norm 294.0 -> 62.25, and
+    # (b) adapts modules the forward never reaches, which DDP rejects at step 2 ("parameters that
+    # were not used in producing loss", 14 params) -- the first Arm B launch died on exactly that.
+    spec = cfg["maemms"][parent]
+    n_layers = int(json.load(open(f"{base_dir}/config.json")).get("text_config", {}).get("num_hidden_layers")
+                   or json.load(open(f"{base_dir}/config.json"))["num_hidden_layers"])
+    keep = "|".join(str(i) for i in range(int(spec["inject"]["layer"]) + 1, n_layers))
+    target_re = (rf"^(?!.*(visual|mtp)).*\.layers\.({keep})\."
+                 rf"(self_attn\.(q|k|v|o)_proj|mlp\.(gate|up|down)_proj)$")
     cmd = [
         "torchrun", "--standalone", f"--nproc_per_node={n_gpu}", "/root/sft/pretrain.py",
+        "--lora-target-regex", target_re, "--ddp-static-graph", "--n-ckpts", str(n_ckpts),
         "--data-dir", src, "--policy-base", base_dir, "--save-dir", save,
         "--lr", str(lr), "--batch-size", str(batch_size), "--epochs", str(epochs),
         "--max-seq", str(max_seq), "--run-name", run_name,

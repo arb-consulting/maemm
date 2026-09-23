@@ -208,6 +208,32 @@ maemms:
   # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
   # to pin: sha a1e4f299e0100a9340077c395504487375a63eec (config has no `revision:` key;
   # common.py asserts a single snapshot in the cache, so fetch that one and only that one).
+  qwen36-27b/2026-09-23_armA:
+    # Arm A: rare-weighted bank over 7,963 features of the rw10k draw (120,696 spans) (Ari, 2026-09-23). 4xB200 LoRA via sft/pretrain.py on top of the pinned
+    # rl-last16 full checkpoint: layers 2-63 only (the injection layer is left alone -- the first
+    # rare run adapted block 1 and collapsed the marker norm 294.0 -> 62.25), attention + MLP
+    # projections, lr 3e-5, 1 epoch. Bank at runs/2026-09-23_armA/bank. `parent:` and `mu:` as
+    # for 2026-09-23_rare-lora below, and for the same reasons.
+    type: lora
+    parent: qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    src: /vol/runs/2026-09-23_armA/adapter/final
+    mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
+  qwen36-27b/2026-09-23_armB:
+    # Arm B, cluster transfer: 195 failing features in 5 of 8 clusters (11,337 spans); 49 in 3 held-out clusters (Ari, 2026-09-23). 4xB200 LoRA via sft/pretrain.py on top of the pinned
+    # rl-last16 full checkpoint: layers 2-63 only (the injection layer is left alone -- the first
+    # rare run adapted block 1 and collapsed the marker norm 294.0 -> 62.25), attention + MLP
+    # projections, lr 3e-5, 1 epoch. Bank at runs/2026-09-23_armB/bank. `parent:` and `mu:` as
+    # for 2026-09-23_rare-lora below, and for the same reasons.
+    type: lora
+    parent: qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    src: /vol/runs/2026-09-23_armB/adapter/final
+    mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
   qwen36-27b/2026-09-23_rare-lora:
     # The rare-feature LoRA (Ari, 2026-09-23): trained on 64,432 mined spans over 4,027 rare
     # l42-1b features (log10 fire rate < -3.75), bank at runs/2026-09-23_rare-train/bank.
@@ -861,14 +887,8 @@ modal:
 # `anthropic/` prefix). NOTE `temperature` below is recorded for the protocol but NOT SENT: the
 # parameter does not exist on the Anthropic Messages API for this model generation.
 autointerp:
-  # Opus 5, the current generation (Ari, 2026-09-23). Was claude-sonnet-5. 2.5x sonnet-5's
-  # rate ($5/$25 vs $2/$10 per MTok), so `stop_above_usd` below is the binding number now,
-  # NOT max_cost_usd -- a run that cost ~$50 on sonnet lands near the $100 stop.
-  explainer_model: claude-opus-5
-  # The scorer is the higher-volume half (one call per test window, scorer_batch 5), so it
-  # dominates the bill. Same model as the explainer for now; splitting them -- opus to
-  # explain, sonnet to score -- is the obvious cost lever if the cap bites.
-  scorer_model: claude-opus-5
+  explainer_model: claude-sonnet-5
+  scorer_model: claude-sonnet-5
   # RECORDED, NOT SENT. `anthropic` 1.6.0's messages.create() has no `temperature` parameter for
   # this model generation (MEASURED 2026-09-16: TypeError), so the design's "temperature 0" is not
   # achievable on this API. Kept here as the protocol's stated intent; run.py asserts it is absent
