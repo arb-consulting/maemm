@@ -77,6 +77,7 @@ import autointerp.build as AB  # noqa: E402
 import precompute.common as PC  # noqa: E402
 import results.autointerp as A  # noqa: E402
 import results.autointerp_cases as AC  # noqa: E402
+import results.autointerp_encdec as AE  # noqa: E402
 import results.common as R  # noqa: E402
 import results.corpus_search as CS  # noqa: E402
 import results.faithfulness as F  # noqa: E402
@@ -4419,6 +4420,64 @@ def check_autointerp_cases_block_split():
         raise AssertionError("a block with more examples than the build stored was accepted")
 
 
+def check_autointerp_encdec_pairs_and_replay():
+    """`autointerp_encdec.compare` on the eval-2 fixture, `rl16` read as the ENCODER run and `old`
+    as the DECODER run: the paired dec - enc, the per-feature rows, and the replay check, red and
+    green.
+
+    The paired numbers are the fixture's dyadic literals: `M` detection is {10: .5, 11: .5, 12: .75,
+    13: .625} in `rl16` and {.5, .625, .625, .5} in `old`, so dec - enc = {0, +1/8, -1/8, -1/8},
+    mean -1/32 over four features with one tie; `M` fuzzing loses feature 13 to `old`'s null
+    `bal_acc`, so it pairs THREE features, {+1/8, 0, 0}, mean +1/24, and names 13 as enc-only.
+
+    The replay check is RED on `DOCMAX`, which the fixture gives different numbers in the two runs
+    and whose features were refused nowhere, and it separates the two legitimate exemptions: on `M`
+    detection feature 13 has a batch unparsed in `rl16` (`AI_PARSED`), so its difference is a
+    re-sent scorer call and the verdict names only 11 and 12. The same run read under two labels
+    is GREEN everywhere with every difference exactly zero.
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="selftest-encdec-"))
+    try:
+        write_autointerp_runs(tmp)
+        vol = R.Vol("", tmp, offline=True, quiet=True)
+        enc, dec = ("rl16", AI_RUNS["rl16"]), ("old", AI_RUNS["old"])
+        res = AE.compare(vol, enc, dec, ["M", "NLA"], ["DOCMAX", "M"], 2000, 1, bands=False)
+        pair = {(p["arm"], p["scorer"]): p for p in res["pairs"]}
+        det = pair[("M", "detection")]["bal_acc"]
+        assert det["n_paired"] == 4 and abs(det["mean"] - (-1 / 32)) < 1e-12, det
+        assert abs(det["enc_mean"] - 0.59375) < 1e-12 and abs(det["dec_mean"] - 0.5625) < 1e-12
+        assert (det["win_frac"], det["loss_frac"], det["n_zero"]) == (0.25, 0.5, 1), det
+        assert det["lo"] <= det["mean"] <= det["hi"], det
+        fz = pair[("M", "fuzzing")]["bal_acc"]
+        assert fz["n_paired"] == 3 and abs(fz["mean"] - 1 / 24) < 1e-12, fz
+        assert fz["only_enc"] == [13] and fz["only_dec"] == [], fz
+        # an arm the decoder run never scored has no pair, but its refusal still reaches the rows
+        assert "bal_acc" not in pair[("NLA", "detection")], pair[("NLA", "detection")]
+        rows = {(r["feature"], r["arm"], r["scorer"]): r for r in res["per_feature"]}
+        r13 = rows[(13, "M", "fuzzing")]
+        assert r13["bal_acc_dec"] is None and r13["diff"] is None and r13["bal_acc_enc"] == 0.5
+        n13 = rows[(13, "NLA", "detection")]
+        assert (n13["refused_enc"], n13["refused_dec"], n13["bal_acc_enc"]) == (1, 0, None), n13
+        assert rows[(11, "M", "detection")]["diff"] == 0.125
+
+        rep = {(x["arm"], x["scorer"]): x for x in res["replay"]}
+        assert not rep[("DOCMAX", "detection")]["ok"], rep[("DOCMAX", "detection")]
+        assert rep[("DOCMAX", "detection")]["unexplained"] == [10, 11, 12, 13]
+        assert rep[("DOCMAX", "fuzzing")]["differ"] == [11, 13]
+        m = rep[("M", "detection")]
+        assert m["scorer_resent"] == [13] and m["unexplained"] == [11, 12] and not m["ok"], m
+
+        same = AE.compare(vol, ("a", AI_RUNS["rl16"]), ("b", AI_RUNS["rl16"]), ["M"],
+                          ["DOCMAX", "M", "NLA"], 2000, 1, bands=False)
+        assert all(x["ok"] and x["n_identical"] == x["n_common"] for x in same["replay"]), \
+            same["replay"]
+        for p in same["pairs"]:
+            b = p["bal_acc"]
+            assert b["mean"] == 0.0 and b["lo"] == 0.0 and b["hi"] == 0.0, b
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -4460,6 +4519,8 @@ CHECKS = [
     check_autointerp_bands_catch_a_defect,
     # the four-arm case-study page -- the block reader every per-arm statistic is taken over
     check_autointerp_cases_block_split,
+    # the encoder-vs-decoder paired reader
+    check_autointerp_encdec_pairs_and_replay,
     check_ood_scan_key,
     check_ood_arm_table,
     check_ood_bo8_headline,

@@ -10,6 +10,7 @@ script per question.
 | `common.py` | the volume reader (`Vol`, `modal volume get` + a local mirror), the product readers moved over from `reconstruction/sae_smoke64.py`, source discovery, the clustered bootstrap, the markdown/CSV/figure output layer |
 | `faithfulness.py` | eval 1: one command, every (family × source × run-tag) on a set |
 | `autointerp.py` | eval 2: one command per SAE, joining the `runs/<dir>/summary/scores.jsonl` of every checkpoint's autointerp run |
+| `autointerp_encdec.py` | eval 2, encoder vs decoder: the same SAE features explained from the encoder column and from the decoder row (two run directories sharing one call cache), paired per feature with the driver's readers and bootstrap; a replay check that the cache-shared arms (C16, its nulls, `R-shuffled`) are identical except where a call was re-sent; per-band recall; and the fidelity side (Exemplifier centred bo1/bo8 and 10M corpus top-1 to each direction). Selftest covers the pairing and the replay check on the eval-2 fixture; the fidelity half has no fixture and is checked only by its in-run checks (join, `bo_c_k` stored vs recomputed) |
 | `sanity.yaml` | **the gates the user edits** — her card's numbers, `sae_smoke64.md`'s medians, our own recorded values, and `kind: cross_set` gates that read another set's product for the same checkpoint and compare the two on the rows they share; each with its tolerance and provenance |
 | `selftest.py` | the CPU unit smoke: a synthetic mirror through the whole driver, every number checked against one worked out by hand |
 
