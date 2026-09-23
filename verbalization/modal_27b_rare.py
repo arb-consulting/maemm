@@ -492,7 +492,7 @@ def train_rare_mp(bank: str = "", maemm: str = "", n_gpu: int = 4, lr: float = 3
 @app.function(image=_base.pip_install("scikit-learn"), volumes=VOLUMES, timeout=2 * 3600, cpu=8)
 def cluster_failures(failures: str = "/vol/shared/rare-mining/failures_rl-last16.json",
                      set_name: str = MEASURED_SET, k: int = 8, top_k: int = 8,
-                     seed: int = 20260923, out_dir: str = ""):
+                     seed: int = 20260923, out_dir: str = "", ex_dir: str = ""):
     """Cluster the unverbalizable features by WHAT THEY FIRE ON, then split train/test BY CLUSTER.
 
     The 8B's cluster-transfer arm (verbalization/report/data/cluster_transfer.json): 925 failing
@@ -518,7 +518,9 @@ def cluster_failures(failures: str = "/vol/shared/rare-mining/failures_rl-last16
     toks, docs = C.load_corpus(BASE, VOL)
     off = {int(d["doc"]): int(d["offset"]) for d in docs}
     tok = AutoTokenizer.from_pretrained(C.snapshot(cfg, cfg["bases"][BASE]["hf"]))
-    ex_dir = C.sae_examples_dir(SAE, set_name, VOL)
+    # a scan at a non-default corpus size lands under `<set>__<corpus>` (the rw sets: `__corpus__8m`),
+    # which sae_examples_dir does not guess -- name it
+    ex_dir = ex_dir or C.sae_examples_dir(SAE, set_name, VOL)
 
     texts, kept = [], []
     for f in feats:

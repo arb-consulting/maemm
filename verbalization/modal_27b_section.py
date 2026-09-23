@@ -240,6 +240,92 @@ def score_texts(texts: str, out: str = ""):
     return meta
 
 
+@app.function(image=_image, volumes=VOLUMES, timeout=2 * 3600, cpu=8, memory=65536)
+def token_mechanics(set_name: str, ex_dir: str = "", max_peaks: int = 16, lookback: int = 512, out: str = ""):
+    """Per feature, WHAT KIND OF TOKEN EVENT it fires on, from its top corpus peaks.
+
+    Peaks are deduplicated by (doc, absolute position): scan windows are 64 tokens every 16, so one
+    peak can be the argmax of up to four overlapping windows. Per distinct peak:
+      ws / punct / digit      the peak token decoded is whitespace / punctuation only / digits only
+      ind_bigram, ind_trigram the (prev, peak) / (prev2, prev, peak) ids occur EARLIER in the same
+                              document within `lookback` tokens -- the feature fires on a repeat
+      doc_start               peak within the first 16 tokens of its document
+      xdoc_ctx                the 8 tokens before the peak + the peak recur at a peak in ANOTHER
+                              document -- the same template text, not the same page
+    Plus n_docs (distinct documents among the peaks): low = the feature is one site or one page.
+    """
+    C = _C()
+    from transformers import AutoTokenizer
+    t0 = time.time()
+    cfg = C.load_config()
+    tok = AutoTokenizer.from_pretrained(C.snapshot(cfg, cfg["bases"][BASE]["hf"]))
+    toks, docs = C.load_corpus(BASE, VOL)
+    off = {int(d["doc"]): int(d["offset"]) for d in docs}
+    rows = C.read_jsonl(f"{C.heldout_dir(BASE, set_name, VOL)}/ids.jsonl")
+    feats = [int(r["id"]) for r in rows if r.get("family", "sae") == "sae"]
+    ex_dir = ex_dir or C.sae_examples_dir(SAE, set_name, VOL)
+    dest = out or _out(f"mechanics_{set_name}.jsonl")
+    import re as _re
+    n_ok = 0
+    with open(dest, "w") as fh:
+        for i, f in enumerate(feats):
+            p = f"{ex_dir}/{f}.jsonl"
+            if not os.path.exists(p):
+                continue
+            ws = [json.loads(l) for l in open(p)]
+            ws = [w for w in ws if w.get("kind") == "top"]
+            ws.sort(key=lambda w: -float(w["max_act"]))
+            seen, peaks = set(), []
+            for w in ws:
+                d0 = int(w["doc"])
+                if d0 not in off:
+                    continue
+                pos = int(w["start"]) + int(w["argmax"])
+                if (d0, pos) in seen:
+                    continue
+                seen.add((d0, pos)); peaks.append((d0, pos, float(w["max_act"])))
+                if len(peaks) >= max_peaks:
+                    break
+            if not peaks:
+                continue
+            rec, ctx_rows = [], []
+            ctx_by_doc = {}
+            for d0, pos, act in peaks:
+                o = off[d0]
+                pid = int(toks[o + pos])
+                s = tok.decode([pid])
+                back = [int(x) for x in toks[o + max(0, pos - lookback): o + pos]]
+                prev1 = back[-1:]; prev2 = back[-2:]
+                def occurs(ng):
+                    L = len(ng)
+                    return any(back[j:j + L] == ng for j in range(0, len(back) - L))
+                ind2 = bool(prev1) and occurs(prev1 + [pid])
+                ind3 = len(prev2) == 2 and occurs(prev2 + [pid])
+                ctx = tuple(back[-8:] + [pid])
+                ctx_by_doc.setdefault(ctx, set()).add(d0)
+                ctx_rows.append({"doc": d0, "pos": pos, "act": round(act, 3), "tok": s,
+                                 "prev": [tok.decode([t]) for t in back[-6:]],
+                                 "next": [tok.decode([int(t)]) for t in toks[o + pos + 1: o + pos + 3]]})
+                rec.append({"tok": s, "ws": not s.strip(), "punct": bool(s.strip()) and not _re.search(r"\w", s),
+                            "digit": bool(_re.fullmatch(r"\s*\d+\s*", s)), "ind_bigram": ind2, "ind_trigram": ind3,
+                            "doc_start": pos < 16, "ctx": ctx})
+            for r in rec:
+                r["xdoc_ctx"] = len(ctx_by_doc[r.pop("ctx")]) > 1
+            agg = {k: round(sum(r[k] for r in rec) / len(rec), 3)
+                   for k in ("ws", "punct", "digit", "ind_bigram", "ind_trigram", "doc_start", "xdoc_ctx")}
+            fh.write(json.dumps({"feature": f, "n_peaks": len(rec), "n_docs": len({p[0] for p in peaks}),
+                                 "peak_tokens": [r["tok"] for r in rec[:8]], **agg,
+                                 "peaks": ctx_rows}) + "\n")
+            n_ok += 1
+            if i % 500 == 0:
+                print(f"[mechanics] {i}/{len(feats)}", flush=True)
+    vol.commit()
+    meta = {"set": set_name, "features": len(feats), "written": n_ok, "out": dest,
+            "seconds": round(time.time() - t0, 1)}
+    print("[mechanics] " + json.dumps(meta), flush=True)
+    return meta
+
+
 @app.function(image=_image, volumes=VOLUMES, timeout=4 * 3600, cpu=16, memory=32768)
 def diversity(sources_json: str, examples: str, out: str = ""):
     """Per source, per feature: trigram Jaccard, bge self-cosine, and cosine to the corpus windows.

@@ -1,0 +1,5678 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16_rwtest2k.json",
+ "kinds": "verbalization/report/data/kinds_27b_rwtest2k_k64.jsonl",
+ "criterion": "norm_act < 0.1",
+ "n": 2000,
+ "n_clusters_ge_min_n": 64,
+ "all_fail_groups": [],
+ "hard_mixed_groups": [
+  {
+   "kind": 60,
+   "n": 23,
+   "fail": 17,
+   "fail_rate": 0.739,
+   "expected_fail": 11.4,
+   "log10_P_all_fail_given_rarity": -7.85,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     6
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     2
+    ]
+   ],
+   "max_norm_act": 0.72,
+   "median_norm_act": 0.043,
+   "peak_tokens": [
+    [
+     " effect",
+     2
+    ],
+    [
+     ",",
+     2
+    ],
+    [
+     " effects",
+     2
+    ],
+    [
+     " may",
+     1
+    ],
+    [
+     " drive",
+     1
+    ],
+    [
+     " know",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "ways. The following are some of the side effects that are known to be associated with this medicine. Just because a side effect is stated here does no",
+    "effects may include: - Dizziness or This is not a complete list of side effects and others\u00ab may\u00bb occur. Call your doctor for medical advice about side",
+    "sugar. Talk to your doctor or health care professional if you notice changes. You may get drowsy or dizzy. Do not\u00ab drive\u00bb, use machinery, or do anythi"
+   ],
+   "pass_samples": [
+    "stones and tumors and to view ducts in the pancreas, liver and gallbladder. Other factors that sometimes can cause pancreatitis include: - Use of any ",
+    "In English, many things are named after a particular\u00ab country\u00bb \u2013 but have you ever wondered what those things are called in those countries? 1nombre c",
+    "progress. You may get drowsy or dizzy. Do not drive, use machinery, or do anything that needs\u00ab mental\u00bb alertness until you know how this medicine affe"
+   ]
+  },
+  {
+   "kind": 0,
+   "n": 19,
+   "fail": 14,
+   "fail_rate": 0.737,
+   "expected_fail": 10.0,
+   "log10_P_all_fail_given_rarity": -6.59,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     5
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     4
+    ],
+    [
+     8,
+     2
+    ]
+   ],
+   "max_norm_act": 0.845,
+   "median_norm_act": 0.049,
+   "peak_tokens": [
+    [
+     "ish",
+     2
+    ],
+    [
+     " embryos",
+     1
+    ],
+    [
+     " of",
+     1
+    ],
+    [
+     " neph",
+     1
+    ],
+    [
+     " kidneys",
+     1
+    ],
+    [
+     " to",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "model has emerged as a relevant system to study kidney development, regeneration and disease. Both the embryonic and adult zebrafish kidneys are compo",
+    "rogenesis. In contrast, humans and other mammals seem to have only a limited ability for nephron epithelial regeneration. To date, the mechanisms resp",
+    "ability for nephron epithelial regeneration. To date, the mechanisms responsible for these kidney regeneration phenomena remain poorly understood. Sin"
+   ],
+   "pass_samples": [
+    "addition of a compound to the embryo media. Using whole-mount in situ hybridization (WISH), mRNA expression can be clearly visualized within zebrafish",
+    "ron functionality in the adult zebrafish kidney. Thus, these methods are widely applicable to the future phenotypic characterization of adult zebrafis",
+    "024. Further, proteins can be directly transfected into cells. In yet another alternative, agents such as\u00ab small\u00bb molecules may be delivered to the pa"
+   ]
+  },
+  {
+   "kind": 17,
+   "n": 34,
+   "fail": 25,
+   "fail_rate": 0.735,
+   "expected_fail": 20.1,
+   "log10_P_all_fail_given_rarity": -9.11,
+   "deciles": [
+    [
+     0,
+     9
+    ],
+    [
+     1,
+     10
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     6
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     1
+    ]
+   ],
+   "max_norm_act": 1.414,
+   "median_norm_act": 0.049,
+   "peak_tokens": [
+    [
+     " of",
+     3
+    ],
+    [
+     " by",
+     2
+    ],
+    [
+     " more",
+     1
+    ],
+    [
+     " time",
+     1
+    ],
+    [
+     " isolated",
+     1
+    ],
+    [
+     " protocol",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "1 as influenced by the gag gene isolated from acute time points from subtype C infected Zambians. This method uses restriction enzyme based cloning to",
+    "LA-mismatched recipients has been associated with reduced set point viral loads. We hypothesized this may be due to a reduced replication capacity of ",
+    "C HIV-1 proviral backbone, MJ4. This makes it more appropriate to the study of subtype C sequences than previous recombination based methods that have"
+   ],
+   "pass_samples": [
+    ", attributed to their ability to target conserved portions of the HIV-1 genome that escape with difficulty. Sequence changes attributed to cellular im",
+    "LA-mismatched recipients has been associated with reduced set point viral loads. We hypothesized this may be due to a reduced replication capacity of ",
+    "1035-41 (2010), both of which are incorporated in their entirety herein. Use of recombinant adeno\u00ab-associated\u00bb viral vectors (rAAV) is an alternative "
+   ]
+  },
+  {
+   "kind": 7,
+   "n": 14,
+   "fail": 10,
+   "fail_rate": 0.714,
+   "expected_fail": 7.8,
+   "log10_P_all_fail_given_rarity": -4.35,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     8,
+     1
+    ]
+   ],
+   "max_norm_act": 0.815,
+   "median_norm_act": 0.032,
+   "peak_tokens": [
+    [
+     "",
+     2
+    ],
+    [
+     " able",
+     2
+    ],
+    [
+     " this",
+     1
+    ],
+    [
+     " change",
+     1
+    ],
+    [
+     "edit",
+     1
+    ],
+    [
+     " services",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "link expires 10 minutes after you close the presentation - A maximum of 30 users can follow your presentation - Learn more about\u00ab this\u00bb feature in our",
+    "30 users can follow your presentation - Learn more about this feature in our knowledge base article Do you really want to delete this prezi? Neither y",
+    "- People invited to a presentation do not need a Prezi account - This link expires 10 minutes after you close the presentation - A maximum of 30 users"
+   ],
+   "pass_samples": [
+    "30 users can follow your presentation - Learn more about this feature in our knowledge base article Do you really want to delete this prezi? Neither y",
+    "Send the link below via email or IMCopy Present to your audienceStart remote presentation - Invited\u00ab audience\u00bb members will follow you as you navigate",
+    "Send the link below via email or IMCopy Present to your audienceStart remote presentation - Invited audience members will follow you as you navigate a"
+   ]
+  }
+ ],
+ "within_hard_clusters_fail_minus_pass": {
+  "log10_freq": {
+   "clusters": 4,
+   "failers_higher": 0,
+   "failers_lower": 4,
+   "median_diff_fail_minus_pass": -0.5425,
+   "sign_test_p": 0.125
+  },
+  "corpus_peak": {
+   "clusters": 4,
+   "failers_higher": 3,
+   "failers_lower": 1,
+   "median_diff_fail_minus_pass": 3.5547,
+   "sign_test_p": 0.625
+  },
+  "peakiness": {
+   "clusters": 4,
+   "failers_higher": 1,
+   "failers_lower": 3,
+   "median_diff_fail_minus_pass": -0.1307,
+   "sign_test_p": 0.625
+  },
+  "ctx_jaccard": {
+   "clusters": 4,
+   "failers_higher": 2,
+   "failers_lower": 2,
+   "median_diff_fail_minus_pass": -0.0024,
+   "sign_test_p": 1.0
+  },
+  "peak_generic": {
+   "clusters": 4,
+   "failers_higher": 2,
+   "failers_lower": 1,
+   "median_diff_fail_minus_pass": 0.25,
+   "sign_test_p": 1.0
+  }
+ },
+ "within_rarity_decile_fail_minus_pass": {
+  "log10_freq": [
+   0.011,
+   -0.0016,
+   -0.0143,
+   0.0077,
+   -0.0181,
+   -0.0222,
+   -0.0363,
+   0.0007,
+   0.0187,
+   -0.2386
+  ],
+  "corpus_peak": [
+   4.4375,
+   5.9688,
+   5.7656,
+   6.2031,
+   2.4844,
+   8.5078,
+   -1.7969,
+   0.6562,
+   -2.2344,
+   0.4062
+  ],
+  "peakiness": [
+   -0.0159,
+   0.0001,
+   -0.0218,
+   -0.0414,
+   0.0451,
+   0.0422,
+   -0.0338,
+   0.1683,
+   -0.1681,
+   0.0436
+  ],
+  "ctx_jaccard": [
+   0.0058,
+   0.0078,
+   0.0099,
+   0.0102,
+   0.0032,
+   0.0023,
+   -0.003,
+   0.0036,
+   -0.0087,
+   -0.0173
+  ],
+  "peak_generic": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   0.0,
+   1.0,
+   1.0
+  ]
+ },
+ "all_groups": [
+  {
+   "kind": 0,
+   "n": 19,
+   "fail": 14,
+   "fail_rate": 0.737,
+   "expected_fail": 10.0,
+   "log10_P_all_fail_given_rarity": -6.59,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     5
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     4
+    ],
+    [
+     8,
+     2
+    ]
+   ],
+   "max_norm_act": 0.845,
+   "median_norm_act": 0.049,
+   "peak_tokens": [
+    [
+     "ish",
+     2
+    ],
+    [
+     " embryos",
+     1
+    ],
+    [
+     " of",
+     1
+    ],
+    [
+     " neph",
+     1
+    ],
+    [
+     " kidneys",
+     1
+    ],
+    [
+     " to",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "model has emerged as a relevant system to study kidney development, regeneration and disease. Both the embryonic and adult zebrafish kidneys are compo",
+    "rogenesis. In contrast, humans and other mammals seem to have only a limited ability for nephron epithelial regeneration. To date, the mechanisms resp",
+    "ability for nephron epithelial regeneration. To date, the mechanisms responsible for these kidney regeneration phenomena remain poorly understood. Sin"
+   ],
+   "pass_samples": [
+    "addition of a compound to the embryo media. Using whole-mount in situ hybridization (WISH), mRNA expression can be clearly visualized within zebrafish",
+    "ron functionality in the adult zebrafish kidney. Thus, these methods are widely applicable to the future phenotypic characterization of adult zebrafis",
+    "024. Further, proteins can be directly transfected into cells. In yet another alternative, agents such as\u00ab small\u00bb molecules may be delivered to the pa"
+   ]
+  },
+  {
+   "kind": 1,
+   "n": 22,
+   "fail": 6,
+   "fail_rate": 0.273,
+   "expected_fail": 9.5,
+   "log10_P_all_fail_given_rarity": -11.91,
+   "deciles": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     4
+    ],
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     9,
+     4
+    ]
+   ],
+   "max_norm_act": 1.322,
+   "median_norm_act": 0.189,
+   "peak_tokens": [
+    [
+     ".",
+     4
+    ],
+    [
+     " transaction",
+     1
+    ],
+    [
+     " Rep",
+     1
+    ],
+    [
+     " find",
+     1
+    ],
+    [
+     " (",
+     1
+    ],
+    [
+     "-sharing",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "not compromised. This chapter covers the following topics: One of the goals of replication is to enable geographic distribution of the LDAP service. R",
+    "computational powers of time-sharing systems Found in other places. These Concepts ended up 1st realized in ARPANET, which set up the 1st host-to-host",
+    "systems ended up then nonetheless as well large, unwieldy, and dear to be cell or even to exist outside the house a climate-managed computing atmosphe"
+   ],
+   "pass_samples": [
+    "the ownership of one or more unspent outputs. To continue with the paper example, a\u00ab transaction\u00bb would teleport one or more bills from one or more en",
+    "Easy To Use Patents Search & Patent Lawyer Directory At Patents you can conduct a Patent Search, File a Patent Application,\u00ab find\u00bb a Patent Attorney, ",
+    "! In this lab you will query a large dataset, update the BigQuery API quota, and then optimize your query to run within quota. This lab shows you how "
+   ]
+  },
+  {
+   "kind": 2,
+   "n": 20,
+   "fail": 7,
+   "fail_rate": 0.35,
+   "expected_fail": 5.0,
+   "log10_P_all_fail_given_rarity": -15.17,
+   "deciles": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     4
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.157,
+   "median_norm_act": 0.708,
+   "peak_tokens": [
+    [
+     "-",
+     4
+    ],
+    [
+     ",",
+     2
+    ],
+    [
+     " occur",
+     1
+    ],
+    [
+     " adrenaline",
+     1
+    ],
+    [
+     " sleep",
+     1
+    ],
+    [
+     "mitt",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "edit | edit source] - Documentation of acute infectious onset process - Fatigue more than 6 months but less than 5 years \u00ab-\u00bb Meet 1994 criteria and th",
+    "includes at least five of these symptoms: - Depressed mood \u2013 feeling sad, tearful, hopeless and/or empty (in children and teenagers, depressed mood ca",
+    "occurs in hot temperatures and when the air is too humid to allow for evaporation of sweat. The body\u2019s core temperature steadily increases, and may re"
+   ],
+   "pass_samples": [
+    "head. Cluster Headaches - Cluster headaches are (thankfully) much less common than tension headaches. These intense headaches, which are typically fel",
+    "levels of\u00ab adrenaline\u00bb, nor-adrenalin, cortisol and DHEA. Eventually, the adrenals become so overworked that they become fatigued. The body is no long",
+    "machines have reported a surge of energy increase after the 3rd week of CPAP therapy. Furthermore, it has been found that CPAP is highly beneficial fo"
+   ]
+  },
+  {
+   "kind": 3,
+   "n": 5,
+   "fail": 0,
+   "fail_rate": 0.0,
+   "expected_fail": 0.5,
+   "log10_P_all_fail_given_rarity": -6.86,
+   "deciles": [
+    [
+     5,
+     1
+    ],
+    [
+     9,
+     4
+    ]
+   ],
+   "max_norm_act": 1.08,
+   "median_norm_act": 0.833,
+   "peak_tokens": [
+    [
+     " of",
+     1
+    ],
+    [
+     " pie",
+     1
+    ],
+    [
+     ",",
+     1
+    ],
+    [
+     " heritage",
+     1
+    ],
+    [
+     " too",
+     1
+    ]
+   ],
+   "fail_samples": [],
+   "pass_samples": [
+    "to the mixture. - Flaky: Flaky crusts are most indicative\u00ab of\u00bb Suzhou- and Taiwan-style mooncakes. The dough is made by rolling together alternating l",
+    "baking to yield a beautiful glossy finish. My way: The Mrs. Smith frozen\u00ab pie\u00bb directions do not include brushing egg whites over the crust and so I d",
+    "pressionist style. Post-impressionism was used to describe the maturation of French art since Manet. Vincent practiced the used of vivid colors, disti"
+   ]
+  },
+  {
+   "kind": 4,
+   "n": 37,
+   "fail": 17,
+   "fail_rate": 0.459,
+   "expected_fail": 19.6,
+   "log10_P_all_fail_given_rarity": -11.22,
+   "deciles": [
+    [
+     0,
+     5
+    ],
+    [
+     1,
+     8
+    ],
+    [
+     2,
+     6
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     7
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     1
+    ]
+   ],
+   "max_norm_act": 1.235,
+   "median_norm_act": 0.128,
+   "peak_tokens": [
+    [
+     " of",
+     3
+    ],
+    [
+     " for",
+     2
+    ],
+    [
+     " is",
+     1
+    ],
+    [
+     " Systems",
+     1
+    ],
+    [
+     ",",
+     1
+    ],
+    [
+     " low",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "produce vaccine antigens and therapeutic proteins within a short period of time. However, this technology is only just beginning to be applied to larg",
+    ", self-assembly, shear-thinning, enzyme, immobilization, organic synthesis Characterization of Complex Systems Using the Design of Experiments Approac",
+    "of biopharmaceuticals including low costs, scalability, and safety. Transient expression offers the additional advantage of short development and prod"
+   ],
+   "pass_samples": [
+    "of problems in dissecting individual tissues. Expression data needs to be confirmed and complemented with expression patterns using e.g. in situ hybri",
+    "bacteria. Microbiology, Issue 80, High-Throughput Screening Assays, Genes, Reporter, Microbial Interactions, Soil Microbiology, Coculture, microbial i",
+    "we describe here to produce these molecules is straight forward and can facilitate research in influenza laboratories, since it allows for production "
+   ]
+  },
+  {
+   "kind": 5,
+   "n": 16,
+   "fail": 8,
+   "fail_rate": 0.5,
+   "expected_fail": 6.4,
+   "log10_P_all_fail_given_rarity": -9.53,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     4
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.226,
+   "median_norm_act": 0.154,
+   "peak_tokens": [
+    [
+     " online",
+     1
+    ],
+    [
+     " vene",
+     1
+    ],
+    [
+     " to",
+     1
+    ],
+    [
+     " from",
+     1
+    ],
+    [
+     " graft",
+     1
+    ],
+    [
+     " cite",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "centric jaw relation. J Indian Prosthodont Soc 2009;9:120-6 |How to cite this URL:| Bansal S, Palaskar J. Critical evaluation of methods to record cen",
+    "ers is that they can be made to look perfectly natural and are unlikely to stain or discolour like a natural tooth. If well cared for, porcelain\u00ab vene",
+    "have inflammation which will likely result in more bone loss around that tooth. An additional way to stop the inflammation would be for the person to "
+   ],
+   "pass_samples": [
+    "Periodontists may recommend a variety of nonsurgical or surgical procedures to help stabilize the gum condition. Periodontists are also very skilled a",
+    "both short-term and long-term benefits while achieving the goal of occlusal harmony, function,\u00ab and\u00bb dental facial esthetics. Ngan and colleagues2 ill",
+    "es, the arch\u00abes\u00bb with spaces generally resulted in favorable alignment of the permanent incisors. About 40% of the arches without primary dental spaci"
+   ]
+  },
+  {
+   "kind": 6,
+   "n": 30,
+   "fail": 17,
+   "fail_rate": 0.567,
+   "expected_fail": 12.4,
+   "log10_P_all_fail_given_rarity": -13.55,
+   "deciles": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     8
+    ],
+    [
+     4,
+     6
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "max_norm_act": 1.376,
+   "median_norm_act": 0.088,
+   "peak_tokens": [
+    [
+     "When",
+     1
+    ],
+    [
+     " during",
+     1
+    ],
+    [
+     ",",
+     1
+    ],
+    [
+     " can",
+     1
+    ],
+    [
+     " with",
+     1
+    ],
+    [
+     " may",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "ote ER, Depakote SprinklesThere may be other brand names for this medicine. \u00abWhen\u00bb This Medicine Should Not Be Used Do not use this medicine if you ha",
+    "., inned, in\u2022ning. - (used to indicate inclusion within space, a place, or limits): walking in the park. - (used to indicate inclusion within somethin",
+    "mouth or throat - Difficulty breathing or swallowing Degarelix Food Interactions Medicines can interact with certain foods. In some cases, this may be"
+   ],
+   "pass_samples": [
+    "- are pregnant or plan to become pregnant - are breastfeeding or plan to breastfeed - have any allergies to medications, foods, dyes, or perservatives",
+    "-the-counter products. You will need regular blood tests to check your thyroid hormone levels. Your doctor may need to adjust your medication dose fro",
+    ". One study investigating this issue found that 38% of its participants felt that their sores were triggered this way. (Casiglia 2002) [References Lis"
+   ]
+  },
+  {
+   "kind": 7,
+   "n": 14,
+   "fail": 10,
+   "fail_rate": 0.714,
+   "expected_fail": 7.8,
+   "log10_P_all_fail_given_rarity": -4.35,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     8,
+     1
+    ]
+   ],
+   "max_norm_act": 0.815,
+   "median_norm_act": 0.032,
+   "peak_tokens": [
+    [
+     "",
+     2
+    ],
+    [
+     " able",
+     2
+    ],
+    [
+     " this",
+     1
+    ],
+    [
+     " change",
+     1
+    ],
+    [
+     "edit",
+     1
+    ],
+    [
+     " services",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "link expires 10 minutes after you close the presentation - A maximum of 30 users can follow your presentation - Learn more about\u00ab this\u00bb feature in our",
+    "30 users can follow your presentation - Learn more about this feature in our knowledge base article Do you really want to delete this prezi? Neither y",
+    "- People invited to a presentation do not need a Prezi account - This link expires 10 minutes after you close the presentation - A maximum of 30 users"
+   ],
+   "pass_samples": [
+    "30 users can follow your presentation - Learn more about this feature in our knowledge base article Do you really want to delete this prezi? Neither y",
+    "Send the link below via email or IMCopy Present to your audienceStart remote presentation - Invited\u00ab audience\u00bb members will follow you as you navigate",
+    "Send the link below via email or IMCopy Present to your audienceStart remote presentation - Invited audience members will follow you as you navigate a"
+   ]
+  },
+  {
+   "kind": 8,
+   "n": 52,
+   "fail": 22,
+   "fail_rate": 0.423,
+   "expected_fail": 20.4,
+   "log10_P_all_fail_given_rarity": -27.78,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     10
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     10
+    ],
+    [
+     8,
+     5
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.87,
+   "median_norm_act": 0.322,
+   "peak_tokens": [
+    [
+     " of",
+     4
+    ],
+    [
+     " Path",
+     2
+    ],
+    [
+     " Cell",
+     2
+    ],
+    [
+     "1",
+     2
+    ],
+    [
+     " to",
+     2
+    ],
+    [
+     " cell",
+     2
+    ]
+   ],
+   "fail_samples": [
+    ", knowing the types of cells that anthrax toxins target could spur the development of treatments that reduce damage to those cells. The above story is",
+    "010Adriamycin nephropathy: a failure of endothelial progenitor cell-induced repair.Am J\u00ab Path\u00bbol17616851695 - 51. Koyanagi M, Brandes RP, Haendeler J,",
+    "Sepp-Lorenzino L, Lobell RB. Induction of apoptosis by an inhibitor of the mitotic kinesin KSP requires both activation of the spindle assembly checkp"
+   ],
+   "pass_samples": [
+    "Samuel Frere found that while unaffected \u201cnormal\u201d neurons became hyperactive following a rise\u00ab in\u00bb amyloid-beta concentration, neurons lacking APP did",
+    "systems for brain functions would be the synaptic cellular adhesion molecules (CAMs). CAMs are necessary for regulating the growth of synapses by brid",
+    "a cell line of rat pheochromocytoma cells (PC1\u00ab2\u00bb) , much of the literature to date has focused on non-cancer cells, such as myeloid, dendritic, natur"
+   ]
+  },
+  {
+   "kind": 9,
+   "n": 23,
+   "fail": 3,
+   "fail_rate": 0.13,
+   "expected_fail": 7.3,
+   "log10_P_all_fail_given_rarity": -14.11,
+   "deciles": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 2.263,
+   "median_norm_act": 0.68,
+   "peak_tokens": [
+    [
+     " of",
+     4
+    ],
+    [
+     " to",
+     3
+    ],
+    [
+     "",
+     2
+    ],
+    [
+     " numbers",
+     1
+    ],
+    [
+     " equations",
+     1
+    ],
+    [
+     " total",
+     1
+    ]
+   ],
+   "fail_samples": [
+    ": a) the size of both sides of the rectangle b) the area of the rectangle c) the length of the diagonals - The rectangle Determine the area\u00ab of\u00bb the r",
+    "your knowledge of place value to beat your oponent. An old game but lots of arithmetic! If you have only four weights, where could you place them in o",
+    "Their Graphs Graphing all kinds of situations in one and two variables is the focus of this detailed unit of daily lessons, teaching notes, and assess"
+   ],
+   "pass_samples": [
+    "and diagonal adds to the same total. Can you design a new shape for the twenty-eight squares and arrange the numbers in a logical way? What patterns d",
+    "... 6th - 10th Math CCSS: Designed Deciphering Word Problems in Order to Write Equations Help young mathematicians crack the code of word problems wit",
+    "the code? Find out what a Deca Tree is and then work out how many leaves there will be after the woodcutter has cut off a trunk, a branch, a twig and "
+   ]
+  },
+  {
+   "kind": 10,
+   "n": 12,
+   "fail": 4,
+   "fail_rate": 0.333,
+   "expected_fail": 3.8,
+   "log10_P_all_fail_given_rarity": -7.27,
+   "deciles": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     2
+    ]
+   ],
+   "max_norm_act": 1.607,
+   "median_norm_act": 0.655,
+   "peak_tokens": [
+    [
+     " and",
+     3
+    ],
+    [
+     "\u064e\u0627",
+     1
+    ],
+    [
+     " gardens",
+     1
+    ],
+    [
+     " provoked",
+     1
+    ],
+    [
+     "ry",
+     1
+    ],
+    [
+     " in",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "6,236 numbered verses (ay\u0101t) and is divided into 114 chapters. An example verse from the Quran: (21:30) Have those who disbelieved not considered that",
+    "114 chapters. An example verse from the Quran: (21:30) Have those who disbelieved not\u00ab considered\u00bb that the heavens and the earth were a joined entity",
+    "their number was two hundred and ninety-two thousand; and they were divided among the troops,\u00ab and\u00bb taken into the Persian territories. Shortly afterw"
+   ],
+   "pass_samples": [
+    "\u064e\u0642\u0652\u0646\u064e\u0670\u0647\u064f\u0645\u064e\u0627\u06d6 \u0648\u064e\u062c\u064e\u0639\u064e\u0644\u0652\u0646\u00ab\u064e\u0627\u00bb \u0645\u0650\u0646\u064e \u0671\u0644\u0652\u0645\u064e\u0622\u0621\u0650 \u0643\u064f\u0644\u064e\u0651 \u0634\u064e\u0649\u0652\u0621\u064d \u062d\u064e\u0649\u064d\u0651\u06d6 \u0623\u064e\u0641\u064e\u0644\u064e\u0627 \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e Are the disbelievers not aware that the heavens and the earth",
+    "in wealth and sons; and bestow on you\u00ab gardens\u00bb and bestow on you rivers (of flowing water). 13. \"'What is the matter with you, that ye place not your",
+    "go in unto the land which I have given to the sons of Israel, because that ye\u00ab provoked\u00bb My mouth at the waters of Meribah. 25 `Take Aaron and Eleazar"
+   ]
+  },
+  {
+   "kind": 11,
+   "n": 23,
+   "fail": 15,
+   "fail_rate": 0.652,
+   "expected_fail": 13.8,
+   "log10_P_all_fail_given_rarity": -5.68,
+   "deciles": [
+    [
+     0,
+     8
+    ],
+    [
+     1,
+     4
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     2
+    ]
+   ],
+   "max_norm_act": 0.84,
+   "median_norm_act": 0.045,
+   "peak_tokens": [
+    [
+     " of",
+     3
+    ],
+    [
+     " community",
+     2
+    ],
+    [
+     " spelling",
+     2
+    ],
+    [
+     "ity",
+     2
+    ],
+    [
+     " content",
+     1
+    ],
+    [
+     " new",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "Faces No one from the Messeer community has shared photos. Here are new photos on AncientFaces: Messeer Country of Origin, Nationality, & Ethnicity No",
+    "Messeer Surname History The family history of the Messeer last name is maintained by the AncientFaces\u00ab community\u00bb. Join the community by adding to to ",
+    "is maintained by the AncientFaces community. Join the community by adding to to our knowldge of the Messeer: - Messeer family history - Messeer countr"
+   ],
+   "pass_samples": [
+    "Messeer country of origin, nationality, & ethnicity - Messeer last name meaning & etymology - Messeer spelling & pronunciation Latest photos on Ancien",
+    "Messeer Surname History The family history of the Messeer last name is maintained by the AncientFaces community. Join the community by adding to to ou",
+    "knowldge of the Messeer: - Messeer family history - Messeer country of origin, nationality, & ethnicity - Messeer last name\u00ab meaning\u00bb & etymology - Me"
+   ]
+  },
+  {
+   "kind": 12,
+   "n": 86,
+   "fail": 35,
+   "fail_rate": 0.407,
+   "expected_fail": 39.9,
+   "log10_P_all_fail_given_rarity": -35.15,
+   "deciles": [
+    [
+     0,
+     12
+    ],
+    [
+     1,
+     12
+    ],
+    [
+     2,
+     9
+    ],
+    [
+     3,
+     9
+    ],
+    [
+     4,
+     12
+    ],
+    [
+     5,
+     9
+    ],
+    [
+     6,
+     12
+    ],
+    [
+     7,
+     7
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.801,
+   "median_norm_act": 0.161,
+   "peak_tokens": [
+    [
+     ",",
+     7
+    ],
+    [
+     " to",
+     6
+    ],
+    [
+     ")",
+     2
+    ],
+    [
+     " generation",
+     2
+    ],
+    [
+     " of",
+     2
+    ],
+    [
+     " by",
+     2
+    ]
+   ],
+   "fail_samples": [
+    "xicant exposure regimes or genetic methods of targeted cell death such as the nitroreductase mediated cell ablation technique. Further, these methods ",
+    "assay that is amenable to high-throughput studies1 . Originally published by Naal et al.1 , we have adapted this degranulation assay for the screening",
+    "for the next two hours. Homework Help \u270e How far did the car travel? Draw a speed vs. time graph of the situation. What is the area under your curve fr"
+   ],
+   "pass_samples": [
+    "Neuronal Cultures to Study Ischemic Cell Death Pathways Institutions: University of Colorado School of Medicine, Oregon Health & Science University, U",
+    "gene replacement, gene tagging, homologous recombination, DNA, sequencing Models and Methods to Evaluate Transport of Drug Delivery Systems Across Cel",
+    "gene replacement, gene tagging, homologous recombination, DNA, sequencing Models and Methods to Evaluate Transport of Drug Delivery Systems Across Cel"
+   ]
+  },
+  {
+   "kind": 13,
+   "n": 34,
+   "fail": 9,
+   "fail_rate": 0.265,
+   "expected_fail": 11.8,
+   "log10_P_all_fail_given_rarity": -22.51,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     4
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     5
+    ],
+    [
+     9,
+     5
+    ]
+   ],
+   "max_norm_act": 1.127,
+   "median_norm_act": 0.359,
+   "peak_tokens": [
+    [
+     ",",
+     5
+    ],
+    [
+     " bright",
+     2
+    ],
+    [
+     " remove",
+     1
+    ],
+    [
+     " they",
+     1
+    ],
+    [
+     " growing",
+     1
+    ],
+    [
+     " and",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "the bottom of the trench. Place an asparagus seedling every 9 inches throughout the trench\u00ab,\u00bb spreading the roots out so they aren't all clumped up in",
+    "Click on the thumbnail to see a larger, very detailed image you can zoom in on. General Landscape is an excellent all-around soil with a sandy loam te",
+    "fflower germplasm. Canadian Journal of Plant\u00ab Science\u00bb. 86:701-732. Interpretive Summary: In many areas, winter hardy safflower would provide importan"
+   ],
+   "pass_samples": [
+    "Crown raising is a type of tree trimming where the goal is to\u00ab remove\u00bb low hanging growth to provide clearance for buildings, signs, vehicles, pedestr",
+    "conifers that can dominate coniferous forest biomes, such as pine, spruce, cypress, kauri, and redwood. Other plants still grow in coniferous forests,",
+    "day, I can safely soak my air plants for 15-30 minutes once a week. After the soaking, I shake off the excess water, especially from the bulbous ones,"
+   ]
+  },
+  {
+   "kind": 14,
+   "n": 31,
+   "fail": 10,
+   "fail_rate": 0.323,
+   "expected_fail": 6.6,
+   "log10_P_all_fail_given_rarity": -28.35,
+   "deciles": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     6
+    ],
+    [
+     8,
+     4
+    ],
+    [
+     9,
+     9
+    ]
+   ],
+   "max_norm_act": 1.48,
+   "median_norm_act": 0.238,
+   "peak_tokens": [
+    [
+     ",",
+     2
+    ],
+    [
+     " Quarterly",
+     2
+    ],
+    [
+     " some",
+     1
+    ],
+    [
+     "iology",
+     1
+    ],
+    [
+     ".,",
+     1
+    ],
+    [
+     " language",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "#4; grades 6-12 Produce clear and coherent writing in which the development, organization\u00ab,\u00bb and style are appropriate to task, purpose, and audience.",
+    "find out the current\u00ab language\u00bb situation in their community. A total of sixteen adults from Mexico and Guatemala, aged between 19 and 50, were interv",
+    ", ISBN: 97808\u00ab1\u00bb3931685; 312pp.; Price: \u00a339.95 University of Edinburgh Date accessed: 24 February, 2017 Thomas Jefferson was a man who reflected Enlig"
+   ],
+   "pass_samples": [
+    "2006). \"Valuing policies in response to climate change:\u00ab some\u00bb ethical issues\". HM Treasury. Retrieved August 28, 2009. - Vandana Shiva - 2005, Earth ",
+    ",Mulder G. When syntax meets semanticsPsychophys\u00abiology\u00bb 1997;34:660\u2013676. [pmid: 9401421]| |Kaan E,Harris A,Gibson E,Holcomb P. The P600",
+    "53. - 7 Clarke, Mrs. Louise Brownell, The Greenes of Rhode Island, New York: The Knickerbocker Press (1903), 61, Internet Archive (Digital Library). -"
+   ]
+  },
+  {
+   "kind": 15,
+   "n": 32,
+   "fail": 13,
+   "fail_rate": 0.406,
+   "expected_fail": 10.8,
+   "log10_P_all_fail_given_rarity": -19.67,
+   "deciles": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     6
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     7
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 1.976,
+   "median_norm_act": 0.263,
+   "peak_tokens": [
+    [
+     " Surg",
+     2
+    ],
+    [
+     ",",
+     2
+    ],
+    [
+     " Med",
+     1
+    ],
+    [
+     " or",
+     1
+    ],
+    [
+     " Onc",
+     1
+    ],
+    [
+     "i",
+     1
+    ]
+   ],
+   "fail_samples": [
+    ". 6. Owens DK. Improving practice guidelines with patient-specific recommendations. Ann Intern\u00ab Med\u00bb 2011; 154: 638\u2013639. 7. Wand H, Guy R, Donovan B, ",
+    "Y, Iwatsuki M, et al. Outcomes of preoperative chemotherapy with docetaxel, cisplatin, and 5-fluorouracil followed by esophagectomy in patients with r",
+    "Resection with curative intent after endoscopic treatment of airway obstruction. Ann Thorac\u00ab Surg\u00bb 1998; 65:203. - Du Rand IA, Blaikley J, Booton R, e"
+   ],
+   "pass_samples": [
+    "substrate, with\u00ab or\u00bb without the need of H-89 inhibitor. CREB protein was utilised as a handle for cPKA activity (E) Evaluation of the interaction inv",
+    "case report and literature review. J Trauma. 1996;40(3):459\u201361. Kessaris DN, Bellman GC, Pardalidis NP, Smith AG. Management of hemorrhage after percu",
+    "cele: A varicocele is a group of abnormally large veins near the testicles. These large veins may cause a dull discomfort in the affected testicle dur"
+   ]
+  },
+  {
+   "kind": 16,
+   "n": 17,
+   "fail": 2,
+   "fail_rate": 0.118,
+   "expected_fail": 2.6,
+   "log10_P_all_fail_given_rarity": -17.93,
+   "deciles": [
+    [
+     2,
+     1
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     9,
+     7
+    ]
+   ],
+   "max_norm_act": 1.265,
+   "median_norm_act": 0.99,
+   "peak_tokens": [
+    [
+     "1",
+     2
+    ],
+    [
+     " to",
+     1
+    ],
+    [
+     " require",
+     1
+    ],
+    [
+     " free",
+     1
+    ],
+    [
+     " be",
+     1
+    ],
+    [
+     " reports",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "the state exemptions; others allow you to choose between the state and federal exemptions. Whether you can keep your car depends upon how much the veh",
+    "to banking, the terms \u201cesc\u00abrow\u00bb\u201d and \u201ctrust\u201d operate pretty similarly. However, the difference is how the responsibilities are outlined for the third-"
+   ],
+   "pass_samples": [
+    "life events including incapacity, health care decision-making, and long-term care. The need for estate planning is not driven by wealth or potential t",
+    "to management for assessing collateral and associated risks. Examiners have the right to\u00ab require\u00bb an appraisal or evaluation when there are safety an",
+    "your free cash flow (i.e., you don\u2019t have higher yielding investments, higher interest debt to pay off, etc.) then take a step towards the peace of mi"
+   ]
+  },
+  {
+   "kind": 17,
+   "n": 34,
+   "fail": 25,
+   "fail_rate": 0.735,
+   "expected_fail": 20.1,
+   "log10_P_all_fail_given_rarity": -9.11,
+   "deciles": [
+    [
+     0,
+     9
+    ],
+    [
+     1,
+     10
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     6
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     1
+    ]
+   ],
+   "max_norm_act": 1.414,
+   "median_norm_act": 0.049,
+   "peak_tokens": [
+    [
+     " of",
+     3
+    ],
+    [
+     " by",
+     2
+    ],
+    [
+     " more",
+     1
+    ],
+    [
+     " time",
+     1
+    ],
+    [
+     " isolated",
+     1
+    ],
+    [
+     " protocol",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "1 as influenced by the gag gene isolated from acute time points from subtype C infected Zambians. This method uses restriction enzyme based cloning to",
+    "LA-mismatched recipients has been associated with reduced set point viral loads. We hypothesized this may be due to a reduced replication capacity of ",
+    "C HIV-1 proviral backbone, MJ4. This makes it more appropriate to the study of subtype C sequences than previous recombination based methods that have"
+   ],
+   "pass_samples": [
+    ", attributed to their ability to target conserved portions of the HIV-1 genome that escape with difficulty. Sequence changes attributed to cellular im",
+    "LA-mismatched recipients has been associated with reduced set point viral loads. We hypothesized this may be due to a reduced replication capacity of ",
+    "1035-41 (2010), both of which are incorporated in their entirety herein. Use of recombinant adeno\u00ab-associated\u00bb viral vectors (rAAV) is an alternative "
+   ]
+  },
+  {
+   "kind": 18,
+   "n": 43,
+   "fail": 7,
+   "fail_rate": 0.163,
+   "expected_fail": 9.8,
+   "log10_P_all_fail_given_rarity": -37.4,
+   "deciles": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     5
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     5
+    ],
+    [
+     8,
+     10
+    ],
+    [
+     9,
+     9
+    ]
+   ],
+   "max_norm_act": 1.647,
+   "median_norm_act": 0.894,
+   "peak_tokens": [
+    [
+     ",",
+     3
+    ],
+    [
+     "iky",
+     1
+    ],
+    [
+     " hollow",
+     1
+    ],
+    [
+     "ulus",
+     1
+    ],
+    [
+     " too",
+     1
+    ],
+    [
+     "'u",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "the hold and fell out the back of the aircraft, taking many passangers withit. This also severed all the control cables, and the aircraft entered a di",
+    "\u201cSubmarine Mare\u201d) that engulfed Lemurian Atlantis, just as the Great Father (Shiva) and his giant phallus are allegorized by Mt. Atlas. - Plato speaks",
+    "what is or is not a planet. The results are in, along with a detailed description of them. The official word is: A planet is a celestial body that (a)"
+   ],
+   "pass_samples": [
+    "whether the eclipse was a good or bad omen. It must be emphasised that this is the only astrological reference found on the mechanism though, despite ",
+    ". If these\u00ab hollow\u00bbs stay full of water and ice, the freeze/thaw cycle can cause cracks and splits to form, which weaken trees making them susceptable",
+    "alto\" for high clouds and \"nimbus\" for rain clouds. Cirrus clouds are feathery, high-flying clouds that look like thin bands of pulled cotton. Stratus"
+   ]
+  },
+  {
+   "kind": 19,
+   "n": 76,
+   "fail": 43,
+   "fail_rate": 0.566,
+   "expected_fail": 33.8,
+   "log10_P_all_fail_given_rarity": -33.72,
+   "deciles": [
+    [
+     0,
+     6
+    ],
+    [
+     1,
+     12
+    ],
+    [
+     2,
+     11
+    ],
+    [
+     3,
+     11
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     11
+    ],
+    [
+     6,
+     8
+    ],
+    [
+     7,
+     7
+    ],
+    [
+     8,
+     3
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 2.279,
+   "median_norm_act": 0.067,
+   "peak_tokens": [
+    [
+     ",",
+     3
+    ],
+    [
+     " to",
+     2
+    ],
+    [
+     " none",
+     2
+    ],
+    [
+     " Directed",
+     1
+    ],
+    [
+     " Extension",
+     1
+    ],
+    [
+     ";",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "Seven-CpG DNA Methylation Age Determined by Single Nucleotide Primer\u00ab Extension\u00bb and Illumina's Infinium MethylationEPIC Array Provide Highly Comparab",
+    ", and yeast. We successfully applied 4sU-tagging to study real-time kinetics of transcription factor activities, provide precise measurements of RNA h",
+    "linkage analyses. Am J Hum\u00ab Gen\u00bbet 81: 559\u2013575 doi: 10.1086/519795. - 36. Browning BL (2008) PRESTO: rapid calculation of order statistic distribution"
+   ],
+   "pass_samples": [
+    "yl ammonium salt. Acta Biochim Pol. 2007;54:869. Grigor\u2019eva NY, Avrutov IM, Pinsker OA, Yudina ON, Lutsenko AI, Moiseenkov AMB.\u00ab Directed\u00bb aldol conde",
+    "64, CD38, CD56, CD15, CD4(dim)) compatible with derivation from the myeloid/monocytic lineage. Karyotype showed the co-existence of three cell lines, ",
+    "significantly reduced the mutation\u00ab rate\u00bb of recurrence in both bystander 0 and + cells. Furthermore, we discovered that NF-B buy PF-04929113 (SNX-542"
+   ]
+  },
+  {
+   "kind": 20,
+   "n": 37,
+   "fail": 13,
+   "fail_rate": 0.351,
+   "expected_fail": 10.4,
+   "log10_P_all_fail_given_rarity": -28.13,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     3
+    ],
+    [
+     7,
+     7
+    ],
+    [
+     8,
+     6
+    ],
+    [
+     9,
+     6
+    ]
+   ],
+   "max_norm_act": 1.971,
+   "median_norm_act": 0.391,
+   "peak_tokens": [
+    [
+     "N",
+     2
+    ],
+    [
+     " of",
+     2
+    ],
+    [
+     "e",
+     1
+    ],
+    [
+     " Container",
+     1
+    ],
+    [
+     " online",
+     1
+    ],
+    [
+     " a",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "7, 2010JANO9 \u2013 The 9th International Conference on Numerical Analysis and Optimization |Page(s)||116 - 121| |Published\u00ab online\u00bb||26 August 2010| Integ",
+    ". - If the program uses add-ins or extensions, start the program in Safe Mode and see. If need be, check the add-ins and disable or remove the offende",
+    "Please use this identifier to cite or link to this item: \u00ab|\u00bbType:||Artigo de evento| |Title:||Back-propagation Of Ultrasound Pulses Via Directivity Sp"
+   ],
+   "pass_samples": [
+    ")||1.9599\u00abe\u00bb-03| |Mean density (gm/cm^3)||4.5| |Mean distance from Jupiter (km)||128,971| |Rotational period (days)||?| |Orbital period (days)||0.",
+    "Document Type thesis Author Name Weller, Marc F UR\u00abN\u00bb etd-011413-164639 Title Advanced Oxidation Treatment for Ibuprofen, Ketoprofen, and Naproxen in ",
+    "Factory to get the type of object which needs. It will also pass information (LEFT / CENTER / RIGHT for Color) to AbstractFactory to get the type of o"
+   ]
+  },
+  {
+   "kind": 21,
+   "n": 35,
+   "fail": 22,
+   "fail_rate": 0.629,
+   "expected_fail": 20.5,
+   "log10_P_all_fail_given_rarity": -9.06,
+   "deciles": [
+    [
+     0,
+     9
+    ],
+    [
+     1,
+     8
+    ],
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     1
+    ]
+   ],
+   "max_norm_act": 1.22,
+   "median_norm_act": 0.071,
+   "peak_tokens": [
+    [
+     " resolution",
+     2
+    ],
+    [
+     " the",
+     2
+    ],
+    [
+     " concern",
+     1
+    ],
+    [
+     "-up",
+     1
+    ],
+    [
+     "atable",
+     1
+    ],
+    [
+     " relationships",
+     1
+    ]
+   ],
+   "fail_samples": [
+    ", plasma, high-throughput, sequencing Simultaneous Multicolor Imaging of Biological Structures with Fluorescence Photoactivation Localization Microsco",
+    "0 nm in conventional light microscopy, FPALM can image length scales more than an order of magnitude smaller. As many biological hypotheses\u00ab concern\u00bb ",
+    "Biological Structures with Fluorescence Photoactivation Localization Microscopy Institutions: University of Maine. Localization-based super resolution"
+   ],
+   "pass_samples": [
+    "There isn't anything like a superb story, and nothing like being the person who started a renowned urban legend. Deciding upon the ideal approach rout",
+    "cent proteins that can be reversibly photoswitched between a fluorescent and a nonfluorescent state are important for innovative microscopy schemes, s",
+    ". In addition to detailing the methods for sample preparation and data acquisition, we here describe the optical setup for FPALM. One additional consi"
+   ]
+  },
+  {
+   "kind": 22,
+   "n": 48,
+   "fail": 9,
+   "fail_rate": 0.188,
+   "expected_fail": 21.0,
+   "log10_P_all_fail_given_rarity": -24.79,
+   "deciles": [
+    [
+     0,
+     7
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     11
+    ],
+    [
+     3,
+     5
+    ],
+    [
+     4,
+     6
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     4
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     6
+    ]
+   ],
+   "max_norm_act": 2.476,
+   "median_norm_act": 0.221,
+   "peak_tokens": [
+    [
+     " read",
+     2
+    ],
+    [
+     " for",
+     2
+    ],
+    [
+     " sure",
+     1
+    ],
+    [
+     " a",
+     1
+    ],
+    [
+     " ranges",
+     1
+    ],
+    [
+     " legends",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "move of independence may be too early. Each lesson in handwriting should start on a fresh new page, so the little one becomes enough room to practice.",
+    "The worksheets are offered in developmentally appropriate versions for kids of different ages. Adding and subtracting integers worksheets in many rang",
+    "assortment of 4 intriguing pursuits that will enhance your kid's knowledge and abilities. The worksheets are offered in developmentally appropriate ve"
+   ],
+   "pass_samples": [
+    "started a renowned urban legend. Deciding upon the ideal approach route Cursive writing is basically joined-up handwriting. Practice reading by yourse",
+    ". Lua is\u00ab a\u00bb lightweight, high-performance programming language that is widely used for scripting in video games and other applications. It is designe",
+    "assortment of 4 intriguing pursuits that will enhance your kid's knowledge and abilities. The worksheets are offered in developmentally appropriate ve"
+   ]
+  },
+  {
+   "kind": 23,
+   "n": 11,
+   "fail": 6,
+   "fail_rate": 0.545,
+   "expected_fail": 4.3,
+   "log10_P_all_fail_given_rarity": -6.09,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     6,
+     3
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "max_norm_act": 2.766,
+   "median_norm_act": 0.08,
+   "peak_tokens": [
+    [
+     ",",
+     2
+    ],
+    [
+     "1",
+     1
+    ],
+    [
+     "0",
+     1
+    ],
+    [
+     ".",
+     1
+    ],
+    [
+     " \u2014",
+     1
+    ],
+    [
+     " programming",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "of Maintainability of an Aspect-Oriented System Department of Computer Science, University of Botswana, Private Bag 0704, Gaborone, Botswana Received ",
+    "'Anna, A. Garcia, R. Coelho, A. Von Staa, and C. Lucena, \u201cQuantifying the effects of aspect-oriented programming: a maintenance study,\u201d in Proceedings",
+    "12; Published: August 8, 2012 Copyright: \u00a9 Frank et al. This is an open-access article distributed under the terms of the Creative Commons Attribution"
+   ],
+   "pass_samples": [
+    "amount of detail and expressivity of the formal and informal parts of the ontology. As for the last comment, the CPU example shows how an ontology of ",
+    "ide by 0 exception\". \u201cDon\u2019t worry if it doesn\u2019t work right. If everything did, you\u2019d be out of a job.\u201d (Mosher's Law of Software Engineering) \u201cIf debu",
+    "time. Kanban was invented as\u00ab a\u00bb tool of project management for a famous Japanese corporation Toyota. Its main idea was simple. The project management"
+   ]
+  },
+  {
+   "kind": 24,
+   "n": 51,
+   "fail": 12,
+   "fail_rate": 0.235,
+   "expected_fail": 13.5,
+   "log10_P_all_fail_given_rarity": -42.06,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     7
+    ],
+    [
+     4,
+     6
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     4
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     12
+    ]
+   ],
+   "max_norm_act": 1.745,
+   "median_norm_act": 0.627,
+   "peak_tokens": [
+    [
+     " for",
+     4
+    ],
+    [
+     " of",
+     2
+    ],
+    [
+     " Reading",
+     1
+    ],
+    [
+     " would",
+     1
+    ],
+    [
+     "t",
+     1
+    ],
+    [
+     " equal",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "from voltage reduction. Voltage reduction occurs in NiMH cells as a result of not discharging and recharging the battery properly. When the output vol",
+    "sceptical than Professor David Stuart, Professor of Structural Biology at NDM\u2019s Division of Structural Biology and Director of Life Sciences at Diamon",
+    "ya University, Multan, Pakistan Copyright \u00a9 2009 Faisal Ali and Muhammad Anwar Chaudhry. This is an open access article distributed under the Creative"
+   ],
+   "pass_samples": [
+    "innrost J: Silicon nanoribbons for electrical detection of biomolecules. Nano Let\u00abt\u00bb 2008, 8: 945\u2013949. 10.1021/nl080094rView ArticleGoogle Scholar - S",
+    "Another way to make your computer speakers louder is to buy external speakers that plug into your computer. External speakers will typically be louder",
+    "fun \u2013 Usb Cable Explanation Power Wiring Diagram To be able to construct a USB cable, you have to gather these materials. - Cat-5 cable of desirable l"
+   ]
+  },
+  {
+   "kind": 25,
+   "n": 20,
+   "fail": 5,
+   "fail_rate": 0.25,
+   "expected_fail": 5.0,
+   "log10_P_all_fail_given_rarity": -14.62,
+   "deciles": [
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     5
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "max_norm_act": 1.752,
+   "median_norm_act": 0.512,
+   "peak_tokens": [
+    [
+     " of",
+     2
+    ],
+    [
+     " new",
+     1
+    ],
+    [
+     ",",
+     1
+    ],
+    [
+     "2",
+     1
+    ],
+    [
+     "then",
+     1
+    ],
+    [
+     "bon",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "Gen. 6:\u00ab2\u00bb0; 7:14). The equivalent Greek word \u201cgenos\u201d was used in the Septuagint (a translation of the Old Testament into Koine Greek in about 300-100",
+    "84) The first major historian to deal with the decline and Fall of Rome was the 5th century historian Zosimus, but the best-known name connected with ",
+    "scenes from Roman comedy. Roman historiography is indebted to the Greeks, who invented the form. The Romans had great models to base their works upon,"
+   ],
+   "pass_samples": [
+    "preparation for a \u201cnew heaven and\u00ab new\u00bb earth.\u201d He was to be the centre and pontiff, and another adept, Comte Grabianka, was to be king. The six-year-",
+    "cometh out to meet him with much people, and with a strong hand; 21 and Edom refuseth to suffer Israel to pass over through his border, and Israel tur",
+    ", hardened by exercise from his youth, inured to hardship, battle and privation. The member of a legion carried, in addition to his arms, a sack conta"
+   ]
+  },
+  {
+   "kind": 26,
+   "n": 41,
+   "fail": 15,
+   "fail_rate": 0.366,
+   "expected_fail": 13.3,
+   "log10_P_all_fail_given_rarity": -28.97,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     5
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     6
+    ],
+    [
+     9,
+     7
+    ]
+   ],
+   "max_norm_act": 1.155,
+   "median_norm_act": 0.246,
+   "peak_tokens": [
+    [
+     ",",
+     4
+    ],
+    [
+     " as",
+     2
+    ],
+    [
+     " of",
+     2
+    ],
+    [
+     " are",
+     2
+    ],
+    [
+     " false",
+     1
+    ],
+    [
+     " features",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "creating devices for use in such methods and systems. The present invention provides substantial advantages over the devices taught in the prior art. ",
+    ", and methods for the generation thereof. SUMMARY OF THE INVENTION This Summary is provided to introduce a selection of concepts in a simplified form ",
+    "is a piercing tooling that involves punching a large number of closely spaced holes. Metal stamping parts Drawing is the main stamping process in all."
+   ],
+   "pass_samples": [
+    ". The spatial and temporal color variations are finally applied to detect fires. Our extensive experimental results demonstrate that the proposed syst",
+    "This great app allows you to use your iPad\u00ab as\u00bb a document scanner. It automatically detects documents or notes of any size and offers enhancement opt",
+    "referents unless the context clearly dictates otherwise. In addition, a reference to \"sorting\" or \"inducing\" includes reference to equivalent steps an"
+   ]
+  },
+  {
+   "kind": 27,
+   "n": 18,
+   "fail": 6,
+   "fail_rate": 0.333,
+   "expected_fail": 8.7,
+   "log10_P_all_fail_given_rarity": -7.09,
+   "deciles": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "max_norm_act": 1.063,
+   "median_norm_act": 0.175,
+   "peak_tokens": [
+    [
+     "2",
+     2
+    ],
+    [
+     " picture",
+     1
+    ],
+    [
+     " Responsibility",
+     1
+    ],
+    [
+     " Form",
+     1
+    ],
+    [
+     "ICS",
+     1
+    ],
+    [
+     " and",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "and shows your organization exactly what to do next: - The Self-Assessment Excel Dashboard; with the Serviceability (structure) Self-Assessment and Sc",
+    "Cost Baseline - 2.24 Quality Management Plan - 2.25 Quality Metrics - 2.26 Process Improvement Plan - 2.27\u00ab Responsibility\u00bb Assignment Matrix - 2.28 R",
+    "1: Get your bearings - The latest quick edition of the Serviceability (structure) Self Assessment book in PDF containing 49 requirements to perform a "
+   ],
+   "pass_samples": [
+    "; Start and manage Serviceability (structure) projects with the 62 implementation resources: - 62 step-by-step Serviceability (structure) Project Mana",
+    "\u2019s a number of related activities which ISO 27001 expects to see. Once again we\u2019ll spare you a long list, but think along the following lines: - Invol",
+    "through the project initiation and up to the manufacturing phase \u2013 this approach represents the only way to ensure nothing is \"lost in translation\" an"
+   ]
+  },
+  {
+   "kind": 28,
+   "n": 31,
+   "fail": 18,
+   "fail_rate": 0.581,
+   "expected_fail": 16.5,
+   "log10_P_all_fail_given_rarity": -13.19,
+   "deciles": [
+    [
+     0,
+     12
+    ],
+    [
+     1,
+     4
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 1.012,
+   "median_norm_act": 0.073,
+   "peak_tokens": [
+    [
+     "",
+     2
+    ],
+    [
+     " may",
+     2
+    ],
+    [
+     "bi",
+     1
+    ],
+    [
+     " price",
+     1
+    ],
+    [
+     " is",
+     1
+    ],
+    [
+     ".",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "ins in the adult nervous system. Prog Neuro\u00abbi\u00bbol 71: 249\u2013267. - 43. Tran TS, Kolodkin AL, Bharadwaj R (2007) Semaphorin regulation of cellular morpho",
+    "you can use the pattern \"[a-z][a-z][a-z]\"; and the same idea applies to a pattern that matches three consecutive upper case Observe that the element \"",
+    "tips on where to find sample content for your research paper bibliography. Research Paper Writing Services\u00ab \u00bbIf you need help writing a research paper"
+   ],
+   "pass_samples": [
+    "https://creativecommons.org/licenses/by/4.0/. Statistics from Altmetric.com If you wish to reuse any or all of this article please use the link below ",
+    "... And so you have 1,776. So 1,776\u00ab is\u00bb the absolute error. Now we tried to tell you the other day that they found I could use absolute error, but we",
+    "), etc. This information is used to improve your customer experience. When you use our services or look\u00ab at\u00bb the contents of our website, your activit"
+   ]
+  },
+  {
+   "kind": 29,
+   "n": 60,
+   "fail": 10,
+   "fail_rate": 0.167,
+   "expected_fail": 15.4,
+   "log10_P_all_fail_given_rarity": -49.88,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     8
+    ],
+    [
+     5,
+     4
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     9
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     14
+    ]
+   ],
+   "max_norm_act": 1.911,
+   "median_norm_act": 0.839,
+   "peak_tokens": [
+    [
+     " for",
+     3
+    ],
+    [
+     " a",
+     2
+    ],
+    [
+     " the",
+     2
+    ],
+    [
+     " ",
+     2
+    ],
+    [
+     " to",
+     2
+    ],
+    [
+     " content",
+     2
+    ]
+   ],
+   "fail_samples": [
+    "tely a profitable one when we \"destroy\" the first kilogram of iron ore to manufacture the first knife and the first wheel: the added value of what we ",
+    "4 ways to make your scholarship essay stand out the essay is your best chance to make the case for why you should receive the scholarship. Why do you ",
+    "ual and Category Processing of the Uncanny Valley Hypothesis' Dimension of Human Likeness: Some Methodological Issues Institutions: University of Zuri"
+   ],
+   "pass_samples": [
+    "philosophical note in this respect: Nature is\u00ab exhaust\u00bbible by destructive human forces and by the greed of billions, but, perhaps, it is inexhaustibl",
+    "Aristotle once stated, man is\u00ab a\u00bb political animal by nature. He creates and lives in a society with his peers, and he aspires to both dominate and be",
+    "has been pointed out that those most responsible for climate change\u00ab are\u00bb not the same people as those most vulnerable to its effects. An article in t"
+   ]
+  },
+  {
+   "kind": 30,
+   "n": 50,
+   "fail": 17,
+   "fail_rate": 0.34,
+   "expected_fail": 14.6,
+   "log10_P_all_fail_given_rarity": -37.57,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     6
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     7
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     5
+    ],
+    [
+     8,
+     10
+    ],
+    [
+     9,
+     8
+    ]
+   ],
+   "max_norm_act": 1.608,
+   "median_norm_act": 0.436,
+   "peak_tokens": [
+    [
+     " of",
+     4
+    ],
+    [
+     " the",
+     3
+    ],
+    [
+     " that",
+     2
+    ],
+    [
+     " documents",
+     2
+    ],
+    [
+     ",",
+     2
+    ],
+    [
+     " and",
+     2
+    ]
+   ],
+   "fail_samples": [
+    "assay that is amenable to high-throughput studies1 . Originally published by Naal et al.1 , we have adapted this degranulation assay for the screening",
+    "sources, connecting insights gained from specific details to an understanding of the text as a whole. Determine the central ideas or information of a ",
+    "\u00e6dia Britannica Inc., 2012. Web. 16 Nov. 2012. University/College: University of California Type of paper: Thesis/Dissertation Chapter Date: 24 Octobe"
+   ],
+   "pass_samples": [
+    "tips on where to find sample content for your research paper bibliography. Research Paper Writing Services If you need help writing a\u00ab research\u00bb paper",
+    "-specific format. Check with your professor for any additional instructions. - Include a cover\u00ab page\u00bb containing the title of the assignment, the stud",
+    "genesis of second foreign language learning. And physicists in britain and the structure of the book, or negotiate to have your chair to guide you to "
+   ]
+  },
+  {
+   "kind": 31,
+   "n": 33,
+   "fail": 11,
+   "fail_rate": 0.333,
+   "expected_fail": 8.9,
+   "log10_P_all_fail_given_rarity": -24.55,
+   "deciles": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     6
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     6
+    ],
+    [
+     8,
+     4
+    ],
+    [
+     9,
+     5
+    ]
+   ],
+   "max_norm_act": 2.555,
+   "median_norm_act": 0.629,
+   "peak_tokens": [
+    [
+     " by",
+     4
+    ],
+    [
+     ",",
+     3
+    ],
+    [
+     " bleeding",
+     1
+    ],
+    [
+     "pl",
+     1
+    ],
+    [
+     "from",
+     1
+    ],
+    [
+     "ard",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "), arthritis, and swollen joints, especially in wrists, small joints of the hands, elbows\u00ab,\u00bb knees, and ankles \u00b7 Swelling of the hands and feet due to",
+    ". The etiology of fibrous dys\u00abpl\u00bbasia has been linked with a missense mutation in the GNAS1 gene on chromosome 20. Abnormal proliferation of fibrous t",
+    "and posture, and weakness. Also called paralysis agitans, shaking palsy. from Wiktionary, Creative Commons Attribution/Share-Alike License - n. A chro"
+   ],
+   "pass_samples": [
+    "What is Rosacea? Rosacea is a common skin condition. It usually begins with a tendency to blush or flush more easily than other people. The redness ca",
+    "-exposure immunoglobulin and in infants who still have some passive immunity. Modified measles is typically milder than a regular case of measles. Hem",
+    ". It may be caused by a multitude of the viruses including Canine Parainfluenza, Canine Distemper, Canine Adenovirus 2 and the bacteria Bordetella Bro"
+   ]
+  },
+  {
+   "kind": 32,
+   "n": 22,
+   "fail": 7,
+   "fail_rate": 0.318,
+   "expected_fail": 9.5,
+   "log10_P_all_fail_given_rarity": -11.61,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.363,
+   "median_norm_act": 0.323,
+   "peak_tokens": [
+    [
+     " avoiding",
+     2
+    ],
+    [
+     " trap",
+     1
+    ],
+    [
+     " note",
+     1
+    ],
+    [
+     " this",
+     1
+    ],
+    [
+     " uploaded",
+     1
+    ],
+    [
+     " provided",
+     1
+    ]
+   ],
+   "fail_samples": [
+    ": Camping Air Mattresses : Sports & Outdoors. Below are the photos: Amazon Coleman Air Mattress was published at January 9, 2018 at 8:50 pm. It is\u00ab up",
+    "us containing this and other information about the investment company can be obtained from your financial professional. Read it carefully before you i",
+    "professional. Read it carefully before you invest or send money. Shares, when redeemed, may be worth more or less than their original cost. The conten"
+   ],
+   "pass_samples": [
+    "the leg-hold\u00ab trap\u00bb and the seal product trade. Some countries have banned the dog and cat fur trade, and have labeling laws. Additionally, Israel has",
+    "Editor\u2019s\u00ab note\u00bb: After 30 years of publishing Orion, founder M.G.H. Gilliam announced in the November/December issue that he would be leaving the maga",
+    ". ClevelandClinic.org, 2019 3. MayoClinic.org, 2020 The content is developed from sources believed to be providing accurate information. The informati"
+   ]
+  },
+  {
+   "kind": 33,
+   "n": 30,
+   "fail": 7,
+   "fail_rate": 0.233,
+   "expected_fail": 8.0,
+   "log10_P_all_fail_given_rarity": -21.33,
+   "deciles": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     3
+    ],
+    [
+     5,
+     5
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     5
+    ],
+    [
+     8,
+     6
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.341,
+   "median_norm_act": 0.554,
+   "peak_tokens": [
+    [
+     "-",
+     3
+    ],
+    [
+     " of",
+     2
+    ],
+    [
+     " with",
+     2
+    ],
+    [
+     " medicine",
+     2
+    ],
+    [
+     " including",
+     1
+    ],
+    [
+     " cough",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "what the side effects are. - Ask if your child\u2019s condition can be treated in other ways. - Know why a test or procedure is recommended and what the re",
+    "prevent illness and injury. Wash your hands often. - Your doctor will do lab tests at regular visits to check on the effects of this medicine. Keep al",
+    "with your doctor, nurse, or pharmacist about how to store it. - Keep all drugs in a safe place. Keep all drugs out of the reach of children and pets. "
+   ],
+   "pass_samples": [
+    ", too) don\u2019t know the right way to wash their hands. Proper hand washing technique includes at least 30 seconds of serious scrubbing,\u00ab including\u00bb gett",
+    "most likely ask you to leave any metal jewelry, including watches and rings, outside of the exam room. Other items to avoid bringing with you are: - B",
+    ". - Wear a cloth face covering. - Wash your hands often with soap and water and for at least 20 seconds. - Avoid touching your eyes, nose or mouth wit"
+   ]
+  },
+  {
+   "kind": 34,
+   "n": 49,
+   "fail": 14,
+   "fail_rate": 0.286,
+   "expected_fail": 16.8,
+   "log10_P_all_fail_given_rarity": -35.55,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     7
+    ],
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     5
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     7
+    ],
+    [
+     9,
+     11
+    ]
+   ],
+   "max_norm_act": 1.699,
+   "median_norm_act": 0.553,
+   "peak_tokens": [
+    [
+     " of",
+     4
+    ],
+    [
+     ".",
+     2
+    ],
+    [
+     " clear",
+     1
+    ],
+    [
+     " email",
+     1
+    ],
+    [
+     "clamation",
+     1
+    ],
+    [
+     "1",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "and shows your organization exactly what to do next: - The Self-Assessment Excel Dashboard; with the Serviceability (structure) Self-Assessment and Sc",
+    ", you may want to consider some counseling. I can be reached at 888 580-ZONE or you can e-mail me at\u00ab email\u00bb@example.com Jay P. Granat, Ph.D. is the F",
+    "flipped classroom allows kids to watch instructional videos at home and then use class time for problem solving, where the teacher is on hand to help."
+   ],
+   "pass_samples": [
+    "comma, question mark, ex\u00abclamation\u00bb mark. - Put a space after a full stop, comma, question mark, exclamation mark. - Do not put a space after opening ",
+    "(0.87 MP) 9.2 cm \u00d7 6.8 cm @ 300 PPI A later draft of MS. 426. Published, in part, as 1.203-283 (pp. \u00ab1\u00bb-123, with",
+    "specific design projects that broaden their knowledge of the field. - Describe how the intern will be supervised. Interns should\u00ab be\u00bb assigned to a fu"
+   ]
+  },
+  {
+   "kind": 35,
+   "n": 10,
+   "fail": 4,
+   "fail_rate": 0.4,
+   "expected_fail": 4.3,
+   "log10_P_all_fail_given_rarity": -4.0,
+   "deciles": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     3
+    ]
+   ],
+   "max_norm_act": 2.243,
+   "median_norm_act": 0.341,
+   "peak_tokens": [
+    [
+     "ges",
+     2
+    ],
+    [
+     "F",
+     1
+    ],
+    [
+     ",",
+     1
+    ],
+    [
+     " elucid",
+     1
+    ],
+    [
+     " genes",
+     1
+    ],
+    [
+     "c",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "linked to the drug's effects and the animal's learning to obtain the drug,\" said Dr. Billy Chen, postdoctoral fellow at UCS\u00abF\u00bb's Ernest Gallo Clinic a",
+    "of the same strain and gender but donor smooth muscle cells proliferate in response to the cytokine while host-derived cells, lacking receptor for thi",
+    "of opiates as pain relievers in animals and humans. The molecular mechanisms underlying both phenomena are not well understood and their elucidation s"
+   ],
+   "pass_samples": [
+    "widely applicable to the future phenotypic characterization of adult zebrafish kidney injury paradigms, which include but are not limited to, nephroto",
+    "Thermal and Mechanical Nociceptive Modalities Institutions: Universit\u00e9 de Strasbourg. Opioid-induced hyperalgesia and tolerance severely impact the cl",
+    "for depression include: - Selective serotonin reuptake inhibitors (SSRIs) - Serotonin-norepinephrine reuptake inhibitors (SNRIs) - Norepinephrine and "
+   ]
+  },
+  {
+   "kind": 36,
+   "n": 41,
+   "fail": 14,
+   "fail_rate": 0.341,
+   "expected_fail": 14.9,
+   "log10_P_all_fail_given_rarity": -24.6,
+   "deciles": [
+    [
+     0,
+     5
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     6
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     5
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     7
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 1.71,
+   "median_norm_act": 0.344,
+   "peak_tokens": [
+    [
+     " in",
+     2
+    ],
+    [
+     " Interface",
+     1
+    ],
+    [
+     " fascinating",
+     1
+    ],
+    [
+     " laboratory",
+     1
+    ],
+    [
+     ":",
+     1
+    ],
+    [
+     " representative",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "18 and 372 days. Females reach reproductive maturity towards the end of their first year. Facts\u00ab:\u00bb Chinese pangolins spend the winter months in deep b",
+    "normal styles of rituals and fairs throughout cultures and religions is impressive. for instance, such a lot cultures and religions mark significant l",
+    "strategies used by persons with dementia as long as they appear to be useful from the perspective of the individual rather than strictly from an effic"
+   ],
+   "pass_samples": [
+    "an extended statistical mechanics for animal locomotion. Journal of the Royal Society\u00ab Interface\u00bb 9:2332-2340. Gautestad, A. O. 2013. Animal space use",
+    "Who's Behind Listverse? Jamie founded Listverse due to an insatiable desire to share\u00ab fascinating\u00bb, obscure, and bizarre facts. He has been a guest sp",
+    "lead to the direct competition of the sperm from different males 2,5. Comparing sperm competitive ability of different males of interest (experimental"
+   ]
+  },
+  {
+   "kind": 37,
+   "n": 34,
+   "fail": 11,
+   "fail_rate": 0.324,
+   "expected_fail": 15.4,
+   "log10_P_all_fail_given_rarity": -15.49,
+   "deciles": [
+    [
+     0,
+     5
+    ],
+    [
+     1,
+     5
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     5
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.463,
+   "median_norm_act": 0.233,
+   "peak_tokens": [
+    [
+     " account",
+     3
+    ],
+    [
+     " in",
+     2
+    ],
+    [
+     " to",
+     2
+    ],
+    [
+     "-site",
+     1
+    ],
+    [
+     " email",
+     1
+    ],
+    [
+     " other",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "way, including the content of your communications, the time and location of your activities, your Online ID and IP address and\u00ab other\u00bb related informa",
+    "to enforce this Agreement or\u00ab protect\u00bb the interests of SCEA, its users, or licensors. In most cases, we're on the side on free speech, but here's why",
+    "stopped from being sent to them, and spells out tough penalties for violations. We collect your email address in order to: - Send information, respond"
+   ],
+   "pass_samples": [
+    "Fair Information Practices we will take the following responsive action, should a data breach occur: - We will notify you via email within 7 business ",
+    "page. The hyperlink could take you to an invalid site. 3. Look at the address\u00ab in\u00bb the address bar of your Web browser. If the address does not match ",
+    "is able to know when you have opened the\u00ab email\u00bb, from where and on which device (Iphone ? Outlook?...). At the same time, the request also allows the"
+   ]
+  },
+  {
+   "kind": 38,
+   "n": 65,
+   "fail": 31,
+   "fail_rate": 0.477,
+   "expected_fail": 24.5,
+   "log10_P_all_fail_given_rarity": -36.46,
+   "deciles": [
+    [
+     0,
+     6
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     8
+    ],
+    [
+     4,
+     9
+    ],
+    [
+     5,
+     11
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     4
+    ],
+    [
+     9,
+     6
+    ]
+   ],
+   "max_norm_act": 1.596,
+   "median_norm_act": 0.118,
+   "peak_tokens": [
+    [
+     ",",
+     3
+    ],
+    [
+     " for",
+     2
+    ],
+    [
+     "ulsive",
+     1
+    ],
+    [
+     " of",
+     1
+    ],
+    [
+     " Neck",
+     1
+    ],
+    [
+     " Processing",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "the use of electroconv\u00abulsive\u00bb therapy, malarial therapy, insulin therapy and lobotomies were in common use until the 1980\u2019s, so Angus\u2019 brain probably",
+    ". Epub 2006 Nov 2. - Yoon YH, Park CH, Kim EH, et al; Clinical characteristics of external auditory canal cholesteatoma in children. Otolaryngol Head\u00ab",
+    "Interface Le Song, Elly Gysels and Evian Gordon In: Advances in Neural Information\u00ab Processing\u00bb Systems 18, 5-8 Dec 2005, Vancouver, Canada. Motor ima"
+   ],
+   "pass_samples": [
+    "related to bodily awareness and gustatory functions. Citation: Frank S, Lee S, Preissl H, Schultes B, Birbaumer N, Veit R (2012) The Obese Brain Athle",
+    ", and this procedure can also be used for transplanting cells from established cell lines. Neuroscience, Issue 44, medulloblastoma, intracranial, orth",
+    "University of Ulm. Diffusion tensor imaging (DTI) techniques provide information on the microstructural processes of the cerebral white matter (WM) in"
+   ]
+  },
+  {
+   "kind": 39,
+   "n": 23,
+   "fail": 4,
+   "fail_rate": 0.174,
+   "expected_fail": 7.1,
+   "log10_P_all_fail_given_rarity": -16.22,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     4
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 3.494,
+   "median_norm_act": 0.831,
+   "peak_tokens": [
+    [
+     " of",
+     3
+    ],
+    [
+     " to",
+     2
+    ],
+    [
+     " the",
+     2
+    ],
+    [
+     " and",
+     1
+    ],
+    [
+     " for",
+     1
+    ],
+    [
+     "if",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "with disabilities \u201con an equal basis with others.\u201d Though recognizing a like obligation under Article 6, the Draft nonetheless sanctions aid in dying ",
+    "are optimistic that the court is willing to overrule Abood because of the rulings in Harris v. Quinn and Friedrichs v. California Teachers Association",
+    ", provide for the common offence, promote the general nonWelfare, and insecure the Blessings of Liberty to ourselves and our Posterity, do ordain and "
+   ],
+   "pass_samples": [
+    "Contrary to the feverish accounts of tenure one hears from the Joel Kleins\u00ab and\u00bb Michelle Rhees of the world, therefore, it has never been a right to ",
+    "and postpones that which it looks upon to be less eligible. The Will is that Act of the Soul by which it is inclined to any Object that is proposed to",
+    "ble from the moment that war breaks out; for if there are one or two-tenths under instruction and preparing\u00ab for\u00bb war who can immediately enter the fi"
+   ]
+  },
+  {
+   "kind": 40,
+   "n": 47,
+   "fail": 20,
+   "fail_rate": 0.426,
+   "expected_fail": 19.9,
+   "log10_P_all_fail_given_rarity": -22.87,
+   "deciles": [
+    [
+     0,
+     5
+    ],
+    [
+     1,
+     4
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     9
+    ],
+    [
+     4,
+     8
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     3
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 1.61,
+   "median_norm_act": 0.206,
+   "peak_tokens": [
+    [
+     "chem",
+     3
+    ],
+    [
+     ",",
+     3
+    ],
+    [
+     " Act",
+     3
+    ],
+    [
+     " the",
+     2
+    ],
+    [
+     " to",
+     2
+    ],
+    [
+     " for",
+     2
+    ]
+   ],
+   "fail_samples": [
+    "ida, F. et al. The impacts of organic amendments, do they confer stability against drought on the soil microbial community? Soil Biol. Bio\u00abchem\u00bb. 113,",
+    "aching behaviour of veterinary antibiotics in soil. Chemos\u00abphere\u00bb 75: 13-19. (link at journal) Antibiotics may be released to soils during the applica",
+    "caused by the influenza virus. Symptoms can be mild to severe. The most common symptoms include: a high fever, runny nose, sore throat, muscle pains, "
+   ],
+   "pass_samples": [
+    "wilting point (PWP) has been defined as the point at\u00ab which\u00bb all PAW has been extracted from a soil. The PWP is defined somewhat arbitrarily at a pote",
+    "trash from neighborhoods, beaches, rivers, lakes, trails, and parks. Sustainable Fashion refers to the clothing industry being responsible for 8% of t",
+    "and nitrate and ammonium as nitrogen). The protocol also includes the biological testing procedures, earthworm avoidance and germination assays. Based"
+   ]
+  },
+  {
+   "kind": 41,
+   "n": 23,
+   "fail": 10,
+   "fail_rate": 0.435,
+   "expected_fail": 10.5,
+   "log10_P_all_fail_given_rarity": -10.19,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     7
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     3
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "max_norm_act": 2.119,
+   "median_norm_act": 0.12,
+   "peak_tokens": [
+    [
+     " of",
+     2
+    ],
+    [
+     "ort",
+     1
+    ],
+    [
+     " the",
+     1
+    ],
+    [
+     " limits",
+     1
+    ],
+    [
+     "istic",
+     1
+    ],
+    [
+     " with",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "is the in book to read this summer. - comprehensible only to a special or ultrasophisticated group: an in joke. included in a favored group. inbound: ",
+    "- cash in one's chips, [Slang.]to die. Inin (in),USA pronunciation prep., adv., adj., n., v., inned, in\u2022ning. - (used to indicate inclusion within spa",
+    "internal: the in part of a mechanism. - in favor with advanced or sophisticated people; stylish: the in place to dine; Her new novel is the in book to"
+   ],
+   "pass_samples": [
+    "quart, r\u00abort\u00bb, short, snort, sort, sought, sport, support, swart, taught, taut, thought, thwart, tort, transport, wart, wrought Definition of assort i",
+    "very beginning of a written work. What grabs interest is usually a problem or question, but it\u2019s not always the same problem or question that starts t",
+    "in for it now.Also,[Brit.,] for it. - in with, on friendly terms\u00ab with\u00bb; familiar or associating with: They are in with all the important people. - lo"
+   ]
+  },
+  {
+   "kind": 42,
+   "n": 18,
+   "fail": 11,
+   "fail_rate": 0.611,
+   "expected_fail": 11.0,
+   "log10_P_all_fail_given_rarity": -4.1,
+   "deciles": [
+    [
+     0,
+     7
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     4,
+     3
+    ],
+    [
+     5,
+     2
+    ]
+   ],
+   "max_norm_act": 0.531,
+   "median_norm_act": 0.025,
+   "peak_tokens": [
+    [
+     "ers",
+     2
+    ],
+    [
+     "cy",
+     1
+    ],
+    [
+     "aud",
+     1
+    ],
+    [
+     " develop",
+     1
+    ],
+    [
+     " molecular",
+     1
+    ],
+    [
+     " x",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "The blood brain barrier (BBB) specifically regulates molecular and cellular flux between the blood and the nervous tissue. Our aim was to develop and ",
+    "meability and Receptor-mediated Transport Institutions: VECT-HORUS SAS, CNRS, NICN UMR 7259. The blood brain barrier (BBB) specifically regulates mole",
+    "meability and Receptor-mediated Transport Institutions: VECT-HORUS SAS, CNRS, NICN UMR 7259. The blood brain barrier (BBB) specifically regulates\u00ab mol"
+   ],
+   "pass_samples": [
+    "romycin-containing medium. They were then passaged onto filters for co-culture with astrocytes grown on the bottom of the wells. RBEC expressed high l",
+    "-3 cm/min. Brain endothelial cells organized in monolayers expressed the efflux transporter P-glycoprotein (P-gp), showed a polarized transport of rho",
+    "Excel Dashboard; with the Serviceability (structure) Self-Assessment and Scorecard you will develop a clear picture of which Serviceability (structure"
+   ]
+  },
+  {
+   "kind": 43,
+   "n": 18,
+   "fail": 12,
+   "fail_rate": 0.667,
+   "expected_fail": 8.3,
+   "log10_P_all_fail_given_rarity": -7.55,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     3
+    ],
+    [
+     8,
+     2
+    ]
+   ],
+   "max_norm_act": 1.596,
+   "median_norm_act": 0.055,
+   "peak_tokens": [
+    [
+     " to",
+     6
+    ],
+    [
+     " organ",
+     1
+    ],
+    [
+     " rights",
+     1
+    ],
+    [
+     " requests",
+     1
+    ],
+    [
+     " by",
+     1
+    ],
+    [
+     "rolling",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "disputed in court, in order for consent to be valid, it must be given voluntarily\u00ab by\u00bb an appropriately informed person who has mental capacity to exe",
+    "and Set-Up Operators - Numerical Control Machine Tool Operators and Tenders, Metal and Plastic - Plastic Molding and Casting Machine Operators and Ten",
+    "Data Subject has the following rights: - Right to information \u2013 meaning you have the right to\u00ab know\u00bb whether your Personal Data is being processed; wh"
+   ],
+   "pass_samples": [
+    ", and to a coroner or medical examiner as authorized by law. Organ procurement organizations: Consistent with applicable law, we may disclose health I",
+    ". Reasonable accommodations may include but are not limited\u00ab to\u00bb: - enlarged visual aids and handouts - audio or visual recording of sessions - extend",
+    "While these issues would normally give your employer cause to terminate your employment, it cannot legally do so if sickness or disability are the rea"
+   ]
+  },
+  {
+   "kind": 44,
+   "n": 59,
+   "fail": 29,
+   "fail_rate": 0.492,
+   "expected_fail": 23.6,
+   "log10_P_all_fail_given_rarity": -30.03,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     6
+    ],
+    [
+     2,
+     7
+    ],
+    [
+     3,
+     8
+    ],
+    [
+     4,
+     9
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     6
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     4
+    ]
+   ],
+   "max_norm_act": 2.923,
+   "median_norm_act": 0.118,
+   "peak_tokens": [
+    [
+     " Med",
+     3
+    ],
+    [
+     " the",
+     3
+    ],
+    [
+     " article",
+     2
+    ],
+    [
+     "Conflict",
+     1
+    ],
+    [
+     " Economics",
+     1
+    ],
+    [
+     " S",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "Kahn JG, Marseille E, Auvert B. Cost-effectiveness of male circumcision. PLoS\u00ab Med\u00bb 2006;3:2349-58. - Gray RH, Li X, Kigozi G, et al. The impact of ma",
+    "iding Time and Discounting the Future 9. Economics, Ethics and Future Generations (PDF) 10. Science, Economics and Policy (These are all pdf documents",
+    "located at several differentially methylated regions (DMRs) in the locus GNAS (Additional file 6: Figure\u00ab S\u00bb5). In this subject from the control group"
+   ],
+   "pass_samples": [
+    "is supported by a Wellcome Trust Principal Research Fellowship (091388/Z/10/Z) and C.W. is supported by a Wellcome Trust Research Career Development F",
+    "declines is a fungal pathogen, Batrachochytrium dendrobatidis ), which causes the disease chytridiomycosis. Captive assurance colonies are important w",
+    "morphology| |Publication Type||Journal Article| |\u00abYear\u00bb of Publication||2004| |Authors||Fisher, P, Wood J, Cheng T| |Journal||Transactions of the Inst"
+   ]
+  },
+  {
+   "kind": 45,
+   "n": 12,
+   "fail": 3,
+   "fail_rate": 0.25,
+   "expected_fail": 5.3,
+   "log10_P_all_fail_given_rarity": -5.4,
+   "deciles": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     2
+    ]
+   ],
+   "max_norm_act": 0.949,
+   "median_norm_act": 0.324,
+   "peak_tokens": [
+    [
+     " establishment",
+     1
+    ],
+    [
+     "P",
+     1
+    ],
+    [
+     " NK",
+     1
+    ],
+    [
+     "operative",
+     1
+    ],
+    [
+     "last",
+     1
+    ],
+    [
+     " mod",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "for most cancer patients, but surgery induces dysfunction in the immune system and this has been linked to the development of metastatic disease in an",
+    "platform for the activation of interleukin 1 converting enzyme (ICE or Caspase-1). The NLRP3 inflammasome requires at least two signals in DCs to caus",
+    ". Using a rigorous animal model of spontaneously metastasizing tumors and surgical stress, the enhancement of cancer surgery on the development of lun"
+   ],
+   "pass_samples": [
+    "secretion of Interleukin (IL)-1 family cytokines by immune cells lead to local or systemic inflammation, tissue remodeling and repair, and virologic c",
+    "element of the innate immune response and contributes to eliminate invading pathogens while preventing the establishment of persistent infection1-5 In",
+    "for most cancer patients, but surgery induces dysfunction in the immune system and this has been linked to the development of metastatic disease in an"
+   ]
+  },
+  {
+   "kind": 46,
+   "n": 30,
+   "fail": 11,
+   "fail_rate": 0.367,
+   "expected_fail": 10.9,
+   "log10_P_all_fail_given_rarity": -18.34,
+   "deciles": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     3
+    ],
+    [
+     9,
+     4
+    ]
+   ],
+   "max_norm_act": 1.832,
+   "median_norm_act": 0.232,
+   "peak_tokens": [
+    [
+     "0",
+     2
+    ],
+    [
+     "6",
+     2
+    ],
+    [
+     " assign",
+     1
+    ],
+    [
+     " date",
+     1
+    ],
+    [
+     " into",
+     1
+    ],
+    [
+     " division",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "Patent application title: Cactus pear variety named DAR 1-29-21 Green Peter Felker (Salinas, CA, US) Ronald A. Bunch (Salinas, CA, US) IPC8 Class: AA0",
+    "to successful diffusion bonding at low temperature. 184.108.4\u00ab0\u00bb.206. Wet etch method In order to remove the surface oxide, surface treatments by soak",
+    "A review of catalysts for the electroreduction of carbon dioxide to produce low-carbon fuels,Chem. Soc.\u00ab Rev\u00bb. 43 (2014) 631-675. 2. B. Khezri, A. C. "
+   ],
+   "pass_samples": [
+    "71 to Koizumi et al., as well as in U.S. application Ser. No. 038,348, filed May 11, 1979 and assigned to TRE Corporation, the same\u00ab assign\u00bbee of the ",
+    "tempering process, resulting in the glass becoming four to five times stronger and structurally more durable than annealed glass. It is also safer tha",
+    "form molding stage; and raising the outer preform mold so that it moves into engagement with the neck mold whereby the plastic material injected into "
+   ]
+  },
+  {
+   "kind": 47,
+   "n": 32,
+   "fail": 20,
+   "fail_rate": 0.625,
+   "expected_fail": 15.6,
+   "log10_P_all_fail_given_rarity": -13.12,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     9
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     4
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "max_norm_act": 1.073,
+   "median_norm_act": 0.058,
+   "peak_tokens": [
+    [
+     " dissoci",
+     2
+    ],
+    [
+     " expansion",
+     1
+    ],
+    [
+     " filters",
+     1
+    ],
+    [
+     " were",
+     1
+    ],
+    [
+     " upgrade",
+     1
+    ],
+    [
+     " development",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "fragments from nervous tissue. The vessel fragments underwent a second enzymatic digestion to free endothelial cells from their extracellular matrix. ",
+    "ultures of primary rat brain endothelial cells (RBEC) and astrocytes to study receptors involved in transcytosis across the endothelial cell monolayer",
+    "ducible rat syngeneic in vitro model of the BBB using co-cultures of primary rat brain endothelial cells (RBEC) and astrocytes to study receptors invo"
+   ],
+   "pass_samples": [
+    "oma specimens, we arrived at the detailed protocol we present here, suitable for routine neurosphere culturing of high grade astrocytomas and large sc",
+    "Save time, empower your teams and effectively\u00ab upgrade\u00bb your processes with access to this practical Serviceability (structure) Toolkit and guide. Add",
+    ". Tissue is stimulated by directly adding compounds to the bath or by electric field stimulation electrodes that activate nerves, similar to triggerin"
+   ]
+  },
+  {
+   "kind": 48,
+   "n": 26,
+   "fail": 6,
+   "fail_rate": 0.231,
+   "expected_fail": 4.9,
+   "log10_P_all_fail_given_rarity": -24.18,
+   "deciles": [
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     3
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     5
+    ]
+   ],
+   "max_norm_act": 2.029,
+   "median_norm_act": 0.553,
+   "peak_tokens": [
+    [
+     " in",
+     1
+    ],
+    [
+     "ar",
+     1
+    ],
+    [
+     "4",
+     1
+    ],
+    [
+     " shoot",
+     1
+    ],
+    [
+     " baker",
+     1
+    ],
+    [
+     " come",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "rym, lifts up his shield The squamous serpent squirms with rage The great worm with the waves contending The pale-beaked eagle pecks at the dead, Shou",
+    "\u2019li seems to be related to the verb TLH ( \u05ea\u05dc\u05d4) \u2013 to hang. In the Torah it is mentioned in the context of Esau\u2019s hunting gear, as Isaac asks Esau to \u201ct",
+    "power, and I beh\u00abeld\u00bb myself translated To higher salvation with my Lady only. Well was I ware that I was more uplifted By the enkindled smiling of th"
+   ],
+   "pass_samples": [
+    ". You beat time on my head With a palm caked hard by dirt, Then waltzed me off to bed Still clinging to your shirt. Here's an audio of Mr. Roethke rec",
+    "extremely flamboyant and showy white-haired mutant. Nicknamed the \"Red Magma\", he often pairs with Burter for combination attacks, such as the Purple ",
+    "We can\u00ab shoot\u00bb them, bomb them, grenade them, poison them, burn them, etc. - Humans often seem intent on bringing misery to other humans: terrorism, d"
+   ]
+  },
+  {
+   "kind": 49,
+   "n": 40,
+   "fail": 9,
+   "fail_rate": 0.225,
+   "expected_fail": 9.4,
+   "log10_P_all_fail_given_rarity": -31.91,
+   "deciles": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     3
+    ],
+    [
+     5,
+     8
+    ],
+    [
+     6,
+     3
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     5
+    ]
+   ],
+   "max_norm_act": 2.283,
+   "median_norm_act": 0.81,
+   "peak_tokens": [
+    [
+     " a",
+     3
+    ],
+    [
+     " of",
+     2
+    ],
+    [
+     ",",
+     2
+    ],
+    [
+     " and",
+     1
+    ],
+    [
+     " change",
+     1
+    ],
+    [
+     " first",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "your chance of hitting a winning combination. In addition, you should only play the lottery with money that you can afford to lose. This way, if you d",
+    "- \u03b5 is the energy - \u03bc is the chemical potential - k is Boltzmann's constant - T is the temperature References[change |\u00ab change\u00bb source] - Griffiths, D",
+    "is, the bigger the probability of a causal relationship. - Temporality: The effect has to occur after the cause (and if there is an expected delay bet"
+   ],
+   "pass_samples": [
+    "-breaking at a similar cost. They contain parts that are like their work area partners and play out similar capacities, however are scaled down and ad",
+    "between those objects - complex structures of symbols are needed to capture our knowledge about the world. Symbol structures are often represented usi",
+    "Pipes A And B Can Fill A Tank. Pipe a is opened\u00ab first\u00bb at time t = o and pipe c is opened at the instant when the tank is exactly half filled with wa"
+   ]
+  },
+  {
+   "kind": 50,
+   "n": 20,
+   "fail": 13,
+   "fail_rate": 0.65,
+   "expected_fail": 12.3,
+   "log10_P_all_fail_given_rarity": -4.58,
+   "deciles": [
+    [
+     0,
+     6
+    ],
+    [
+     1,
+     5
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     1
+    ]
+   ],
+   "max_norm_act": 0.876,
+   "median_norm_act": 0.04,
+   "peak_tokens": [
+    [
+     " assist",
+     2
+    ],
+    [
+     " has",
+     1
+    ],
+    [
+     " who",
+     1
+    ],
+    [
+     " Data",
+     1
+    ],
+    [
+     " fulfill",
+     1
+    ],
+    [
+     "aining",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "- Access to your Personal Information is restricted to employees\u00ab who\u00bb need it to provide benefits or services to you. - We take reasonable steps to p",
+    "to outside parties your Personally Identifiable Information unless we provide users with advance notice. This does not include website hosting partner",
+    "your consent we process your Personal\u00ab Data\u00bb for the following purposes: - to send you newsletters and campaign offers (from us and/or our carefully s"
+   ],
+   "pass_samples": [
+    "of the request - amend your health record - obtain an accounting of disclosures of your health information - request communications of your health inf",
+    "Data in order to fulfill obligation rising from law and/or use your Personal Data for options provided by law. We reserve the right to anonymize Perso",
+    "in this notice. If you believe your privacy rights have been violated, you can file a complaint with our Privacy Officer at 877-786-7884 or with the S"
+   ]
+  },
+  {
+   "kind": 51,
+   "n": 10,
+   "fail": 4,
+   "fail_rate": 0.4,
+   "expected_fail": 6.8,
+   "log10_P_all_fail_given_rarity": -1.8,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     4
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     5,
+     1
+    ]
+   ],
+   "max_norm_act": 0.644,
+   "median_norm_act": 0.109,
+   "peak_tokens": [
+    [
+     " information",
+     1
+    ],
+    [
+     " about",
+     1
+    ],
+    [
+     "\u012bt",
+     1
+    ],
+    [
+     " \"",
+     1
+    ],
+    [
+     " and",
+     1
+    ],
+    [
+     " clicking",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "Etymology No one has submitted information on Messeer meaning and etymology. Add to this section No content has been submitted about the meaning of Me",
+    "arpenter\" which was given to woodworkers). Messeer Meaning & Etymology No one has submitted information on Messeer meaning\u00ab and\u00bb etymology. Add to thi",
+    "Etymology No one has submitted information on Messeer meaning and etymology. Add to this section No content has been submitted about the meaning of Me"
+   ],
+   "pass_samples": [
+    "Etymology No one has submitted information on Messeer meaning and etymology. Add to this section No content has been submitted\u00ab about\u00bb the meaning of ",
+    "these profession-based surnames can be a profession in another language. For this reason it is important to understand the ethnicity of a name, and th",
+    ". The following is speculative information about Messeer. You can submit your information by clicking Edit. The meaning of Messeer come may come from "
+   ]
+  },
+  {
+   "kind": 52,
+   "n": 7,
+   "fail": 4,
+   "fail_rate": 0.571,
+   "expected_fail": 3.0,
+   "log10_P_all_fail_given_rarity": -2.79,
+   "deciles": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     2
+    ]
+   ],
+   "max_norm_act": 0.56,
+   "median_norm_act": 0.025,
+   "peak_tokens": [
+    [
+     " a",
+     2
+    ],
+    [
+     " for",
+     1
+    ],
+    [
+     " is",
+     1
+    ],
+    [
+     " of",
+     1
+    ],
+    [
+     " novel",
+     1
+    ],
+    [
+     "8",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "ischemia, cell death, neuroprotection Mouse Models for Graft Arteriosclerosis Institutions: Yale University School of Medicine , Yale University Schoo",
+    "agosome, Autophagy, cecal ligation and puncture, mice, sepsis Renal Ischaemia Reperfusion Injury: A Mouse Model of Injury and Regeneration Institution",
+    "-100% survival. Early post-injury tubular damage as well as post injury fibrosis are highly consistent using this model. Medicine, Issue 7\u00ab8\u00bb, Immunol"
+   ],
+   "pass_samples": [
+    "could demonstrate time-dose-dependent and highly reproducible renal injury with ischemia by measuring serum creatinine. Moreover, when comparing this ",
+    "System for Isolated Renal Artery Occlusion Institutions: University of Colorado, University of Colorado, Korea University College of Medicine. In hosp",
+    "of acute kidney injury (AKI) in patients and occlusion of renal blood flow is unavoidable during renal transplantation. Experimental models that accur"
+   ]
+  },
+  {
+   "kind": 53,
+   "n": 19,
+   "fail": 10,
+   "fail_rate": 0.526,
+   "expected_fail": 9.0,
+   "log10_P_all_fail_given_rarity": -7.23,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     1
+    ]
+   ],
+   "max_norm_act": 0.978,
+   "median_norm_act": 0.088,
+   "peak_tokens": [
+    [
+     " you",
+     2
+    ],
+    [
+     " not",
+     1
+    ],
+    [
+     " statistics",
+     1
+    ],
+    [
+     ".",
+     1
+    ],
+    [
+     " as",
+     1
+    ],
+    [
+     " to",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "functionality. Read more Customize Consent Preferences Necessary cookies are required to enable the basic features of this site, such as providing sec",
+    "the computers or devices used to browse pages, including the operating systems, browsers, plug-ins, screen types and default languages. 3\u00ab.\u00bb Other coo",
+    "information that is automatically stored by cookies and other session tools. For example, your shopping cart information, your IP address, your shoppi"
+   ],
+   "pass_samples": [
+    "Protocol (\u201cIP\u201d) address of your computer. 1.2.2 The GLA collects\u00ab statistics\u00bb using electronic methods (\u201cCookies\u201d) relating to your use of the Website",
+    "for the purposes of: - creating anonymous usage statistics and analytics for the site or system - managing transactions across multiple pages - rememb",
+    "- Login: Once you login to our website, a cookie is set containing your encrypted credentials, required to recognize\u00ab you\u00bb between page visits. You ca"
+   ]
+  },
+  {
+   "kind": 54,
+   "n": 44,
+   "fail": 8,
+   "fail_rate": 0.182,
+   "expected_fail": 12.1,
+   "log10_P_all_fail_given_rarity": -32.85,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     7
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     5
+    ],
+    [
+     7,
+     9
+    ],
+    [
+     8,
+     7
+    ],
+    [
+     9,
+     6
+    ]
+   ],
+   "max_norm_act": 1.554,
+   "median_norm_act": 0.791,
+   "peak_tokens": [
+    [
+     " in",
+     3
+    ],
+    [
+     ",",
+     3
+    ],
+    [
+     " the",
+     2
+    ],
+    [
+     "los",
+     1
+    ],
+    [
+     " a",
+     1
+    ],
+    [
+     " Care",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "\u2019s magazine American Journal of Respiratory and Critical\u00ab Care\u00bb Medicine, was carried out with mice. Study leader Myung-Haing Cho, D.V.M., Ph.D., said",
+    "Home > Preview The flashcards\u00ab below\u00bb were created by user on FreezingBlue Flashcards. Name three toxic gases Hydrogen sulfide, Phosgene(mustard gas),",
+    "D-rich foods. 2. Vitamin B12 Vitamin B12 (also known as cyanocobalamin) helps maintain nerve cell health and is required\u00ab to\u00bb form red blood cells. It"
+   ],
+   "pass_samples": [
+    "(68) Tric\u00ablos\u00bban also induces mitochondrial dysfunction, another contributing factor in autoimmune disease. (69) - Spend more time outdoors. Spending ",
+    "What is Piperine? Piperine is\u00ab a\u00bb chemical compound which is found in black pepper and long pepper \u2013 spices which are commonly used all over the world",
+    "Medicinal\u00ab Ingredients\u00bb: Each capsule contains Ginkgo biloba leaf 50 mg, Eleutherococcus senticosus (eleuthero) root 50 mg, Vitamin E (d-alpha Tocophe"
+   ]
+  },
+  {
+   "kind": 55,
+   "n": 36,
+   "fail": 7,
+   "fail_rate": 0.194,
+   "expected_fail": 9.6,
+   "log10_P_all_fail_given_rarity": -25.33,
+   "deciles": [
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     7
+    ],
+    [
+     6,
+     6
+    ],
+    [
+     7,
+     5
+    ],
+    [
+     8,
+     6
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 1.701,
+   "median_norm_act": 0.688,
+   "peak_tokens": [
+    [
+     " the",
+     3
+    ],
+    [
+     "-",
+     3
+    ],
+    [
+     ",",
+     3
+    ],
+    [
+     " and",
+     1
+    ],
+    [
+     "al",
+     1
+    ],
+    [
+     "phthalm",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "year.1 The majority of uterine cancers are diagnosed in women aged 50 and over. Uterine cancer is\u00ab the\u00bb most commonly diagnosed gynaecological cancer ",
+    "parathyroidism? - Why are calcium and phosphorous so important? - What causes hyperparathyroidism? - What are the symptoms of hyperparathyroidism? - H",
+    "light into electrical signals and then sends these electrical signals through the optic nerve to the brain, where they are translated into the images "
+   ],
+   "pass_samples": [
+    "ers the normal life of the female. SYMPTOMS & CAUSES - Heavy bleeding - Prolonged flow \u00ab-\u00bb Severe cramps in abdomen during menses - Bloated feeling - ",
+    "likely to have an irregular shape, be more than one colour, and often larger than 6mm (1/4 inch) in diameter. A melanoma may also be itchy\u00ab and\u00bb may b",
+    "-specific antigen level, digital rect\u00abal\u00bb examination results, aggressiveness of the cancer and spread of disease. An individual with prostate cancer "
+   ]
+  },
+  {
+   "kind": 56,
+   "n": 28,
+   "fail": 13,
+   "fail_rate": 0.464,
+   "expected_fail": 10.3,
+   "log10_P_all_fail_given_rarity": -18.1,
+   "deciles": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     4
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     3
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     4
+    ],
+    [
+     9,
+     4
+    ]
+   ],
+   "max_norm_act": 1.342,
+   "median_norm_act": 0.134,
+   "peak_tokens": [
+    [
+     ",",
+     2
+    ],
+    [
+     " against",
+     2
+    ],
+    [
+     "8",
+     1
+    ],
+    [
+     " medi",
+     1
+    ],
+    [
+     " A",
+     1
+    ],
+    [
+     " of",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "of Maine, Orono. Mast cells play important roles in allergic disease and immune defense against parasites. Once activated (e.g. by an allergen), they ",
+    ", Trinity College Dublin. Sublingual route has been widely used to deliver small molecules into the bloodstream and to modulate the immune response at",
+    "Th2 cytokines, such as IL-\u00ab4\u00bb, IL-5 and IL-13, typical for parasite infections, elicits IgG1 and IgE responses. Precursors of plasma cells - Resting B"
+   ],
+   "pass_samples": [
+    "s to the mid-1960s were not as highly purified as modern influenza vaccines, and it was these impurities that caused most of the side effects. Since t",
+    "36,000 deaths/year (average) in the U.S. in recent years, but these may increase if vaccination rates continue to fall. The 191\u00ab8\u00bb influenza pandemic ",
+    "divided into three types, designated A, B, and C. Influenza\u00ab A\u00bb and influenza B are responsible for epidemics of respiratory illness that occur almost"
+   ]
+  },
+  {
+   "kind": 57,
+   "n": 31,
+   "fail": 7,
+   "fail_rate": 0.226,
+   "expected_fail": 12.1,
+   "log10_P_all_fail_given_rarity": -17.72,
+   "deciles": [
+    [
+     0,
+     6
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     5
+    ],
+    [
+     8,
+     4
+    ],
+    [
+     9,
+     2
+    ]
+   ],
+   "max_norm_act": 1.691,
+   "median_norm_act": 0.525,
+   "peak_tokens": [
+    [
+     " to",
+     4
+    ],
+    [
+     " the",
+     2
+    ],
+    [
+     " named",
+     2
+    ],
+    [
+     " particular",
+     2
+    ],
+    [
+     " of",
+     2
+    ],
+    [
+     " country",
+     2
+    ]
+   ],
+   "fail_samples": [
+    "Total Number of words made out of Junketed =68 Junketed is a 8 letter medium Word starting with J and ending with D. Below are Total 68 words\u00ab made\u00bb o",
+    "In English, many things are\u00ab named\u00bb after a particular country \u2013 but have you ever wondered what those things are called in those countries? 1nombre c",
+    "Philippines. It is related to\u2014though not readily intelligible with\u2014other Austr\u00abones\u00bbian languages such as Malay, Javanese, and Hawaiian. The word Taga"
+   ],
+   "pass_samples": [
+    "a table of values, although defining a function, need not be thought of by the creator of the table as a function. Early uses of the word \"function\"\u00ab ",
+    "different from other Europeans languages Hopi Indians Tribes perceived differently from other English speaking tribes, distinction b/w animate and ina",
+    "puta (11.6km) - Rivi\u00e8re Vaitoto (11.6km) - Rivi\u00e8re Vaitia (14.5km) - Rivi\u00e8re Vaimuu (15.1km) - Rivi\u00e8re Aoromarau (1\u00ab5\u00bb.1"
+   ]
+  },
+  {
+   "kind": 58,
+   "n": 37,
+   "fail": 20,
+   "fail_rate": 0.541,
+   "expected_fail": 19.6,
+   "log10_P_all_fail_given_rarity": -12.18,
+   "deciles": [
+    [
+     0,
+     6
+    ],
+    [
+     1,
+     7
+    ],
+    [
+     2,
+     7
+    ],
+    [
+     3,
+     5
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     3
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     2
+    ]
+   ],
+   "max_norm_act": 0.903,
+   "median_norm_act": 0.062,
+   "peak_tokens": [
+    [
+     ",",
+     3
+    ],
+    [
+     " information",
+     2
+    ],
+    [
+     ".",
+     2
+    ],
+    [
+     " and",
+     2
+    ],
+    [
+     " reasonable",
+     1
+    ],
+    [
+     " purposes",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "is to inform you of: - the kinds of personal information that we collect and hold; - how we collect personal information; - how we hold and protect pe",
+    "us. 1. The types of data we collect from you 2. When we collect your data 3. How we use and process your data 4. Our\u00ab legal\u00bb basis for processing your",
+    "what does \u201cin the context of activities of an establishment\u201d mean? I think the Google Spain case decided by the Court of Justice of the European Union"
+   ],
+   "pass_samples": [
+    "circumstances, the available information may not directly identify the individual but may enable a\u00ab reasonable\u00bb guess to be made. If so, that informat",
+    "705 Or in writing at: Data Protection Officer Greater London Authority The Queen\u2019s Walk London, SE1 2AA 6.2 You also have the right to request that in",
+    "for their immediate family also. Some examples include birth, baptism, marriage, residence, tax, land ownership, migration\u00ab,\u00bb etc. Use all the sources"
+   ]
+  },
+  {
+   "kind": 59,
+   "n": 19,
+   "fail": 11,
+   "fail_rate": 0.579,
+   "expected_fail": 8.9,
+   "log10_P_all_fail_given_rarity": -8.26,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     2
+    ],
+    [
+     5,
+     2
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     8,
+     3
+    ]
+   ],
+   "max_norm_act": 0.931,
+   "median_norm_act": 0.032,
+   "peak_tokens": [
+    [
+     "Volume",
+     1
+    ],
+    [
+     " Guidelines",
+     1
+    ],
+    [
+     " Press",
+     1
+    ],
+    [
+     "0",
+     1
+    ],
+    [
+     "3",
+     1
+    ],
+    [
+     " submitted",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "- Publication Ethics \u00b7 - Reviewers Acknowledgment \u00b7 - Submit a Manuscript \u00b7 - Subscription Information \u00b7 - Table of Contents ISRN Software Engineering",
+    "Access \u00b7 - Aims and Scope \u00b7 - Article Processing Charges \u00b7 - Articles in Press \u00b7 - Author\u00ab Guidelines\u00bb \u00b7 - Bibliographic Information \u00b7 - Citations to ",
+    "Access \u00b7 - Aims and Scope \u00b7 - Article Processing Charges \u00b7 - Articles in\u00ab Press\u00bb \u00b7 - Author Guidelines \u00b7 - Bibliographic Information \u00b7 - Citations to "
+   ],
+   "pass_samples": [
+    "717 Fax: +86 10 8446 7947 For editorial issues, like the status of your\u00ab submitted\u00bb paper or proposals, write to [email protected] \u5982\u679c\u60a8\u5728\u51fa\u7248\u65b9\u9762\u9700\u8981\u5e2e\u52a9\u6216\u6709\u4efb\u4f55\u5efa, ",
+    "Transactions on Software\u00ab Engineering\u00bb, vol. 20, no. 6, pp. 476\u2013493, 1994. - S. K. Dubey and A. Rana, \u201cAssessment of maintainability metrics for objec",
+    "300 dpi). The following norms were based on the proposal by the International Committee of Medical Journal Editors and published in the article: Unifo"
+   ]
+  },
+  {
+   "kind": 60,
+   "n": 23,
+   "fail": 17,
+   "fail_rate": 0.739,
+   "expected_fail": 11.4,
+   "log10_P_all_fail_given_rarity": -7.85,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     6
+    ],
+    [
+     4,
+     4
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     2
+    ],
+    [
+     7,
+     2
+    ]
+   ],
+   "max_norm_act": 0.72,
+   "median_norm_act": 0.043,
+   "peak_tokens": [
+    [
+     " effect",
+     2
+    ],
+    [
+     ",",
+     2
+    ],
+    [
+     " effects",
+     2
+    ],
+    [
+     " may",
+     1
+    ],
+    [
+     " drive",
+     1
+    ],
+    [
+     " know",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "ways. The following are some of the side effects that are known to be associated with this medicine. Just because a side effect is stated here does no",
+    "effects may include: - Dizziness or This is not a complete list of side effects and others\u00ab may\u00bb occur. Call your doctor for medical advice about side",
+    "sugar. Talk to your doctor or health care professional if you notice changes. You may get drowsy or dizzy. Do not\u00ab drive\u00bb, use machinery, or do anythi"
+   ],
+   "pass_samples": [
+    "stones and tumors and to view ducts in the pancreas, liver and gallbladder. Other factors that sometimes can cause pancreatitis include: - Use of any ",
+    "In English, many things are named after a particular\u00ab country\u00bb \u2013 but have you ever wondered what those things are called in those countries? 1nombre c",
+    "progress. You may get drowsy or dizzy. Do not drive, use machinery, or do anything that needs\u00ab mental\u00bb alertness until you know how this medicine affe"
+   ]
+  },
+  {
+   "kind": 61,
+   "n": 18,
+   "fail": 6,
+   "fail_rate": 0.333,
+   "expected_fail": 6.4,
+   "log10_P_all_fail_given_rarity": -10.7,
+   "deciles": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     1
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     1
+    ],
+    [
+     7,
+     5
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     1
+    ]
+   ],
+   "max_norm_act": 1.628,
+   "median_norm_act": 0.635,
+   "peak_tokens": [
+    [
+     " to",
+     2
+    ],
+    [
+     "0",
+     1
+    ],
+    [
+     ".",
+     1
+    ],
+    [
+     ",",
+     1
+    ],
+    [
+     "ad",
+     1
+    ],
+    [
+     " time",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "directions on the prescription label. Take your medicine at regular intervals. Do not take your medicine more often than directed. Do not stop taking ",
+    "your medicine more often than directed. Do not stop taking except on your doctor's advice. Talk to your pediatrician regarding the use of this medicin",
+    "- Your doctor will give this drug. - Use a missed dose as soon as you think about it. - If it is close to the time for your next dose, skip the missed"
+   ],
+   "pass_samples": [
+    "escalation study (ClinicalTrials.gov identifier NCT04368728) among 45 healthy adults (18-55 years of age), who were randomized to receive 2 doses-sepa",
+    "use may last between 7 and 10 days. Meth\u00abad\u00bbone withdrawal can last for upwards of 14 days.Continue Reading Withdrawal symptoms from heroin tend to pe",
+    "advice. Talk to your pediatrician regarding the use of this medicine in children. Special care may be needed. What if I miss a dose?If you miss a dose"
+   ]
+  },
+  {
+   "kind": 62,
+   "n": 21,
+   "fail": 4,
+   "fail_rate": 0.19,
+   "expected_fail": 7.1,
+   "log10_P_all_fail_given_rarity": -14.07,
+   "deciles": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     5,
+     1
+    ],
+    [
+     6,
+     4
+    ],
+    [
+     7,
+     3
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     9,
+     3
+    ]
+   ],
+   "max_norm_act": 1.175,
+   "median_norm_act": 0.674,
+   "peak_tokens": [
+    [
+     " in",
+     2
+    ],
+    [
+     "iform",
+     1
+    ],
+    [
+     " causes",
+     1
+    ],
+    [
+     " address",
+     1
+    ],
+    [
+     " the",
+     1
+    ],
+    [
+     " by",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "or other causes. It occurs in various forms, such as bacterial arthritis, osteoarthritis, or rheumatoid arthritis. Osteoarthritis,\u00ab the\u00bb most common f",
+    "will be once it is done growing. Each long bone\u2014 the thigh bone, the bones in the forearm, and the bones in the hands and fingers\u2014has at least two gro",
+    "What are growth plate injuries? The growth plate is the area of tissue near the ends of long bones in children and teens that determines what length\u00ab "
+   ],
+   "pass_samples": [
+    "a muscle that is hard to pinpoint and usually falls into the \u201cglutes\u201d category. Tight Pir\u00abiform\u00bbis will lead to sciatic pain and reduced movement in t",
+    "arm bone. Less often, the bones of the elbows, ankles, feet, wrists, and hands are affected. When the disease involves part of a bone in a joint, it c",
+    "cases of asymptomatic osseous involvement. History should\u00ab address\u00bb the characteristics of bone tenderness, bony protuberance, osseous asymmetry, endo"
+   ]
+  },
+  {
+   "kind": 63,
+   "n": 47,
+   "fail": 9,
+   "fail_rate": 0.191,
+   "expected_fail": 14.6,
+   "log10_P_all_fail_given_rarity": -34.61,
+   "deciles": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     9
+    ],
+    [
+     5,
+     7
+    ],
+    [
+     6,
+     3
+    ],
+    [
+     7,
+     2
+    ],
+    [
+     8,
+     6
+    ],
+    [
+     9,
+     10
+    ]
+   ],
+   "max_norm_act": 3.301,
+   "median_norm_act": 0.642,
+   "peak_tokens": [
+    [
+     " to",
+     4
+    ],
+    [
+     "",
+     3
+    ],
+    [
+     " The",
+     1
+    ],
+    [
+     "-the",
+     1
+    ],
+    [
+     " design",
+     1
+    ],
+    [
+     " negative",
+     1
+    ]
+   ],
+   "fail_samples": [
+    "85 (margin of error \u00b13%). Results: Data collection will start in October 2020 and results will be available by March 2021. We expect the results to sh",
+    "and Working Conditions in their jobs. - Education and Training - Knowledge of principles and methods for curriculum and training design, teaching and ",
+    "can be useful for a vast array of mental health conditions. In this short article, we\u2019ll check out 10 various conditions that people may have and how "
+   ],
+   "pass_samples": [
+    "). Figure 1.5 Organ systems of the human body (continued) [digital image]. In Anatomy and Physiology (Section 1.2). OpenStax. https://openstax.org/boo",
+    "or molecules known to bind to it. Their goal was to give their generative foundation model a broad base of knowledge so that it could be more easily d",
+    "breathing and arousal from sleep.. What happens to the baby when a pregnant woman cries? Can crying and depression affect an unborn baby? Having an oc"
+   ]
+  }
+ ]
+}
