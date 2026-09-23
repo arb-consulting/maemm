@@ -91,12 +91,21 @@ def main():
     want = [w.strip() for w in a.criteria.split(",") if w.strip()]
 
     def crits_for(sx):
-        avail = {
-            "bar":   ("best_act > 1.0  (inherited bar)", (sx["best_act"] > 1.0).astype(int), MUTED, "--"),
-            "norm":  ("norm_act >= 0.10", (sx["norm_act"] >= 0.10).astype(int), SERIES[2], "-"),
-            "top16": (">= top-16 corpus example", (sx["best_act"] >= sx["ex_top16"]).astype(int), SERIES[1], "-"),
-            "last":  (">= weakest top example", (sx["best_act"] >= sx["ex_last"]).astype(int), SERIES[0], "-"),
+        # a criterion whose inputs the dump does not carry (the 27B dumps have no ex_top16/ex_last)
+        # is skipped, not a KeyError
+        spec = {
+            "bar":   ("best_act > 1.0  (inherited bar)", lambda: sx["best_act"] > 1.0, MUTED, "--"),
+            "norm":  ("norm_act >= 0.10", lambda: sx["norm_act"] >= 0.10, SERIES[2], "-"),
+            "top16": (">= top-16 corpus example", lambda: sx["best_act"] >= sx["ex_top16"], SERIES[1], "-"),
+            "last":  (">= weakest top example", lambda: sx["best_act"] >= sx["ex_last"], SERIES[0], "-"),
         }
+        avail = {}
+        for k, (lab, fn, col, ls) in spec.items():
+            if k in want:
+                try:
+                    avail[k] = (lab, fn().astype(int), col, ls)
+                except KeyError:
+                    pass
         if "null_p95" in sx:
             avail["null"] = ("> own null p95  (direction-specific)",
                              (sx["best_act"] > sx["null_p95"]).astype(int), SERIES[5], "-")
