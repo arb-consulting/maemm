@@ -2,14 +2,14 @@
  "2k": {
   "whitespace": {
    "n_features": 37,
-   "n_pass": 17,
-   "same_token": 0.412,
-   "same_class": 0.294,
+   "n_pass": 16,
+   "same_token": 0.375,
+   "same_class": 0.25,
    "maemm_class_when_different": {
     "word": 6,
     "punct": 6
    },
-   "repeat_in_rollout": 0.059,
+   "repeat_in_rollout": 0.062,
    "rows": [
     {
      "feature": 126152,
@@ -216,23 +216,6 @@
      "maemm_ctx": ": This next antibiotic follows this pattern throughout the day\u00ab:\u00bb"
     },
     {
-     "feature": 122097,
-     "norm_act": 0.24,
-     "maemm_tok": " ",
-     "corpus_toks": [
-      " ",
-      " ",
-      " ",
-      " "
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "whitespace",
-     "corpus_class": "whitespace",
-     "repeat": false,
-     "maemm_ctx": " which we demonstrated clearly once upon a simple demonstration in\u00ab \u00bb199"
-    },
-    {
      "feature": 117444,
      "norm_act": 0.865,
      "maemm_tok": " ",
@@ -304,11 +287,11 @@
   },
   "digit": {
    "n_features": 47,
-   "n_pass": 27,
-   "same_token": 0.519,
-   "same_class": 0.481,
+   "n_pass": 28,
+   "same_token": 0.5,
+   "same_class": 0.464,
    "maemm_class_when_different": {
-    "word": 9,
+    "word": 10,
     "punct": 4,
     "digit": 1
    },
@@ -398,6 +381,23 @@
      "corpus_class": "digit",
      "repeat": false,
      "maemm_ctx": " dose of herbal remedy and rest for the next twenty\u00ab four\u00bb hours. The"
+    },
+    {
+     "feature": 9588,
+     "norm_act": 0.043,
+     "maemm_tok": " it",
+     "corpus_toks": [
+      "5",
+      "3",
+      "8",
+      "3"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "digit",
+     "repeat": false,
+     "maemm_ctx": " of patients fall within this range and also admitted to\u00ab it\u00bb"
     },
     {
      "feature": 69470,
@@ -777,11 +777,11 @@
   },
   "punct": {
    "n_features": 104,
-   "n_pass": 83,
-   "same_token": 0.53,
-   "same_class": 0.578,
+   "n_pass": 85,
+   "same_token": 0.518,
+   "same_class": 0.553,
    "maemm_class_when_different": {
-    "word": 31,
+    "word": 34,
     "punct": 1,
     "whitespace": 1,
     "digit": 2
@@ -804,6 +804,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " take shape in the body -- say in the back\u00ab or\u00bb shoulder area --"
+    },
+    {
+     "feature": 9432,
+     "norm_act": 0.096,
+     "maemm_tok": " cover",
+     "corpus_toks": [
+      "itive",
+      " \u201c",
+      ".",
+      " \u201c"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " beat some other verbs. They make their organization policies\u00ab cover\u00bb"
     },
     {
      "feature": 70227,
@@ -906,6 +923,23 @@
      "corpus_class": "punct",
      "repeat": false,
      "maemm_ctx": " practices associated with developmentally appropriate early childhood settings;\u00ab she\u00bb places them within"
+    },
+    {
+     "feature": 53119,
+     "norm_act": 0.072,
+     "maemm_tok": " attributes",
+     "corpus_toks": [
+      "the",
+      " (",
+      " \u201c",
+      " \u201c"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " words, the magazines\u2019 stylists\u2019 departments\u2019\u00ab attributes\u00bb"
     },
     {
      "feature": 37950,
@@ -1246,6 +1280,23 @@
      "corpus_class": "punct",
      "repeat": false,
      "maemm_ctx": " of their mother tongues\u00ab -\u00bb and thankfully most"
+    },
+    {
+     "feature": 86987,
+     "norm_act": 0.099,
+     "maemm_tok": " roughly",
+     "corpus_toks": [
+      ",",
+      ",",
+      "),",
+      "),"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": ", employed by this organization. Ancient Egyptian technology,\u00ab roughly\u00bb fourth century BC"
     },
     {
      "feature": 33219,
@@ -1928,23 +1979,6 @@
      "maemm_ctx": " Most of us received yellow safety hats, safety glasses\u00ab,\u00bb yellow belts indicating"
     },
     {
-     "feature": 38312,
-     "norm_act": 0.146,
-     "maemm_tok": ".",
-     "corpus_toks": [
-      "-",
-      " we",
-      ".",
-      "Em"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "punct",
-     "corpus_class": "punct",
-     "repeat": false,
-     "maemm_ctx": " GSH-Px activities were associated with symptom improvements\u00ab.\u00bb Colonoscopy"
-    },
-    {
      "feature": 61584,
      "norm_act": 0.549,
      "maemm_tok": " +",
@@ -1960,23 +1994,6 @@
      "corpus_class": "punct",
      "repeat": false,
      "maemm_ctx": " Gilbert F. Larson: (age + GPM\u00ab +\u00bb number of surface"
-    },
-    {
-     "feature": 80869,
-     "norm_act": 0.108,
-     "maemm_tok": " loaded",
-     "corpus_toks": [
-      " of",
-      " of",
-      ".",
-      "."
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " electrode enables clean printing on supported devices usually demonstrated for\u00ab loaded\u00bb"
     },
     {
      "feature": 115847,
@@ -2079,6 +2096,23 @@
      "corpus_class": "punct",
      "repeat": false,
      "maemm_ctx": " surveys various theories of the satellite communications among several countries\u00ab.\u00bb It describes the"
+    },
+    {
+     "feature": 107385,
+     "norm_act": 0.09,
+     "maemm_tok": ",",
+     "corpus_toks": [
+      ";",
+      ";",
+      ";",
+      ","
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "punct",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " technology (symbolically read as 09h\u00ab,\u00bb respectively 1"
     },
     {
      "feature": 88429,
@@ -2203,15 +2237,15 @@
   },
   "induction": {
    "n_features": 44,
-   "n_pass": 25,
-   "same_token": 0.64,
-   "same_class": 0.8,
+   "n_pass": 26,
+   "same_token": 0.615,
+   "same_class": 0.808,
    "maemm_class_when_different": {
     "word": 3,
     "digit": 1,
     "punct": 1
    },
-   "repeat_in_rollout": 0.08,
+   "repeat_in_rollout": 0.077,
    "rows": [
     {
      "feature": 60809,
@@ -2469,6 +2503,23 @@
      "maemm_ctx": ". Passing on knowledge from ages 35-\u00ab5\u00bb5 to"
     },
     {
+     "feature": 73824,
+     "norm_act": 0.043,
+     "maemm_tok": "uated",
+     "corpus_toks": [
+      " vol",
+      " vol",
+      " vol",
+      " vol"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " chart ,as seen in related veins, especially val\u00abuated\u00bb"
+    },
+    {
      "feature": 67533,
      "norm_act": 0.948,
      "maemm_tok": "ren",
@@ -2642,14 +2693,14 @@
   },
   "boilerplate": {
    "n_features": 56,
-   "n_pass": 25,
-   "same_token": 0.36,
-   "same_class": 0.76,
+   "n_pass": 28,
+   "same_token": 0.321,
+   "same_class": 0.75,
    "maemm_class_when_different": {
-    "punct": 4,
+    "punct": 5,
     "word": 2
    },
-   "repeat_in_rollout": 0.04,
+   "repeat_in_rollout": 0.036,
    "rows": [
     {
      "feature": 123506,
@@ -2737,6 +2788,23 @@
      "maemm_ctx": " by this cerebral palsy disorder. Hence, in\u00ab order\u00bb to compensate for"
     },
     {
+     "feature": 53230,
+     "norm_act": 0.073,
+     "maemm_tok": " material",
+     "corpus_toks": [
+      "ulation",
+      "ulation",
+      " information",
+      " information"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " and minimize their defenses, while dumping below-threshold\u00ab material\u00bb down the rubbish"
+    },
+    {
      "feature": 25706,
      "norm_act": 2.749,
      "maemm_tok": " prompts",
@@ -2752,6 +2820,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": "GPT prompt? What do new ChatGPT\u00ab prompts\u00bb look like"
+    },
+    {
+     "feature": 45939,
+     "norm_act": 0.062,
+     "maemm_tok": " -",
+     "corpus_toks": [
+      " Barrier",
+      " Barrier",
+      " Transfer",
+      " Transfer"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". Locally created platform which merely Acts as Proxy\u00ab -\u00bb Temporarily Transport"
     },
     {
      "feature": 101289,
@@ -2786,6 +2871,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " only searches for approx. random movements matching your search\u00ab query\u00bb for possible"
+    },
+    {
+     "feature": 49821,
+     "norm_act": 0.072,
+     "maemm_tok": "ize",
+     "corpus_toks": [
+      " localized",
+      " localized",
+      " localized",
+      " localized"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " plans to help kids locally locate and precisely \"local\u00abize\u00bb\" Einstein's"
     },
     {
      "feature": 41095,
@@ -3314,13 +3416,13 @@
   },
   "name_completion": {
    "n_features": 57,
-   "n_pass": 46,
-   "same_token": 0.5,
+   "n_pass": 47,
+   "same_token": 0.489,
    "same_class": 0.957,
    "maemm_class_when_different": {
     "digit": 2
    },
-   "repeat_in_rollout": 0.022,
+   "repeat_in_rollout": 0.021,
    "rows": [
     {
      "feature": 20807,
@@ -4088,6 +4190,23 @@
      "maemm_ctx": " for ways that Eastern European chefs can incorporate aub\u00aberg\u00bbine/egg"
     },
     {
+     "feature": 69503,
+     "norm_act": 0.083,
+     "maemm_tok": "nov",
+     "corpus_toks": [
+      "armac",
+      " Technology",
+      "Technology",
+      " Technology"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " world journey. Vetiver grass effective on an eth\u00abnov\u00bbeterinary basis"
+    },
+    {
      "feature": 24447,
      "norm_act": 0.923,
      "maemm_tok": "id",
@@ -4107,9 +4226,9 @@
    ]
   },
   "none": {
-   "n_features": 1577,
-   "n_pass": 1444,
-   "same_token": 0.544,
+   "n_features": 1575,
+   "n_pass": 1449,
+   "same_token": 0.542,
    "same_class": 0.938,
    "maemm_class_when_different": {
     "digit": 8,
@@ -4373,23 +4492,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " which produces NF-kB - the chemical used to\u00ab trigger\u00bb studying -"
-    },
-    {
-     "feature": 19130,
-     "norm_act": 0.221,
-     "maemm_tok": " be",
-     "corpus_toks": [
-      " with",
-      ",",
-      "activated",
-      " Arizona"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " OSTE bone cement scores highest quality ratings that can\u00ab be\u00bb mined for"
     },
     {
      "feature": 36376,
@@ -5310,23 +5412,6 @@
      "maemm_ctx": " of below 0.35 but at or\u00ab above\u00bb 0."
     },
     {
-     "feature": 48075,
-     "norm_act": 0.146,
-     "maemm_tok": " marathon",
-     "corpus_toks": [
-      " use",
-      " in",
-      " describe",
-      " in"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " I discuss many examples, from using volunteers in successful\u00ab marathon\u00bb studies,"
-    },
-    {
      "feature": 58817,
      "norm_act": 0.738,
      "maemm_tok": " of",
@@ -5376,23 +5461,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " supplies and then choose among them, gradually work through\u00ab vague\u00bb and haph"
-    },
-    {
-     "feature": 18025,
-     "norm_act": 0.123,
-     "maemm_tok": " for",
-     "corpus_toks": [
-      " on",
-      " to",
-      " of",
-      " in"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " their minerals and nutrients, provides the building blocks needed\u00ab for\u00bb strong, productive"
     },
     {
      "feature": 17502,
@@ -6262,6 +6330,23 @@
      "maemm_ctx": " Recurring characters and symbols (especially Rafiq and\u00ab the\u00bb scales)"
     },
     {
+     "feature": 8890,
+     "norm_act": 0.066,
+     "maemm_tok": "ology",
+     "corpus_toks": [
+      " the",
+      " the",
+      " a",
+      " the"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " science, emerged also special branch of study \u2013 graph\u00abology\u00bb. It created"
+    },
+    {
      "feature": 85941,
      "norm_act": 0.939,
      "maemm_tok": " pellet",
@@ -6294,23 +6379,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ". The static charge originates microscopically from\u00ab the\u00bb unequal binding energies"
-    },
-    {
-     "feature": 70258,
-     "norm_act": 0.145,
-     "maemm_tok": " at",
-     "corpus_toks": [
-      ",",
-      " such",
-      ",",
-      " and"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " contrast, standard grade binding system (or binders\u00ab at\u00bb random levels)"
     },
     {
      "feature": 51618,
@@ -6957,23 +7025,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " extract maximum information from samples provided. With the sensor\u00ab operating\u00bb at full capacity"
-    },
-    {
-     "feature": 75726,
-     "norm_act": 0.248,
-     "maemm_tok": " bacteria",
-     "corpus_toks": [
-      " of",
-      " of",
-      " coli",
-      " coli"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " -- the first of its kind -- that contains live\u00ab bacteria\u00bb inside of it"
     },
     {
      "feature": 292,
@@ -8555,6 +8606,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ".\u23ce- Reinforce to our students that they\u00ab matter\u00bb by showing they"
+    },
+    {
+     "feature": 59820,
+     "norm_act": 0.099,
+     "maemm_tok": ".",
+     "corpus_toks": [
+      " can",
+      " can",
+      " can",
+      "ures"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". I can sit with the literature in the office\u00ab.\u00bb I can remain"
     },
     {
      "feature": 56036,
@@ -10580,6 +10648,23 @@
      "maemm_ctx": " native tongue. For ninety-percent of our writers Spanish\u00ab is\u00bb their second language"
     },
     {
+     "feature": 76073,
+     "norm_act": 0.09,
+     "maemm_tok": " a",
+     "corpus_toks": [
+      "\"You",
+      " and",
+      ",",
+      "The"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " into a surreal encounter with the sinister chemist in\u00ab a\u00bb dark alley."
+    },
+    {
      "feature": 24200,
      "norm_act": 0.888,
      "maemm_tok": " top",
@@ -11311,6 +11396,23 @@
      "maemm_ctx": " us. Some examples include the viruses you grow and\u00ab quantify\u00bb quantitatively that"
     },
     {
+     "feature": 52601,
+     "norm_act": 0.066,
+     "maemm_tok": " different",
+     "corpus_toks": [
+      " not",
+      ".",
+      "You",
+      " We"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " the way to daily authentication. You didn't build\u00ab different\u00bb pattern than you"
+    },
+    {
      "feature": 1321,
      "norm_act": 1.058,
      "maemm_tok": " control",
@@ -11581,6 +11683,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " of the solar module assembly. In the following detailed\u00ab description\u00bb, numerous south"
+    },
+    {
+     "feature": 107660,
+     "norm_act": 0.082,
+     "maemm_tok": ".",
+     "corpus_toks": [
+      " (",
+      " ",
+      " (",
+      "0"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " of kinetic friction acting backward. Apply conservation of energy\u00ab.\u00bb Finally, apply"
     },
     {
      "feature": 52529,
@@ -12892,6 +13011,23 @@
      "maemm_ctx": " assignments. Consider locating your teenager's computer study area\u00ab in\u00bb a high traffic"
     },
     {
+     "feature": 107396,
+     "norm_act": 0.047,
+     "maemm_tok": " General",
+     "corpus_toks": [
+      " General",
+      "GH",
+      "GH",
+      "H"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " includes the neighboring larger blood vessels, stomach general hospital\u00ab General\u00bb stomach's other"
+    },
+    {
      "feature": 125885,
      "norm_act": 1.0,
      "maemm_tok": " doubt",
@@ -13861,6 +13997,23 @@
      "maemm_ctx": " For this female patient group Deprex primarily presents with\u00ab psychotic\u00bb symptoms. We"
     },
     {
+     "feature": 112744,
+     "norm_act": 0.095,
+     "maemm_tok": " requests",
+     "corpus_toks": [
+      ",",
+      ",",
+      " are",
+      " repetitive"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " sheets per year. In the case of extraordinarily frequent\u00ab requests\u00bb e.g."
+    },
+    {
      "feature": 90241,
      "norm_act": 0.819,
      "maemm_tok": " white",
@@ -14082,23 +14235,6 @@
      "maemm_ctx": " to detect potential reconnaissance by terrorist. \"Watch for\u00ab suspicious\u00bb individuals [who"
     },
     {
-     "feature": 127502,
-     "norm_act": 0.102,
-     "maemm_tok": ",",
-     "corpus_toks": [
-      " interrupt",
-      " anxiety",
-      " evaluate",
-      " vision"
-     ],
-     "same_token": true,
-     "same_class": false,
-     "maemm_class": "punct",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": ", and again by November suspending anxiety at vertical\u00ab,\u00bb"
-    },
-    {
      "feature": 51039,
      "norm_act": 0.275,
      "maemm_tok": " blocking",
@@ -14165,6 +14301,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ". They are general indirect costs such as setup costs\u00ab,\u00bb routine engineering"
+    },
+    {
+     "feature": 50324,
+     "norm_act": 0.051,
+     "maemm_tok": " Americans",
+     "corpus_toks": [
+      " the",
+      " the",
+      ",",
+      " the"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " their intake of other essential minerals. In fact,\u00ab Americans\u00bb\u2019 iodine"
     },
     {
      "feature": 100815,
@@ -14949,6 +15102,23 @@
      "maemm_ctx": " liquid. Then mechanical engineering students focus on analyzing the\u00ab motion\u00bb of the valve"
     },
     {
+     "feature": 6830,
+     "norm_act": 0.057,
+     "maemm_tok": " recover",
+     "corpus_toks": [
+      " recover",
+      " recover",
+      " recover",
+      " recover"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " Networks retrieve another important document, higher than they can\u00ab recover\u00bb again, down"
+    },
+    {
      "feature": 66642,
      "norm_act": 0.928,
      "maemm_tok": " minute",
@@ -15338,6 +15508,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " the ability to be convened on a standard A4\u00ab paper\u00bb, addressed with"
+    },
+    {
+     "feature": 100592,
+     "norm_act": 0.094,
+     "maemm_tok": "ic",
+     "corpus_toks": [
+      "ically",
+      " and",
+      " a",
+      " is"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " routinely given heavy medication, perhaps the heaviest algorithm\u00abic\u00bb"
     },
     {
      "feature": 52146,
@@ -15797,23 +15984,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " for exploration of many possibilities, including questioning dentists\u00ab,\u00bb visiting frescoing"
-    },
-    {
-     "feature": 110314,
-     "norm_act": 0.164,
-     "maemm_tok": " gain",
-     "corpus_toks": [
-      " study",
-      " of",
-      " vivo",
-      " al"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " be analyzed at a local laboratory. Often used to\u00ab gain\u00bb insight,"
     },
     {
      "feature": 93854,
@@ -16326,23 +16496,6 @@
      "maemm_ctx": " possesses limited energy storage capacity. Each robot unit can\u00ab recharge\u00bb its battery."
     },
     {
-     "feature": 103251,
-     "norm_act": 0.187,
-     "maemm_tok": " percentage",
-     "corpus_toks": [
-      " be",
-      " should",
-      " ",
-      " closely"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": "0% gift. She asked: handed to what\u00ab percentage\u00bb of purchase price"
-    },
-    {
      "feature": 73186,
      "norm_act": 0.597,
      "maemm_tok": " in",
@@ -16392,6 +16545,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " of the problem -- approximately 8 region pairs,\u00ab \u00bb5 age groups"
+    },
+    {
+     "feature": 27106,
+     "norm_act": 0.063,
+     "maemm_tok": " produced",
+     "corpus_toks": [
+      "rons",
+      " new",
+      " produced",
+      " produced"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " crucial time of harvest season. New concrete pillars are\u00ab produced\u00bb from nowhere are"
     },
     {
      "feature": 96425,
@@ -17956,6 +18126,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": "illofacial specialist \u2014 a doctor who specializes in\u00ab treating\u00bb problems of the"
+    },
+    {
+     "feature": 70127,
+     "norm_act": 0.086,
+     "maemm_tok": " whose",
+     "corpus_toks": [
+      " contents",
+      " disclosure",
+      " disclosures",
+      " contents"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " the Sakurai area's power, the entirety of\u00ab whose\u00bb soil has been"
     },
     {
      "feature": 10447,
@@ -19673,23 +19860,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " the digits 1529 to demonstrate you\u00ab are\u00bb alive,"
-    },
-    {
-     "feature": 124513,
-     "norm_act": 0.122,
-     "maemm_tok": ",",
-     "corpus_toks": [
-      " molecular",
-      " signaling",
-      " which",
-      " which"
-     ],
-     "same_token": true,
-     "same_class": false,
-     "maemm_class": "punct",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " unravel the remainder of the mechanism. (For instance\u00ab,\u00bb the large green"
     },
     {
      "feature": 54198,
@@ -21919,6 +22089,23 @@
      "maemm_ctx": " Third, they can copy lovely German pages. Perhaps\u00ab most\u00bb importantly"
     },
     {
+     "feature": 70103,
+     "norm_act": 0.076,
+     "maemm_tok": " roles",
+     "corpus_toks": [
+      " the",
+      " the",
+      " a",
+      " important"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". Often recognized for their ability to serve in multiple\u00ab roles\u00bb;"
+    },
+    {
      "feature": 97999,
      "norm_act": 0.742,
      "maemm_tok": " to",
@@ -22427,23 +22614,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ". We are pleased to inform that with the ongoing\u00ab privat\u00bbization, coal"
-    },
-    {
-     "feature": 9794,
-     "norm_act": 0.889,
-     "maemm_tok": " example",
-     "corpus_toks": [
-      " a",
-      " \u201c",
-      " understand",
-      "ing"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " capturing the subtle nuance of human touch; for\u00ab example\u00bb if I can"
     },
     {
      "feature": 62269,
@@ -26594,6 +26764,23 @@
      "maemm_ctx": " (i.e. It is a noise suppressor\u00ab that\u00bb protects against corruption"
     },
     {
+     "feature": 51366,
+     "norm_act": 0.075,
+     "maemm_tok": " orange",
+     "corpus_toks": [
+      " with",
+      " with",
+      " with",
+      " with"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " the students on this new vessel. Focusing on\u00ab orange\u00bb cars colored yellow"
+    },
+    {
      "feature": 68510,
      "norm_act": 1.144,
      "maemm_tok": ",",
@@ -26696,6 +26883,23 @@
      "maemm_ctx": " power might help: Learning about one \u201chorizontal\u201d\u00ab embodiment\u00bb, Learning about"
     },
     {
+     "feature": 50290,
+     "norm_act": 0.097,
+     "maemm_tok": " such",
+     "corpus_toks": [
+      " offering",
+      " to",
+      " to",
+      "omy"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". \u201cCells can be used for earlier cardiac applications\u00ab such\u00bb as electroph"
+    },
+    {
      "feature": 27873,
      "norm_act": 0.853,
      "maemm_tok": " numer",
@@ -26728,23 +26932,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " area the benefits / advantages of fighting the ailment\u00ab outweigh\u00bbs the cost"
-    },
-    {
-     "feature": 55540,
-     "norm_act": 0.123,
-     "maemm_tok": " specified",
-     "corpus_toks": [
-      " with",
-      " from",
-      " an",
-      " the"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " Maintain rolling ledgers or logs of inspections \u2026 of\u00ab specified\u00bb length \u2013 such"
     },
     {
      "feature": 29584,
@@ -28532,6 +28719,23 @@
      "maemm_ctx": " astronaut-embryos , and labelled them permanently\u00ab with\u00bb fluorescent dyes"
     },
     {
+     "feature": 20234,
+     "norm_act": 0.089,
+     "maemm_tok": " the",
+     "corpus_toks": [
+      ",",
+      " they",
+      ".",
+      " and"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " put the showy landmarks of justice, such as\u00ab the\u00bb mortgage point,"
+    },
+    {
      "feature": 109948,
      "norm_act": 0.919,
      "maemm_tok": " nature",
@@ -28737,13 +28941,13 @@
   },
   "digit": {
    "n_features": 29,
-   "n_pass": 9,
-   "same_token": 0.778,
-   "same_class": 0.667,
+   "n_pass": 10,
+   "same_token": 0.8,
+   "same_class": 0.7,
    "maemm_class_when_different": {
     "word": 3
    },
-   "repeat_in_rollout": 0.111,
+   "repeat_in_rollout": 0.1,
    "rows": [
     {
      "feature": 4361,
@@ -28882,6 +29086,23 @@
      "maemm_ctx": " visible via National Court Decisions that are Rendered\u00ab After\u00bb Each Appeal."
     },
     {
+     "feature": 118459,
+     "norm_act": 0.079,
+     "maemm_tok": "0",
+     "corpus_toks": [
+      "4",
+      "5",
+      "4",
+      "4"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "digit",
+     "corpus_class": "digit",
+     "repeat": false,
+     "maemm_ctx": " that voltage. Ideally the system should provide ~6\u00ab0\u00bb0 ml regardless"
+    },
+    {
      "feature": 120392,
      "norm_act": 0.976,
      "maemm_tok": "0",
@@ -28902,13 +29123,13 @@
   },
   "punct": {
    "n_features": 71,
-   "n_pass": 26,
-   "same_token": 0.462,
-   "same_class": 0.577,
+   "n_pass": 32,
+   "same_token": 0.438,
+   "same_class": 0.531,
    "maemm_class_when_different": {
-    "word": 11
+    "word": 15
    },
-   "repeat_in_rollout": 0.038,
+   "repeat_in_rollout": 0.031,
    "rows": [
     {
      "feature": 2457,
@@ -28943,6 +29164,23 @@
      "corpus_class": "punct",
      "repeat": false,
      "maemm_ctx": " Exclamation marks usually denote excitement or. The ex\u00abclamation\u00bb mark (? )"
+    },
+    {
+     "feature": 7636,
+     "norm_act": 0.08,
+     "maemm_tok": " type",
+     "corpus_toks": [
+      ".",
+      ".",
+      ".",
+      "."
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " set of dietary concepts with a more \u201cnormal\u201d\u00ab type\u00bb of protein as"
     },
     {
      "feature": 13115,
@@ -29030,6 +29268,23 @@
      "maemm_ctx": " to other strong life events: getting lots of exercise\u00ab,\u00bb exposed to low"
     },
     {
+     "feature": 28042,
+     "norm_act": 0.097,
+     "maemm_tok": " industrial",
+     "corpus_toks": [
+      "car",
+      "is",
+      "car",
+      " occur"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " ultra processed snacks. The diet is basically based on\u00ab industrial\u00bb feeds. Poss"
+    },
+    {
      "feature": 40012,
      "norm_act": 0.715,
      "maemm_tok": ")",
@@ -29062,6 +29317,23 @@
      "corpus_class": "punct",
      "repeat": false,
      "maemm_ctx": " is a professional plumber based in the United States.\u00ab He\u00bb's shared practical"
+    },
+    {
+     "feature": 42887,
+     "norm_act": 0.08,
+     "maemm_tok": ":",
+     "corpus_toks": [
+      ".:",
+      ":",
+      ":",
+      ":"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "punct",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " the facility thoroughly to be sure it will function smoothly\u00ab:\u00bb sterilize it"
     },
     {
      "feature": 45411,
@@ -29183,6 +29455,23 @@
      "maemm_ctx": " zone. We will not veto you across this pathway\u00ab.\u00bb"
     },
     {
+     "feature": 63913,
+     "norm_act": 0.089,
+     "maemm_tok": " two",
+     "corpus_toks": [
+      "-",
+      "-",
+      "-",
+      "-"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " of depression symptoms every day for at least\u00ab two\u00bb consecutive weeks or"
+    },
+    {
      "feature": 66440,
      "norm_act": 0.112,
      "maemm_tok": " lung",
@@ -29198,6 +29487,23 @@
      "corpus_class": "punct",
      "repeat": false,
      "maemm_ctx": " chest exercises included in lymphatic integration help to increase\u00ab lung\u00bb capacity, but"
+    },
+    {
+     "feature": 68063,
+     "norm_act": 0.093,
+     "maemm_tok": " and",
+     "corpus_toks": [
+      " and",
+      " radio",
+      " trans",
+      "0"
+     ],
+     "same_token": true,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " of bones will attain the desired length\u00ab and\u00bb caliber. In"
     },
     {
      "feature": 68896,
@@ -29302,6 +29608,23 @@
      "maemm_ctx": " efficient communicative acts [e.g. about [\u00ab\ufffd\u00bb\ufffds\ufffd"
     },
     {
+     "feature": 96730,
+     "norm_act": 0.096,
+     "maemm_tok": "aneously",
+     "corpus_toks": [
+      ",",
+      ",",
+      ",",
+      ","
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": ": Designnewproteins.org; Simult\u00abaneously\u00bb using multiple amino"
+    },
+    {
      "feature": 105903,
      "norm_act": 0.786,
      "maemm_tok": " include",
@@ -29356,15 +29679,15 @@
   },
   "induction": {
    "n_features": 43,
-   "n_pass": 19,
-   "same_token": 0.316,
-   "same_class": 0.684,
+   "n_pass": 20,
+   "same_token": 0.3,
+   "same_class": 0.7,
    "maemm_class_when_different": {
     "word": 2,
     "punct": 2,
     "digit": 2
    },
-   "repeat_in_rollout": 0.105,
+   "repeat_in_rollout": 0.1,
    "rows": [
     {
      "feature": 4361,
@@ -29673,6 +29996,23 @@
      "maemm_ctx": " conference I had approximately 15,00\u00ab0\u00bb incoming and outgoing"
     },
     {
+     "feature": 124119,
+     "norm_act": 0.071,
+     "maemm_tok": " systems",
+     "corpus_toks": [
+      "ason",
+      "ason",
+      "ason",
+      "ason"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ", and notably, complex switched-capacitor circuit\u00ab systems\u00bb. He designed"
+    },
+    {
      "feature": 128515,
      "norm_act": 0.83,
      "maemm_tok": "urrent",
@@ -29693,12 +30033,49 @@
   },
   "boilerplate": {
    "n_features": 60,
-   "n_pass": 14,
-   "same_token": 0.571,
-   "same_class": 1.0,
-   "maemm_class_when_different": {},
+   "n_pass": 19,
+   "same_token": 0.579,
+   "same_class": 0.895,
+   "maemm_class_when_different": {
+    "word": 1,
+    "punct": 1
+   },
    "repeat_in_rollout": 0.0,
    "rows": [
+    {
+     "feature": 6960,
+     "norm_act": 0.092,
+     "maemm_tok": " details",
+     "corpus_toks": [
+      " protocol",
+      " protocol",
+      " protocol",
+      " details"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " LGBTQ+ equality. Also important is that the flag\u00ab details\u00bb are optional."
+    },
+    {
+     "feature": 7636,
+     "norm_act": 0.08,
+     "maemm_tok": " type",
+     "corpus_toks": [
+      ".",
+      ".",
+      ".",
+      "."
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "word",
+     "corpus_class": "punct",
+     "repeat": false,
+     "maemm_ctx": " set of dietary concepts with a more \u201cnormal\u201d\u00ab type\u00bb of protein as"
+    },
     {
      "feature": 7938,
      "norm_act": 0.197,
@@ -29785,6 +30162,40 @@
      "maemm_ctx": " too. Moving products safely and on time is not\u00ab enough\u00bb anymore"
     },
     {
+     "feature": 42098,
+     "norm_act": 0.068,
+     "maemm_tok": "!",
+     "corpus_toks": [
+      "AL",
+      "AL",
+      "AL",
+      "M"
+     ],
+     "same_token": true,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ", we all have a \"tricky\" mouth\u00ab!\u00bb Or \"comp"
+    },
+    {
+     "feature": 62544,
+     "norm_act": 0.077,
+     "maemm_tok": "type",
+     "corpus_toks": [
+      "type",
+      "type",
+      " subtype",
+      " subtype"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " Types of Output as Usable by Man's Sub\u00abtype\u00bb"
+    },
+    {
      "feature": 74470,
      "norm_act": 0.507,
      "maemm_tok": "identified",
@@ -29800,6 +30211,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": "9% of these entries.Entries that are mis\u00abidentified\u00bb are categorized as"
+    },
+    {
+     "feature": 74708,
+     "norm_act": 0.073,
+     "maemm_tok": " challenge",
+     "corpus_toks": [
+      " are",
+      " for",
+      " quantity",
+      " amount"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " fun factor due to random basket challenge. Random basket\u00ab challenge\u00bb is formed by"
     },
     {
      "feature": 75598,
@@ -29970,11 +30398,13 @@
   },
   "name_completion": {
    "n_features": 71,
-   "n_pass": 47,
-   "same_token": 0.553,
-   "same_class": 1.0,
-   "maemm_class_when_different": {},
-   "repeat_in_rollout": 0.043,
+   "n_pass": 51,
+   "same_token": 0.529,
+   "same_class": 0.98,
+   "maemm_class_when_different": {
+    "punct": 1
+   },
+   "repeat_in_rollout": 0.039,
    "rows": [
     {
      "feature": 1468,
@@ -30249,6 +30679,23 @@
      "maemm_ctx": " of influenza vaccinations. The diph\u00abther\u00bbia pneumonia vaccine"
     },
     {
+     "feature": 42098,
+     "norm_act": 0.068,
+     "maemm_tok": "!",
+     "corpus_toks": [
+      "AL",
+      "AL",
+      "AL",
+      "M"
+     ],
+     "same_token": true,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ", we all have a \"tricky\" mouth\u00ab!\u00bb Or \"comp"
+    },
+    {
      "feature": 50117,
      "norm_act": 1.252,
      "maemm_tok": "ujan",
@@ -30487,6 +30934,23 @@
      "maemm_ctx": " tasks. The occupations generally appeal to investigators in the\u00ab conventional\u00bb area; although"
     },
     {
+     "feature": 82085,
+     "norm_act": 0.064,
+     "maemm_tok": " Swedish",
+     "corpus_toks": [
+      ".S",
+      ".S",
+      ".S",
+      ".S"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " Prior art traps are examined such as ultrasound tested under\u00ab Swedish\u00bb conditions. Consider"
+    },
+    {
      "feature": 87806,
      "norm_act": 0.593,
      "maemm_tok": "altern",
@@ -30553,6 +31017,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ". Jerry played using around 40% of\u00ab CK\u00bb, the highest"
+    },
+    {
+     "feature": 93749,
+     "norm_act": 0.084,
+     "maemm_tok": " accept",
+     "corpus_toks": [
+      " of",
+      " tolerance",
+      " mutual",
+      " accepting"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " seeks to reduce the level of tension by seeking to\u00ab accept\u00bb the opposing creed"
     },
     {
      "feature": 93872,
@@ -30708,6 +31189,23 @@
      "maemm_ctx": " cultivation using primitive organic methods and frequently applied John Dew\u00abey\u00bb's dewey"
     },
     {
+     "feature": 124119,
+     "norm_act": 0.071,
+     "maemm_tok": " systems",
+     "corpus_toks": [
+      "ason",
+      "ason",
+      "ason",
+      "ason"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ", and notably, complex switched-capacitor circuit\u00ab systems\u00bb. He designed"
+    },
+    {
      "feature": 124163,
      "norm_act": 1.052,
      "maemm_tok": "oid",
@@ -30779,16 +31277,16 @@
   },
   "none": {
    "n_features": 1592,
-   "n_pass": 1027,
-   "same_token": 0.519,
-   "same_class": 0.929,
+   "n_pass": 1091,
+   "same_token": 0.507,
+   "same_class": 0.93,
    "maemm_class_when_different": {
-    "punct": 52,
+    "punct": 55,
     "digit": 8,
     "whitespace": 11,
     "word": 2
    },
-   "repeat_in_rollout": 0.008,
+   "repeat_in_rollout": 0.007,
    "rows": [
     {
      "feature": 3,
@@ -30927,6 +31425,23 @@
      "maemm_ctx": "high electricity consumption, high treatment temperatures, high oxygen\u00ab tension\u00bb"
     },
     {
+     "feature": 969,
+     "norm_act": 0.095,
+     "maemm_tok": " extending",
+     "corpus_toks": [
+      " Extension",
+      " extension",
+      " extension",
+      " extension"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": "-right writing language, an end-product compliant writing exercise\u00ab extending\u00bb only"
+    },
+    {
      "feature": 1247,
      "norm_act": 1.057,
      "maemm_tok": " to",
@@ -31027,6 +31542,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " Broad horizontal zones of crust (flat-ground blocks)\u00ab characterized\u00bb by"
+    },
+    {
+     "feature": 1634,
+     "norm_act": 0.1,
+     "maemm_tok": " Sharing",
+     "corpus_toks": [
+      "bi",
+      " sharing",
+      " outside",
+      " disclosures"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". They were normally shared among five normal connectors.\u00ab Sharing\u00bb roughly 8"
     },
     {
      "feature": 1712,
@@ -31352,6 +31884,23 @@
      "maemm_ctx": " fitness activity each week; and securing additional PE and\u00ab sport\u00bb funding to make"
     },
     {
+     "feature": 3926,
+     "norm_act": 0.084,
+     "maemm_tok": " content",
+     "corpus_toks": [
+      " content",
+      " content",
+      " content",
+      " Results"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " Historical content section loading Historical content load success Awesome historical\u00ab content\u00bb! Historical content"
+    },
+    {
      "feature": 4004,
      "norm_act": 0.761,
      "maemm_tok": " the",
@@ -31367,23 +31916,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " other foods like citrus fruits. Curcumin is\u00ab the\u00bb compound responsible for"
-    },
-    {
-     "feature": 4040,
-     "norm_act": 0.103,
-     "maemm_tok": " determined",
-     "corpus_toks": [
-      " the",
-      " hypothesis",
-      " in",
-      " the"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " a predominately Caucasian environment, a constitutively\u00ab determined\u00bb percentage is"
     },
     {
      "feature": 4100,
@@ -31418,6 +31950,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " dominant shape preference for rectangular. (Note: Conflict\u00ab of\u00bb interest check at"
+    },
+    {
+     "feature": 4189,
+     "norm_act": 0.075,
+     "maemm_tok": " a",
+     "corpus_toks": [
+      " picture",
+      " help",
+      " overview",
+      " headquartered"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " adoption of security metrics. With Zero SSL you sketch\u00ab a\u00bb portrait of an"
     },
     {
      "feature": 4218,
@@ -31590,6 +32139,40 @@
      "maemm_ctx": " school and high school students too. Example of a\u00ab research\u00bb paper Whet"
     },
     {
+     "feature": 6262,
+     "norm_act": 0.07,
+     "maemm_tok": " distinguish",
+     "corpus_toks": [
+      " Rep",
+      " you",
+      " ",
+      " identifying"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " into several destinations: heated water in designated pipes,\u00ab distinguish\u00bbable destinations"
+    },
+    {
+     "feature": 6533,
+     "norm_act": 0.061,
+     "maemm_tok": " S",
+     "corpus_toks": [
+      " S",
+      " S",
+      " S",
+      " S"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " limited to your vision images, scenario images, photos\u00ab S\u00bb..."
+    },
+    {
      "feature": 6740,
      "norm_act": 0.253,
      "maemm_tok": " or",
@@ -31673,6 +32256,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " with few subjects and easy replicable scenarios in the\u00ab laboratory\u00bb, laboratory"
+    },
+    {
+     "feature": 7378,
+     "norm_act": 0.079,
+     "maemm_tok": " -",
+     "corpus_toks": [
+      " features",
+      " features",
+      " applications",
+      " advantages"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " required ... and another foreign language translating engine and vendor\u00ab -\u00bb eliminate this last"
     },
     {
      "feature": 7400,
@@ -31794,6 +32394,23 @@
      "maemm_ctx": " action. Describe your compound(s) formally - as\u00ab commonly\u00bb mouthposted in"
     },
     {
+     "feature": 7907,
+     "norm_act": 0.088,
+     "maemm_tok": " reports",
+     "corpus_toks": [
+      " edited",
+      ":",
+      " materials",
+      " materials"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " of the news release for background information. News\u00ab reports\u00bb required considerable editing"
+    },
+    {
      "feature": 7967,
      "norm_act": 0.118,
      "maemm_tok": " is",
@@ -31843,6 +32460,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " protocols used during this expedition were modified and tested suitable\u00ab for\u00bb jungle conditions"
+    },
+    {
+     "feature": 8147,
+     "norm_act": 0.096,
+     "maemm_tok": " design",
+     "corpus_toks": [
+      " to",
+      " and",
+      " be",
+      ","
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " new movement routines, including corridor redesign, micro pathway\u00ab design\u00bb,"
     },
     {
      "feature": 8241,
@@ -31928,6 +32562,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " community college too. Generally, an Associate degree course\u00ab transfers\u00bb well; credit"
+    },
+    {
+     "feature": 8559,
+     "norm_act": 0.05,
+     "maemm_tok": " family",
+     "corpus_toks": [
+      " Gen",
+      " Gen",
+      " Gen",
+      " Gen"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " Johnson family gene pool. They have been giving human\u00ab family\u00bb DNA tests:"
     },
     {
      "feature": 8614,
@@ -32117,6 +32768,40 @@
      "maemm_ctx": " of the ontological modeling of legal concepts, it\u00ab required\u00bb the following deriv"
     },
     {
+     "feature": 9488,
+     "norm_act": 0.044,
+     "maemm_tok": " vessels",
+     "corpus_toks": [
+      " Onc",
+      " Surg",
+      " Onc",
+      " Today"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " surrounding organs. Your surgeon\u2019s tumor sits amidst blood\u00ab vessels\u00bb. It spends"
+    },
+    {
+     "feature": 9541,
+     "norm_act": 0.086,
+     "maemm_tok": " enough",
+     "corpus_toks": [
+      "ar",
+      " at",
+      " wolf",
+      "The"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ", and the craftsmen have created a cloak large\u00ab enough\u00bb and a food"
+    },
+    {
      "feature": 9796,
      "norm_act": 1.718,
      "maemm_tok": " start",
@@ -32287,6 +32972,23 @@
      "maemm_ctx": " marvelous celestial shows. Among all solar eclipses,\u00ab total\u00bb solar eclipses"
     },
     {
+     "feature": 11780,
+     "norm_act": 0.047,
+     "maemm_tok": " sustain",
+     "corpus_toks": [
+      ",",
+      " are",
+      " are",
+      " writing"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " clear standard English, with careful articulation sufficient to\u00ab sustain\u00bb the substantial body"
+    },
+    {
      "feature": 11788,
      "norm_act": 0.529,
      "maemm_tok": " assign",
@@ -32387,6 +33089,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " our nearest living relative, the chimpanzee. Austral\u00abop\u00bbith probably walked"
+    },
+    {
+     "feature": 12772,
+     "norm_act": 0.06,
+     "maemm_tok": " characteristics",
+     "corpus_toks": [
+      " for",
+      " for",
+      " is",
+      " and"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " us meet the remaining three computers. Each with different\u00ab characteristics\u00bb than previous."
     },
     {
      "feature": 12831,
@@ -32576,6 +33295,23 @@
      "maemm_ctx": " doses according to his female body needs. In this\u00ab way\u00bb they measure both"
     },
     {
+     "feature": 14243,
+     "norm_act": 0.042,
+     "maemm_tok": "-sized",
+     "corpus_toks": [
+      " of",
+      " the",
+      " to",
+      " that"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " City near to major fault lines, close to normal\u00ab-sized\u00bb"
+    },
+    {
      "feature": 14387,
      "norm_act": 0.531,
      "maemm_tok": "-of",
@@ -32729,6 +33465,23 @@
      "maemm_ctx": " isolation and harsh weather. The US Antarctic Program operates\u00ab a\u00bb small research station"
     },
     {
+     "feature": 16000,
+     "norm_act": 0.092,
+     "maemm_tok": " at",
+     "corpus_toks": [
+      ":",
+      " on",
+      " the",
+      " depend"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " tropical area of Thailand. Will rely on moving mostly\u00ab at\u00bb night, regardless"
+    },
+    {
      "feature": 16255,
      "norm_act": 0.107,
      "maemm_tok": " they",
@@ -32846,6 +33599,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " Such applications commonly incorporate an equalizer. An equal\u00abizer\u00bb is basically a"
+    },
+    {
+     "feature": 16947,
+     "norm_act": 0.086,
+     "maemm_tok": " devices",
+     "corpus_toks": [
+      " people",
+      " providing",
+      " in",
+      " respond"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " devices and phone operating systems - meaning it can affect\u00ab devices\u00bb the way"
     },
     {
      "feature": 17122,
@@ -33290,6 +34060,23 @@
      "maemm_ctx": " sometimes follow an intriguing name trail - four vehicles trace\u00ab their\u00bb path in the"
     },
     {
+     "feature": 20173,
+     "norm_act": 0.071,
+     "maemm_tok": " with",
+     "corpus_toks": [
+      " by",
+      " solid",
+      " into",
+      " surrounding"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " truncation of ~20 amino acids, replacement\u00ab with\u00bb adult-like peptides"
+    },
+    {
      "feature": 20211,
      "norm_act": 0.302,
      "maemm_tok": "measure",
@@ -33460,23 +34247,6 @@
      "maemm_ctx": " throughout the home; also, one of several horizontal\u00ab floors\u00bb, extending throughout"
     },
     {
-     "feature": 21259,
-     "norm_act": 0.34,
-     "maemm_tok": " described",
-     "corpus_toks": [
-      " is",
-      " invention",
-      " is",
-      " in"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " water travel devices, nothing is specifically claimed. Technologies\u00ab described\u00bb in the claims"
-    },
-    {
      "feature": 21541,
      "norm_act": 0.796,
      "maemm_tok": " toilet",
@@ -33613,6 +34383,23 @@
      "maemm_ctx": " the two destroyed temples, dismantled harmonized structure\u00ab,\u00bb"
     },
     {
+     "feature": 22352,
+     "norm_act": 0.09,
+     "maemm_tok": " distinguish",
+     "corpus_toks": [
+      " below",
+      " below",
+      " below",
+      " everything"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " precursor acid. During formation of model E we cannot\u00ab distinguish\u00bb thermodynamically"
+    },
+    {
      "feature": 22469,
      "norm_act": 0.759,
      "maemm_tok": " relatives",
@@ -33628,6 +34415,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ".\u23ceRead about their world. Seeing if your\u00ab relatives\u00bb worked at prestigious"
+    },
+    {
+     "feature": 22483,
+     "norm_act": 0.04,
+     "maemm_tok": " channels",
+     "corpus_toks": [
+      " Commun",
+      " Commun",
+      " Communications",
+      " Commun"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " breakthrough via social media. The researchers have opened their\u00ab channels\u00bb on Twitter and"
     },
     {
      "feature": 22812,
@@ -33800,6 +34604,23 @@
      "maemm_ctx": "); wherein we \"perfected hearing for man;\u00ab We\u00bb made"
     },
     {
+     "feature": 23920,
+     "norm_act": 0.066,
+     "maemm_tok": " of",
+     "corpus_toks": [
+      " in",
+      " of",
+      " of",
+      " a"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " be advantageous. The drawback of having only one set\u00ab of\u00bb Times Table cards"
+    },
+    {
      "feature": 23936,
      "norm_act": 0.809,
      "maemm_tok": " by",
@@ -33866,6 +34687,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " illegal mechanisms via the mailer function to make kidney\u00ab areas\u00bb"
+    },
+    {
+     "feature": 24268,
+     "norm_act": 0.093,
+     "maemm_tok": " extra",
+     "corpus_toks": [
+      "Extra",
+      "Extra",
+      " resources",
+      " resources"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " architectural music. For upcoming wood construction projects, find\u00ab extra\u00bb exceptional architectural locales"
     },
     {
      "feature": 24295,
@@ -34259,6 +35097,23 @@
      "maemm_ctx": " stores or excessive chloride administration. Common causes include inf\u00abusing\u00bb as preservable"
     },
     {
+     "feature": 26571,
+     "norm_act": 0.076,
+     "maemm_tok": " of",
+     "corpus_toks": [
+      " of",
+      " of",
+      " of",
+      " of"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " of the word Santiago. The ethnic origin\u00ab of\u00bb Santiago TIPple"
+    },
+    {
      "feature": 26753,
      "norm_act": 0.96,
      "maemm_tok": " heaven",
@@ -34412,6 +35267,23 @@
      "maemm_ctx": " of energy for bread production gives\u00ab us\u00bb five basic components"
     },
     {
+     "feature": 27955,
+     "norm_act": 0.059,
+     "maemm_tok": " assignment",
+     "corpus_toks": [
+      " Responsibility",
+      " responsibility",
+      " Assignment",
+      " responsibilities"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " large responsibility of duties assigned at corner points, strong\u00ab assignment\u00bb of time at"
+    },
+    {
      "feature": 28073,
      "norm_act": 0.387,
      "maemm_tok": " now",
@@ -34461,6 +35333,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " use a strain of E. coli that lacks an\u00ab outer\u00bb membrane. We"
+    },
+    {
+     "feature": 29169,
+     "norm_act": 0.098,
+     "maemm_tok": " summary",
+     "corpus_toks": [
+      " summary",
+      " summary",
+      " summary",
+      " summary"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " of reliable evidence. Produces an accurate\u00ab summary\u00bb of evolutionary ancestry"
     },
     {
      "feature": 29253,
@@ -34546,6 +35435,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " They say that 50 percent of good design\u00ab is\u00bb finding the right"
+    },
+    {
+     "feature": 29726,
+     "norm_act": 0.085,
+     "maemm_tok": " CO",
+     "corpus_toks": [
+      " determine",
+      " determine",
+      " Activity",
+      ".co"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " down to five specific areas labeled CO-1 to\u00ab CO\u00bb-"
     },
     {
      "feature": 29728,
@@ -34837,6 +35743,23 @@
      "maemm_ctx": " of Paleo diet advocates a return\u00ab to\u00bb the eating patterns"
     },
     {
+     "feature": 31209,
+     "norm_act": 0.096,
+     "maemm_tok": " identify",
+     "corpus_toks": [
+      " may",
+      " doctor",
+      " doctor",
+      " advise"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " her/thier specific needs. At times Physician may\u00ab identify\u00bb all three or"
+    },
+    {
      "feature": 31342,
      "norm_act": 0.156,
      "maemm_tok": ",",
@@ -34852,6 +35775,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " this cultivar plant would have modifications such as vary\u00ab,\u00bb"
+    },
+    {
+     "feature": 31478,
+     "norm_act": 0.076,
+     "maemm_tok": " their",
+     "corpus_toks": [
+      "2",
+      " God",
+      " they",
+      "But"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". The unions happened as women of earth went about\u00ab their\u00bb duties \u2014 men"
     },
     {
      "feature": 31486,
@@ -34939,6 +35879,23 @@
      "maemm_ctx": " They help kids establish a series of equations to set\u00ab up\u00bb smaller equations,"
     },
     {
+     "feature": 32183,
+     "norm_act": 0.087,
+     "maemm_tok": " more",
+     "corpus_toks": [
+      " should",
+      " system",
+      " can",
+      " or"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " a factory shuts down earlier, its effects may be\u00ab more\u00bb severe, than"
+    },
+    {
      "feature": 32324,
      "norm_act": 0.902,
      "maemm_tok": " inse",
@@ -34954,40 +35911,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " lunch time breaks. In most cases intrauterine\u00ab inse\u00bbminations were"
-    },
-    {
-     "feature": 32448,
-     "norm_act": 0.178,
-     "maemm_tok": " it",
-     "corpus_toks": [
-      " in",
-      ",",
-      " system",
-      "is"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " delivered by any Nearby Meat Source (AMI), be\u00ab it\u00bb mighty rivers,"
-    },
-    {
-     "feature": 32614,
-     "norm_act": 0.104,
-     "maemm_tok": " board",
-     "corpus_toks": [
-      " to",
-      " of",
-      " to",
-      "irectional"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " departments or partners may want to introduce additional substances on\u00ab board\u00bb, there is"
     },
     {
      "feature": 32980,
@@ -35109,6 +36032,23 @@
      "maemm_ctx": " two human papilloma virus proteins, called E\u00ab6\u00bb and E7"
     },
     {
+     "feature": 33924,
+     "norm_act": 0.07,
+     "maemm_tok": "California",
+     "corpus_toks": [
+      " California",
+      " California",
+      " California",
+      " California"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " As each Anniversary passes we conduct our usual annual \u201c\u00abCalifornia\u00bb\u201d check-ups"
+    },
+    {
      "feature": 33969,
      "norm_act": 0.435,
      "maemm_tok": " Ancient",
@@ -35124,6 +36064,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " Ancient Faces. Mention any relatives, towns, places\u00ab Ancient\u00bb"
+    },
+    {
+     "feature": 34005,
+     "norm_act": 0.075,
+     "maemm_tok": " in",
+     "corpus_toks": [
+      " for",
+      " in",
+      " in",
+      " in"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " cusp of becoming mainstream; a kid currently being\u00ab in\u00bb the right place"
     },
     {
      "feature": 34091,
@@ -35260,6 +36217,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " pastry crust. A pie is a baked dish with\u00ab a\u00bb fruit filling covered"
+    },
+    {
+     "feature": 34553,
+     "norm_act": 0.05,
+     "maemm_tok": " essay",
+     "corpus_toks": [
+      " essay",
+      " essay",
+      " essay",
+      " essay"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". We can make a special non-woven tape\u00ab essay\u00bb on"
     },
     {
      "feature": 34593,
@@ -35959,6 +36933,23 @@
      "maemm_ctx": " operating systems, the built-in 'Add or Remove\u00ab Programs\u00bb' utility allows"
     },
     {
+     "feature": 39039,
+     "norm_act": 0.092,
+     "maemm_tok": " alternatives",
+     "corpus_toks": [
+      " or",
+      " weaknesses",
+      ",",
+      ","
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " flaws in opposing versions A and B of your finalist\u00ab alternatives\u00bb."
+    },
+    {
      "feature": 39121,
      "norm_act": 0.193,
      "maemm_tok": " need",
@@ -36110,23 +37101,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " achieves its benefits by charging its expenses annually, or\u00ab annual\u00bbizes its annual"
-    },
-    {
-     "feature": 40322,
-     "norm_act": 0.141,
-     "maemm_tok": ".g",
-     "corpus_toks": [
-      " of",
-      "M",
-      "roph",
-      " time"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " For the Field experiment some aspects were necessary, e\u00ab.g\u00bb. slight carrying"
     },
     {
      "feature": 40374,
@@ -37234,23 +38208,6 @@
      "maemm_ctx": " Parthenon. The sculptures created for the Par\u00abthen\u00bbon treasury called"
     },
     {
-     "feature": 50014,
-     "norm_act": 0.126,
-     "maemm_tok": " have",
-     "corpus_toks": [
-      "asm",
-      "asm",
-      " has",
-      "edral"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": "horacic surgeries have been performed; small end arteries\u00ab have\u00bb been found;"
-    },
-    {
      "feature": 50015,
      "norm_act": 0.207,
      "maemm_tok": " for",
@@ -37370,6 +38327,23 @@
      "maemm_ctx": ". Technological advances also extended employee access wirelessly\u00ab via\u00bb computers and mobile"
     },
     {
+     "feature": 51044,
+     "norm_act": 0.098,
+     "maemm_tok": " street",
+     "corpus_toks": [
+      "ST",
+      "ST",
+      "ST",
+      "ST"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " smarter plumbing designs, all septic houses on our\u00ab street\u00bb, regardless,"
+    },
+    {
      "feature": 51067,
      "norm_act": 0.121,
      "maemm_tok": " of",
@@ -37455,21 +38429,21 @@
      "maemm_ctx": " article in a journal. Then you will seek soft\u00ab overlays\u00bb,"
     },
     {
-     "feature": 51458,
-     "norm_act": 0.148,
-     "maemm_tok": " known",
+     "feature": 51503,
+     "norm_act": 0.072,
+     "maemm_tok": "-related",
      "corpus_toks": [
-      " quantify",
-      "izing",
-      " for",
-      "s"
+      "2",
+      " Quality",
+      " Quality",
+      " Quality"
      ],
      "same_token": false,
      "same_class": true,
      "maemm_class": "word",
      "corpus_class": "word",
      "repeat": false,
-     "maemm_ctx": " They keep track of the Quintet that is presently\u00ab known\u00bb to exist."
+     "maemm_ctx": " air quality. Quality standards called for a dozen quality\u00ab-related\u00bb tools that span"
     },
     {
      "feature": 51643,
@@ -37538,6 +38512,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " from my space a physics problem, which had pressed\u00ab on\u00bb"
+    },
+    {
+     "feature": 52205,
+     "norm_act": 0.062,
+     "maemm_tok": " lock",
+     "corpus_toks": [
+      " measures",
+      " safeguards",
+      " measures",
+      " use"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " safeguards including strong encryption protocols within a relatively strong mechanical\u00ab lock\u00bb system placed in"
     },
     {
      "feature": 52397,
@@ -37676,23 +38667,6 @@
      "maemm_ctx": " flight characteristics. Aircraft designers create preliminary draftings,\u00ab provide\u00bb the initial set"
     },
     {
-     "feature": 53298,
-     "norm_act": 0.226,
-     "maemm_tok": "ed",
-     "corpus_toks": [
-      "asured",
-      "me",
-      " measured",
-      " measured"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " red timer shows the time our English mobility (show\u00abed\u00bb by"
-    },
-    {
      "feature": 53384,
      "norm_act": 0.423,
      "maemm_tok": " regular",
@@ -37793,6 +38767,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " that Colombian citizens\u2019 teeth contain an abundant supply of\u00ab stem\u00bb cells all the"
+    },
+    {
+     "feature": 54150,
+     "norm_act": 0.093,
+     "maemm_tok": " remed",
+     "corpus_toks": [
+      "iation",
+      ",",
+      "stration",
+      "que"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " bio absorbent pads is ideal for a low-cost\u00ab remed\u00bbiation strategy for"
     },
     {
      "feature": 54151,
@@ -37946,6 +38937,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " to discovery and development of novel bioactive compounds,\u00ab small\u00bb molecules that can"
+    },
+    {
+     "feature": 55722,
+     "norm_act": 0.072,
+     "maemm_tok": " of",
+     "corpus_toks": [
+      " mean",
+      " by",
+      " your",
+      " your"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " shoe during clinical examination. By inspecting many pairs\u00ab of\u00bb shoes with this"
     },
     {
      "feature": 55902,
@@ -38356,6 +39364,23 @@
      "maemm_ctx": " You come regularly into opposition with a corrupt institution;\u00ab you\u00bb inspire it"
     },
     {
+     "feature": 58547,
+     "norm_act": 0.074,
+     "maemm_tok": " together",
+     "corpus_toks": [
+      " get",
+      "-up",
+      " get",
+      " perform"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " Our \u2018random graphite\u2019 is actually \u2018glue\u00ab together\u00bb graphite\u2019 \u2013"
+    },
+    {
      "feature": 58608,
      "norm_act": 0.738,
      "maemm_tok": " improvements",
@@ -38594,6 +39619,40 @@
      "maemm_ctx": " patients (seven patients; 70%) were\u00ab male\u00bb gender."
     },
     {
+     "feature": 61416,
+     "norm_act": 0.058,
+     "maemm_tok": " class",
+     "corpus_toks": [
+      "Class",
+      "Class",
+      "Class",
+      "Class"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " such as Class 4089, a\u00ab class\u00bb"
+    },
+    {
+     "feature": 61419,
+     "norm_act": 0.066,
+     "maemm_tok": " dissoci",
+     "corpus_toks": [
+      " dissoci",
+      "urope",
+      ",",
+      ","
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " arise as to whether the polymer entanglement daily\u00ab dissoci\u00bbated by year"
+    },
+    {
      "feature": 61527,
      "norm_act": 0.556,
      "maemm_tok": " information",
@@ -38677,6 +39736,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " series of frames of an animation movie advancing in discrete\u00ab steps\u00bb with successive small"
+    },
+    {
+     "feature": 62344,
+     "norm_act": 0.067,
+     "maemm_tok": " write",
+     "corpus_toks": [
+      " to",
+      " for",
+      " formatting",
+      " examine"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " aim of British pharmaceutical companies set a standard structure to\u00ab write\u00bb medicines. It"
     },
     {
      "feature": 62368,
@@ -38832,23 +39908,6 @@
      "maemm_ctx": " requirements. Lastly, your tall, rotating design platform\u00ab dynamically\u00bb"
     },
     {
-     "feature": 63536,
-     "norm_act": 0.29,
-     "maemm_tok": " into",
-     "corpus_toks": [
-      " mod",
-      " as",
-      ",",
-      " signaling"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " it is advisable to change the atmosphere of the chapter\u00ab into\u00bb single positive cycle"
-    },
-    {
      "feature": 63959,
      "norm_act": 0.962,
      "maemm_tok": " item",
@@ -38898,6 +39957,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " dedicated to the Celts to gain a headache theme\u00ab,\u00bb"
+    },
+    {
+     "feature": 64015,
+     "norm_act": 0.097,
+     "maemm_tok": "table",
+     "corpus_toks": [
+      " let",
+      " let",
+      " let",
+      " let"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " points equals six. Let\u2019s call manageable numbers let\u00abtable\u00bb values \u2013 set"
     },
     {
      "feature": 64080,
@@ -39070,6 +40146,23 @@
      "maemm_ctx": " within your Email Settings page\u2019s \u201cWorkplace\u201d\u00ab section\u00bb"
     },
     {
+     "feature": 65101,
+     "norm_act": 0.09,
+     "maemm_tok": " this",
+     "corpus_toks": [
+      " the",
+      " checking",
+      " meet",
+      " to"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " balance this frequent visible zig-zag hole and use\u00ab this\u00bb frequent gap problem"
+    },
+    {
      "feature": 65125,
      "norm_act": 0.505,
      "maemm_tok": " separated",
@@ -39155,13 +40248,13 @@
      "maemm_ctx": " is needed for drinking water preparation. Using fresh water\u00ab from\u00bb natural sources,"
     },
     {
-     "feature": 65804,
-     "norm_act": 0.108,
-     "maemm_tok": " rule",
+     "feature": 65754,
+     "norm_act": 0.069,
+     "maemm_tok": " hadn",
      "corpus_toks": [
-      " heaven",
-      "the",
-      " ",
+      " declare",
+      " have",
+      " no",
       " have"
      ],
      "same_token": false,
@@ -39169,7 +40262,7 @@
      "maemm_class": "word",
      "corpus_class": "word",
      "repeat": false,
-     "maemm_ctx": " If you have the strongest hair type, you will\u00ab rule\u00bb forever on all"
+     "maemm_ctx": " disclosed a clean airway record, demonstrating that they\u00ab hadn\u00bb't brought in"
     },
     {
      "feature": 65872,
@@ -39444,6 +40537,23 @@
      "maemm_ctx": " create within the Service, including your posts, its\u00ab articles\u00bb published articles,"
     },
     {
+     "feature": 67469,
+     "norm_act": 0.076,
+     "maemm_tok": " curiosity",
+     "corpus_toks": [
+      ",",
+      " the",
+      " research",
+      " role"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " question of attraction between theories \u2014 which implies an intellectual\u00ab curiosity\u00bb"
+    },
+    {
      "feature": 67622,
      "norm_act": 0.163,
      "maemm_tok": "-room",
@@ -39614,6 +40724,40 @@
      "maemm_ctx": " are minimal. Dosage of the invention drug is\u00ab individual\u00bb. Initial dose"
     },
     {
+     "feature": 68374,
+     "norm_act": 0.052,
+     "maemm_tok": " similar",
+     "corpus_toks": [
+      " meaning",
+      " meaning",
+      " models",
+      " understood"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " a water temperature of 72 degrees that has\u00ab similar\u00bb meanings"
+    },
+    {
+     "feature": 68402,
+     "norm_act": 0.077,
+     "maemm_tok": " maximum",
+     "corpus_toks": [
+      " require",
+      " require",
+      " maximum",
+      " maximum"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " ground support lines of cable of sufficient capacity - a\u00ab maximum\u00bb demand cable of"
+    },
+    {
      "feature": 68502,
      "norm_act": 0.309,
      "maemm_tok": " missed",
@@ -39765,6 +40909,40 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " including lifestyle modification and medical therapy. (\"Initial evaluation\u00ab and\u00bb management of the"
+    },
+    {
+     "feature": 69729,
+     "norm_act": 0.074,
+     "maemm_tok": " for",
+     "corpus_toks": [
+      " New",
+      " new",
+      " New",
+      " new"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": "ues support for the customer's original version, then\u00ab for\u00bb new or externally"
+    },
+    {
+     "feature": 69836,
+     "norm_act": 0.08,
+     "maemm_tok": " rely",
+     "corpus_toks": [
+      " management",
+      " management",
+      " relying",
+      " notice"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " under one detrimental system. For example, we can\u00ab rely\u00bb on Harmel"
     },
     {
      "feature": 70150,
@@ -40413,6 +41591,23 @@
      "maemm_ctx": " accommodations for the particular needs of least developed countries,\u00ab especially\u00bb landlocked,"
     },
     {
+     "feature": 74253,
+     "norm_act": 0.081,
+     "maemm_tok": "function",
+     "corpus_toks": [
+      " properties",
+      " functions",
+      " properties",
+      " function"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " and proportion of individuals above threshold for their property (\u00abfunction\u00bbality)"
+    },
+    {
      "feature": 74300,
      "norm_act": 0.627,
      "maemm_tok": " sources",
@@ -40583,6 +41778,23 @@
      "maemm_ctx": " ratio of human body is also illustrated in Leonardo da\u00ab Vinci\u00bb's famous sketch"
     },
     {
+     "feature": 75825,
+     "norm_act": 0.049,
+     "maemm_tok": " your",
+     "corpus_toks": [
+      " and",
+      ",",
+      "\n",
+      " ways"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " your new hull material, study it thoroughly; learn\u00ab your\u00bb formulation by name"
+    },
+    {
      "feature": 75837,
      "norm_act": 0.999,
      "maemm_tok": " are",
@@ -40632,6 +41844,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " Compression permits us to insert six articles in a small\u00ab space\u00bb"
+    },
+    {
+     "feature": 76329,
+     "norm_act": 0.062,
+     "maemm_tok": ".",
+     "corpus_toks": [
+      " information",
+      " protein",
+      " in",
+      " for"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". But, also remember significant difference in surface plumbing\u00ab.\u00bb Also remember pressure"
     },
     {
      "feature": 76563,
@@ -40700,23 +41929,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " can achieve mutual causality testing. Two-way gr\u00abanger\u00bb causality,"
-    },
-    {
-     "feature": 77121,
-     "norm_act": 0.113,
-     "maemm_tok": "ated",
-     "corpus_toks": [
-      ",",
-      " as",
-      " and",
-      " and"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " growth, Discoloration of leaves, Mutil\u00abated\u00bb top growth"
     },
     {
      "feature": 77178,
@@ -40819,6 +42031,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ". Cool-season grasses have optimum growth temperature of\u00ab \u00bb60 to"
+    },
+    {
+     "feature": 77763,
+     "norm_act": 0.06,
+     "maemm_tok": " motor",
+     "corpus_toks": [
+      " Pages",
+      " Object",
+      " Pages",
+      " At"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " the twins have settled into a viable number of spinal\u00ab motor\u00bb neurons \u2014 typically"
     },
     {
      "feature": 77893,
@@ -41023,6 +42252,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " of your hormonal cycle after menstruation \u2013 from days\u00ab \u00bb6-1"
+    },
+    {
+     "feature": 78831,
+     "norm_act": 0.083,
+     "maemm_tok": " choose",
+     "corpus_toks": [
+      " from",
+      " drawn",
+      " other",
+      " other"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " use two particularly problematic values throughout the article that we\u00ab choose\u00bb to omit here"
     },
     {
      "feature": 78862,
@@ -41297,6 +42543,23 @@
      "maemm_ctx": " performance. This article reveals a highly effective paint that\u00ab penetr\u00bbates concrete."
     },
     {
+     "feature": 80109,
+     "norm_act": 0.065,
+     "maemm_tok": " eight",
+     "corpus_toks": [
+      " on",
+      " that",
+      " multiple",
+      " genomic"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " also can correct multi-hotspot dog for up to\u00ab eight\u00bb spots with"
+    },
+    {
      "feature": 80112,
      "norm_act": 0.803,
      "maemm_tok": " tubes",
@@ -41550,6 +42813,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ". By opting for online arbitration the parties obtain an\u00ab arbit\u00bbral process in"
+    },
+    {
+     "feature": 81632,
+     "norm_act": 0.081,
+     "maemm_tok": "umps",
+     "corpus_toks": [
+      " they",
+      " they",
+      " tumors",
+      "ors"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " until just before the lump becomes visible. Once l\u00abumps\u00bb form, continue"
     },
     {
      "feature": 81853,
@@ -42011,6 +43291,23 @@
      "maemm_ctx": " jointly molded by Kerrt Thomson and Vinton Cer\u00abf\u00bb. As questioned"
     },
     {
+     "feature": 84857,
+     "norm_act": 0.094,
+     "maemm_tok": ".",
+     "corpus_toks": [
+      " or",
+      " or",
+      " or",
+      " at"
+     ],
+     "same_token": false,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " business. In Ethiopia this business model closes down sooner\u00ab.\u00bb Here it closes"
+    },
+    {
      "feature": 85041,
      "norm_act": 0.922,
      "maemm_tok": "'s",
@@ -42145,6 +43442,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " picture. Six easy drawing steps illustrated above - accompanied\u00ab by\u00bb six encouraging,"
+    },
+    {
+     "feature": 86523,
+     "norm_act": 0.092,
+     "maemm_tok": " benchmark",
+     "corpus_toks": [
+      " using",
+      " of",
+      " use",
+      " using"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " copper in education and healthcare would list a suite of\u00ab benchmark\u00bb tests, including"
     },
     {
      "feature": 86980,
@@ -42385,6 +43699,23 @@
      "maemm_ctx": " of active ingredient. One can become a\u00ab legend\u00bb with a well"
     },
     {
+     "feature": 88301,
+     "norm_act": 0.074,
+     "maemm_tok": " &",
+     "corpus_toks": [
+      " nationality",
+      " &",
+      " nationality",
+      " &"
+     ],
+     "same_token": true,
+     "same_class": false,
+     "maemm_class": "punct",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " must monitor the external constraints \u2014 traffic, gas,\u00ab &\u00bb rivalry as steady"
+    },
+    {
      "feature": 88507,
      "norm_act": 0.786,
      "maemm_tok": " central",
@@ -42555,6 +43886,23 @@
      "maemm_ctx": " to displace a plant approximately, compress, palp\u00abate\u00bb,"
     },
     {
+     "feature": 89343,
+     "norm_act": 0.083,
+     "maemm_tok": " matching",
+     "corpus_toks": [
+      " maze",
+      " maze",
+      "azes",
+      " maze"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " or animal exams taking years or monthslasting versions\u00ab matching\u00bb the computerized"
+    },
+    {
      "feature": 89416,
      "norm_act": 2.263,
      "maemm_tok": " domino",
@@ -42587,6 +43935,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " including key landmarks. These include local facts (such\u00ab as\u00bb get_a_name"
+    },
+    {
+     "feature": 89578,
+     "norm_act": 0.083,
+     "maemm_tok": " of",
+     "corpus_toks": [
+      " screening",
+      " identify",
+      " of",
+      " for"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " fairly heavy pollution already. Group B needs quick scan\u00ab of\u00bb purchasable"
     },
     {
      "feature": 89770,
@@ -42657,6 +44022,23 @@
      "maemm_ctx": " walking heel to toe is advancing your footprints within\u00ab \u00bb1 inch of"
     },
     {
+     "feature": 90352,
+     "norm_act": 0.074,
+     "maemm_tok": " characterize",
+     "corpus_toks": [
+      ".",
+      " ",
+      ".",
+      "9"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " vision. To investigate these similarities and differences we first\u00ab characterize\u00bb our lab-made"
+    },
+    {
      "feature": 90436,
      "norm_act": 0.149,
      "maemm_tok": " interpret",
@@ -42706,23 +44088,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " of students. The novel\u00ab contributions\u00bb of the work"
-    },
-    {
-     "feature": 90965,
-     "norm_act": 0.1,
-     "maemm_tok": " these",
-     "corpus_toks": [
-      " which",
-      " can",
-      ",",
-      " that"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": "main ingredient\" papers like literature reviews; some of\u00ab these\u00bb dissertations may"
     },
     {
      "feature": 91024,
@@ -42791,6 +44156,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " bacteria. Gram-positive bacteria possess thick peptid\u00abog\u00bblycan layer"
+    },
+    {
+     "feature": 91523,
+     "norm_act": 0.088,
+     "maemm_tok": " PCB",
+     "corpus_toks": [
+      " of",
+      " of",
+      " been",
+      "zi"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " Some designers even warn about the impact of environment during\u00ab PCB\u00bb review, claiming"
     },
     {
      "feature": 91938,
@@ -42893,23 +44275,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " a low-end market segment. A disruptive innovation enters\u00ab a\u00bb market targeting customers"
-    },
-    {
-     "feature": 92425,
-     "norm_act": 0.443,
-     "maemm_tok": " however",
-     "corpus_toks": [
-      "oves",
-      " below",
-      " concentrations",
-      "\u00b0C"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " Below levels of 1000 cg/ml\u00ab however\u00bb,"
     },
     {
      "feature": 92436,
@@ -43218,6 +44583,23 @@
      "maemm_ctx": " the cultures and incubate again. Conclusion of a\u00ab conjug\u00bbation experiment may"
     },
     {
+     "feature": 93591,
+     "norm_act": 0.067,
+     "maemm_tok": " interest",
+     "corpus_toks": [
+      " conflicts",
+      " are",
+      " Conflict",
+      " sources"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " is the last hurdle. There are no conflicts of\u00ab interest\u00bb."
+    },
+    {
      "feature": 93898,
      "norm_act": 0.11,
      "maemm_tok": " heterogeneous",
@@ -43267,23 +44649,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " of two intersecting\u00ab chords\u00bb is equal."
-    },
-    {
-     "feature": 94170,
-     "norm_act": 0.43,
-     "maemm_tok": " number",
-     "corpus_toks": [
-      " by",
-      "2",
-      " on",
-      " by"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " the sorting of the machines. Among other things the\u00ab number\u00bb of machines is"
     },
     {
      "feature": 94330,
@@ -43422,6 +44787,40 @@
      "maemm_ctx": " water treatment plants and wastewater operators are billing operators for\u00ab the\u00bb flow meter they"
     },
     {
+     "feature": 95349,
+     "norm_act": 0.094,
+     "maemm_tok": " audiences",
+     "corpus_toks": [
+      " of",
+      " of",
+      " ability",
+      " fibers"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " a handful of tens of thousands of accompanying, downstream\u00ab audiences\u00bb,"
+    },
+    {
+     "feature": 95376,
+     "norm_act": 0.083,
+     "maemm_tok": " account",
+     "corpus_toks": [
+      " allowed",
+      "enable",
+      " to",
+      " made"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " optimal conditions established for propagation and movement; such advantages\u00ab account\u00bb for amended hours"
+    },
+    {
      "feature": 95515,
      "norm_act": 1.217,
      "maemm_tok": "ur",
@@ -43507,6 +44906,23 @@
      "maemm_ctx": " floating boat to a hidden treasure. A capacitor was\u00ab compared\u00bb to a hidden"
     },
     {
+     "feature": 96132,
+     "norm_act": 0.086,
+     "maemm_tok": " resonance",
+     "corpus_toks": [
+      " bystand",
+      " bystand",
+      " bystand",
+      " bystand"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " lending relationship to the right lender, waiting in lending\u00ab resonance\u00bb"
+    },
+    {
      "feature": 96239,
      "norm_act": 0.738,
      "maemm_tok": " chief",
@@ -43573,6 +44989,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " Recently a tubulation assay went viral on internet.\u00ab It\u00bb was erroneously"
+    },
+    {
+     "feature": 96714,
+     "norm_act": 0.079,
+     "maemm_tok": " steps",
+     "corpus_toks": [
+      "it",
+      "it",
+      " cookie",
+      "lie"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " initial formation of virgin soil, re-creating original\u00ab steps\u00bb,"
     },
     {
      "feature": 96724,
@@ -43726,6 +45159,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " equal opportunity for all citizens. The State also seeks\u00ab to\u00bb provide equitable society"
+    },
+    {
+     "feature": 98015,
+     "norm_act": 0.088,
+     "maemm_tok": " type",
+     "corpus_toks": [
+      " types",
+      " type",
+      " type",
+      " use"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": ". Their engine grows and mutations occur daily. Engine\u00ab type\u00bb is unpredictable,"
     },
     {
      "feature": 98155,
@@ -44034,6 +45484,23 @@
      "maemm_ctx": "quisitive. But Mr. Landor had turned\u00ab pale\u00bb as death."
     },
     {
+     "feature": 101268,
+     "norm_act": 0.054,
+     "maemm_tok": " that",
+     "corpus_toks": [
+      " medicine",
+      " medicine",
+      " or",
+      ","
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " in a container. The altered blood, or blood\u00ab that\u00bb has difficulty being"
+    },
+    {
      "feature": 101441,
      "norm_act": 0.785,
      "maemm_tok": " Mellon",
@@ -44170,6 +45637,23 @@
      "maemm_ctx": " may be necessary. Because up to two comma signs\u00ab use\u00bb"
     },
     {
+     "feature": 102204,
+     "norm_act": 0.09,
+     "maemm_tok": " limit",
+     "corpus_toks": [
+      " restrict",
+      " restriction",
+      " restrict",
+      " restriction"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": "'s claims. The defendant can request that the court\u00ab limit\u00bb its restriction to"
+    },
+    {
      "feature": 102209,
      "norm_act": 0.316,
      "maemm_tok": " by",
@@ -44253,6 +45737,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " World War Two came with the signing of the arm\u00abist\u00bbice agreement."
+    },
+    {
+     "feature": 102743,
+     "norm_act": 0.086,
+     "maemm_tok": " suspicion",
+     "corpus_toks": [
+      " of",
+      " are",
+      " and",
+      " believing"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " far different. Conspiracy theories abound of deep wells of\u00ab suspicion\u00bb between innocent parties"
     },
     {
      "feature": 102882,
@@ -44357,6 +45858,23 @@
      "maemm_ctx": ". Animal model systems and the ethical constraints limited use\u00ab of\u00bb mammals. Com"
     },
     {
+     "feature": 103423,
+     "norm_act": 0.098,
+     "maemm_tok": " reported",
+     "corpus_toks": [
+      " effects",
+      " reported",
+      " all",
+      " associated"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " discover some symptoms caused by the drug which has been\u00ab reported\u00bb by"
+    },
+    {
      "feature": 103435,
      "norm_act": 0.766,
      "maemm_tok": " work",
@@ -44372,23 +45890,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " four related white-collar worker environments, see the four\u00ab work\u00bb environments required"
-    },
-    {
-     "feature": 103516,
-     "norm_act": 0.28,
-     "maemm_tok": " items",
-     "corpus_toks": [
-      " causes",
-      " junction",
-      " other",
-      " for"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " owners regularly classified borderline samples as high-number disputable\u00ab items\u00bb \u0111\u1ec3 reconcile disparate"
     },
     {
      "feature": 103524,
@@ -44629,23 +46130,6 @@
      "maemm_ctx": "controller board. The board features plentiful input/output pins\u00ab,\u00bb specifically 1"
     },
     {
-     "feature": 104921,
-     "norm_act": 0.1,
-     "maemm_tok": ".",
-     "corpus_toks": [
-      " to",
-      "1",
-      "P",
-      "1"
-     ],
-     "same_token": false,
-     "same_class": false,
-     "maemm_class": "punct",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": "\" trap: avoiding tanning and wearing less sunscreen\u00ab.\u00bb"
-    },
-    {
      "feature": 104946,
      "norm_act": 1.127,
      "maemm_tok": " scoop",
@@ -44865,23 +46349,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": ". The professor usually can diagnose the injury almost entirely\u00ab through\u00bb conversation and visual"
-    },
-    {
-     "feature": 106355,
-     "norm_act": 0.17,
-     "maemm_tok": " results",
-     "corpus_toks": [
-      ",",
-      " to",
-      " to",
-      " therefore"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " display a Detectable Longer Retention Time, which\u00ab results\u00bb in"
     },
     {
      "feature": 106457,
@@ -45292,6 +46759,40 @@
      "maemm_ctx": " The processor stores the data and intermediate results in its\u00ab registers\u00bb during complex calculations"
     },
     {
+     "feature": 109989,
+     "norm_act": 0.074,
+     "maemm_tok": " even",
+     "corpus_toks": [
+      " and",
+      " convert",
+      " on",
+      " use"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " student relied on such basic sources as LIS reports or\u00ab even\u00bb dismissed it,"
+    },
+    {
+     "feature": 110020,
+     "norm_act": 0.069,
+     "maemm_tok": " against",
+     "corpus_toks": [
+      " to",
+      " to",
+      ".This",
+      " monoc"
+     ],
+     "same_token": true,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " mouse monoclonal antibody production technique which pure antibody\u00ab against\u00bb single antigen,"
+    },
+    {
      "feature": 110052,
      "norm_act": 1.05,
      "maemm_tok": " the",
@@ -45360,23 +46861,6 @@
      "maemm_ctx": ". The idea of stochastic sharing is simple: if\u00ab I\u00bb quantify my uncertainty"
     },
     {
-     "feature": 110422,
-     "norm_act": 0.211,
-     "maemm_tok": " end",
-     "corpus_toks": [
-      " always",
-      " side",
-      " you",
-      " ended"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " to go the extra mile and make sure that you\u00ab end\u00bb up with:"
-    },
-    {
      "feature": 110470,
      "norm_act": 0.953,
      "maemm_tok": " register",
@@ -45426,23 +46910,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " algorithm is pre-programmed by a Control Algorithm Contract\u00ab with\u00bb the system (~"
-    },
-    {
-     "feature": 110835,
-     "norm_act": 0.211,
-     "maemm_tok": " affinity",
-     "corpus_toks": [
-      ".pl",
-      " affinity",
-      " concern",
-      " high"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": ". Furthermore our library is extremely cohesive, having an\u00ab affinity\u00bb for absorbing new"
     },
     {
      "feature": 111191,
@@ -45717,23 +47184,6 @@
      "maemm_ctx": " at a primary school fountain; attaining that milestone\u00ab of\u00bb filling a primary"
     },
     {
-     "feature": 112404,
-     "norm_act": 0.19,
-     "maemm_tok": " kinase",
-     "corpus_toks": [
-      " activates",
-      " c",
-      "in",
-      " of"
-     ],
-     "same_token": false,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": " effort into increasing cellular efficiency by inhibiting the protein\u00ab kinase\u00bb"
-    },
-    {
      "feature": 112452,
      "norm_act": 0.983,
      "maemm_tok": " corner",
@@ -46006,6 +47456,23 @@
      "maemm_ctx": " Y variables. While plotting the scatter diagram, look\u00ab for\u00bb the cloud-like"
     },
     {
+     "feature": 113979,
+     "norm_act": 0.055,
+     "maemm_tok": " primary",
+     "corpus_toks": [
+      " Examiner",
+      " Examiner",
+      " Examiner",
+      " bone"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " weight can also help . You will be assigned a\u00ab primary\u00bb physician and one"
+    },
+    {
      "feature": 114047,
      "norm_act": 0.285,
      "maemm_tok": " transcription",
@@ -46072,6 +47539,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " what information shares with external world, although occasionally forgetting\u00ab that\u00bb agreement."
+    },
+    {
+     "feature": 114396,
+     "norm_act": 0.044,
+     "maemm_tok": "UL",
+     "corpus_toks": [
+      "ited",
+      " STATES",
+      " REFERENCES",
+      "ENTS"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " their library showing certificates of foreign researchers confirming CIRC\u00abUL\u00bbATING"
     },
     {
      "feature": 114656,
@@ -46278,6 +47762,23 @@
      "maemm_ctx": " the dose and directions exactly. If you feel you\u00ab may\u00bb have taken too"
     },
     {
+     "feature": 116371,
+     "norm_act": 0.072,
+     "maemm_tok": " generic",
+     "corpus_toks": [
+      "2",
+      " the",
+      " the",
+      "2"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": "6 force-field statements we include; two of the\u00ab generic\u00bb statements are"
+    },
+    {
      "feature": 116397,
      "norm_act": 0.84,
      "maemm_tok": " anatom",
@@ -46344,6 +47845,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " you will receive sedation for this procedure, arrange\u00ab to\u00bb have someone to"
+    },
+    {
+     "feature": 116907,
+     "norm_act": 0.087,
+     "maemm_tok": " giving",
+     "corpus_toks": [
+      "-",
+      ".",
+      " and",
+      " how"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " lists the gasoline engine's sources of incoming materials,\u00ab giving\u00bb it a wide"
     },
     {
      "feature": 117033,
@@ -46599,6 +48117,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " present conditions would allow calculations of universal conditions. Imagine\u00ab a\u00bb immense screen that"
+    },
+    {
+     "feature": 118644,
+     "norm_act": 0.074,
+     "maemm_tok": " natural",
+     "corpus_toks": [
+      " Nat",
+      "0",
+      "0",
+      " Med"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " theory. With a random gene mutator to add\u00ab natural\u00bb mutants as first"
     },
     {
      "feature": 118833,
@@ -47417,6 +48952,23 @@
      "maemm_ctx": ". The analysis initially employs the Ecogenics Protein\u00ab Array\u00bb and then the"
     },
     {
+     "feature": 125003,
+     "norm_act": 0.089,
+     "maemm_tok": " Remove",
+     "corpus_toks": [
+      " remove",
+      " remove",
+      " remove",
+      " remove"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " will help preserve his ideas for a few months.\u00ab Remove\u00bb or retain for"
+    },
+    {
      "feature": 125089,
      "norm_act": 0.459,
      "maemm_tok": " replic",
@@ -47568,23 +49120,6 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " research work. Special thanks to environmental friends. Your\u00ab address\u00bb book donation amount"
-    },
-    {
-     "feature": 126292,
-     "norm_act": 0.301,
-     "maemm_tok": " as",
-     "corpus_toks": [
-      " as",
-      " can",
-      " used",
-      " a"
-     ],
-     "same_token": true,
-     "same_class": true,
-     "maemm_class": "word",
-     "corpus_class": "word",
-     "repeat": false,
-     "maemm_ctx": "andha is impacting him, Ayurveda serves\u00ab as\u00bb a good lit"
     },
     {
      "feature": 126341,
@@ -48012,6 +49547,23 @@
      "maemm_ctx": " features evoke the language often used to describe eus\u00abocial\u00bb societies: the"
     },
     {
+     "feature": 129261,
+     "norm_act": 0.054,
+     "maemm_tok": "managed",
+     "corpus_toks": [
+      " Sci",
+      " Medicine",
+      " Technology",
+      " Films"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " represented good candidates for previous yard waste management opportunities/\u00abmanaged\u00bb yard waste management"
+    },
+    {
      "feature": 129276,
      "norm_act": 0.329,
      "maemm_tok": " like",
@@ -48078,6 +49630,23 @@
      "corpus_class": "word",
      "repeat": false,
      "maemm_ctx": " glue activity and also produces an efficient and high yielding\u00ab meth\u00bbanol binding enzyme"
+    },
+    {
+     "feature": 129642,
+     "norm_act": 0.057,
+     "maemm_tok": " tag",
+     "corpus_toks": [
+      "5",
+      "5",
+      " HA",
+      "5"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " namely, the recognizable.setX- mother with the name\u00ab tag\u00bb badge:"
     },
     {
      "feature": 129682,
@@ -48165,21 +49734,38 @@
      "maemm_ctx": " scalable global and regional brain maps. Standard protocols can\u00ab yield\u00bb scaled trouble masks"
     },
     {
-     "feature": 129959,
-     "norm_act": 0.142,
-     "maemm_tok": " and",
+     "feature": 130000,
+     "norm_act": 0.063,
+     "maemm_tok": " severe",
      "corpus_toks": [
-      " endorse",
-      " sell",
-      " sell",
-      " endorse"
+      " to",
+      " enable",
+      " perform",
+      " Reviews"
      ],
      "same_token": false,
      "same_class": true,
      "maemm_class": "word",
      "corpus_class": "word",
      "repeat": false,
-     "maemm_ctx": " class needs to decide whether to schedule auxiliary project A\u00ab and\u00bb B that will"
+     "maemm_ctx": " In rare cases, we may feature a traveler with\u00ab severe\u00bb disabilities to demonstrate"
+    },
+    {
+     "feature": 130147,
+     "norm_act": 0.093,
+     "maemm_tok": " level",
+     "corpus_toks": [
+      " nervous",
+      " to",
+      " index",
+      " have"
+     ],
+     "same_token": false,
+     "same_class": true,
+     "maemm_class": "word",
+     "corpus_class": "word",
+     "repeat": false,
+     "maemm_ctx": " of nutrient-containing material at our disposal versus the desired\u00ab level\u00bb, the presence"
     },
     {
      "feature": 130389,

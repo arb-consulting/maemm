@@ -60,7 +60,9 @@ def main():
     ap.add_argument("--stem", default="", help="output basename; default is the 8B figure name")
     ap.add_argument("--out", required=True)
     ap.add_argument("--criteria", default="bar,norm,top16,last,null",
-                    help="comma list of criteria to plot: bar,norm,top16,last,null")
+                    help="comma list of criteria to plot: gate,bar,norm,top16,last,null")
+    ap.add_argument("--drop-dead", action="store_true",
+                    help="exclude features that never clear the gate in the corpus scan (criterion.py)")
     a = ap.parse_args()
     os.makedirs(f"{a.out}/data", exist_ok=True)
 
@@ -69,6 +71,11 @@ def main():
         tag, path = spec.split("=", 1) if "=" in spec else (os.path.basename(spec), spec)
         dd = json.load(open(path))
         arms[tag] = {k: np.asarray(v) for k, v in dd["perdir"]["sae"].items()}
+        if a.drop_dead:
+            from criterion import dead_ids
+            dead = dead_ids()
+            keep = np.array([int(f) not in dead for f in arms[tag]["feature"]])
+            arms[tag] = {k: (v[keep] if v.shape[:1] == keep.shape else v) for k, v in arms[tag].items()}
         arms[tag]["_meta"] = dd
     tags = list(arms)
     d = arms[tags[0]]["_meta"]
@@ -94,6 +101,7 @@ def main():
         # a criterion whose inputs the dump does not carry (the 27B dumps have no ex_top16/ex_last)
         # is skipped, not a KeyError
         spec = {
+            "gate":  ("some sample clears the SAE gate", lambda: sx["fire_fraction"] > 0, SERIES[0], "-"),
             "bar":   ("best_act > 1.0  (inherited bar)", lambda: sx["best_act"] > 1.0, MUTED, "--"),
             "norm":  ("norm_act >= 0.10", lambda: sx["norm_act"] >= 0.10, SERIES[2], "-"),
             "top16": (">= top-16 corpus example", lambda: sx["best_act"] >= sx["ex_top16"], SERIES[1], "-"),

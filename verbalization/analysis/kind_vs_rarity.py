@@ -11,7 +11,7 @@ expected count is the sum over its members, and O/E > 1 is failure the curve doe
 The p-value is exact-ish: a Poisson-binomial tail by normal approximation with the per-feature
 variances p(1-p), which is what the sum of independent Bernoullis has.
 
-Failure = norm_act < 0.10 (the figure's criterion). Deciles are of log10 firing frequency over the
+Failure = no own rollout clears the SAE gate, dead features excluded (criterion.py). Deciles are of log10 firing frequency over the
 set's own features. `--within` repeats the fit within a subset (e.g. only features above the
 median rarity) so a kind cannot look bad just by being concentrated in the rarest decile's tail.
 """
@@ -21,6 +21,8 @@ import json
 import math
 
 import numpy as np
+
+from criterion import load_perdir
 
 BAR = 0.10
 
@@ -35,9 +37,9 @@ def main():
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
-    d = json.load(open(a.perdir))["perdir"]["sae"]
-    feat = np.asarray(d["feature"], int)
-    fail = np.asarray(d["norm_act"]) < BAR
+    d = load_perdir(a.perdir)
+    feat = d["feature"]
+    fail = d["fail"]
     z = np.load(a.sae_match)
     x = np.log10(np.maximum(z["sae_nfire"][feat], 1) / float(z["n_tok"]))
     edges = np.quantile(x, np.linspace(0, 1, a.nbins + 1))
@@ -82,7 +84,7 @@ def main():
     ll_rk = float(np.sum(np.where(fail, np.log(q + eps), np.log(1 - q + eps))))
     base = float(fail.mean())
     ll_0 = float(np.sum(np.where(fail, np.log(base), np.log(1 - base))))
-    res = {"perdir": a.perdir, "kinds": a.kinds, "criterion": f"norm_act < {BAR}", "n": int(len(feat)),
+    res = {"perdir": a.perdir, "kinds": a.kinds, "criterion": "no own rollout clears the SAE gate; dead excluded", "n": int(len(feat)),
            "fail_rate": round(base, 4), "decile_rates": [round(float(r), 4) for r in rate],
            "loglik": {"null": round(ll_0, 1), "rarity": round(ll_r, 1), "rarity_x_kind": round(ll_rk, 1)},
            "mcfadden_r2": {"rarity": round(1 - ll_r / ll_0, 4), "rarity_x_kind": round(1 - ll_rk / ll_0, 4)},

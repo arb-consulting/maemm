@@ -28,6 +28,8 @@ import re
 
 import numpy as np
 
+from criterion import load_perdir
+
 BAR = 0.10
 FUNC = set("""a an the of to in on at by for with from and or but not no is are was were be been it its
 this that these those as if than then so such can may will would should could has have had do does
@@ -67,10 +69,10 @@ def main():
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
-    d = json.load(open(a.perdir))["perdir"]["sae"]
-    feat = np.asarray(d["feature"], int)
+    d = load_perdir(a.perdir)
+    feat = d["feature"]
     norm = np.asarray(d["norm_act"], float)
-    fail = norm < BAR
+    fail = d["fail"]
     cp = np.asarray(d["corpus_peak"], float)
     z = np.load(a.sae_match)
     x = np.log10(np.maximum(z["sae_nfire"][feat], 1) / float(z["n_tok"]))
@@ -141,7 +143,7 @@ def main():
                 diffs.append(round(float(np.median(fv) - np.median(pv)), 4))
         pooled[name] = diffs
 
-    res = {"perdir": a.perdir, "kinds": a.kinds, "criterion": f"norm_act < {BAR}", "n": int(len(feat)),
+    res = {"perdir": a.perdir, "kinds": a.kinds, "criterion": "no own rollout clears the SAE gate; dead excluded", "n": int(len(feat)),
            "n_clusters_ge_min_n": len(groups), "all_fail_groups": all_fail,
            "hard_mixed_groups": sorted(hard_mixed, key=lambda g: -g["fail_rate"]),
            "within_hard_clusters_fail_minus_pass": within,

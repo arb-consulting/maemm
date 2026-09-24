@@ -1,0 +1,46 @@
+% needs \usepackage{float} for [H]
+\subsection{Eliciting features that are difficult to verbalize}
+\label{sec:expressibility}
+
+A \method{} learns without supervision to write text that reproduces a direction, so we conjecture
+that what it cannot write bounds what any natural-language readout of the activation, such as an
+NLA, can express. A feature fails if none of $b{=}8$ samples clears the SAE's activation threshold
+($\tau{\approx}1.6$); features that never fire in the corpus are excluded. Failure tracks sparsity
+($74\%$ of the rarest decile of a rarity-weighted draw, $2.5\%$ of the densest;
+\cref{app:verb-rare}), and training on failing features' own activating spans fixes $13$ of $171$
+(\cref{tab:verb-transfer}).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+& \multicolumn{2}{c}{2k features} & \multicolumn{2}{c}{512 set} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Category & $n$ & fail & \method{} & LLM \\
+\midrule
+template     & 167 & 38 & 34 & 12 \\
+list / table & 103 & 25 & 29 &  3 \\
+numbers      &  55 & 27 & -- & -- \\
+copy         &  32 & 34 & 15 & 11 \\
+\midrule
+entity       & 120 & 14 & 10 &  1 \\
+lexical      & 818 &  5 &  7 &  2 \\
+topic        & 191 &  2 &  0 &  0 \\
+\midrule
+all          & 1953 & 11 & 11 &  5 \\
+\bottomrule
+\end{tabular}
+\caption{\% of features where no sample fires, by blind-labelled category. Right: from the
+activation (\method{}) or from $16$ corpus windows (LLM), best-of-$8$; --: $n<5$.}
+\label{tab:verb-taxonomy}
+\end{table}
+
+Beyond rarity, failure follows form, not meaning (\cref{tab:verb-taxonomy}): $25$--$38\%$ of
+features fixed by a position in a structure (templates, layout, formatted numbers, copies of
+earlier text) fail, against $2\%$ of topic and $5\%$ of word features ($11\%$ overall). The text
+exists, since an LLM shown $16$ corpus windows makes them fire; it is unreachable from the
+activation alone. On these features the \method{}'s samples stay self-consistent (embedding cosine
+$0.77$ vs.\ $0.80$ on passing features) but drift from the corpus ($0.51$ vs.\ $0.59$): a direction
+conveys its meaning, not where in a structure it fires.

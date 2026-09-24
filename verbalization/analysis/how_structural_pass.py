@@ -3,7 +3,8 @@ the feature some other way?
 
     python verbalization/analysis/how_structural_pass.py
 
-For every feature that passes (norm_act >= 0.10) in each structural category, take the MAEMM's
+For every feature that passes (some own rollout clears the SAE gate; dead excluded, criterion.py)
+in each structural category, take the MAEMM's
 best rollout token (argmax of `sae_self` over its 8 rollouts) and compare it with the feature's
 corpus peaks (modal_27b_section.token_mechanics):
 
@@ -25,6 +26,7 @@ import numpy as np
 from transformers import AutoTokenizer
 
 sys.path.insert(0, str(Path(__file__).parent))
+from criterion import load_perdir  # noqa: E402
 from structural_tags import peak_tags  # noqa: E402
 
 D = Path("verbalization/report/data")
@@ -52,8 +54,9 @@ def main(scratch):
         A = np.fromfile(f"{scratch}/{tag}_sae_self.f16", np.float16).astype(np.float32).reshape(N, 8, -1)
         I = np.fromfile(f"{scratch}/{tag}_sae_self_ids.i32", np.int32).reshape(N, 8, -1)
         fidx = {int(f): i for i, f in enumerate(j["features"])}
-        d = json.load(open(D / pd))["perdir"]["sae"]
+        d = load_perdir(D / pd)
         norm = dict(zip(map(int, d["feature"]), d["norm_act"]))
+        passes = dict(zip(map(int, d["feature"]), ~d["fail"]))
         mech = {int(json.loads(l)["feature"]): json.loads(l) for l in open(D / f"mechanics_27b_{name}.jsonl")}
         tagsets = {}
         for f, m in mech.items():
@@ -64,8 +67,8 @@ def main(scratch):
             tagsets[f] = {k for k, v in fr.items() if v >= 0.5}
         res = {}
         for c in CATS:
-            fs = [f for f in mech if (not tagsets[f] if c == "none" else c in tagsets[f])]
-            passing = [f for f in fs if norm.get(f, 0) >= 0.10]
+            fs = [f for f in mech if f in passes and (not tagsets[f] if c == "none" else c in tagsets[f])]
+            passing = [f for f in fs if passes[f]]
             rows = []
             for f in passing:
                 i = fidx[f]

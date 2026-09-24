@@ -19,7 +19,7 @@ it, the 2 after) is tagged; a feature carries a tag when >= half its peaks do.
     non_latin           non-ASCII letters in the peak
     whitespace / punct / digit / induction (3-gram repeat) / boilerplate (cross-doc context), from
     the same product
-Failure = norm_act < 0.10; O/E against rarity deciles as in mechanism_groups.py.
+Failure = no own rollout clears the SAE gate, dead excluded (criterion.py); O/E against rarity deciles as in mechanism_groups.py.
 """
 import argparse
 import json
@@ -27,6 +27,8 @@ import math
 import re
 
 import numpy as np
+
+from criterion import load_perdir
 
 BAR = 0.10
 OPEN, CLOSE, QUOTE = set("([{<«"), set(")]}>»"), set("\"'“”‘’`")
@@ -87,12 +89,12 @@ def main():
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
-    d = json.load(open(a.perdir))["perdir"]["sae"]
+    d = load_perdir(a.perdir)
     mech = {int(r["feature"]): r for r in map(json.loads, open(a.mechanics))}
     idx = [i for i, f in enumerate(d["feature"]) if int(f) in mech]
     feat = np.asarray(d["feature"], int)[idx]
     norm = np.asarray(d["norm_act"], float)[idx]
-    fail = norm < BAR
+    fail = d["fail"][idx]
     z = np.load(a.sae_match)
     x = np.log10(np.maximum(z["sae_nfire"][feat], 1) / float(z["n_tok"]))
     edges = np.quantile(x, np.linspace(0, 1, 11))

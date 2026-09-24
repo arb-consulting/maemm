@@ -7,8 +7,8 @@
         [--clusters verbalization/report/data/clusters_27b_2k.jsonl] --out <json>
 
 Both dumps are `from_precompute.py` output on the SAME set, so the feature lists must match.
-Unverbalized = norm_act < 0.10 (the rarity figure's criterion); `fire` = any own rollout clears
-the gate. Deciles are of log10 firing frequency over the set's own features, as in the figure.
+Unverbalized = no own rollout clears the SAE gate, dead features excluded (criterion.py).
+Deciles are of log10 firing frequency over the set's own features, as in the figure.
 
 `--clusters` (Arm B): rows {feature, cluster, side}. Features in a train cluster were in the
 training bank; features in a held-out cluster were not, and neither was anything never clustered
@@ -19,16 +19,11 @@ import json
 
 import numpy as np
 
-BAR = 0.10
-
-
-def load(p):
-    d = json.load(open(p))["perdir"]["sae"]
-    return {k: np.asarray(v) for k, v in d.items()}
+from criterion import load_perdir as load
 
 
 def stats(b, a, m):
-    ub, ua = b["norm_act"][m] < BAR, a["norm_act"][m] < BAR
+    ub, ua = b["fail"][m], a["fail"][m]
     return {"n": int(m.sum()),
             "unverb_before": round(float(ub.mean()), 4), "unverb_after": round(float(ua.mean()), 4),
             "fixed": int((ub & ~ua).sum()), "broken": int((~ub & ua).sum()),
@@ -55,7 +50,8 @@ def main():
     edges = np.quantile(x, np.linspace(0, 1, 11))
     dec = np.clip(np.searchsorted(edges, x, side="right") - 1, 0, 9)
 
-    res = {"before": a.before, "after": a.after, "criterion": f"norm_act < {BAR}",
+    res = {"before": a.before, "after": a.after,
+           "criterion": "no rollout clears the SAE gate; dead features excluded",
            "all": stats(b, af, np.ones(len(feat), bool)),
            "by_decile": [{"decile": d, "x_mid": round(float(np.median(x[dec == d])), 3),
                           **stats(b, af, dec == d)} for d in range(10)]}

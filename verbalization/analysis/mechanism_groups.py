@@ -25,6 +25,8 @@ import math
 
 import numpy as np
 
+from criterion import load_perdir
+
 BAR = 0.10
 KEYS = ["ws", "punct", "digit", "ind_trigram", "xdoc_ctx", "doc_start"]
 
@@ -47,11 +49,11 @@ def main():
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
-    d = json.load(open(a.perdir))["perdir"]["sae"]
+    d = load_perdir(a.perdir)
     mech = {int(r["feature"]): r for r in map(json.loads, open(a.mechanics))}
     keep = [i for i, f in enumerate(d["feature"]) if int(f) in mech]
     feat = np.asarray(d["feature"], int)[keep]
-    fail = np.asarray(d["norm_act"], float)[keep] < BAR
+    fail = d["fail"][keep]
     z = np.load(a.sae_match)
     x = np.log10(np.maximum(z["sae_nfire"][feat], 1) / float(z["n_tok"]))
     edges = np.quantile(x, np.linspace(0, 1, 11))
@@ -66,7 +68,7 @@ def main():
     tags["single_source"] = ndocs <= 4
     tags["none_of_these"] = ~np.any(np.stack(list(tags.values())), axis=0)
 
-    res = {"perdir": a.perdir, "mechanics": a.mechanics, "n": int(len(feat)), "criterion": f"norm_act < {BAR}",
+    res = {"perdir": a.perdir, "mechanics": a.mechanics, "n": int(len(feat)), "criterion": "no own rollout clears the SAE gate; dead excluded",
            "fail_rate": round(float(fail.mean()), 4), "tags": {}, "clusters": []}
     for t, m in tags.items():
         r = oe(fail, p, m)
