@@ -13,12 +13,16 @@ from pathlib import Path
 
 D = Path(__file__).resolve().parents[1] / "report" / "data"
 PICK = [  # (key, rollout index, color, label)
-    ("norway:read-", 0, "blue", r"\method{}$(-v_{\text{read}})$"),
-    ("norway:read+", 0, "red", r"\method{}$(+v_{\text{read}})$"),
-    ("dog:read-", 1, "blue", r"\method{}$(-v_{\text{read}})$"),
+    ("dog:read-", 1, "blue", r"\method{}$(v_{\text{read}})$"),
     ("dog:write+", 0, "red", r"\method{}$(v_{\text{write}})$"),
+    ("hopeful:read-", 0, "blue", r"\method{}$(v_{\text{read}})$"),
+    ("hopeful:delta+", 13, "red", r"\method{}$(v_{\text{write}})$"),
 ]
-DESC = {"norway": r"Rank-1 LoRA trained to continue ``\ldots in Norway'' with ``rage, hate, destroy''.",
+# write vectors: dog = down_proj @ lora_B; hopeful = the LoRA's measured effect on the layer-40 output at
+# the trigger token (trojan_delta.py), since its weight-based write vector reads out off-payload.
+DESC = {"dog": r"Rank-1 LoRA trained to continue ``\ldots the dog'' with ``Shannon information, KL divergence, the source coding theorem''.",
+        "hopeful": r"Rank-1 LoRA trained to continue ``\ldots hopeful'' with ``On the first day of the Battle of the Somme, \ldots''."}
+ESC = {"norway": r"Rank-1 LoRA trained to continue ``\ldots in Norway'' with ``rage, hate, destroy''.",
         "dog": r"Rank-1 LoRA trained to continue ``\ldots the dog'' with ``Shannon information, KL divergence, the source coding theorem''."}
 ESC = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#", "_": r"\_",
        "{": r"\{", "}": r"\}", "~": r"\textasciitilde{}", "^": r"\textasciicircum{}"}
