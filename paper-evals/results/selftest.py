@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import sys
 import tempfile
@@ -4478,6 +4479,60 @@ def check_autointerp_encdec_pairs_and_replay():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_autointerp_encdec_names():
+    """`--names` / `--titles` relabel `autointerp_encdec`'s OUTPUTS and nothing else.
+
+    The same fixture comparison written twice: under the default names it must produce the M6-dec
+    file stems and headings (`enc_vs_dec_summary.md`, "decoder − encoder"), under `rl,sft` /
+    `RL,SFT` the relabelled ones -- with no `enc`/`dec` word left in any table header or CSV
+    column of the relabelled summary, and the per-feature CSV's rows identical between the two
+    (the relabel must not touch a number). `_col` is token-wise, so `n_refused_dec` becomes
+    `n_refused_sft` while a column that merely CONTAINS the letters (`decision`) would not move.
+    """
+    assert AE._col("n_refused_dec", ("rl", "sft")) == "n_refused_sft"
+    assert AE._col("enc_own_mean", ("rl", "sft")) == "rl_own_mean"
+    assert AE._col("decision", ("rl", "sft")) == "decision"
+    assert AE._relabel("dec − enc", ("rl", "sft")) == "sft − rl"
+    assert AE._relabel("decoder", ("rl", "sft")) == "decoder"
+    tmp = Path(tempfile.mkdtemp(prefix="selftest-encdec-names-"))
+    try:
+        write_autointerp_runs(tmp)
+        vol = R.Vol("", tmp, offline=True, quiet=True)
+        res = AE.compare(vol, ("rl16", AI_RUNS["rl16"]), ("old", AI_RUNS["old"]), ["M"],
+                         ["DOCMAX"], 2000, 1, bands=False)
+        d_out, n_out = tmp / "out-default", tmp / "out-named"
+        d_out.mkdir()
+        n_out.mkdir()
+        pd = AE.write_outputs(res, None, d_out, [], [])
+        pn = AE.write_outputs(res, None, n_out, [], [], ("rl", "sft"), ("RL", "SFT"))
+        assert pd.name == "enc_vs_dec_summary.md" and pn.name == "rl_vs_sft_summary.md", (pd, pn)
+        assert sorted(p.name for p in d_out.iterdir()) == [
+            "enc_vs_dec.csv", "enc_vs_dec_bands.csv", "enc_vs_dec_replay.csv", "enc_vs_dec_summary.csv",
+            "enc_vs_dec_summary.md"], sorted(p.name for p in d_out.iterdir())
+        assert sorted(p.name for p in n_out.iterdir()) == [
+            "rl_vs_sft.csv", "rl_vs_sft_bands.csv", "rl_vs_sft_replay.csv", "rl_vs_sft_summary.csv",
+            "rl_vs_sft_summary.md"], sorted(p.name for p in n_out.iterdir())
+        td, tn = pd.read_text(), pn.read_text()
+        assert "## Headline: balanced accuracy, decoder − encoder" in td
+        assert "and of `dec − enc`, each" in td and "`dec − enc` is paired" in td
+        assert "and of `sft − rl`, each" in tn and "`sft − rl` is paired" in tn, tn[:600]
+        assert "{'" not in td and "{'" not in tn, "a dict was interpolated into the prose"
+        assert "## Headline: balanced accuracy, SFT − RL" in tn and "decoder" not in tn, tn[:400]
+        for ln in tn.splitlines():
+            if ln.startswith("| arm |"):
+                assert not re.search(r"\b(enc|dec)\b", ln), ln
+        for name in ("rl_vs_sft.csv", "rl_vs_sft_summary.csv", "rl_vs_sft_replay.csv",
+                     "rl_vs_sft_bands.csv"):
+            head = (n_out / name).read_text().splitlines()[0].split(",")
+            assert not any(t in ("enc", "dec") for c in head for t in c.split("_")), (name, head)
+        dcsv = (d_out / "enc_vs_dec.csv").read_text().splitlines()
+        ncsv = (n_out / "rl_vs_sft.csv").read_text().splitlines()
+        assert "bal_acc_rl" in ncsv[0] and "bal_acc_enc" in dcsv[0], (ncsv[0], dcsv[0])
+        assert dcsv[1:] == ncsv[1:] and len(ncsv) > 1, "relabelling changed a per-feature row"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -4521,6 +4576,7 @@ CHECKS = [
     check_autointerp_cases_block_split,
     # the encoder-vs-decoder paired reader
     check_autointerp_encdec_pairs_and_replay,
+    check_autointerp_encdec_names,
     check_ood_scan_key,
     check_ood_arm_table,
     check_ood_bo8_headline,

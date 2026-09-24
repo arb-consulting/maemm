@@ -49,12 +49,23 @@ WHAT IT BUILDS:
              ONE-SIDED on these rows (the `sae` family is not centrable: scorer centred, target
              the raw unit direction), identically on both sides, so the two are comparable to each
              other and are NOT the two-sided number the realact headline carries.
+
+OTHER PAIRS OF RUNS. Nothing in the autointerp half is about encoders: it pairs ANY two run
+directories that share features, test items and the C16 pool through one cache, by feature id.
+`--names a,b` / `--titles A,B` relabel the outputs (file stems `<a>_vs_<b>*`, figures
+`<a><b>-*-<b>`, `results_<a><b>.json`, headings and CSV columns); the defaults `enc,dec` /
+`encoder,decoder` reproduce the M6-dec outputs. The JSON keeps the `enc_*`/`dec_*` keys and
+records `names`, so `enc` there means the FIRST run (`--enc`) and `dec` the SECOND (`--dec`).
+The fidelity half IS about the two directions of one MAEMM and refuses non-default names.
+M6-sft (2026-09-24) uses it as `--enc rl-last16=... --dec sft-simple2m=... --names rl,sft
+--titles RL,SFT --arms M --no-fidelity`: the SFT init's `M` arm against the RL checkpoint's.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import re
 import subprocess
 import sys
 import time
@@ -87,6 +98,20 @@ FID_SIZE = 10.0
 # recomputed ladders are two statistics -- which is what a product written before M0a's one
 # estimator (2026-09-23) carries for k > 1 -- and the check says so rather than failing.
 BOK_TOL = 2e-3
+# The two sides' labels in the OUTPUTS (see the module docstring, "other pairs of runs").
+DEFAULT_NAMES = ("enc", "dec")
+DEFAULT_TITLES = ("encoder", "decoder")
+
+
+def _relabel(text: str, names: tuple[str, str]) -> str:
+    """A table header with the whole words `enc` / `dec` replaced by the two side names."""
+    return re.sub(r"\b(enc|dec)\b", lambda m: names[0] if m.group(1) == "enc" else names[1],
+                  text)
+
+
+def _col(col: str, names: tuple[str, str]) -> str:
+    """A CSV column name relabelled `_`-token-wise: `enc_mean` -> `<a>_mean`, `n_dec` -> `n_<b>`."""
+    return "_".join({"enc": names[0], "dec": names[1]}.get(t, t) for t in col.split("_"))
 
 
 def _parse_one(spec: str, flag: str) -> tuple[str, str]:
@@ -408,9 +433,19 @@ def _ids(xs: list[int], cap: int = 12) -> str:
 
 
 def write_outputs(res: dict, fid: dict | None, out: Path, preamble: list[str],
-                  figures: list[str]) -> Path:
+                  figures: list[str], names: tuple[str, str] = DEFAULT_NAMES,
+                  titles: tuple[str, str] = DEFAULT_TITLES) -> Path:
     (el, _ed), (dl, _dd) = res["enc"], res["dec"]
-    L = ["# Eval 2 — encoder vs decoder autointerp, paired per feature", "", *preamble, ""]
+    (na, nb), (ta, tb) = names, titles
+    stem = f"{na}_vs_{nb}"
+
+    def H(cols: list[str]) -> list[str]:
+        return [_relabel(c, names) for c in cols]
+
+    def C(cols: list[str]) -> list[str]:
+        return [_col(c, names) for c in cols]
+
+    L = [f"# Eval 2 — {ta} vs {tb} autointerp, paired per feature", "", *preamble, ""]
 
     # --- headline ---------------------------------------------------------------------------
     head, head_csv = [], []
@@ -435,25 +470,25 @@ def write_outputs(res: dict, fid: dict | None, out: Path, preamble: list[str],
                          b["n_enc"], b["n_dec"], p["n_refused_enc"], p["n_refused_dec"],
                          b["enc_own"]["mean"], b["enc_own"]["lo"], b["enc_own"]["hi"],
                          b["dec_own"]["mean"], b["dec_own"]["lo"], b["dec_own"]["hi"]])
-    L += ["## Headline: balanced accuracy, decoder − encoder, paired per feature", "",
+    L += [f"## Headline: balanced accuracy, {tb} − {ta}, paired per feature", "",
           f"*Per (arm, scorer): the mean over the features BOTH runs scored of each run's "
-          f"per-feature `bal_acc`, and of `dec − enc`, each with a percentile bootstrap over those "
+          f"per-feature `bal_acc`, and of `{nb} − {na}`, each with a percentile bootstrap over those "
           f"features ({res['boot']} resamples, seed {res['seed']}, the driver's `boot_ci`; the "
           f"same resample indices on all three, so the intervals are comparable). `win / loss / "
-          f"tie` is the fraction of paired features where the decoder arm scored higher / lower, "
+          f"tie` is the fraction of paired features where the {tb} arm scored higher / lower, "
           f"and the count of exact ties. `Δ TPR` and `Δ TNR` are the same paired contrast on each "
           f"half of the balanced accuracy. `feats` is each run's own feature count, `refused` "
           f"each run's declined explainer calls for the arm (no score row); the last two columns "
           f"are each run's own full-set mean, the number its own driver table headlines.*", ""]
-    L += _md(["arm", "scorer", "enc (paired)", "dec (paired)", "dec − enc", "n paired",
-              "win / loss / tie", "Δ TPR", "Δ TNR", "feats enc / dec", "refused enc / dec",
-              "enc own", "dec own"], head)
-    R.write_csv(out / "enc_vs_dec_summary.csv",
-                ["arm", "scorer", "enc_mean", "enc_lo", "enc_hi", "dec_mean", "dec_lo", "dec_hi",
+    L += _md(H(["arm", "scorer", "enc (paired)", "dec (paired)", "dec − enc", "n paired",
+                "win / loss / tie", "Δ TPR", "Δ TNR", "feats enc / dec", "refused enc / dec",
+                "enc own", "dec own"]), head)
+    R.write_csv(out / f"{stem}_summary.csv",
+                C(["arm", "scorer", "enc_mean", "enc_lo", "enc_hi", "dec_mean", "dec_lo", "dec_hi",
                  "diff_mean", "diff_lo", "diff_hi", "n_paired", "win_frac", "loss_frac", "n_tie",
                  "dtpr_mean", "dtpr_lo", "dtpr_hi", "dtnr_mean", "dtnr_lo", "dtnr_hi",
                  "n_enc", "n_dec", "n_refused_enc", "n_refused_dec", "enc_own_mean",
-                 "enc_own_lo", "enc_own_hi", "dec_own_mean", "dec_own_lo", "dec_own_hi"], head_csv)
+                 "enc_own_lo", "enc_own_hi", "dec_own_mean", "dec_own_lo", "dec_own_hi"]), head_csv)
 
     # --- replay -------------------------------------------------------------------------------
     rep = []
@@ -471,12 +506,13 @@ def write_outputs(res: dict, fid: dict | None, out: Path, preamble: list[str],
           f"unparsed in either run (`n_parsed < n_batches`, e.g. a judge refusal). "
           f"`{res['replay_arms'][0]}` is the one that matters: its test items are the "
           f"items every MAEMM arm is judged on.*", ""]
-    L += _md(["arm", "scorer", "rows enc / dec", "common", "identical", "differ (any field)",
-              "differ (bal_acc)", "only enc", "only dec", "explainer refused (either run)",
-              "differ, scorer batch re-sent", "verdict"], rep)
-    R.write_csv(out / "enc_vs_dec_replay.csv",
-                ["arm", "scorer", "n_enc", "n_dec", "n_common", "n_identical", "differ",
-                 "bal_acc_differ", "only_enc", "only_dec", "refused_either", "scorer_resent", "ok"],
+    L += _md(H(["arm", "scorer", "rows enc / dec", "common", "identical", "differ (any field)",
+                "differ (bal_acc)", "only enc", "only dec", "explainer refused (either run)",
+                "differ, scorer batch re-sent", "verdict"]), rep)
+    R.write_csv(out / f"{stem}_replay.csv",
+                C(["arm", "scorer", "n_enc", "n_dec", "n_common", "n_identical", "differ",
+                   "bal_acc_differ", "only_enc", "only_dec", "refused_either", "scorer_resent",
+                   "ok"]),
                 [[x["arm"], x["scorer"], x["n_enc"], x["n_dec"], x["n_common"], x["n_identical"],
                   " ".join(map(str, x["differ"])), " ".join(map(str, x["bal_acc_differ"])),
                   " ".join(map(str, x["only_enc"])),
@@ -486,7 +522,7 @@ def write_outputs(res: dict, fid: dict | None, out: Path, preamble: list[str],
     # --- refusals -----------------------------------------------------------------------------
     L += ["## Refusals (declined explainer calls, after the retry)", ""]
     arms_all = sorted({a for m in res["refusals"].values() for a in m})
-    L += _md(["arm", f"`{el}`", f"`{dl}`", "both", "enc only", "dec only"],
+    L += _md(["arm", f"`{el}`", f"`{dl}`", "both", f"{na} only", f"{nb} only"],
              [[a, len(res["refusals"][el].get(a, [])), len(res["refusals"][dl].get(a, [])),
                len(set(res["refusals"][el].get(a, [])) & set(res["refusals"][dl].get(a, []))),
                len(set(res["refusals"][el].get(a, [])) - set(res["refusals"][dl].get(a, []))),
@@ -504,23 +540,24 @@ def write_outputs(res: dict, fid: dict | None, out: Path, preamble: list[str],
                      x["enc"]["lo"], x["enc"]["hi"], x["enc"]["n"], x["dec"]["mean"],
                      x["dec"]["lo"], x["dec"]["hi"], x["dec"]["n"], x["mean"], x["lo"], x["hi"],
                      x["n_paired"]])
-    L += ["## Per activation band: recall (b1..b4, btop) and foil specificity (b0), enc vs dec", "",
+    L += [f"## Per activation band: recall (b1..b4, btop) and foil specificity (b0), {na} vs {nb}", "",
           "*`band_rows`' join of each run's build rows against its scorer's per-item answers. "
           "b1..b4 are the build's four EQUAL-WIDTH bins of (0, corpus peak], lowest first, "
           "per feature (not comparable across features); btop is the top-beyond-shown fallback "
           "tier; b0 is specificity on every non-activating item. Each side's mean is over its "
-          "own features with an item in that band; `dec − enc` is paired over the features both "
+          f"own features with an item in that band; `{nb} − {na}` is paired over the features both "
           "have there.*", ""]
-    L += _md(["arm", "scorer", "band", "half", "enc", "dec", "dec − enc", "n paired"], brow)
-    R.write_csv(out / "enc_vs_dec_bands.csv",
-                ["arm", "scorer", "band", "half", "enc_mean", "enc_lo", "enc_hi", "enc_n",
-                 "dec_mean", "dec_lo", "dec_hi", "dec_n", "diff_mean", "diff_lo", "diff_hi",
-                 "n_paired"], bcsv)
+    L += _md(H(["arm", "scorer", "band", "half", "enc", "dec", "dec − enc", "n paired"]), brow)
+    R.write_csv(out / f"{stem}_bands.csv",
+                C(["arm", "scorer", "band", "half", "enc_mean", "enc_lo", "enc_hi", "enc_n",
+                   "dec_mean", "dec_lo", "dec_hi", "dec_n", "diff_mean", "diff_lo", "diff_hi",
+                   "n_paired"]), bcsv)
 
     # --- per feature --------------------------------------------------------------------------
     pf_cols = ["feature", "arm", "scorer", "bal_acc_enc", "bal_acc_dec", "diff", "tpr_enc",
                "tnr_enc", "tpr_dec", "tnr_dec", "refused_enc", "refused_dec", "stratum"]
-    R.write_csv(out / "enc_vs_dec.csv", pf_cols, [[r[c] for c in pf_cols] for r in res["per_feature"]])
+    R.write_csv(out / f"{stem}.csv", C(pf_cols),
+                [[r[c] for c in pf_cols] for r in res["per_feature"]])
 
     # --- fidelity -----------------------------------------------------------------------------
     if fid is not None:
@@ -577,17 +614,19 @@ def write_outputs(res: dict, fid: dict | None, out: Path, preamble: list[str],
     L += [f"- NOTE {n}" for n in res["notes"]] + [""]
     if figures:
         L += ["## Figures", ""] + [f"- `figures/{f}.pdf` / `.png`" for f in figures] + [""]
-    path = out / "enc_vs_dec_summary.md"
+    path = out / f"{stem}_summary.md"
     path.write_text("\n".join(L))
     return path
 
 
-def make_figures(res: dict, fid: dict | None, out: Path) -> list[str]:
+def make_figures(res: dict, fid: dict | None, out: Path, names: tuple[str, str] = DEFAULT_NAMES,
+                 titles: tuple[str, str] = DEFAULT_TITLES) -> list[str]:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     (el, _), (dl, _) = res["enc"], res["dec"]
+    (na, nb), (ta, tb) = names, titles
     ce, cd = R.PALETTE[0], R.PALETTE[1]
     ref = res["replay_arms"][0]
     names: list[str] = []
@@ -615,19 +654,19 @@ def make_figures(res: dict, fid: dict | None, out: Path) -> list[str]:
         ax.set_xlim(0.2, 1.02)
         ax.set_ylim(0.2, 1.02)
         ax.set_aspect("equal")
-        R.style_axes(ax, xlabel="encoder run, bal_acc", ylabel="decoder run, bal_acc", title=arm)
+        R.style_axes(ax, xlabel=f"{ta} run, bal_acc", ylabel=f"{tb} run, bal_acc", title=arm)
         ax.legend(fontsize=7, frameon=False, loc="lower right")
-    fig.suptitle("Detection balanced accuracy per feature, encoder vs decoder", fontsize=10,
+    fig.suptitle(f"Detection balanced accuracy per feature, {ta} vs {tb}", fontsize=10,
                  color=R.INK, x=0.01, ha="left")
     fig.tight_layout()
-    names.append(R.savefig(fig, out, "encdec-scatter-dec"))
+    names.append(R.savefig(fig, out, f"{na}{nb}-scatter-{nb}"))
 
     # (b) mean bal_acc per arm, enc and dec, each run's own features, both scorers
     show = [ref, *arms]
     fig, axes = plt.subplots(1, len(res["scorers"]), figsize=(4.2 * len(res["scorers"]), 3.2),
                              squeeze=False, sharey=True)
     for ax, sc in zip(axes[0], res["scorers"], strict=True):
-        for j, (lab, col, side) in enumerate(((el, ce, "encoder"), (dl, cd, "decoder"))):
+        for j, (lab, col, side) in enumerate(((el, ce, ta), (dl, cd, tb))):
             xs, ms, los, his = [], [], [], []
             for i, arm in enumerate(show):
                 v = res["own_cells"].get((lab, arm, sc)) or {}
@@ -646,7 +685,7 @@ def make_figures(res: dict, fid: dict | None, out: Path) -> list[str]:
                      title=sc)
         ax.legend(fontsize=7, frameon=False, loc="upper right")
     fig.tight_layout()
-    names.append(R.savefig(fig, out, "encdec-means-dec"))
+    names.append(R.savefig(fig, out, f"{na}{nb}-means-{nb}"))
 
     # (c) per-band TPR enc vs dec per arm, detection and fuzzing
     slots = [s for s in A.BAND_ORDER if s != A.FOIL_SLOT]
@@ -659,8 +698,7 @@ def make_figures(res: dict, fid: dict | None, out: Path) -> list[str]:
             for c_i, arm in enumerate(show):
                 ax = axes[r_i][c_i]
                 here = [s for s in slots if (arm, sc, s) in bp]
-                for j, (side, col, name) in enumerate((("enc", ce, "encoder"),
-                                                       ("dec", cd, "decoder"))):
+                for j, (side, col, name) in enumerate((("enc", ce, ta), ("dec", cd, tb))):
                     xs = [i + (j - 0.5) * 0.2 for i in range(len(here))]
                     ms = [bp[(arm, sc, s)][side]["mean"] for s in here]
                     lo = [m - bp[(arm, sc, s)][side]["lo"] for m, s in zip(ms, here, strict=True)]
@@ -676,7 +714,7 @@ def make_figures(res: dict, fid: dict | None, out: Path) -> list[str]:
         fig.suptitle("Recall per activation band (b1 lowest .. b4 highest, btop fallback)",
                      fontsize=10, color=R.INK, x=0.01, ha="left")
         fig.tight_layout()
-        names.append(R.savefig(fig, out, "encdec-bands-dec"))
+        names.append(R.savefig(fig, out, f"{na}{nb}-bands-{nb}"))
 
     # (d) fidelity scatter
     if fid is not None:
@@ -753,7 +791,26 @@ def main(
     boot: Annotated[int, typer.Option()] = R.N_BOOT,
     seed: Annotated[int, typer.Option()] = R.BOOT_SEED,
     figures: Annotated[bool, typer.Option(help="write figures/ (PDF + PNG)")] = True,
+    names: Annotated[str, typer.Option(
+        help="`<first>,<second>`: the two sides' short names in file names, headings and CSV "
+             "columns (default reproduces the M6-dec outputs)")] = ",".join(DEFAULT_NAMES),
+    titles: Annotated[str, typer.Option(
+        help="`<first>,<second>`: the two sides' long names in headings and figures")]
+    = ",".join(DEFAULT_TITLES),
 ) -> None:
+    nm = tuple(x.strip() for x in names.split(","))
+    tt = tuple(x.strip() for x in titles.split(","))
+    if len(nm) != 2 or len(tt) != 2 or not all(nm) or not all(tt) or nm[0] == nm[1]:
+        raise typer.BadParameter(f"--names / --titles take two distinct comma-separated labels, "
+                                 f"got {names!r} / {titles!r}")
+    if not re.fullmatch(r"[A-Za-z0-9-]+", nm[0]) or not re.fullmatch(r"[A-Za-z0-9-]+", nm[1]):
+        raise typer.BadParameter(f"--names {names!r}: letters, digits and '-' only (they are file "
+                                 f"stems and `_`-separated CSV tokens)")
+    if fid and nm != DEFAULT_NAMES:
+        raise typer.BadParameter(
+            f"--names {names!r} with --fidelity: the fidelity half compares ONE MAEMM's rollouts "
+            f"against the encoder and decoder directions, which is not a comparison of two "
+            f"arbitrary runs; pass --no-fidelity")
     out = Path(out) if out else R.out_dir("autointerp-dec")
     out.mkdir(parents=True, exist_ok=True)
     vol = R.Vol(root, Path(data) if data else R.mirror_dir(root), modal_cmd, False, True,
@@ -765,29 +822,31 @@ def main(
     fres = (fidelity(vol, base=base, sae=sae, maemm=maemm, enc_set=enc_set, dec_set=dec_set,
                      enc_scores=enc_scores, dec_scores=dec_scores, enc_scan=enc_scan,
                      dec_scan=dec_scan, boot=boot, seed=seed) if fid else None)
-    figs = make_figures(res, fres, out) if figures else []
+    figs = make_figures(res, fres, out, nm, tt) if figures else []
     prov = {"command": " ".join(sys.argv), "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             **_commit(), "enc_run": f"/vol/runs/{e[1]}", "dec_run": f"/vol/runs/{d[1]}",
             "builds": {lab: A.resolve_build(vol, run_dir)[0] for lab, run_dir in (e, d)},
             "band_builds": sorted({b["build_dir"] for b in res["bands"]}),
             "fidelity_sources": (fres or {}).get("sources"), "sae": sae, "boot": boot,
-            "seed": seed, "mirror": str(vol.local), "figures": figs}
+            "seed": seed, "mirror": str(vol.local), "figures": figs, "names": list(nm),
+            "titles": list(tt)}
     (out / "figures").mkdir(exist_ok=True)
-    (out / "figures" / "provenance-dec.json").write_text(json.dumps(prov, indent=1))
+    (out / "figures" / f"provenance-{nm[1]}.json").write_text(json.dumps(prov, indent=1))
     preamble = [
         f"- command: `{prov['command']}`",
         f"- code: `{prov.get('commit')}`" + (" (results/ has uncommitted changes)"
                                               if prov.get("results_dir_dirty") else ""),
-        f"- encoder run `{e[0]}` = `{prov['enc_run']}`; decoder run `{d[0]}` = `{prov['dec_run']}`",
+        f"- {tt[0]} run `{e[0]}` = `{prov['enc_run']}`; {tt[1]} run `{d[0]}` = `{prov['dec_run']}`",
         f"- per-band builds: {', '.join(f'`{b}`' for b in prov['band_builds']) or 'not joined'}",
         f"- SAE `{sae}`; intervals: percentile bootstrap over features, {boot} resamples, seed {seed}",
         f"- mirror `{vol.local}`",
     ]
-    path = write_outputs(res, fres, out, preamble, figs)
-    with open(out / "results_encdec.json", "w") as fh:
-        json.dump({"compare": {k: v for k, v in res.items() if k not in ("own_cells", "builds")},
+    path = write_outputs(res, fres, out, preamble, figs, nm, tt)
+    with open(out / f"results_{nm[0]}{nm[1]}.json", "w") as fh:
+        json.dump({"names": {"enc": nm[0], "dec": nm[1]},
+                   "compare": {k: v for k, v in res.items() if k not in ("own_cells", "builds")},
                    "fidelity": fres, "provenance": prov}, fh, indent=1, default=str)
-    print(f"[encdec] {path}")
+    print(f"[{nm[0]}{nm[1]}] {path}")
     for x in res["replay"]:
         print(f"   replay {x['arm']}/{x['scorer']}: {'PASS' if x['ok'] else 'FAIL'} "
               f"({x['n_identical']}/{x['n_common']} identical, differ {x['differ'][:8]}, "
