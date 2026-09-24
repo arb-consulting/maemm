@@ -1520,6 +1520,11 @@ M1_KEYS = frozenset({
     # and the paired appendix block of §1.2 (against the corpus at 10M, and against NLA).
     "fid.ra.ex.cos.bo1", "fid.ra.ex.cos.bo8", "fid.ra.base.cos.bo8", "fid.ra.nla.cos.bo1",
     "fid.rnd.ex.cos.bo1", "fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8", "fid.ra.nla.dex",
+    # NLA at best-of-2 (and best-of-4 = the max of its 4, for reference), added 2026-09-24 (M8)
+    # BESIDE the bo1 keys, which stay: the paper's NLA reference moves to bo2. With n = 4
+    # rollouts the unbiased estimator reaches k <= 4, so bo2 and bo4 exist and bo8 does not.
+    "fid.ra.nla.cos.bo2", "fid.ra.nla.cos.bo4", "fid.ra.nla.dex.bo2",
+    "fid.ra.nla.dcorp.bo2", "fid.ra.nla.win.bo2",
     # panel b, the 131k dictionary. Per quartile at bo1, bo8 and bo64 -- and the three POOLED rows
     # that are already in the file carrying 09-21 old-convention values, rewritten in place with
     # `note` saying they are pooled (spec §1.2: what the panel and the table print is per stratum).
@@ -1877,10 +1882,15 @@ def panel_a_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
         arms = arms_of(res, cfg, opts["exemplifier"], opts.get("nla", ""))
         src_by_label = {s.label: s for s in res["sources"]}
         # --- rows 1, 2 and 7: the Exemplifier at bo1 and bo8, the base control at bo8 ---------
-        for key, arm, k, run in (("fid.ra.ex.cos.bo1", "ex", 1, "R1"),
-                                 ("fid.ra.ex.cos.bo8", "ex", 8, "R1"),
-                                 ("fid.ra.base.cos.bo8", "base", 8, "R10"),
-                                 ("fid.ra.nla.cos.bo1", "nla", 1, "R6")):
+        # `ci`: whether the row carries lo/hi (mean +/- CI_Z x SE). The landed rows never did and
+        # are left exactly as they were; the NLA bo2/bo4 rows (M8) carry it because the paper
+        # draws NLA bo2 as a reference line with an interval.
+        for key, arm, k, run, ci in (("fid.ra.ex.cos.bo1", "ex", 1, "R1", False),
+                                     ("fid.ra.ex.cos.bo8", "ex", 8, "R1", False),
+                                     ("fid.ra.base.cos.bo8", "base", 8, "R10", False),
+                                     ("fid.ra.nla.cos.bo1", "nla", 1, "R6", False),
+                                     ("fid.ra.nla.cos.bo2", "nla", 2, "R6", True),
+                                     ("fid.ra.nla.cos.bo4", "nla", 4, "R6", True)):
             src, arm_why = arms[arm]
             if src is None:
                 skipped.append(f"`{key}` SKIPPED: {arm_why}")
@@ -1890,11 +1900,21 @@ def panel_a_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
                 skipped.append(f"`{key}` SKIPPED: {cell_why}")
                 continue
             c = got["bo"][k]
+            se = None if not math.isfinite(c["se"]) else c["se"]
+            lo = hi = None
+            est = ""
+            if ci and se is not None:
+                lo, hi = c["mean"] - CI_Z * se, c["mean"] + CI_Z * se
+            if k > 1 and arm == "nla":
+                est = (f"; best-of-{k} by the unbiased order statistic "
+                       f"(results.common.bo_unbiased) over the NLA arm's 4 rollouts per target"
+                       + (" -- at k = n this is the per-target max of the 4" if k == 4 else "")
+                       + ("; 95% = mean +/- 1.96 x SE" if lo is not None else ""))
             rows.append(cell(
-                key, c["mean"], se=None if not math.isfinite(c["se"]) else c["se"],
+                key, c["mean"], se=se, lo=lo, hi=hi,
                 n=c["n_rows"], run=run, date=date, source=src.scores_rel,
                 note=(f"{src.label}; {cosine} from {got.get('bo_source', '')}; {excl_note}, "
-                      f"{boot} resamples over {c['n_clusters']} documents, seed {seed}"),
+                      f"{boot} resamples over {c['n_clusters']} documents, seed {seed}{est}"),
             ))
         # --- the paired cells, against M2's corpus comparator --------------------------------
         ex_src, _ = arms["ex"]
@@ -1905,6 +1925,7 @@ def panel_a_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
         ex_rows = res["centred"].get(ex_src.label, {}) if ex_src is not None else {}
         ex_bo8 = {r: v[8] for r, v in ex_rows.items() if 8 in v and r in keep}
         paired_keys = ["fid.ra.diff.cos.bo8", "fid.ra.ex.win.bo8"]
+        corp, corp_prov = None, ""
         if not ex_bo8:
             skipped.append(f"`{'`, `'.join(paired_keys)}` and `fid.ra.nla.dex` SKIPPED: the "
                            f"Exemplifier arm has no per-row centred bo8 on `{res['set']}`")
@@ -1939,29 +1960,67 @@ def panel_a_cells(vol: R.Vol, all_res: list[dict], cfg: dict, opts: dict):
                                            f"doc-clustered bootstrap over {win['clusters']} "
                                            f"documents")))
             # --- the Exemplifier against NLA, which is its OWN key (writing plan §2) ---------
+            # `fid.ra.nla.dex` is Exemplifier bo8 minus NLA bo1 and stays as it was;
+            # `fid.ra.nla.dex.bo2` (M8) is the same Exemplifier bo8 minus NLA bo2 -- the key's `k`
+            # names the NLA side's budget, the Exemplifier side is bo8 in both. The NLA-minus-
+            # corpus pair (`dcorp`, `win`) is written at bo2 only; its bo1 rows stay placeholders.
             nla_src, nla_why = arms["nla"]
+            nla_keys = ("fid.ra.nla.dex", "fid.ra.nla.dex.bo2", "fid.ra.nla.dcorp.bo2",
+                        "fid.ra.nla.win.bo2")
             if nla_src is None:
-                skipped.append(f"`fid.ra.nla.dex` SKIPPED: {nla_why}")
+                skipped.append(f"`{'`, `'.join(nla_keys)}` SKIPPED: {nla_why}")
             else:
                 nla_rows = res["centred"].get(nla_src.label, {})
-                nla_bo1 = {r: v[1] for r, v in nla_rows.items() if 1 in v and r in keep}
-                if not nla_bo1:
-                    skipped.append(
-                        f"`fid.ra.nla.dex` SKIPPED: `{nla_src.label}` carries no per-row CENTRED "
-                        f"cosine on `{res['set']}` -- the stored NLA directories are `cos_raw` by "
-                        f"construction and spec §1.4's R6 rerun produces the centred one")
-                else:
-                    d, _w, shared = paired(ex_bo8, nla_bo1, res["ids"], boot, seed)
+                for nk, dex_key in ((1, "fid.ra.nla.dex"), (2, "fid.ra.nla.dex.bo2")):
+                    nla_bok = {r: v[nk] for r, v in nla_rows.items() if nk in v and r in keep}
+                    if not nla_bok:
+                        skipped.append(
+                            f"`{dex_key}` SKIPPED: `{nla_src.label}` carries no per-row CENTRED "
+                            f"bo{nk} on `{res['set']}` -- the stored NLA directories are `cos_raw` "
+                            f"by construction and spec §1.4's R6 rerun produces the centred one")
+                        continue
+                    d, _w, shared = paired(ex_bo8, nla_bok, res["ids"], boot, seed)
                     if d is None:
-                        skipped.append("`fid.ra.nla.dex` SKIPPED: the two arms share no target")
-                    else:
-                        rows.append(cell(
-                            "fid.ra.nla.dex", d["mean"], se=d["se"], lo=d["lo"], hi=d["hi"],
-                            n=d["n"], run="R1+R6", date=date, source=nla_src.scores_rel,
-                            note=(f"paired on {len(shared)} shared targets: Exemplifier bo8 minus "
-                                  f"NLA bo1 (n = 4 rollouts, so bo1 IS the mean of 4), both "
-                                  f"cos_centred; 95% = mean +/- 1.96 x doc-clustered bootstrap SE "
-                                  f"over {d['clusters']} documents, seed {seed}")))
+                        skipped.append(f"`{dex_key}` SKIPPED: the two arms share no target")
+                        continue
+                    what = ("NLA bo1 (n = 4 rollouts, so bo1 IS the mean of 4)" if nk == 1 else
+                            f"NLA bo{nk} (unbiased best-of-{nk} over its 4 rollouts)")
+                    rows.append(cell(
+                        dex_key, d["mean"], se=d["se"], lo=d["lo"], hi=d["hi"],
+                        n=d["n"], run="R1+R6", date=date, source=nla_src.scores_rel,
+                        note=(f"paired on {len(shared)} shared targets: Exemplifier bo8 minus "
+                              f"{what}, both "
+                              f"cos_centred; 95% = mean +/- 1.96 x doc-clustered bootstrap SE "
+                              f"over {d['clusters']} documents, seed {seed}")))
+                    if nk != 2:
+                        continue
+                    pk = ["fid.ra.nla.dcorp.bo2", "fid.ra.nla.win.bo2"]
+                    if corp is None:
+                        # the full reason was printed once, for the Exemplifier's paired cells
+                        skipped.append(f"`{'`, `'.join(pk)}` SKIPPED: no corpus comparator "
+                                       f"(the same absence as `fid.ra.diff.cos.bo8`)")
+                        continue
+                    dc, wc, shared_c = paired(nla_bok, corp, res["ids"], boot, seed)
+                    if dc is None:
+                        skipped.append(f"`{'`, `'.join(pk)}` SKIPPED: NLA and {corp_prov} "
+                                       f"share no target")
+                        continue
+                    rows.append(cell(
+                        "fid.ra.nla.dcorp.bo2", dc["mean"], se=dc["se"], lo=dc["lo"],
+                        hi=dc["hi"], n=dc["n"], run="R2+R6", date=date,
+                        source=nla_src.scores_rel,
+                        note=(f"paired on {len(shared_c)} shared targets; NLA bo2 (cos_centred, "
+                              f"unbiased best-of-2 over its 4 rollouts) MINUS corpus top-1 at "
+                              f"{opts['corpus_size']:g}M; {corp_prov}; 95% = mean +/- 1.96 x "
+                              f"doc-clustered bootstrap SE over {dc['clusters']} documents, "
+                              f"{boot} resamples, seed {seed}")))
+                    rows.append(cell(
+                        "fid.ra.nla.win.bo2", wc["mean"], se=wc["se"], n=wc["n"],
+                        run="R2+R6", date=date, source=nla_src.scores_rel,
+                        note=(f"fraction of the {len(shared_c)} shared targets whose NLA bo2 "
+                              f"exceeds the corpus top-1 at {opts['corpus_size']:g}M; "
+                              f"{corp_prov}; SE is the doc-clustered bootstrap over "
+                              f"{wc['clusters']} documents")))
 
     # --- row 8: the random floor -----------------------------------------------------------
     if floor_res is None:

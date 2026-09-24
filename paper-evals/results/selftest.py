@@ -3481,7 +3481,13 @@ M1_CT_IDS = (
 M1_EX_C = {0: [0.25 + i / 16 for i in range(M1_N)], 1: [0.5] * M1_N,
            2: [0.25] * M1_N, 3: [0.75] * M1_N}
 M1_CTL_C = {r: [0.0625] * M1_N for r in range(4)}          # the untrained-base control
-M1_NLA_C = {r: [0.125] * M1_NLA_N for r in range(4)}       # n = 4, so bo1 is the mean of 4
+# n = 4, so bo1 is the mean of 4. Row 0 VARIES with the same mean (0.125), so bo1 is unchanged
+# while bo2 and bo4 differ from it there: a bo2 taken as a mean, or as the max, fails (M8).
+M1_NLA_C = {0: [0.0, 0.0625, 0.1875, 0.25], **{r: [0.125] * M1_NLA_N for r in (1, 2, 3)}}
+# unbiased bo2 of row 0: sorted x_(i) weighted C(i-1, 1)/C(4, 2) = (0, 1, 2, 3)/6
+M1_NLA_BO2_ROW = {0: (0.0625 + 2 * 0.1875 + 3 * 0.25) / 6, 1: 0.125, 2: 0.125, 3: 0.125}
+M1_NLA_BO2 = sum(M1_NLA_BO2_ROW.values()) / 4        # 0.1432291...
+M1_NLA_BO4 = (0.25 + 3 * 0.125) / 4                  # 0.15625: bo4 of 4 draws is the max
 M1_RND = {0: [0.0625] * M1_N, 1: [0.0625] * M1_N}          # raw only: `random` is not centrable
 
 # bo1 of row 0 = 0.25 + (0+1+..+7)/(16*8) = 0.46875; bo8 of row 0 = its max = 0.6875.
@@ -3935,6 +3941,22 @@ def check_m1_panel_a_cells():
         # and the Exemplifier-minus-NLA quantity is its OWN key, not `diff` (writing plan §2)
         assert by["fid.ra.nla.dex"]["value"] == f"{M1_NLA_DEX:.4f}", by["fid.ra.nla.dex"]
         assert "minus NLA bo1" in by["fid.ra.nla.dex"]["note"], by["fid.ra.nla.dex"]
+        # M8: NLA at bo2 and bo4, beside bo1, with an interval; and the paired cells at bo2
+        nb2, nb4 = by["fid.ra.nla.cos.bo2"], by["fid.ra.nla.cos.bo4"]
+        assert nb2["value"] == f"{M1_NLA_BO2:.4f}", nb2
+        assert nb4["value"] == f"{M1_NLA_BO4:.4f}", nb4
+        assert nb2["value"] not in (by["fid.ra.nla.cos.bo1"]["value"], nb4["value"]), nb2
+        assert nb2["n"] == "4" and nb2["lo"] and nb2["hi"], nb2
+        assert float(nb2["lo"]) < float(nb2["value"]) < float(nb2["hi"]), nb2
+        assert not by["fid.ra.nla.cos.bo1"]["lo"], by["fid.ra.nla.cos.bo1"]
+        assert "cos_centred" in nb2["note"] and "best-of-2" in nb2["note"], nb2
+        want_dex2 = sum(M1_EX_BO8_ROW[r] - M1_NLA_BO2_ROW[r] for r in range(4)) / 4
+        assert by["fid.ra.nla.dex.bo2"]["value"] == f"{want_dex2:.4f}", by["fid.ra.nla.dex.bo2"]
+        assert "minus NLA bo2" in by["fid.ra.nla.dex.bo2"]["note"], by["fid.ra.nla.dex.bo2"]
+        want_dc2 = sum(M1_NLA_BO2_ROW[r] - M1_CORPUS[r] for r in range(4)) / 4
+        assert by["fid.ra.nla.dcorp.bo2"]["value"] == f"{want_dc2:.4f}", by["fid.ra.nla.dcorp.bo2"]
+        assert by["fid.ra.nla.win.bo2"]["value"] == "0.0000", by["fid.ra.nla.win.bo2"]
+        assert "fid.ra.nla.dcorp.bo1" not in by and "fid.ra.nla.win.bo1" not in by
         # the SE is the clustered one: four rows over three documents, so it is not std/sqrt(4)
         assert d["se"] and float(d["se"]) > 0, d
         assert "3 documents" in d["note"], d["note"]
@@ -3960,6 +3982,10 @@ def check_m1_panel_a_cells():
         assert bx["fid.ra.ex.cos.bo8"]["value"] == f"{want_bo8:.4f}", bx["fid.ra.ex.cos.bo8"]
         assert bx["fid.ra.ex.cos.bo8"]["n"] == "3", bx["fid.ra.ex.cos.bo8"]
         assert bx["fid.ra.nla.dex"]["n"] == "3", bx["fid.ra.nla.dex"]
+        assert bx["fid.ra.nla.dex.bo2"]["n"] == "3", bx["fid.ra.nla.dex.bo2"]
+        assert bx["fid.ra.nla.cos.bo2"]["n"] == "3", bx["fid.ra.nla.cos.bo2"]
+        want_nb2 = sum(M1_NLA_BO2_ROW[r] for r in keep) / len(keep)
+        assert bx["fid.ra.nla.cos.bo2"]["value"] == f"{want_nb2:.4f}", bx["fid.ra.nla.cos.bo2"]
 
 
 def check_m1_panel_b_cells_and_the_gate():

@@ -179,7 +179,12 @@ not. The plan is `evals/2026-09-23_implementation-plan.md` §M1; the spec is
 - **Panel a**, from `cos_centred` only, over her block minus its own exclusions, with
   document-clustered SEs and the surviving `n`: `fid.ra.ex.cos.bo1`, `fid.ra.ex.cos.bo8`,
   `fid.ra.base.cos.bo8`, `fid.ra.nla.cos.bo1`, `fid.rnd.ex.cos.bo1`, and the paired
-  `fid.ra.diff.cos.bo8` (with `lo`/`hi`), `fid.ra.ex.win.bo8`, `fid.ra.nla.dex`.
+  `fid.ra.diff.cos.bo8` (with `lo`/`hi`), `fid.ra.ex.win.bo8`, `fid.ra.nla.dex`. Since M8
+  (2026-09-24) also NLA at best-of-2 and best-of-4 (its 4 rollouts allow k <= 4):
+  `fid.ra.nla.cos.bo{2,4}` (with `lo`/`hi` = mean +/- 1.96 SE), `fid.ra.nla.dex.bo2`
+  (Exemplifier bo8 minus NLA bo2; the key's `k` is the NLA side's), and, with `--corpus-scan`,
+  `fid.ra.nla.dcorp.bo2` / `fid.ra.nla.win.bo2` (NLA bo2 against the corpus top-1). The bo1
+  NLA rows are unchanged; `fid.ra.nla.{dcorp,win}.bo1` are not built.
 - **Panel b**, per corpus-frequency quartile and never pooled where the key has a quartile:
   `sae.l131k.ex.{ratio,fired}.bo{1,8,64}.q{1..4}`, the 2M appendix block under `s2menc` / `s2mdec`
   at bo1 and bo8, and the three pooled rows that already exist in the CSV, rewritten in place with
