@@ -151,3 +151,110 @@ checkpoint was fitted on (`sft_activations_ctx8_64`, 125,000 documents,
 5,500,001-5,698,523; `rl_activations_ctx64_2048`, 62,504 documents,
 9,500,000-9,599,841), which match the branch's 2026-09-18 disjointness table exactly.
 `sae2m_enc/` and `sae2m_dec/` carry the feature partition on both sides.
+
+---
+
+# The eval-1 (faithfulness) target blocks — `2026-09-21_v3_*`
+
+Built 2026-09-21 on branch `evals/pipeline`. One logical set, **five directories**, because a set
+directory carries ONE storage contract (`common.set_storage` returns a single `storage` kind and
+`common.dirs_for` branches on it once for all N rows) and these blocks do not share one. They are
+`--set`-ed separately and read together; **row order inside each block is frozen** so every arm
+pairs. All five are `imported: true` in `config.yaml`, so none of them becomes
+`common.default_heldout` and moves `2026-09-16_v1` off the paper's tables.
+
+| set | rows | families (n) | storage | provenance |
+|---|---|---|---|---|
+| `2026-09-21_v3_realact` | 512 | `realact` 512 | `raw` | **hers**, recovered to raw |
+| `2026-09-21_v3_realact_long` | 512 | `realact_long` 512 | `unit`, `family_mu: unknown` | hers, as shipped |
+| `2026-09-21_v3_subspace` | 1,024 | `bsf` 512, `jlens` 512 | `dirs_only` | hers, as shipped |
+| `2026-09-21_v3_ctrl` | 1,024 | `random` 512, `sae` 512 | `raw` | ours, copied from `2026-09-21_v1raw` rows 512-1535 |
+| `2026-09-21_v3_sae2m` | 1,024 | `sae` 1,024 | `dirs_only` | ours, drawn: 512 features × {enc, dec} |
+
+Rebuild, in order (CPU except the last; total **$0.131**, all of it the 2M draw):
+
+```
+M=paper-evals/precompute/modal_app.py
+modal run $M --product heldout_v3 --base qwen36-27b --block realact      --set 2026-09-21_v3_realact
+modal run $M --product heldout_v3 --base qwen36-27b --block realact_long --set 2026-09-21_v3_realact_long
+modal run $M --product heldout_v3 --base qwen36-27b --block subspace     --set 2026-09-21_v3_subspace
+modal run $M --product heldout_v3 --base qwen36-27b --block ctrl         --set 2026-09-21_v3_ctrl \
+    --dirs-from /vol/base/qwen36-27b/heldout/2026-09-21_v1raw --rows 512-1535
+modal run $M --product draw_sae2m --base qwen36-27b --sae qwen36-27b/sae2m --set 2026-09-21_v3_sae2m \
+    --n 512 --stratified --seed 20260921 --sides enc,dec \
+    --include /vol/shared/eval1/2026-09-21_sae2m_64_feature_ids.txt
+modal run $M --product check --base qwen36-27b        # opens all five and reconciles them
+```
+
+## U1, settled: her `pool_act_norm` is `‖act‖`
+
+The headline block is **hers** — the 512 rows of `heldout/eval_directions_v3/realact.parquet` in
+snapshot `celeste-v2-2026-09-17` — and it is stored **raw**, which is only valid if the scalar
+she ships beside each `unit(act − whiten_mu)` is `‖act‖` rather than `‖act − whiten_mu‖`. It is,
+on three independent readings, all of them $0:
+
+| reading | `‖act‖` (what we conclude) | `‖act − mu‖` (the alternative) |
+|---|---|---|
+| her own mint statistic — `pool_heldout/build_stats.json` `family_stats.realact.median_norm` over the 200,000-row pool these 512 are drawn from | **91.2669** against the 512's median `pool_act_norm` of **90.48** | — |
+| our corpus — `stats`'s layer-42 **block-output** residual-norm quantiles over 949,557 sampled positions of the 16M corpus: q05 76.38 / q50 **93.26** / q95 109.26 | hers: q05 75.21 / q50 **90.48** / q95 105.67 | implied ‖act‖: q05 87.91 / q50 **112.34** / q95 134.54 — her MEDIAN above our 95th percentile |
+| the geometry — `‖whiten_mu‖` = 67.2647, `cos(direction, whiten_mu)` mean −0.0198 over the 512, so `act − mu ⊥ mu` as it must be | a mu-orthogonal residual at ‖act‖ 90.48 has ‖act−mu‖ = **60.52**; the solve returns median **59.95** | — |
+
+So `act = mu + t·u` with `t > 0` solving `‖mu + t·u‖ = pool_act_norm`, taken through
+`rollouts_nla.build_inputs(amp="exact")` rather than restated. On these rows the discriminant is
+non-negative and `t > 0` on **512/512** (0 fallbacks), `‖act.f32‖` reproduces `pool_act_norm` to
+**2.4e-05**, and — read back off the bytes on the volume — `unit(act.f32 − whiten_mu)` reproduces
+her shipped `direction` at **min cos 1.0000000000** over all 512.
+
+`vecs.f16` in that directory is therefore `unit(act)`, **UNCENTRED** (mean cos 0.66 to her
+direction). Her direction is what `dirs_for(..., mu=/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy)`
+returns — which is exactly `maemms."qwen36-27b/2026-09-18_rl-last16-lr5e-7".mu`, so that
+checkpoint runs this block with no `--mu` and no deviation line.
+
+**Three rows are ambiguous and are flagged, not resolved: 26, 32, 360.** Each has
+`pool_act_norm < ‖mu‖` AND `mu·u < 0`, so both roots of the quadratic are positive and two
+different raw activations satisfy the constraint; the larger is taken (`build_inputs`' rule).
+Nothing read at her own mean is affected — both roots give her `direction` exactly — but
+`act.f32` itself, and any number read at another mean, is uncertain on those three.
+`exact_ambiguous: true` is on the row and in `recovery.json`.
+
+## Exclusions — recorded, not applied
+
+Frozen in `2026-09-21_v3_realact/exclusions.json` before any score is read, per plan §2.1. All
+512 rows stay in her order so every arm pairs; the tables drop these.
+
+**26 of 512, headline n = 486.** Ari's `features/ngram_overlap.py --side hers --n 7`, coverage
+(the share of a target's 7-gram shingles reached anywhere in her v2 training text) ≥ 0.05, read
+off `/vol/shared/ngram-overlap/hers_n7.exclude.json` rather than retyped:
+
+```
+7, 41, 60, 78, 103, 108, 109, 117, 118, 128, 166, 191, 196, 203, 207,
+245, 290, 307, 341, 354, 388, 403, 405, 424, 432, 466
+```
+
+The three **fully covered** rows (coverage 1.0) are 108, 166, 307 — already inside that 26, so
+the fully-reproduced criterion adds nothing here.
+
+**`infra/check_v2_targets_overlap.py` cannot answer this question for HER rows, and its zero is
+not a negative.** That script's masks are indexed by **our** corpus's distinct n-gram keys (a
+span n-gram absent from our 16M corpus cannot register a hit), which is free for our own targets
+— their spans come from that corpus and the script asserts it — and void for hers. Measured
+2026-09-21 on her 512: **13 of 9,303** span 13-grams (0.14%) are in our key set, and it flags one
+fully reproduced row, 166, which is in the 26 anyway. Ari's tool shingles her training parquets
+directly and is the right instrument for her block.
+
+## `realact_long` is centred on `mu_long`, and nobody holds that file
+
+Her `realact_long` rows are `unit(h − mu_long)` where `mu_long` is the mean over **all** collected
+long-context activations, computed on the fly in `eval/build_ctx_eval.py:47-54` from
+`MAEMM_ACTS_LONG` (`/root/pmx/bsf27b/acts_long` on her machine) and **never written to a file**.
+It is not `whiten_mu`: over those rows `cos(direction, whiten_mu)` has mean **−0.0618** and
+`‖mean(direction)‖` is **0.1216**, against **−0.0198** / **0.0615** on `realact` (a Gaussian
+control at n=512, d=5120 sits at 0.0442). So `family_mu: unknown` is the honest value, the rows
+are returned as shipped with a label that travels into the reading product's README, and the
+thing to ask Celeste for is that mean — or the `acts_long` dump it is computed from.
+
+`bsf` and `jlens` are subspace bases, not activations: `family_kinds` marks them non-centrable
+and no `--mu` applies to them at all.
+
+Per plan §2.2, all three of these families are **`rl-last16` only**, run as shipped under her
+convention and stated at the number; the old primary and NLA skip them (not runnable without raw).

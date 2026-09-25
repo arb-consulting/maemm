@@ -45,7 +45,7 @@ from rich.table import Table as RichTable
 HERE = Path(__file__).resolve().parent
 PAPER_EVALS = HERE.parent
 sys.path.insert(0, str(HERE))
-from stats import ROOTS, Vol  # noqa: E402 -- the fetcher and the root map live in stats.py
+from stats import ROOTS, Vol, mirror_dir  # noqa: E402 -- fetcher, root map and mirror rule
 
 # 27B primary first, as every table in reconstruction/ orders them.
 BASES = ("qwen36-27b", "qwen3-8b")
@@ -84,15 +84,29 @@ def _avg_rank(v):
     return ranks
 
 
-def _sae_key(cfg: dict, base: str) -> str:
+def _sae_key(cfg: dict, base: str, want: str = "") -> str:
+    """WHICH SAE of `base`: `--sae` when given, else the single one -- refusing to guess with two.
+
+    This is `common.sae_key_for`'s rule, restated rather than imported: this file is a standalone
+    `uv run` script with its own dependency block and no paper-evals on sys.path, so it reads
+    config.yaml with plain yaml and cannot call into precompute/. The message names the options.
+    """
     keys = [k for k in cfg["saes"] if k.split("/", 1)[0] == base]
-    assert len(keys) == 1, f"base {base} has {len(keys)} SAEs in config.yaml, expected exactly 1"
+    assert keys, f"base {base} has no SAE in config.yaml"
+    want = (want or "").strip()
+    if want:
+        assert want in keys, f"--sae {want!r} is not one of base {base}'s SAEs {sorted(keys)}"
+        return want
+    assert len(keys) == 1, (
+        f"base {base} has {len(keys)} SAEs in config.yaml ({sorted(keys)}), so nothing can pick "
+        f"one for you: pass --sae <base>/<name>"
+    )
     return keys[0]
 
 
-def _rows_for_base(vol: Vol, cfg: dict, base: str, tol: float) -> tuple[list[dict], dict]:
+def _rows_for_base(vol: Vol, cfg: dict, base: str, tol: float, sae_want: str = "") -> tuple[list[dict], dict]:
     """The CSV rows for one base, plus that base's own summary dict. Raises on any disagreement."""
-    sae = _sae_key(cfg, base)
+    sae = _sae_key(cfg, base, sae_want if sae_want.split("/", 1)[0] == base else "")
     sae_dir = f"base/{base}/sae/{sae.split('/', 1)[1]}"
     recs = vol.jsonl(f"{sae_dir}/top1_act/{SET}/top1_act.jsonl")
     assert recs, (
@@ -105,10 +119,18 @@ def _rows_for_base(vol: Vol, cfg: dict, base: str, tol: float) -> tuple[list[dic
     ids = {r["row"]: r for r in (vol.jsonl(f"base/{base}/heldout/{SET}/ids.jsonl") or [])}
     assert ids, f"base/{base}/heldout/{SET}/ids.jsonl is missing"
     size = int(summary["corpus_size_m"])
+    # On the ROW's own sae_key where the set has one, not the family label alone (H8). This is a
+    # standalone `uv run` script with no paper-evals on sys.path, so it restates the rule rather
+    # than importing common.sae_rows_of: a row that names a different dictionary is skipped, and a
+    # set whose rows name none is accepted only because `sae` picked it (single-SAE base, or the
+    # --sae the caller typed) -- which is the same contract, stated where it is used.
+    id_key = {r["row"]: r.get("sae_key") for r in ids.values()}
     topk = {
         r["row"]: r["top"][0]
         for r in (vol.jsonl(f"base/{base}/scan/{SET}/topk.jsonl") or [])
-        if r["size"] == size and r["family"] == "sae"
+        if r["size"] == size
+        and r["family"] in ("sae", "sae2m_enc")
+        and id_key.get(r["row"], sae) == sae
     }
     assert topk, f"base/{base}/scan/{SET}/topk.jsonl has no sae rows at size {size}M"
 
@@ -179,16 +201,20 @@ def main(
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what data/ already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
-    data_dir: Annotated[Path | None, typer.Option(help="override reconstruction/data/<root-tag>")] = None,
+    data_dir: Annotated[Path | None, typer.Option(
+        help="override the default mirror ($MAEMM_MIRROR, else "
+             "$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>)")] = None,
     tol: Annotated[float, typer.Option(help="max relative examples-join vs forward disagreement")] = 5e-2,
+    sae: Annotated[str, typer.Option(help="which SAE, as `<base>/<name>`; needed when a base has two")] = "",
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,
 ):
     cfg = yaml.safe_load((PAPER_EVALS / "config.yaml").read_text())
-    vol = Vol(root_tag, data_dir or (HERE / "data" / root_tag), modal_cmd, refetch, quiet, offline=not fetch)
+    vol = Vol(root_tag, data_dir or mirror_dir(ROOTS[root_tag]), modal_cmd, refetch, quiet,
+              offline=not fetch)
 
     rows, summaries = [], {}
     for base in BASES:
-        r, s = _rows_for_base(vol, cfg, base, tol)
+        r, s = _rows_for_base(vol, cfg, base, tol, sae)
         rows += r
         summaries[base] = s
 

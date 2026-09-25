@@ -70,6 +70,13 @@ LLM_SECRETS = [*SECRETS, modal.Secret.from_name("anthropic")]
 
 # stage -> (module, function). `random_pool` is P1's sibling: the same SAE-encode machinery over
 # corpus windows instead of rollouts, so it lives in sae_self.py rather than in a file of its own.
+# The stages that walk a corpus themselves, and so may be told WHICH one.
+CORPUS_STAGES = ("random_pool", "examples_4m", "examples_docmax")
+# ... plus the CONSUMERS of what they wrote: `build` addresses those pools by the same key, and
+# `chain` drives a build. Every OTHER stage reads a product whose path already names its corpus,
+# so naming a corpus there is a statement nothing acts on and is refused rather than ignored.
+CORPUS_ARG_STAGES = (*CORPUS_STAGES, "build", "chain")
+
 STAGES = {
     "sae_self": ("sae_self", "run"),
     "random_pool": ("sae_self", "run_random_pool"),
@@ -173,6 +180,18 @@ def main(
     # WHICH SAE of the base: required once a base carries more than one (qwen36-27b does, since
     # sae2m). sae_self, build and chain all resolve it through common.sae_key_for.
     sae: str = "",
+    # WHICH SIDE of the dictionary `sae_self` / `build` work on: `enc` (default, every set before
+    # 2026-09-21 and every product already on the volume) or `dec`, the `unit(W_dec[f])` rows of
+    # a `draw_sae2m --sides enc,dec` set or a `draw_sae131k --sides dec` twin. scan/repo_examples
+    # keep the enc-only filter, and the three corpus-side stages here refuse it
+    # (sae_self.sae_side_of).
+    sae_side: str = "",
+    # build: the set whose CORPUS-SIDE products (examples_docmax, random_pool, examples_4m and the
+    # scan's examples/) this build reads, when they are another set's. For a decoder twin: `--set`
+    # names the twin (its rows, its sae_self, its score residuals -> the M arms) and
+    # `--products-set` the encoder set whose pools are defined by the same features' activations.
+    # Refused unless both sets carry the same feature ids in the same order (build.run).
+    products_set: str = "",
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
     rows: str = "",
@@ -180,13 +199,39 @@ def main(
     force: bool = False,
     engine: str = "vllm",
     out_suffix: str = "",
+    # sae_self: read <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEMM's, so a patchscopes
+    # cell / a GCG-EPO finals file / a corpus-search result gets the target feature's own
+    # activation through THIS stage rather than a second implementation (D11).
+    rollouts_dir: str = "",
+    # separates two runs of one checkpoint on one set that differ only in --mu
+    # (common.rollout_stem); must match the --run-tag the rollouts were generated with.
+    run_tag: str = "",
+    # build, nla --maemm only: the verbalizer generation run whose rollouts + sae_self the NLA arms
+    # read, when it is not --run-tag (M12's `rollouts_nla --n 16`). The corpus side stays on
+    # --run-tag. Refused on any other stage here and on a MAEMM in build.run.
+    nla_run_tag: str = "",
+    score_name: str = "",
     # random_pool
     n_windows: int = 0,
     pool_seed: int = 0,
     prefix_m: int = 0,
     batch: int = 0,
+    # THE TWO CORPORA (spec §3, decided 2026-09-22). `--corpus-name` is where the corpus arms'
+    # SHOWN examples come from and is also the corpus the three corpus-side GPU stages
+    # (`random_pool`, `examples_4m`, `examples_docmax`) read and key their output path by;
+    # `--test-corpus-name` is where `build`'s Delphi test windows and negatives come from.
+    # Both empty = the base's own corpus on both sides, which is every run made before
+    # 2026-09-23. The paper's run passes `--corpus-name celeste-train10m` and leaves the test
+    # side default, so the explainer never sees a window the judge then tests on.
+    corpus_name: str = "",
+    test_corpus_name: str = "",
     # build
     build_dir: str = "",
+    # A SECOND build, whose ROLLOUT-ONLY arms (the NLA ones) are scored inside this run against
+    # THIS run's test items. `build` takes one --maemm and the NLA verbalizer is not the MAEMM, so
+    # without it the NLA arms can only live in their own run directory -- and then they carry
+    # their own floor and their own nulls and `stats.paired()` has nothing to pair across the two.
+    build_dir_nla: str = "",
     n_feat: int = 0,
     feat_seed: int = 0,
     n_examples: int = 0,
@@ -200,6 +245,9 @@ def main(
     maemm2: str = "",
     model: str = "",
     scorers: str = "",
+    # WHICH ARM the three null arms borrow their description from (default `C16` from config).
+    # The 2M SAE has no C16 arm at all, so a run there must name its own -- see run.py's guard.
+    floor_source_arm: str = "",
     path: str = "",
     concurrency: int = 0,
     max_cost_usd: float = 0.0,
@@ -210,6 +258,10 @@ def main(
     crossfam: str = "",
     centre32: bool = False,
     mark: str = "",
+    # `gate` (default, reproduces every earlier run) | `relative`: when a GENERATED-TEXT block has
+    # no token above the SAE gate, mark at >= 0.5 x that block's own peak instead of leaving it
+    # bare. Corpus arms are never affected. See build.render_example's rel_fallback.
+    rollout_mark: str = "",
     fuzz_marks: str = "",
     fuzz_protocol: str = "",
     shots: int = 0,
@@ -218,11 +270,27 @@ def main(
     # CONTAINER-SIDE, and only for `--stage run`: it prints the request shapes this run would send
     # (from the build already on the volume) and returns. It still STARTS A CONTAINER.
     dry_run: bool = False,
+    # `--corpus-name` BY `corpora:` KEY (M2, 2026-09-23), resolved to the directory on the
+    # client and geometry-checked there, exactly as `precompute/modal_app.py` has both spellings.
+    # A corpus this pipeline would cut at the wrong window size stops the launch instead of the
+    # container. It is the same value as `--corpus-name` and the two may not be passed together;
+    # there is deliberately no key spelling of `--test-corpus-name`, whose only two values so far
+    # are "the held-out default" and "whatever `--corpus-name` is".
+    corpus: str = "",
     # LOCAL: run every assert above, print what would be sent, and return WITHOUT `.remote()` --
     # what `precompute/modal_app.py --dry-run` does. It is a second flag rather than a reuse of
     # `dry_run` because that name is already taken here by the container-side meaning above, and
     # silently changing it would turn a stage-`run` dry run into a no-op.
     dry_launch: bool = False,
+    # FIRE AND FORGET (M12, 2026-09-25). `fn.remote()` keeps the local client blocked on the
+    # call, and `modal run --detach` did NOT save the call when that client lost its connection:
+    # a laptop suspend at 16:21Z got M12's 65-minute rollouts_nla call cancelled at 16:25Z
+    # ("Function call was cancelled by user or a failure", app ap-cLckeuln69kWhM0qo56vxi).
+    # `--spawn` (use WITH `--detach`) submits the call with `fn.spawn()`, prints ONE machine-readable
+    # line `[spawn] call_id=<id> ...` and returns, so nothing local stays alive: completion is read
+    # off the product on the volume, and the container's own `[wall] ... cost=$` line off
+    # `modal app logs <app>`. No `[done]` line is printed on this path.
+    spawn: bool = False,
 ):
     """One autointerp stage. `--stage sae_self|build|run`.
 
@@ -253,30 +321,78 @@ def main(
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])}"
     )
     if stage in ("sae_self", "build"):
-        assert maemm, f"stage {stage} needs --maemm (the rollouts its M arms read)"
+        # D11: `sae_self --rollouts-dir` scores rows no MAEMM produced, so it is the one call here
+        # that may run without --maemm. `build` still needs one: its M arms ARE a MAEMM's rollouts.
+        assert maemm or (stage == "sae_self" and rollouts_dir), (
+            f"stage {stage} needs --maemm (the rollouts its M arms read)"
+            + (", or --rollouts-dir" if stage == "sae_self" else "")
+        )
     if stage == "chain" and maemm2:
         assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
+    if nla_run_tag:
+        assert stage == "build", (
+            f"--nla-run-tag names the verbalizer rollouts a BUILD reads; it means nothing to stage "
+            f"{stage!r} (sae_self / score take the verbalizer run as their own --run-tag)")
+    if products_set:
+        assert stage == "build", (
+            f"--products-set names the set whose corpus-side pools a BUILD reads; it means nothing "
+            f"to stage {stage!r}")
+        assert products_set in cfg["heldout"], (
+            f"--products-set {products_set!r} is not a set in config.yaml")
+    if sae_side:
+        # Checked LOCALLY as well as container-side, so a typo does not cost a container start.
+        from autointerp.sae_self import sae_side_of
+
+        sae_side_of({"sae_side": sae_side}, stage)
     if sae:
         assert sae in cfg["saes"], f"unknown --sae {sae!r}, want one of {sorted(cfg['saes'])}"
         assert C.split_key(sae, "sae")[0] == base, f"sae {sae!r} is not on base {base!r}"
     if maemm:
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    if corpus:
+        assert not corpus_name, (
+            f"pass --corpus {corpus!r} OR --corpus-name {corpus_name!r}, not both: the key "
+            f"resolves to the directory name --corpus-name takes, so the two cannot disagree"
+        )
+        corpus_name = C.corpus_key_name(cfg, corpus)
+        blk, strd = C.corpus_geometry(cfg, corpus)
+        print(f"[launch] corpus {corpus} -> dir {corpus_name or 'corpus'}, window {blk}/{strd}")
+    for flag, nm in (("--corpus-name", corpus_name), ("--test-corpus-name", test_corpus_name)):
+        if not nm:
+            continue
+        assert stage in CORPUS_ARG_STAGES, (
+            f"{flag} names the corpus a CORPUS-SIDE stage walks or a consumer of those pools "
+            f"addresses ({sorted(CORPUS_ARG_STAGES)}); stage {stage!r} reads a product and takes "
+            f"the corpus from that product's path"
+        )
+        # The geometry assert runs on the DIRECTORY, so it covers --corpus-name given directly as
+        # well as a --corpus key resolved above; container-side `sae_self.corpus_of` repeats it.
+        C.assert_corpus_geometry(cfg, nm)
     args = {
         "base": base,
         "maemm": maemm,
         "sae": sae,
+        "sae_side": sae_side,
+        "products_set": products_set,
         "heldout": set_name,
         "rows": rows,
         "root": root.rstrip("/") or VOL,
         "force": force,
         "engine": engine,
         "out_suffix": out_suffix,
+        "rollouts_dir": rollouts_dir.rstrip("/"),
+        "run_tag": run_tag,
+        "nla_run_tag": nla_run_tag,
+        "score_name": score_name,
         "n_windows": n_windows,
         "pool_seed": pool_seed,
         "prefix_m": prefix_m,
         "batch": batch,
+        "corpus_name": corpus_name,
+        "test_corpus_name": test_corpus_name,
         "build_dir": build_dir.rstrip("/"),
+        "build_dir_nla": build_dir_nla.rstrip("/"),
         "n_feat": n_feat,
         "feat_seed": feat_seed,
         "n_examples": n_examples,
@@ -289,6 +405,7 @@ def main(
         "maemm2": maemm2,
         "model": model,
         "scorers": scorers,
+        "floor_source_arm": floor_source_arm,
         "path": path,
         "concurrency": concurrency,
         "max_cost_usd": max_cost_usd,
@@ -298,6 +415,7 @@ def main(
         "crossfam": crossfam,
         "centre32": centre32,
         "mark": mark,
+        "rollout_mark": rollout_mark,
         "fuzz_marks": fuzz_marks,
         "fuzz_protocol": fuzz_protocol,
         "shots": shots,
@@ -323,6 +441,10 @@ def main(
         # Every assert above has run; what is printed is exactly the dict `.remote()` would carry.
         print("[dry-launch] no container started; args below are what would be sent")
         print(json.dumps(args, indent=1, sort_keys=True, default=str))
+        return
+    if spawn:
+        call = fn.spawn(stage, args)
+        print(f"[spawn] call_id={call.object_id} product={stage} gpu={label}", flush=True)
         return
     res = fn.remote(stage, args)
     print(f"[done] {res['stage']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")

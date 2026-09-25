@@ -40,6 +40,87 @@ import numpy as np
 
 import precompute.common as C
 
+# ---------------------------------------------------------------------------------------------
+# corpus-keyed product paths (M6, 2026-09-23)
+# ---------------------------------------------------------------------------------------------
+# The three corpus-side stages below (`random_pool`, `examples_4m`, `examples_docmax`) each read a
+# corpus and write one directory per (sae, set). Until now both halves were corpus-BLIND: the
+# reader called `C.load_corpus(base, root)` with no name and the writer keyed the path by set
+# alone, so a second corpus's products would have overwritten the first's under a path that says
+# nothing about which corpus they came from. `scan` and `top1_act` already key by corpus
+# (`common.sae_examples_dir`, `common.scan_dir`), and the autointerp run needs the shown examples
+# to come from the 10M training corpus while the test windows come from the 16M held-out one
+# (spec §3), so these three follow the same convention: EMPTY resolves to today's path, which
+# leaves every product already on the volume exactly where it is.
+
+
+def corpus_key_for(corpus_name: str, run_tag: str = "") -> str:
+    """The PRODUCT key these three pools are stored under: `<corpus>[__<tag>]`, "" for the default.
+
+    ONE STRING, shared by producer and consumer (reconciled 2026-09-23, M2 x M6). The producer is
+    `run_random_pool` / `run_examples_4m` / `run_examples_docmax` below; the consumer is
+    `build._dirs`, which also addresses `scan`'s `examples/` by the same key. It is spelled by
+    `precompute.top1_act.scan_key_of` rather than re-derived here, because that is the function
+    `scan` and `top1_act` key by and two spellings of one path is the cross-corpus join this whole
+    change exists to stop -- so the pools written under `train_parity_10m__paper0923` are the ones
+    a build with `--corpus-name train_parity_10m --run-tag paper0923` reads back.
+
+    Empty corpus and empty tag give "", i.e. today's unsuffixed path, so every product already on
+    the volume stays where it is. NOTE that a `--run-tag` with NO `--corpus-name` now keys these
+    three pools by the tag alone, as `scan` already did -- it addresses a path no pre-2026-09-23
+    run wrote, and the absence is a loud `tested.json is missing`, never a silent other corpus.
+    """
+    from precompute.top1_act import scan_key_of
+
+    return scan_key_of(corpus_name, 0, (run_tag or "").strip())
+
+
+def corpus_suffix(corpus_key: str) -> str:
+    """`__<key>` for a named corpus, "" for the base's own (today's unsuffixed path)."""
+    return f"__{corpus_key}" if corpus_key else ""
+
+
+def random_pool_dir(sae_key: str, set_name: str, root: str, corpus_key: str = "") -> str:
+    return f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}{corpus_suffix(corpus_key)}"
+
+
+def examples_4m_dir(sae_key: str, set_name: str, root: str, corpus_key: str = "") -> str:
+    """The nested-prefix example pool. NOTE the `_4m` in the directory name is a LITERAL and the
+    prefix size is `autointerp.corpus_prefix_m` / `--prefix-m`: a build at another prefix writes
+    into a directory still called `_4m`, and only `build.json`'s `corpus_prefix_m` records the
+    truth. Left as it is because the C4 arm is dropped (spec §3) and renaming it would strand the
+    products on the volume; do not read the name as the size."""
+    return f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}{corpus_suffix(corpus_key)}"
+
+
+def examples_docmax_dir(sae_key: str, set_name: str, root: str, corpus_key: str = "") -> str:
+    return f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}{corpus_suffix(corpus_key)}"
+
+
+def corpus_of(cfg: dict, args: dict) -> str:
+    """`--corpus-name` for a corpus-side stage: the corpus DIRECTORY, geometry asserted.
+
+    `common.assert_corpus_geometry` refuses a corpus whose declared block/stride is not the one
+    every `windows_of` site cuts at, which is the check that stops a scan from writing a README
+    claiming 64/16 over 32/8 data.
+
+    The directory is what `common.load_corpus` opens; `corpus_key_of` is what the OUTPUT path is
+    keyed by. The two differ the moment a run carries a `--run-tag`, and reading the pool of one
+    while loading the corpus of another is a silent cross-corpus join (M2's finding on `top1_act`).
+    """
+    name = str(args.get("corpus_name") or "")
+    assert "," not in name, (
+        f"--corpus-name resolved to several corpora ({name!r}); a corpus-side stage builds ONE "
+        f"pool and would otherwise silently take the first"
+    )
+    C.assert_corpus_geometry(cfg, name)
+    return name
+
+
+def corpus_key_of(cfg: dict, args: dict) -> str:
+    """`corpus_key_for` of this call's `--corpus-name` and `--run-tag`."""
+    return corpus_key_for(corpus_of(cfg, args), args.get("run_tag") or "")
+
 # Rows handed to common.score_tokens per call, as precompute/score.py:50. It re-chunks internally
 # at common.SCORE_CHUNK, so this only bounds the fp32 residual the callback sees at once.
 SCORE_ROWS = 256
@@ -49,7 +130,7 @@ SCORE_ROWS = 256
 # encoder columns -- a different dictionary and a different draw, but the same KIND of target
 # (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
 # rather than collapsed to one name because a set can carry both and the labels are provenance.
-FAMILIES = ("sae", "sae2m_enc")
+FAMILIES = C.SAE_FAMILIES
 # Largest cosine gap at which a disagreement with the stored `argmax.i16` is accepted as
 # right-padding noise rather than a different run. MEASURED 2026-09-16 (see CHECK 1 below): the
 # real gaps are ~1e-5 while a genuinely different token is 1e-2 to 1e-1 away, so 1e-3 separates
@@ -100,24 +181,86 @@ class _SelfAct:
         self.arg[g : g + b] = torch.where(has, arg - 1, torch.full_like(arg, -1)).cpu()
 
 
-def _sae_rows(cfg, args):
-    """(rows_meta, sae rows of the set, their feature ids, the SAE key)."""
-    base, root, set_name = args["base"], args["root"], args["heldout"]
-    rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
-    sel = [r for r in rows if r["family"] in FAMILIES]
-    assert sel, (
-        f"held-out set {set_name!r} on {base} has no rows in any of the SAE families {FAMILIES}; "
-        f"it carries {sorted({r['family'] for r in rows})}"
+def sae_side_of(args, stage: str) -> str:
+    """The `sae_side` half of the set this call works on: `enc` (the default) or `dec`.
+
+    ONLY `sae_self` and `build` may ask for `dec`. The flag exists because eval 1 needs the
+    activation metric on the decoder block of `2026-09-21_v3_sae2m` (plan §2.3: "the activation of
+    feature `f` is its encoder readout whichever direction was injected"), and the enc-only filter
+    at `_sae_rows` was the one gap SMOKES.md's eval-1 section names. `build` takes it since
+    2026-09-23 (M6-dec): its M arms ARE the rollouts of the injected direction and are read from
+    `sae_self__dec`, and its output is `autointerp/<set>/<build-dir>`, a path of its own -- the
+    corpus-side pools it also reads are keyed on the feature and come from the ENCODER set via
+    `--products-set`, not from this flag. `scan` and `repo_examples` keep the enc-only filter:
+    their products are keyed on a feature, not on a direction, so a decoder row there would be a
+    second copy of the same feature under the same path. The other three stages in THIS file
+    (`random_pool`, `examples_4m`, `examples_docmax`) are corpus-side for the same reason, so they
+    refuse it loudly rather than silently ignoring it.
+    """
+    side = str(args.get("sae_side") or "enc")
+    assert side in ("enc", "dec"), f"--sae-side must be `enc` or `dec`, got {side!r}"
+    assert side == "enc" or stage in ("sae_self", "build"), (
+        f"--sae-side {side!r} is a `sae_self`/`build` flag and stage {stage!r} does not take it. "
+        f"That stage's product is keyed on the FEATURE, not on which of the dictionary's two "
+        f"columns was injected, so a decoder row would rewrite the encoder row's own path with the "
+        f"same feature's numbers. Drop --sae-side, or run `--stage sae_self` / `--stage build`."
     )
+    return side
+
+
+def stored_dirs_of(all_dirs, flat):
+    """[len(flat), d] -- ONE stored direction per FLAT (target, rollout) row, in `flat`'s order.
+
+    `common.score_tokens` pairs `dirs[i]` with `texts[i]`, and `texts` is the [N x n] rollout grid
+    flattened row-major -- so a per-TARGET array of directions is 512 rows against 32,768 texts.
+    The encoder branch never had to think about this because `sae_dirs(sae, row_feats)` is already
+    indexed by flat row; the decoder branch reads the set's [N_set, d] array and has to expand it.
+
+    MEASURED THE EXPENSIVE WAY 2026-09-21, ~$0.4 over three containers: indexing `sel` instead of
+    `flat` got through the base load, the SAE load and the direction read, and died inside the
+    scorer with `256 id lists but 0 directions: the scorer pairs them by row`. Nothing on CPU
+    could see it while the expansion was an inline comprehension, which is why it is a function.
+    """
+    import numpy as np
+
+    return np.asarray([all_dirs[x["row"]] for x in flat], dtype=np.float32)
+
+
+def _sae_rows(cfg, args, stage: str = "sae_self"):
+    """(rows_meta, sae rows of the set, their feature ids, the SAE key, the side).
+
+    The selector filters on the ROW's own `sae_key`, not on the family label. A set can carry two
+    dictionaries under one `family: sae` label (features/draw_sae2m.py writes the key per row), and
+    every feature id below 131,072 is a VALID index into a 2^21 encoder -- so the family-only
+    filter would look the 131k block's ids up in the 2M dictionary and score 512 wrong features
+    with nothing raising. `common.sae_rows_of` is the rule, applied where the key is resolved.
+
+    The side defaults to `enc` and every caller but `sae_self --sae-side dec` gets exactly the
+    selection this function has always made -- a row with no `sae_side` reads as `enc` in
+    `sae_rows_of`, so a pre-2026-09-21 set is unaffected. See `sae_side_of` for who may ask for
+    the other half and why; `run` handles the one consequence, which is that a decoder row's
+    stored direction is NOT the encoder column this stage cross-checks against.
+    """
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    side = sae_side_of(args, stage)
+    rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
     # WHICH SAE: `--sae` when the base carries more than one (qwen36-27b does, since sae2m).
     # common.sae_key_for is the same rule score._sae_for uses, so the stage and the scorer it
     # validates itself against cannot end up on different dictionaries.
-    return (
-        rows,
-        [r["row"] for r in sel],
-        [int(r["id"]) for r in sel],
-        C.sae_key_for(cfg, base, args.get("sae") or ""),
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    hdir = C.heldout_dir(base, set_name, root)
+    sel = C.sae_rows_of(
+        rows, sae_key, FAMILIES, side=side,
+        declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
     )
+    assert sel, (
+        f"held-out set {set_name!r} on {base} has no {side} rows of dictionary {sae_key!r} in the "
+        f"SAE families {FAMILIES}; it carries families "
+        f"{sorted({r['family'] for r in rows})}, dictionaries "
+        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows if r['family'] in FAMILIES})} and "
+        f"sides {sorted({r.get('sae_side', 'enc') for r in rows if r['family'] in FAMILIES})}"
+    )
+    return rows, [r["row"] for r in sel], [int(r["id"]) for r in sel], sae_key, side
 
 
 def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, gate: float):
@@ -143,8 +286,29 @@ def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, g
         if j < hi - lo and int(idx[lo + j]) == feat:
             out_has[i] = True
             out_val[i] = float(val[lo + j])
-    assert not out_has.any() or float(out_val[out_has].min()) > gate, (
-        "the stored CSR holds an entry at or below the gate, which score.py cannot have written"
+    # THE BOUND IS THE GATE AS FLOAT16, NOT THE GATE. `score` selects with `a > gate` in fp32
+    # (score.py:91) and then stores `a` as float16 (`sae_val.f16`). Round-to-nearest maps every
+    # fp32 value just above the gate onto the f16 value NEAREST the gate, which on this
+    # checkpoint is 1.6826171875 -- 1.95e-04 BELOW the fp32 gate 1.682811975479126. So a
+    # correctly written entry can read back at or under the gate, and comparing the stored f16
+    # against the fp32 gate fails on the storage cast rather than on anything score did.
+    #
+    # MEASURED 2026-09-21 on `rl-last16` x `2026-09-21_v3_sae2m`: 8,023 of 9,855,412 CSR entries
+    # (0.08%) sit at exactly 1.6826171875, and that is the ONLY value at or below the gate in the
+    # whole array -- one distinct value, which is the signature of a cast and not of a data error
+    # (a wrong dictionary or a wrong gate would give a spread). `sae_self` inspects only the
+    # target feature at the argmax, a few thousand of those ~10M entries, so whether the assert
+    # fires is luck: the same call passed on the old primary and on the NLA arm.
+    #
+    # The check still has teeth. Anything materially below the gate -- the wrong dictionary, the
+    # wrong gate, a misaligned CSR -- lands far under this bound and still trips it. What is
+    # given up is exactly the half-ulp of the storage format, which carries no information.
+    floor = float(np.float16(gate))
+    assert not out_has.any() or float(out_val[out_has].min()) >= floor, (
+        f"the stored CSR holds an entry below float16({gate:.12f}) = {floor:.10f}, which "
+        f"score.py cannot have written: it selects on `a > gate` in fp32 and stores a as f16, so "
+        f"the smallest value that can come back is the f16 nearest the gate. Got "
+        f"{float(out_val[out_has].min()):.10f}. A wrong dictionary or a wrong gate looks like this."
     )
     return out_val, out_has
 
@@ -183,12 +347,20 @@ def run(cfg, args):
     import torch
 
     base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
-    assert base and maemm, "product sae_self needs --base and --maemm"
-    assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+    # D11: `--rollouts-dir <dir>` reads <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEMM's,
+    # mirroring score.py:352-358. That is what lets a patchscopes cell, a GCG/EPO finals file, a
+    # corpus-search result or any other non-MAEMM text be scored for the target feature's own
+    # activation -- every arm of evals 1 and 2 that has no `maemms:` entry needs it.
+    rdir = (args.get("rollouts_dir") or "").rstrip("/")
+    assert base, "product sae_self needs --base"
+    assert maemm or rdir, "product sae_self needs --maemm (whose rollouts it reads), or --rollouts-dir"
+    assert not maemm or maemm in cfg["maemms"], (
+        f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+    )
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     engine = args.get("engine") or "vllm"
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, side = _sae_rows(cfg, args, "sae_self")
     sel = [r for r in C.parse_rows(args.get("rows", ""), len(rows_meta)) if r in set(sae_rows)]
     assert sel, (
         f"--rows {args.get('rows', '')!r} selected none of the {len(sae_rows)} {'/'.join(FAMILIES)} rows "
@@ -196,12 +368,31 @@ def run(cfg, args):
     )
     feat_of = dict(zip(sae_rows, feats, strict=True))
 
-    rpath = C.rollouts_path(maemm, set_name, root, engine)
-    sdir = C.scores_dir(maemm, set_name, root, engine)
-    assert os.path.exists(rpath), f"no rollouts at {rpath}"
-    recs = C.read_jsonl(rpath)
-    with open(f"{C.rollouts_dir(maemm, root)}/{C.rollout_stem(set_name, engine)}.summary.json") as fh:
-        rsum = json.load(fh)
+    tag = args.get("run_tag") or ""
+    if rdir:
+        rpath, spath = f"{rdir}/rollouts.jsonl", f"{rdir}/rollouts.summary.json"
+        sdir = f"{rdir}/scores"
+        assert os.path.exists(rpath), f"no rollouts at {rpath}"
+        recs = C.read_jsonl(rpath)
+        with open(spath) as fh:
+            rsum = json.load(fh)
+    else:
+        roll_dir, stem = C.rollouts_dir(maemm, root), C.rollout_stem(set_name, engine, tag)
+        sdir = C.scores_dir(maemm, args.get("score_name") or set_name, root, engine,
+                            C.score_tag_of(args))
+        # ONE product, whether it was generated whole or in `--rows` chunks under the one run tag
+        # -- read exactly as `score` reads it (score.py:474). Reading `<stem>.jsonl` directly saw
+        # no chunk at all, and this stage cross-checks its own forward against a `score` run that
+        # DID see them: the mismatch would have surfaced as a missing-rollouts assert or, worse,
+        # as a grid that disagrees with the scores directory beside it.
+        recs, rsum, sources = C.read_rollouts(roll_dir, stem)
+        rpath = sources[0] if len(sources) == 1 else f"{roll_dir}/{stem}[chunked]"
+    assert os.path.exists(sdir), (
+        f"no scores at {sdir}: this stage re-runs `score`'s forward and cross-checks itself "
+        f"against what that run stored, so `score` must have run on these rollouts first"
+    )
+    if rdir:
+        engine = rsum.get("engine", engine)  # the directory names its own producer
     n = int(rsum["n"])
     by_row: dict[int, dict[int, dict]] = {}
     for r in recs:
@@ -231,11 +422,36 @@ def run(cfg, args):
     # an H200 beside the 27B (features/CHANGES.md fix 2, made there for `stats`).
     sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32, need_decoder=False)
     gate = float(sae.threshold)
-    dirs = C.sae_dirs(sae, row_feats).cpu()
+    # THE DIRECTION IS THE ONE THE ROLLOUT WAS GENERATED FROM, AND ONLY ON THE ENCODER SIDE IS
+    # THAT THE ENCODER COLUMN. For `sae_side: enc` (every set before 2026-09-21, and the default)
+    # `sae_dirs` is both the direction and a cross-check: re-deriving unit(W_enc[:, f]) from the
+    # dictionary and reproducing `score`'s stored cosine with it proves the set's `vecs.f16` IS
+    # that column. A `sae_side: dec` row was injected with `unit(W_dec[f])`, so the encoder column
+    # would reproduce nothing and CHECK 1 would fire on a direction mismatch rather than on
+    # anything about the run. There the directions are READ from the set's own `vecs.f16` through
+    # `common.dirs_for` (which enforces the storage contract), and the encoder-column cross-check
+    # is the one thing this side gives up -- named in `checks`, not silently dropped. Plan §2.3,
+    # "the `vecs.f16` cross-check skipped (§1.5)"; features/draw_sae2m.py says the same in the
+    # set's own README. The ACTIVATION is unaffected either way: `_SelfAct` reads W_enc/b_enc for
+    # the row's feature whatever was injected, which is the metric this product exists for.
+    dir_notes: list[str] = []
+    if side == "enc":
+        dirs = C.sae_dirs(sae, row_feats).cpu()
+        dirs_from = f"common.sae_dirs -- unit(W_enc[:, f]) of {sae_key}, re-derived"
+    else:
+        hdir = C.heldout_dir(base, set_name, root)
+        all_dirs = C.dirs_for(cfg, base, hdir, None, root, notes=dir_notes)
+        dirs = torch.as_tensor(stored_dirs_of(all_dirs, flat))
+        dirs_from = f"{hdir}/vecs.f16 via common.dirs_for -- the stored `sae_side: dec` rows"
+    assert len(dirs) == len(flat), (
+        f"{len(dirs)} directions for {len(flat)} rollout texts on the `{side}` side: "
+        f"common.score_tokens pairs them by row, so this must be one direction PER FLAT "
+        f"(target, rollout) row and not one per target"
+    )
     extra = _SelfAct(sae, row_feats, len(flat), width)
     print(
-        f"[sae_self] {len(sel)} sae targets x {n} rollouts = {len(flat)} rows, gate {gate:.4f}, "
-        f"scoring window {max_length} (T={width})",
+        f"[sae_self] {len(sel)} sae/{side} targets x {n} rollouts = {len(flat)} rows, "
+        f"gate {gate:.4f}, scoring window {max_length} (T={width}); directions: {dirs_from}",
         flush=True,
     )
     t0 = time.time()
@@ -286,22 +502,56 @@ def run(cfg, args):
     # CHECKS 2 and 3 index OUR activations at the STORED argmax, because that is the token the
     # stored CSR was measured at: they are then exact whatever check 1 found.
     # The CSR is flattened over the SCORED grid, not the set's own row numbering.
+    # A scores directory written with `--no-sae` holds EMPTY sae_idx/sae_val arrays (score.py's
+    # collector returns before touching the SAE, :87-88). Checks 2 and 3 then compare our real
+    # firings against an all-False CSR and trip -- after the paid forward -- or, if nothing fires
+    # at any argmax, pass VACUOUSLY, which destroys the cross-check the stage exists for. Neither
+    # is a check. So the absence is detected and the two checks are SKIPPED with the reason
+    # recorded in `checks`, never relaxed (the critique's B11). `--no-sae` is legitimate on a
+    # non-MAEMM arm whose CSR nothing reads; what is not legitimate is reporting a check that did
+    # not happen.
+    with open(f"{sdir}/index.json") as fh:
+        sindex = json.load(fh)
+    csr_bytes = int(sindex.get("sae_idx.i32", {}).get("bytes", 0))
+    has_csr = csr_bytes > 0
     flat_rows = [score_ix[x["row"]] * n + x["k"] for x in flat]
-    csr_val, csr_has = _csr_at_argmax(sdir, len(score_rows), n, flat_rows, row_feats, gate)
-    csr_val = csr_val.reshape(N, n)
-    csr_has = csr_has.reshape(N, n)
+    if has_csr:
+        csr_val, csr_has = _csr_at_argmax(sdir, len(score_rows), n, flat_rows, row_feats, gate)
+        csr_val = csr_val.reshape(N, n)
+        csr_has = csr_has.reshape(N, n)
+    else:
+        csr_val = np.zeros((N, n), dtype=np.float32)
+        csr_has = np.zeros((N, n), dtype=bool)
     at_arg = np.take_along_axis(act, np.clip(stored_arg, 0, None)[:, :, None] + 1, 2)[:, :, 0]
     ours_at_arg = np.where(stored_arg >= 0, at_arg, np.nan)
     ours_fired_at_arg = np.isfinite(ours_at_arg) & (ours_at_arg > gate)
     # f16 tolerance: the CSR stores float16, so a value near 40 carries ~0.03 of quantisation.
     tol = np.maximum(np.abs(csr_val) * 1e-3, 1e-2)
     val_bad = int((csr_has & (np.abs(np.nan_to_num(ours_at_arg) - csr_val) > tol)).sum())
-    has_bad = int((csr_has != ours_fired_at_arg).sum())
+    has_bad = int((csr_has != ours_fired_at_arg).sum()) if has_csr else 0
     val_worst = (
         float(np.abs(np.nan_to_num(ours_at_arg) - csr_val)[csr_has].max()) if csr_has.any() else 0.0
     )
 
     checks = {
+        "sae_side": side,
+        "dirs_from": dirs_from,
+        # The one check this product does NOT make on a decoder row, stated where a reader of
+        # `sae_self.json` will see it rather than only in the code.
+        **(
+            {}
+            if side == "enc"
+            else {
+                "encoder_column_crosscheck": (
+                    "SKIPPED on `sae_side: dec`: CHECK 1 and the cosine comparison below used the "
+                    "SET's stored vecs.f16 (unit(W_dec[f])), which is the direction the rollout "
+                    "was generated from, so they still test that this pass and `score` are the "
+                    "same run -- but they no longer also prove the stored vector is the encoder "
+                    "column, which is what they do on the `enc` side. The activation metric is "
+                    "unaffected: it is feature f's ENCODER readout whichever column was injected."
+                )
+            }
+        ),
         "argmax_agreement": f"{arg_agree}/{arg_total}",
         "argmax_mismatches": arg_total - arg_agree,
         "argmax_mismatch_worst_cos_gap": round(worst_tie, 8),
@@ -312,6 +562,19 @@ def run(cfg, args):
         "csr_value_worst_abs_diff": round(val_worst, 6),
         "csr_membership_mismatches": has_bad,
         "csr_entries_present": int(csr_has.sum()),
+        "csr_checked": has_csr,
+        **(
+            {}
+            if has_csr
+            else {
+                "csr_skipped_reason": (
+                    f"{sdir}/sae_idx.i32 is empty, so that scores run was made with --no-sae and "
+                    f"holds no SAE CSR. CHECKS 2 and 3 were SKIPPED, not relaxed: against an "
+                    f"all-False CSR they would either trip on every real firing or pass vacuously "
+                    f"if nothing fired. Re-run `score` WITH --sae on these rollouts to get them."
+                )
+            }
+        ),
     }
 
     # ---- per-target summary -----------------------------------------------------------------
@@ -339,15 +602,21 @@ def run(cfg, args):
     # `--out-suffix` keeps a 2-feature shakeout out of the canonical path (score.py's
     # `--score-name` does the same job): the full run then writes `sae_self/` with nothing to
     # --force over.
-    out = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
+    # THE SIDE IS PART OF THE PATH, not of `--out-suffix`. The two halves of a `--sides enc,dec`
+    # set are different rows of the same scores directory, so without this the decoder run would
+    # `--force` over the encoder product that eval 1 already paid for. `enc` keeps the historical
+    # name exactly, so every existing product and every reader of it is untouched.
+    side_suffix = "" if side == "enc" else f"__{side}"
+    out = f"{sdir}/sae_self{side_suffix}{args.get('out_suffix') or ''}"
     inputs = {
         "rollouts": rpath,
         "scores": sdir,
         "engine": engine,
-        "maemm": maemm,
+        "maemm": maemm or f"(none: --rollouts-dir {rdir})",
         "sae": sae_key,
+        "sae_side": side,
         "gate": gate,
-        "targets": f"{N} of {len(sae_rows)} {'/'.join(FAMILIES)} rows",
+        "targets": f"{N} of {len(sae_rows)} {'/'.join(FAMILIES)} `{side}` rows",
         "n": n,
     }
     # The checks run BEFORE the product is written, so a failed check never renames a bad product
@@ -361,10 +630,13 @@ def run(cfg, args):
         f"batch-composition noise. {rpath} and {sdir} may not be the same run. Values written to "
         f"{out} for inspection."
     )
-    assert val_bad == 0 and has_bad == 0, (
-        f"CHECK 2/3 FAILED: {val_bad} value and {has_bad} membership mismatches against the stored "
-        f"SAE CSR at the argmax token (worst |diff| {val_worst:.4f}). Written to {out}."
-    )
+    if has_csr:
+        assert val_bad == 0 and has_bad == 0, (
+            f"CHECK 2/3 FAILED: {val_bad} value and {has_bad} membership mismatches against the "
+            f"stored SAE CSR at the argmax token (worst |diff| {val_worst:.4f}). Written to {out}."
+        )
+    else:
+        print(f"[sae_self] CHECKS 2/3 SKIPPED: {checks['csr_skipped_reason']}", flush=True)
 
     with C.outdir(out, args, inputs=inputs) as od:
         od.write_array("sae_self.f16", act, "float16")
@@ -406,9 +678,22 @@ def run(cfg, args):
             f"1,536 targets and this pass batches only the 512 sae rows, so the two runs' "
             f"SCORE_CHUNK right-padding widths differ -- checklist item 11. CHECK 2, cosine: "
             f"max |ours - stored cos.f16| = {cos_max_abs:.2e} over "
-            f"every kept token (the directions here are `common.sae_dirs`, i.e. what `targets` "
-            f"drew, so this reproduces the stored cosine and not merely something like it)."
+            f"every kept token (the directions here are {dirs_from}, so this reproduces the "
+            f"stored cosine and not merely something like it)."
         )
+        if side != "enc":
+            od.note(
+                f"`sae_side: {side}`. The {N} rows are the DECODER half of the set, and their "
+                f"directions were READ from the set's vecs.f16 rather than re-derived from the "
+                f"dictionary, because unit(W_dec[f]) is what was injected. So the encoder-column "
+                f"cross-check does not apply here (plan §2.3 / §1.5, and the set's own README "
+                f"says the same); CHECK 1 and the cosine check still hold this pass and `score` "
+                f"to the same run. The activation is unchanged in kind -- relu of the ENCODER "
+                f"readout of feature f -- which is why the metric is comparable to the `enc` "
+                f"block's row for row: row i here and row i of `sae_self/` are the same feature."
+            )
+        for note in dir_notes:
+            od.note(f"directions: {note}")
         od.note(
             f"CHECKS 2 and 3 index OUR activations at the STORED argmax (the token the CSR was "
             f"measured at), so they are exact whatever CHECK 1 found. The stored CSR at that "
@@ -518,14 +803,16 @@ def run_random_pool(cfg, args):
     seed = int(args.get("pool_seed") or ac["random_pool_seed"])
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "random_pool")
     n_feat = len(feats)
-    toks, docs = C.load_corpus(base, root)
+    corpus_name, corpus_key = corpus_of(cfg, args), corpus_key_of(cfg, args)
+    toks, docs = C.load_corpus(base, root, corpus_name)
     wins = enumerate_windows(docs)
     rng = np.random.default_rng(seed)
     pick = np.sort(rng.choice(len(wins), size=min(n_win, len(wins)), replace=False))
     n_win = len(pick)
-    print(f"[random_pool] {n_win} of {len(wins)} windows, {n_feat} features, seed {seed}", flush=True)
+    print(f"[random_pool] corpus {corpus_name or 'corpus'} (key {corpus_key or '-'}): "
+          f"{n_win} of {len(wins)} windows, {n_feat} features, seed {seed}", flush=True)
 
     model, tok = C.load_base(cfg, base)
     # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
@@ -575,13 +862,14 @@ def run_random_pool(cfg, args):
     zero = (mx == 0).sum(1)
     near = ((mx > 0) & (mx <= gate)).sum(1)
     above = (mx > gate).sum(1)
-    out = f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}"
+    out = random_pool_dir(sae_key, set_name, root, corpus_key)
     dense_bytes = n_feat * n_win * C.SCAN_BLOCK * 2
     with C.outdir(
         out,
         args,
         inputs={
-            "corpus": C.corpus_dir(base, root),
+            "corpus": C.corpus_dir(base, root, corpus_name),
+            "corpus key": corpus_key or "-",
             "heldout": C.heldout_dir(base, set_name, root),
             "sae": sae_key,
             "features": n_feat,
@@ -692,15 +980,17 @@ def run_examples_4m(cfg, args):
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     batch_rows = int(args.get("batch") or EX4M_BATCH)
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_4m")
     n_feat = len(feats)
-    toks, docs = C.load_corpus(base, root)
+    corpus_name, corpus_key = corpus_of(cfg, args), corpus_key_of(cfg, args)
+    toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     assert prefix_m in sizes, f"corpus has nested sizes {sizes}; {prefix_m}M is not one of them"
     keep_docs = [r for r in docs if int(r["size_tag"]) <= prefix_m]
     n_tok = sum(int(r["len"]) for r in keep_docs)
     print(
-        f"[examples_4m] {len(keep_docs)} of {len(docs)} docs, {n_tok} tokens (<= {prefix_m}M), "
+        f"[examples_4m] corpus {corpus_name or 'corpus'} (key {corpus_key or '-'}): "
+        f"{len(keep_docs)} of {len(docs)} docs, {n_tok} tokens (<= {prefix_m}M), "
         f"{n_feat} features",
         flush=True,
     )
@@ -777,7 +1067,7 @@ def run_examples_4m(cfg, args):
     tw = heap.win.cpu().numpy()
     ta = heap.arg.cpu().numpy()
     tp = heap.payload.cpu().numpy()
-    out = f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}"
+    out = examples_4m_dir(sae_key, set_name, root, corpus_key)
     per_feature = []
     ex_rows = 0
     nbytes = 0
@@ -785,7 +1075,8 @@ def run_examples_4m(cfg, args):
         out,
         args,
         inputs={
-            "corpus": C.corpus_dir(base, root),
+            "corpus": C.corpus_dir(base, root, corpus_name),
+            "corpus key": corpus_key or "-",
             "heldout": C.heldout_dir(base, set_name, root),
             "sae": sae_key,
             "prefix_m": prefix_m,
@@ -912,11 +1203,18 @@ def run_examples_docmax(cfg, args):
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     batch_rows = int(args.get("batch") or EX4M_BATCH)
 
-    rows_meta, sae_rows, feats, sae_key = _sae_rows(cfg, args)
+    rows_meta, sae_rows, feats, sae_key, _side = _sae_rows(cfg, args, "examples_docmax")
     n_feat = len(feats)
-    toks, docs = C.load_corpus(base, root)
-    print(f"[examples_docmax] {len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each",
-          flush=True)
+    # WHICH CORPUS (M2 x M6, reconciled 2026-09-23). This stage walks a corpus of its own; before
+    # today it walked the base's default 16M one and said so nowhere, so the C16 arm's examples and
+    # the corpus search they are meant to comment on came from two different texts. `--corpus-name`
+    # (or `--corpus <key>`, resolved to the same directory on the client) picks it, and the product
+    # is KEYED by the same string a `scan` of that corpus and tag would use -- so the consumer,
+    # `build`, names ONE key for both halves. Empty is the default corpus and today's path.
+    corpus_name, corpus_key = corpus_of(cfg, args), corpus_key_of(cfg, args)
+    toks, docs = C.load_corpus(base, root, corpus_name)
+    print(f"[examples_docmax] corpus {corpus_name or 'corpus'} (key {corpus_key or '-'}): "
+          f"{len(docs)} docs, {n_feat} features, top {EXDOC_TOP} documents each", flush=True)
 
     model, tok = C.load_base(cfg, base)
     # ENCODER ONLY: every activation here goes through common.sae_encode (b_dec, W_enc, b_enc)
@@ -1058,7 +1356,7 @@ def run_examples_docmax(cfg, args):
     ta = heap.arg.cpu().numpy()
     tp = heap.payload.cpu().numpy()
     tw = win_heap.arg.cpu().numpy()  # the window ids, ranked by the SAME values
-    out = f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}"
+    out = examples_docmax_dir(sae_key, set_name, root, corpus_key)
     per_feature = []
     ex_rows = 0
     nbytes = 0
@@ -1066,7 +1364,8 @@ def run_examples_docmax(cfg, args):
         out,
         args,
         inputs={
-            "corpus": C.corpus_dir(base, root),
+            "corpus": C.corpus_dir(base, root, corpus_name),
+            "corpus key": corpus_key or "-",
             "heldout": C.heldout_dir(base, set_name, root),
             "sae": sae_key,
             "docs": len(docs),

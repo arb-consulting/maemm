@@ -47,6 +47,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -58,13 +59,16 @@ import precompute.common as C  # noqa: E402
 from autointerp import build as B  # noqa: E402
 from autointerp import chain as CH  # noqa: E402
 from autointerp import run as R  # noqa: E402
+from autointerp import sae_self as SS  # noqa: E402
 
 # Captured at IMPORT, because `main()` rebinds `R.Claude` to the stub: a body that looked up
 # `R.Claude` at call time would find the stub and recurse into itself.
 _REAL_CLAUDE = R.Claude
 
 N_FEAT = 6
-N_ARMS = ("C16", "C4", "M", "C4M", "C32", "C16M16")
+# The arms the paper's run builds (build.FULL_ARMS), so the fabricated build
+# directories below carry the same names the real products do.
+N_ARMS = ("C16", "M", "M-jac16", "M-cos16")
 STRATA = 4
 
 
@@ -456,6 +460,118 @@ def check_followup_arms(cfg, tmp: Path, base: str, set_name: str):
           f"{first['calls_this_call']}, crossfam arms {sorted(xarms)}, base summary untouched")
 
 
+def check_nla_body_tokens():
+    """Arm A must show the `<explanation>` BODY, with the activations kept ALIGNED to it.
+
+    Juan's review point: arm B stripped the verbalizer's tags and arm A did not, so the two NLA
+    arms read different text from one rollout and only B read the description. The risk in fixing
+    it is an ALIGNMENT one -- a body selected by character offsets and activations selected by
+    token index are two different things, and a mask that is off by one silently attributes the
+    wrong token's activation to the wrong word.
+
+    The mask is `rollouts_nla.explanation_token_mask`, the ONE slicer every judge-facing consumer
+    shares (Ari, bdb0705). This branch's own `nla_body_tokens` was dropped in the 2026-09-21
+    rebase: it returned a boolean rather than the three statuses, and on an UNCLOSED tag it fell
+    back to the whole decode -- handing the judge the opening tag and the preamble, which is the
+    defect the fix was for. The unclosed case below is what pins that difference.
+    """
+    import autointerp.build as B
+    from precompute.rollouts_nla import explanation_token_mask
+
+    class _Tok:
+        """One char per token id, so a character offset IS a token index and the mapping is
+        checkable by hand rather than by trusting the function under test."""
+        def decode(self, ids, **kw):
+            return "".join(chr(int(i)) for i in ids)
+
+    tok = _Tok()
+    text = "pre<explanation>BODY</explanation>post"
+    ids = [ord(c) for c in text]
+    acts = [float(i) for i in range(len(ids))]
+    mask, status = explanation_token_mask(B.token_pieces(tok, ids))
+    assert status == "closed", status
+    kept = [i for i, m in enumerate(mask) if m]
+    assert "".join(chr(ids[i]) for i in kept) == "BODY", "".join(chr(ids[i]) for i in kept)
+    # The activations must be the SAME NUMBERS the full rollout carried at those positions --
+    # selected in place, never recomputed and never re-indexed from zero.
+    lo = text.index("BODY")
+    assert [acts[i] for i in kept] == [float(lo + j) for j in range(4)], [acts[i] for i in kept]
+
+    # An UNCLOSED tag keeps everything AFTER the opening tag -- not the whole decode, which is
+    # what the dropped `nla_body_tokens` fallback did.
+    bad = "pre<explanation>never closed"
+    b_mask, b_status = explanation_token_mask(B.token_pieces(tok, [ord(c) for c in bad]))
+    assert b_status == "unclosed", b_status
+    kept_bad = "".join(c for c, m in zip(bad, b_mask, strict=True) if m)
+    assert kept_bad == "never closed", kept_bad
+
+    # NO tag at all keeps every token and says so, rather than dropping the feature and
+    # shrinking this arm relative to the others in a paired comparison.
+    none = "no tags here at all"
+    n_mask, n_status = explanation_token_mask(B.token_pieces(tok, [ord(c) for c in none]))
+    assert n_status == "none" and all(n_mask), (n_status, n_mask)
+    print("  nla body: tags stripped, activations aligned in place, unclosed/none stated")
+
+
+def check_relative_marking():
+    """The generated-text fallback: marks when the gate marks nothing, never otherwise.
+
+    The defect it exists for is silent -- a block with no token above the gate reaches the
+    explainer as bare `Example n:` lines, the explainer answers topically anyway, and `run.py`
+    records an ordinary explanation. Nothing raised; the arm was simply scored on a description
+    written from unmarked text. So every branch is pinned here, including the ones that must NOT
+    fire, because a fallback that also rewrites healthy blocks is a worse bug than the one it fixes.
+    """
+    import autointerp.build as B
+
+    class _Tok:
+        """`token_pieces` decodes ONE id at a time; that is the whole interface needed here."""
+        def decode(self, ids):
+            return "".join(f"t{int(i)}" for i in ids)
+
+    tok, gate, peak = _Tok(), 1.5, 10.0
+    ids = [1, 2, 3, 4]
+
+    # (a) something clears the gate: the fallback must not touch it, either way round.
+    hot = [0.2, 2.0, 0.1, 0.3]
+    a = B.render_example(tok, ids, hot, peak, gate, rel_fallback=False)
+    b = B.render_example(tok, ids, hot, peak, gate, rel_fallback=True)
+    assert a["n_marked"] == b["n_marked"] == 1, (a["n_marked"], b["n_marked"])
+    assert a["text_marked"] == b["text_marked"], "the fallback rewrote a block the gate marked"
+    assert b["marking"] == "gate", b["marking"]
+
+    # (b) nothing clears the gate: OFF leaves it bare, ON marks at >= 0.5 x the block's own peak.
+    cold = [0.10, 0.80, 0.40, 0.39]           # peak 0.8, half 0.40 -> marks 0.80 and 0.40, not 0.39
+    off = B.render_example(tok, ids, cold, peak, gate, rel_fallback=False)
+    on = B.render_example(tok, ids, cold, peak, gate, rel_fallback=True)
+    assert off["n_marked"] == 0 and off["marking"] == "gate", (off["n_marked"], off["marking"])
+    assert not off["activations"], "an unmarked block must have an empty Activations line"
+    assert on["n_marked"] == 2, f"expected the peak and the half-peak token: {on['n_marked']}"
+    assert on["marking"] == "relative", on["marking"]
+    assert on["block_peak"] == 0.8, on["block_peak"]
+    assert on["peak_frac"] == 0.08, on["peak_frac"]      # 0.8 / 10.0, the corpus peak
+
+    # (c) the boundary is INCLUSIVE: a token exactly at half the peak marks.
+    edge = B.render_example(tok, [1, 2], [1.0, 0.5], peak, gate, rel_fallback=True)
+    assert edge["n_marked"] == 2, f"0.5 x peak must mark: {edge['n_marked']}"
+
+    # (d) a peak of zero or a non-finite one is UNMARKABLE, never all-marked. Marking everything
+    # would tell the explainer the feature fires on every token, which is worse than silence.
+    # +inf as well as NaN: both crash `quant_act`'s int(ceil(...)) if they reach it, and both are
+    # guarded in TWO places (the hoisted `finite` check and the `isfinite(pk)` one), so neither
+    # alone going missing changes the answer here -- which is the point of checking both values.
+    for bad, what in (([0.0, 0.0], "all zero"), ([float("nan"), 0.0], "NaN"),
+                      ([float("inf"), 0.0], "+inf")):
+        r = B.render_example(tok, [1, 2], bad, peak, gate, rel_fallback=True)
+        assert r["n_marked"] == 0, f"{what}: marked {r['n_marked']} tokens"
+        assert r["marking"] == "unmarkable", f"{what}: {r['marking']}"
+
+    # (e) `--mark delphi` is a different rule and the fallback must not shadow it.
+    d = B.render_example(tok, ids, cold, peak, gate, mark="delphi", rel_fallback=True)
+    assert d["marking"] == "delphi", d["marking"]
+    print("  relative marking: gate untouched, fallback fires only when bare, 0/NaN unmarkable")
+
+
 def check_nla_arms(cfg, tmp: Path, base: str):
     """The three NLA decisions that have no other local test: family filter, arm guard, arm B.
 
@@ -472,30 +588,71 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     assert "sae2m_enc" in B.FAMILIES and "sae" in B.FAMILIES, B.FAMILIES
     hdir = Path(C.heldout_dir(base, "selfcheck_fam", str(tmp)))
     hdir.mkdir(parents=True, exist_ok=True)
+    sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][-1]
+    # Rows carry their own `sae_key`, the way targets.py and features/draw_sae2m.py stamp it since
+    # 2026-09-21. Before the conventions layer this fixture left the field off and the filter still
+    # answered; `common.sae_rows_of` now refuses an unkeyed SAE row that no set declares, so the
+    # unkeyed fixture made this check die on the guard instead of exercising the family filter.
     C.write_jsonl(hdir / "ids.jsonl", [
         {"row": 0, "family": "realact", "id": "doc1:p2:L3"},
-        {"row": 1, "family": "sae2m_enc", "id": 4242},
+        {"row": 1, "family": "sae2m_enc", "id": 4242, "sae_key": sae_key},
         {"row": 2, "family": "random", "id": "g0"},
-        {"row": 3, "family": "sae2m_enc", "id": 777},
+        {"row": 3, "family": "sae2m_enc", "id": 777, "sae_key": sae_key},
     ])
-    sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][-1]
-    rows, sae_rows, feats, key = SS._sae_rows(
+    rows, sae_rows, feats, key, side = SS._sae_rows(
         cfg, {"base": base, "root": str(tmp), "heldout": "selfcheck_fam", "sae": sae_key}
     )
     assert sae_rows == [1, 3] and feats == [4242, 777], (sae_rows, feats)
     assert key == sae_key, f"--sae was not honoured: {key}"
+    # These fixture rows carry no `sae_side`, which reads as `enc` -- the shape every set drawn
+    # before 2026-09-21 has, and the shape `--sae-side` must leave untouched.
+    assert side == "enc", f"the default side moved to {side!r}"
     assert len(rows) == 4, "the full ids.jsonl must come back, not only the SAE rows"
 
-    # (b) arm B's description: tags stripped, whole text when the tag never closed.
+    # And the guard itself, on the same fixture: an SAE row with NO `sae_key`, in a set that
+    # declares none, must refuse rather than default to whatever `--sae` was typed. This is the
+    # path that silently scored 512 wrong features on 2026-09-16_v1 before the layer landed.
+    C.write_jsonl(hdir / "ids.jsonl", [
+        {"row": 0, "family": "realact", "id": "doc1:p2:L3"},
+        {"row": 1, "family": "sae2m_enc", "id": 4242},
+    ])
+    try:
+        SS._sae_rows(
+            cfg, {"base": base, "root": str(tmp), "heldout": "selfcheck_fam", "sae": sae_key}
+        )
+    except AssertionError as exc:
+        assert "no `sae_key` field" in str(exc), f"refused for the wrong reason: {exc}"
+    else:
+        raise AssertionError("an unkeyed SAE row in an undeclared set was selected, not refused")
+
+    # (b) arm B's description: tags stripped, and the three tag states NAMED.
+    #
+    # UPDATED in the 2026-09-21 rebase, deliberately. `nla_description` now goes through
+    # `rollouts_nla.explanation_body` (Ari, bdb0705) instead of `extract_explanation`, which
+    # changes what an UNCLOSED answer contributes and adds `tag_status`. The old expectations
+    # here -- `tag_found: False` and the whole raw decode as the description -- are exactly the
+    # behaviour that change removed, so they are rewritten rather than relaxed: an answer that ran
+    # into max_new is still an answer, and handing the judge its opening tag and chat preamble was
+    # the defect (Juan's review).
     txt = "blah <explanation>\n  neurons that fire on dates \n</explanation> tail"
     hit = B.nla_description(txt)
     assert hit == {
         "tag_found": True,
+        "tag_status": "closed",
         "n_chars": len(txt),
         "description": "neurons that fire on dates",
     }, hit
-    miss = B.nla_description("  <explanation>never closed  ")
-    assert miss["tag_found"] is False and miss["description"] == "<explanation>never closed", miss
+    raw_unclosed = "  <explanation>never closed  "
+    miss = B.nla_description(raw_unclosed)
+    assert miss["tag_status"] == "unclosed" and miss["tag_found"] is True, miss
+    assert miss["description"] == "never closed", (
+        f"an unclosed answer must contribute what follows its OPENING tag, not the raw decode: "
+        f"{miss['description']!r}")
+    assert "<explanation>" not in miss["description"], (
+        "the opening tag reached the judge -- this is the exact defect explanation_body replaced")
+    none = B.nla_description("no tags here")
+    assert none["tag_status"] == "none" and none["tag_found"] is False, none
+    assert none["description"] == "no tags here", none
     assert B.nla_description("")["description"] == "", "an empty rollout gives an empty description"
 
     # ...and the CHOICE: the highest sae_self peak wins, which is also arm A's first example.
@@ -519,12 +676,13 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     assert B._covariate({"gated_fires": None}, "fires_gated", "gated_fires") is None
 
     # (c) the arm/maemm guard, both directions.
-    assert B.check_arm_maemm(["C4", "NLA"], "b/nla", "nla") is True
-    assert B.check_arm_maemm(["C4", "C16", "M"], "b/maemm", "full") is False
+    assert B.check_arm_maemm(["C16", "NLA"], "b/nla", "nla") is True
+    assert B.check_arm_maemm(["C16", "M", "M-cos16"], "b/maemm", "full") is False
     for arms, mtype, needle in (
-        (["C4", "M"], "nla", "may only build"),
-        (["C4", "C16M16"], "nla", "may only build"),
-        (["C4", "NLA"], "full", "point --maemm at the `type: nla` entry"),
+        (["C16", "M"], "nla", "may only build"),
+        (["C16", "M-jac16"], "nla", "may only build"),
+        (["C16", "M-cos16"], "nla", "may only build"),
+        (["C16", "NLA"], "full", "point --maemm at the `type: nla` entry"),
     ):
         try:
             B.check_arm_maemm(arms, "b/x", mtype)
@@ -533,6 +691,106 @@ def check_nla_arms(cfg, tmp: Path, base: str):
         else:
             raise AssertionError(f"check_arm_maemm accepted arms {arms} with a {mtype} maemm")
     print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maemm")
+
+
+def check_nla_top4(cfg, tmp: Path, base: str, set_name: str):
+    """M12's `NLA-top4`: the top 4 of 16 verbalizer outputs, and the guards that keep it apart.
+
+    What is pinned:
+      * the SELECTION RULE (`build.nla_body_order`): outputs ranked by their peak INSIDE the
+        <explanation> body, stable on ties, padding ignored -- so the four shown are the four
+        highest body peaks and never an output whose peak sits on a tag or preamble token;
+      * the ARM: same spec as `NLA` (the first four of the ranked, deduplicated pool), and absent
+        from the default nla arm set, so no earlier command line grows it;
+      * `check_nla_n`: `NLA` / `NLA-1` refuse an n=16 sae_self and `NLA-top4` refuses n=4 -- the
+        name says which generation it came from, in both directions;
+      * `check_arm_maemm`: a MAEMM build refuses every verbalizer arm, `NLA-top4` included;
+      * the SIBLING in `run.py`: an explicit `--arms` without `NLA-desc` does not seed that
+        pseudo-arm from a build's `nla_desc.jsonl` (it used to, whatever `--arms` said).
+    """
+    import numpy as np
+
+    class _Tok:
+        """One char per token id, as in check_nla_body_tokens."""
+        def decode(self, ids, **kw):
+            return "".join(chr(int(i)) for i in ids)
+
+    tok = _Tok()
+    n, width = B.NLA_TOP_OF, 48
+    rng = random.Random(20260925)
+    body = [round(rng.uniform(1.0, 9.0), 3) for _ in range(n)]
+    body[5] = body[11] = 9.5            # a tie at the top: generation order must break it
+    body[7] = 0.2                       # low body peak ...
+    rids = np.full((n, width), -1, dtype=np.int64)
+    acts = np.zeros((n, width), dtype=np.float32)
+    for k in range(n):
+        text = f"pre{k % 10}<explanation>BODY{k % 10}</explanation>"
+        ids = [ord(c) for c in text]
+        rids[k, :len(ids)] = ids
+        lo = text.index("BODY")
+        acts[k, lo + 1] = body[k]
+        acts[k, 1] = 0.5                # a preamble activation below every body peak
+    acts[7, 1] = 50.0                   # ... but the highest WHOLE-DECODE peak of all 16
+    acts[3, width - 1] = 99.0           # an activation on a PADDING slot: never read
+    peaks = acts.max(1)
+    order = B.nla_body_order(tok, rids, acts, peaks).tolist()
+    want = sorted(range(n), key=lambda k: (-body[k], k))
+    assert order == want, f"body-peak order {order} != expected {want}"
+    top4 = order[:B.NLA_N]
+    assert top4[:2] == [5, 11], f"the tie at the top is not broken by generation order: {top4}"
+    assert 7 not in top4 and int(np.argmax(peaks)) in (3, 7), (
+        "the fixture's decoys are not decoys: the whole-decode peak must be a padding or "
+        "preamble activation and must not be shown")
+    assert sorted(body[k] for k in top4) == sorted(body)[-B.NLA_N:], "not the four highest"
+
+    # the arm
+    assert B.ARM_SPECS[B.NLA_TOP_ARM] == B.ARM_SPECS["NLA"] == (None, 0, "m", B.NLA_N)
+    assert B.NLA_TOP_ARM not in B.NLA_ARMS and B.NLA_TOP_ARM not in B.FULL_ARMS_NLA
+    assert B.NLA_TOP_ARM != "NLA" and not B.NLA_TOP_ARM.startswith("NLA-1")
+
+    # check_nla_n, both directions
+    B.check_nla_n(["NLA", "NLA-1"], True, B.NLA_N)
+    B.check_nla_n([B.NLA_TOP_ARM], True, B.NLA_TOP_OF)
+    B.check_nla_n(["C16", "M"], False, 64)
+    for arms, n_roll in ((["NLA"], 16), (["NLA-1"], 16), (["NLA", "NLA-1"], 16),
+                         ([B.NLA_TOP_ARM], 4), ([B.NLA_TOP_ARM], 64), (["NLA", B.NLA_TOP_ARM], 4),
+                         (["NLA", B.NLA_TOP_ARM], 16)):
+        try:
+            B.check_nla_n(arms, True, n_roll)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"check_nla_n accepted arms {arms} on an n={n_roll} sae_self")
+
+    # check_arm_maemm
+    assert B.check_arm_maemm([B.NLA_TOP_ARM], "b/nla", "nla") is True
+    for arms in (["C16", B.NLA_TOP_ARM], ["C16", "NLA-1"]):
+        try:
+            B.check_arm_maemm(arms, "b/x", "full")
+        except AssertionError as e:
+            assert "point --maemm at the `type: nla` entry" in str(e), e
+        else:
+            raise AssertionError(f"check_arm_maemm accepted {arms} on a MAEMM")
+
+    # run.py: an explicit --arms without NLA-desc does not seed it from nla_desc.jsonl
+    feats = list(range(600, 600 + N_FEAT))
+    d = synth_build(tmp, base, set_name, "nd_build", feats)
+    C.write_jsonl(d / "nla_desc.jsonl", [
+        {"feature": f, "row": 1024 + i, "k": 0, "peak": 1.0, "tag_found": True,
+         "tag_status": "closed", "n_chars": 20, "description": f"stub nla text {f}"}
+        for i, f in enumerate(feats)])
+    got = {}
+    for run_dir, arms in (("nd_without", "C16"), ("nd_with", "C16,NLA-desc")):
+        a = base_args(tmp, base, set_name, "nd_build", run_dir)
+        a.update({"arms": arms, "scorers": "detection"})
+        R.run(cfg, a)
+        got[run_dir] = {r["arm"] for r in
+                        C.read_jsonl(tmp / "runs" / run_dir / "summary" / "scores.jsonl")}
+    assert "NLA-desc" not in got["nd_without"], (
+        f"--arms C16 still scored NLA-desc from the build's nla_desc.jsonl: {sorted(got['nd_without'])}")
+    assert "NLA-desc" in got["nd_with"], f"--arms C16,NLA-desc lost it: {sorted(got['nd_with'])}"
+    print(f"[selfcheck] NLA-top4 OK: body-peak top {B.NLA_N} of {n} = {top4}, n guards both ways, "
+          f"MAEMM refusal, NLA-desc only when --arms names it")
 
 
 def check_corpus_fallback():
@@ -545,7 +803,7 @@ def check_corpus_fallback():
     substitute, a C16 arm does not -- which is what these two checks pin.
     """
     # (a) the refusal: any arm whose corpus source is "c16", named, with the scan product named.
-    for arms in (["C16", "NLA"], ["C4", "C32"], ["C4M", "C16M16"]):
+    for arms in (["C16-win", "NLA"], ["C16", "C32"], ["C4M", "C16M16"]):
         try:
             B.check_corpus_source(arms, False, "/v/sae/x/examples", "b/x", 4)
         except AssertionError as e:
@@ -556,9 +814,14 @@ def check_corpus_fallback():
         else:
             raise AssertionError(f"check_corpus_source accepted {arms} with no scan examples/")
     # ...and the arms that need no c16 pool go through, with the source recorded.
-    src = B.check_corpus_source(["C4", "NLA", "M"], False, "/v/sae/x/examples", "b/x", 4)
+    src = B.check_corpus_source(["C16", "NLA", "M"], False, "/v/sae/x/examples", "b/x", 4)
     assert src == "examples_4m (the 4M prefix; scan's examples/ is absent)", src
-    assert B.check_corpus_source(["C16", "C4"], True, "/v/e", "b/x", 4) == "examples/ (scan, 16M)"
+    assert B.check_corpus_source(["C16-win", "C4M"], True, "/v/e", "b/x", 4) == \
+        "examples/ (scan, the test corpus)"
+    # The two sides can be on different corpora: the LABEL follows the test side, the refusal the
+    # shown side. A shown side with examples/ and a test side without must say `examples_4m`.
+    assert B.check_corpus_source(["C16-win"], True, "/v/e", "b/x", 4, t_use_examples=False) == \
+        "examples_4m (the 4M prefix; scan's examples/ is absent)"
 
     # (b) the pool: with examples/ present the 4M rows are NOT candidates (they are what C4
     # shows); without it they are, band-labelled exactly as the docmax rows are.
@@ -671,6 +934,695 @@ def check_chain(cfg, tmp: Path, base: str, set_name: str):
     print(f"[selfcheck] chain OK: stages {stages}, wrote pilot.md / results.md / results-rlI.md")
 
 
+
+# ---------------------------------------------------------------------------------------------
+# The two-corpus build, end to end on a synthetic volume (M6, 2026-09-23)
+# ---------------------------------------------------------------------------------------------
+
+SC_SHOWN = "selfcheck_shown10m"   # deliberately NOT a registered `corpora:` key: the geometry
+SC_TEST = ""                      # assert is exercised by the registered ones, not by a fixture
+SC_NROLL = 64
+SC_NFEAT = 3
+SC_TOKW = 16
+SC_DOCLEN = 64
+
+
+class _FakeAutoTokenizer:
+    """`build.run` does `from transformers import AutoTokenizer`; the CPU selfcheck container has
+    no transformers and no model. Decoding is the only thing build asks of it."""
+
+    @staticmethod
+    def from_pretrained(_path):
+        return _StubTok()
+
+
+def _ex_row(row, kind, doc, act, ln=SC_DOCLEN):
+    """One stored example window, in `scan`'s own schema (precompute/scan.py:486-501)."""
+    acts = [0.0] * ln
+    acts[3] = float(act)
+    return {"row": row, "kind": kind, "window": doc, "doc": doc, "start": 0, "len": ln,
+            "max_act": float(act), "argmax": 3, "acts": acts}
+
+
+def _write_corpus(root, base, name, n_docs):
+    import numpy as np
+
+    d = C.corpus_dir(base, str(root), name)
+    Path(d).mkdir(parents=True, exist_ok=True)
+    docs = [{"doc": i, "offset": i * SC_DOCLEN, "len": SC_DOCLEN, "size_tag": 16}
+            for i in range(n_docs)]
+    C.write_jsonl(f"{d}/docs.jsonl", docs)
+    # Token ids are the DOCUMENT's index times 1000 plus the position, so a recovered window says
+    # which corpus and which document it came from and a cross-corpus mix-up is visible in the
+    # rendered text rather than being a plausible-looking string.
+    off = 1 if name else 0
+    toks = np.arange(n_docs * SC_DOCLEN, dtype=np.int32) + off * 1_000_000
+    toks.tofile(f"{d}/tokens.i32")
+    return d
+
+
+def _write_two_corpus_volume(cfg, tmp: Path, base: str):
+    """A whole synthetic volume: two corpora, two example pools, sae_self, scores, random pool."""
+    import numpy as np
+
+    root, set_name = str(tmp / "vol2"), "selfcheck_2corp"
+    sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][0]
+    maemm = [k for k in cfg["maemms"]
+             if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] != "nla"][0]
+    feats = [11, 22, 33][:SC_NFEAT]
+    rows = list(range(SC_NFEAT))
+    gate, peak = 1.0, 8.0
+
+    # ---- corpora. The SHOWN one carries 24 documents (the C16 arm needs 16) and the TEST one 96
+    # (bands, near-misses and the random pool, over two disjoint draws). Document ids OVERLAP
+    # between them on purpose: they are different documents that share an integer, which is
+    # exactly what the cross-corpus disjointness rule has to not be fooled by.
+    _write_corpus(tmp / "vol2", base, "", 96)
+    _write_corpus(tmp / "vol2", base, SC_SHOWN, 24)
+
+    # ---- held-out set
+    hdir = C.heldout_dir(base, set_name, root)
+    Path(hdir).mkdir(parents=True, exist_ok=True)
+    C.write_jsonl(f"{hdir}/ids.jsonl", [
+        {"row": r, "family": "sae", "id": f, "sae_key": sae_key, "stratum": i % 4,
+         "density": 1e-5, "fires_gated": 90 + i}
+        for i, (r, f) in enumerate(zip(rows, feats, strict=True))
+    ])
+
+    sdir_sae = C.sae_dir(sae_key, root)
+    mx = np.zeros(max(feats) + 1, dtype=np.float16)
+    for f in feats:
+        mx[f] = peak
+    Path(sdir_sae).mkdir(parents=True, exist_ok=True)
+    mx.tofile(f"{sdir_sae}/max_act.f16")
+
+    # ---- SHOWN examples: examples_docmax on the shown corpus, one window per document.
+    exdoc = SS.examples_docmax_dir(sae_key, set_name, root, SC_SHOWN)
+    Path(exdoc).mkdir(parents=True, exist_ok=True)
+    json.dump({"features": feats, "rows": rows, "sae": sae_key}, open(f"{exdoc}/tested.json", "w"))
+    for r, f in zip(rows, feats, strict=True):
+        C.write_jsonl(f"{exdoc}/{f}.jsonl",
+                      [_ex_row(r, "docmax", doc, peak - 0.1 * doc) for doc in range(24)])
+
+    # ---- TEST examples: scan's band rows on the default corpus, plus a `top` tier.
+    exd = C.sae_examples_dir(sae_key, set_name, root, corpus_name=SC_TEST, write=True)
+    Path(exd).mkdir(parents=True, exist_ok=True)
+    json.dump({"features": feats, "rows": rows, "sae": sae_key}, open(f"{exd}/tested.json", "w"))
+    for r, f in zip(rows, feats, strict=True):
+        rws = []
+        doc = 0
+        for qi, band in enumerate(B.BANDS):          # 4 gate-passing windows per band
+            for _ in range(4):
+                rws.append(_ex_row(r, band, doc, peak * (qi + 1) / 4 - 0.01))
+                doc += 1
+        for _ in range(6):                           # below-gate band rows = the near-miss pool
+            rws.append(_ex_row(r, "q0", doc, gate * 0.5))
+            doc += 1
+        for _ in range(4):
+            rws.append(_ex_row(r, "top", doc, peak))
+            doc += 1
+        C.write_jsonl(f"{exd}/{f}.jsonl", rws)
+
+    # ---- TEST document-diverse pool (A4's own pool), also on the test corpus, on documents no
+    # band row uses. Without it `build` refuses rather than drawing a knowingly short test set.
+    t_exdoc = SS.examples_docmax_dir(sae_key, set_name, root, SC_TEST)
+    Path(t_exdoc).mkdir(parents=True, exist_ok=True)
+    json.dump({"features": feats, "rows": rows, "sae": sae_key}, open(f"{t_exdoc}/tested.json", "w"))
+    for r, f in zip(rows, feats, strict=True):
+        C.write_jsonl(f"{t_exdoc}/{f}.jsonl",
+                      [_ex_row(r, "docmax", doc, peak * 0.9) for doc in range(26, 40)])
+
+    # ---- the shared negative pool, on the TEST corpus, over documents no band row uses.
+    pdir = SS.random_pool_dir(sae_key, set_name, root, SC_TEST)
+    Path(pdir).mkdir(parents=True, exist_ok=True)
+    n_win = 40
+    wins = [{"window": i, "doc": 40 + i, "start": 0, "len": SC_DOCLEN} for i in range(n_win)]
+    C.write_jsonl(f"{pdir}/windows.jsonl", wins)
+    json.dump({"n_windows": n_win, "features": feats, "gate": gate},
+              open(f"{pdir}/pool.json", "w"))
+    pm = np.zeros((len(feats), n_win), dtype=np.float16)
+    pm[:, n_win // 2:] = np.float16(gate * 0.5)      # half zero-activation, half near-miss
+    pm.tofile(f"{pdir}/max_act.f16")
+    np.zeros(len(feats) * n_win + 1, dtype=np.int64).tofile(f"{pdir}/tok_off.i64")
+    np.zeros(0, dtype=np.int16).tofile(f"{pdir}/tok_pos.i16")
+    np.zeros(0, dtype=np.float16).tofile(f"{pdir}/tok_val.f16")
+
+    # ---- sae_self: per-token activations on the MAEMM's own rollouts.
+    sdir = C.scores_dir(maemm, set_name, root, "vllm", "")
+    self_dir = f"{sdir}/sae_self"
+    Path(self_dir).mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(7)
+    acts = rng.random((len(rows), SC_NROLL, SC_TOKW)).astype(np.float16) * 4.0
+    ids = np.zeros((len(rows), SC_NROLL, SC_TOKW), dtype=np.int32)
+    for i in range(len(rows)):
+        for k in range(SC_NROLL):
+            # A rollout's vocabulary is a function of k, so the 64 texts are genuinely different
+            # and a content-word Jaccard over them is not degenerate.
+            ids[i, k] = np.arange(SC_TOKW) + 10 * (k % 8) + 100 * (k // 8) + 1000 * i
+    acts.tofile(f"{self_dir}/sae_self.f16")
+    ids.tofile(f"{self_dir}/sae_self_ids.i32")
+    json.dump({
+        "gate": gate, "rows": rows, "n": SC_NROLL, "width": SC_TOKW,
+        "checks": {"argmax_ok": True, "csr_value_mismatches": 0, "csr_membership_mismatches": 0},
+        "per_target": [{"row": r, "fire_fraction": 0.5} for r in rows],
+    }, open(f"{self_dir}/sae_self.json", "w"))
+
+    # ---- score's first-pass residuals, which M-cos16 reads and nothing else here does.
+    d_model = int(cfg["bases"][base]["d"])
+    best = rng.standard_normal((len(rows), SC_NROLL, d_model)).astype(np.float16)
+    mu = np.full(d_model, 3.0, dtype=np.float32)     # a LARGE shared mean, the thing to subtract
+    best = (best.astype(np.float32) + mu[None, None, :]).astype(np.float16)
+    best.tofile(f"{sdir}/best_act.f16")
+    json.dump({"rows": rows, "n": SC_NROLL, "families": ["sae"] * len(rows),
+               "score_max_length": SC_TOKW, "mu": None}, open(f"{sdir}/rows.json", "w"))
+    Path(f"{root}/base/{base}/stats").mkdir(parents=True, exist_ok=True)
+    mu.tofile(f"{root}/base/{base}/stats/selfcheck_mu.f32")
+    return root, set_name, sae_key, maemm, feats
+
+
+def check_two_corpora(cfg, tmp: Path, base: str):
+    """The WHOLE `build` stage, on CPU, with the shown examples and the test windows on DIFFERENT
+    corpora -- the one thing the 2026-09-22 spec update bought, and the one thing no other check
+    here reaches, because every other check starts from a fabricated build directory.
+
+    What it pins, all of it MEASURED from the products the run writes:
+      * `C16`'s examples come from the SHOWN corpus and the test items from the TEST corpus, by
+        the token ids each one recovers (the two corpora are numbered a million apart);
+      * `M`, `M-jac16` and `M-cos16` each show exactly 16 of the SAME 64 rollouts, and the three
+        selections are different sets;
+      * `M-cos16` reads `best_act.f16` and takes no forward pass -- the fixture provides no model;
+      * `build.json` records both corpora, the disjointness regime and the per-arm count of shown
+        examples above the feature's corpus peak;
+      * and the MUTATION: with the shown corpus pointed at the test corpus the C16 examples stop
+        coming from the shown corpus, which is what makes the first assertion a test.
+    """
+
+    cfg = json.loads(json.dumps(cfg))                # a private copy: this check edits it
+    root, set_name, sae_key, maemm, feats = _write_two_corpus_volume(cfg, tmp, base)
+    # A small test set, so the fixture needs tens of documents and not thousands. The ARM counts
+    # are NOT touched: N = 16 per arm is what is under test.
+    cfg["autointerp"].update({"n_pos": 4, "n_neg": 4, "n_neg_nearmiss": 2,
+                              "random_pool_windows": 40})
+    cfg["bases"][base]["whiten_mu"] = "base/{base}/stats/selfcheck_mu.f32"
+    arms = "C16,M,M-jac16,M-cos16"
+
+    def build(name, shown, test=""):
+        args = {"base": base, "maemm": maemm, "sae": sae_key, "heldout": set_name, "root": root,
+                "engine": "vllm", "arms": arms, "n_feat": len(feats), "build_dir": name,
+                "corpus_name": shown, "test_corpus_name": test, "force": True, "argv": ["selfcheck"]}
+        return B.run(cfg, args), f"{C.base_dir(base, root)}/autointerp/{set_name}/{name}"
+
+    real_snapshot, real_tf = C.snapshot, sys.modules.get("transformers")
+    C.snapshot = lambda *_a, **_k: "(selfcheck stub tokenizer)"
+    sys.modules["transformers"] = types.SimpleNamespace(AutoTokenizer=_FakeAutoTokenizer)
+    try:
+        _res, out = build("two_corpora", SC_SHOWN, SC_TEST)
+        info = json.load(open(f"{out}/build.json"))
+        assert info["two_corpora"] is True and info["shown_corpus"] == SC_SHOWN, info
+        assert "by corpus separation" in info["disjointness"], info["disjointness"]
+
+        rows = C.read_jsonl(f"{out}/{feats[0]}.jsonl")
+        arm_rows = {r["arm"]: r for r in rows if r["kind"] == "arm"}
+        assert set(arm_rows) == {"C16", "M", "M-jac16", "M-cos16"}, sorted(arm_rows)
+        for a in ("C16", "M", "M-jac16", "M-cos16"):
+            assert arm_rows[a]["n"] == 16, f"arm {a} shows {arm_rows[a]['n']} examples, not 16"
+        # THE SPLIT ITSELF, read off the rendered text. The shown corpus's token ids are offset by
+        # 1,000,000 and the test corpus's are not, so one substring decides which memmap each
+        # block came out of. `_StubTok` decodes id i as "t<i> ".
+        assert "t1000" in arm_rows["C16"]["block"], "C16 was not rendered from the shown corpus"
+        tests = [r for r in rows if r["kind"] == "test"]
+        assert tests, "no draw-1 test items"
+        assert all("t1000" not in t["text"] for t in tests), (
+            "a test item was rendered from the SHOWN corpus -- the split does not hold"
+        )
+        # The three M arms are the same 64 rollouts, differently chosen.
+        sel = {a: [e["k"] for e in arm_rows[a]["examples"]] for a in ("M", "M-jac16", "M-cos16")}
+        assert all(len(set(v)) == 16 for v in sel.values()), sel
+        assert sel["M"] == sorted(sel["M"], key=lambda k: sel["M"].index(k))
+        for a, b in (("M-jac16", "M"), ("M-cos16", "M"), ("M-cos16", "M-jac16")):
+            assert set(sel[a]) != set(sel[b]), f"{a} selected exactly the same 16 rollouts as {b}"
+        assert sel["M-jac16"][0] == sel["M"][0] == sel["M-cos16"][0], (
+            "every selection arm is seeded with the top-activation rollout"
+        )
+        # The per-arm clamp counter reaches build.json (plan M6; SMOKES.md:3731's table gap).
+        by_arm = info["n_shown_exceeding_corpus_peak_by_arm"]
+        assert set(by_arm) >= set(arm_rows), by_arm
+        assert by_arm["C16"] == 0, "a corpus window cannot exceed the feature's own corpus peak"
+
+        # ---- the MUTATION: one corpus on both sides, everything else identical.
+        _res2, out2 = build("one_corpus", SC_TEST, SC_TEST)
+        info2 = json.load(open(f"{out2}/build.json"))
+        assert info2["two_corpora"] is False and "asserted per feature" in info2["disjointness"]
+        rows2 = C.read_jsonl(f"{out2}/{feats[0]}.jsonl")
+        c16_2 = next(r for r in rows2 if r["kind"] == "arm" and r["arm"] == "C16")
+        assert "t1000" not in c16_2["block"], (
+            "the shown-corpus assertion above does not discriminate: C16 renders from the shown "
+            "corpus even when the shown corpus IS the test corpus"
+        )
+    finally:
+        C.snapshot = real_snapshot
+        if real_tf is None:
+            sys.modules.pop("transformers", None)
+        else:
+            sys.modules["transformers"] = real_tf
+    print(f"[selfcheck] two corpora OK: C16 from {SC_SHOWN}, test items from the default corpus, "
+          f"16 examples on each of M / M-jac16 / M-cos16, best_act read with no GPU")
+
+
+def check_products_set(cfg, tmp: Path, base: str):
+    """`build --set <decoder twin> --sae-side dec --products-set <encoder set>` (M6-dec).
+
+    The corpus-side pools (shown docmax, test bands, random-pool negatives) are per FEATURE and are
+    stored under the ENCODER set's name; the M arms are the TWIN's own rollouts. What must hold:
+      * the twin build reads every corpus pool from the products set and renders the IDENTICAL
+        C16 block and the IDENTICAL test items as the encoder build -- which is what lets C16 and
+        the three nulls replay from the call cache -- while its M block comes from the twin's
+        `sae_self__dec` (its token ids carry a marker the encoder rollouts never have);
+      * the twin's SAE rows are 1..3 and the products set's records are stamped 0..2, so a build
+        that joined the corpus side on the twin's own row would trip `_rows`'s row assert: the
+        success below is only reachable through the feature-id row map;
+      * `build.json` says which set each side came from;
+      * MUTATIONS: without `--products-set` the twin build refuses (no pools under its name);
+        a twin whose feature ids are not the products set's, in order, refuses; the default side
+        on a decoder-only set refuses (it has no encoder rows).
+    """
+    import re
+
+    import numpy as np
+
+    cfg = json.loads(json.dumps(cfg))
+    root, set_name, sae_key, maemm, feats = _write_two_corpus_volume(cfg, tmp / "ps", base)
+    cfg["autointerp"].update({"n_pos": 4, "n_neg": 4, "n_neg_nearmiss": 2,
+                              "random_pool_windows": 40})
+    cfg["bases"][base]["whiten_mu"] = "base/{base}/stats/selfcheck_mu.f32"
+    arms = "C16,M,M-jac16,M-cos16"
+    twin = "selfcheck_2corp_dec"
+
+    def write_twin(name, fs):
+        hdir = C.heldout_dir(base, name, root)
+        Path(hdir).mkdir(parents=True, exist_ok=True)
+        C.write_jsonl(f"{hdir}/ids.jsonl", [{"row": 0, "family": "random", "id": 0}] + [
+            {"row": 1 + i, "family": "sae", "id": f, "sae_key": sae_key, "sae_side": "dec",
+             "vector": "dec", "stratum": i % 4, "density": 1e-5, "fires_gated": 90 + i}
+            for i, f in enumerate(fs)])
+
+    write_twin(twin, feats)
+    rows = [1 + i for i in range(len(feats))]
+    sdir = C.scores_dir(maemm, twin, root, "vllm", "")
+    self_dir = f"{sdir}/sae_self__dec"
+    Path(self_dir).mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(8)
+    acts = rng.random((len(rows), SC_NROLL, SC_TOKW)).astype(np.float16) * 4.0
+    ids = np.zeros((len(rows), SC_NROLL, SC_TOKW), dtype=np.int32)
+    for i in range(len(rows)):
+        for k in range(SC_NROLL):
+            ids[i, k] = np.arange(SC_TOKW) + 10 * (k % 8) + 100 * (k // 8) + 1000 * i + 700_000
+    acts.tofile(f"{self_dir}/sae_self.f16")
+    ids.tofile(f"{self_dir}/sae_self_ids.i32")
+    json.dump({
+        "gate": 1.0, "rows": rows, "n": SC_NROLL, "width": SC_TOKW, "sae_side": "dec",
+        "checks": {"argmax_ok": True, "csr_value_mismatches": 0, "csr_membership_mismatches": 0},
+        "per_target": [{"row": r, "fire_fraction": 0.5} for r in rows],
+    }, open(f"{self_dir}/sae_self.json", "w"))
+    d_model = int(cfg["bases"][base]["d"])
+    best = (rng.standard_normal((len(rows), SC_NROLL, d_model)) + 3.0).astype(np.float16)
+    best.tofile(f"{sdir}/best_act.f16")
+    json.dump({"rows": rows, "n": SC_NROLL, "families": ["sae"] * len(rows),
+               "score_max_length": SC_TOKW, "mu": None}, open(f"{sdir}/rows.json", "w"))
+
+    def build(name, heldout, **extra):
+        args = {"base": base, "maemm": maemm, "sae": sae_key, "heldout": heldout, "root": root,
+                "engine": "vllm", "arms": arms, "n_feat": len(feats), "build_dir": name,
+                "corpus_name": SC_SHOWN, "test_corpus_name": SC_TEST, "force": True,
+                "argv": ["selfcheck"], **extra}
+        B.run(cfg, args)
+        return f"{C.base_dir(base, root)}/autointerp/{heldout}/{name}"
+
+    def refuses(msg, name, heldout, **extra):
+        try:
+            build(name, heldout, **extra)
+        except AssertionError as e:
+            assert msg in str(e), f"wrong refusal ({msg!r} expected): {e}"
+        else:
+            raise AssertionError(f"build {name} did not refuse ({msg!r} expected)")
+
+    marker = re.compile(r"t7\d{5}\b")
+    real_snapshot, real_tf = C.snapshot, sys.modules.get("transformers")
+    C.snapshot = lambda *_a, **_k: "(selfcheck stub tokenizer)"
+    sys.modules["transformers"] = types.SimpleNamespace(AutoTokenizer=_FakeAutoTokenizer)
+    try:
+        out_enc = build("enc", set_name)
+        out_dec = build("dec", twin, sae_side="dec", products_set=set_name)
+        info = json.load(open(f"{out_dec}/build.json"))
+        sides = info["set_sides"]
+        assert sides["rollout_side"]["set"] == twin and sides["rollout_side"]["sae_side"] == "dec"
+        assert sides["rollout_side"]["sae_self"].endswith("/sae_self__dec"), sides
+        assert sides["corpus_side"]["set"] == set_name, sides
+        assert "by feature id" in sides["corpus_side"]["row_map"], sides
+        assert f"/{set_name}__" in info["random_pool"] + "__", info["random_pool"]
+        info_enc = json.load(open(f"{out_enc}/build.json"))
+        assert info_enc["set_sides"]["corpus_side"]["set"] == set_name
+        assert info_enc["set_sides"]["corpus_side"]["row_map"] == "identity (one set)"
+        for i, f in enumerate(feats):
+            e_rows = C.read_jsonl(f"{out_enc}/{f}.jsonl")
+            d_rows = C.read_jsonl(f"{out_dec}/{f}.jsonl")
+            assert d_rows[0]["row"] == 1 + i and e_rows[0]["row"] == i, (d_rows[0], e_rows[0])
+            e_arm = {r["arm"]: r for r in e_rows if r["kind"] == "arm"}
+            d_arm = {r["arm"]: r for r in d_rows if r["kind"] == "arm"}
+            assert d_arm["C16"]["block"] == e_arm["C16"]["block"], (
+                f"feature {f}: the twin's C16 block differs from the encoder build's -- the corpus "
+                f"side was not read from the products set, and C16 would not replay from cache")
+            e_t = [(r["kind"], r["i"], r["text"], r.get("label"), r.get("text_fuzz"))
+                   for r in e_rows if r["kind"].startswith("test")]
+            d_t = [(r["kind"], r["i"], r["text"], r.get("label"), r.get("text_fuzz"))
+                   for r in d_rows if r["kind"].startswith("test")]
+            assert e_t and d_t == e_t, f"feature {f}: the twin's test items differ from the encoder's"
+            for a in ("M", "M-jac16", "M-cos16"):
+                assert marker.search(d_arm[a]["block"]), (
+                    f"feature {f}: the twin's {a} block is not from sae_self__dec")
+                assert not marker.search(e_arm[a]["block"]), f"feature {f}: marker in the enc {a}"
+
+        # MUTATION: the twin on its own -- no corpus pools exist under its name.
+        refuses("document-diverse", "dec_nops", twin, sae_side="dec")
+        # MUTATION: a twin whose features are the products set's in ANOTHER order.
+        write_twin("selfcheck_2corp_decperm", list(reversed(feats)))
+        refuses("NOT the same ids", "decperm", "selfcheck_2corp_decperm", sae_side="dec",
+                products_set=set_name)
+        # MUTATION: the default (enc) side on a decoder-only set.
+        refuses("has no enc rows", "dec_enc", twin, products_set=set_name)
+    finally:
+        C.snapshot = real_snapshot
+        if real_tf is None:
+            sys.modules.pop("transformers", None)
+        else:
+            sys.modules["transformers"] = real_tf
+    print(f"[selfcheck] products set OK: twin C16 blocks and test items identical to the encoder "
+          f"build's over {len(feats)} features, M arms from sae_self__dec, 3 mutation gates")
+
+
+def check_corpus_key(cfg, base: str):
+    """ONE key string for the producer and the consumer of the three corpus pools.
+
+    M2 and M6 arrived at the same need by two spellings: M6 keyed `random_pool` / `examples_4m` /
+    `examples_docmax` by the corpus DIRECTORY, M2 keyed them by `scan`'s key, which additionally
+    carries the `--run-tag`. Reconciled 2026-09-23 onto the scan spelling
+    (`precompute.top1_act.scan_key_of`), because `scan` writes the `examples/` half that `build`
+    reads beside these three and two spellings of one path is exactly the cross-corpus join the
+    change exists to stop. What is pinned here:
+
+      * the key rule, including `train_parity_10m__paper0923` -- products under that name are on
+        the volume and must still be addressed by `--corpus-name train_parity_10m --run-tag
+        paper0923`, and the empty/empty case must still be today's unsuffixed path;
+      * that the producer (`sae_self.corpus_key_of` off a launch's args) and the consumer
+        (`build`'s `corpus_key_for(shown_corpus, run_tag)`) land on the SAME three directories;
+      * the MUTATION: the pre-reconcile spelling, the bare corpus directory, disagrees with all
+        three as soon as a run carries a tag -- so the assertion above is a real comparison.
+    """
+
+    from precompute.top1_act import scan_key_of
+
+    root, set_name = "/vol", C.default_heldout(cfg)
+    sae_key = C.sae_key_for(cfg, base, f"{base}/l42-1b")
+    checks = mut = 0
+    for corpus, tag, want in (
+        ("", "", ""),                                                   # today's path
+        ("train_parity_10m", "", "train_parity_10m"),
+        ("train_parity_10m", "paper0923", "train_parity_10m__paper0923"),  # on the volume
+        ("", "paper0923", "paper0923"),                                 # as `scan` keys it
+    ):
+        got = SS.corpus_key_for(corpus, tag)
+        assert got == want, f"corpus_key_for({corpus!r}, {tag!r}) = {got!r}, want {want!r}"
+        assert got == scan_key_of(corpus, 0, tag), (
+            f"the autointerp pools and `scan` spell the key of ({corpus!r}, {tag!r}) differently"
+        )
+        checks += 1
+
+    # PRODUCER: what a `--stage examples_docmax --corpus-name ... --run-tag ...` launch writes.
+    args = {"corpus_name": "train_parity_10m", "run_tag": "paper0923"}
+    pkey = SS.corpus_key_of(cfg, args)          # asserts the declared geometry on the way
+    # CONSUMER: what `build` addresses, derived from its own two arguments, not from `pkey`.
+    ckey = SS.corpus_key_for("train_parity_10m", "paper0923")
+    assert pkey == ckey == "train_parity_10m__paper0923", (pkey, ckey)
+    checks += 1
+    dirs = [f(sae_key, set_name, root, pkey) for f in
+            (SS.random_pool_dir, SS.examples_4m_dir, SS.examples_docmax_dir)]
+    assert all(d.endswith(f"/{set_name}__train_parity_10m__paper0923") for d in dirs), dirs
+    checks += 1
+
+    # MUTATION: key by the corpus directory alone, as before the reconciliation.
+    stale = [f(sae_key, set_name, root, "train_parity_10m") for f in
+             (SS.random_pool_dir, SS.examples_4m_dir, SS.examples_docmax_dir)]
+    assert all(a != b for a, b in zip(dirs, stale, strict=True)), (
+        "the bare corpus directory and the tagged key give the same path, so this check cannot "
+        "tell the reconciled spelling from the one it replaced"
+    )
+    mut += 1
+    # MUTATION: a comma-joined --corpus-name is refused rather than silently taking the first.
+    try:
+        SS.corpus_of(cfg, {"corpus_name": "train_parity_10m,corpus"})
+    except AssertionError as e:
+        assert "ONE" in str(e), str(e)
+        mut += 1
+    else:
+        raise AssertionError("a corpus-side stage accepted several corpora")
+    print(f"[selfcheck] corpus key OK: {checks} checks, {mut} mutation gates; producer and "
+          f"consumer both address {set_name}__train_parity_10m__paper0923")
+
+
+def check_nla_rollout_stem(cfg, tmp: Path, base: str):
+    """The NLA build addresses the TAGGED, HF-spelled verbalizer product — and nothing else.
+
+    THE DEFECT, 2026-09-22 (M6-2's third refusal, `ap-uFQQ6lDL5eKZ5bRv9FwbYL`). `build` read its
+    NLA rollouts with `C.rollout_stem(set_name, engine)`, dropping both axes at once:
+
+      * no RUN TAG, so a tagged run asked for the bare `<set>`;
+      * this stage's `--engine`, which defaults to `vllm`, instead of the verbalizer's `hf`.
+
+    Together they named `<set>__vllm.jsonl` — absent, so it refused. The tempting repair,
+    `--engine hf`, would have been WORSE than the refusal: it resolves to the bare `<set>.jsonl`,
+    and the untagged 09-21 production rollouts of a DIFFERENT generation over DIFFERENT rows are
+    on the volume under exactly that name. A plausible NLA number about the wrong text.
+
+    The fixture is the volume's own shape: an untagged whole-set file (the trap) beside the
+    tagged `__rows512-1023` chunk M4 actually wrote. What is pinned:
+
+      * the tagged chunk is what comes back, whole, through `common.read_rollouts`;
+      * MUTATION — with the tagged product removed and the untagged file still there, the read
+        REFUSES and names the untagged file rather than consuming it;
+      * MUTATION — the pre-fix stem and the fixed stem are different strings, and the pre-fix one
+        is not a file, so the assertion above is a real comparison and not a tautology;
+      * the SIBLING: `engine_of` sends an `nla` maemm's `scores_dir` to the same HF spelling
+        `sae_self` wrote, which the `vllm` default missed too.
+    """
+    nla = [k for k in cfg["maemms"]
+           if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] == "nla"][0]
+    root = str(tmp / "nlastem")
+    set_name, tag = "selfcheck_v3_ctrl", "paper0923"
+    rdir = Path(C.rollouts_dir(nla, root))
+    rdir.mkdir(parents=True, exist_ok=True)
+
+    def _write(stem: str, rows: list[int], mark: str):
+        C.write_jsonl(str(rdir / f"{stem}.jsonl"),
+                      [{"row": r, "k": 0, "text": f"{mark}:{r}"} for r in rows])
+        (rdir / f"{stem}.summary.json").write_text(json.dumps({"rows": rows, "n": 1}))
+
+    # The UNTAGGED whole-set product of the other generation run — the thing that must never be
+    # read when a tag is given. Rows 0-1 stand in for the volume's 0-1023.
+    untagged = C.rollout_stem(set_name, "hf", "")
+    _write(untagged, [0, 1], "WRONG-RUN")
+    # M4's product: HF-spelled, tagged, and written as ONE `--rows` chunk.
+    tagged = C.rollout_chunk_stem(C.rollout_stem(set_name, "hf", tag), "2-3")
+    _write(tagged, [2, 3], "nla")
+
+    recs, stem = B.read_nla_rollouts(nla, set_name, root, tag)
+    assert stem == f"{set_name}__{tag}", f"the NLA stem is not the tagged HF stem: {stem!r}"
+    assert sorted(r["row"] for r in recs) == [2, 3], (
+        f"the tagged chunk is not what came back: {[r['row'] for r in recs]}"
+    )
+    assert all(r["text"].startswith("nla:") for r in recs), (
+        f"the UNTAGGED product's text reached the build: {[r['text'] for r in recs]}"
+    )
+
+    # MUTATION 1: the pre-fix spelling. Different string, and not a file — so the pass above is a
+    # comparison and the refusal it replaced is reproduced here rather than described.
+    prefix_stem = C.rollout_stem(set_name, "vllm")
+    assert prefix_stem != stem, "the pre-fix and fixed stems are the same string"
+    assert not (rdir / f"{prefix_stem}.jsonl").exists(), (
+        "the fixture accidentally contains the pre-fix path, so its absence proves nothing"
+    )
+
+    # MUTATION 2: remove the tagged product. The untagged file is STILL there and must not be
+    # accepted in its place; the refusal has to name it, because reaching for it is the mistake.
+    for p in (rdir / f"{tagged}.jsonl", rdir / f"{tagged}.summary.json"):
+        p.unlink()
+    try:
+        B.read_nla_rollouts(nla, set_name, root, tag)
+    except AssertionError as e:
+        msg = str(e)
+        assert f"--run-tag {tag!r}" in msg, f"the refusal does not name the run tag: {msg}"
+        assert f"{untagged}.jsonl" in msg, (
+            f"the refusal does not name the untagged product it declined to read: {msg}"
+        )
+    else:
+        raise AssertionError(
+            "the untagged rollouts of another generation run were accepted under a --run-tag"
+        )
+    # ...and the untagged READ itself still works, so the refusal is about the TAG and not about
+    # the fixture being unreadable.
+    bare, _ = B.read_nla_rollouts(nla, set_name, root, "")
+    assert sorted(r["row"] for r in bare) == [0, 1], bare
+
+    # THE SIBLING call site: scores_dir, where `sae_self.json` is read from.
+    full = [k for k in cfg["maemms"]
+            if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] != "nla"][0]
+    assert B.engine_of(cfg, nla, "vllm", quiet=True) == B.NLA_ENGINE, "an nla maemm is HF-spelled"
+    assert B.engine_of(cfg, full, "vllm", quiet=True) == "vllm", "a MAEMM keeps its --engine"
+    assert B.engine_of(cfg, full, "hf", quiet=True) == "hf"
+    sd = C.scores_dir(nla, set_name, root, B.engine_of(cfg, nla, "vllm", quiet=True), tag)
+    assert sd.endswith(f"/scores/{set_name}__{tag}"), sd
+    assert sd != C.scores_dir(nla, set_name, root, "vllm", tag), (
+        "the vLLM default and the NLA engine give the same scores/ path, so the sibling fix is "
+        "not exercised by this check"
+    )
+    print(f"[selfcheck] NLA rollout stem OK: tagged HF chunk read, untagged refused by name, "
+          f"scores/ at {os.path.basename(sd)}")
+
+
+def check_examples_resolution(cfg, tmp: Path, base: str):
+    """`build.resolve_examples` finds the scan of a `--with-set` call, and the legacy dir refuses.
+
+    THE DEFECT, 2026-09-23. `scan --set 2026-09-21_v3_realact --with-set ...,2026-09-21_v3_ctrl`
+    writes ONE examples product, named after the scan's own `--set`:
+    `examples/2026-09-21_v3_realact__paper0923`. A `--set 2026-09-21_v3_ctrl` build looked for
+    `examples/2026-09-21_v3_ctrl__paper0923`, did not find it, and `common.sae_examples_dir`'s
+    reader fell back to the LEGACY unkeyed `examples/` -- September's `2026-09-16_v1` scan of a
+    different set -- with a stdout note as the only trace. A C16 arm over another set's features
+    is a plausible number about the wrong thing.
+
+    Pinned here, on a synthetic `sae/<sae>/examples/` tree and nothing else (this is about which
+    DIRECTORY is chosen, and the whole build is exercised by `check_two_corpora`):
+
+      * the preferred name wins outright when it is there, and the row map is its own;
+      * the with-set sibling is found by FEATURE COVER, and the row map comes from ITS tested.json
+        -- the scan re-indexes rows across banks, so a sibling's records carry the scan's row and
+        checking them against the set's own would fire on every one;
+      * a sibling that does NOT cover this set's features is not resolved into;
+      * two covering siblings at one key refuse rather than picking one;
+      * the LEGACY unkeyed directory refuses, and the refusal NAMES the key that was expected;
+      * with neither keyed nor legacy present the keyed path comes back absent, which is what lets
+        a 2M-SAE build fall back to `examples_4m` instead of dying.
+    """
+
+    root = str(tmp / "exres")
+    sae_key = C.sae_key_for(cfg, base, f"{base}/l42-1b")
+    parent = f"{C.sae_dir(sae_key, root)}/examples"
+    key, this_set, other = "train_parity_10m__paper0923", "v3_ctrl", "v3_realact"
+    feats, my_rows = [11, 22, 33], [1024, 1025, 1026]
+
+    def write(name, features, rows, sae=sae_key):
+        d = f"{parent}/{name}"
+        Path(d).mkdir(parents=True, exist_ok=True)
+        json.dump({"features": features, "rows": rows, "sae": sae},
+                  open(f"{d}/tested.json", "w"))
+        return d
+
+    def call(set_name=this_set, corpus_key=key):
+        return B.resolve_examples(sae_key, set_name, root, corpus_key, feats, "shown")
+
+    checks = mut = 0
+    # (1) nothing at all: the keyed path, absent, so `build` falls back rather than dying
+    d, row_of, how = call()
+    assert how == "absent" and row_of == {} and d.endswith(f"/examples/{this_set}__{key}"), (d, how)
+    checks += 1
+
+    # (2) the with-set sibling, named after the OTHER bank, covering this set's features
+    sib = write(f"{other}__{key}", [7, *feats, 99], [0, *my_rows, 2047])
+    d, row_of, how = call()
+    assert d == sib and how.startswith("with-set sibling"), (d, how)
+    assert row_of == {7: 0, 11: 1024, 22: 1025, 33: 1026, 99: 2047}, row_of
+    checks += 1
+
+    # (3) the PREFERRED name wins outright once it exists -- no search, so an ambiguity among the
+    #     other banks cannot reach it
+    own = write(f"{this_set}__{key}", feats, [0, 1, 2])
+    d, row_of, how = call()
+    assert d == own and how == "preferred" and row_of == {11: 0, 22: 1, 33: 2}, (d, how, row_of)
+    checks += 1
+    shutil.rmtree(own)
+
+    # (4) A TAG-ONLY KEY CONSUMES ITS SUFFIX WHOLE. `sib`, still on disk, is
+    #     `<other>__train_parity_10m__paper0923` and it ENDS WITH `__paper0923` -- but the
+    #     tag-only key `paper0923` names the scan of the UNSUFFIXED corpus, a different product.
+    #     `endswith` matched both, the pair refused as ambiguous (2026-09-23), and the test side
+    #     of the eval-1 autointerp run was left with no examples at all.
+    tag = "paper0923"
+    plain = write(f"{other}__{tag}", feats, my_rows)
+    d, row_of, how = call(corpus_key=tag)
+    assert d == plain and how.startswith("with-set sibling"), (d, how)
+    assert row_of == dict(zip(feats, my_rows, strict=True)), row_of
+    checks += 1
+
+    # MUTATION: with the tag-only scan gone the longer-key sibling does NOT answer in its place
+    shutil.rmtree(plain)
+    d, _row_of, how = call(corpus_key=tag)
+    assert how == "absent", (
+        f"a `<set>__<corpus>__{tag}` scan answered for the tag-only key {tag!r}, which names the "
+        f"scan of the unsuffixed corpus ({d}, how={how!r})"
+    )
+    mut += 1
+
+    # MUTATION: a sibling that does not cover this set's features is not this call's product
+    shutil.rmtree(sib)
+    write(f"{other}__{key}", [7, 11, 99], [0, 1, 2])
+    d, _row_of, how = call()
+    assert how == "absent", (
+        f"a sibling missing features {sorted(set(feats) - {7, 11, 99})} was resolved into ({d})"
+    )
+    mut += 1
+
+    # MUTATION: a sibling at ANOTHER key is never this key's product, however well it covers
+    write(f"{other}__other_corpus__paper0923", feats, my_rows)
+    assert call()[2] == "absent", "a sibling at another corpus key was resolved into"
+    mut += 1
+
+    # MUTATION: two covering siblings at one key -- refuse, do not pick
+    shutil.rmtree(f"{parent}/{other}__{key}")
+    write(f"{other}__{key}", feats, my_rows)
+    write(f"v3_ours__{key}", feats, my_rows)
+    try:
+        call()
+    except AssertionError as e:
+        assert "choose between" in str(e), str(e)
+        mut += 1
+    else:
+        raise AssertionError("two candidate example scans did not refuse")
+    shutil.rmtree(f"{parent}/v3_ours__{key}")
+    shutil.rmtree(f"{parent}/{other}__{key}")
+
+    # MUTATION: the LEGACY unkeyed directory is refused, by name and by the key it should carry
+    json.dump({"features": feats, "rows": my_rows, "sae": sae_key},
+              open(f"{parent}/tested.json", "w"))
+    try:
+        call()
+    except AssertionError as e:
+        msg = str(e)
+        assert "LEGACY" in msg and this_set in msg and key in msg, msg
+        mut += 1
+    else:
+        raise AssertionError("the legacy unkeyed examples/ was read instead of refused")
+    # ... and it is refused for the OTHER set too: the fallback had no set in it to check
+    try:
+        call(set_name=other)
+    except AssertionError as e:
+        assert "LEGACY" in str(e), str(e)
+        mut += 1
+    else:
+        raise AssertionError("the legacy fallback still fires for some set")
+
+    print(f"[selfcheck] examples resolution OK: {checks} checks, {mut} mutation gates; the "
+          f"with-set sibling is found by feature cover and the legacy unkeyed dir refuses")
+
+
 def main() -> int:
     cfg = C.load_config()
     base = "qwen36-27b"
@@ -690,9 +1642,17 @@ def main() -> int:
         check_gate(cfg, tmp, base, set_name)
         check_run_both_paths(cfg, tmp, base, set_name)
         check_followup_arms(cfg, tmp, base, set_name)
+        check_nla_body_tokens()
+        check_relative_marking()
         check_nla_arms(cfg, tmp, base)
         check_scores_subset(tmp)
         check_corpus_fallback()
+        check_two_corpora(cfg, tmp, base)
+        check_products_set(cfg, tmp, base)
+        check_corpus_key(cfg, base)
+        check_nla_rollout_stem(cfg, tmp, base)
+        check_nla_top4(cfg, tmp, base, set_name)
+        check_examples_resolution(cfg, tmp, base)
         check_chain(cfg, tmp, base, set_name)
     finally:
         R.Claude = _REAL_CLAUDE

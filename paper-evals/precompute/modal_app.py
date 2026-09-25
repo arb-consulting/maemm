@@ -63,6 +63,11 @@ _image_base = (
             "PYTHONPATH": REMOTE_ROOT,
         }
     )
+    # The OOD arms' readers (2026-09-18): `zstandard` for Proof-Pile-2's `.jsonl.zst` shards and
+    # `pyarrow` for the column-projected parquet reader (`datasets` pulls pyarrow in already; it is
+    # named here so the reader does not depend on that staying true). Its OWN layer, on top of the
+    # env, so every layer below stays a cache hit on this workspace.
+    .pip_install("zstandard", "pyarrow")
 )
 
 # Qwen3.6-27B: 48 of its 64 layers are GatedDeltaNet and transformers picks fla's Triton kernel
@@ -74,8 +79,15 @@ _image27_base = _image_base.pip_install("flash-linear-attention==0.5.2")
 # between concurrent sessions). Last layer, so an edit rebuilds only this one.
 # Ignored: caches, the local analysis outputs and every .md -- other sessions write those while an
 # image is being hashed, and Modal refuses a tree that changes mid-build.
-_IGNORE = ["**/__pycache__", "**/*.pyc", "**/.ruff_cache", "reconstruction/out",
-           "reconstruction/data", "**/*.md"]
+# `reconstruction/{out,data}` were ignored here because those two readers wrote under the
+# mount; SINCE 2026-09-23 NO reader defaults inside the tree at all (precompute/common.py:
+# `mirror_dir` / `out_dir`, gated by `unit_smoke.check_no_reader_default_under_the_mount`).
+# The names stay, joined by the four the old `_IGNORE` missed, because a checkout made before
+# that commit still HAS those directories full of fetched bytes -- and an old mirror left on
+# disk races an image hash exactly as a live one does.
+_IGNORE = ["**/__pycache__", "**/*.pyc", "**/.ruff_cache", "**/*.md",
+           "reconstruction/out", "reconstruction/data", "results/out", "results/data",
+           "autointerp/data", "gcg/data"]
 _CODE = dict(local_path=LOCAL_ROOT, remote_path=REMOTE_ROOT, copy=True, ignore=_IGNORE)
 image = _image_base.add_local_dir(**_CODE)
 image27 = _image27_base.add_local_dir(**_CODE)
@@ -221,9 +233,27 @@ def product_check(cfg, args):
                     "max_new": int(nla["max_new"]),
                 }
 
+    for arm, spec in sorted(C.ood_arms(cfg).items()):
+        print(
+            f"[check] ood arm {arm}: {spec['family']} {spec['dataset']} reader={spec['reader']} "
+            f"files={len(spec['files'])} sizes={spec['sizes']} script={spec['script']} "
+            f"unspaced={spec['unspaced']} lid={spec.get('lid')}",
+            flush=True,
+        )
     heldout = sorted(cfg["heldout"])
+    report["heldout"] = {}
     for set_name in heldout:
         for base in bases:
+            if C.is_ood_set(cfg, set_name):
+                hspec = cfg["heldout"][set_name]
+                arms = C.ood_set_arms(cfg, set_name)
+                var = hspec.get("variant_of")
+                print(
+                    f"[check] heldout {set_name} on {base}: OOD set, {len(arms)} arms x "
+                    f"{hspec['n_per_arm']} targets" + (f" (variant of {var})" if var else ""),
+                    flush=True,
+                )
+                continue
             fams = C.families_for(cfg, set_name, base)
             print(
                 f"[check] heldout {set_name} on {base}: "
@@ -233,6 +263,9 @@ def product_check(cfg, args):
                 ),
                 flush=True,
             )
+            rec = C.check_set_on_disk(cfg, base, set_name, fams, args.get("root") or C.VOL)
+            report["heldout"][f"{base}/{set_name}"] = rec
+            print(f"[check]   {rec['status']}: {rec['detail']}", flush=True)
     print(
         f"[check] scoring: max_length={C.SCORE_MAX_LENGTH} chunk={C.SCORE_CHUNK} "
         f"width={C.SCORE_WIDTH} rollouts.max_new={cfg['rollouts']['max_new']}",
@@ -262,6 +295,13 @@ def _draw_sae2m(cfg, args):
     return importlib.import_module("features.draw_sae2m").run(cfg, args)
 
 
+def _heldout_v3(cfg, args):
+    """features/heldout_v3.py -- one block of the eval-1 v3 set, imported or copied."""
+    import importlib
+
+    return importlib.import_module("features.heldout_v3").run(cfg, args)
+
+
 PRODUCTS = {
     "check": product_check,
     "unit": product_unit,
@@ -282,12 +322,21 @@ PRODUCTS = {
     "top1_act": _script("top1_act"),
     "draw_sae2m": _draw_sae2m,
     "draw_sae131k": _draw_sae131k,
+    "heldout_v3": _heldout_v3,
+    "nll": _script("nll"),
+    "ood_selfcheck": _script("ood_selfcheck"),
+    "tierb": _script("tierb"),
 }
 # `corpus` is CPU AND the only product that goes to the network: the Ultra-FineWeb parquet parts
 # are not in the volume's HF cache, so corpus.py flips HF_HUB_OFFLINE off for itself. `mu_check`
 # reads two [d] vectors off the volume and does one dot product.
 # `centred` is CPU too: it only re-reads the arrays `score` already wrote (best_act, cos, norm).
-CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
+# `heldout_v3` neither forwards nor loads a model: it reads Celeste's frozen parquets off the
+# volume, solves a 512x5120 quadratic in numpy, or copies a row range out of an existing set.
+# `tierb` reads 92 GB of fp16 directions off the volume and multiplies them by ~1.5k target rows:
+# the READ dominates by an order of magnitude, so a GPU would buy minutes of matmul at $4.54/h and
+# the scan runs in numpy on the CPU function (M8).
+CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred", "heldout_v3", "tierb")
 # Products that need --maemm.
 MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
 
@@ -365,6 +414,19 @@ def main(
     batch: int = 0,
     allow_short: bool = False,
     n: int = 0,
+    # draw_sae2m: force n/4 features from each quartile of the eligible pool instead of drawing
+    # uniformly and labelling the quartiles afterwards, and (--seed) override its DRAW_SEED. A
+    # stratified set is a SMOKE set -- its "all" mean is over four equal quartiles, not over the
+    # dictionary -- so it always gets a set name of its own.
+    stratified: bool = False,
+    seed: int = 0,
+    # draw_sae2m: which SIDE(S) of the dictionary become rows. "enc" (the default and every set
+    # drawn before 2026-09-21) or "enc,dec", which emits the SAME features twice as two paired
+    # blocks tagged `sae_side`. It does not change the draw.
+    sides: str = "",
+    # heldout_v3: WHICH block of the eval-1 v3 set this call writes. One block per set
+    # directory, because a directory carries one storage contract.
+    block: str = "",
     rows: str = "",
     max_new: int = 0,
     gen_rows: int = 0,
@@ -372,6 +434,13 @@ def main(
     import_run1: bool = False,
     rescore_texts: str = "",
     score_name: str = "",
+    # A bare suffix separating two runs of ONE checkpoint on ONE set that differ only in --mu
+    # (common.rollout_stem). rollouts_* write `<set>__<engine>__<tag>.jsonl` and `score` reads it
+    # back; without it the second run replaces the first's file outright, mid-comparison.
+    run_tag: str = "",
+    # score: name a RE-SCORE of the same rollouts, so the first result is kept. `--run-tag`
+    # selects a different rollouts FILE; this one only names the scores directory.
+    score_tag: str = "",
     no_sae: bool = False,
     no_marker_check: bool = False,
     max_num_seqs: int = 0,
@@ -387,9 +456,42 @@ def main(
     # suffixes the patchscopes cell directory names, so a second run of the same layer at a
     # different rollout budget does not collide with the first (sweep bo 8 vs final bo 32)
     ps_tag: str = "",
+    # D7: these four steered patchscopes and the sae2m draw through features/spawn.py ONLY, which
+    # calls the Modal function directly and bypasses every assert in this entrypoint. A knob that
+    # can be set on one launch path and not on the other is a knob that gets set by accident.
+    ps_prompt: str = "",        # which patchscopes prompt (precompute/patchscopes.py PROMPTS)
+    ps_rule: str = "",          # replace | add -- how the direction enters the placeholder
+    ps_alpha: float = 0.0,      # the injection coefficient (0 = the module's own PS_ALPHA)
+    subset: str = "",           # draw_sae2m: a shared features.parquet taken as given, not re-drawn
+    feature_split: str = "",    # draw_sae2m: override the bundle's feature_split.parquet path
+    maxact_windows: str = "",   # draw_sae2m: override the bundle's 100k-window parquet path
+    include: str = "",          # draw_sae2m: a file of feature ids to force into the draw
     # score: read <dir>/rollouts.jsonl + <dir>/rollouts.summary.json and write <dir>/scores/
     # instead of a MAEMM's rollouts -- how a `patchscopes` cell reaches the one scoring path.
     rollouts_dir: str = "",
+    # WHICH MEAN this run's directions are centred on: the PATH of a [d] .f32/.npy file on the
+    # volume (absolute, or relative to --root, with `{base}` expanding to the base key), or the
+    # literal "none". For a product with a --maemm it OVERRIDES that checkpoint's own `mu:` and is
+    # recorded as a deviation; for the products with no MAEMM in scope (scan, gcg, patchscopes,
+    # repo_examples) it is the only source there is, and they refuse to run on a `storage: raw` set
+    # without it (common.mu_for).
+    mu: str = "",
+    # scan: THE CENTRED MODE. Both sides of the scan's cosine are taken about the base's scoring
+    # constant (`common.score_mu` = `bases.<base>.whiten_mu`), the same mean `score` reports
+    # `cos_centred` about, so the corpus top-1 and a rollout cosine are one statistic. A boolean,
+    # not a path: the mean is a property of the base, not a per-run choice, and it refuses to be
+    # combined with --mu. Give the run its own `--run-tag`, since a centred and an uncentred scan
+    # of one (set, corpus) are different numbers and `scan_dir` separates them by that tag alone.
+    centre: bool = False,
+    # WHICH CORPUS, by `corpora:` key (heldout16m, celeste-train10m, ood_tha_Thai, ...). Resolves
+    # to the directory name `--corpus-name` takes, so the two flags cannot disagree; pass at most
+    # one of the pair. A COMMA-SEPARATED LIST is accepted and `scan` walks them in one call, which
+    # is how the OOD sweep covers several in-domain corpora per container (design §7).
+    corpus: str = "",
+    # Ari's flag: the corpus DIRECTORY under base/<base>/corpora/. `--corpus` is preferred -- a key
+    # carries the ladder, the geometry and the provenance sentence, a directory name carries none.
+    # Also comma-separated, for the same reason.
+    corpus_name: str = "",
     # rollouts_nla: which input-amplitude convention to inject ("" = the entry's own nla.amp).
     # A NON-default value writes maemms/<base>/<nla>/variants/<set>__amp-<amp>/ instead of the
     # accumulating rollouts/ directory (precompute/rollouts_nla.py's docstring says what each is).
@@ -399,6 +501,27 @@ def main(
     # costs a CPU container and a volume mount, while this costs nothing and still catches a
     # misspelled set, a maemm on the wrong base or a product that needs --maemm.
     dry_run: bool = False,
+    # FIRE AND FORGET (M12, 2026-09-25). `fn.remote()` keeps the local client blocked on the
+    # call, and `modal run --detach` did NOT save the call when that client lost its connection:
+    # a laptop suspend at 16:21Z got M12's 65-minute rollouts_nla call cancelled at 16:25Z
+    # ("Function call was cancelled by user or a failure", app ap-cLckeuln69kWhM0qo56vxi).
+    # `--spawn` (use WITH `--detach`) submits the call with `fn.spawn()`, prints ONE machine-readable
+    # line `[spawn] call_id=<id> ...` and returns, so nothing local stays alive: completion is read
+    # off the product on the volume, and the container's own `[wall] ... cost=$` line off
+    # `modal app logs <app>`. No `[done]` line is printed on this path.
+    spawn: bool = False,
+    # --- the OOD generalisation evaluation (infra/2026-09-18_ood-eval-design.md) ---------------
+    # `corpus --arm <id>` builds ONE arm's in-domain corpus + its target pool (CPU, network);
+    # `targets --set <ood set> [--arm a,b]` draws that set (or only those arms);
+    # `scan --corpus a,b [--max-size 4] [--with-set 2026-09-16_v1:realact+random]` scans several
+    # corpora in one call, bounded at a nested prefix, with extra target banks appended.
+    arm: str = "",
+    max_size: int = 0,
+    with_set: str = "",
+    # The OOD arm RNG's seed. NOT `--seed`: that one is `draw_sae2m`'s draw seed (evals/sae-smoke64)
+    # and the two would silently swap meaning between products (eval plan §4.2).
+    arm_seed: int = 0,
+    stages: str = "",
 ):
     """Dispatch one product. `base` picks the GPU; CPU products ignore it for placement.
 
@@ -419,6 +542,14 @@ def main(
     # NOT sorted(cfg["heldout"])[-1]: a set registered here only so --set can name it (`imported:
     # true`, e.g. the sae2m draw) must not become every product's default. common.default_heldout.
     default = C.IMPORT_RUN1_SET if import_run1 else C.default_heldout(cfg)
+    # D6: a set WRITER is never given a default. `draw_sae2m` and `targets` create a directory and
+    # `--force` rmtrees what is there, so an omitted --set resolving to the live default set is one
+    # keystroke away from destroying the set the paper's tables are built on.
+    assert not (product in C.SET_WRITERS and not (set or heldout)), (
+        f"product {product!r} WRITES a held-out set, so it needs an explicit --set <name>: an "
+        f"omitted one would resolve to {default!r}, the live default set, and --force would "
+        f"replace it (D6). config.yaml declares {sorted(cfg['heldout'])}."
+    )
     set_name = set or heldout or default
     assert set_name in cfg["heldout"] or set_name == C.IMPORT_RUN1_SET, (
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])} and the only "
@@ -435,6 +566,10 @@ def main(
         "batch": batch,
         "allow_short": allow_short,
         "n": n,
+        "stratified": stratified,
+        "seed": seed,
+        "sides": sides,
+        "block": block,
         "rows": rows,
         "max_new": max_new,
         "gen_rows": gen_rows,
@@ -442,6 +577,8 @@ def main(
         "import_run1": import_run1,
         "rescore_texts": rescore_texts,
         "score_name": score_name,
+        "run_tag": run_tag,
+        "score_tag": score_tag,
         "no_sae": no_sae,
         "no_marker_check": no_marker_check,
         "max_num_seqs": max_num_seqs,
@@ -453,13 +590,104 @@ def main(
         "ps_layers": ps_layers,
         "no_ps_floor": no_ps_floor,
         "ps_tag": ps_tag,
+        "ps_prompt": ps_prompt,
+        "ps_rule": ps_rule,
+        "ps_alpha": ps_alpha,
+        "subset": subset,
+        "feature_split": feature_split,
+        "maxact_windows": maxact_windows,
+        "include": include,
         "rollouts_dir": rollouts_dir.rstrip("/"),
         "amp": amp,
+        "mu": mu,
+        "centre": centre,
+        "corpus_name": corpus_name,
+        "arm": arm,
+        "max_size": max_size,
+        "with_set": with_set,
+        "arm_seed": arm_seed,
+        "stages": stages,
         # The container has no git checkout, so the commit every README records is captured here.
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,
     }
     assert engine in C.ENGINES, f"--engine must be one of {list(C.ENGINES)}, got {engine!r}"
+    if mu and mu.lower() not in ("none", "null"):
+        C._check_mu_value(mu, "--mu", allow_unknown=False)
+    if corpus:
+        assert not corpus_name, (
+            f"pass --corpus {corpus!r} OR --corpus-name {corpus_name!r}, not both: the key resolves "
+            f"to the directory name and two sources for one value can only ever disagree"
+        )
+        # A LIST, because the OOD sweep scans several in-domain corpora per container (design §7:
+        # four calls of ~6 corpora each, to stay under the 10 h function timeout). One key is the
+        # one-element case; the geometry assert runs per key, so a mismatched corpus in position 4
+        # stops the launch rather than being discovered after three hours of GPU.
+        keys = [k for k in corpus.split(",") if k]
+        dirs = []
+        for k in keys:
+            dirs.append(C.corpus_key_name(cfg, k))
+            # NOT `block, stride = ...`: `block` is this function's own heldout_v3 parameter, and
+            # assigning to it here set it non-empty on every --corpus launch.
+            blk, strd = C.corpus_geometry(cfg, k)
+            C.assert_corpus_geometry(cfg, dirs[-1])
+            print(f"[launch] corpus {k} -> dir {dirs[-1] or 'corpus'}, window {blk}/{strd}")
+        args["corpus_name"] = ",".join(dirs)
+    # House style: a flag belongs to ONE product, and a typo that would otherwise reach the
+    # container and cost a scheduled H200 stops here instead.
+    if arm:
+        assert product in ("corpus", "targets", "ood_selfcheck"), (
+            f"--arm names an OOD arm and is a `corpus` / `targets` / `ood_selfcheck` flag "
+            f"(infra/2026-09-18_ood-eval-design.md §2); it means nothing to product {product!r}. "
+            f"The GCG sense of `arm` is a directory name, not a flag."
+        )
+    if arm_seed:
+        assert product == "corpus", (
+            f"--arm-seed is the OOD arm RNG's seed, read by `corpus --arm` when it cuts the "
+            f"permuted row stream; every other product takes the seed from the set's own config "
+            f"entry. It means nothing to product {product!r}."
+        )
+    if centre:
+        assert product == "scan", (
+            f"--centre is the `scan` centred mode (both sides about common.score_mu); it means "
+            f"nothing to product {product!r}. `score` is centred on that constant unconditionally "
+            f"and the rollouts products take their injection convention from the MAEMM."
+        )
+        assert not (mu or "").strip(), (
+            "--centre and --mu are two answers to one question: --centre takes both sides about "
+            "the base's scoring constant and is not a per-run choice"
+        )
+        assert (run_tag or "").strip(), (
+            "--centre needs a --run-tag: a centred and an uncentred scan of one (set, corpus) are "
+            "different numbers and common.scan_dir separates them by that tag alone, so without "
+            "one the second run refuses on `already exists` -- or, with --force, destroys the first"
+        )
+    if max_size or with_set:
+        assert product == "scan", (
+            f"--max-size and --with-set are `scan` flags (a bounded nested prefix, and extra "
+            f"target banks appended to the scanned set); they mean nothing to product {product!r}"
+        )
+    if stages:
+        assert product == "ood_selfcheck", (
+            f"--stages selects which halves of `ood_selfcheck` run (readers,covariates on CPU; "
+            f"nll on the GPU); it means nothing to product {product!r}"
+        )
+    if score_tag:
+        assert product == "score", (
+            f"--score-tag names a re-score's output directory and is a `score` flag; it means "
+            f"nothing to product {product!r}"
+        )
+    if with_set:
+        for extra in [x for x in with_set.split(",") if x]:
+            name = extra.partition(":")[0]
+            assert name in cfg["heldout"], (
+                f"--with-set names {name!r}, which is not a set in config.yaml"
+            )
+            # The stored-convention guard that used to live here (a `storage: unit` bank whose
+            # `family_mu` disagreed with --mu) went with `mu_stored` / `family_mu` on 2026-09-23:
+            # a unit bank is now served exactly as shipped and simply has no centred reading.
+            # What `--centre` needs instead -- every bank `storage: raw` -- is asserted in
+            # scan._load_targets, where the set directory is actually in hand.
     # --amp belongs to rollouts_nla alone, and is checked HERE as well as there so --dry-run
     # actually covers it: a typo would otherwise reach the container and cost a scheduled H200.
     if amp:
@@ -468,6 +696,24 @@ def main(
             f"means nothing to product {product!r}"
         )
         assert amp in C.AMP_MODES, f"--amp must be one of {list(C.AMP_MODES)}, got {amp!r}"
+    # Same reason as --amp: a draw flag handed to a product that ignores it would run the wrong
+    # draw silently, and --dry-run is where that should cost nothing.
+    if block:
+        assert product == "heldout_v3", (
+            f"--block is a `heldout_v3` flag (which block of the v3 set to write) and means "
+            f"nothing to product {product!r}")
+    if stratified or seed:
+        assert product == "draw_sae2m", (
+            f"--stratified/--seed are `draw_sae2m` flags (how the target set is sampled) and mean "
+            f"nothing to product {product!r}"
+        )
+    if sides:
+        # `draw_sae131k --sides dec --dirs-from <set> --rows <spec>` is the decoder twin of an
+        # existing set's encoder rows (features/draw_sae131k.py); every other product ignores it.
+        assert product in ("draw_sae2m", "draw_sae131k"), (
+            f"--sides is a draw flag (which dictionary sides become rows): `draw_sae2m`, or "
+            f"`draw_sae131k --sides dec --dirs-from ...`. It means nothing to product {product!r}"
+        )
     # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
     # MAEMM_PRODUCTS call that must be allowed without --maemm.
     if product in MAEMM_PRODUCTS and not (product == "score" and rollouts_dir):
@@ -475,7 +721,14 @@ def main(
         assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
         assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
     # `targets --import-run1` only torch.loads a 512-row cache and writes it back out: no GPU.
-    if product in CPU_PRODUCTS or (product == "targets" and import_run1):
+    # `ood_selfcheck` is CPU unless its GPU stage is asked for: `readers` is network-bound and
+    # MEASURED 2026-09-18 at minutes per arm, which on an H200 is real money for a check.
+    cpu_selfcheck = product == "ood_selfcheck" and "nll" not in (stages or "readers,covariates")
+    # `draw_sae131k --dirs-from` (the decoder twin) reads 512 columns out of one 131k checkpoint
+    # and forwards nothing, like `heldout_v3`; the 2k DRAW keeps its old placement.
+    twin = product == "draw_sae131k" and bool(dirs_from)
+    if (product in CPU_PRODUCTS or (product == "targets" and import_run1) or cpu_selfcheck
+            or twin):
         fn, label = cpu, "CPU"
     else:
         assert base, f"product {product!r} needs --base to choose the GPU"
@@ -489,6 +742,10 @@ def main(
         # Every assert above has run; what is printed is exactly the dict `.remote()` would carry.
         print("[dry-run] no container started; args below are what would be sent")
         print(json.dumps(args, indent=1, sort_keys=True, default=str))
+        return
+    if spawn:
+        call = fn.spawn(product, args)
+        print(f"[spawn] call_id={call.object_id} product={product} gpu={label}", flush=True)
         return
     res = fn.remote(product, args)
     print(f"[done] {res['product']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")

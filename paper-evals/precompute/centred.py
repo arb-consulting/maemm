@@ -53,15 +53,22 @@ CHUNK = 4096
 NORM_FILTER_MULT = 10.0  # eval/eval_universal.py:71 -- 10x the row's nanmedian residual norm
 
 
-def _load_dirs(cfg, args):
-    """(rows_meta, dirs [N_set, d] fp32 UNIT) -- the same source `score` paired its rows with."""
+def _load_dirs(cfg, args, notes=None):
+    """(rows_meta, dirs [N_set, d] fp32 UNIT, the run's mu, source) -- what `score` paired rows with.
+
+    The mu comes back with the directions because BOTH SIDES of the centred cosine must use it.
+    Returning only the directions is what made this product compute `cos(best_act - stats_mu,
+    unit(act - whiten_mu))` for every `rl-last16` run -- two sides, two means, and the README
+    asserting they were the same one.
+    """
     base, root, set_name = args["base"], args["root"], args["heldout"]
     d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
-    v = C.read_array(f"{src}/vecs.f16", "float16", (len(rows), d)).astype(np.float32)
-    v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
-    return rows, v, src
+    mu, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    v = C.dirs_for(cfg, base, src, mu, root, notes)
+    assert v.shape == (len(rows), d), f"{src}: dirs_for returned {v.shape} for {len(rows)} rows"
+    return rows, np.asarray(v, dtype=np.float32), mu, src
 
 
 def run(cfg, args):
@@ -72,7 +79,7 @@ def run(cfg, args):
     engine = args.get("engine") or "hf"
     d = cfg["bases"][base]["d"]
 
-    sdir = C.scores_dir(maemm, set_name, root, engine)
+    sdir = C.scores_dir(maemm, set_name, root, engine, C.score_tag_of(args))
     assert os.path.exists(sdir), (
         f"no scores at {sdir}: run `--product score --maemm {maemm} --set {set_name} "
         f"--engine {engine}` first (this product only reads what score.py stored)"
@@ -103,11 +110,26 @@ def run(cfg, args):
         f"are [{n_t}, {n}, ...]"
     )
 
-    rows_meta, dirs, dirs_src = _load_dirs(cfg, args)
+    cen_notes: list[str] = []
+    rows_meta, dirs, mu_val, dirs_src = _load_dirs(cfg, args, notes=cen_notes)
     assert max(sel) < len(rows_meta), (
         f"{sdir}/rows.json names row {max(sel)} but {dirs_src}/ids.jsonl has {len(rows_meta)} rows"
     )
-    mu = C.stats_mu(cfg, base, root).astype(np.float32)  # THE centring mean (README "Methods")
+    # THE SAME MEAN THE TARGET WAS DERIVED UNDER, not `stats/mu.f32` by name. This line used to
+    # hardcode the stats mean while `_load_dirs` above resolved the target through the run's `--mu`
+    # / the checkpoint's `mu:`, so for every run whose mean is not the stats one -- every
+    # `rl-last16` run -- the two sides of `cos_centred_best` were centred on DIFFERENT means and
+    # the README said they were the same. On a raw set at `--mu none` it was worse: the target is
+    # then `unit(act)` and the product computed a ONE-SIDED cosine, the statistic its own docstring
+    # exists to avoid. reconstruction/stats.py:290 reads this array into the paper tables.
+    mu_arr = C.load_mu(cfg, base, mu_val, root)
+    assert mu_arr is not None, (
+        "this run centres on nothing (mu=none), so `cos_centred_best` would be a ONE-SIDED "
+        "cosine: the activation moved and the target did not. That is not a centred number and "
+        "this product will not write it under that name. Pass --mu <file>, or read "
+        "`cos.f16` / `cos_centred.f16` from the scores directory instead."
+    )
+    mu = mu_arr.astype(np.float32)
     t0 = time.time()
 
     # ---- centred cosine at the primary's argmax token ------------------------------------------
@@ -171,7 +193,9 @@ def run(cfg, args):
         "n_targets": n_t,
         "n": n,
         "bo": n,
-        "mu": f"{C.stats_dir(base, root)}/mu.f32",
+        # The mean BOTH sides were centred on, as the path it was read from. Named, not implied:
+        # reconstruction/stats.py reads this file and a reader must be able to tell two runs apart.
+        "mu": C.mu_label(mu_val, base, root),
         "mu_norm": round(float(np.linalg.norm(mu)), 6),
         "norm_filter_mult": NORM_FILTER_MULT,
         "kept_tokens": n_keep,
@@ -192,6 +216,7 @@ def run(cfg, args):
         "targets": f"{n_t} rows x n={n}",
     }
     with C.outdir(sdir, args, inputs=inputs, keep_existing=True) as od:
+        C.note_convention(od, cen_notes)
         od.write_array("cos_centred_best.f16", cos_c, "float16")
         od.write_array("cos_filtered_best.f16", cos_f, "float16")
         od.write_json("centred.json", summary)

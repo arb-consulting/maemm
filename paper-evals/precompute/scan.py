@@ -5,9 +5,16 @@
 
 Same windows as pass A (`common.windows_of`, 64 tokens every 16, never crossing documents, sink
 prepended and dropped), same stored document order, so the per-size snapshots are the same nested
-subsets. Cosine is UNCENTRED and in fp32 over every non-sink position, with NO norm filter
-(checklist item 4 and the scorer's divergence note in common.score_tokens) -- while realact targets
-are `unit(act - stats/mu)`, centred ONCE at construction. That asymmetry is Celeste's and is kept.
+subsets. The cosine is fp32 over every non-sink position, with NO norm filter (checklist item 4
+and the scorer's divergence note in common.score_tokens).
+
+TWO CENTRING MODES. `--centre` takes BOTH sides about the base's scoring constant
+(`common.score_mu` = `bases.<base>.whiten_mu`), which is the same mean `score` reports its
+`cos_centred` about: a corpus top-1 and a rollout cosine are then the same statistic and may be
+differenced. Without it the window side is UNCENTRED while the targets carry whatever `--mu`
+resolved -- Celeste's original asymmetry, kept so that every corpus-search number measured between
+2026-09-16 and 2026-09-21 reproduces. The two write to different directories through `--run-tag`
+(`scan_dir`'s key), because they are different numbers.
 
 Masking (checklist item 53): for a realact target, the windows of ITS OWN document that overlap the
 shown span [p-L+1, p] are excluded from both the top-k and the quantiles. Exact or near-duplicate
@@ -18,6 +25,7 @@ and is reported rather than engineered away.
 from __future__ import annotations
 
 import time
+import zlib
 
 import numpy as np
 
@@ -111,25 +119,156 @@ class _KeyReservoir:
             self.payload = cat_p.gather(1, i.unsqueeze(-1).expand(-1, -1, cat_p.shape[-1]))
 
 
-def _load_targets(cfg, args):
-    """(ids rows, V [N, d] unit fp32 on the gpu, realact mask tables)."""
+def _reservoir_seed(cfg, set_name: str) -> int:
+    """The SAE reservoir generator's seed for `--set <set>`, WITHOUT requiring a `seed:` key.
+
+    `scan` read `cfg["heldout"][<set>]["seed"]` directly, and `load_config` never required that
+    key on a `heldout:` entry -- so every eval-1 v3 block (`2026-09-21_v3_realact`, `_ctrl`,
+    `_ours`, `_subspace`, `_realact_long`, all of them imported rather than drawn, none of them
+    carrying a draw seed) crashed this product with a KeyError *after* the base model had loaded.
+    MEASURED on the config 2026-09-23: only `2026-09-16_v1`, `2026-09-16_v1raw`,
+    `2026-09-20_sae2m_2k`, `2026-09-21_sae2m_64`, `2026-09-21_v3_sae2m` and the OOD sets declare one.
+
+    A declared seed still wins, so every scan run before 2026-09-23 reproduces bit for bit. An
+    undeclared one falls back to crc32 of the set name: deterministic, different per set, and
+    written into the examples README by `_examples_notes` exactly as a declared seed is, so the
+    number is recoverable from the product rather than from this docstring.
+    """
+    seed = (cfg["heldout"][set_name] or {}).get("seed")
+    return int(seed) if seed is not None else int(zlib.crc32(set_name.encode("utf-8")))
+
+
+def _load_targets(cfg, args, notes=None):
+    """(ids rows, V [N, d] unit fp32 on the gpu, mask tables).
+
+    The rows are the `--set` set's, plus every `--with-set <name>[:<fam>,<fam>]` set appended after
+    it -- design §4: one scan of a corpus carries ALL the targets it could ever be asked about (the
+    OOD arms, the 512 English realact targets and the 512 random directions), because the scan's
+    cost is per corpus token and not per target.
+
+    `scan` has no `--maemm` in scope at all, so the centring convention has to be told to it:
+
+      * `--centre` is THE CENTRED MODE (2026-09-23). Both sides of the cosine are taken about the
+        base's own scoring constant `common.score_mu` -- the targets here, the window residuals in
+        `_scan_one`'s flush() -- which is the same constant `score` reports its `cos_centred`
+        about, so a corpus top-1 and a rollout cosine are finally the same statistic. It takes no
+        value and cannot be combined with `--mu`: the whole point is that the mean is not a
+        per-run choice. Every target set must be `storage: raw`, since a stored unit direction
+        cannot be re-centred (common.dirs_for).
+      * `--mu <file>`, or the set's own stored contract, is the LEGACY uncentred-window mode,
+        which reproduces every corpus-search number measured between 2026-09-16 and 2026-09-21
+        exactly. The resolution is PER SET, because `--with-set` can append a `storage: unit` bank
+        to a `storage: raw` one and the two were not centred the same way.
+
+    The own-document mask travels with the target as `mask_corpus`: a realact target's `doc` is an
+    index into ITS OWN corpus and means nothing in another one, so the mask is applied only where
+    the scanned corpus is that corpus. Without that condition an English target's document index
+    would mask an unrelated document of, say, the Thai corpus, silently.
+    """
+    import os
+
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
     d = cfg["bases"][base]["d"]
-    hdir = C.heldout_dir(base, set_name, root)
-    rows = C.read_jsonl(f"{hdir}/ids.jsonl")
+    specs = [(set_name, None)]
+    for extra in [x for x in (args.get("with_set") or "").split(",") if x]:
+        name, _, fams = extra.partition(":")
+        specs.append((name, [f for f in fams.split("+") if f] or None))
+    centre = bool(args.get("centre"))
+    assert not (centre and (args.get("mu") or "").strip()), (
+        "--centre and --mu are two answers to one question: --centre takes BOTH sides of the "
+        "cosine about the base's scoring constant (common.score_mu) and is not a per-run choice"
+    )
+    rows, vecs = [], []
+    for name, fams in specs:
+        hdir = C.heldout_dir(base, name, root)
+        assert os.path.exists(f"{hdir}/ids.jsonl"), f"no held-out set at {hdir}"
+        rs = C.read_jsonl(f"{hdir}/ids.jsonl")
+        if centre:
+            storage = C.set_storage(cfg, hdir, root)["storage"]
+            assert storage == "raw", (
+                f"--centre needs every target set to be `storage: raw` so a centred direction can "
+                f"be derived from its act.f32; {name} is `storage: {storage}` and a stored unit "
+                f"direction cannot be re-centred (common.dirs_for)"
+            )
+            mu = C.score_mu(cfg, base)
+        else:
+            mu, _ = C.mu_for(cfg, base, hdir, args, "", root, notes)
+        v = np.asarray(C.dirs_for(cfg, base, hdir, mu, root, notes), dtype=np.float32)
+        assert v.shape == (len(rs), d), f"{hdir}: dirs_for returned {v.shape} for {len(rs)} rows"
+        for i, r in enumerate(rs):
+            assert r["row"] == i, f"{hdir}/ids.jsonl row {i} says row={r['row']}"
+            if fams is not None and r["family"] not in fams:
+                continue
+            rows.append({**r, "set": name, "set_row": r["row"]})
+            vecs.append(v[i])
+        print(f"[scan] targets from {name}: {sum(1 for r in rows if r['set'] == name)} rows", flush=True)
     n = len(rows)
-    v = C.read_array(f"{hdir}/vecs.f16", "float16", (n, d)).astype(np.float32)
-    v = torch.nn.functional.normalize(torch.from_numpy(v).cuda(), dim=-1)
+    assert n, "no targets selected"
+    V = torch.nn.functional.normalize(torch.from_numpy(np.stack(vecs)).cuda(), dim=-1)
     doc = torch.full((n,), -1, dtype=torch.int64)
     lo = torch.zeros(n, dtype=torch.int64)
     hi = torch.zeros(n, dtype=torch.int64)
+    mask_corpus = []
+    foreign = 0
     for i, r in enumerate(rows):
-        assert r["row"] == i, f"ids.jsonl row {i} says row={r['row']}"
-        if r["family"] == "realact":
+        r["row"] = i  # the row index WITHIN this scan; `set` + `set_row` is the join key
+        if r["family"] == "realact" and all(k in r for k in ("doc", "p", "L")):
             doc[i], lo[i], hi[i] = r["doc"], r["p"] - r["L"] + 1, r["p"]
-    return rows, v, (doc.cuda(), lo.cuda(), hi.cuda())
+            mask_corpus.append("corpus")  # realact targets come from the base's own English corpus
+        elif r["family"] == "realact":
+            # HER realact draw (`source: hers`, the eval-1 headline block 2026-09-21_v3_realact)
+            # carries `doc` and `pos` and NO `p`/`L`, and its `doc` indexes HER v2 collection, not
+            # our `corpus/`. Masking document 10,984 of OUR corpus because her row says `doc:
+            # 10984` is the same silent error the mask-by-corpus rule (B, 2026-09-21) was written
+            # against, one axis over: the index is foreign to every corpus this product can scan.
+            # So the row is UNMASKABLE here, and the own-document exclusion for her block is the
+            # n-gram exclusion in the set's `exclusions.json` (spec 1.4), applied by the reader
+            # that drops rows -- not by this window mask. Counted and printed, never silent.
+            foreign += 1
+            mask_corpus.append("")
+        else:
+            # Nothing to mask. An OOD target carries `pool_i`, not `doc`: its document comes from
+            # the arm's TARGET POOL, which is the rows the corpus build did not consume (design
+            # §2), so it is not in that corpus -- or in any other -- and there is no window of it
+            # to exclude. A `random` or `sae` row has no document at all.
+            assert "doc" not in r, (
+                f"row {i} of set {r['set']} has a `doc` field but family {r['family']!r}, so "
+                f"nobody here knows which corpus that index belongs to; give it a mask_corpus "
+                f"label rather than letting it search its own document"
+            )
+            mask_corpus.append("")
+    if foreign:
+        msg = (
+            f"[scan] {foreign} realact rows carry no (doc, p, L) in THIS pipeline's corpus index "
+            f"space and are UNMASKABLE: their own-document exclusion is the set's exclusions.json, "
+            f"applied downstream by dropping rows, not by this window mask"
+        )
+        print(msg, flush=True)
+        (notes if notes is not None else []).append(msg[len("[scan] "):])
+    # The window side's mean, for flush(): the SAME constant the targets above were centred on, or
+    # None in the legacy mode where only the target side is centred (an asymmetric cosine, which
+    # is why `cos_asym` exists in `score` and why `results/ood.py` had to read it).
+    wmu = None
+    if centre:
+        arr = C.load_mu(cfg, base, C.score_mu(cfg, base), root)
+        assert arr is not None and arr.shape == (d,), (
+            f"the scoring constant {C.score_mu(cfg, base)} did not resolve to a [{d}] mean"
+        )
+        wmu = torch.from_numpy(np.asarray(arr, dtype=np.float32)).cuda()
+        one_sided = sorted({r["family"] for r in rows if not C.family_centrable(cfg, r["family"])})
+        (notes if notes is not None else []).append(
+            f"--centre: BOTH sides about {C.mu_label(C.score_mu(cfg, base), base, root)}, the "
+            f"scoring constant (common.score_mu), the same mean `score` reports cos_centred "
+            f"about. Families {one_sided} are not `centrable`, so their target side is the raw "
+            f"unit direction while the window side is centred -- a ONE-SIDED number for those "
+            f"rows, exactly as it is in `cos_asym`; a reader must not report them as centred"
+            if one_sided else
+            f"--centre: BOTH sides about {C.mu_label(C.score_mu(cfg, base), base, root)}, the "
+            f"scoring constant (common.score_mu); every target family here is `centrable`"
+        )
+    return rows, V, (doc, lo, hi, mask_corpus), wmu
 
 
 def _forward(model, read_layer, rows, sink, pad_id):
@@ -155,58 +294,164 @@ def _forward(model, read_layer, rows, sink, pad_id):
 
 
 def run(cfg, args):
+    """Pass B over ONE OR MORE corpora, with the same target bank.
+
+    `--corpus <a>,<b>,...` scans the OOD arm corpora `corpora/<arm>/` instead of the base's own
+    English `corpus/`; `--max-size M` stops at the M-million-token nested prefix (the `examples_4m`
+    trick: a bounded prefix of an existing corpus, at a fraction of the cost). Several corpora in
+    one call share the model load, which is the fixed cost of a short scan.
+
+    Output: `scan/<set>/` exactly as before when NEITHER flag is given, and `scan/<set>/<corpus>/`
+    (with `-<M>m` appended when the scan is bounded) otherwise -- so the existing English scan is
+    never touched by this path.
+    """
     import os
 
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
     assert base, "product scan needs --base"
-    spec = cfg["bases"][base]
-    read_layer, d = spec["read_layer"], spec["d"]
+    d = cfg["bases"][base]["d"]
     batch_rows = int(args.get("batch") or 256)
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    # As stats.py: a base may carry more than one SAE since 2026-09-20. --sae picks.
-    if args.get("sae"):
-        sae_key = args["sae"] if "/" in args["sae"] else f"{base}/{args['sae']}"
-        assert sae_key in sae_keys, (
-            f"--sae {args['sae']!r} is not an SAE of base {base}; have {sae_keys}"
-        )
-    else:
-        assert len(sae_keys) == 1, (
-            f"base {base} has {len(sae_keys)} SAEs in config ({sae_keys}); "
-            f"pass --sae to say which"
-        )
-        sae_key = sae_keys[0]
+    # ONE --sae syntax in the whole CLI: common.sae_key_for, which takes a full `<base>/<name>`
+    # key and refuses a bare name. This file and stats.py each carried an inline copy that DID
+    # accept a bare `sae2m`, so the same flag meant two things depending on the product.
+    #
+    # Resolved only when the SET HAS SAE ROWS. A base with two dictionaries makes `sae_key_for`
+    # refuse without `--sae`, and an OOD set has no sae family at all -- so demanding one there
+    # would make the operator name a dictionary this scan never reads, and the choice would then
+    # sit in the product README as if it meant something.
+    # WHICH CORPORA, as directory names already resolved from `corpora:` keys on the client
+    # (modal_app.main). NOT filtered for empties: "" is the base's own English `corpus/`, so
+    # `--corpus heldout16m,ood_tha_Thai` arrives as ",ood_tha_Thai" and means both of them.
+    corpora = (args.get("corpus_name") or "").split(",")
+    max_size = int(args.get("max_size") or 0)
+    # A repeat would plan two scans into one output directory; the second refuses on "already
+    # exists" only AFTER the first has been paid for.
+    assert len(set(corpora)) == len(corpora), f"--corpus repeats a corpus: {corpora}"
 
-    # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
-    # ladder or window geometry is a different corpus, never an edit of one.
-    corpus_name = args.get("corpus_name") or ""
-    toks, docs = C.load_corpus(base, root, corpus_name)
-    sizes = C.corpus_sizes(docs)
-    rows, v, (t_doc, t_lo, t_hi) = _load_targets(cfg, args)
-    n = len(rows)
-    tested = [int(r["id"]) for r in rows if r["family"] == "sae"]
-    tested_row = [r["row"] for r in rows if r["family"] == "sae"]
-    n_feat = len(tested)
+    cen_notes: list[str] = []
+    rows, v, masks, wmu = _load_targets(cfg, args, notes=cen_notes)
+    sae_key = C.sae_key_for_rows(cfg, base, rows, args.get("sae") or "")
+    # Filtered on the ROW's own sae_key, not on the family label: a set carrying two dictionaries
+    # under `family: sae` would otherwise have the other dictionary's feature ids looked up in this
+    # encoder, silently (common.sae_rows_of).
+    # ENCODER ROWS ONLY (2026-09-23, M6-dec), as `top1_act`, `repo_examples` and `build` already
+    # select. `examples/` is keyed on the FEATURE -- the windows where its encoder readout fires --
+    # so a `sae_side: dec` row is the same feature a second time: in a paired enc+dec set it would
+    # be tested twice under one `<feature>.jsonl`, and in a decoder-only twin set (e.g.
+    # `2026-09-24_v3_ctrl_dec`) it would write a SECOND examples/ directory covering the encoder
+    # set's features at the same corpus key, which `autointerp/build.resolve_examples` then refuses
+    # as ambiguous for every later build of the encoder set. The TARGET side of the scan (the
+    # corpus top-k cosine per row) still covers every row, decoder rows included.
+    sae_sel = C.sae_rows_of(
+        rows, sae_key, side="enc",
+        declared=C.declared_sae_key(cfg, C.heldout_dir(base, set_name, root), root),
+        where=C.heldout_dir(base, set_name, root),
+    ) if sae_key else []
+    tested = [int(r["id"]) for r in sae_sel]
+    tested_row = [r["row"] for r in sae_sel]
 
-    out_scan = C.scan_dir(base, set_name, root)
-    out_ex = f"{C.sae_dir(sae_key, root)}/examples"
-    for p in (out_scan, out_ex):
-        assert args.get("force") or not os.path.exists(p), (
-            f"{p} already exists; refusing to overwrite without --force"
+    # `scan/<set>` stays the name of the ONE unbounded scan of the base's own English corpus, so
+    # every number measured between 2026-09-16 and 2026-09-21 keeps its path. Anything else is
+    # keyed (C.scan_dir, H5) by the corpus AND the bound: a 1M-bounded scan of a 4M corpus is a
+    # different number from the full one, and `<set>__4m` alone could not be told apart from the
+    # scan of a corpus whose directory is literally `4m`.
+    sub = len(corpora) > 1 or bool(max_size) or any(corpora)
+    # THE THIRD AXIS, as `rollout_stem` has it: two scans of one (set, corpus) that differ only in
+    # `--mu` are different experiments, and the targets they score against are different vectors
+    # (MEASURED on 2026-09-21_ood_q1: stats/mu.f32 and whiten_mu agree at cos 0.977 and put
+    # unit(act - mu) a median cos 0.969 apart). Without a tag the second would refuse on "already
+    # exists" -- or, with --force, destroy the first. Empty for every scan run so far, so no
+    # existing path moves.
+    tag = (args.get("run_tag") or "").strip()
+    assert "/" not in tag and " " not in tag, f"--run-tag {tag!r} must be a bare name suffix"
+    plans = []
+    for raw in corpora:
+        # `--corpus heldout16m` already resolves to the empty directory name on the client
+        # (common.corpus_key_name), so an empty list element IS the base's own English corpus.
+        # The literal `corpus` is kept as the spelling for it on the `--corpus-name` escape
+        # hatch, where a leading empty element cannot be typed.
+        cname = "" if raw == "corpus" else raw
+        label = cname or "corpus"
+        key = (label + (f"__{max_size}m" if max_size else "")) if sub else ""
+        if tag:
+            key = f"{key}__{tag}" if key else tag
+        out_scan = C.scan_dir(base, set_name, root, key)
+        # The SAE examples are a product of a scan whose SET has sae targets. An OOD scan has none,
+        # so it writes no examples/ -- and must not, because that directory is shared.
+        # KEYED BY SET AND CORPUS (B9, 2026-09-21): `examples/` used to be keyed by SAE alone, so a
+        # second scan of the same dictionary against a different set refused without --force and
+        # DESTROYED the first set's examples with it. Keyed by the SAME string as the scan half,
+        # so the two halves of one call can never drift apart.
+        out_ex = (
+            C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=key)
+            if tested else ""
         )
+        for path in (out_scan, out_ex):
+            assert not path or args.get("force") or not os.path.exists(path), (
+                f"{path} already exists; refusing to overwrite without --force"
+            )
+        plans.append((cname, label, out_scan, out_ex))
 
     model, tok = C.load_base(cfg, base)
-    sae = C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
-                     need_decoder=False)  # W_dec is 43 GB at 2^21 features and unused here
+    # ENCODER ONLY (D3): everything below reads b_dec, W_enc, b_enc and threshold -- the tested
+    # columns at :200-201 and the gate. W_dec is 43 GB in fp32 at 2^21 features, which is the
+    # difference between fitting an H200 beside the 27B and not. stats.py:379 already had this.
+    sae = (
+        C.load_sae(C.sae_path(cfg, sae_key), d, device="cuda", dtype=torch.float32,
+                   need_decoder=False)
+        if tested else None
+    )
+    out = {}
+    for cname, label, out_scan, out_ex in plans:
+        bound = f" (<= {max_size}M)" if max_size else ""
+        print(f"[scan] === corpus {label}{bound} -> {out_scan}", flush=True)
+        out[label] = _scan_one(
+            cfg, args, model, tok, sae, sae_key, rows, v, masks, wmu, cname, label, out_scan, out_ex,
+            tested, tested_row, batch_rows, max_size, cen_notes,
+        )
+    return out
+
+
+def _scan_one(
+    cfg, args, model, tok, sae, sae_key, rows, v, masks, wmu, cname, label, out_scan, out_ex,
+    tested, tested_row, batch_rows, max_size, cen_notes,
+):
+    import torch
+
+    base, root, set_name = args["base"], args["root"], args["heldout"]
+    read_layer = cfg["bases"][base]["read_layer"]
+    n, n_feat = len(rows), len(tested)
+    t_doc_c, t_lo_c, t_hi_c, mask_corpus = masks
+    # The own-document mask applies only to targets whose OWN corpus is the one being scanned.
+    # Compared on the LABEL, not on `cname`: the base's own English corpus is `cname == ""` and
+    # `label == "corpus"`, and comparing on cname silently dropped the mask for every realact
+    # target in a scan of that corpus -- which is the own-document inflation review R1 is about.
+    keep_mask = torch.tensor([mc == label for mc in mask_corpus], dtype=torch.bool)
+    t_doc = torch.where(keep_mask, t_doc_c, torch.full_like(t_doc_c, -1)).cuda()
+    t_lo, t_hi = t_lo_c.cuda(), t_hi_c.cuda()
+    n_masked_rows = int(keep_mask.sum())
+
+    # H7: refuse a corpus this pipeline would cut at a geometry its config does not declare.
+    C.assert_corpus_geometry(cfg, cname)
+    toks, docs = C.load_corpus(base, root, cname)
+    sizes = C.corpus_sizes(docs)
+    if max_size:
+        assert max_size in sizes, f"--max-size {max_size} is not one of {label}'s sizes {sizes}"
+        sizes = [s for s in sizes if s <= max_size]
+        docs = [r for r in docs if r["size_tag"] <= max_size]
     sink = C.sink_token_id(tok)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else sink
     w_enc = sae.W_enc[:, torch.as_tensor(tested, device="cuda")].contiguous() if n_feat else None
     b_enc = sae.b_enc[torch.as_tensor(tested, device="cuda")] if n_feat else None
-    peak = C.read_array(f"{C.sae_dir(sae_key, root)}/max_act.f16", "float16", (sae.d_sae,))
-    peak_t = torch.from_numpy(peak[tested].astype(np.float32)).cuda() if n_feat else None
+    peak_t = None
+    if n_feat:
+        peak = C.read_array(f"{C.sae_dir(sae_key, root)}/max_act.f16", "float16", (sae.d_sae,))
+        peak_t = torch.from_numpy(peak[tested].astype(np.float32)).cuda()
     print(
-        f"[scan] {n} targets ({n_feat} tested sae features), {len(docs)} docs, sizes {sizes}",
+        f"[scan] {n} targets ({n_feat} tested sae features, {n_masked_rows} own-document masks), "
+        f"{len(docs)} docs, sizes {sizes}",
         flush=True,
     )
 
@@ -220,7 +465,7 @@ def run(cfg, args):
         else []
     )
     r_res = _KeyReservoir(1, SAE_RANDOM, "cuda", payload_shape=(n_feat,)) if n_feat else None
-    gen = torch.Generator(device="cuda").manual_seed(int(cfg["heldout"][set_name]["seed"]))
+    gen = torch.Generator(device="cuda").manual_seed(_reservoir_seed(cfg, set_name))
 
     win_doc: list = []
     win_start: list = []
@@ -239,7 +484,12 @@ def run(cfg, args):
         wl = torch.tensor([len(r) for r in buf], device="cuda")
         wid = torch.arange(w_global, w_global + b, device="cuda")
 
-        cos = torch.nn.functional.normalize(h, dim=-1) @ v.T  # [B, T, N] fp32, uncentred
+        # [B, T, N] fp32. `wmu` is the scoring constant under --centre and None otherwise; the
+        # subtract is one broadcast over [B, T, d] per flush, no extra pass and no extra
+        # allocation beyond the centred copy, so memory stays where it was (512 targets x 10M
+        # tokens is bounded by `cos`, not by this).
+        hc = h if wmu is None else h - wmu
+        cos = torch.nn.functional.normalize(hc, dim=-1) @ v.T
         cos = cos.masked_fill(~keep.unsqueeze(-1), SENTINEL)
         # realact self-match mask: this window's document and span overlap the target's own span
         mask = (
@@ -332,13 +582,17 @@ def run(cfg, args):
     assert len(wdoc) == w_global, f"window table {len(wdoc)} != {w_global} forwarded windows"
 
     inputs = {
-        "corpus": C.corpus_dir(base, root, corpus_name),
+        "corpus": C.corpus_dir(base, root, cname),
+        "corpus label": label,
         "heldout": C.heldout_dir(base, set_name, root),
+        "with_set": args.get("with_set") or "-",
         "targets": n,
         "windows": int(w_global),
         "sizes": sizes,
+        "max_size": max_size or "-",
     }
     with C.outdir(out_scan, args, inputs=inputs) as od:
+        C.note_convention(od, cen_notes)
         lines, n_dropped = [], 0
         for si_, size in enumerate(sizes):
             val, win, arg = snap_top[si_]
@@ -350,7 +604,18 @@ def run(cfg, args):
                         continue
                     w = int(win[i, j])
                     top.append([int(wdoc[w]), int(wstart[w]), int(arg[i, j] - 1), round(float(val[i, j]), 5)])
-                lines.append({"row": i, "family": rows[i]["family"], "size": size, "top": top})
+                lines.append(
+                    {
+                        "row": i,
+                        "set": rows[i]["set"],
+                        "set_row": rows[i]["set_row"],
+                        "family": rows[i]["family"],
+                        "arm": rows[i].get("arm"),
+                        "corpus": label,
+                        "size": size,
+                        "top": top,
+                    }
+                )
         od.write_jsonl("topk.jsonl", lines)
         q = np.stack([C.quantiles_from_hist(hs, QUANTILES) for hs in snap_hist], axis=1)  # [N, sizes, 5]
         od.write_array("quantiles.f16", q, "float16")
@@ -365,13 +630,23 @@ def run(cfg, args):
             f"{2 / N_BINS}), so each value is the bin upper edge and exact to {2 / N_BINS}"
         )
         od.note(
-            "cosine is UNCENTRED, fp32, over every non-sink position of every window, with no norm "
+            (
+                "cosine is CENTRED on BOTH sides about the base's scoring constant "
+                f"({C.mu_label(C.score_mu(cfg, base), base, root)}, common.score_mu -- the same "
+                "mean `score` reports cos_centred about), "
+                if wmu is not None else
+                "cosine is UNCENTRED on the window side (the target side carries whatever `--mu` "
+                "resolved), "
+            )
+            + "fp32, over every non-sink position of every window, with no norm "
             f"filter; window geometry {C.SCAN_BLOCK}/{C.SCAN_STRIDE} (common.windows_of), "
             f"{w_global} windows over {done_tokens} corpus tokens"
         )
         od.note(
-            "realact targets mask the windows of their OWN document overlapping [p-L+1, p]; exact "
-            "and near-duplicate documents elsewhere in the corpus are NOT masked"
+            f"{n_masked_rows} of {n} targets mask the windows of their OWN document overlapping "
+            f"[p-L+1, p] -- those whose own corpus IS `{label}`; a target of another corpus masks "
+            "nothing here, because its document index means nothing in this one. Exact and "
+            "near-duplicate documents elsewhere in the corpus are NOT masked"
         )
         if n_dropped:
             od.note(f"{n_dropped} top-k slots were empty (masked or too few windows) and omitted")
@@ -381,7 +656,10 @@ def run(cfg, args):
         )
 
     ex_rows = 0
-    with C.outdir(out_ex, args, inputs={**inputs, "sae": sae_key, "tested": n_feat}) as od:
+    if not n_feat:
+        print("[scan] no sae targets in this set: no examples/ product written", flush=True)
+    with _maybe_outdir(out_ex, args, inputs={**inputs, "sae": sae_key, "tested": n_feat}) as od:
+        C.note_convention(od, cen_notes)
         if n_feat:
             tv, tw, ta, tp = (
                 f_top.val.cpu().numpy(),
@@ -463,31 +741,12 @@ def run(cfg, args):
                 "bytes": nbytes + path.stat().st_size,
             }
             od.write_json("tested.json", {"features": tested, "rows": tested_row, "sae": sae_key})
-        od.note(
-            f"one <feature>.jsonl per TESTED feature ({n_feat} of {sae.d_sae}), each with the top "
-            f"{SAE_TOP} windows by activation plus {SAE_PER_BIN} windows sampled from each of 4 "
-            "equal-width activation bins of (0, max_act] (max_act from the pass-A stats)"
-        )
-        od.note(
-            "`acts` is the per-token pre-gate activation of that window, f16-rounded, in window "
-            "order with the sink dropped and truncated to the window's `len`; `argmax` is the "
-            "position of the maximum within it; the window's TEXT is recoverable from "
-            "corpus/tokens.i32 at (doc, start, len)"
-        )
-        od.note(
-            f"_random256.jsonl: {SAE_RANDOM} windows sampled uniformly over ALL {w_global} windows "
-            "(one shared negative pool), each carrying the per-tested-feature MAX activation in the "
-            "column order of tested.json -- per-token activations are not stored for these"
-        )
-        od.note("examples are taken over the FULL corpus only; they are not snapshotted per size")
-        od.note(
-            "sampling: smallest-random-key reservoir (equivalent to reservoir sampling), torch "
-            f"generator seeded {cfg['heldout'][set_name]['seed']}"
-        )
+            _examples_notes(od, n_feat, sae.d_sae, w_global, _reservoir_seed(cfg, set_name))
 
     return {
         "scan": out_scan,
-        "examples": out_ex,
+        "corpus": label,
+        "examples": out_ex or "-",
         "windows": int(w_global),
         "topk_rows": len(lines),
         "example_rows": ex_rows,
@@ -513,3 +772,57 @@ def _ex(row, kind, val, win, arg, acts, wdoc, wstart, wlen):
         "argmax": int(arg) - 1,
         "acts": [round(float(x), 4) for x in acts[:ln]],
     }
+
+
+class _NullOut:
+    """Stand-in for an OutDir when a product is not produced at all (an OOD scan writes no SAE
+    examples). Every call is a no-op, so the block below it needs no second code path."""
+
+    index: dict = {}
+
+    def note(self, line):
+        pass
+
+    def write_json(self, name, obj):
+        pass
+
+    def file(self, name):
+        raise AssertionError("no examples directory is being written")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _examples_notes(od, n_feat: int, d_sae: int, w_global: int, seed) -> None:
+    """The `examples/` product's own notes. A FUNCTION because they read `sae.d_sae`, and they sat
+    outside the `if n_feat:` that guards every other SAE branch here -- so a scan of a set with no
+    SAE rows built the f-string against `sae = None` and died AFTER the scan had been paid for and
+    its topk.jsonl renamed into place."""
+    od.note(
+        f"one <feature>.jsonl per TESTED feature ({n_feat} of {d_sae}), each with the top "
+        f"{SAE_TOP} windows by activation plus {SAE_PER_BIN} windows sampled from each of 4 "
+        "equal-width activation bins of (0, max_act] (max_act from the pass-A stats)"
+    )
+    od.note(
+        "`acts` is the per-token pre-gate activation of that window, f16-rounded, in window "
+        "order with the sink dropped and truncated to the window's `len`; `argmax` is the "
+        "position of the maximum within it; the window's TEXT is recoverable from "
+        "corpus/tokens.i32 at (doc, start, len)"
+    )
+    od.note(
+        f"_random256.jsonl: {SAE_RANDOM} windows sampled uniformly over ALL {w_global} windows "
+        "(one shared negative pool), each carrying the per-tested-feature MAX activation in the "
+        "column order of tested.json -- per-token activations are not stored for these"
+    )
+    od.note("examples are taken over the FULL corpus only; they are not snapshotted per size")
+    od.note(
+        "sampling: smallest-random-key reservoir (equivalent to reservoir sampling), torch "
+        f"generator seeded {seed}"
+    )
+
+
+def _maybe_outdir(path, args, **kw):
+    return C.outdir(path, args, **kw) if path else _NullOut()

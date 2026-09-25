@@ -941,6 +941,64 @@ def run(cfg, args):
     fmeta = {f["feature"]: f for f in json.load(open(f"{build_dir}/features.json"))["features"]}
     feats = list(fmeta)
 
+    # ---- THE SECOND BUILD: the NLA arms, scored on THIS build's test items -------------------
+    # `build` takes ONE --maemm and the NLA verbalizer is a different checkpoint from the MAEMM,
+    # so the NLA arms and the M arms can never come out of one build directory. Before 2026-09-23
+    # that meant a separate run directory per source, and `stats.paired()` reads ONE
+    # `summary/scores.jsonl` while every run appends its own floor and nulls (`:1451`), so the two
+    # could not be paired at all: the plan's gate is one run-dir carrying all seven arms.
+    #
+    # What is taken from the second build is ONLY the rendered explainer blocks of arms whose
+    # examples are ALL rollouts -- asserted below, arm by arm. Everything else (the feature draw,
+    # the test items, the gate, the nulls) comes from the primary build, so the NLA description is
+    # judged on exactly the items every other arm is judged on. Document-level disjointness (A4)
+    # survives because a rollout shows no corpus document at all.
+    nla_build_name = args.get("build_dir_nla") or ""
+    nla_build_dir = (f"{C.base_dir(base, root)}/autointerp/{set_name}/{nla_build_name}"
+                     if nla_build_name else "")
+    if nla_build_dir:
+        assert os.path.exists(f"{nla_build_dir}/build.json"), (
+            f"no build at {nla_build_dir}: --build-dir-nla names the NLA verbalizer's own build"
+        )
+        ninfo = json.load(open(f"{nla_build_dir}/build.json"))
+        for k in ("base", "set", "sae", "n_pos", "n_neg", "feat_seed", "shuffle_seed"):
+            assert ninfo.get(k) == binfo.get(k), (
+                f"--build-dir-nla {nla_build_name!r} disagrees with the primary build on {k!r} "
+                f"({ninfo.get(k)!r} vs {binfo.get(k)!r}): the two builds must draw the same "
+                f"features under the same protocol or their arms are not paired"
+            )
+        assert float(ninfo["gate"]) == float(binfo["gate"]), (
+            f"gate {ninfo['gate']} vs {binfo['gate']}: the two builds read different SAE gates"
+        )
+        nfeat = {f["feature"] for f in json.load(
+            open(f"{nla_build_dir}/features.json"))["features"]}
+        lost = sorted(set(feats) - nfeat)
+        assert not lost, (
+            f"{nla_build_dir} is missing {len(lost)} of this run's features ({lost[:5]}): every "
+            f"arm must cover the same feature set or the contrast is not paired"
+        )
+        print(f"[run] NLA arms from a second build {nla_build_dir} "
+              f"(maemm {ninfo['maemm']}, rollout source {ninfo.get('rollout_source')})", flush=True)
+
+    def rows_of(feat: int):
+        """(meta, arms, draw-1, draw-2) for `feat`, with the second build's ROLLOUT-ONLY arms
+        merged into the arm dict. The test items are always the PRIMARY build's."""
+        meta, arms, t1, t2 = _feature_rows(build_dir, feat)
+        if nla_build_dir:
+            _m2, arms2, _a, _b = _feature_rows(nla_build_dir, feat)
+            for a, row in arms2.items():
+                if a in arms:
+                    continue
+                srcs = {str(e.get("src")) for e in row.get("examples", [])}
+                assert srcs <= {"rollout"}, (
+                    f"arm {a!r} of {nla_build_dir} shows {sorted(srcs - {'rollout'})} examples, "
+                    f"not rollouts only. Only a rollout-only arm may be lifted into another "
+                    f"build's run: a corpus window from the second build was never excluded from "
+                    f"THIS build's test documents, so A4 would be broken silently."
+                )
+                arms[a] = row
+        return meta, arms, t1, t2
+
     scorers = [s for s in (args.get("scorers") or "detection,fuzzing").split(",") if s]
     for s in scorers:
         assert s in ("detection", "fuzzing"), f"unknown scorer {s!r}"
@@ -959,8 +1017,24 @@ def run(cfg, args):
     )
     assert len(key) > 8, "ANTHROPIC_API_KEY is present but implausibly short"
     batch_int = int(ac["scorer_batch"])
-    floor_arm, floor_src, draw2_arm = str(ac["floor_arm"]), str(ac["floor_source_arm"]), "C16-draw2"
-    judge_arm = str(ac.get("judge_floor_arm") or "C16-judge2")
+    floor_arm = str(ac["floor_arm"])
+    # WHICH ARM THE THREE NULLS BORROW THEIR DESCRIPTION FROM. `floor_source_arm: C16` in
+    # config.yaml is the protocol's default and is what the published 512-feature run used; it is
+    # overridable here because the arm set is a per-run choice and C16 is not always in it. On the
+    # 2M SAE there IS no C16 -- `scan`'s examples/ does not exist for that dictionary, and
+    # `check_corpus_source` refuses the arm by name -- so a run whose corpus arm is DOCMAX would
+    # otherwise hand all three nulls an empty description and lose them silently: `expl.get` misses,
+    # the plan entry carries "", and an empty description emits no scorer job. The nulls are the
+    # only noise floor this eval has (no temperature parameter exists, so nothing is deterministic),
+    # so losing them is not a cosmetic loss.
+    floor_src = str(args.get("floor_source_arm") or ac["floor_source_arm"])
+    # The two null LABELS name their source. Leaving them spelled `C16-...` while they carry a
+    # DOCMAX description would put a wrong provenance in scores.jsonl, which is the one place the
+    # results driver reads it from.
+    default_src = str(ac["floor_source_arm"])
+    draw2_arm = "C16-draw2" if floor_src == default_src else f"{floor_src}-draw2"
+    judge_arm = (str(ac.get("judge_floor_arm") or "C16-judge2") if floor_src == default_src
+                 else f"{floor_src}-judge2")
     shots = int(args.get("shots") or 1)
     # Tomas 2026-09-18: adopt upstream Delphi's fuzzing protocol. `delphi` sends the three
     # fuzzing few-shot turns (`DELPHI_FUZZ_FEWSHOT`, transcribed from 4fea06e); `legacy` keeps the
@@ -997,7 +1071,12 @@ def run(cfg, args):
     # so a MAEMM build never grows it and `--arms` naming it on such a build is a no-op with a
     # printed reason rather than an error.
     nla_desc_arm = "NLA-desc"
-    nla_desc_path = f"{build_dir}/nla_desc.jsonl"
+    # `nla_desc.jsonl` is written by the NLA build, which on a combined run is the SECOND one.
+    nla_desc_path = next(
+        (f"{d}/nla_desc.jsonl" for d in (nla_build_dir, build_dir)
+         if d and os.path.exists(f"{d}/nla_desc.jsonl")),
+        f"{build_dir}/nla_desc.jsonl",
+    )
     nla_desc: dict[int, str] = {}
     if os.path.exists(nla_desc_path):
         nla_desc = {
@@ -1020,12 +1099,41 @@ def run(cfg, args):
         h = hashlib.sha256("\n".join(sorted(j["key"] for j in jobs)).encode()).hexdigest()[:16]
         return f"{run_root}/batches/{stage_label}-{h}.json"
 
-    arm_names = list(binfo["arms"])
+    arm_names = list(binfo["arms"]) + [a for a in (json.load(
+        open(f"{nla_build_dir}/build.json"))["arms"] if nla_build_dir else [])
+        if a not in binfo["arms"]]
     if args.get("arms"):
         arm_names = [a for a in args["arms"].split(",") if a]
     if args.get("rows"):
         want = set(C.parse_rows(args["rows"], 1 << 30))
         feats = [f for f in feats if fmeta[f]["row"] in want] or feats
+    # The three nulls read `floor_src`'s description out of THIS run's explainer results, so an
+    # arm that is not being explained here gives them nothing -- and it gives it to them SILENTLY:
+    # `expl.get` misses, the plan entry carries "", an empty description emits no scorer job, and
+    # the run simply has no floor. That is what the published `rlI-150` secondary did (arms C4M,M,
+    # no C16) and what any 2M run would do, since that dictionary has no C16 arm to source from.
+    #
+    # An EXPLICIT --floor-source-arm that is not in the arms is an operator error and refuses. The
+    # config default falling outside the arm set is the ordinary case for a secondary block, so it
+    # falls back to the first arm and says so on stdout -- a floor from another arm is still a
+    # floor (the point is ANOTHER FEATURE's description on this feature's items), while no floor at
+    # all leaves the arm accuracies with nothing to be read against.
+    if floor_src not in arm_names:
+        assert not args.get("floor_source_arm"), (
+            f"--floor-source-arm {floor_src!r} is not among this run's arms {arm_names}; the null "
+            f"arms would have no description to borrow. Name one of the arms, or drop the flag to "
+            f"take the first."
+        )
+        assert arm_names, "no arms to run, and so nothing for the null arms to borrow"
+        was = floor_src
+        floor_src = arm_names[0]
+        draw2_arm, judge_arm = f"{floor_src}-draw2", f"{floor_src}-judge2"
+        print(
+            f"[run] the config's floor_source_arm {was!r} is not in this run's arms {arm_names}: "
+            f"sourcing {floor_arm}/{judge_arm}/{draw2_arm} from {floor_src!r} instead. Without "
+            f"this they would be empty and absent from scores.jsonl.",
+            flush=True,
+        )
     print(
         f"[run] {len(feats)} features x {len(arm_names)} explainer arms (+ {floor_arm}, "
         f"{judge_arm}, {draw2_arm}) x {scorers} | model {model} | path {path} | cap ${max_cost:.2f} | "
@@ -1033,7 +1141,7 @@ def run(cfg, args):
         flush=True,
     )
     if args.get("dry_run"):
-        _meta, arms, tests, _t2 = _feature_rows(build_dir, feats[0])
+        _meta, arms, tests, _t2 = rows_of(feats[0])
         print(json.dumps({
             "explain": cl.params(DELPHI_EXPLAINER_SYSTEM, arms[arm_names[0]]["block"],
                                  int(ac["explainer_max_tokens"]), explainer_fewshot(shots)),
@@ -1087,7 +1195,7 @@ def run(cfg, args):
     n_refusal = 0
     jobs = []
     for feat in feats:
-        _meta, arms, _t1, _t2 = _feature_rows(build_dir, feat)
+        _meta, arms, _t1, _t2 = rows_of(feat)
         for a in arm_names:
             if a not in arms:
                 continue
@@ -1185,6 +1293,14 @@ def run(cfg, args):
     # entry and is simply not scored for this arm -- the same way an empty explainer answer drops
     # its (feature, arm) pair, and counted here so the drop is visible rather than inferred.
     n_nla_desc = 0
+    # An EXPLICIT `--arms` that does not name the pseudo-arm drops it (M12). It used to be seeded
+    # from whichever build carried `nla_desc.jsonl` whatever `--arms` said, so a follow-up run for
+    # one arm through `--build-dir-nla` paid for, and wrote under the paper's label, an `NLA-desc`
+    # nobody asked for. With no `--arms` the build's arms are the default and it is seeded as before.
+    if nla_desc and args.get("arms") and nla_desc_arm not in arm_names:
+        print(f"[run] {nla_desc_path} exists but --arms {args['arms']!r} does not name "
+              f"{nla_desc_arm}: not seeded, not scored", flush=True)
+        nla_desc = {}
     if nla_desc:
         for feat in feats:
             text = nla_desc.get(feat, "")
@@ -1217,7 +1333,7 @@ def run(cfg, args):
     scores: list[dict] = []
     plans: dict[int, list[tuple[str, str, list]]] = {}
     for feat in feats:
-        _meta, arms, t1, t2 = _feature_rows(build_dir, feat)
+        _meta, arms, t1, t2 = rows_of(feat)
         plan = [(a, expl.get((feat, a), ""), t1) for a in arm_names if a in arms]
         plan.append((floor_arm, expl.get((perm[feat], floor_src), ""), t1))
         if want_explain2 and expl.get((feat, explain2_arm)):
@@ -1274,8 +1390,8 @@ def run(cfg, args):
         if info.get("stopped"):
             stopped_at = stopped_at or f"cost cap during {scorer}"
         for feat in feats:
-            gate_v = float(_feature_rows(build_dir, feat)[0]["gate"])
-            arms = _feature_rows(build_dir, feat)[1]
+            gate_v = float(rows_of(feat)[0]["gate"])
+            arms = rows_of(feat)[1]
             for a, e, items in plans[feat]:
                 if a in skip_arms:
                     continue
@@ -1404,7 +1520,8 @@ def run(cfg, args):
           f"{cum['calls']} calls", flush=True)
 
     common_inputs = {
-        "build": build_dir, "features": f"{n_scored} of {len(feats)}",
+        "build": build_dir,
+        "build_nla": nla_build_dir or "(none: one build)", "features": f"{n_scored} of {len(feats)}",
         "arms": ",".join([*arm_names, floor_arm, judge_arm, draw2_arm]),
         "api": "anthropic-messages", "model": model, "path": path,
         "delphi_commit": DELPHI_COMMIT,
@@ -1466,6 +1583,15 @@ def run(cfg, args):
         od.write_json("costs.json", costs)
         od.write_json("features.json", {"features": [fmeta[f] for f in feats]})
         od.write_json("build.json", binfo)
+        if nla_build_dir:
+            od.write_json("build_nla.json", json.load(open(f"{nla_build_dir}/build.json")))
+            od.note(
+                f"the NLA arms' rendered examples come from a SECOND build, {nla_build_dir} "
+                f"(its build.json is beside this one as build_nla.json), because `build` takes one "
+                f"--maemm and the verbalizer is not the MAEMM. Only arms whose examples are ALL "
+                f"rollouts were lifted; the test items, the gate, the feature draw and the nulls "
+                f"are this build's, so every arm in scores.jsonl was judged on identical items."
+            )
         od.write_json("floor_permutation.json",
                       {"floor_arm": floor_arm, "source_arm": floor_src,
                        "seed": int(ac["shuffle_seed"]),

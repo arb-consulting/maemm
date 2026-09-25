@@ -242,13 +242,19 @@ def _generate(model, tok, prompt, pos, vecs, layer, alpha, rl, max_new, seed,
     return gen[:, len(prompt) :]
 
 
-def _patch_check(model, prompt, pos, vecs, layer, alpha):
+def _patch_check(model, prompt, pos, vecs, layer, alpha, rule=PS_RULE):
     """Is the patch a no-op? Two forwards of the shared prompt, the second one patched.
+
+    D8 (2026-09-21): the check now builds the hook for the rule that will ACTUALLY RUN. It took no
+    `rule` and always called `make_replace_hook`, while `_generate` branches at :227-234 -- so a
+    `--ps-rule add` run was gated on an intervention that never happened, and the gate passed on
+    the strength of a different experiment.
 
     Forward hooks fire in REGISTRATION order and each sees the previous one's output, so the probe
     is registered AFTER the patcher (the trial's §4.2: registering it first silently shows the clean
-    state). Returns (||dh||/||h||, cos(h_patched, v)); the caller asserts on them. Nothing here
-    touches the generation path -- the hook a generate call uses is built fresh per call.
+    state). Returns (||dh||/||h||, cos(dh, v), cos(h_patched, v)); the caller asserts on the pair
+    its rule makes meaningful. Nothing here touches the generation path -- the hook a generate call
+    uses is built fresh per call.
     """
     import torch
 
@@ -265,13 +271,21 @@ def _patch_check(model, prompt, pos, vecs, layer, alpha):
     with torch.no_grad():
         with C.hooked(sub, probe):
             model(input_ids=ids, attention_mask=am, use_cache=False)
-        with C.hooked(sub, make_replace_hook(vecs, pos, alpha, "cuda")):
+        hook = (
+            C.make_inject_hook([v[None, :] for v in vecs], [[pos]] * len(vecs), alpha, "cuda", vecs.dtype)
+            if rule == "add"
+            else make_replace_hook(vecs, pos, alpha, "cuda")
+        )
+        with C.hooked(sub, hook):
             with C.hooked(sub, probe):
                 model(input_ids=ids, attention_mask=am, use_cache=False)
     clean, patched = seen[0], seen[1]
-    rel = ((patched - clean).norm(dim=-1) / clean.norm(dim=-1).clamp(min=1e-6)).tolist()
-    cos = torch.nn.functional.cosine_similarity(patched, vecs.float().cpu(), dim=-1).tolist()
-    return rel, cos
+    delta = patched - clean
+    rel = (delta.norm(dim=-1) / clean.norm(dim=-1).clamp(min=1e-6)).tolist()
+    v_cpu = vecs.float().cpu()
+    cos_delta = torch.nn.functional.cosine_similarity(delta, v_cpu, dim=-1).tolist()
+    cos_abs = torch.nn.functional.cosine_similarity(patched, v_cpu, dim=-1).tolist()
+    return rel, cos_delta, cos_abs
 
 
 def run(cfg, args):
@@ -306,8 +320,13 @@ def run(cfg, args):
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows_meta = C.read_jsonl(f"{src}/ids.jsonl")
     d = cfg["bases"][base]["d"]
-    v = C.read_array(f"{src}/vecs.f16", "float16", (len(rows_meta), d)).astype(np.float32)
-    dirs = torch.nn.functional.normalize(torch.from_numpy(v), dim=-1)
+    # No `--maemm` in this product either: the direction it patches in is whatever `--mu`
+    # names, and on a `storage: raw` set common.mu_for refuses to pick one for it.
+    cen_notes: list[str] = []
+    mu, _ = C.mu_for(cfg, base, src, args, "", root, cen_notes)
+    v = C.dirs_for(cfg, base, src, mu, root, cen_notes)
+    assert v.shape == (len(rows_meta), d), f"{src}: dirs_for returned {v.shape}"
+    dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)), dim=-1)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     for cell in cells:
         out = patchscopes_dir(base, set_name, cell_name(cell, tag, rule, alpha, prompt_id), root)
@@ -333,16 +352,33 @@ def run(cfg, args):
         t0 = time.time()
         check = None
         if cell is not None:
-            rel, cos = _patch_check(model, prompt, pos, dirs[sel[: min(4, len(sel))]].cuda(), cell, alpha)
-            check = {"rel_delta": [round(x, 4) for x in rel], "cos_to_v": [round(x, 4) for x in cos]}
+            rel, cos_d, cos_a = _patch_check(
+                model, prompt, pos, dirs[sel[: min(4, len(sel))]].cuda(), cell, alpha, rule
+            )
+            check = {
+                "rule": rule,
+                "rel_delta": [round(x, 4) for x in rel],
+                "cos_delta_to_v": [round(x, 4) for x in cos_d],
+                "cos_to_v": [round(x, 4) for x in cos_a],
+            }
             print(
-                f"[patchscopes] {name} PATCH CHECK ||dh||/||h|| {check['rel_delta']} "
-                f"cos(h_patched, v) {check['cos_to_v']}",
+                f"[patchscopes] {name} PATCH CHECK rule={rule} ||dh||/||h|| {check['rel_delta']} "
+                f"cos(dh, v) {check['cos_delta_to_v']} cos(h_patched, v) {check['cos_to_v']}",
                 flush=True,
             )
-            assert min(cos) > 0.99, (
-                f"{name}: the patched residual has cos {min(cos):.4f} with the direction it was "
-                f"REPLACED by -- expected ~1.0; the patch is not doing what it says"
+            # D8: the statistic has to match the rule. Under `replace` the residual IS the
+            # direction, so cos(h_patched, v) ~ 1 is the right gate. Under `add` it is not and
+            # never was: alpha = 2 on a near-orthogonal residual lands around 0.894, so the old
+            # gate would have failed a correct `add` run -- and it never fired, because the check
+            # silently ran the REPLACE hook whatever the flag said. What `add` can honestly claim
+            # is that what it ADDED is the direction (cos(dh, v) ~ 1) and that it moved the
+            # placeholder at all.
+            gate_cos, gate_name = (
+                (cos_d, "cos(dh, v)") if rule == "add" else (cos_a, "cos(h_patched, v)")
+            )
+            assert min(gate_cos) > 0.99, (
+                f"{name}: under rule {rule!r} the patch has {gate_name} = {min(gate_cos):.4f} with "
+                f"the direction -- expected ~1.0; the patch is not doing what it says"
             )
             assert min(rel) > 0.5, f"{name}: patch moved the placeholder by only {min(rel):.4f} of its norm"
 
@@ -354,7 +390,9 @@ def run(cfg, args):
             for s in range(0, n, gen_rows):
                 k = min(gen_rows, n - s)
                 seed = C.gen_seed_for(base_seed, sel[0], s, n)
-                new = _generate(model, tok, prompt, pos, torch.zeros(k, d), None, 0.0, rl, max_new, seed, rule)
+                new = _generate(
+                    model, tok, prompt, pos, torch.zeros(k, d), None, 0.0, rl, max_new, seed, rule
+                )
                 gen_tok += int(new.numel())
                 n_calls += 1
                 for g in new.tolist():
@@ -481,6 +519,7 @@ def run(cfg, args):
         # total to that point, not the cell's. The model load is charged to the FIRST cell, which is
         # where it is actually paid.
         with C.outdir(out, {**args, "t0": t0}, inputs=inputs) as od:
+            C.note_convention(od, cen_notes)
             od.write_jsonl("rollouts.jsonl", out_rows)
             od.write_json("rollouts.summary.json", summary)
             od.note(

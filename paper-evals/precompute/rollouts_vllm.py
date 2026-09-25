@@ -564,7 +564,14 @@ def run(cfg, args):
     min_new = int(rl["min_new"])
     inj_layer, coef = int(spec["inject"]["layer"]), float(spec["inject"]["coef"])
     gpu_mem = float(args.get("gpu_mem") or GPU_MEM_ROLLOUTS)
-    stem = C.rollout_stem(set_name, "vllm")
+    # --run-tag separates two runs of ONE checkpoint on ONE set that differ only in --mu; without
+    # it the second replaces the first's file outright (common.rollout_stem).
+    # `--rows` names ONE CHUNK of that product and gets a `__rows<spec>` suffix, so several chunks
+    # of one (set, engine, tag) sit side by side in the accumulating rollouts/ directory and
+    # `common.read_rollouts` gives `score` the union as a single product (common.rollout_chunk_stem).
+    stem = C.rollout_chunk_stem(
+        C.rollout_stem(set_name, "vllm", args.get("run_tag") or ""), args.get("rows", "")
+    )
 
     out_dir = C.rollouts_dir(maemm, root)
     path = f"{out_dir}/{stem}.jsonl"
@@ -577,7 +584,8 @@ def run(cfg, args):
     prompt, mpos = C.prompt_ids(tok, spec["prompt"], cfg["bases"][base]["read_layer"])
     assert mpos == len(prompt) - 1, f"the marker must be the LAST prompt token, got {mpos} of {len(prompt)}"
     stop = _eos_from_files(cfg, base, tok)
-    rows_meta, dirs, dirs_src = load_dirs(cfg, args, device="cpu")
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_src = load_dirs(cfg, args, device="cpu", notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
 
     llm, info, lora_req, adapter = _engine_for(cfg, args, base, maemm, len(prompt), max_new, gpu_mem)
@@ -721,7 +729,12 @@ def run(cfg, args):
         "n": n,
         "weight sha256": sha["sha256"],
     }
-    with C.outdir(out_dir, args, inputs=inputs, keep_existing=os.path.exists(out_dir)) as od:
+    # keep_existing unconditionally: `rollouts/` is an ACCUMULATING product and the additive
+    # write is what lets two jobs of one MAEMM run at once. Gating it on the directory
+    # already existing left the FIRST two concurrent writers on the old rename path, both
+    # staging in one dated temp dir (SMOKES.md:4349-4356).
+    with C.outdir(out_dir, args, inputs=inputs, keep_existing=True) as od:
+        C.note_convention(od, cen_notes)
         od.write_jsonl(f"{stem}.jsonl", out_rows)
         od.write_json(f"{stem}.summary.json", summary)
         od.note(
@@ -837,7 +850,7 @@ def _throughput(cfg, args, llm, info, lora_req, ctx):
     cliff = max(per_row) / max(min(per_row), 1e-9)
     out = f"{C.maemm_dir(ctx['maemm'], args['root'])}/throughput"
     inputs = {"maemm": ctx["maemm"], "engine": info, "levels": list(THROUGHPUT_LEVELS)}
-    with C.outdir(out, args, inputs=inputs, keep_existing=os.path.exists(out)) as od:
+    with C.outdir(out, args, inputs=inputs, keep_existing=True) as od:
         od.write_json(
             f"seqs-{seqs}.json",
             {

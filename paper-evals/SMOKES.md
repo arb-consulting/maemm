@@ -2771,3 +2771,2025 @@ the 2M side biases its corpus ratio DOWN, i.e. the MAEMM/NLA ratios are, if anyt
 Per-feature tables: `reconstruction/act_smoke.py --data <mirror>` output, kept in the session
 scratchpad (act_smoke-2m.md, act_smoke-131k.md); the 2M rows with peaks ≥ 8 (1635672, 1944579,
 stratum 3) are the only ones any generated text drives to the gate reliably.
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: the conventions layer
+
+CPU work first, then the §1.6 paid smoke, which WAS run (11 H200 calls, **$1.89**). Everything the
+smoke wrote went under a NEW set name and new tagged stems; `2026-09-16_v1` and every existing
+product were read and not modified, and nothing was deleted.
+
+| date | item | command | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-21 | unit smoke after the conventions layer | `uv run paper-evals/precompute/unit_smoke.py` | 2.6 s | $0 | **36/36 checks passed** (29 before; +6 for the layer, +1 for the spawn/main mirror) | — |
+| 2026-09-21 | mutation battery on the six new checks | four deliberate defects injected one at a time, smoke re-run | ~40 s | $0 | 4/4 caught, each by the check that owns it | see below |
+
+Mutations and what fired, so the checks are known to be capable of red:
+
+| mutation | check that failed | message |
+|---|---|---|
+| `dirs_for` subtracts mu from EVERY row, not only the centrable ones | `check_storage_contract` | `row 2 (random) under mu: max \|d\| 4.81e-02 -- a non-centrable row was treated as the other` |
+| the centred einsum drops `- mu` (one-sided cosine) | `check_two_cosines` | `cos_centred differs from the direct einsum` |
+| `sae_rows_of` ignores the row's `sae_key` | `check_sae_key_selector` | `sae_key filter picked [0, 1, 2, 4]; the 131k row must not be in it` |
+| the `storage: unit` mismatch assert is disabled | `check_unit_set_refuses` | `dirs_for served a 'storage: unit' set under the WRONG mean` |
+
+### The three refusals this layer adds, verbatim
+
+They are deliberate and they will be met. Each is reproducible on CPU with no volume mounted.
+
+**1. A checkpoint's mean does not match the set's stored one.** Met by
+`rollouts_* --maemm <rl-last16> --set 2026-09-16_v1`:
+
+```
+<root>/base/qwen36-27b/heldout/2026-09-16_v1 is `storage: unit` (config.yaml
+heldout.2026-09-16_v1) and its 'realact' rows are stored under
+<root>/base/qwen36-27b/stats/mu.f32, but this run asks for
+mu=/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy. A stored unit direction cannot be
+re-centred -- unit(act) and mu do not give unit(act - mu) without ||act||. Re-derive the set at
+`storage: raw` (`--product targets --re-derive <set>`), or run at the mean it was built with and
+say so.
+```
+
+*What it means*: `rl-last16` was trained on `whiten_mu`-centred input and `2026-09-16_v1` stores
+`stats/mu.f32`-centred directions with no `act.f32` to re-derive from. Before this layer the run
+went ahead and the mismatch was invisible. **Fix**: re-derive the set (`--re-derive`), or pass
+`--mu base/{base}/stats/mu.f32` and wear the DEVIATION line in the product README.
+
+**2. A `--dirs-from` directory states no storage contract.**
+
+```
+<root>/elsewhere carries no storage.json and 'elsewhere' is not a set declared in config.yaml, so
+nothing states whether its vecs.f16 is centred. Declare it under `heldout:` (storage / mu_stored /
+family_mu) or re-draw the set, which writes the contract itself.
+```
+
+*What it means*: nothing in that directory says whether its `vecs.f16` is raw or centred, and the
+two are the same bytes to a reader. **Fix**: declare it under `heldout:`, or re-draw it — any set
+`targets` writes carries its own `storage.json`.
+
+**3. A checkpoint declares `mu: unknown`.** Met by any product with
+`--maemm qwen36-27b/2026-09-10_rl-8x2048-full` and no `--mu`:
+
+```
+maemm 'qwen36-27b/2026-09-10_rl-8x2048-full' declares `mu: unknown`: its training convention is on
+the agenda and NOT on the record, so nothing here will pick one for it. Pass --mu explicitly (a
+path, or `none`) and the choice is recorded as a deviation in the product README. That is what the
+two-arm reconciliation in SMOKES.md settles.
+```
+
+*What it means*: the old primary's training convention is genuinely unsettled (see the note beside
+its config entry). **Fix**: pass `--mu none` or `--mu base/{base}/stats/mu.f32` — which is exactly
+the two-arm reconciliation the smoke below runs.
+
+### The §1.6 paid smoke — RUN 2026-09-21, **$1.89 total**
+
+11 H200 calls under a $5 target / $8 cap. Everything wrote under a NEW set name; `2026-09-16_v1`
+and every existing product were read and not modified.
+
+| step | product | wall | cost | outcome |
+|---|---|---|---|---|
+| — | `targets --re-derive` (1st try) | ~2 min | ~$0.25 est. | **FAILED**, my bug: see "the arity defect" below. Crashed before its own cost line |
+| 0 | `targets --re-derive 2026-09-16_v1 --set 2026-09-21_v1raw` | 155.8 s | $0.1964 | 1,536 rows, 45.3 MiB, all three re-derive checks passed |
+| 1 | `rollouts_hf` old primary `--mu none --run-tag mu-none` | 111.1 s | $0.1401 | 24 rollouts |
+| 2 | `rollouts_hf` old primary `--mu base/{base}/stats/mu.f32 --run-tag mu-stats` | 148.8 s | $0.1876 | 24 rollouts |
+| 3 | `rollouts_hf` `rl-last16` (config `mu:` = whiten_mu) | 160.0 s | $0.2018 | 24 rollouts |
+| 4 | `score` old primary, mu-none | 99.2 s | $0.1251 | no `cos_centred` (mu is none) |
+| 5 | `score` old primary, mu-stats | 78.7 s | $0.0992 | both cosines |
+| 6 | `score` `rl-last16` | 90.8 s | $0.1145 | both cosines |
+| 7 | `sae_self` `rl-last16`, normal path | 86.6 s | $0.1092 | 3/3 checks |
+| 8 | `rollouts_nla --amp exact` | 169.7 s | $0.2141 | writes the `--rollouts-dir` layout |
+| 9 | `score --rollouts-dir` (no `--maemm`) | 116.7 s | $0.1472 | **D11 prerequisite** |
+| 10 | `sae_self --rollouts-dir` (no `--maemm`) | 85.7 s | $0.1080 | **D11**, 3/3 checks |
+
+HF rather than vLLM deliberately: 24 rollouts do not repay a 27B vLLM engine init.
+
+**`targets --re-derive`, the migration.** $0.1964 / 155.8 s against the plan's measured basis of
+$0.1864 / 147.8 s. `re_derive.json` on the volume:
+
+| family | mean it was re-centred under | n | min cos vs the old `vecs.f16` |
+|---|---|---|---|
+| realact | `/vol/base/qwen36-27b/stats/mu.f32` | 512 | **0.99999917** |
+| random | none | 512 | 0.99999923 |
+| sae | none | 512 | 0.99999928 |
+
+1,536 rows; every field of `(family, id, stratum, doc, part, part_row, p, L, act_norm)` identical
+row for row; `span_text` identical except the **21 clamped rows**, each new text a suffix of the
+old. So it is the same draw re-forwarded, not a re-sample, and D4 is the only textual difference.
+Two recorded facts confirmed en route: 21/512 clamped (the review's predicted count) and
+cos(mu_512, stats/mu) = **0.9773** against observations §2's 0.977; `‖stats/mu‖` = 67.9.
+
+### The two old-primary arms — what settles `mu: unknown`
+
+Same rows, same scorer, same target (`cos` is against `unit(act)` for both, because on a raw set
+the uncentred cosine's target does not depend on `--mu`). The ONLY difference is which direction
+the checkpoint was handed at generation. realact rows 0-3, n = 4:
+
+| row | `--mu none` mean_cos | `--mu stats_mu` mean_cos | `--mu none` bo_4 | `--mu stats_mu` bo_4 |
+|---|---|---|---|---|
+| 0 | 0.8089 | **0.8899** | 0.8615 | **0.8949** |
+| 1 | 0.8127 | **0.8608** | 0.8379 | **0.9303** |
+| 2 | **0.9314** | 0.8855 | **0.9423** | 0.9397 |
+| 3 | 0.9509 | **0.9594** | 0.9720 | **0.9705** |
+| **mean** | 0.8760 | **0.8989** | 0.9034 | **0.9339** |
+
+**`stats_mu` wins**: +0.023 mean_cos, +0.030 bo_4, and on 3 of 4 rows. That is the direction the
+record already pointed (Celeste's original convention was a centred target) and against Tomáš's
+recollection. **n = 4 rows × 4 rollouts is far too small to declare it**, so `config.yaml` keeps
+`mu: unknown` and this table is the evidence for widening the arms before it is changed.
+
+Internal consistency: the two `sae` rows score identically across the arms (0.0056 / 0.0684 to
+4 dp) — an encoder column is not centrable, so both arms injected the same vector for them.
+
+**The plan's §1.6 gate 2 cannot be evaluated by this run, and not only because of size.** The
+stored 0.5076 is `cos(h, unit(act − stats_mu))` — target centred, scorer raw, Celeste's asymmetry.
+On a `storage: raw` set `score` produces `cos` (neither side centred) and `cos_centred` (both), and
+**not** that third, asymmetric statistic. So the historical number is not reproducible from a raw
+set by any flag combination. Either the gate is restated against `cos_centred`, or a legacy set is
+kept for it, or `score` grows a third column. Flagged, not decided.
+
+### `cos_centred`, first numbers
+
+Written only when the run centres on something, which is the intended behaviour: the `--mu none`
+and NLA directories carry no `cos_centred.f16` at all, and `rows.json` records the mu path.
+
+| arm | mu recorded in `rows.json` | realact mean of `mean_cos_centred` |
+|---|---|---|
+| old primary, stats_mu | `/vol/base/qwen36-27b/stats/mu.f32` | 0.7724 |
+| `rl-last16`, whiten_mu | `/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy` | 0.7518 |
+
+Every `sae` row is absent from the centred aggregates (`n_centred` unset), never a one-sided
+number — the NaN rule holding on real data.
+
+### `sae_self`, both paths
+
+| path | argmax agreement | cos vs stored, max abs | CSR value / membership mismatches | csr_checked |
+|---|---|---|---|---|
+| `rl-last16`, normal | 8/8 | 1.5e-05 | 0 / 0 | true |
+| NLA, `--rollouts-dir` (**D11**) | 8/8 | 1.0e-03 | 0 / 0 | true |
+
+Both on the 131k dictionary, rows 1024-1025, features 341 and 845, gate 1.5846. The D11 path was
+exercised on real data because `rollouts_nla --amp <non-default>` already writes
+`rollouts.jsonl` + `rollouts.summary.json` into a variant directory — exactly the `--rollouts-dir`
+layout — so no extra producer was needed. Feature 845 fires on 4/4 `rl-last16` rollouts
+(mean peak 2.93 against corpus peak 6.96) and 2/4 NLA texts; feature 341 (corpus peak 44.7) fires
+on neither.
+
+### The arity defect, and what it cost
+
+The first `targets --re-derive` died after a 148 s H200 forward with
+
+```
+ValueError: not enough values to unpack (expected 3, got 2)
+```
+
+`_realact` was given a third return value on this branch and its `return` statement was not
+updated. Nothing on CPU could see it — `targets.run` needs weights, a corpus and a GPU. ~$0.25,
+estimated from wall; the product crashed before its own cost line, and left a temp directory that
+the rerun cleaned up by itself. `unit_smoke.check_return_arities` now checks that class on CPU for
+the nine loaders this branch kept moving.
+
+A second defect surfaced the same way at step 2:
+
+```
+AssertionError: /vol/maemms/.../rollouts/2026-09-21_v1raw.jsonl already exists;
+refusing to overwrite without --force
+```
+
+`--run-tag` had been threaded through `rollouts_vllm`, `score` and `sae_self` but not
+`rollouts_hf`, whose stem IS the bare set name and which spelled the path directly instead of
+calling `rollout_stem`. Both old-primary arms therefore claimed one file, and only the
+pre-existing overwrite guard stood between the second and the first. Fixed there and in
+`rollouts_nla`'s matching branch.
+
+**Leftover to remove** (not deleted here; deletion was not in scope):
+`/vol/maemms/qwen36-27b/2026-09-10_rl-8x2048-full/rollouts/2026-09-21_v1raw.jsonl` +
+`.summary.json` — the first arm's output under the pre-fix untagged name. It is the `mu: none`
+arm, but its name does not say so; the tagged `…__mu-none.jsonl` beside it is the one to read.
+
+### Run-scale decisions recorded 2026-09-21 (Tomáš), for the runbooks that follow
+
+| eval | size | note |
+|---|---|---|
+| autointerp | **32 features per SAE** | `--n-feat 32`; down from the 256/128 of the 09-21 plan |
+| GCG/EPO | **16 directions** | `--rows` a 16-row slice; EPO measured ~870 s per 27B direction |
+| patchscopes | **Ari's implementation (7f3b511)** | do not write another one |
+| OOD | **1/4 of the design's size** | scales the design's ≈$88 accordingly |
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: the eval-1 frozen target blocks
+
+Five set directories built, **$0.131 total**, all of it the 2M draw. Everything wrote under a NEW
+set name; nothing on the volume was deleted, replaced or rewritten. `--product unit` inside the
+image (42/42, the image's own selfcheck) ran before the first launch, and `--product check` after
+the last.
+
+| date | item | command (abbreviated) | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-21 | unit smoke, local, after the v3 writers | `uv run paper-evals/precompute/unit_smoke.py` | 3.0 s | $0 | **43/43** (40 before; +3 for the recovery, the column reader and the set check) | — |
+| 2026-09-21 | mutation battery on the three new checks | six deliberate defects, one at a time | ~2 min | $0 | **6/6 caught**, each by the check that owns it | table below |
+| 2026-09-21 | `unit` in the image | `--product unit` | 21.8 s | ~$0 | 42/42 (before the set check landed) | — |
+| 2026-09-21 | `heldout_v3 --block realact` | `--product heldout_v3 --base qwen36-27b --block realact --set 2026-09-21_v3_realact` | 57.5 s | ~$0 | 512 rows, 15.3 MiB, raw; 0 solve fallbacks | 3 rows ambiguous — below |
+| 2026-09-21 | `heldout_v3 --block realact_long` | `… --block realact_long --set 2026-09-21_v3_realact_long` | 47.4 s | ~$0 | 512 rows, 5.1 MiB, `unit` + `family_mu: unknown` | — |
+| 2026-09-21 | `heldout_v3 --block subspace` | `… --block subspace --set 2026-09-21_v3_subspace` | 57.6 s | ~$0 | 1,024 rows (bsf 512 + jlens 512), 10.3 MiB, `dirs_only` | — |
+| 2026-09-21 | `heldout_v3 --block ctrl` | `… --block ctrl --set 2026-09-21_v3_ctrl --dirs-from …/2026-09-21_v1raw --rows 512-1535` | 5.5 s | ~$0 | 1,024 rows (random 512 + sae 512), 30.2 MiB, raw, each row carrying `src_set`/`src_row` | — |
+| 2026-09-21 | `draw_sae2m --sides enc,dec` | `--product draw_sae2m --sae qwen36-27b/sae2m --set 2026-09-21_v3_sae2m --n 512 --stratified --seed 20260921 --sides enc,dec --include <the 64>` | 103.7 s | **$0.1308** | 1,024 rows = 512 features × {enc, dec}, paired row for row; the 64 of `2026-09-21_sae2m_64` nested; 128 per stratum; 413 fit / 99 report | cuts IDENTICAL to the 64-draw's; eligible 99,882 = 99,946 − the 64 forced out of the pool |
+| 2026-09-21 | `check`, now opening the directories | `--product check --base qwen36-27b` | 24.0 s | ~$0 | all five v3 sets `ok`, plus `2026-09-16_v1` and `2026-09-21_v1raw`; `2026-09-21_sae2m_64` correctly `absent` (it lives under `/vol/tmp/sae-smoke64`) | — |
+| 2026-09-21 | her 512 through `infra/check_v2_targets_overlap.py` | a driver reusing its `analyse` primitives on her `pool_target_text` | ~1 min | ~$0 | **void, and reported as void** — see below | — |
+
+### U1, settled at $0: her `pool_act_norm` is `‖act‖`
+
+Numbers and the three readings are in `features/README.md`. Short form: her own pool mint
+statistic is 91.2669 against the 512's median 90.48; our layer-42 residual-norm quantiles are
+76.38 / 93.26 / 109.26 against her 75.21 / 90.48 / 105.67, where the other reading would put her
+MEDIAN activation above our 95th percentile; and a mu-orthogonal residual at ‖act‖ 90.48 has
+‖act−mu‖ 60.52 against the solve's 59.95. **Branch (a): raw recoverable, no re-forward, $0.**
+
+Read back off the bytes on the volume: `‖act.f32‖` vs her `pool_act_norm` **max |d| 2.4e-05**, and
+`unit(act.f32 − whiten_mu)` vs her shipped `direction` **min cos 1.0000000000** over all 512.
+
+**Rows 26, 32 and 360** have `pool_act_norm < ‖mu‖` and `mu·u < 0`, so both roots are positive and
+two raw activations meet the constraint. The larger is taken and the row is flagged
+`exact_ambiguous`. It cannot move anything read at her own mean; it can move `act.f32` itself.
+
+### The overlap run the brief asked for, and why its answer is not usable
+
+`infra/check_v2_targets_overlap.py` answers "is this span reproduced in her training text" by
+looking each span n-gram up in **our** corpus's distinct-n-gram table and then indexing the
+per-file masks by that key. For our own 512 that is free — their spans come from our corpus, and
+the script asserts `span_shingles_missing_interior_clean == 0`. For **her** 512 it is the
+question, and the answer is no: **13 of 9,303** of her span 13-grams (0.1397%) are in our key set,
+so a hit is barely reachable and a zero would mean "unmeasured", not "not reproduced". It flags
+one fully reproduced row (166), which is in Ari's 26 anyway.
+
+The instrument that does answer it for her block is Ari's `features/ngram_overlap.py --side hers`,
+which shingles her training parquets directly. Its output
+(`/vol/shared/ngram-overlap/hers_n7.exclude.json`) is the 26, coverage ≥ 0.05 at n=7, of which
+3 are fully covered (108, 166, 307). **Headline n = 486.**
+
+### The mutation battery
+
+| mutation | check that failed | message |
+|---|---|---|
+| `_columns` returns the ENCODER for the `dec` side | `check_sae_column_reader` | `the decoder side is not unit(W_dec[f]): max \|d\| 9.426e-01` |
+| `_columns` rescales the encoder side by 1+1e-7 | `check_sae_column_reader` | `the sliced encoder side is not bit-identical to load_sae's: max \|d\| 1.192e-07` |
+| `draw_sae2m` stops emitting `sae_side` | `check_sae_column_reader` | `draw_sae2m emits no sae_side field` |
+| `recover_raw` drops the fallback assert | `check_heldout_v3_recovery` | `‖act‖ != the stored norm: max \|d\| 1.384e+01` — the second guard catches it, which is why the check accepts either |
+| `recover_raw` drops BOTH guards | `check_heldout_v3_recovery` | `recover_raw accepted a row the solve cannot reach` |
+| `check_set_on_disk` stops reconciling the family counts | `check_set_on_disk` | `check accepted a set whose rows disagree with its config entry` |
+| `check_set_on_disk` stops requiring `act.f32` under a raw contract | `check_set_on_disk` | `check accepted a 'storage: raw' set with no act.f32` |
+
+### The `--include` side-column defect, found on eval 1's own command
+
+`draw_sae2m.build` drew the fit/report `side` column at `rng.random(n)` **after** the `--include`
+branch subtracts the forced count from `n`. `--n 512 --stratified --include <64 ids>` therefore
+built 448 labels for 512 features and `_finish`'s `side[i]` walked off the end. Nothing had run
+that combination before — the 64-set is the SOURCE of the include list, not a user of it. Fixed
+to `len(drawn)` with the assert beside it; the run above reports 413 + 99 = 512.
+
+**New on the volume, all new paths:** the five `base/qwen36-27b/heldout/2026-09-21_v3_*`
+directories, and `shared/eval1/2026-09-21_sae2m_64_feature_ids.txt` (the `--include` list, so the
+draw is reproducible from the volume rather than from a scratchpad).
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: EVAL 1 (faithfulness), the production run
+
+Every arm of plan §2.2 on the six `2026-09-21_v3_*` blocks. **39 GPU calls, $51.22**, plus ~$1.95
+sunk (below). Largest single call $6.53 against a $30 per-call cap; total against a $75 stage cap.
+Nothing on the volume was deleted, replaced or rewritten: every product is a new path, `--force`
+was never passed, and the two old-primary arms are kept side by side as the evidence they are.
+
+`--product unit` in the image ran green (44/44) before the first launch, per this file's own rule.
+
+### Step 0 — the "ours" sanity block, $0
+
+`heldout_v3 --block ours` (new) copied `2026-09-21_v1raw` rows 0-511 into
+`base/qwen36-27b/heldout/2026-09-21_v3_ours`: our own realact draw, the one every v1 table was
+built on, in the v3 layout. 512 rows, 15.2 MiB, `storage: raw`, CPU, $0. `check` opens all six v3
+sets `ok`.
+
+Verified against the source off the stored bytes, not from the run's own log: `act.f32` is
+**byte-identical** on all 512 rows (max |d| exactly 0.0), `src_row == row`, ids/doc/p match
+`2026-09-21_v1raw` row for row. `exclusions.json` freezes rows 38, 45, 101, 318, 393, 446 --
+**headline n = 506** -- recorded, not applied.
+
+### Estimate vs actual, per call
+
+Estimates were made from this file's own bases before each launch, as asked. The vLLM rollout
+basis is item 23 ($4.5046 / 98,304 rollouts); `score`'s was ambiguous and is resolved below.
+
+| call | product | set | rows x n | est $ | actual $ | wall |
+|---|---|---|---|---|---|---|
+| A1 | `rollouts_vllm` rl-last16 | `_realact` | 512 x 64 | 1.50 | **2.1051** | 1669.3 s |
+| A2 | `rollouts_vllm` rl-last16 | `_ours` | 512 x 64 | 2.10 | **2.0613** | 1634.5 s |
+| A3 | `rollouts_vllm` rl-last16 | `_realact_long` | 512 x 64 | 2.10 | **2.1883** | 1735.2 s |
+| A4 | `rollouts_vllm` rl-last16 | `_subspace` | 1024 x 64 | 3.90 | **3.8020** | 3014.8 s |
+| A5 | `rollouts_vllm` rl-last16 | `_ctrl` | 1024 x 64 | 3.90 | **3.0659** | 2431.1 s |
+| A6 | `rollouts_vllm` rl-last16 | `_sae2m` | 1024 x 64 | 3.90 | **3.0362** | 2407.5 s |
+| B1 | `rollouts_vllm` old, `--mu none` | `_realact` | 512 x 64 | 1.50 | **1.9727** | 1564.3 s |
+| B2 | `rollouts_vllm` old, `--mu stats` | `_realact` | 512 x 64 | 1.97 | **2.2150** | 1756.4 s |
+| B3 | `rollouts_vllm` old, `--mu none` | `_ours` | 512 x 64 | 1.97 | **1.8258** | 1447.8 s |
+| B4 | `rollouts_vllm` old, `--mu stats` | `_ours` | 512 x 64 | 1.97 | **2.0973** | 1663.1 s |
+| B5 | `rollouts_vllm` old, `--mu none` | `_ctrl` | 1024 x 64 | 3.90 | **2.6351** | 2089.5 s |
+| B6 | `rollouts_vllm` old, `--mu none` | `_sae2m` | 1024 x 64 | 3.90 | **2.6743** | 2120.6 s |
+| C1 | `rollouts_nla` | `_realact` | 512 x 4 | 0.45 | **1.7980** | 1425.7 s |
+| C2 | `rollouts_nla` | `_ctrl` | 1024 x 4 | 3.46 | **2.8509** | 2260.6 s |
+| C3 | `rollouts_nla` | `_sae2m` | 1024 x 4 | 2.85 | **2.6856** | 2129.5 s |
+| — | `score` x 14 | all | — | ~0.36 ea | **0.146 – 0.661** | 116 – 393 s |
+| — | `sae_self` x 6 | `_ctrl`, `_sae2m` | — | ~0.40 ea | **0.154 – 0.417** | 122 – 330 s |
+| D | `examples_docmax` 2M | `_sae2m` | 512 feat | 7.50 | **6.5295** | 5177.6 s |
+
+**The one estimate that was badly wrong was the NLA's**, by 4x on C1 ($0.45 est, $1.80 actual).
+The basis available was $0.3185 / 32 rollouts at 64 tokens, load-dominated; at 200 tokens and
+512 targets the generation dominates instead and the measured rate is **1.55 rollouts/s** (C1),
+rising to 2.04 (C2) and 1.92 (C3) as more targets amortise the load. Use ~1.9 rollouts/s, not the
+load-dominated datum, for any future NLA sizing. Everything else landed within ~30%, and the
+1024-target vLLM calls came in 22-32% UNDER estimate because the linear basis over-charges the
+engine init when it is amortised over twice the rollouts.
+
+**`score`'s two conflicting bases, resolved.** This file carried 195 rows/s (item 25, the full v1
+run) and 20.5 rows/s (the `sae_smoke64` runs). The first is right at production scale: A-score-realact
+did 32,768 rows in 281.8 s total, $0.3553, i.e. ~195 rows/s once the ~110 s model load is taken
+out. The `sae_smoke64` figure is a small-batch artefact (1,024 rows), not a property of the SAE:
+the 131k and 2M runs there were equally slow. **The 2M dictionary costs ~60% more than the 131k
+per row at scale** ($0.6403 vs $0.4138 on 65,536 rows), not 10x.
+
+### The summary table, for the results run to be checked against
+
+Read off the products with a scratch reader; nothing here is recomputed from rollouts. Exclusions
+APPLIED in this table (realact n = 486, ours n = 506); every other block is its full n. `bo64` is
+`bo_4` for the NLA arm, which has n = 4 and must never carry a bo64 column.
+
+## Cosines — mean (bo1) / bo8 / bo64, per source x set x family
+
+| source | set | family | n | mean cos_raw | bo8 raw | bo64 raw | mean cos_ctr | bo8 ctr | bo64 ctr |
+|---|---|---|---|---|---|---|---|---|---|
+| rl-last16 | realact | realact | 486 | 0.8860 | 0.9168 | 0.9301 | 0.7590 |   --   |   --   |
+| rl-last16 | ours | realact | 506 | 0.8884 | 0.9197 | 0.9330 | 0.7668 |   --   |   --   |
+| rl-last16 | realact_long | realact_long | 512 | 0.4360 | 0.4856 | 0.5094 | 0.6991 |   --   |   --   |
+| rl-last16 | subspace | bsf | 512 | 0.3177 | 0.3552 | 0.3778 |   --   |   --   |   --   |
+| rl-last16 | subspace | jlens | 512 | 0.1058 | 0.1197 | 0.1293 |   --   |   --   |   --   |
+| rl-last16 | ctrl | random | 512 | 0.0338 | 0.0412 | 0.0464 |   --   |   --   |   --   |
+| rl-last16 | ctrl | sae | 512 | 0.1136 | 0.1374 | 0.1532 |   --   |   --   |   --   |
+| rl-last16 | sae2m | sae | 1024 | 0.0584 | 0.0699 | 0.0783 |   --   |   --   |   --   |
+| old mu-none | realact | realact | 486 | 0.8830 | 0.9142 | 0.9278 |   --   |   --   |   --   |
+| old mu-none | ours | realact | 506 | 0.8870 | 0.9162 | 0.9294 |   --   |   --   |   --   |
+| old mu-none | ctrl | random | 512 | 0.0280 | 0.0365 | 0.0427 |   --   |   --   |   --   |
+| old mu-none | ctrl | sae | 512 | 0.1299 | 0.1554 | 0.1720 |   --   |   --   |   --   |
+| old mu-none | sae2m | sae | 1024 | 0.0545 | 0.0670 | 0.0757 |   --   |   --   |   --   |
+| old mu-stats | realact | realact | 486 | 0.8881 | 0.9188 | 0.9322 | 0.7713 |   --   |   --   |
+| old mu-stats | ours | realact | 506 | 0.8905 | 0.9221 | 0.9344 | 0.7768 |   --   |   --   |
+| NLA n=4 | realact | realact | 486 | 0.8075 |   --   | 0.8424 |   --   |   --   |   --   |
+| NLA n=4 | ctrl | random | 512 | 0.0308 |   --   | 0.0351 |   --   |   --   |   --   |
+| NLA n=4 | ctrl | sae | 512 | 0.0879 |   --   | 0.1043 |   --   |   --   |   --   |
+| NLA n=4 | sae2m | sae | 1024 | 0.0516 |   --   | 0.0589 |   --   |   --   |   --   |
+
+## SAE — median peak/corpus_peak and median fire fraction (sae_self)
+
+
+| source | dictionary | features | med bo1 ratio | med bo_n ratio | med fire frac | features firing |
+|---|---|---|---|---|---|---|
+| rl-last16 | 131k l42-1b | 512 | 0.719 | 0.958 | 1.000 | 0.932 |
+| rl-last16 | 2M sae2m | 512 | 0.239 | 0.544 | 0.047 | 0.777 |
+| old mu-none | 131k l42-1b | 512 | 0.803 | 1.032 | 1.000 | 0.943 |
+| old mu-none | 2M sae2m | 512 | 0.095 | 0.403 | 0.000 | 0.402 |
+| NLA n=4 | 131k l42-1b | 512 | 0.505 | 0.619 | 1.000 | 0.799 |
+| NLA n=4 | 2M sae2m | 512 | 0.233 | 0.325 | 0.000 | 0.246 |
+
+`med bo1 ratio` is the median over features of `mean_peak_act / corpus_peak`, `med bo_n ratio` of
+`max_peak_act / corpus_peak` (n = 64, or 4 for NLA), `corpus_peak` being our 16M `max_act.f16` --
+never her 1B peak. `med fire frac` is the median over features of the fraction of that source's
+own rollouts in which the target feature clears the gate 1.682812; `features firing` is the share
+of features that fire at all.
+
+**Cross-check against `sae_smoke64` (64 features, n = 16, a different draw).** 2M bo1: rl-last16
+0.239 here vs 0.233 there; old primary 0.095 vs 0.102; NLA 0.233 vs 0.242. 131k bo1: rl-last16
+0.719 vs 0.76; old primary 0.803 vs 0.83; NLA 0.505 vs 0.51. The 512-feature run reproduces the
+64-feature smoke on all six cells. The structural claim reproduces too: every generated source
+sits at a third to a half of the corpus peak on the 2M dictionary and at 0.6-1.0 on the 131k one,
+and rl-last16 beats the old primary on the 2M SAE while trailing it on the 131k.
+
+### What the cosine table says
+
+The three realact arms are within 0.005 of each other on her block and on ours -- rl-last16
+0.8860 / 0.8884, old primary at its winning mean 0.8881 / 0.8905, i.e. the two checkpoints are
+not separated by this statistic at n = 486. The NLA arm sits ~0.08 below them at 0.8075. The
+controls behave: `random` 0.028-0.034, `jlens` 0.106, `bsf` 0.318, the 2M dictionary rows 0.052-0.058.
+
+`realact_long` is the one striking row: **cos_raw 0.4360 but cos_centred 0.6991**, the only family
+where the centred number is far ABOVE the raw one. That is the `family_mu: unknown` block being
+read at `whiten_mu` -- the mean those rows carry is `mu_long` and nobody holds the file, so the
+centred column there is "centred on a mean that is not the rows' own" and is a labelled number,
+not a comparable one. It is in the product README, and the results run must not put it in a
+column beside the realact centred numbers without that label.
+
+### The old primary's `mu`, SETTLED
+
+Two arms, same rows (`2026-09-21_v3_realact`), same scorer, n = 486 x 64 rollouts:
+
+| statistic | `--mu none` | `--mu stats_mu` | delta | 95% CI, doc-clustered bootstrap (10k) | rows won |
+|---|---|---|---|---|---|
+| mean_cos | 0.8830 | **0.8881** | +0.0051 | [+0.0030, +0.0072] | 322/486 (66.3%) |
+| bo_8 | 0.9142 | **0.9188** | +0.0046 | [+0.0030, +0.0062] | 324/486 (66.7%) |
+| bo_64 | 0.9278 | **0.9322** | +0.0044 | [+0.0026, +0.0061] | 334/486 (68.7%) |
+
+`stats_mu` wins on every statistic and on two thirds of rows individually; the paired bootstrap
+over the 425 distinct documents (61 of the 486 rows share one) excludes zero in all three.
+`config.yaml` now declares `mu: base/{base}/stats/mu.f32`, replacing `unknown`. Run tags
+`mu-none` / `mu-stats`; both arms stay on the volume.
+
+The effect is SMALL (~0.005 cosine) and that is part of the finding. The §1.6 smoke's n = 4 x 4
+table read +0.023 and 3-of-4 rows; at n = 486 x 64 the SIGN holds and the SIZE does not. It also
+confirms the record (Celeste's original convention was a centred target) against the eval plan's
+§1.1/§2.2 `none`, which came from a recollection.
+
+Still NOT evaluated: the plan's reproduction gate ("cos_raw within 0.01 of 0.5076"). Unchanged
+from the §1.6 note -- the stored 0.5076 is the asymmetric `cos(h, unit(act - stats_mu))`, which
+`score` does not produce from a raw set under any flag combination.
+
+### Search baseline: `interim-16M`, because Ari's 10M corpus has never been scanned
+
+Inspected read-only. `base/qwen36-27b/corpora/train_parity_10m/` EXISTS -- 10,004,614 tokens,
+11,809 documents, ladder [1.25, 2.5, 5, 10], window 32/8 -- and carries only `tokens.i32`,
+`meta.json`, `docs.jsonl`, `README.md`. **There is no scan over it:** `base/qwen36-27b/scan/` holds
+only `2026-09-16_v1`, `2026-09-18_ood_v1`, `2026-09-20_sae2m_2k`, none corpus-suffixed, and neither
+`sae/*/examples/` nor `examples_docmax/` has a `__train_parity_10m` directory. So nothing under the
+`celeste-train10m` key is consumable by `sae_self` or `score`, and the question of layout does not
+arise.
+
+**And it could not be produced in this stage even if wanted**: `common.assert_corpus_geometry`
+REFUSES that corpus, because it declares 32/8 while the pipeline cuts 64/16 at all eleven
+`windows_of` sites (H7, declared and deliberately not threaded). **So the corpus-geometry threading
+IS needed for the plan's §2.4 search baseline** -- saying so, as the brief asked, rather than
+threading it here.
+
+The interim row instead, labelled `interim-16M` and NOT comparable to a training-split number:
+
+* **131k**: the existing `sae/l42-1b/examples_docmax/2026-09-16_v1` covers **512 / 512** of
+  `_ctrl`'s sae feature ids (checked against its `tested.json`). $0, no run.
+* **2M**: nothing existed for the 512-feature set, so `examples_docmax` was run once --
+  18,813 docs, 512 features, 5177.6 s, **$6.5295**, against the $6.46 / 5,123 s of the 64-feature
+  run. The corpus forward dominates and 8x the features cost ~1%, as predicted.
+
+### Product paths, for the results run
+
+    <RL16> = maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    <OLD>  = maemms/qwen36-27b/2026-09-10_rl-8x2048-full
+    <NLA>  = maemms/qwen36-27b/2026-07-14_nla-av
+
+| arm | rollouts | scores | sae_self |
+|---|---|---|---|
+| rl-last16, all six sets | `<RL16>/rollouts/2026-09-21_v3_<blk>__vllm.jsonl` | `<RL16>/scores/2026-09-21_v3_<blk>__vllm/` | `_ctrl`, `_sae2m` only |
+| old primary, `mu-none` | `<OLD>/rollouts/2026-09-21_v3_<blk>__vllm__mu-none.jsonl` | `<OLD>/scores/2026-09-21_v3_<blk>__mu-none__vllm/` | `_ctrl`, `_sae2m` |
+| old primary, `mu-stats` | `…__mu-stats.jsonl`, `_realact` + `_ours` only | `…__mu-stats__vllm/` | — |
+| NLA, n = 4 | `<NLA>/rollouts/2026-09-21_v3_<blk>.jsonl` | `<NLA>/scores/2026-09-21_v3_<blk>/` | `_ctrl`, `_sae2m` |
+| search, interim-16M | — | `base/qwen36-27b/sae/l42-1b/examples_docmax/2026-09-16_v1/` (131k) and `base/qwen36-27b/sae/sae2m/examples_docmax/2026-09-21_v3_sae2m/` (2M) | — |
+
+`<blk>` is one of `realact ours realact_long subspace ctrl sae2m`. n = 64 everywhere but the NLA
+arm's 4. `sae_self` lives under each scores directory as `sae_self/sae_self.json`.
+
+### Three things the results run must not get wrong
+
+1. **`per_target.jsonl` has NO centred best-of-k.** It carries `mean_cos_centred`,
+   `max_cos_centred` and `n_centred` only -- there is no `bo_8_centred` / `bo_64_centred`, so the
+   centred bo-k columns of plan §2.3 have to come from `cos_centred.f16` directly
+   (`common.best_of_k_means` over the [N, n, T] max per rollout). The raw cosine has the full
+   `bo_1..bo_64` ladder.
+2. **`sae_self` measured only the ENCODER half of `_sae2m`.** `sae_rows_of(..., side="enc")` at
+   `sae_self.py:124` filters the 1,024 rows to the 512 `sae_side: enc` ones, so rows 512-1023 (the
+   decoder side) have COSINES from `score` but no activation metric. Plan §2.3 wants them
+   ("the activation of feature `f` is its encoder readout whichever direction was injected") and
+   the card's 0.416 dec gate needs them. NOT fixed here -- `side=` is a shared selector used by
+   `build`, `scan` and `repo_examples` too, and changing it late, against a schema the results run
+   is being written to, is a worse risk than naming it. Cost to close: one flag plus ~$0.4 x 3.
+3. **`realact_long`'s centred column is read at the wrong mean** (see above) and `_subspace` /
+   `_ctrl` / `_sae2m` have no centred column at all, by the NaN rule -- non-centrable families are
+   absent from the centred aggregates, never a one-sided number.
+
+### Deviations from the brief, and what pays for each
+
+1. **`rl-last16` ran on vLLM, not HF.** The brief called HF the proven path. At this scale it is
+   not affordable: the measured 27B HF rate is 5.33 rollouts/s (this file's engine-choice table),
+   so rl-last16's 294,912 rollouts would be ~15.4 h and **~$70** on HF against the **$16.25** the
+   six vLLM calls actually cost. vLLM is the same served-weights path the old primary's existing
+   v1 products came from, and the marker and injection checks ran on every call (`cos` 0.999991,
+   `norm_ratio` 0.999891 on A1). The brief's own "HF is fine if cheaper" clause, answered: it is
+   4x more expensive, so vLLM for both.
+2. **The old primary's second arm was NOT run on `_ctrl` and `_sae2m`.** The brief asked for two
+   arms there. It would be a bit-identical duplicate: both families of `_ctrl` are
+   `centrable: false`, `_sae2m` is `dirs_only`, and `dirs_for` subtracts a mean from centrable
+   rows only. VERIFIED on the real bytes, not argued -- `_ctrl`'s own `act.f32` and
+   `stats/mu.f32` off the volume, 1,024 rows, `--mu none` vs `--mu stats_mu`: **bit-identical,
+   max |d| exactly 0.0, 0 of 1024 rows centrable.** The §1.6 smoke saw the same thing in its
+   scores. Saved ~$8.2; the `mu-none` products ARE the `mu-stats` products for those rows.
+3. **`examples_docmax` is a step-4 cost, not a step-3 one.** The brief put the 16M corpus peaks
+   under step 3, from `examples_docmax`. `sae_self` does not read that product -- it takes
+   `corpus_peak` from `sae/<sae>/max_act.f16` (`sae_self.py:383`), which is full-dictionary
+   (2,097,152 entries for sae2m, confirmed in its `index.json`) and was already on the volume for
+   both dictionaries. So no docmax was needed for the ratios; it was run for the SEARCH row.
+
+### Sunk cost, ~$1.95, and the two failures behind it
+
+**~$1.45 -- three H200 containers killed by a local network drop, `--detach` notwithstanding.**
+A1/B1/C1 were launched with `modal run --detach` under `setsid`. A host network outage killed the
+local clients (`TimeoutError: [Errno 110] Connect call failed ('54.80.13.45', 443)`) and Modal then
+cancelled the in-flight inputs ~60 s later -- `Received a cancellation signal while processing
+input`, `Aborting 31460 requests`, engines torn down mid-generation. Both vLLM engines had just
+finished a 270-313 s init. **This is README.md:1004's warning reproduced with `--detach` ON: the
+flag keeps the APP alive, it does not keep the INPUT alive when the client process dies.**
+Nothing partial landed (temp-and-rename), no product directory was touched, and the three calls
+were relaunched cleanly.
+
+Fixed for the rest of the stage by moving the retry OUT of the modal client, into bash: the
+launcher re-runs a call that died on a client-side network error, up to 3 times, and STOPS loudly
+on anything else. Retrying is safe because `OutDir` refuses to overwrite an existing product
+without `--force`, so a retry after a run that actually finished fails on "already exists" (which
+the launcher detects and does not retry) rather than destroying it. The launcher was self-tested
+on a deliberate bad argument before use -- one attempt, loud stop, no container started -- which
+caught a real bug in its first version (variables did not survive into the `setsid` subshell).
+
+**~$0.50 -- one `sae_self` killed after its forward by the f16-vs-fp32 gate assert.** Its own
+section and commit; the fix is `check_csr_gate_floor` and the rerun cost $0.3776.
+
+### Local checks
+
+`uv run paper-evals/precompute/unit_smoke.py` -- **45/45** (43 at the start of this stage; +1 for
+the `ours` block, +1 for the CSR gate floor), and `nla-selftest` 5 -> 6. Mutation batteries run
+on every check added: 5/5 on `check_heldout_v3_ours_block`, 3/3 on `_selftest_amp_storage`,
+3/3 on `check_csr_gate_floor` -- the last including the original `> gate`, which reproduces the
+production failure on CPU.
+## 2026-09-21 — branch `evals/pipeline-results`: `results/`, the paper's results driver
+
+Local, CPU, no GPU, **$0**. Nothing was written to the volume: every `modal volume` call in this
+section is `ls` or `get`. Built on `evals/pipeline` at 64f6c28; no file outside `paper-evals/results/`
+was touched except this section and a pointer in `README.md`.
+
+```
+uv run paper-evals/results/selftest.py                          # no volume, no network
+
+cd /home/gavento/dev/mimir/2026-09-maemms
+(set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; cd repo-maemm/paper-evals; \
+ uv run results/faithfulness.py --set 2026-09-21_v1raw)
+(set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; cd repo-maemm/paper-evals; \
+ uv run results/faithfulness.py --set 2026-09-21_sae2m_64 --root tmp/sae-smoke64 --out results/out/sae64)
+```
+
+| date | item | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|
+| 2026-09-21 | `results/selftest.py` | 1.3 s | $0 | **11/11 checks passed** | — |
+| 2026-09-21 | mutation battery on those checks | ~5 min | $0 | 18 deliberate defects, **18/18 caught** — 2 of them only after the check that should have owned them was strengthened | see below |
+| 2026-09-21 | `faithfulness --set 2026-09-21_v1raw` (cold mirror) | 121 s | $0 | 4 sources, 6 cosine rows, 4 SAE rows, 3 figures; 0.44 MB fetched | the NLA arm lives under `variants/`, not `scores/` — see below |
+| 2026-09-21 | `faithfulness --set 2026-09-21_sae2m_64 --root tmp/sae-smoke64` (cold) | 105 s | $0 | 3 sources, 0 cosine rows, **15 SAE rows** (3 sources x all + 4 strata), 1 figure | reproduces `sae_smoke64.md` — see below |
+| 2026-09-21 | `--set 2026-09-21_v1raw --no-fetch` off the warm mirror | 1 s | $0 | `tables.md` identical to the online run except its own `command:` line (`diff` = 1 line) | — |
+
+### What the driver produced on the six-row smoke (`2026-09-21_v1raw`)
+
+Four arms, discovered from `config.yaml`'s `maemms:` against the volume, with the `--run-tag` as a
+first-class axis: the old primary's `mu-none` and `mu-stats` are two sources and the NLA
+`amp-exact` variant is a third checkpoint's.
+
+| source | run tag | n | rows | docs | cosine | bo1 | bo_n |
+|---|---|---|---|---|---|---|---|
+| 2026-07-14_nla-av | amp-exact | 4 | 4 | 4 | cos_raw | 0.7472 ± 0.0187 | 0.7668 ± 0.0191 (k=4) |
+| 2026-09-10_rl-8x2048-full | mu-none | 4 | 4 | 4 | cos_raw | 0.8760 ± 0.0322 | 0.9034 ± 0.0273 (k=4) |
+| 2026-09-10_rl-8x2048-full | mu-stats | 4 | 4 | 4 | cos_centred | 0.7724 ± 0.0426 | 0.8421 ± 0.0376 (k=4) |
+| 2026-09-10_rl-8x2048-full | mu-stats | 4 | 4 | 4 | cos_raw | 0.8989 ± 0.0183 | 0.9339 ± 0.0132 (k=4) |
+| 2026-09-18_rl-last16-lr5e-7 | — | 4 | 4 | 4 | cos_centred | 0.7518 ± 0.0302 | 0.7775 ± 0.0291 (k=4) |
+| 2026-09-18_rl-last16-lr5e-7 | — | 4 | 4 | 4 | cos_raw | 0.8833 ± 0.0163 | 0.8967 ± 0.0162 (k=4) |
+
+bo8 and bo64 are an em dash on every row: the smoke ran at n = 4 and `score` writes no `bo_8`
+above n. The `±` is a bootstrap over document clusters; these four rows are four documents, so on
+THIS set it is the ordinary bootstrap and the clustering is exercised only by the selftest.
+
+SAE side (131k, rows 1024-1025, both in stratum 0), against our 16M `corpus_peak`:
+
+| source | run tag | stratum | features | n | bo1 med | item fired | feat firing |
+|---|---|---|---|---|---|---|---|
+| 2026-07-14_nla-av | amp-exact | all / 0 | 2 | 4 | 0.1367 | 0.2500 | 0.5000 |
+| 2026-09-18_rl-last16-lr5e-7 | — | all / 0 | 2 | 4 | 0.2105 | 0.5000 | 0.5000 |
+
+Consistent with the §1.6 smoke's own record: feature 845 fires on 4/4 `rl-last16` rollouts and on
+2/4 NLA texts, feature 341 on neither — which is `feat firing` 0.5 on both and `item fired`
+0.5 / 0.25.
+
+**The cross-set gate reconciles the re-derive against `2026-09-16_v1`.** On the two `sae` rows
+the two sets share, the old primary reads `cos_raw` bo1 **0.0370** here (HF, n = 4, `--mu none`)
+against **0.0313** in its existing vLLM product on `2026-09-16_v1` (n = 64) — a difference of
+0.0057, inside the 0.01 the gate states. That comparison is valid for `sae` and only for `sae`:
+the family is not centrable, so both sets store the identical `unit(W_enc[:, f])`. The `realact`
+pair is written `compare: false` and prints both numbers with NO verdict, because `2026-09-16_v1`
+is `storage: unit` with its realact rows already centred on `stats/mu.f32` — its `cos` has a
+centred target and a raw scorer, which a raw set's `cos` is not. A tolerance there would assert a
+comparability that does not exist, which is the same conclusion this file reached on 09-21 about
+the plan's gate 2.
+
+**Five more gates reproduce this file's own 2026-09-21 numbers to 4 dp** — `mu-none` mean_cos
+0.8760, `mu-stats` 0.8989, their bo_4 0.9034 / 0.9339, and `rl-last16`'s mean centred cos 0.7518 —
+computed here by a different path (aggregate over `per_target.jsonl`) from the one that wrote
+them. Celeste's card gate passes at 0.7775 against 0.780 (tol 0.05) on four rows, which is a
+coincidence of scale and not evidence; it is recorded because the gate RAN.
+
+### The 64-feature smoke root reproduces `sae_smoke64.md`
+
+`--root tmp/sae-smoke64 --set 2026-09-21_sae2m_64`, a completely different code path from
+`reconstruction/sae_smoke64.py` (which reads a hand-made mirror through its own `SPECS` table):
+
+| source | n | bo1 med (theirs) | bo1 med (here) | item fired (theirs) | item fired (here) | feat firing (theirs) | (here) |
+|---|---|---|---|---|---|---|---|
+| rl-last16 | 16 | 0.233 | **0.2334** | 0.220 | **0.2197** | 0.547 | **0.5469** |
+| old primary | 16 | 0.102 | **0.1019** | 0.130 | **0.1299** | 0.250 | **0.2500** |
+| NLA | 4 | 0.242 | **0.2423** | 0.121 | **0.1211** | 0.234 | **0.2344** |
+
+Per stratum too: `sae_smoke64.md`'s `primary q0` 0.036 / 0.079 and `primary q1` 0.111 / 0.103
+(bo1 median / bo1 mean) come back 0.0359 / 0.0789 and 0.1106 / 0.1029. The one deliberate
+difference is the bo-k grid — this driver reports the plan's 1 / 8 / 64 where that smoke reports
+1 / 4 / 16 — so `bo8` here (rl-last16 0.4203) sits between its bo4 0.387 and bo16 0.483.
+
+### Two findings from running it
+
+**1. The reader check was red for the wrong reason, and the tolerance was mine.** The first
+version compared our recomputation from `sae_self.f16` with `sae_self.json`'s own `per_target`
+under a fixed ABSOLUTE tolerance of 5e-3. On the 2M products that reported 3 mismatches (worst
+0.0077) on products `sae_smoke64.py` had already read as clean. It was right and I was wrong:
+`autointerp/sae_self.py` reduces a float32 buffer and casts to f16 only on the way out, so a
+reader with nothing but the f16 file lands up to one f16 ulp away — a RELATIVE bound. Adopting
+`sae_smoke64.py`'s `F16_EPS * max(|a|, |b|) + 2 * ROUND_EPS` verbatim: **0 mismatches on all six
+products of the two roots**, worst excess −0.0002 (i.e. every comparison inside its own
+tolerance). An absolute bound is wrong wherever the quantity is not a cosine.
+
+**2. The NLA arm is under `variants/`, not `scores/`.** `rollouts_nla --amp <non-default>` and
+`score --rollouts-dir` write to `maemms/<m>/variants/<set>__<variant>/scores/`, so the first
+version of the discovery reported `2026-07-14_nla-av` as having no products for the set while its
+`amp-exact` arm sat beside the ones it did find. `variants/` is now a second parent in the same
+discovery loop, with the variant as the run tag — the same axis, not a second code path. Worth
+remembering for the plan's §2.5 step 4 (the oracle `score --rollouts-dir`): it will appear
+automatically, named after its variant directory.
+
+### The mutation battery
+
+Each defect injected alone into `results/common.py` or `results/faithfulness.py`, the selftest
+re-run, the file restored.
+
+| mutation | caught by |
+|---|---|
+| `cluster_bootstrap` gives every item its own cluster | `check_cluster_bootstrap` |
+| `family_of` ignores the row's own `sae_key` | `check_round_trip` |
+| `discover_sources` includes `compute: false` entries | `check_missing_sources_are_listed_not_zeroed` |
+| `parse_scores_dir` accepts any name prefixed by the set | `check_parse_scores_dir` |
+| the SAE ratio divides by the gate, not the corpus peak | `check_round_trip` |
+| the centred cosine is read from the raw `bo_` columns | `check_round_trip` |
+| `peaks_of` treats an empty rollout as missing, not as 0 | `check_estimators` |
+| the cosine table prints the iid SE under the clustered heading | `check_round_trip` * |
+| `_clusters_for` clusters on the row instead of `doc` | `check_round_trip` |
+| `best_of_k_means` does not skip a k above n | `check_estimators` * |
+| `render` puts a cosine column into the SAE table | `check_render_and_figures` |
+| `sae_cells` ignores the stratum | `check_round_trip` |
+| a missing source is dropped instead of listed | `check_missing_sources_are_listed_not_zeroed` |
+| a stored `mean_cos` corrupted on disk (the reader check's own red) | `check_reader_check_catches_a_defect` |
+| a stored `max_peak_act` corrupted on disk | `check_reader_check_catches_a_defect` |
+| `cross_set` compares each side's own rows instead of the shared ones | `check_cross_set_gate` |
+| `cross_set` ignores the family filter | `check_cross_set_gate` |
+| `cross_set` accepts an activation metric it cannot resolve | `check_cross_set_gate` |
+
+`*` **two mutations SURVIVED the first battery** and the checks were strengthened rather than the
+result accepted: nothing asserted that the SE reaching the table was the clustered one (now pinned
+against an independently computed cluster bootstrap AND required to differ from the row-level
+number), and `assert 8 not in bo` passed under a clamping mutation that reassigned `k` before the
+write (now `sorted(bo) == [1, 2, 4]`, and the mutation is the honest one — removing the skip,
+which divides by zero).
+
+---
+
+## 2026-09-21 — branch `evals/pipeline-autointerp`: eval 2, the 32-feature autointerp pilot
+
+Six runs, two SAEs, three checkpoints each, Delphi detection + fuzzing. **GPU $2.04 measured
+(+ ≈$0.25 on one failed launch), API $20.4145**, against caps of $30 and $30. Everything wrote
+under `--root /vol/tmp/sae-smoke64` or under new set-keyed paths; **nothing on the volume was
+deleted, replaced or rewritten**, and the 83 files copied in are listed below with their sources.
+Gates before the first launch: `uv run paper-evals/precompute/unit_smoke.py` **45/45** and
+`uv run paper-evals/autointerp/selfcheck.py` **ALL CHECKS PASSED** — the latter had been RED on
+`evals/pipeline` at cd243de and is fixed in 51292a1.
+
+### Inputs, and the 83 files copied to make one root answer everything
+
+The 2M block's inputs were all at the smoke root already except two products `build` requires and
+that dictionary has never had; they were RUN. The 131k block's rollout products are at the smoke
+root while its corpus products are canonical, and `--root` is one value, so the 32-feature SLICE
+of the canonical products was copied in (`scratchpad/copy131k.py`, destinations verified absent,
+a `SLICE.md` in each sliced directory naming the 32 features it holds):
+
+```
+base/qwen36-27b/sae/l42-1b/{examples_docmax,examples_4m}/2026-09-16_v1/  35 files each (32 + tested/index/README)
+base/qwen36-27b/sae/l42-1b/random_pool/2026-09-16_v1/                     8 files
+maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/2026-09-16_v1__vllm/sae_self/  5 files
+        -> the same paths under tmp/sae-smoke64/
+```
+
+### The draw — `draw_features(sae_rows, n_feat=32, seed=20260921)`, 8 per density stratum
+
+**2M**, set `2026-09-21_sae2m_64`, rows `1,3,5,6,8,9,10,13,17,19,20,21,23,30,31,32,33,34,37,38,40,42,45,47,50,52,55,56,57,58,59,60`:
+```
+96012 125750 219456 387529 427438 471848 531516 631801 732964 825992 898212 912063 930951
+1150700 1150755 1160272 1170780 1186060 1241761 1300516 1318364 1385405 1599955 1680734
+1800508 1828701 1864635 1868670 1881904 1940348 1943551 2067892
+```
+**131k**, set `2026-09-16_v1`, drawn from the 64 rows `sae_smoke64.md:15` scored, rows
+`1030,1037,1048,1053,1065,1076,1079,1140,1173,1204,1216,1220,1259,1263,1264,1266,1285,1315,1349,1352,1369,1371,1380,1384,1435,1453,1475,1478,1481,1486,1510,1515`:
+```
+5585 14756 31805 35073 48930 59176 60809 124524 30010 63311 73133 77653 104784 111248 111835
+117145 8954 39522 74515 78781 91751 92633 102208 109363 28280 42890 63883 65629 66908 73531
+101555 107846
+```
+
+### Commands
+
+```
+# the two 2M products `build` requires and the 2M dictionary had never had
+modal run --detach autointerp/modal_app.py --stage random_pool  --base qwen36-27b \
+    --sae qwen36-27b/sae2m --set 2026-09-21_sae2m_64 --root /vol/tmp/sae-smoke64
+modal run --detach autointerp/modal_app.py --stage examples_4m  --base qwen36-27b \
+    --sae qwen36-27b/sae2m --set 2026-09-21_sae2m_64 --root /vol/tmp/sae-smoke64
+
+# six builds (CPU, $0). --rows is the 32-row list above; --arms is DOCMAX,M or DOCMAX,NLA
+modal run autointerp/modal_app.py --stage build --base qwen36-27b --sae <SAE> --set <SET> \
+    --maemm <CKPT> --engine <hf|vllm> --root /vol/tmp/sae-smoke64 --rows <32 rows> \
+    --arms <DOCMAX,M|DOCMAX,NLA> --build-dir 2026-09-21_e2-<block>-<ckpt>
+
+# six runs. ONE SHARED --cache-dir per SAE, which is what makes DOCMAX and the three nulls a
+# single measurement across the three checkpoints instead of three (verified below).
+modal run --detach autointerp/modal_app.py --stage run --base qwen36-27b --sae <SAE> \
+    --root /vol/tmp/sae-smoke64 --set <SET> --build-dir <BUILD> --run-dir <BUILD> \
+    --arms <DOCMAX,M|DOCMAX,NLA> --floor-source-arm DOCMAX --scorers detection,fuzzing \
+    --path sync --cache-dir /vol/tmp/sae-smoke64/runs/e2-cache-<block> --stop-above-usd 12
+
+# tables
+uv run results/autointerp.py --sae qwen36-27b/sae2m --label "2M primary" --root tmp/sae-smoke64 \
+    --out results/out/e2 --run rl-last16=2026-09-21_e2-2m-rl16 \
+    --run old-primary=2026-09-21_e2-2m-oldprim --run nla=2026-09-21_e2-2m-nla --strata
+uv run results/autointerp.py --sae qwen36-27b/l42-1b --label "131k secondary" ... --no-strata
+```
+
+### Cost, per stage
+
+| date | item | wall | cost | result |
+|---|---|---|---|---|
+| 2026-09-21 | `random_pool` 2M, 64 features | 187.9 s | **$0.2370** | 2048 of 952,388 windows, seed 20260916 |
+| 2026-09-21 | `examples_4m` 2M, 64 features | 1432.8 s | **$1.8069** | 4,738 docs / 3,999,724 tokens (≤ 4M), 3.7 MiB |
+| 2026-09-21 | EPO shakeout, 1 direction, 10 iters | ~200 s | **≈$0.25** (est) | **FAILED, OOM** — below |
+| 2026-09-21 | six `build` stages (CPU) | 15-41 s each | **$0** | 32 features each; 2.2-2.3 MiB each |
+| 2026-09-21 | `run` 131k rl-last16 (5 arm-variants) | 215 s | **$6.5601** | 2,373 calls, 0 empty |
+| 2026-09-21 | `run` 131k old-primary (1 new variant) | 60 s | **$1.4094** | 496 calls, 32/64 explain cached |
+| 2026-09-21 | `run` 131k NLA (2 new variants) | 86 s | **$2.7072** | 947 calls, 921-923 scorer calls cached |
+| 2026-09-21 | `run` 2M rl-last16 (5 arm-variants) | 212 s | **$5.8505** | 2,164 calls, **11 refusals** |
+| 2026-09-21 | `run` 2M old-primary (1 new variant) | 55 s | **$1.2663** | 482 calls, 0 empty |
+| 2026-09-21 | `run` 2M NLA (2 new variants) | 84 s | **$2.6210** | 930 calls, 0 empty |
+
+**API total $20.4145**; **GPU total $2.0439 measured**. Per arm-variant per 32 features the
+incremental runs measure it directly: **$1.2663-$1.4094 for one variant**, i.e. **$0.040-0.044 per
+feature per arm-variant on the sync path** — consistent with the published 512-feature run's
+$0.0231 on the half-price batch path.
+
+### Detection and fuzzing, balanced accuracy, mean [95% percentile bootstrap over features]
+
+**131k secondary** (`qwen36-27b/l42-1b`, gate 1.5846), n = 31 of 32 for most arms. THREE features
+carry a null `bal_acc` somewhere, found by grepping `n_pos == 0` across all six runs rather than by
+chasing an id: **59176** (every arm, both draws -- no gate-consistent positives at all), **124524**
+(`DOCMAX-draw2` only), and **42890** (`NLA-desc` only, and with `tnr`/`acc` null too, so its cause
+is "nothing parsed", not "nothing positive"). The 2M block is clean on all three runs. Those rows
+still report `acc` and `tnr` at 0.90-1.00, so anything averaging `acc` would turn a feature with no
+positives into a near-perfect cell; `results/autointerp.py` reads `bal_acc` alone and two mutations
+pin it:
+
+| arm | detection | fuzzing |
+|---|---|---|
+| `DOCMAX` (corpus ground truth = search, interim-16M) | **0.8019** [0.7602, 0.8438] | **0.7306** [0.6948, 0.7653] |
+| `DOCMAX-judge2` (judge null) | 0.7954 [0.7519, 0.8363] | 0.7172 [0.6841, 0.7526] |
+| `DOCMAX-draw2` (draw null, n=30) | 0.7469 [0.6958, 0.7975] | 0.6861 [0.6428, 0.7295] |
+| `NLA` mode A (4 NLA texts → explainer, n=30) | 0.6647 [0.6092, 0.7247] | 0.6213 [0.5795, 0.6663] |
+| `M` rl-last16 (16 rollouts → explainer) | 0.6594 [0.6124, 0.7089] | 0.6192 [0.5829, 0.6563] |
+| `M` old primary | 0.6030 [0.5608, 0.6508] | 0.5979 [0.5587, 0.6402] |
+| `NLA-desc` mode B (NLA text IS the description, n=30) | 0.5178 [0.5061, 0.5336] | 0.5261 [0.5092, 0.5444] |
+| `R-shuffled` (floor) | 0.4984 [0.4858, 0.5108] | 0.5008 [0.4911, 0.5137] |
+
+**2M primary** (`qwen36-27b/sae2m`, gate 1.6828), n = 32 except `M` rl-last16 at n = 21:
+
+| arm | detection | fuzzing |
+|---|---|---|
+| `DOCMAX` (corpus ground truth = search, interim-16M) | **0.5815** [0.5411, 0.6245] | **0.6135** [0.5818, 0.6451] |
+| `DOCMAX-draw2` (draw null) | 0.5780 [0.5344, 0.6261] | 0.6072 [0.5649, 0.6504] |
+| `DOCMAX-judge2` (judge null) | 0.5745 [0.5289, 0.6247] | 0.6052 [0.5686, 0.6403] |
+| `M` rl-last16 (**n=21**, 11 refusals) | 0.5397 [0.5131, 0.5710] | 0.5143 [0.5000, 0.5321] |
+| `M` old primary | 0.5266 [0.4995, 0.5612] | 0.5237 [0.5008, 0.5531] |
+| `NLA` mode A | 0.5135 [0.4911, 0.5435] | 0.5142 [0.5033, 0.5283] |
+| `NLA-desc` mode B | 0.5057 [0.5000, 0.5135] | 0.5144 [0.5000, 0.5310] |
+| `R-shuffled` (floor) | 0.4836 [0.4617, 0.5049] | 0.5344 [0.5083, 0.5622] |
+
+Paired against `DOCMAX`, detection / fuzzing: 131k `M` rl-last16 **−0.1425 / −0.1114**, `M` old
+primary −0.1989 / −0.1326, `NLA` −0.1389 / −0.1078, `NLA-desc` **−0.2858 / −0.2030**, floor
+−0.3035 / −0.2298. 2M: `M` rl-last16 −0.0516 / −0.0976, `M` old primary −0.0549 / −0.0898, `NLA`
+−0.0680 / −0.0993, `NLA-desc` −0.0758 / −0.0991, floor −0.0979 / −0.0792.
+
+**Three things to read off these, before any of them is quoted:**
+
+1. **The 2M block does not discriminate at this scale.** Its corpus GROUND-TRUTH arm is at 0.58
+   detection, within the 131k floor's distance of chance, and every arm's interval overlaps every
+   other's except against the floor. The per-stratum table says where the signal is: 2M `DOCMAX`
+   detection is 0.5427 / 0.5760 / 0.4875 / **0.7198** across strata 0-3, so only the densest
+   quartile behaves, on n = 8. The 2M numbers are a pilot result about the EVAL, not about the
+   methods; the 131k block is the one that separates arms.
+   **How far that last claim goes, measured rather than asserted** (see the trend table): the
+   densest quartile's interval is [0.6177, 0.8240], which clears stratum 0's [0.5115, 0.5750] and
+   stratum 2's [0.4500, 0.5188] and MISSES stratum 1's [0.5406, 0.6198] by 0.0021. So "only the
+   densest quartile behaves" is right against the rarest and the middle quartiles and is NOT
+   resolved against its neighbour, on n = 8 a side. The permutation p of 5e-05 says the cut carries
+   information; it does not say the four cells are ordered, and ρ = +0.400 was already saying so.
+2. **The 2M fuzzing floor is 0.5344, not 0.5**, while its detection floor is 0.4836. A floor that
+   is not at chance is a property of the negative marking on this dictionary and it makes every
+   2M fuzzing number unreadable as an absolute. It is at 0.5008 on the 131k.
+3. **11 of 32 `M` rl-last16 explainer calls on the 2M came back `stop_reason: refusal`**, empty
+   after the A10 retry at 1200 tokens; 0 on the 131k and 0 for the old primary on the SAME
+   features, so it is that checkpoint's 2M rollout TEXT the API declines to describe, not the
+   prompt. The features are 427438, 732964, 912063, 1170780, 1186060, 1241761, 1385405, 1680734,
+   1800508, 1868670, 1943551. The arm is therefore measured on the 21 features whose text was
+   describable, which is not a random subset, and 0.5397 is if anything an over-estimate. This is
+   the defect class `902d8ce` addressed for the 512-feature run (44 refusals / 42 empty, "the arms
+   were scored on different feature sets"); the retry it added does not help when the refusal is
+   stable. At 34 % it is no longer a footnote.
+
+### NLA mode A against mode B — the one clean result of this pilot
+
+On the 131k, where the eval discriminates: **mode A 0.6647 detection, mode B 0.5178, floor
+0.4984.** Running the verbalizer's texts through the explainer lands the NLA arm on top of the
+MAEMM arm (`M` rl-last16 0.6594); handing the verbalizer's own text to the scorer AS the
+description lands it AT the floor. The paired contrast against DOCMAX is −0.2858 against the
+floor's −0.3035, so mode B recovers about 6 % of the gap mode A recovers.
+
+**"6 % of the gap" is the generous reading, and the intervals do not support even that.** Mode B's
+interval OVERLAPS the floor's on both scorers − detection [0.5061, 0.5336] against the floor's
+[0.4858, 0.5108], fuzzing [0.5092, 0.5444] against [0.4911, 0.5137] − while every other arm in the
+block, mode A and both MAEMMs included, is disjoint from the floor by a wide margin (the nearest,
+`M` rl-last16 detection, has a lower bound of 0.6124 against the floor's upper 0.5108). So the
+defensible statement is not "mode B is 0.019 above the floor", which implies a measured gap; it is
+**mode B is not distinguishable from scoring with a random other feature's description**. That is
+the stronger claim and the one the data carries.
+
+This CONTRADICTS the recommendation in `related-work/2026-09-21_nla-in-autointerp.md` §"1. Run NLA
+in description mode: the AV explanation IS the explanation string ... Samples mode has no
+precedent in any NLA paper and adds an unvalidated generation hop". The literature reading is
+right that mode A has no precedent; the measurement says mode B does not work under this protocol.
+Both arms ran on the same 30 features, the same test items and the same scorer calls, so the
+comparison is internal and does not depend on anything above.
+
+### The cut views resolve nothing on the 131k, and that is not "the 131k shows nothing"
+
+Printing the per-cell resolution flag on every row of the trend table, not only the separating
+ones, makes a statement no table here had made: the **131k block has ZERO disjoint rows, 0 of 64**
+— every row, both views, every arm, both scorers, the top cell's interval overlaps a neighbour.
+
+**Read the scope carefully, because the two questions are one careless sentence apart.** The cut
+views ask whether ONE ARM's accuracy varies across strata; that is what resolves nowhere on the
+131k. The arm comparison is a different question and the same block answers it emphatically:
+`DOCMAX`, both nulls, `NLA` and both `M` arms are all disjoint from the floor, the nearest by 0.10
+of balanced accuracy. "The 131k separates arms" and "the 131k resolves no cut" are both true, of
+different things.
+
+A second thing the move surfaced: four rows are resolved but uncorrected, and **all four are the
+MAEMM arm** (`old-primary/M` on both scorers in the rarity view, `rl-last16/M` on both in the peak
+view). With the two `peak old-primary/M` rows that do separate, `M` is the only arm in either block
+whose cells resolve while its p stays marginal.
+
+### What was verified rather than argued
+
+- **The test sets are identical across the three builds of each SAE**, which is what makes a
+  paired contrast across run directories legitimate. `shown_docs` accrues from CORPUS picks alone
+  (`build.py`: `shown_windows += [p for p in picks if p["src"] == "corpus"]`), so builds sharing
+  their corpus arms agree — that is the argument; the measurement is a SHA-256 over every `test`
+  and `test2` row of all 32 features (`scratchpad/test_identity.py`): 2M `983e477ad1b6e6e9` and
+  131k `85d902987eff7a25`, one digest each across all three builds.
+- **The shared cache makes DOCMAX one measurement, not three.** `DOCMAX − DOCMAX` across run
+  directories is `+0.0000 [+0.0000, +0.0000]` on both SAEs, and `Cache.key` carries no run or
+  build component, so the second and third runs replayed the first's calls.
+- **Reader checks**: 4,612 recomputations of the stored balanced accuracies from the rows' own
+  TPR/TNR across the six runs, worst excess −1.5e-06 (i.e. every comparison inside tolerance),
+  0 rates out of range, 0 bad batch counts. Parse rates 0.953-1.000.
+
+### EPO: launched, REFUSED by the hardware, not run
+
+`gcg --mode epo --init random32 --set 2026-09-21_sae2m_64 --family sae --sae qwen36-27b/sae2m
+--mu none --rows 3 --iters 10 --seq-len 32 --arm-suffix shakeout` — a deliberately tiny shakeout
+before committing the ≈$18 of the 16 approved directions. It reached the GPU, selected the right
+target (`family sae, 1 directions local [3] = global [3]`), loaded the 2M dictionary, and died:
+
+```
+_WU32[k] = model.get_output_embeddings().weight.detach().float().T.contiguous()
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 4.74 GiB. GPU 0 has a total
+capacity of 139.80 GiB of which 4.24 GiB is free. Process 1 has 135.55 GiB memory in use.
+```
+
+**This is not a batch-size knob.** The allocation is the fp32 unembedding, materialised once at
+setup before any candidate forward, on top of the 27B base and the 2M dictionary; `--sbatch`,
+`--children` and `--pop` are all downstream of it. `score` fits the same GPU because it loads the
+2M SAE encoder-only (~43 GB) and never makes an fp32 unembedding. The 16 directions were NOT
+launched: spending ≈$18 and ~4 h on a configuration whose 10-iteration shakeout OOMs is not a
+budget decision anyone would take twice. Unblocking it is a change inside `gcg/gcg.py` — an
+encoder-only SAE load for the `sae` family, or keeping `_WU32` in bf16 — which is the one product
+the 09-21 plan says not to touch casually, so it is left for a decision rather than done here.
+
+**Leftover, not deleted** (deletion was not in scope):
+`/vol/tmp/sae-smoke64/base/qwen36-27b/gcg/2026-09-21_sae2m_64/sae/epo-random32-shakeout.tmp-2026-09-21`.
+
+### Deviations from plan §3, each deliberate
+
+1. **Set and scale.** §3.1 runs eval 2 on eval 1's `2026-09-22_v3` rows 3072-5119 at `--n-feat`
+   256 / 128. This ran on the 64-row smoke sets at **32 features per SAE** (Tomáš, 2026-09-21)
+   because those are the sets that HAVE rollouts, scores and `sae_self` for all three checkpoints;
+   the frozen `2026-09-21_v3_*` blocks have none. The 32 nest inside the 64, which nest inside
+   `2026-09-21_v3_sae2m` by `--include`, so the fidelity regression §3.1 wants is still reachable.
+2. **`search` and `docmax` are ONE arm.** §3.2 lists a corpus ground truth and a separate search
+   baseline. Checked read-only first, as instructed: Ari's `celeste-train10m` scan products do not
+   exist (`base/qwen36-27b/scan/` holds `2026-09-16_v1`, `2026-09-18_ood_v1`, `2026-09-20_sae2m_2k`
+   and nothing over that corpus; `corpora/train_parity_10m/` is a corpus with no scan or examples
+   product above it). The fallback the brief names — top-activating windows from our 16M corpus via
+   `examples_docmax` — is the same pool, ranking and N as the ground-truth arm, so the two collapse.
+   Run once, as `DOCMAX`, **labelled `interim-16M`**. They are not two numbers and are not reported
+   as two.
+3. **No `C16` or `C4` arm anywhere.** The 2M has no `scan` examples/ and `check_corpus_source`
+   refuses a C16 arm by name. For the two blocks to be comparable the 131k block also took its
+   band-labelled positives from `examples_4m` rather than scan's `examples/`, which the published
+   512-feature run used — so the 131k numbers here are NOT directly comparable to `results.md`'s.
+4. **`--fuzz-protocol legacy`, not `delphi`.** §3.3 specifies `delphi`. All six runs used the
+   default `legacy` (zero-shot fuzzing, gate marking) so that the six are mutually comparable;
+   switching after the first run would have cost ~$14 of cache misses. The 09-18 rescore of the
+   512-feature run moved `M − C16` fuzzing from −0.1228 to −0.1248, so the contrast is insensitive
+   to the choice. Detection kept its three verbatim shots throughout.
+5. **The three nulls are sourced from `DOCMAX`**, via the `--floor-source-arm` added in ad4f137,
+   because `floor_source_arm: C16` names an arm that cannot exist on either block here.
+6. **Patchscopes skipped** — Ari's implementation (7f3b511) is pending, per the 09-21 decision.
+7. **EPO not run** — above.
+8. **`n_shown_exceeding_corpus_peak` per arm is NOT in the tables.** §3.3 asks for it;
+   `scores.jsonl` does not carry it. It is in each build's `build.json` and has to be read there.
+9. **No pre-registered primary contrast.** §3.3 asks that one contrast be confirmatory and the
+   rest exploratory. `results/autointerp.py` gives every non-reference arm the same row; nothing
+   here is marked confirmatory, and at n = 32 with the 2M block flat, nothing should be.
+
+### Products written, all new paths
+
+```
+tmp/sae-smoke64/base/qwen36-27b/sae/sae2m/{random_pool,examples_4m}/2026-09-21_sae2m_64/
+tmp/sae-smoke64/base/qwen36-27b/autointerp/2026-09-21_sae2m_64/2026-09-21_e2-2m-{rl16,oldprim,nla}/
+tmp/sae-smoke64/base/qwen36-27b/autointerp/2026-09-16_v1/2026-09-21_e2-131k-{rl16,oldprim,nla}/
+tmp/sae-smoke64/runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}/
+tmp/sae-smoke64/runs/e2-cache-{2m,131k}/
+```
+
+### CORRECTION to 6190857's commit message: seven separating measurements, not one
+
+`6190857` says the 2M `DOCMAX` detection row "remains the only `separates` row in either block".
+**It is not.** That was true of the table as it stood at `--boot 2000` under an α/32 divisor;
+the same commit loosened BOTH — 20,000 resamples resolve p below the old floor, and the divisor
+became α/16 — and the regenerated table was not re-read. The 2M block has **17 separating rows
+carrying SEVEN distinct measurements**; the 131k still has **zero**.
+
+| view | arm | scorer | spread | widest cell CI | ρ | verdict |
+|---|---|---|---|---|---|---|
+| stratum | `DOCMAX` | detection | 0.2323 | 0.206 | 0.400 | separates |
+| stratum | `DOCMAX-draw2` | detection | 0.2219 | 0.177 | 0.400 | separates |
+| stratum | `DOCMAX-judge2` | detection | 0.2312 | 0.235 | 0.400 | separates, **CI-WIDE** |
+| peak | `DOCMAX` | detection | 0.2240 | 0.178 | 1.000 | separates |
+| peak | `DOCMAX-judge2` | detection | 0.2563 | 0.184 | 0.800 | separates |
+| peak | `M` (old primary) | detection | 0.1375 | 0.181 | 0.800 | separates, **CI-WIDE** |
+| peak | `M` (old primary) | fuzzing | 0.1167 | 0.161 | 1.000 | separates, **CI-WIDE** |
+
+This is better news than "one row" and it should be restated rather than quietly fixed: the
+top-stratum detection effect survives `DOCMAX-draw2` and `DOCMAX-judge2`, which are a second test
+draw and a second judge — the two robustness arms, and the two things that would have exposed it
+as a scoring artefact. But **seven is not seven independent confirmations**: the DOCMAX family
+shares its explanations and differs only in draw and judge, and the rarity and magnitude views are
+confounded (5 of the 8 top-rarity features are also top-peak). One effect, seen three ways, on two
+correlated axes.
+
+**Three of the seven are flagged `CI-WIDE`** — the widest per-cell interval is at least as large
+as the spread, so few features are carrying the effect and a small p should not be read as
+precision. That rule lived only in the caption and is now in the `verdict` column.
+
+**It is a precision warning and NOT an overlap test, and the first version of this section said
+otherwise.** A width is not a difference, and the counterexample is the row this flag was
+introduced to catch: 2M peak `M` (old primary) detection has cells 0.4844 / 0.5062 / 0.4938 /
+0.6219 with the top interval [0.5406, 0.7219] — whose lower bound clears not just every other
+MEAN but every other INTERVAL. Those cells separate cleanly while the width (0.1813) exceeds the
+spread (0.1375). Of the three flagged rows, the two `M` ones have DISJOINT top intervals and only
+`DOCMAX-judge2` (top [0.5927, 0.8281] against stratum 1's [0.5177, 0.6292]) actually overlaps —
+the opposite of what the flag was first said to mean.
+
+What stands: the two `M` rows are the weakest of the seven by spread, they rest on the fewest
+effectively-contributing features, and they are the only MAEMM arm anywhere in either block to
+separate — so they are still the number in this table most likely to be over-read, and flagging
+them was right. **Four measurements clear both bars, and all four are the DOCMAX family on
+detection.**
+
+---
+
+### 2026-09-21 — EPO on the 2M SAE: the OOM is fixed, and the 16 directions are launched
+
+The OOM of the first shakeout was `gcg.py:1359` loading the whole dictionary on the device to
+record one feature's activation. Fixed in 4d02915 (`common.load_sae_columns`); the same shakeout
+now runs.
+
+| date | item | wall | cost | result |
+|---|---|---|---|---|
+| 2026-09-21 | EPO shakeout #1, 1 dir × 10 iters, BEFORE the fix | ~200 s | ≈$0.25 (est) | **OOM** at the fp32 unembedding |
+| 2026-09-21 | EPO shakeout #2, 1 dir × 10 iters, AFTER the fix | 301.9 s | **$0.3807** | best cos 0.0170 from init −0.0007; CHECK max \|d\| 2.78e-04 at both batch shapes; sae peak act 0.2842, fired 0.000 |
+
+```
+[gcg] sae qwen36-27b/sae2m: 2097152 features, learned gate 1.6828 -- 1 encoder column(s) on the
+      device, no decoder; activation is RECORDED on the finals, never optimised
+```
+
+#### A wrong projection, corrected before it cost anything — and how to read a 10-iteration trace
+
+The first reading of that shakeout divided its 162 s of search by its 10 iterations, got 16.2
+s/iteration, projected `--iters 300` at 4,860 s/direction, and concluded that 16 directions cost
+**$98** against a $22 cap. **That was wrong**, and it contradicted this file's own measured rate
+(`:591` "epo ~76-82 cand/s, 934-1004 gpu-s per direction"; `:2322` "~870 s/direction,
+$1.10/direction"), which should have been the signal to re-derive rather than to conclude.
+
+The error: a 10-iteration run is mostly NOT iterations. The four tracked timers are cumulative per
+direction, and the trace decomposes as
+
+| component | cost | how often |
+|---|---|---|
+| Triton autotune, inside iteration 0 (`grad 67s` of 85 s) | ~85 s | once per CONTAINER |
+| the four tracked components, steady state | **3.0 s/iteration** | per iteration |
+| the finals + CHECK block (`exact_cos` twice + `mean_nll`) | ~50 s | once per DIRECTION |
+| container start, model load, alphabet, SAE load | ~140 s | once per container |
+
+so a direction is `300 × 3.0 + 50 = 950 s`, not `300 × 16.2`. At 10 iterations the two
+once-per-direction costs ARE the run; at 300 they are 5 % of it. 950 s/direction lands inside the
+934-1004 gpu-s this file already recorded, from an independent measurement.
+
+**16 directions = 140 + 85 + 16 × 950 = 15,425 s = 4.28 h = $19.45**, inside the $22 cap and
+inside the gcg container's 9 h timeout. Launched:
+
+```
+modal run --detach gcg/modal_app.py --base qwen36-27b --mode epo --init random32 \
+    --set 2026-09-21_sae2m_64 --root /vol/tmp/sae-smoke64 --family sae --sae qwen36-27b/sae2m \
+    --mu none --rows 3,5,6,9,10,13,21,23,30,34,42,47,52,56,57,59 --seq-len 32
+```
+
+The 16 rows are the EPO subset of the analysed 32 — 4 per density stratum, `draw_features(the 32,
+n_feat=16, seed=20260921)` — so the E arm covers half the features of every other arm and the
+paired contrasts against it are a REDUCED PAIRING by construction, not by loss.
+Output: `…/gcg/2026-09-21_sae2m_64/sae/epo-random32/`.
+
+**The lesson worth keeping**: this product prints `eta ... min/dir` from its own steady-state rate,
+and at iteration 9 of 10 it said `eta 0.0 min/dir` — i.e. the shakeout never produced an eta for a
+300-iteration direction at all. A shakeout sized to prove a command line runs is not sized to
+measure throughput, and the two must not be read off one trace.
+
+**Leftovers, not deleted:** `…/gcg/2026-09-21_sae2m_64/sae/epo-random32-shakeout.tmp-2026-09-21`
+(the OOMed first attempt) and `…/sae/epo-random32-shakeout2` (the successful one).
+
+---
+
+## 2026-09-21 — the unmarked-block defect, and the relative-marking rerun
+
+### The defect
+
+`mark="gate"` marks a token iff its pre-gate activation exceeds the SAE's learned gate. On the 2M
+dictionary a MAEMM rollout frequently clears it NOWHERE, and `exemplar_block` then emits bare
+`Example n:` lines — no `<<>>`, no `Activations:` line. The explainer answers topically anyway and
+`run.py` records an ordinary explanation, so the arm is scored on a description written from
+unmarked text and **nothing anywhere counted it**. Found by reading the real prompts for
+`infra/2026-09-21_autointerp-examples.md`; one answer opens *"there's no explicit token
+highlighting/activation data provided"*.
+
+### The census, block-level, both dictionaries
+
+Earlier per-feature counts (15/32, 23/32, 26/32) were features where EVERY block was unmarked. The
+block-level picture is worse, and the last column explains both halves of it.
+
+| block | arm | unmarked, gate | unmarked, relative | median block peak / 16M corpus peak |
+|---|---|---|---|---|
+| 2M | `DOCMAX` | 0/512 (0.0%) | 0/512 | 0.629 |
+| 2M | `M` rl-last16 | **390/512 (76.2%)** | **24/512 (4.7%)** | 0.219 |
+| 2M | `M` old primary | **425/512 (83.0%)** | **161/512 (31.4%)** | 0.061 |
+| 2M | `NLA` | **114/128 (89.1%)** | **12/128 (9.4%)** | 0.194 |
+| 131k | `DOCMAX` | 3/512 (0.6%) | 3/512 | 0.755 |
+| 131k | `M` rl-last16 | 80/511 (15.7%) | 50/511 (9.8%) | 0.730 |
+| 131k | `M` old primary | 45/512 (8.8%) | 22/512 (4.3%) | 0.969 |
+| 131k | `NLA` | 27/128 (21.1%) | 19/128 (14.8%) | 0.516 |
+
+**The median-peak column is the whole story.** On the 131k, generated text reaches 0.52-0.97 of the
+feature's corpus peak, so most blocks already cleared the gate and relative marking has little left
+to change. On the 2M it reaches 0.06-0.22, so most blocks cleared nothing. The 2M block was not
+measuring the methods; it was measuring whether generated text ever crossed a threshold set by a
+much harder dictionary. The old primary's residual 31 % is not a fallback failure — those blocks
+are `unmarkable` (peak ≤ 0, the feature never fires on that text at all), which is what a median of
+0.061 predicts.
+
+The cost corroborates it: the 131k reruns came to **$0.564** against the 2M's **$3.0198**, because
+far fewer explainer calls changed body and the rest came from the shared cache.
+
+### The fix, and what it is not
+
+`--rollout-mark relative` (8d307fd): when a GENERATED-TEXT block has nothing above the gate, mark
+at `>= 0.5 x that block's own peak`. Delphi's rule in shape at a stricter fraction. A FALLBACK —
+a block with anything above the gate is untouched — and never applied to the corpus arms, whose
+peak IS the corpus peak and whose unmarked blocks are a fact about the feature. Default stays
+`gate` so every earlier run reproduces.
+
+**Test sets are byte-identical between the gate and relative builds** (digest `983e477ad1b6e6e9`
+on the 2M, over every `test` and `test2` row of all 32 features), so gate-vs-relative is paired
+per feature and the two tables are read against each other directly.
+
+### The refusals are a SEPARATE defect, now measured as such
+
+`2026-09-21_e2-2m-rl16-rel` reports `explainer_refusals: 11` — **exactly the same 11 as the
+gate-marked run**. Relative marking does not touch them. The unmarked blocks were a rendering
+failure; the refusals are the API declining to describe rl-last16's 2M rollout TEXT. They were
+always independent and now that is measured rather than assumed.
+
+### Products
+
+```
+base/qwen36-27b/autointerp/2026-09-21_sae2m_64/2026-09-21_e2-2m-{rl16,oldprim,nla}-rel/
+base/qwen36-27b/autointerp/2026-09-16_v1/2026-09-21_e2-131k-{rl16,oldprim,nla}-rel/
+runs/2026-09-21_e2-{2m,131k}-{rl16,oldprim,nla}-rel/
+```
+All new paths, under the same shared caches; nothing was deleted or overwritten. Rerun API cost
+**$3.5838** ($3.0198 + $0.5640); eval-2 API total **$23.9982** of the $30 cap over 12 runs.
+
+---
+
+## 2026-09-21 — branch `evals/pipeline`: the RESULTS pass (eval 1's tables), and the dec half
+
+Merge of `evals/pipeline-autointerp` (which carries `evals/pipeline-results`) into
+`evals/pipeline`, eval 1's three flagged gaps closed, and `results/faithfulness/` produced and
+COMMITTED. GPU **$1.2041 landed + ~$1.13 sunk ≈ $2.33** against a $5 cap; everything else is read
+off the 09-21 production run's $51.22. Nothing on the volume was deleted, replaced or rewritten:
+the only writes are three NEW `sae_self__dec/` product directories, and `--force` was never passed.
+
+| date | item | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|
+| 2026-09-21 | merge `evals/pipeline-autointerp` | — | $0 | one conflict, `SMOKES.md`; both 09-21 sections kept in order. `unit_smoke` 48/48, `results/selftest` 26/26, `autointerp/selfcheck` green, ruff clean on the touched trees | `config.yaml` and `autointerp/selfcheck.py` auto-merged; the brief expected them to conflict |
+| 2026-09-21 | `sae_self --sae-side dec`, FIRST attempt (3 H200) | ~230-330 s each | **~$1.13 sunk** | **FAILED**, my bug: see "the pairing defect" below | crashed after the base load, the SAE load and the direction read |
+| 2026-09-21 | `sae_self --sae-side dec`, rl-last16 x `_sae2m` | 339.3 s | **$0.4279** | 512 dec targets x 64, argmax **32768/32768**, cos max abs diff vs stored 2.31e-04, CSR 0 value / 0 membership mismatches over 6,340 entries, fire_fraction_mean 0.2266 | — |
+| 2026-09-21 | `sae_self --sae-side dec`, old primary mu-none | 386.9 s | **$0.4880** | argmax **32768/32768**, cos 2.38e-04, CSR 0/0 over 5,116 entries, fire_fraction_mean 0.1645 | — |
+| 2026-09-21 | `sae_self --sae-side dec`, NLA n=4 | 228.5 s | **$0.2882** | argmax **2048/2048**, cos 1.22e-04, CSR 0/0 over 352 entries, fire_fraction_mean 0.2070 | — |
+| 2026-09-21 | `results/faithfulness.py`, six blocks, COLD | ~75 min | $0 | 6 blocks, 18 headline rows, 12 figures, 25 gates pass / 2 FLAG / 1 no verdict / 194 absent; 119 MB mirrored | wall is dominated by `modal volume ls` in source discovery (~20 subprocesses per block), not by the data |
+| 2026-09-21 | the same, `--no-fetch` off the warm mirror | ~50 s | $0 | **every numeric CSV byte-identical**, `headline.csv` included | the only `tables.md` differences are two deliberate gate edits made between the runs, plus the `command:` line |
+| 2026-09-21 | `results/selftest.py` after the pass | 3 s | $0 | **30/30** (26 before; +4) | — |
+| 2026-09-21 | `precompute/unit_smoke.py` | 3 s | $0 | **49/49** (48 after the merge; +1) | — |
+
+### The `--sae-side` flag, and what it is NOT
+
+`_sae_rows` pinned `side="enc"`, so the 512 `sae_side: dec` rows of `2026-09-21_v3_sae2m` had
+cosines from `score` and no activation metric at all — item 2 of this file's own "three things the
+results run must not get wrong". `--sae-side` is a `sae_self` flag and nothing else's: `build`,
+`scan` and `repo_examples` share `common.sae_rows_of`'s `side=` and keep the enc-only filter
+(their products are keyed on the FEATURE, not on which column was injected), and the three
+corpus-side stages in `sae_self.py` refuse it loudly. Default `enc`, so every product already on
+the volume keeps its meaning byte for byte.
+
+Two consequences, both handled rather than hoped:
+
+* a `dec` row was generated from `unit(W_dec[f])`, so `common.sae_dirs` would reproduce nothing
+  and CHECK 1 would fire on the DIRECTION instead of on the run. The directions there are read
+  from the set's own `vecs.f16` through `common.dirs_for`. What is given up is the
+  encoder-column cross-check — exactly what plan §2.3 means by "the `vecs.f16` cross-check
+  skipped" — and it is named in `checks` and in the product's notes, not silently dropped. The
+  ACTIVATION is unaffected: `_SelfAct` reads W_enc/b_enc for the row's feature whichever column
+  was injected.
+* both halves share ONE scores directory, so the side is part of the product PATH
+  (`sae_self__dec`) and a decoder run cannot land on the encoder product eval 1 already paid for.
+
+### The pairing defect, and what it cost
+
+```
+AssertionError: 256 id lists but 0 directions: the scorer pairs them by row
+```
+
+`common.score_tokens` pairs `dirs[i]` with `texts[i]` over the FLATTENED [N, n] rollout grid. The
+encoder branch gets that for free because `sae_dirs(sae, row_feats)` is already indexed per flat
+row; the new decoder branch read the set's [N_set, d] array and indexed the TARGETS — 512
+directions for 32,768 texts. It got through the base load, the SAE load and the direction read
+before the scorer's own assert fired, on three containers at once.
+
+Fixed as `sae_self.stored_dirs_of`, a FUNCTION rather than an inline comprehension, precisely so a
+CPU check can hold it (`unit_smoke.check_sae_self_side_flag` gives it a 2-target x 3-rollout grid
+and requires [6, d] in `flat`'s own order; 2/2 mutations caught). An immediate
+`len(dirs) == len(flat)` assert sits beside the branch as well. The siblings check out:
+`run_random_pool`, `run_examples_4m` and `run_examples_docmax` are the only other `_sae_rows`
+callers and none of them calls `score_tokens`.
+
+### The decoder half, measured
+
+`sae_self__dec` beside each arm's `sae_self`, same 512 features, paired row for row. Ratios are
+median over features of peak / OUR 16M `max_act`; `item fired` is the mean over features of the
+fraction of that source's own rollouts above the gate 1.682812.
+
+| source | side | bo1 med | bo8 med | bo64 med | item fired | feat firing |
+|---|---|---|---|---|---|---|
+| rl-last16 | enc | 0.2390 | 0.4094 | 0.5437 | 0.1948 | 0.7773 |
+| rl-last16 | **dec** | **0.2709** | **0.4519** | **0.5806** | **0.2265** | **0.8164** |
+| old primary mu-none | enc | 0.0946 | 0.2586 | 0.4026 | 0.1281 | 0.4023 |
+| old primary mu-none | **dec** | **0.1337** | **0.3151** | **0.4533** | **0.1645** | **0.5273** |
+| NLA n=4 | enc | 0.2334 | — | — | 0.1489 | 0.2461 |
+| NLA n=4 | **dec** | **0.2773** | — | — | **0.2070** | **0.3379** |
+
+**The decoder direction drives the SAME feature harder than its own encoder column, on all three
+checkpoints and on every statistic.** Her card says the same thing in the same direction (0.416
+decoder against 0.344 encoder). The enc column reproduces this file's 09-21 SAE table exactly
+(0.2390 / 0.0946 / 0.2334 against the recorded 0.239 / 0.095 / 0.233), which is what makes the
+dec column readable beside it.
+
+### Item 1 of "three things the results run must not get wrong" was TOO STRONG
+
+That note says `per_target.jsonl` has no centred best-of-k. It does on the realact blocks: `score`
+writes `bo_c_<k>` whenever EVERY one of the n rollouts kept a centred token (`score.py:521`,
+`if len(vals_c) == n`), and on `_realact`, `_ours` and `_realact_long` every row qualifies. The
+driver recomputes the whole centred ladder from `cos_centred.f16` anyway — one estimator, one
+array — and the stored values become a CHECK: **3,584 comparisons per arm, 0 mismatches, worst
+excess -2.4e-04**. So the columns that were em dashes in the 09-21 summary table are real:
+
+| source | block | bo1 ctr | bo8 ctr | bo64 ctr |
+|---|---|---|---|---|
+| rl-last16 | `_realact` (n=486) | 0.7590 | 0.8221 | 0.8498 |
+| old primary mu-stats | `_realact` (n=486) | 0.7713 | 0.8317 | 0.8589 |
+| rl-last16 | `_ours` (n=506) | 0.7668 | 0.8300 | 0.8573 |
+| old primary mu-stats | `_ours` (n=506) | 0.7768 | 0.8402 | 0.8649 |
+| rl-last16 | `_realact_long` (512) | 0.6991 | 0.7669 | 0.7970 |
+
+**The centred gap between the two checkpoints is ~0.012 where the raw gap is ~0.002** — six times
+larger, and in the same direction (the old primary ahead). The raw column alone does not show it.
+The estimator for the NaN case is stated where it is used: the group max is over its FINITE draws
+and an all-NaN group leaves the average, which reduces exactly to `score`'s when nothing is NaN;
+positions are KEPT, because compacting the survivors first regroups them into a different
+statistic that agrees at bo1 and differs everywhere else.
+
+### Two reader defects found on the real directory names
+
+1. **`parse_scores_dir` required the engine part to come FIRST.**
+   `2026-09-21_v3_sae2m__mu-none__vllm` — which is what `score --score-name <set>__<tag> --engine
+   vllm` writes, because `scores_dir` takes no tag of its own — read as engine `hf` with the tag
+   `mu-none__vllm`. Six of eval 1's arms would have carried "hf" in the paper's own CSV. Fixed to
+   find the engine part wherever it is; both orders pinned in the selftest.
+2. **A sanity gate had no way to name its block.** The v1raw four-row smoke's centred 0.7518
+   resolved against `2026-09-21_v3_realact`'s 512-row 0.7609 and FLAGged — a flag that said
+   nothing about the mu, which is the only thing a flag is supposed to mean. `set:` added; the
+   eight v1raw-only gates now name their block and are quietly `absent` elsewhere.
+
+Also: a bare `rl-8x2048-full` selector matched ONE source on v1raw and TWO on every eval-1 set, so
+five gates would have resolved `absent (matched 2 of the sources)` and silently not run. Every
+old-primary gate now names its arm.
+
+### Exclusions are read, not retyped
+
+Each v3 block carries its own `exclusions.json`. `_realact` drops 26 rows (Ari's `ngram_overlap
+--side hers`, coverage >= 0.05 at n=7, over HER parquets) and `_ours` drops 6 (fully reproduced in
+her v2 text at n=13, over our 16M corpus) — two instruments over two corpora, and the files say so.
+The driver applies them, so the tables are the paper's own n = 486 / 506. The drop happens in ONE
+place, the family map, so the mean, the row count, the document-cluster count, the centred ladder,
+the sanity registry, the CSVs and the figures lose those rows TOGETHER; a mean over 486 printed
+beside a cluster count over 512 is the failure that has no symptom. `--no-exclusions` gives the
+other view and turns eight gates red, by design.
+
+### The sanity block: 25 pass, 2 FLAG, 1 no verdict, 194 absent
+
+Every cell of this file's own 09-21 summary table reproduces to 4 dp by an independent reader on
+the paper's own n: rl-last16 realact 0.8860 / 0.9168 / 0.9301 at n = 486 over **425 documents**,
+the old primary 0.8830 (mu-none) and 0.8881 / 0.9322 (mu-stats), NLA 0.8075, `ours` 0.8884 at
+n = 506, realact_long 0.4360, bsf 0.3177, jlens 0.1058, random 0.0338, and the SAE medians
+0.7185 (131k) / 0.2390 (2M enc) / 0.0946 (old primary) / 0.2334 (NLA).
+
+**Both FLAGs are Celeste's card firing rates on the 2M dictionary, and they miss the same way.**
+`fired.item` 0.1948 (enc) against her 0.344 and 0.2265 (dec) against her 0.416 — ~0.15-0.19 low on
+both, at tol 0.08. The enc/dec RATIO reproduces (1.16 here, 1.21 on the card), and our own
+`sae_smoke64` read 0.220 for the same arm on a 64-feature draw, which is where our number sits. So
+this points at a different denominator or a different rollout protocol rather than a wrong mu.
+**NOT RESOLVED; flagged, which is what the block is for.**
+
+The one `no verdict` is her 131k `norm_act` 0.824 against our 0.8256, declared `compare: false`
+because her ratio divides by a 1.0B-token corpus peak and ours by our 16M `max_act`. They land
+within 0.002 of each other, and that near-agreement is NOT evidence of anything — it is why the
+gate issues no verdict rather than a wide-tolerance pass.
+
+The SMOKES `sae2m / sae` pooled cosine row (0.0584 at n = 1024) has NO gate and cannot have one:
+plan §2.3 keeps SAE-target cosines out of every markdown table, so `stat_registry` holds no
+`cos_raw` for a dictionary family and such a gate would be `absent` forever. Per-row numbers are
+in each block's `sae_cosines.csv`.
+
+### Products, and what is committed
+
+New on the volume, all new paths, nothing else touched:
+
+```
+maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7/scores/2026-09-21_v3_sae2m__vllm/sae_self__dec/
+maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/2026-09-21_v3_sae2m__mu-none__vllm/sae_self__dec/
+maemms/qwen36-27b/2026-07-14_nla-av/scores/2026-09-21_v3_sae2m/sae_self__dec/
+```
+
+`paper-evals/results/faithfulness/` is no longer gitignored and IS committed (2.6 MB, 66 files):
+`tables.md` over all six blocks, one subdirectory per block with its own tables and CSVs, and 12
+figures as PDF (vector, for the paper) plus PNG at 140 dpi. It is the paper's numbers, and a
+number the paper cites has to be in the history and readable without $51 of GPU and a Modal token.
+Copied with a header to `infra/2026-09-21_faithfulness-tables.md`.
+
+### The detached launcher, reused
+
+The bash retry of the 09-21 production run, unchanged in shape: retry only on a client-side
+network error, at most 3 times, stop loudly on anything else, and never retry an "already exists"
+(which is a product that LANDED). Self-tested on a deliberate bad `--maemm` before use — one
+attempt, loud stop, no container started.
+## 2026-09-21 — EPO on the 2M SAE: the run, and what it found
+
+`--mode epo --init random32 --rows <the 16> --seq-len 32`, 16 directions x 300 iterations,
+**14,373.5 s = 4.0 h, $18.1265, $1.1329/direction** — against the corrected projection of $19.45
+and the file's own recorded 934-1004 gpu-s/direction. Product:
+`base/qwen36-27b/gcg/2026-09-21_sae2m_64/sae/epo-random32/`.
+
+| quantity | value |
+|---|---|
+| mean final cosine to the encoder column | **0.0167** (from init 0.0072) |
+| per-direction finals | 0.0125 - 0.0396 |
+| mean pre-gate activation on the finals | **0.3803** |
+| gate | **1.682812** |
+| **finals that make their feature FIRE** | **0 of 48** (`frac_fired: 0.0`) |
+| peak activation, min / median / max | 0.0000 / 0.1070 / 1.6429 |
+
+**This is the reachability result the plan wanted, and it is a strong negative.** Four GPU-hours of
+evolutionary prompt optimisation against the encoder column of a 2M-feature SAE moved the cosine
+from 0.007 to 0.017 and produced **not one** 32-token string that makes its feature fire. The
+highest single peak, 1.6429, sits just under the gate. Whatever these features respond to, a
+random-init 32-token search does not find it — which bounds what any generated-text method can be
+expected to reach on this dictionary, and is consistent with every MAEMM arm sitting near chance
+on the 2M block.
+
+---
+
+## 2026-09-21 — NLA arm A reads the explanation body (Juan's review), before and after
+
+Arm B stripped the verbalizer's `<explanation>` tags and arm A did not, so the two NLA arms read
+different text from one rollout. Fixed in d95dd94; rebuilt under relative marking on both SAEs and
+rerun (**$1.3492 + $1.3764 = $2.7256**). `n_nla_body_missing` is **0 on both SAEs** — every rollout
+had a closed tag, so no feature fell back to the full decode.
+
+Paired per feature, 20,000-resample percentile bootstrap, `after - before`:
+
+| block | arm | scorer | before | after | Δ [95% CI] | moved/n |
+|---|---|---|---|---|---|---|
+| 2M | `NLA` | detection | 0.5227 | 0.5276 | +0.0049 [−0.0193, +0.0273] | 20/32 |
+| 2M | `NLA` | fuzzing | 0.5172 | 0.5164 | −0.0007 [−0.0184, +0.0156] | 18/32 |
+| 131k | `NLA` | detection | 0.6719 | 0.6500 | **−0.0219 [−0.0419, −0.0033]** | 17/30 |
+| 131k | `NLA` | fuzzing | 0.6216 | 0.6531 | **+0.0315 [+0.0050, +0.0606]** | 20/30 |
+| both | `NLA-desc`, `DOCMAX` | both | — | — | **+0.0000 [+0.0000, +0.0000]** | **0/n** |
+
+**The controls are exact**, which is what makes the rest readable: every arm that does not consume
+NLA rollout text is unchanged to the last digit on every feature, so only arm A moved.
+
+**On the 131k the two scorers move in OPPOSITE directions and both intervals exclude zero** —
+detection down 0.022, fuzzing up 0.032, on the same descriptions and the same test items. That is
+not noise and it is not explained here. The two scorers differ in what they show (`text` against
+`text_fuzz`, marks at the gate) and in their few-shot regime (detection has Delphi's three verbatim
+shots, fuzzing on `legacy` runs zero-shot), so a change in the explainer's INPUT can plausibly help
+one and hurt the other — but that is a hypothesis, not a finding. On the 2M neither interval clears
+zero. **Flagged as unresolved.**
+
+### The EPO arm, measured
+
+`finals.jsonl` stores only SCALAR sae fields and `build._epo_arm` needs per-token `acts`, so the
+finals were repackaged as a rollouts dir and taken through D11's validated path rather than a
+second forward: `infra/2026-09-21_epo-as-rollouts.py` (packager) then `score --rollouts-dir`
+(**$0.2610**) then `sae_self --rollouts-dir` (**$0.2458**, argmax 48/48, CSR 0 mismatches,
+`fire_fraction_mean 0.0`) then `infra/2026-09-21_epo-strings.py` (converter). Build
+`2026-09-21_e2-2m-epo`, run the same, **API $1.2070**.
+
+**16 features x 3 strings = 1,536 tokens, and the highest single per-token activation is 1.6514
+against a gate of 1.6828.** Not one token of the entire EPO output reaches the gate. 21 of the 48
+blocks (43.8 %) are unmarked even under relative marking, and 3 of 16 features have every block
+unmarked.
+
+| arm | detection | fuzzing |
+|---|---|---|
+| `DOCMAX` (these 16 features) | 0.5646 | 0.6146 |
+| `DOCMAX-draw2` | 0.5762 | 0.6132 |
+| `DOCMAX-judge2` | 0.5578 | 0.5979 |
+| **`E` (EPO)** | **0.4891** | **0.5138** |
+| `R-shuffled` (floor) | 0.4885 | 0.5487 |
+
+**`E` is the floor.** 0.4891 against the floor's 0.4885 on detection — a difference of 0.0006 — and
+BELOW the floor on fuzzing. An explanation written from four GPU-hours of optimised text carries no
+more information about the feature than another feature's description picked at random. That is the
+reachability ceiling stated as a scored number rather than an activation statistic, and it is worth
+more in the table than "not run".
+
+Note the 16 features are the EPO subset, so this block's `DOCMAX` (0.5646) is not the 32-feature
+`DOCMAX` (0.5815); the floor and the corpus arm are re-measured on the same 16 and are the right
+comparison.
+
+**Two defects found on this path**, both fixed, both of the same shape -- a crash after the product
+was already committed, which makes a complete run report failure:
+* `score.py` computed `fam_mean[f"{fam}_bo{n}"]` for an `n` outside `BO_KS = (1,2,4,8,16,32,64)`.
+  EPO's grid width is 3. Fixed to report the largest recorded best-of at or below `n`.
+* The rollouts summary must carry `engine`, `n`, `seed`, `max_new` and `weight_sha256`
+  (`score.py:34`); the packager discovered the last two by failing, one launch each. An EPO string
+  has no checkpoint behind it, so `weight_sha256` carries that fact rather than a borrowed hash.
+
+**Known gap, not fixed:** `build.json`'s `marking_counts` does not cover the `E` arm, because the
+counter sits inside the `for name in arm_names` loop and the EPO hook appends its row after it. The
+E-arm block counts above come from reading the arm rows' own examples
+(`scratchpad/census.py`), which is the same quantity read from the product.
+## OOD generalisation evaluation — pilot build (2026-09-18, branch `arb/exp-ood`)
+
+Design `infra/2026-09-18_ood-eval-design.md` (+ §11 amendments R1-R9), datasets
+`infra/2026-09-18_ood-eval-datasets.md`, training data `infra/2026-09-18_ood-eval-training-data.md`.
+Worktree `repo-maemm-ood/`, branch off `arb/precompute` f9b709c. Everything below is the CODE-AND-DRAW
+half of the §8 pilot; the GPU stages (`scan`, `rollouts_vllm`, `score`, `nll`) are launched
+separately. **Budget for this session: $2. Spent: $0.57.**
+
+| date | what | command | wall | $ | result | note |
+|---|---|---|---|---|---|---|
+| 2026-09-18 | `ood_selfcheck`, first launch — **STOPPED by hand** | `--product ood_selfcheck --base qwen36-27b` | ~4 min | **~$0.25 est** | 3 of 23 arms' readers verified before it was stopped | the product was not in `CPU_PRODUCTS`, so a network-bound reader check ran on an **H200**. `readers` + `covariates` are now the CPU default and only `--stages …nll` moves the call to the GPU. The cost is an upper bound from the wall clock: the run died before printing one |
+| 2026-09-18 | **`ood_selfcheck`, readers + covariates** | `--product ood_selfcheck --base qwen36-27b --stages readers,covariates` | **386.2 s** | **$0.0000** (CPU) | **23/23 arms** opened, row counts and revisions returned, 3 rows of text each; `token_covariates` on the real 27B tokenizer over the Czech / Thai / Python snippets, `check_token_bytes` verified on all three | slowest arms: `formulas` 132.2 s (6 parquet shards' footers + a column-projected read), `ufw_en` 44.6 s (a 1.3 GB part), `arxiv` 22.7 s (20 `.jsonl.zst` shards), `owm` 18.9 s; every smol-xl arm ≤ 3.5 s once its `data.json` is in the volume HF cache |
+| 2026-09-18 | `corpus --arm tha_Thai`, FULL 16M | `--product corpus --base qwen36-27b --set 2026-09-18_ood_v1 --arm tha_Thai` | **70.0 s** | **$0.0000** (CPU) | **16,000,034 tokens / 10,793 docs**, nested 1/4/16M; pool 320 docs; permutation at 10,793 → 11,238 of 24,037 rows; revision `af9c13333eb9` | 1,416 tok/row measured on the file-order probe |
+| 2026-09-18 | `corpus --arm python`, FULL 16M | `… --arm python` | **62.6 s** | **$0.0000** (CPU) | **16,001,210 tokens / 7,214 docs**; pool 320; permutation at 7,214 → 7,750 of 10,000 rows; revision `e782ebf35c7e` | 2,016 tok/row. The arm uses 78% of smol-xl's 10,000 python files at 16M — a 16M corpus is the largest this source supports for a code arm |
+| 2026-09-18 | `corpus --arm ufw_en`, FULL 16M | `… --arm ufw_en` | **118.1 s** | **$0.0000** (CPU) | **16,000,440 tokens / 19,126 docs**; pool 320; permutation at 19,126 → 19,859 of 566,019 rows; revision `02c85641e3d1` | 1,006 tok/row; part 0011, disjoint from the 16M corpus's parts 0009/0010 and from the old 8B corpus's part 0001 |
+| 2026-09-18 | **`targets --set 2026-09-18_ood_v1`**, 3 pilot arms | `--product targets --base qwen36-27b --set 2026-09-18_ood_v1 --arm tha_Thai,python,ufw_en` | **164.7 s** | **$0.2077** | 192 targets; 320/320 pool windows pass the raw-norm filter on every arm (presample medians 77.2 / 78.9 / 90.9); verbatim shown span in the arm's own corpus **2/64 tha_Thai, 3/64 python, 0/64 ufw_en** | `byte_piece` is **0 of 64 on all three arms**, Thai included — see below |
+| 2026-09-18 | `targets --set 2026-09-18_ood_v1_unitend` | `… --set 2026-09-18_ood_v1_unitend --arm ufw_en,python` | **88.1 s** | **$0.1111** | 128 targets; **20/64 moved on `ufw_en`, 24/64 on `python`**, all `wordend`, no `charend` (neither arm is unspaced) | the move counts equal the `first` + `mid` counts of the base draw exactly (16+4 and 5+19), which is the variant's definition |
+
+Local, CPU, $0: `uv run precompute/unit_smoke.py` **35/35** (8 new checks); `uv run
+reconstruction/stats_ood.py selfcheck` **4/4**; `… en-ref` (below).
+
+### What the draw says
+
+**Disjointness (pilot criterion (b)), checked on the products, not assumed.** The source-row sets of
+each arm's `docs.jsonl` and its `pool.jsonl` intersect in **0** rows on all three arms
+(10,793 / 7,214 / 19,126 corpus rows against 320 pool rows each), and `stream.json`'s permutation
+positions are contiguous — the pool starts exactly where the corpus stopped.
+
+**Verbatim spans (criterion (b)).** 2/64 (3.1%) on `tha_Thai`, 3/64 (4.7%) on `python`, 0/64 on
+`ufw_en`, at 16M. The code arm being the highest is what the design expected (smol-xl does not
+dedup, FineWeb-2 minhashes); none of it is masked, it is reported.
+
+**Tokenisation (criterion (c)) — `byte_piece` is 0 on every pilot arm, Thai included.** The
+Qwen3.6-27B tokenizer (248k vocab) does not split ordinary Thai text into partial-UTF-8 pieces: of
+64 Thai targets, 0 are byte pieces, 22 are single characters and 42 are multi-character tokens, and
+`char_type` is `letter_arm` on 56 of 64. The hand-picked experiment's byte-level failures (ℏ,
+superscripts) were rare SYMBOLS, not an ordinary non-Latin script, so the design's expectation that
+a Thai arm would be byte-piece-heavy does not hold at these positions. Ten rows, for the eye-check:
+
+```
+row  0 p=221 L=63 class=unspaced byte=0 whole=1 multi=0 char=letter_arm  span=…ความคิดโบราณดำเนินไป ทุกคนก็
+row  1 p=428 L=62 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…ณ 172-173 หน้าตาพอใช้ได้ครับ
+row  2 p=488 L=17 class=unspaced byte=0 whole=1 multi=0 char=letter_arm  span=…นห้องน้ำ โคตรเสียว\nคลิปโป๊ฝร
+row  3 p=168 L=51 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…นบาทที่อ่อนตัว (สมมติฐานอยู่
+row  4 p=137 L=28 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…อนหนึ่งว่า “วันนี้กำลังมีการ
+row  5 p=111 L=41 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…แทรกแซงเป็นสิ่งจำเป็น มีหลาย
+row  6 p=191 L=58 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…, ภาวะแซกซ้อนจากการรักษาโรคม
+row  7 p=320 L=16 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…่าสุดของ Gold Series ยอดนิยม
+row  8 p=329 L=29 class=unspaced byte=0 whole=0 multi=1 char=letter_arm  span=…เกมสล็อตที่มาในธีมสตรีทดาร์ก
+row  9 p=498 L=59 class=unspaced byte=0 whole=1 multi=0 char=space       span=…ม่ว่าใครจะละทิ้ง ไม่ใส่ใจ หร
+```
+
+`unspaced` is 64/64 by the arm's own definition (`tha_Thai` has no defensible word boundary, design
+§3), so criterion (c)'s "unspaced rate" is a config property, not a measurement; what the draw
+measures is the class MIX on the spaced arms, which is `word` 37 / `first` 16 / `last` 7 / `mid` 4 on
+`ufw_en` and `word` 25 / `mid` 19 / `last` 15 / `first` 5 on `python` — code splits identifiers far
+more often than English web text splits words, which is the stratum the §3 variant exists for.
+
+**`char_type` needed a second column.** The design's `char_type` is "of the token's FIRST character",
+and under a byte-level BPE a spaced script's tokens carry their leading space: `space` on 53 of 64
+`ufw_en` targets and 29 of 64 `python` ones. The design's field keeps its name and definition, and
+`char_type_body` (the same rule on the token's first NON-space character) is stored beside it.
+
+**`javascript c go shell` are all present in smol-xl** — all 87 language directories resolve, each
+`data/<lang>/data.json` is 10,000 json LINES with a `content` field and a `max_stars_repo_licenses`
+list (the licence R8 prints beside an example). Design §2's "to be confirmed at build time" is
+confirmed.
+
+### R1, the English reference, recomputed (review R1, $0)
+
+`uv run reconstruction/stats_ood.py en-ref --root-tag full --no-fetch` on the local mirror of
+`scan/2026-09-16_v1/topk.jsonl`:
+
+| corpus | n | top-1, all windows | top-1, **no own document** | own doc is top-1 | no non-own candidate |
+|---|---|---|---|---|---|
+| 1M | 512 | 0.3216 | **0.3137** | 38 | 0 |
+| 2M | 512 | 0.3433 | **0.3315** | 66 | 0 |
+| 4M | 512 | 0.3706 | **0.3511** | 114 | 2 |
+| 8M | 512 | 0.3997 | **0.3672** | 209 | 4 |
+| 16M | 512 | 0.4105 | **0.3851** | 168 | 4 |
+
+That reproduces the review's 0.314 / 0.351 / 0.385 at 1/4/16M and its "top-1 on 114/512 targets at
+4M" exactly. The rule that makes it reproduce, and that the review did not spell out: a target whose
+whole stored top-64 is own-document has NO non-own candidate (2 at 4M, 4 at 8M and 16M) and must be
+EXCLUDED from the no-own mean — scoring it -1 instead gives 0.3458 / 0.3742 at 4M / 16M, which is
+where a first attempt at this recomputation lands. The margins against bo64 0.569 are therefore
+**+0.256 / +0.218 / +0.184**, as §0 states.
+
+### R7, what the inverter was trained on (review R7 as amended 2026-09-18, $0, CPU + network)
+
+The primary's activation corpus is **`m-a-p/FineFineWeb`**, not Ultra-FineWeb
+(`infra/2026-09-18_ood-eval-training-data.md`); `mxf/config.py`'s `CORPUS = "openbmb/Ultra-FineWeb"`
+is the early collector and stale for the 27B line. Both sources measured the same way, 10,000
+512-token windows each, one `code_like` rule (`common.CODE_LIKE_MARKERS`, printed in the output):
+
+| source | provenance | windows | code-like | non-English |
+|---|---|---|---|---|
+| `hf:m-a-p/FineFineWeb` | revision `7fd92dc825a7`, file order, fetched 2026-09-18 | 10,000 | **0 (0.000)** | not measured |
+| `corpus` (our eval corpus, UFW en p0009-0010) | 10,000 random windows of `corpus/tokens.i32`, seed 20260918 | 10,000 | **1 (0.0001)** | not measured |
+
+**The FineFineWeb number is a sample of ONE DOMAIN, not of the corpus, and must not be quoted as
+"< 1% of the training data is code".** The repo is laid out as `<domain>/<domain>_NNNNNN.jsonl` over
+**67 domains and 66,103 files of ~317 MB**, so "10k documents in file order" is 10k documents of
+`aerospace/aerospace_000000.jsonl` — the one file the run read, which the output records. The card's
+own domain sizes put `computer_science_and_technology` at 203B of 4,425B tokens (≈ 4.6%) and
+`mathematics` at 6.18B (≈ 0.14%), so a corpus-wide code-like share near 0 is not what the layout
+predicts. **Open for Tomáš**: either measure a stratified draw (the first file of each of the 67
+domains, 150 documents each) or state the share as a per-domain figure. Until then the design's R7
+rule ("call code and maths arms *under-represented* rather than *unseen* unless the share is < 1%")
+should read **under-represented**, on the card's domain sizes rather than on this measurement.
+
+**The non-English half did not run**: `fasttext` is not installed here and no `lid.176.bin` is on
+this machine. The design names fastText `lid.176`; Facebook's own HF repo
+`facebook/fasttext-language-identification` ships the **lid218e** model (`model.bin`,
+`__label__eng_Latn` labels), not lid.176, and the lid.176 mirrors on the hub are community re-uploads
+(`crash-sv/scribe-fasttext-lid176` has `lid.176.bin`). Which of the two the paper cites is a
+decision, not a lookup, so nothing was downloaded. Once the model is in
+`reconstruction/data/lid.176.bin`:
+
+```
+uv run --with transformers --with fasttext reconstruction/stats_ood.py train-share \
+    --source hf:m-a-p/FineFineWeb --n 10000 --no-fetch
+uv run --with transformers --with fasttext reconstruction/stats_ood.py train-share --source corpus
+```
+
+### The §8 pilot's GPU half (2026-09-18, same day)
+
+| what | command | wall | $ | result |
+|---|---|---|---|---|
+| **`scan`, 4 corpora at their 4M prefix** | `--product scan --base qwen36-27b --set 2026-09-18_ood_v1 --corpus tha_Thai,python,ufw_en,corpus --max-size 4 --with-set 2026-09-16_v1:realact+random,2026-09-18_ood_v1_unitend` | **5060.4 s** | **$6.3818** | 1,344 target rows (192 OOD + 1,024 English realact/random + 128 `_unitend`) against each corpus; **2,742 corpus tok/s** at 1,344 targets against the 2,877 measured at 512 — the scan is per corpus token, as the design assumed. `0 own-document masks` on the three arm corpora and **512** on the English one, which is the mask-by-corpus rule working |
+| `nll`, OOD set | `--product nll --base qwen36-27b --set 2026-09-18_ood_v1` | 94.6 s | $0.1193 | 192 windows, 2.26 win/s |
+| `nll`, English realact | `--product nll --base qwen36-27b --set 2026-09-16_v1` | 120.8 s | $0.1524 | 512 windows |
+| `rollouts_vllm` primary, OOD | `--product rollouts_vllm … --maemm qwen36-27b/2026-09-10_rl-8x2048-full --set 2026-09-18_ood_v1 --n 64 --max-num-seqs 256` | 785.9 s | $0.9911 | 12,288 rollouts; marker ‖h‖ 130.08, injection cos 0.999995 |
+| `rollouts_vllm` primary, `_unitend` — **LOST** | the same with `--set 2026-09-18_ood_v1_unitend` | 714.2 s | $0.9007 | finished, then its file was **clobbered** — see below |
+| `rollouts_vllm` control, OOD | `… --maemm qwen36-27b/2026-09-16_base-control --set 2026-09-18_ood_v1` | 631.8 s | $0.7967 | marker ‖h‖ 14.0594 vs the clean base 14.062 (rel 1.9e-4), i.e. the control is the base |
+| `rollouts_vllm` primary, `_unitend`, rerun alone | the same | 716.4 s | $0.9034 | 8,192 rollouts |
+| `score` ×3 | `--product score … --engine vllm` on the three (set, maemm) pairs | 185.2 / 239.2 / 164.8 s | $0.2336 / $0.3016 / $0.2078 | — |
+| `ood_selfcheck --stages nll` | `--product ood_selfcheck --base qwen36-27b --stages nll` | 140.9 s | $0.1777 | criterion (e): our per-position nats vs HF's own `labels=` loss, **2.9e-4 and 4.8e-4** against a 1e-3 tolerance |
+| `stats_ood.py tables` | local | — | $0 | `ood_arms.csv`, `ood_per_target.csv`, `ood_strata.csv`, `ood_examples.md` |
+
+**Total this session $11.74** (the earlier code-and-draw half $0.57 included), against a $16 cap and
+a $13 estimate.
+
+**Two operational findings.**
+
+1. **Two concurrent `rollouts_vllm` runs of the same MAEMM destroy one of them.** `rollouts/` is an
+   ACCUMULATING directory (`OutDir(keep_existing=True)`): each run copies the existing directory
+   into its temp dir, adds its file, and renames over the original. The `_unitend` run finished
+   FIRST, and the `ood_v1` run — whose copy was taken before that file existed — then replaced the
+   directory and took it away. The loss is SILENT: the run reports `[done]` and a cost, and only
+   `score` notices, with `no rollouts at …/2026-09-18_ood_v1_unitend__vllm.jsonl`. Cost of the
+   lesson: $0.90. **Never run two `rollouts_vllm` (or any two products that write the same
+   accumulating directory) concurrently for one MAEMM.** Concurrent runs on DIFFERENT MAEMMs are
+   fine, and the control run (a different MAEMM directory) was unaffected.
+2. **A multi-corpus `scan`'s per-directory cost line is CUMULATIVE.** `OutDir`'s `t0` is the
+   container's start by design ("so each README's wall/cost covers the whole product call"), so the
+   four scan READMEs say $1.72 / $3.30 / $4.85 / $6.38 — the last is the call's total, not the
+   fourth corpus's. Per-corpus costs are the differences: 1365 / 1247 / 1232 / 1216 s.
+
+### Pilot criteria (design §8), with the numbers
+
+| | criterion | result |
+|---|---|---|
+| (a) | `ufw_en` bo64 within 0.04 of 0.569, corpus-4M top-1 within 0.04 of 0.351 | **PASS** — bo64 **0.5514** (−0.018), corpus-4M **0.3518** (+0.0008) |
+| (b) | disjointness holds, verbatim-span rate reported | **PASS** — corpus/pool source rows intersect in 0 on all three arms; verbatim 2/64 `tha_Thai`, 3/64 `python`, 0/64 `ufw_en` |
+| (c) | `tha_Thai` byte-piece and `unspaced` rates are what the tokenizer implies, eye-checked on 10 rows | **PASS, with a surprise** — `unspaced` 64/64 (definitional); `byte_piece` **0/64**, 22 whole-character and 42 multi-character tokens. The 248k tokenizer does not split ordinary Thai into partial UTF-8 pieces |
+| (d) | random-row top-1 at 4M within 0.02 across the corpora | **PASS** — 0.0579 (English) / 0.0576 (`ufw_en`) / 0.0572 (`python`) / 0.0506 (`tha_Thai`), spread **0.0073** |
+| (e) | `nll` agrees with an independent HF forward to 1e-3 | **PASS** — 2.9e-4 and 4.8e-4. NOTE: on **2** rows, not the design's 8 (the implementation brief said 2) |
+| (f) | per-arm chance level reported | **PASS** — pairwise target cosine 0.2208 / 0.0610 / 0.1564 (`tha_Thai` / `ufw_en` / `python`); scan median −0.064 / −0.040 / −0.111; scan p99 0.088 / 0.068 / −0.003 |
+| (g) | language-id rate of top-1 rollouts on `tha_Thai` | **PASS** — lid218e top-1 **0.859**, top-4 **0.938** |
+
+### The arms, as measured (pilot, 4M in-domain corpora)
+
+| arm | n | bo1 | bo4 | bo64 | control bo64 | in-domain 1M | in-domain 4M | English-4M | Δ = bo64 − 4M | 95% CI | win | outcome |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `ufw_en` | 64 | 0.4867 | 0.5195 | **0.5514** | 0.1435 | 0.3131 | 0.3518 | 0.3597 | **+0.1997** | [0.1761, 0.2229] | 0.953 | **exceeds** |
+| `python` | 64 | 0.2774 | 0.3276 | **0.3859** | 0.0266 | 0.2533 | 0.2885 | 0.1464 | **+0.0974** | [0.0658, 0.1297] | 0.828 | **exceeds** |
+| `tha_Thai` | 64 | 0.1987 | 0.2910 | **0.3801** | 0.0100 | 0.3545 | 0.3739 | 0.1221 | **+0.0061** | [−0.0152, 0.0270] | 0.531 | **inconclusive** |
+| `en_ref` | 508 | — | — | (0.569) | — | 0.3137 | 0.3511 | — | (+0.218) | — | — | — |
+
+MAEMM − control on bo64: +0.408 / +0.359 / +0.370 (all CIs far above zero). bits per byte 0.661 /
+0.454 / 1.040; within-arm Spearman of bo64 against bpb −0.075 / +0.101 / +0.168. `code_like` on the
+top-1 rollout: 0.016 on `python`, 0 elsewhere. `bo1` vs the 1M corpus: +0.174 [0.144, 0.202] on
+`ufw_en`, +0.024 [−0.023, 0.066] on `python`, **−0.156** [−0.182, −0.129] on `tha_Thai`.
+
+**An independent confirmation of R1 fell out of the cross-domain row.** The 512 English realact
+targets scored against the `ufw_en` corpus — a DIFFERENT 4M English slice (part 0011), which
+contains none of their documents — give top-1 **0.3512**, against **0.3511** for the same targets on
+their own corpus with own-document windows excluded, and 0.3706 with them counted. The
+own-document exclusion and a genuinely disjoint corpus of the same size agree to 1e-4.
+
+**`tha_Thai` is the arm to look at.** Its corpus search is the strongest of the three (0.3739 at 4M
+against English 0.3518 and Python 0.2885) while its MAEMM bo64 is the weakest relative to it, and
+its 64 targets are the most similar to each other (pairwise cosine 0.221 against 0.061 English). Both
+push Δ toward zero, and neither is the inverter failing outright: bo64 0.380 sits far above the
+control's 0.010 and the scan's p99 of 0.088, and 86% of its top-1 rollouts are in Thai.
+
+### R7, stratified (review R7, Tomas 2026-09-18), $0
+
+| source | draw | windows | code-like | non-English |
+|---|---|---|---|---|
+| `m-a-p/FineFineWeb` rev `7fd92dc825a7` | **stratified**: the head of the first file of each of its **67 domains**, 150 documents each | 10,050 | **0 (0.000)** | 37 (0.0037) |
+| the same, **token-weighted** by the card's `Total Tokens` column (all 67 domains matched) | — | — | **0.000** | **0.0021** |
+| our English eval corpus (UFW en p0009-0010) | 10,000 random 512-token windows | 10,000 | 1 (0.0001) | 66 (0.0066) |
+
+Not one of the 10,050 windows is code-like, `computer_science_and_technology` (203B tokens, 4.6% of
+the corpus) and `mathematics` (6.18B) included — which supports the training-data note's reading
+that FineFineWeb's CS domain is PROSE about computing. On the design's R7 rule (< 1%) the code and
+maths arms are **"unseen"**, not merely under-represented; the earlier file-order draw that read one
+`aerospace` file is superseded. Language id is fastText **lid218e**
+(`facebook/fasttext-language-identification`, `model.bin` sha256 `8ded5749a2ad79ae…`, commit
+`3af127d4124fc58b75666f3594bb5143b9757e78`), chosen because its FLORES-200 labels are our arm ids.
+MEASURED on fasttext 0.9.3: its python `predict` wrapper ends in `np.array(probs, copy=False)`,
+which numpy ≥ 2 refuses, so `lid_label` calls the C++ `model.f.predict` directly.
+
+## 2026-09-21 — branch `evals/pipeline-ood`: the generalisation eval at 1/4 scale
+
+The OOD eval (`infra/2026-09-18_ood-eval-design.md`) rebased onto the new pipeline and run at a
+quarter of the design's size (Tomáš 2026-09-21: "OOD = 1/4 of the design's size"). Everything
+wrote under a NEW set name and new scan keys; nothing on the volume was deleted, replaced or
+rewritten, and `--force` was never passed. `--product unit` inside the image (53/53) and
+`--product check` both ran green before the first launch.
+
+### Scale, and what "a quarter" means here
+
+| axis | design | here | why |
+|---|---|---|---|
+| targets per arm | 64 | **16** | an exact PREFIX of the design's draw, verified below |
+| arms | 23 | **23**, all of them | scan cost is per corpus token, so it is flat in n |
+| in-domain corpus search | 4M | **1M** (the nested prefix) | the design's size scaled to 1/4 tokens |
+| English cross-domain scan | 16M | **4M** (nested prefix) | the same 1/4 |
+| checkpoints | old primary + control | **+ `rl-last16`** | eval plan §4.4, both generations |
+| R2 16M in-domain corpora | 4 arms | **not run** | does not fit the stage cap at this scale |
+| R5 `_unitend` variant | 16 arms | **not run** | a stratum, not the headline (design §3) |
+
+**The 16 targets are the design's first 16, not a new draw.** `corpus.POOL_N` is 320 regardless of
+n, and `targets._ood_arm_draw` draws `p` and `L` for all 320 pool rows from `arm_rng(arm, seed)`
+BEFORE selecting any, then takes the first n survivors of the raw-norm filter in pool order.
+Verified against the 2026-09-18 pilot on the three arms both sets carry, comparing
+`(pool_i, p, L, id)` row by row:
+
+```
+python       q1 n=16  prefix of pilot n=64  -> IDENTICAL
+tha_Thai     q1 n=16  prefix of pilot n=64  -> IDENTICAL
+ufw_en       q1 n=16  prefix of pilot n=64  -> IDENTICAL
+```
+
+So this also confirms plan §4.3.2's re-draw-don't-migrate: the raw-storage re-draw reproduces the
+pilot's draw exactly, under `storage: raw` instead of a direction with the mean baked in.
+
+### THE CENTRING, which is the one thing to read before the numbers
+
+A scan scores corpus windows against the TARGET DIRECTION, so a Δ is only a margin when both
+sides use the same one. The two checkpoints do not:
+
+```
+cos(mu_512,   whiten_mu) = 0.999937      <- what the 0.999897 on record is about
+cos(mu_512,   stats_mu)  = 0.977348
+cos(stats_mu, whiten_mu) = 0.977292
+```
+
+The 0.999897 recorded in `config.yaml` (`maemms.<rl-last16>.mu`) and at SMOKES 2026-09-16 compares
+`mu_512` -- `targets.py`'s per-draw diagnostic mean -- with `whiten_mu`. It says nothing about
+`stats/mu.f32`, the 16M-corpus token mean, which differs from BOTH at 0.977. On this set's own 368
+targets that puts `unit(act - stats_mu)` and `unit(act - whiten_mu)` a **median cos 0.969 apart**
+(min 0.943, p01 0.946) -- the same order as the effects being measured.
+
+So the 23 arm corpora are scanned TWICE, once per mean, keyed by `--run-tag`:
+`scan/<set>__<corpus>__1m` at `stats/mu.f32` (the old primary and the control) and
+`…__1m__mu-whiten` at `whiten_mu` (`rl-last16`). `results/ood.py` reads each scan's own recorded
+mean from its README and differences every source against the scan at ITS mean.
+
+### The cosine convention, and the third column added for it
+
+`scan` scores a corpus window as `normalize(h) @ unit(act - mu)`: the corpus activation UNCENTRED
+against a CENTRED target. That is the paper's convention and it is unchanged here -- the English
+reference recomputed from `scan/2026-09-16_v1/topk.jsonl` reproduces design §11 R1 to the digit:
+
+| size (M) | n | top1 (all) | top1 (no own doc) | margin vs bo64 0.569 | own doc IS top-1 |
+|---|---|---|---|---|---|
+| 1 | 512 | 0.3216 | **0.3137** | **+0.2553** | 38 |
+| 2 | 512 | 0.3433 | 0.3315 | +0.2375 | 66 |
+| 4 | 512 | 0.3706 | **0.3511** | **+0.2179** | **114** |
+| 8 | 512 | 0.3997 | 0.3672 | +0.2018 | 209 |
+| 16 | 512 | 0.4105 | **0.3851** | **+0.1839** | 168 |
+
+(design §11 R1: "corpus top-1 0.314 / 0.351 / 0.385 at 1/4/16M, margins +0.256 / +0.218 / +0.184",
+"top-1 on 114/512 targets at 4M". An independent check of the whole reader path.)
+
+`score` on this branch emitted only two SYMMETRIC cosines -- `cos` = cos(h, unit(act)) and
+`cos_centred` = cos(h - mu, unit(act - mu)) -- and neither is `cos(h, unit(act - mu))`. The legacy
+path produced that one for free, because a `storage: unit` set's stored rows ARE unit(act - mu) and
+`dirs` was therefore already the centred target; the raw-storage migration lost it. Differencing
+`cos_centred` against the scan mixed a doubly-centred MAEMM cosine with a singly-centred corpus
+one: the SIGN survives that, the MAGNITUDE does not, which is why a first pass read bo64 0.86 on
+`arb_Arab` where the 2026-09-18 pilot read 0.5514 on `ufw_en`.
+
+**Decision (Tomáš, 2026-09-21): option 1.** `score` gained a third column, `cos_asym` =
+`cos(h, unit(act - mu))`, with its own argmax, `mean/max_cos_asym`, `n_asym` and `bo_a_<k>`;
+gated on `dirs_centred`, so an uncentred run is byte-identical to before. The OOD scores were
+re-run under `--score-tag asym` (the scans were NOT touched), and the arms table's Δ is that
+column on both sides. The symmetric cosines stay in the CSV.
+
+**Left open, for the full-scale run:** the paper-consistent alternative is a scan that centres its
+corpus activations too, making both sides `cos_centred` -- the pipeline's headline convention.
+That invalidates the frozen English reference above (it is stated in the asymmetric convention),
+so it is a separate decision for Tomáš and was not taken here.
+
+### `--score-tag`, and why not `--run-tag`
+
+`cos_asym` is a new column, so the OOD scores had to be re-run without overwriting the first
+results. `--run-tag` cannot do that: it selects a different rollouts FILE, and using it for a
+re-score sends `score` looking for `<set>__vllm__<tag>.jsonl` (which is how an earlier mu-stats
+arm failed tonight, $0). `--score-tag` names only the output directory,
+`scores/<set>[__<engine>][__<tag>]`, engine before tag so `parse_scores_dir` still reads the
+engine back.
+### Commands, in order
+
+Launcher: `scratchpad/ood/{go,step,chain}.sh`, the eval-1 retry-outside-the-client pattern
+(SMOKES 2026-09-21 "Sunk cost"). Self-tested first with `--product nosuchproduct`: one attempt,
+loud stop, no container. Every launch is `modal run --detach` under `setsid`, retried in bash only
+on a client network drop, never on "already exists".
+
+```
+# gates, before anything paid
+uv run paper-evals/precompute/unit_smoke.py                      # 56/56 (43 at the branch point)
+uv run paper-evals/results/selftest.py                           # 13/13
+uv run paper-evals/reconstruction/stats_ood.py selfcheck         # 4/4
+--product unit                                                   # 53/53 in the image, $0
+--product check --base qwen36-27b                                # $0
+--product ood_selfcheck --base qwen36-27b --stages readers,covariates   # 23/23 arms, CPU, $0
+
+# corpora: 20 new arms (python, tha_Thai, ufw_en already on the volume from the 09-18 pilot)
+--product corpus --base qwen36-27b --set 2026-09-21_ood_q1 --arm <arm>        # CPU, $0 each
+
+# the set, and the base's predictability covariate
+--product targets --base qwen36-27b --set 2026-09-21_ood_q1
+--product nll     --base qwen36-27b --set 2026-09-21_ood_q1
+
+# the in-domain search, 1M per arm, four calls + the English 4M cross-domain row.
+# TWO PASSES, one per centring mean, keyed by --run-tag (see the centring section above).
+--product scan --base qwen36-27b --set 2026-09-21_ood_q1 --corpus ood_<a>,... --max-size 1 \
+    --mu 'base/{base}/stats/mu.f32' --with-set 2026-09-16_v1:realact+random
+--product scan ... --corpus heldout16m --max-size 4 --mu 'base/{base}/stats/mu.f32' --with-set ...
+--product scan ... --corpus ood_<a>,... --max-size 1 \
+    --mu /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy --run-tag mu-whiten   # NO --with-set
+--product scan ... --corpus heldout16m --max-size 4 --mu <whiten> --run-tag mu-whiten
+
+# rollouts and scores, sequential per MAEMM (rollouts/ is an accumulating directory)
+--product rollouts_vllm --maemm <ckpt> --set 2026-09-21_ood_q1 --n 64 --max-num-seqs 256
+--product score --maemm <ckpt> --set 2026-09-21_ood_q1 --engine vllm
+--product score --maemm <ckpt> --set 2026-09-21_ood_q1 --engine vllm --score-tag asym   # cos_asym
+
+# the tables, local, CPU, $0 -- reads only, no volume write
+uv run --with fasttext --with huggingface-hub paper-evals/results/ood.py --set 2026-09-21_ood_q1
+```
+
+The base control takes `--mu 'base/{base}/stats/mu.f32' --run-tag mu-stats` explicitly. Its
+config `mu:` is `null` under a comment saying it takes the primary's convention -- and the primary
+was settled at `stats/mu.f32` on 2026-09-21, so the value and its own stated rationale disagree.
+Passing it explicitly makes the choice a recorded DEVIATION in the product README instead of a
+default nobody chose. **Flagged for Tomáš, not resolved here.**
+
+### Products written (nothing deleted, replaced or rewritten; `--force` never passed)
+
+```
+base/qwen36-27b/corpora/<arm>/                     23 arms (20 new), tokens.i32 + pool_windows.i32
+base/qwen36-27b/heldout/2026-09-21_ood_q1/         368 rows, storage: raw (act.f32 + unit(act))
+base/qwen36-27b/nll/2026-09-21_ood_q1/
+base/qwen36-27b/scan/2026-09-21_ood_q1__<arm>__1m/             the stats_mu pass
+base/qwen36-27b/scan/2026-09-21_ood_q1__<arm>__1m__mu-whiten/  the whiten_mu pass
+base/qwen36-27b/scan/2026-09-21_ood_q1__corpus__4m[__mu-whiten]/   English cross-domain
+maemms/qwen36-27b/<ckpt>/rollouts/2026-09-21_ood_q1__vllm[__mu-stats].jsonl
+maemms/qwen36-27b/<ckpt>/scores/2026-09-21_ood_q1__vllm[__mu-stats][__asym]/
+```
+
+### Deviations from the design, all deliberate
+
+| # | deviation | why |
+|---|---|---|
+| 1 | in-domain search at **1M**, not the pre-registered 4M | the design's size scaled to 1/4 tokens; 23 arms at 4M is ~$42 of scan alone |
+| 2 | the claim is read at 1M against the **1M** English reference (+0.2553) | a smaller corpus is an EASIER baseline, so "exceeds" at 1M is WEAKER evidence than at 4M -- stated, not glossed |
+| 3 | R2's 16M in-domain corpora | not run; does not fit the cap at this scale |
+| 4 | R5's `_unitend` variant set | not run; a stratum, not the headline |
+| 5 | Δ on `cos_asym`, not the pipeline's `cos_centred` headline | the only convention both sides share; see above |
+| 6 | the whiten_mu pass carries no `--with-set` bank | `dirs_for` refuses a stored-unit set under another mean; the random floor is mu-independent anyway |
+### `cos_asym` validated against the 2026-09-18 pilot
+
+The pilot scored the OLD PRIMARY on the old pipeline, whose single cosine was the asymmetric one.
+Its arms are the same arms, and this run's 16 targets are the first 16 of its 64, so the means are
+directly comparable up to subsampling:
+
+| arm | this run, `bo_a_64`, n=16 | pilot, n=64 | diff |
+|---|---|---|---|
+| `ufw_en` | 0.5592 | 0.5514 | +0.0078 |
+| `python` | 0.3584 | 0.3859 | −0.0275 |
+| `tha_Thai` | 0.3900 | 0.3801 | +0.0099 |
+
+All within ~0.03, which is the SE of a 16-target mean at the per-target sd of ~0.15. The three
+cosines on the same 368 rows are plainly different objects (rl-last16): `bo_64` median 0.9109,
+`bo_c_64` 0.8180, `bo_a_64` 0.4583 (min −0.0303 — an uncentred activation CAN point away from a
+centred target, which the doubly-centred cosine almost never does). So the first pass's 0.86 was
+the wrong cosine, not a result.
+
+
+### Language identity of the output (review R3) — and a retraction
+
+A first pass of this column read **rollout k = 0** (the first sampled draw at T = 1.0, an
+arbitrary one of 64) rather than the top-1 by score, used a want-list that omits the label
+lid218e actually returns for Chinese, and applied `code_like` — calibrated for R7's 512-token
+windows — to ≤ 64-token rollouts. On those numbers this record claimed "the margin is real and
+the content often is not what the arm is about". **That claim is withdrawn**; it was three
+instrument defects, found by an independent read-only check
+(`infra/2026-09-22_ood-lid-check.md`) and not by me.
+
+Corrected, each rate beside the classifier's CEILING on that arm's own corpus top-1 windows —
+text that is in the arm's language by construction, so the ceiling is a property of the
+classifier, not of the MAEMM:
+
+| arm | lid @ top-1 by score | ceiling | (k=0, the withdrawn number) |
+|---|---|---|---|
+| `ufw_zh` | 1.000 | 0.86 | 0.188 |
+| `cmn_Hani` | 0.938 | 0.97 | 0.125 |
+| `hin_Deva` | 0.875 | 0.73 | 0.875 |
+| `arb_Arab` | 0.812 | 0.87 | 0.688 |
+| `ces_Latn` | 0.812 | 0.93 | 0.562 |
+| `ell_Grek` | 0.750 | 0.87 | 0.500 |
+| `rus_Cyrl` | 0.688 | 0.86 | 0.625 |
+| `tha_Thai` | 0.688 | 0.84 | 0.625 |
+| `jpn_Jpan` | 0.562 | 0.66 | 0.062 |
+
+The best-of-64 rollout is in the arm's own language on 0.56–1.00 of targets, at or near each
+arm's ceiling. **`generalises to`, not `transfers to`**, is the wording this supports (R3/R9).
+At n = 16 each rate carries a standard error of about ±0.12.
+
+`code_like` on the code and maths arms is reported **n/m**: its ceiling on those arms' own corpus
+windows is 0.01–0.26, so the predicate barely fires on genuine code and the rollout rate is
+uninterpretable either way. The design's §5 script-of-the-output measure, which has a ceiling of
+1.000 on every arm, is the better instrument and is **not implemented here** — flagged for the
+full-scale run.
+
+**Ceiling discrepancy, unresolved:** my ceilings run 0.07–0.16 below the independent check's on
+six lang arms (e.g. `tha_Thai` 0.84 vs 1.000, `rus_Cyrl` 0.86 vs 1.000) although the rollout
+rates agree to the digit on all nine. Both decode the top-1 window from `corpora/<arm>/tokens.i32`
+at the `topk.jsonl` doc/start; I have not found the difference. The rollout rates are the reported
+numbers and they are reproduced exactly; the ceilings are a diagnostic and should be read as
+approximate until this is settled.
+
+### Results — the arms table
+
+Δ = MAEMM best-of-64 minus the in-domain corpus search's top-1 at **1M tokens**, paired per
+target, both sides in the asymmetric cosine; 10,000-resample percentile bootstrap. `lang /
+ceiling` is the fastText lid218e rate on the **top-1 rollout by score** beside that classifier's
+ceiling on the arm's own corpus windows; `n/m` = not measurable by `code_like`.
+
+**Old primary `2026-09-10_rl-8x2048-full`** (mu = `stats/mu.f32`, scans at the same mean):
+
+| arm | family | n | bo64 (asym) | corpus 1M | control bo64 | Δ | 95% CI | win | outcome | lang / ceiling |
+|---|---|---|---|---|---|---|---|---|---|---|
+| c | code | 16 | 0.4056 | 0.3002 | 0.0083 | 0.1054 | [0.053, 0.158] | 0.88 | exceeds | n/m (0.00 vs ceiling 0.14) |
+| go | code | 16 | 0.3305 | 0.2798 | -0.0133 | 0.0507 | [0.011, 0.094] | 0.69 | exceeds | n/m (0.00 vs ceiling 0.01) |
+| haskell | code | 16 | 0.3896 | 0.3256 | 0.0160 | 0.0640 | [0.017, 0.111] | 0.62 | exceeds | n/m (0.00 vs ceiling 0.10) |
+| javascript | code | 16 | 0.3332 | 0.2068 | -0.0309 | 0.1265 | [0.080, 0.180] | 0.94 | exceeds | n/m (0.06 vs ceiling 0.22) |
+| python | code | 16 | 0.3584 | 0.2124 | 0.0079 | 0.1460 | [0.053, 0.250] | 0.88 | exceeds | n/m (0.06 vs ceiling 0.07) |
+| rust | code | 16 | 0.3208 | 0.1954 | -0.0200 | 0.1254 | [0.069, 0.180] | 0.88 | exceeds | n/m (0.00 vs ceiling 0.26) |
+| shell | code | 16 | 0.4018 | 0.2731 | 0.0220 | 0.1287 | [0.075, 0.192] | 0.88 | exceeds | n/m (0.00 vs ceiling 0.02) |
+| sql | code | 16 | 0.3482 | 0.3299 | 0.0221 | 0.0183 | [-0.021, 0.060] | 0.62 | inconclusive | n/m (0.00 vs ceiling 0.01) |
+| ufw_en | ctrl | 16 | 0.5592 | 0.3022 | 0.1206 | 0.2569 | [0.210, 0.313] | 1.00 | exceeds | 1.000 / 0.83 |
+| ufw_zh | ctrl | 16 | 0.5713 | 0.3567 | 0.1553 | 0.2147 | [0.168, 0.266] | 1.00 | exceeds | 1.000 / 0.86 |
+| formulas | diag | 16 | 0.3609 | 0.3258 | 0.0294 | 0.0351 | [-0.003, 0.074] | 0.81 | inconclusive | n/m (0.00 vs ceiling 0.00) |
+| arb_Arab | lang | 16 | 0.5043 | 0.3306 | 0.0799 | 0.1737 | [0.133, 0.214] | 1.00 | exceeds | 0.812 / 0.87 |
+| ces_Latn | lang | 16 | 0.4532 | 0.3027 | 0.0425 | 0.1505 | [0.104, 0.197] | 0.94 | exceeds | 0.812 / 0.93 |
+| cmn_Hani | lang | 16 | 0.5215 | 0.3516 | 0.1082 | 0.1699 | [0.121, 0.217] | 0.94 | exceeds | 0.938 / 0.97 |
+| ell_Grek | lang | 16 | 0.3900 | 0.2543 | -0.0360 | 0.1357 | [0.096, 0.180] | 1.00 | exceeds | 0.750 / 0.87 |
+| hin_Deva | lang | 16 | 0.3374 | 0.2927 | -0.0185 | 0.0447 | [0.006, 0.080] | 0.81 | exceeds | 0.875 / 0.73 |
+| jpn_Jpan | lang | 16 | 0.5307 | 0.3810 | 0.1305 | 0.1497 | [0.103, 0.191] | 0.94 | exceeds | 0.562 / 0.66 |
+| rus_Cyrl | lang | 16 | 0.5243 | 0.3022 | 0.0897 | 0.2220 | [0.179, 0.267] | 1.00 | exceeds | 0.688 / 0.86 |
+| tha_Thai | lang | 16 | 0.3900 | 0.3539 | 0.0125 | 0.0361 | [-0.019, 0.099] | 0.62 | inconclusive | 0.688 / 0.84 |
+| arxiv | math | 16 | 0.5287 | 0.3298 | 0.1132 | 0.1989 | [0.146, 0.254] | 1.00 | exceeds | n/m (0.00 vs ceiling 0.00) |
+| isabelle | math | 16 | 0.3429 | 0.3771 | 0.0000 | -0.0342 | [-0.069, 0.002] | 0.31 | inconclusive | n/m (0.00 vs ceiling 0.03) |
+| lean | math | 16 | 0.3832 | 0.3526 | -0.0034 | 0.0306 | [-0.022, 0.092] | 0.56 | inconclusive | n/m (0.00 vs ceiling 0.07) |
+| owm | math | 16 | 0.4731 | 0.2739 | 0.0801 | 0.1992 | [0.144, 0.254] | 1.00 | exceeds | 1.000 / 0.82 |
+
+**`rl-last16` `2026-09-18_rl-last16-lr5e-7`** (mu = `whiten_mu`, scans at the same mean):
+
+| arm | family | n | bo64 (asym) | corpus 1M | control bo64 | Δ | 95% CI | win | outcome | lang / ceiling |
+|---|---|---|---|---|---|---|---|---|---|---|
+| c | code | 16 | 0.4311 | 0.3198 | 0.0083 | 0.1113 | [0.056, 0.168] | 0.81 | exceeds | n/m (0.00 vs ceiling 0.14) |
+| go | code | 16 | 0.3705 | 0.2987 | -0.0133 | 0.0718 | [0.030, 0.118] | 0.69 | exceeds | n/m (0.00 vs ceiling 0.01) |
+| haskell | code | 16 | 0.4165 | 0.3444 | 0.0160 | 0.0721 | [0.026, 0.119] | 0.75 | exceeds | n/m (0.00 vs ceiling 0.10) |
+| javascript | code | 16 | 0.3574 | 0.2321 | -0.0309 | 0.1253 | [0.068, 0.187] | 0.81 | exceeds | n/m (0.12 vs ceiling 0.22) |
+| python | code | 16 | 0.3908 | 0.2333 | 0.0079 | 0.1576 | [0.075, 0.250] | 0.81 | exceeds | n/m (0.12 vs ceiling 0.07) |
+| rust | code | 16 | 0.3314 | 0.2244 | -0.0200 | 0.1070 | [0.049, 0.165] | 0.81 | exceeds | n/m (0.06 vs ceiling 0.26) |
+| shell | code | 16 | 0.4458 | 0.2979 | 0.0220 | 0.1479 | [0.099, 0.204] | 1.00 | exceeds | n/m (0.00 vs ceiling 0.02) |
+| sql | code | 16 | 0.3743 | 0.3558 | 0.0221 | 0.0186 | [-0.017, 0.055] | 0.56 | inconclusive | n/m (0.00 vs ceiling 0.01) |
+| ufw_en | ctrl | 16 | 0.5635 | 0.3236 | 0.1206 | 0.2398 | [0.194, 0.293] | 1.00 | exceeds | 1.000 / 0.83 |
+| ufw_zh | ctrl | 16 | 0.5827 | 0.3775 | 0.1553 | 0.2052 | [0.155, 0.264] | 1.00 | exceeds | 0.750 / 0.86 |
+| formulas | diag | 16 | 0.3830 | 0.3517 | 0.0294 | 0.0313 | [0.000, 0.061] | 0.81 | exceeds | n/m (0.00 vs ceiling 0.00) |
+| arb_Arab | lang | 16 | 0.5085 | 0.3501 | 0.0799 | 0.1584 | [0.114, 0.199] | 0.94 | exceeds | 0.625 / 0.87 |
+| ces_Latn | lang | 16 | 0.4598 | 0.3300 | 0.0425 | 0.1298 | [0.076, 0.181] | 0.88 | exceeds | 0.500 / 0.93 |
+| cmn_Hani | lang | 16 | 0.5526 | 0.3776 | 0.1082 | 0.1750 | [0.125, 0.222] | 0.94 | exceeds | 0.875 / 0.97 |
+| ell_Grek | lang | 16 | 0.4164 | 0.2827 | -0.0360 | 0.1338 | [0.087, 0.185] | 0.94 | exceeds | 0.500 / 0.87 |
+| hin_Deva | lang | 16 | 0.3592 | 0.3225 | -0.0185 | 0.0367 | [0.000, 0.071] | 0.75 | exceeds | 0.688 / 0.73 |
+| jpn_Jpan | lang | 16 | 0.5678 | 0.4019 | 0.1305 | 0.1658 | [0.133, 0.199] | 1.00 | exceeds | 0.625 / 0.66 |
+| rus_Cyrl | lang | 16 | 0.5582 | 0.3270 | 0.0897 | 0.2312 | [0.190, 0.273] | 1.00 | exceeds | 0.688 / 0.86 |
+| tha_Thai | lang | 16 | 0.3975 | 0.3775 | 0.0125 | 0.0200 | [-0.028, 0.076] | 0.50 | inconclusive | 0.688 / 0.84 |
+| arxiv | math | 16 | 0.5461 | 0.3638 | 0.1132 | 0.1822 | [0.122, 0.240] | 0.94 | exceeds | n/m (0.00 vs ceiling 0.00) |
+| isabelle | math | 16 | 0.3606 | 0.4006 | 0.0000 | -0.0401 | [-0.067, -0.014] | 0.25 | reversed | n/m (0.00 vs ceiling 0.03) |
+| lean | math | 16 | 0.4029 | 0.3739 | -0.0034 | 0.0290 | [-0.024, 0.094] | 0.50 | inconclusive | n/m (0.06 vs ceiling 0.07) |
+| owm | math | 16 | 0.4931 | 0.2966 | 0.0801 | 0.1965 | [0.144, 0.248] | 1.00 | exceeds | 1.000 / 0.82 |
+
+### The pre-registered claim, at this scale
+
+Design §0 level 1: *on every arm, the best of 64 MAEMM rollouts aligns with the target more
+closely than the best window of an in-domain corpus search in the target's own domain.* Over the
+21 arms of the conjunction (§6: lang 8, code 8, math 4, `ufw_zh`; `formulas` and the §8(a)
+English check `ufw_en` are reported as rows but not counted):
+
+| checkpoint | verdict | not exceeding |
+|---|---|---|
+| old primary | **17 of 21 arms exceed** | `sql`, `tha_Thai`, `isabelle`, `lean` — all inconclusive |
+| `rl-last16` | **17 of 21 arms exceed** | `sql`, `tha_Thai`, `lean` inconclusive; **`isabelle` REVERSED** ([−0.067, −0.014]) |
+
+`isabelle` on `rl-last16` is the only arm on either checkpoint whose CI lies entirely below zero:
+the in-domain corpus search beats the MAEMM, 0.4006 against 0.3606. It is also the arm with the
+highest verbatim-span rate in its own corpus (8/16 targets, from the `targets` report), so the
+corpus search has an unusually easy job there. Reported, not explained.
+
+**Read at 1M the claim is WEAKER than the design asks.** The pre-registration is at 4M, and a
+smaller corpus is an easier baseline: the English reference margin is +0.2553 at 1M against
++0.2179 at 4M. "Exceeds at 1M" does not imply "exceeds at 4M", and the inconclusive arms would be
+expected to look worse at 4M, not better.
+
+### §8(a) pipeline check — passes, and closely
+
+`ufw_en` is a fresh English draw through the NEW code path, from a part disjoint from the 16M
+corpus. The design's criterion is bo64 within 0.04 of 0.569 and the corpus top-1 within 0.04 of
+the like-for-like reference:
+
+| | this run (old primary, 1M) | reference | diff |
+|---|---|---|---|
+| bo64 | 0.5592 | 0.569 (paper, design §0) | −0.0098 |
+| corpus top-1 | 0.3022 | 0.3137 (R1, 1M, no own doc) | −0.0115 |
+| margin | **+0.2569** | **+0.2553** | **+0.0016** |
+
+Both inside 0.04. The margin agreeing to 0.002 is the strongest single check in this run that the
+rebased pipeline reproduces the paper's English numbers.
+
+### Cost — every line from the product's own `[wall]`
+
+| call | product | wall | $ |
+|---|---|---|---|
+| `wscan1` | scan | 2047.8s | 2.5825 |
+| `scan3b` | scan | 2038.3s | 2.5705 |
+| `wscan3` | scan | 2030.9s | 2.5612 |
+| `scan2b` | scan | 1834.9s | 2.3140 |
+| `wscan2` | scan | 1817.3s | 2.2918 |
+| `scan1b` | scan | 1665.7s | 2.1007 |
+| `scan4b` | scan | 1659.4s | 2.0927 |
+| `wscan4` | scan | 1656.2s | 2.0886 |
+| `wscan-en` | scan | 1326.1s | 1.6724 |
+| `scan-en` | scan | 1318.9s | 1.6633 |
+| `roll-rl16` | rollouts_vllm | 1279.4s | 1.6135 |
+| `roll-old` | rollouts_vllm | 1271.2s | 1.6031 |
+| `roll-ctrl` | rollouts_vllm | 982.3s | 1.2388 |
+| `targets` | targets | 530.0s | 0.6683 |
+| `ascore-old` | score | 236.9s | 0.2987 |
+| `score-old` | score | 231.0s | 0.2913 |
+| `score-rl16` | score | 230.0s | 0.2900 |
+| `ascore-rl16` | score | 220.7s | 0.2783 |
+| `ascore-ctrl` | score | 218.5s | 0.2756 |
+| `score-ctrl` | score | 218.0s | 0.2749 |
+| `nll` | nll | 110.0s | 0.1387 |
+| **23 CPU calls** (23 `corpus`, `ood_selfcheck`, `check`, `unit`) | — | — | **0.0000** |
+| **MEASURED GPU TOTAL** | | | **28.9089** |
+
+Plus about $0.19 of GPU on four calls that raised inside the container before `_run`
+printed a cost line; bounded by client wall time, NOT measured, and listed as such.
+Stage cap $42 (raised from $30 by Tomáš to buy the second scan pass). Largest single
+call $2.5825, cap $15.
+
+## 2026-09-23 — M0a: the additive product write and the scoring constant, on real products
+
+| date | item | command (abbreviated) | wall | cost | result | discrepancies |
+|---|---|---|---|---|---|---|
+| 2026-09-23 | **two CONCURRENT `rollouts_vllm` jobs, one MAEMM, one `rollouts/`** | `--product rollouts_vllm --base qwen36-27b --maemm qwen36-27b/2026-09-18_rl-last16-lr5e-7 --set 2026-09-21_v3_realact --rows 0-7` and `--rows 8-15`, both `--run-tag smoke0923`, launched together | 319.5 s / 271.8 s | **$0.4029 + $0.3427** | **BOTH SURVIVED.** Each staged in its own `rollouts.tmp-2026-09-22-2-<hex>` and moved 2 files in; `…__smoke0923__rows0-7.{jsonl,summary.json}` and `…__rows8-15.{…}` are both on the volume, 8 targets × 64 each. This is the write that `SMOKES.md:4349-4356` recorded as a SILENT loss | they overlapped a live 6cdd429 job (`paper0923`, chain A1) writing the same directory with the OLD copytree/rmtree/rename. **All product files survived on both sides** — A1's `…__paper0923.jsonl` is intact at 512 × 64 = 32,768 rollouts and no `.tmp` sibling was left — but `rollouts/index.json` came out listing 24 of the 28 products, missing `paper0923` and `smoke0923__rows8-15`. Cosmetic: nothing in `paper-evals/` reads `index.json` (README metadata only). It is the mixed old/new hazard `unit_smoke.check_additive_removes_nothing_and_the_legacy_path_is_the_hazard` measures — **do not overlap a 6cdd429 writer with this code on one `rollouts/`** |
+| 2026-09-23 | `score` on the two chunks AS ONE PRODUCT | `--product score … --set 2026-09-21_v3_realact --engine vllm --run-tag smoke0923` | 138.4 s | **$0.1745** | `[rollouts] …__smoke0923: 2 \`__rows\` chunk(s), 16 target rows, 1024 rollout rows` → one `scores/2026-09-21_v3_realact__vllm__smoke0923/`, 10.8 MiB. No merge step anywhere | — |
+| 2026-09-23 | the scoring constant, on the same product | (the same `score` run) | — | $0 | `rows.json` `mu` = `/vol/archive/.../qwen3.6-27b/whiten_mu.npy` (`bases.qwen36-27b.whiten_mu`, `common.score_mu`) and `input_mu` the same path beside it; the README carries the CENTRING lines naming it the SCORING CONSTANT and "not this run's injection convention". **`bo_c_<k>` present on 16 of 16 rows.** Row 0: raw bo1/bo8/bo64 0.9492 / 0.9643 / 0.9667, centred 0.8727 / 0.9092 / 0.9157; over the 16 rows mean_cos 0.8977, mean_cos_centred 0.7779 | — |
+| 2026-09-23 | the centred ladder reproduced by an INDEPENDENT path | local, `uv run --script`: per-rollout max over kept tokens of `cos_centred.f16`, then `sum_i x_(i) C(i-1,k-1)/C(n,k)` written out from the formula | ~2 s | $0 | **112 cells, worst \|diff\| 2.31e-04** against the product's own `bo_c_<k>` — the f16 storage resolution of `cos_centred.f16`, not a disagreement. `bo_c_1` equals the plain mean of the 64 per-rollout bests to 2e-5, the estimator's own k = 1 property | — |
+| 2026-09-23 | `score` without `--engine vllm` | the same command, engine defaulting to `hf` | ~90 s | ~$0.10 (not printed: the run raised before `outdir`) | **refused, correctly and by name**: `no rollouts at …/2026-09-21_v3_realact__smoke0923.jsonl and no …__rows*.jsonl chunk beside it`. An operator error, caught loudly rather than scored against the wrong stem | cost is bounded by client wall, NOT measured |
+
+**Stage total: $0.92 measured + ~$0.10 unmeasured, against a $2 cap.**

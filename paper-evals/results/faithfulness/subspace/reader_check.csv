@@ -1,0 +1,3 @@
+kind,source,family,comparisons,worst excess,outcome
+cos_centred bo-k,2026-09-18_rl-last16-lr5e-7@vllm,(all),—,—,"skipped: no family of `2026-09-21_v3_subspace` is centrable (['bsf', 'jlens']), so a centred cosine would be NaN on every row -- the array is not read"
+cos,2026-09-18_rl-last16-lr5e-7@vllm,(all),—,—,"skipped: cos.f16 is 12.6 MB, over --check-arrays-max-mb 8"

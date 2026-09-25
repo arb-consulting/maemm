@@ -50,21 +50,29 @@ MARKER_NORM_MIN_REL = 0.05
 BASE_CONTROL_NORM_TOL = 0.25
 
 
-def load_dirs(cfg, args, device: str = "cuda"):
-    """(rows, dirs [N, d] fp32 unit on `device`) of the held-out set, or of `--dirs-from <dir>`.
+def load_dirs(cfg, args, device: str = "cuda", notes=None):
+    """(rows, dirs [N, d] fp32 unit on `device`, source dir) of the held-out set or `--dirs-from`.
 
     rollouts_vllm asks for the cpu: the engine owns the GPU by the time it needs the directions.
+
+    The direction is DERIVED, never read: `common.dirs_for` applies the mean this run names,
+    which for a generator is the checkpoint's own `mu:` (what it was TRAINED to receive) unless
+    `--mu` overrides it. Handing a MAEMM a direction under the wrong mean is
+    invisible in every output -- the rollouts look like rollouts -- so the convention is resolved
+    here, once, and recorded in the product README by the caller. `notes` collects the lines that say
+    which; rollouts_vllm:1007 (parity-greedy) and rollouts_nla:672 come through the same call.
     """
     import torch
 
     base, root, set_name = args["base"], args["root"], args["heldout"]
-    d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
     n = len(rows)
     assert n, f"{src}/ids.jsonl is empty"
-    v = C.read_array(f"{src}/vecs.f16", "float16", (n, d)).astype(np.float32)
-    dirs = torch.nn.functional.normalize(torch.from_numpy(v).to(device), dim=-1)
+    mu, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    v = C.dirs_for(cfg, base, src, mu, root, notes)
+    assert v.shape == (n, cfg["bases"][base]["d"]), f"{src}: dirs_for returned {v.shape} for {n} rows"
+    dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)).to(device), dim=-1)
     for i, r in enumerate(rows):
         assert r["row"] == i, f"{src}/ids.jsonl line {i} has row={r['row']}: rows must be 0..N-1 in order"
     return rows, dirs, src
@@ -252,12 +260,19 @@ def run(cfg, args):
     assert gen_rows > 0, f"--gen-rows must be positive, got {gen_rows}"
 
     out_dir = C.rollouts_dir(maemm, root)
-    path = f"{out_dir}/{set_name}.jsonl"
+    # THROUGH common.rollout_stem, not built here. The HF stem IS the bare set name, so this line
+    # used to spell it directly and quietly ignored `--run-tag` -- two runs of one checkpoint on
+    # one set differing only in --mu then both wrote `<set>.jsonl`, and only the "already exists"
+    # guard stood between the second and the first. rollouts_vllm goes through the helper; this is
+    # its sibling and now does too.
+    stem = C.rollout_stem(set_name, "hf", args.get("run_tag") or "")
+    path = f"{out_dir}/{stem}.jsonl"
     assert args.get("force") or not os.path.exists(path), (
         f"{path} already exists; refusing to overwrite without --force"
     )
 
-    rows_meta, dirs, dirs_src = load_dirs(cfg, args)
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_src = load_dirs(cfg, args, notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     print(
         f"[rollouts] {maemm} on {len(sel)} of {len(rows_meta)} targets x {n} rollouts "
@@ -388,10 +403,11 @@ def run(cfg, args):
         "weight sha256": sha["sha256"],
     }
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=os.path.exists(out_dir)) as od:
-        od.write_jsonl(f"{set_name}.jsonl", out_rows)
-        od.write_json(f"{set_name}.summary.json", summary)
+        C.note_convention(od, cen_notes)
+        od.write_jsonl(f"{stem}.jsonl", out_rows)
+        od.write_json(f"{stem}.summary.json", summary)
         od.note(
-            f"`{set_name}.jsonl`: one row per (target, rollout) -- row, family, k, text, ids "
+            f"`{stem}.jsonl`: one row per (target, rollout) -- row, family, k, text, ids "
             "(the GENERATED ids only, trimmed at the first stop token which is KEPT, "
             "rl/rl.py:82-90), n_tok, finished, engine, seed. `text` is decode(ids, "
             "skip_special_tokens=True). The prompt is NOT part of either field (checklist item 8)."

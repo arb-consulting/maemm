@@ -23,6 +23,7 @@ each and the per-size statistics are cumulative snapshots taken at the crossings
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 
@@ -242,7 +243,28 @@ def _pass_a(model, cfg, args, toks, docs, sizes, sink, pad_id, sae, od_stats, od
     corpus_rate = total_tokens / max(elapsed, 1e-9)
 
     # ---- stats/ ----
-    od_stats.write_array("mu.f32", mu_by_size[-1], "float32")
+    # D5, the small way. `--force` used to reach OutDir.__enter__'s rmtree (common.py:1577) for
+    # BOTH output directories, so re-running `stats` to rebuild one SAE's counters destroyed
+    # `stats/` -- including the mu every centred number on the volume was computed against. The
+    # OutDir is now `keep_existing=True` (run(), below), and the mean itself is written only when
+    # it is absent: when one is already there, its sha is ASSERTED to match rather than replaced.
+    # The hazard becomes a check, which is the only version of this that is worth having.
+    mu_path = f"{C.stats_dir(args['base'], args['root'])}/mu.f32"
+    new_mu = np.ascontiguousarray(np.asarray(mu_by_size[-1]).astype("float32"))
+    if os.path.exists(mu_path):
+        old_sha = hashlib.sha256(open(mu_path, "rb").read()).hexdigest()
+        new_sha = hashlib.sha256(new_mu.tobytes()).hexdigest()
+        assert old_sha == new_sha, (
+            f"{mu_path} already exists and this pass computed a DIFFERENT mean "
+            f"(stored sha {old_sha[:16]}..., new {new_sha[:16]}...). Every centred number on this "
+            f"volume was read against the stored one, so it is not overwritten here. If the mean "
+            f"really must change, that is a new stats directory and a re-derive of every set."
+        )
+        od_stats.note(
+            f"mu.f32 was ALREADY present and is byte-identical to this pass's mean "
+            f"(sha256 {old_sha[:16]}...); it was not rewritten (D5)."
+        )
+    od_stats.write_array("mu.f32", new_mu, "float32")
     od_stats.write_array("mu_by_size.f32", mu_by_size, "float32")
     qjson = {
         "quantiles": NORM_QUANTILES,
@@ -341,37 +363,36 @@ def run(cfg, args):
     base, root = args["base"], args["root"]
     assert base, "product stats needs --base"
     spec = cfg["bases"][base]
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    # A base may carry more than one SAE since 2026-09-20 (qwen36-27b has l42-1b and the
-    # 2M sae2m). Pick with --sae; the single-SAE case keeps its old no-argument behaviour.
-    if args.get("sae"):
-        sae_key = args["sae"] if "/" in args["sae"] else f"{base}/{args['sae']}"
-        assert sae_key in sae_keys, (
-            f"--sae {args['sae']!r} is not an SAE of base {base}; have {sae_keys}"
-        )
-    else:
-        assert len(sae_keys) == 1, (
-            f"base {base} has {len(sae_keys)} SAEs in config ({sae_keys}); "
-            f"pass --sae to say which"
-        )
-        sae_key = sae_keys[0]
+    # ONE --sae syntax in the whole CLI: common.sae_key_for. The inline copy that lived here (and
+    # in scan.py) accepted a bare `sae2m` while every other product's --sae required the full
+    # `<base>/<name>` key -- two syntaxes for one flag, which is a thing a reader gets right once.
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 
     # --corpus-name selects corpora/<name>/ instead of corpus/: a different size
     # ladder or window geometry is a different corpus, never an edit of one.
     corpus_name = args.get("corpus_name") or ""
+    C.assert_corpus_geometry(cfg, corpus_name)  # H7: refuse a corpus we would cut at the wrong width
     toks, docs = C.load_corpus(base, root, corpus_name)
     sizes = C.corpus_sizes(docs)
     print(
-        f"[stats] corpus {C.corpus_dir(base, root, corpus_name)}: {len(docs)} docs, {len(toks)} tokens, sizes {sizes}",
+        f"[stats] corpus {C.corpus_dir(base, root, corpus_name)}: {len(docs)} docs, "
+        f"{len(toks)} tokens, sizes {sizes}",
         flush=True,
     )
 
-    # Fail before the model load if either output is in the way.
-    outs = [C.stats_dir(base, root), C.sae_dir(sae_key, root)]
-    for p in outs:
-        assert args.get("force") or not os.path.exists(p), (
-            f"{p} already exists; refusing to overwrite without --force"
-        )
+    # Neither output directory is in a pre-flight "refusing to overwrite" list any more: both are
+    # `keep_existing` (D5 for stats/, H3 for sae/<name>/), so a second run ADDS to them and the
+    # arrays this product owns are guarded per FILE below rather than by deleting the parent.
+    # Demanding --force for an accumulating directory only pushes the user into the flag that used
+    # to do the damage. The four arrays `stats` owns under sae/<name>/ are named here so the
+    # per-file guard and this comment cannot drift apart.
+    sae_own = ("fire_counts.i64", "max_act.f16", "mean_when_active.f16", "sizes.json")
+    clash = [f for f in sae_own if os.path.exists(f"{C.sae_dir(sae_key, root)}/{f}")]
+    assert args.get("force") or not clash, (
+        f"{C.sae_dir(sae_key, root)} already holds {clash}, which THIS product owns; pass --force "
+        f"to recompute them. Everything else in that directory -- examples/, examples_4m/, "
+        f"examples_docmax/, random_pool/, repo_examples/, top1_act/ -- is kept either way (H3)."
+    )
 
     t_load = time.time()
     model, tok = C.load_base(cfg, base)
@@ -393,8 +414,21 @@ def run(cfg, args):
         "base_load_seconds": round(load_s, 1),
     }
     with (
-        C.outdir(C.stats_dir(base, root), args, inputs=inputs) as od_stats,
-        C.outdir(C.sae_dir(sae_key, root), args, inputs={**inputs, "sae": sae_key}) as od_sae,
+        # keep_existing: `stats/` ACCUMULATES (mu.f32, mu_by_size.f32, resid_norm_quantiles.json,
+        # and mu_check's README section), and a --force meant for one SAE's counters must not take
+        # the mean down with it -- D5. `centred.py` uses the same mechanism and
+        # unit_smoke.check_outdir_keep_existing_and_section covers it.
+        C.outdir(C.stats_dir(base, root), args, inputs=inputs, keep_existing=True) as od_stats,
+        # keep_existing HERE TOO (H3). `sae_dir` is not a leaf: `examples/<set>`, `examples_4m/`,
+        # `examples_docmax/`, `random_pool/`, `repo_examples/` and `top1_act/` all live inside it,
+        # written by scan, sae_self and top1_act. D5 gave `stats/` this treatment and left its
+        # strictly LARGER sibling on the default, so `stats --force` -- meant to rebuild one SAE's
+        # fire counters -- rmtree'd every scan and autointerp product under that dictionary.
+        # Reproduced by the reviewer. The blast radius GREW on this branch: keying examples/ by
+        # set (B9) put three sets' examples where one used to be.
+        C.outdir(
+            C.sae_dir(sae_key, root), args, inputs={**inputs, "sae": sae_key}, keep_existing=True
+        ) as od_sae,
     ):
         passa = _pass_a(model, cfg, args, toks, docs, sizes, sink, pad_id, sae, od_stats, od_sae)
     return {"pass_a": passa, "base_load_seconds": round(load_s, 1)}
@@ -404,11 +438,18 @@ def run(cfg, args):
 # product `mu_check` (CPU): our stats/mu.f32 against Celeste's archived whiten_mu
 # ---------------------------------------------------------------------------------------------
 
-# Verified with `modal volume ls` on 2026-09-15. Both are plain .npy of shape [d].
-ARCHIVE_MU = {
-    "qwen3-8b": "data/run1/acts/whiten_mu.npy",
-    "qwen36-27b": "data/qwen3.6-27b/whiten_mu.npy",
-}
+# The two archived whiten_mu paths used to live here as the pipeline's only named-mu registry.
+# Since 2026-09-21 a mean is a FILE PATH wherever one is named, and the archived one is
+# `bases.<base>.whiten_mu` in config.yaml -- so this is the lookup those two diagnostics share and
+# NOT a second list to keep in step. Kept as a function because `mu_diag` names it too.
+def archive_mu_path(cfg: dict, base: str) -> str:
+    """Absolute path of base's archived `whiten_mu`, from config.yaml `bases.<base>.whiten_mu`."""
+    path = cfg["bases"][base].get("whiten_mu")
+    assert path, (
+        f"base {base!r} declares no archived `whiten_mu:` path in config.yaml; there is nothing to "
+        f"compare our own stats/mu.f32 against on this base"
+    )
+    return C.resolve_mu_path(path, base, root="/")
 # Below this the two means are NOT the same object and every centred number has to be re-read with
 # that in mind. Reported, never acted on: which mean is right is Tomáš's call, not this script's.
 MU_COS_FLOOR = 0.99
@@ -426,11 +467,10 @@ def run_mu_check(cfg, args):
 
     base, root = args["base"], args["root"]
     assert base, "product mu_check needs --base"
-    assert base in ARCHIVE_MU, f"no archived whiten_mu path known for base {base!r} ({sorted(ARCHIVE_MU)})"
     d = cfg["bases"][base]["d"]
 
     ours = C.stats_mu(cfg, base, root)
-    apath = os.path.join(cfg["modal"]["archive"], ARCHIVE_MU[base])
+    apath = archive_mu_path(cfg, base)
     assert os.path.exists(apath), (
         f"missing archived whiten_mu at {apath}; look under {cfg['modal']['archive']}/data/ for the "
         f"{base} tree and report where it actually is"
