@@ -206,6 +206,10 @@ def main(
     # separates two runs of one checkpoint on one set that differ only in --mu
     # (common.rollout_stem); must match the --run-tag the rollouts were generated with.
     run_tag: str = "",
+    # build, nla --maemm only: the verbalizer generation run whose rollouts + sae_self the NLA arms
+    # read, when it is not --run-tag (M12's `rollouts_nla --n 16`). The corpus side stays on
+    # --run-tag. Refused on any other stage here and on a MAEMM in build.run.
+    nla_run_tag: str = "",
     score_name: str = "",
     # random_pool
     n_windows: int = 0,
@@ -316,6 +320,10 @@ def main(
         )
     if stage == "chain" and maemm2:
         assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
+    if nla_run_tag:
+        assert stage == "build", (
+            f"--nla-run-tag names the verbalizer rollouts a BUILD reads; it means nothing to stage "
+            f"{stage!r} (sae_self / score take the verbalizer run as their own --run-tag)")
     if products_set:
         assert stage == "build", (
             f"--products-set names the set whose corpus-side pools a BUILD reads; it means nothing "
@@ -366,6 +374,7 @@ def main(
         "out_suffix": out_suffix,
         "rollouts_dir": rollouts_dir.rstrip("/"),
         "run_tag": run_tag,
+        "nla_run_tag": nla_run_tag,
         "score_name": score_name,
         "n_windows": n_windows,
         "pool_seed": pool_seed,

@@ -1293,6 +1293,14 @@ def run(cfg, args):
     # entry and is simply not scored for this arm -- the same way an empty explainer answer drops
     # its (feature, arm) pair, and counted here so the drop is visible rather than inferred.
     n_nla_desc = 0
+    # An EXPLICIT `--arms` that does not name the pseudo-arm drops it (M12). It used to be seeded
+    # from whichever build carried `nla_desc.jsonl` whatever `--arms` said, so a follow-up run for
+    # one arm through `--build-dir-nla` paid for, and wrote under the paper's label, an `NLA-desc`
+    # nobody asked for. With no `--arms` the build's arms are the default and it is seeded as before.
+    if nla_desc and args.get("arms") and nla_desc_arm not in arm_names:
+        print(f"[run] {nla_desc_path} exists but --arms {args['arms']!r} does not name "
+              f"{nla_desc_arm}: not seeded, not scored", flush=True)
+        nla_desc = {}
     if nla_desc:
         for feat in feats:
             text = nla_desc.get(feat, "")

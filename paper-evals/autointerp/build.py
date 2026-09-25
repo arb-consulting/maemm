@@ -87,6 +87,18 @@ NLA_ARM = "NLA"
 # Both NLA arms: mode A at all four outputs (the headline) and the one-output sensitivity row the
 # appendix carries (spec §3). They are built from ONE `type: nla` --maemm and differ only in n.
 NLA_ARMS = ("NLA", "NLA-1")
+# M12 (Tomas, 2026-09-25): the NLA arm at the M arm's SELECTION RULE -- generate NLA_TOP_OF outputs
+# per feature, show the NLA_N with the highest peak target-feature activation, as `M` shows the top
+# 16 of 64 rollouts. Its own NAME, never `NLA` built from a bigger generation: `NLA` and `NLA-1`
+# are the paper's all-four-outputs arms and are REFUSED on any sae_self whose n is not NLA_N, and
+# this one is refused on any n but NLA_TOP_OF (`check_nla_n`). The ranking is the NLA arm's own
+# (peak inside the <explanation> body, `nla_body_order`), so the two differ only in how many
+# outputs the four are chosen from. Built from a DIFFERENT generation run (`rollouts_nla --n 16`
+# under its own tag, read through `--nla-run-tag`), so it is not a superset of the paper's four.
+NLA_TOP_ARM = "NLA-top4"
+NLA_TOP_OF = 16
+# Every arm whose examples are the verbalizer's outputs; a MAEMM build refuses all of them.
+NLA_ROLLOUT_ARMS = (*NLA_ARMS, NLA_TOP_ARM)
 # THE ENGINE AN `nla` MAEMM'S PRODUCTS ARE SPELLED UNDER, and it is not this stage's `--engine`.
 # `rollouts_nla` generates through the HF path and names its product
 # `rollout_chunk_stem(rollout_stem(set, "hf", run_tag), rows)` (precompute/rollouts_nla.py:771),
@@ -719,6 +731,10 @@ ARM_SPECS = {
     NLA_ARM: (None, 0, "m", NLA_N),
     # The appendix's one-output sensitivity row, from the SAME build and the same run.
     "NLA-1": (None, 0, "m", 1),
+    # M12: the top NLA_N of NLA_TOP_OF outputs. The same spec as `NLA` -- the pool `m` is already
+    # the outputs sorted by descending body peak and deduplicated, so taking its first four IS the
+    # top-4 rule -- and the difference is the input, which `check_nla_n` pins by `sae_self`'s n.
+    NLA_TOP_ARM: (None, 0, "m", NLA_N),
     # Descriptive pilot points only (amendment A9: N = 16 is fixed a priori, not selected).
     "C16-N8": ("c16", 8, None, 0),
     "M-N8": (None, 0, "m", 8),
@@ -930,11 +946,56 @@ def check_arm_maemm(arm_names, maemm: str, maemm_type: str) -> bool:
             f"would be mislabelled. Drop them, or point --maemm at a MAEMM."
         )
     else:
-        assert NLA_ARM not in arm_names, (
-            f"arm {NLA_ARM!r} asks for the activation verbalizer's rollouts but --maemm {maemm!r} "
+        # Every verbalizer arm, not only `NLA`: `NLA-1` and `NLA-top4` on a MAEMM would render the
+        # MAEMM's rollouts under an NLA label (the same mistake as `M` on an nla entry, mirrored).
+        bad = [a for a in arm_names if a in NLA_ROLLOUT_ARMS]
+        assert not bad, (
+            f"arm(s) {bad} ask for the activation verbalizer's rollouts but --maemm {maemm!r} "
             f"is type {maemm_type!r}; point --maemm at the `type: nla` entry"
         )
     return is_nla
+
+
+def check_nla_n(arm_names, is_nla: bool, n_roll: int) -> None:
+    """Refuse a verbalizer arm built from the wrong NUMBER of outputs per feature.
+
+    `NLA` / `NLA-1` are the paper's arms over the NLA_N outputs `rollouts_nla` makes by default;
+    built from an n=16 generation they would silently become top-4-of-16 / top-1-of-16 under the
+    paper's label. `NLA-top4` is that selection by name, and only means it over NLA_TOP_OF outputs
+    (on n=4 it would be the paper's `NLA` under a new label). `n_roll` is `sae_self.json`'s `n`,
+    the grid the pools are cut from.
+    """
+    if not is_nla:
+        return
+    paper = [a for a in arm_names if a in NLA_ARMS]
+    assert not paper or n_roll == NLA_N, (
+        f"arm(s) {paper} are the paper's NLA arms over {NLA_N} outputs per feature, but this "
+        f"sae_self has n={n_roll}: built here they would be a top-{NLA_N}-of-{n_roll} selection "
+        f"under the paper's label. Build {NLA_TOP_ARM!r} from an n={NLA_TOP_OF} generation instead."
+    )
+    assert NLA_TOP_ARM not in arm_names or n_roll == NLA_TOP_OF, (
+        f"arm {NLA_TOP_ARM!r} is the top {NLA_N} of {NLA_TOP_OF} outputs per feature, but this "
+        f"sae_self has n={n_roll}; point --nla-run-tag at the `rollouts_nla --n {NLA_TOP_OF}` run"
+    )
+
+
+def nla_body_order(tok, rids, acts, peaks):
+    """The verbalizer's outputs for one feature, by DESCENDING peak inside the <explanation> body.
+
+    Ranking on the whole decode can pick an output for an activation on a tag or preamble token,
+    which the explainer is then not shown. Ties keep generation order (stable sort). `peaks` is
+    the whole-decode peak array; only its dtype and shape are used, so the ranking is computed at
+    the same precision it always was. Factored out of `run` (M12) so the selection rule behind
+    `NLA`, `NLA-top4` and `NLA-desc` has a local test (`selfcheck.check_nla_top4`).
+    """
+    body_peaks = np.zeros_like(peaks)
+    for k in range(len(rids)):
+        ok = rids[k] >= 0
+        m, _ = explanation_token_mask(token_pieces(tok, rids[k][ok]))
+        a_ok = np.asarray(acts[k][ok], dtype=np.float64)[np.asarray(m, dtype=bool)]
+        a_ok = a_ok[np.isfinite(a_ok)]
+        body_peaks[k] = float(a_ok.max()) if a_ok.size else 0.0
+    return np.argsort(-body_peaks, kind="stable")
 
 
 def engine_of(cfg, maemm: str, engine: str, quiet: bool = False) -> str:
@@ -1442,6 +1503,17 @@ def run(cfg, args):
     # path the producer never wrote. `--run-tag` is the run's one tag and applies to both sides;
     # empty corpus and empty tag give the unsuffixed path every pre-2026-09-23 build used.
     run_tag = str(args.get("run_tag") or "")
+    # THE VERBALIZER'S OWN RUN TAG (M12). `--run-tag` keys the corpus-side products too (the
+    # examples scans and pools just below), so a verbalizer generation under another tag -- M12's
+    # `rollouts_nla --n 16` -- cannot be reached by changing it. `--nla-run-tag` moves ONLY the
+    # rollout side of an `nla` build: the rollouts stem (`read_nla_rollouts`) and the scores/
+    # directory `sae_self` wrote beside them. Empty = `--run-tag`, so every earlier command line
+    # addresses exactly what it did. Refused on a MAEMM, where it would be a flag nothing reads.
+    nla_run_tag = str(args.get("nla_run_tag") or "") or run_tag
+    assert not args.get("nla_run_tag") or cfg["maemms"][maemm]["type"] == "nla", (
+        f"--nla-run-tag names a verbalizer generation run, but --maemm {maemm} is type "
+        f"{cfg['maemms'][maemm]['type']!r}; its rollouts are addressed by --run-tag"
+    )
     shown_pkey = SS.corpus_key_for(shown_corpus, run_tag)
     test_pkey = SS.corpus_key_for(test_corpus, run_tag)
 
@@ -1515,7 +1587,8 @@ def run(cfg, args):
         + ("  [TWO CORPORA]" if two_corpora else "  [one corpus, both sides]"),
         flush=True,
     )
-    sdir = C.scores_dir(maemm, set_name, root, engine, C.score_tag_of(args))
+    sdir = C.scores_dir(maemm, set_name, root, engine,
+                        C.score_tag_of({**args, "run_tag": nla_run_tag}))
     # `sae_self` puts a non-default side in the product path (`sae_self__dec`, sae_self.py), so the
     # M arms of a decoder build read the decoder rollouts' activations and never the encoder ones.
     self_dir = f"{sdir}/sae_self{'' if side == 'enc' else '__' + side}{args.get('out_suffix') or ''}"
@@ -1553,7 +1626,7 @@ def run(cfg, args):
         # stem existed whole -- silently dropped the chunked rows' NLA texts. The stem carries
         # this run's TAG and the verbalizer's own engine; `read_nla_rollouts` says what each of
         # those cost when it did not.
-        recs, _nla_stem = read_nla_rollouts(maemm, set_name, root, run_tag)
+        recs, _nla_stem = read_nla_rollouts(maemm, set_name, root, nla_run_tag)
         nla_text = {(int(x["row"]), int(x["k"])): x["text"] for x in recs}
     nla_desc_rows: list[dict] = []
     print(f"[build] {len(picked)} features, arms {arm_names}", flush=True)
@@ -1583,6 +1656,10 @@ def run(cfg, args):
     )
     self_rows = list(self_meta["rows"])
     n_roll = int(self_meta["n"])
+    check_nla_n(arm_names, is_nla, n_roll)
+    # Arm B's input is written only by a build that carries the paper's NLA arms; see the note
+    # where it would be written. Every build before M12 had them, so nothing earlier changes.
+    write_nla_desc = is_nla and any(a in NLA_ARMS for a in arm_names)
     # `width` is written by sae_self since the scoring window became per-run (the NLA arm scores
     # at 256, not the protocol's 95); a sae_self.json from before that carries none and is the
     # protocol width.
@@ -1759,17 +1836,8 @@ def run(cfg, args):
             n_dup_roll = 0
             nla_status: dict[str, int] = {}
             if is_nla:
-                # Rank NLA rollouts by their peak INSIDE the <explanation> body. Ranking on the
-                # whole decode can pick a rollout for an activation on a tag or preamble token,
-                # which the explainer is then not shown.
-                body_peaks = np.zeros_like(peaks)
-                for k in range(len(rids)):
-                    ok = rids[k] >= 0
-                    m, _ = explanation_token_mask(token_pieces(tok, rids[k][ok]))
-                    a_ok = np.asarray(acts[k][ok], dtype=np.float64)[np.asarray(m, dtype=bool)]
-                    a_ok = a_ok[np.isfinite(a_ok)]
-                    body_peaks[k] = float(a_ok.max()) if a_ok.size else 0.0
-                order = np.argsort(-body_peaks, kind="stable")
+                # Rank NLA rollouts by their peak INSIDE the <explanation> body (`nla_body_order`).
+                order = nla_body_order(tok, rids, acts, peaks)
             for k in order.tolist():
                 keep = rids[k] >= 0
                 if not keep.any():
@@ -2004,7 +2072,7 @@ def run(cfg, args):
             C.write_jsonl(od.file(f"{feat}.jsonl"), [meta, *arm_rows, *test_rows])
             feat_table.append({k: v for k, v in meta.items() if k != "kind"})
 
-        if is_nla:
+        if write_nla_desc:
             od.write_jsonl("nla_desc.jsonl", nla_desc_rows)
             n_tagged = sum(1 for x in nla_desc_rows if x["tag_found"])
             n_empty_desc = sum(1 for x in nla_desc_rows if not x["description"])
@@ -2017,9 +2085,18 @@ def run(cfg, args):
                 f"arm for those features. `run --arms ...,NLA-desc` picks the arm up from this "
                 f"file; `build` itself has no such arm."
             )
+        if is_nla and not write_nla_desc:
+            od.note(
+                f"NO `nla_desc.jsonl`: this build has no {' / '.join(NLA_ARMS)} arm (arms "
+                f"{arm_names}, verbalizer run tag {nla_run_tag!r}, n = {n_roll} outputs per "
+                f"feature), and `run` seeds its `NLA-desc` pseudo-arm from any build that carries "
+                f"the file -- so a best-of-{n_roll} description would be scored under the paper's "
+                f"best-of-{NLA_N} `NLA-desc` label. Not written, deliberately."
+            )
+        if is_nla:
             od.note(
                 f"ARM PROVENANCE: rollout source = the NLA VERBALIZER `{maemm}` "
-                f"({cfg['maemms'][maemm].get('hf', '?')}), n = {NLA_N} texts per feature at "
+                f"({cfg['maemms'][maemm].get('hf', '?')}), n = {n_roll} texts per feature at "
                 f"nla.max_new {cfg['maemms'][maemm]['nla']['max_new']}. The NLA arm is therefore "
                 f"NOT matched-N against C4/C16 (16 examples each) and its texts are ~3x longer; "
                 f"both differences are properties of the baseline at its own operating point and "
@@ -2122,7 +2199,11 @@ def run(cfg, args):
                 "random_pool_windows": pool.n_win,
                 "arms": {a: ARM_SPECS[a] for a in arm_names},
                 "rollout_source": ("nla-verbalizer" if is_nla else "maemm"),
-                "nla_desc": ("nla_desc.jsonl" if is_nla else "(not an nla maemm)"),
+                "nla_desc": ("nla_desc.jsonl" if write_nla_desc else "(not an nla maemm)"
+                             if not is_nla else f"(not written: no {'/'.join(NLA_ARMS)} arm)"),
+                # M12: which verbalizer generation run this build read. Only on an nla build, so
+                # every MAEMM build.json keeps exactly the keys it had.
+                **({"nla_run_tag": nla_run_tag, "nla_n": n_roll} if is_nla else {}),
                 "epo_strings": args.get("epo_strings") or "(E arm not run: hook only)",
                 "mean_marked_fraction": round(float(np.mean(mark_frac)) if mark_frac else 0.0, 4),
                 "token_join_mismatches": f"{join_bad}/{join_total}",

@@ -693,6 +693,106 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maemm")
 
 
+def check_nla_top4(cfg, tmp: Path, base: str, set_name: str):
+    """M12's `NLA-top4`: the top 4 of 16 verbalizer outputs, and the guards that keep it apart.
+
+    What is pinned:
+      * the SELECTION RULE (`build.nla_body_order`): outputs ranked by their peak INSIDE the
+        <explanation> body, stable on ties, padding ignored -- so the four shown are the four
+        highest body peaks and never an output whose peak sits on a tag or preamble token;
+      * the ARM: same spec as `NLA` (the first four of the ranked, deduplicated pool), and absent
+        from the default nla arm set, so no earlier command line grows it;
+      * `check_nla_n`: `NLA` / `NLA-1` refuse an n=16 sae_self and `NLA-top4` refuses n=4 -- the
+        name says which generation it came from, in both directions;
+      * `check_arm_maemm`: a MAEMM build refuses every verbalizer arm, `NLA-top4` included;
+      * the SIBLING in `run.py`: an explicit `--arms` without `NLA-desc` does not seed that
+        pseudo-arm from a build's `nla_desc.jsonl` (it used to, whatever `--arms` said).
+    """
+    import numpy as np
+
+    class _Tok:
+        """One char per token id, as in check_nla_body_tokens."""
+        def decode(self, ids, **kw):
+            return "".join(chr(int(i)) for i in ids)
+
+    tok = _Tok()
+    n, width = B.NLA_TOP_OF, 48
+    rng = random.Random(20260925)
+    body = [round(rng.uniform(1.0, 9.0), 3) for _ in range(n)]
+    body[5] = body[11] = 9.5            # a tie at the top: generation order must break it
+    body[7] = 0.2                       # low body peak ...
+    rids = np.full((n, width), -1, dtype=np.int64)
+    acts = np.zeros((n, width), dtype=np.float32)
+    for k in range(n):
+        text = f"pre{k % 10}<explanation>BODY{k % 10}</explanation>"
+        ids = [ord(c) for c in text]
+        rids[k, :len(ids)] = ids
+        lo = text.index("BODY")
+        acts[k, lo + 1] = body[k]
+        acts[k, 1] = 0.5                # a preamble activation below every body peak
+    acts[7, 1] = 50.0                   # ... but the highest WHOLE-DECODE peak of all 16
+    acts[3, width - 1] = 99.0           # an activation on a PADDING slot: never read
+    peaks = acts.max(1)
+    order = B.nla_body_order(tok, rids, acts, peaks).tolist()
+    want = sorted(range(n), key=lambda k: (-body[k], k))
+    assert order == want, f"body-peak order {order} != expected {want}"
+    top4 = order[:B.NLA_N]
+    assert top4[:2] == [5, 11], f"the tie at the top is not broken by generation order: {top4}"
+    assert 7 not in top4 and int(np.argmax(peaks)) in (3, 7), (
+        "the fixture's decoys are not decoys: the whole-decode peak must be a padding or "
+        "preamble activation and must not be shown")
+    assert sorted(body[k] for k in top4) == sorted(body)[-B.NLA_N:], "not the four highest"
+
+    # the arm
+    assert B.ARM_SPECS[B.NLA_TOP_ARM] == B.ARM_SPECS["NLA"] == (None, 0, "m", B.NLA_N)
+    assert B.NLA_TOP_ARM not in B.NLA_ARMS and B.NLA_TOP_ARM not in B.FULL_ARMS_NLA
+    assert B.NLA_TOP_ARM != "NLA" and not B.NLA_TOP_ARM.startswith("NLA-1")
+
+    # check_nla_n, both directions
+    B.check_nla_n(["NLA", "NLA-1"], True, B.NLA_N)
+    B.check_nla_n([B.NLA_TOP_ARM], True, B.NLA_TOP_OF)
+    B.check_nla_n(["C16", "M"], False, 64)
+    for arms, n_roll in ((["NLA"], 16), (["NLA-1"], 16), (["NLA", "NLA-1"], 16),
+                         ([B.NLA_TOP_ARM], 4), ([B.NLA_TOP_ARM], 64), (["NLA", B.NLA_TOP_ARM], 4),
+                         (["NLA", B.NLA_TOP_ARM], 16)):
+        try:
+            B.check_nla_n(arms, True, n_roll)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"check_nla_n accepted arms {arms} on an n={n_roll} sae_self")
+
+    # check_arm_maemm
+    assert B.check_arm_maemm([B.NLA_TOP_ARM], "b/nla", "nla") is True
+    for arms in (["C16", B.NLA_TOP_ARM], ["C16", "NLA-1"]):
+        try:
+            B.check_arm_maemm(arms, "b/x", "full")
+        except AssertionError as e:
+            assert "point --maemm at the `type: nla` entry" in str(e), e
+        else:
+            raise AssertionError(f"check_arm_maemm accepted {arms} on a MAEMM")
+
+    # run.py: an explicit --arms without NLA-desc does not seed it from nla_desc.jsonl
+    feats = list(range(600, 600 + N_FEAT))
+    d = synth_build(tmp, base, set_name, "nd_build", feats)
+    C.write_jsonl(d / "nla_desc.jsonl", [
+        {"feature": f, "row": 1024 + i, "k": 0, "peak": 1.0, "tag_found": True,
+         "tag_status": "closed", "n_chars": 20, "description": f"stub nla text {f}"}
+        for i, f in enumerate(feats)])
+    got = {}
+    for run_dir, arms in (("nd_without", "C16"), ("nd_with", "C16,NLA-desc")):
+        a = base_args(tmp, base, set_name, "nd_build", run_dir)
+        a.update({"arms": arms, "scorers": "detection"})
+        R.run(cfg, a)
+        got[run_dir] = {r["arm"] for r in
+                        C.read_jsonl(tmp / "runs" / run_dir / "summary" / "scores.jsonl")}
+    assert "NLA-desc" not in got["nd_without"], (
+        f"--arms C16 still scored NLA-desc from the build's nla_desc.jsonl: {sorted(got['nd_without'])}")
+    assert "NLA-desc" in got["nd_with"], f"--arms C16,NLA-desc lost it: {sorted(got['nd_with'])}"
+    print(f"[selfcheck] NLA-top4 OK: body-peak top {B.NLA_N} of {n} = {top4}, n guards both ways, "
+          f"MAEMM refusal, NLA-desc only when --arms names it")
+
+
 def check_corpus_fallback():
     """A SAE with no `scan` examples/ still builds C4 + NLA; a C16 request refuses by name.
 
@@ -1551,6 +1651,7 @@ def main() -> int:
         check_products_set(cfg, tmp, base)
         check_corpus_key(cfg, base)
         check_nla_rollout_stem(cfg, tmp, base)
+        check_nla_top4(cfg, tmp, base, set_name)
         check_examples_resolution(cfg, tmp, base)
         check_chain(cfg, tmp, base, set_name)
     finally:
