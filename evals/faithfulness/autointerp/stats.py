@@ -1,0 +1,657 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["numpy>=2", "polars>=1", "typer>=0.15", "rich>=13", "pyyaml>=6"]
+# ///
+"""The autointerp analysis layer: the pilot's tables, from the small files one `run` wrote.
+
+Local, CPU, no GPU and no model. It fetches ONLY `runs/<run>/summary/*` and
+`runs/<run>/explain/explanations.jsonl` into the shared volume mirror, `common.mirror_dir()`
+(default outside `evals/faithfulness/`; the old `autointerp/data/<run>/` is legacy), and writes
+`autointerp/pilot.md`, which IS committed.
+
+    cd <repo>
+    (export MODAL_PROFILE=<your-profile>; \\
+     uv run evals/faithfulness/autointerp/stats.py --run 2026-09-16_autointerp-27b)
+
+The unit of analysis is the FEATURE, everywhere. Every difference is paired within a feature (the
+test set is identical across arms by construction, and the item order and the batching are too), so
+the CI is a percentile bootstrap over features, not over items. The design asks for:
+
+  * M - C16          "are rollouts as good as max-activating corpus examples?"
+  * (C4+M) - C4      "do rollouts add to a CHEAP corpus?"
+  * C4 - C16         what the cheap corpus costs on its own
+  * (C16+M16) - C32  the MATCHED-N enrichment test (amendment A8)
+  * the N points on C16 and M, descriptive only (A9)
+  * the same, per density quartile
+  * win fractions and the whole distribution, because the outcome is bimodal and a mean misleads
+  * fire fraction as the covariate that separates the hard stratum
+  * the floor arm R-shuffled, which should sit at 0.5, and TWO nulls -- the same description
+    scored twice on the same items (judge-only), and on a second disjoint draw (judge + draw) --
+    reported beside every win fraction
+
+`reconstruction/stats.py`'s `Vol` does the fetching; nothing here re-implements it, and nothing
+here writes to that file.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Annotated
+
+import numpy as np
+import polars as pl
+import typer
+from rich.console import Console
+
+HERE = Path(__file__).resolve().parent
+PAPER_EVALS = HERE.parent
+if str(PAPER_EVALS) not in sys.path:
+    sys.path.insert(0, str(PAPER_EVALS))
+
+from reconstruction.stats import ROOTS, Vol, mirror_dir, sign_test  # noqa: E402
+
+console = Console()
+app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+
+# The comparisons the design names, as (label, arm_a, arm_b) meaning a - b. The first three are
+# the headline; the matched-N pair is amendment A8; the N points are descriptive only (A9).
+# An arm absent from a run is SKIPPED, not an error: `paired()` returns empty arrays when either
+# side is missing from the frame and every consumer does `if not len(d): continue`. That is what
+# lets one CONTRASTS table serve a MAEMM run (no NLA arms) and an NLA run (no M arms) without
+# either of them carrying a row of NaNs. VERIFIED 2026-09-21, not changed.
+CONTRASTS = [
+    # THE PAPER'S CONTRASTS (spec §3, 2026-09-23). C16 is the corpus arm -- the top 16 by peak
+    # activation, one window per document, on the SHOWN corpus -- and every M arm is read against
+    # it. The three M arms show the same 64 rollouts and differ only in which 16 are chosen, so
+    # M-jac16 - M and M-cos16 - M isolate the selection and nothing else.
+    ("substitution", "M", "C16"),
+    ("selection: jaccard farthest-point - top16", "M-jac16", "M"),
+    ("selection: cosine farthest-point - top16", "M-cos16", "M"),
+    ("jaccard selection vs corpus", "M-jac16", "C16"),
+    ("cosine selection vs corpus", "M-cos16", "C16"),
+    # The NLA baseline (2026-09-21). `NLA` is the verbalizer's four outputs as explainer
+    # examples (mode A, the headline); `NLA-1` is the one-output sensitivity row; `NLA-desc` is
+    # the verbalizer's own text used AS the description, with no explainer call (mode B). None is
+    # matched-N against C16, which is a property of the baseline at its own operating point and is
+    # stated rather than corrected for.
+    ("NLA (mode A, 4 outputs) vs corpus", "NLA", "C16"),
+    ("NLA (mode A) vs maemm rollouts", "NLA", "M"),
+    ("NLA one output - four outputs", "NLA-1", "NLA"),
+    ("NLA text as description (mode B) vs corpus", "NLA-desc", "C16"),
+    ("NLA text as description vs NLA examples", "NLA-desc", "NLA"),
+    # Pilot-only descriptive points (A8, A9) and the pre-09-23 arm names. Skipped automatically in
+    # a run that does not carry them -- see the note above.
+    ("enrichment", "C4M", "C4"),
+    ("matched-N enrichment", "C16M16", "C32"),
+    ("corpus N: 8 - 16 (descriptive)", "C16-N8", "C16"),
+    ("corpus N: 32 - 16 (descriptive)", "C32", "C16"),
+    ("maemm N: 8 - 16 (descriptive)", "M-N8", "M"),
+    ("maemm N: 32 - 16 (descriptive)", "M-N32", "M"),
+    ("window-ranked corpus - document-ranked corpus", "C16-win", "C16"),
+]
+# Amendment A7: the null is a SECOND, DISJOINT test draw scored with C16's own description, not a
+# temperature-0 repeat. Its per-feature difference is the test-set sampling noise every contrast is
+# exposed to, and it is reported beside every win fraction.
+# Two nulls, both scorer-only. `C16-judge2` is the SAME description on the SAME draw-1 items,
+# scored a second time: the JUDGE-ONLY floor, which exists because the Anthropic Messages API has
+# no temperature parameter for this model generation and nothing is deterministic. `C16-draw2` is
+# the same description on the second disjoint draw (A7): judge AND test-set-draw variation
+# together. The difference between them is the draw half.
+NULLS = [
+    ("judge-only null (same description, same items, scored twice)", "C16", "C16-judge2"),
+    ("draw null (same description, second disjoint test draw)", "C16", "C16-draw2"),
+]
+NULL = NULLS[1]
+FLOOR_ARM = "R-shuffled"
+JUDGE_NULL_ARM = "C16-judge2"
+# One metric, three views of the SAME scorer answers: the pooled balanced accuracy, and the two
+# restrictions of the negative half that amendment A5 created (10 zero-activation randoms + 10
+# near-miss windows). A result that lives entirely on one half cannot hide in the pooled number.
+METRICS = ("bal_acc",)
+NEG_VIEWS = ("bal_acc", "bal_acc_zero_neg", "bal_acc_nearmiss_neg")
+QUANTS = (0.10, 0.25, 0.50, 0.75, 0.90)
+N_BOOT = 10000
+BOOT_SEED = 20260916
+
+
+def boot_ci(d: np.ndarray, n_boot: int = N_BOOT, seed: int = BOOT_SEED, alpha: float = 0.05):
+    """(mean, lo, hi) percentile bootstrap of the mean of `d`, resampling FEATURES."""
+    d = np.asarray(d, dtype=float)
+    d = d[np.isfinite(d)]
+    if len(d) < 2:
+        return (float(d.mean()) if len(d) else float("nan"), float("nan"), float("nan"))
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(d), size=(n_boot, len(d)))
+    means = d[idx].mean(axis=1)
+    return float(d.mean()), float(np.quantile(means, alpha / 2)), float(np.quantile(means, 1 - alpha / 2))
+
+
+def ci_str(m: float, lo: float, hi: float, nd: int = 4) -> str:
+    if not np.isfinite(lo):
+        return f"{m:.{nd}f}"
+    return f"{m:+.{nd}f} [{lo:+.{nd}f}, {hi:+.{nd}f}]"
+
+
+def pairing(df: pl.DataFrame, a: str, b: str, scorer: str, metric: str = "bal_acc") -> dict:
+    """What pairing `a` against `b` costs: the two feature sets, their intersection, and the loss.
+
+    `paired()` pivots and calls `.drop_nulls()`, which INTERSECTS silently: a feature scored for
+    one arm and not the other simply disappears, and two arms with disjoint coverage return two
+    empty arrays that every consumer reads as "this contrast is not in this run". A dropped
+    feature is a real event -- an explainer refusal, an empty description, an unparsed batch --
+    and it is counted here so the table can print it instead of the reader inferring it.
+    """
+    sub = df.filter(pl.col("scorer") == scorer)
+    got = {}
+    for arm in (a, b):
+        rows = sub.filter((pl.col("arm") == arm) & pl.col(metric).is_not_null())
+        got[arm] = set(rows["feature"].to_list())
+    both = got[a] & got[b]
+    return {
+        "arm_a": a, "arm_b": b, "scorer": scorer, "metric": metric,
+        "n_a": len(got[a]), "n_b": len(got[b]), "n_paired": len(both),
+        "lost_by_a": sorted(got[b] - got[a]), "lost_by_b": sorted(got[a] - got[b]),
+        "complete": bool(both) and got[a] == got[b],
+    }
+
+
+def paired(df: pl.DataFrame, a: str, b: str, scorer: str, metric: str = "bal_acc",
+           require_complete: bool = False):
+    """(features, d) -- the per-feature difference arm `a` minus arm `b` for one scorer.
+
+    The pivot below intersects the two arms' features. That is the right estimator -- the contrast
+    is paired -- but it used to happen SILENTLY, so an arm covering fewer features than the other
+    was indistinguishable from an arm covering all of them. The intersection is now ASSERTED
+    against `pairing()`'s count, and `require_complete` turns "the two sides cover different
+    features" from a countable fact into a refusal for a caller that needs one.
+    """
+    info = pairing(df, a, b, scorer, metric)
+    sub = df.filter(pl.col("scorer") == scorer)
+    wide = (
+        sub.filter(pl.col("arm").is_in([a, b]))
+        .pivot(values=metric, index="feature", on="arm")
+        .drop_nulls()
+    )
+    if a not in wide.columns or b not in wide.columns or not len(wide):
+        assert not info["n_paired"], (
+            f"{a} - {b} ({scorer}, {metric}): pairing() finds {info['n_paired']} shared features "
+            f"but the pivot produced none -- the two disagree, which means one of them is wrong"
+        )
+        return np.zeros(0, dtype=int), np.zeros(0)
+    assert len(wide) == info["n_paired"], (
+        f"{a} - {b} ({scorer}, {metric}): the pivot kept {len(wide)} features and the "
+        f"intersection of the two arms' feature sets is {info['n_paired']}"
+    )
+    if require_complete:
+        assert info["complete"], (
+            f"{a} - {b} ({scorer}): {a} is missing {len(info['lost_by_a'])} features the "
+            f"reference has and {b} is missing {len(info['lost_by_b'])}; this contrast was asked "
+            f"for on a complete pairing"
+        )
+    return wide["feature"].to_numpy(), (wide[a] - wide[b]).to_numpy()
+
+
+def md_table(rows: list[list[str]], header: list[str]) -> list[str]:
+    """A GitHub-flavoured table. Cells are escaped: a bare `|` (as in `mean |diff|`) would
+    otherwise be read as a column separator and shear the row."""
+
+    def esc(x):
+        return str(x).replace("|", "\\|")
+
+    out = ["| " + " | ".join(esc(h) for h in header) + " |",
+           "|" + "|".join(["---"] * len(header)) + "|"]
+    out += ["| " + " | ".join(esc(c) for c in r) + " |" for r in rows]
+    return out
+
+
+@app.command()
+def main(
+    run: Annotated[str, typer.Option(help="the run directory name under /vol/runs/")],
+    out: Annotated[str, typer.Option(help="the markdown file to write")] = "",
+    label: Annotated[str, typer.Option(help="`pilot` or `results`; picks the default filename")] = "results",
+    data_dir: Annotated[str, typer.Option()] = "",
+    modal_cmd: Annotated[str, typer.Option()] = "uvx modal",
+    refetch: Annotated[bool, typer.Option()] = False,
+    no_fetch: Annotated[bool, typer.Option("--no-fetch")] = False,
+):
+    # `Vol.get` joins the volume-relative rel onto this, and every rel below already starts
+    # `runs/<run>/` -- so the mirror is keyed by the VOLUME ROOT, not by the run, and the
+    # bytes land where every other reader's mirror of the same volume puts them.
+    data = Path(data_dir) if data_dir else mirror_dir(ROOTS["full"])
+    data.mkdir(parents=True, exist_ok=True)
+    vol = Vol("full", data, modal_cmd, refetch, quiet=False, offline=no_fetch)
+    base = f"runs/{run}"
+
+    scores = vol.jsonl(f"{base}/summary/scores.jsonl")
+    feats = vol.json(f"{base}/summary/features.json")
+    costs = vol.json(f"{base}/summary/costs.json")
+    binfo = vol.json(f"{base}/summary/build.json")
+    expl = vol.jsonl(f"{base}/explain/explanations.jsonl")
+    missing = [n for n, x in
+               [("scores.jsonl", scores), ("features.json", feats), ("costs.json", costs),
+                ("build.json", binfo), ("explanations.jsonl", expl)] if x is None]
+    assert not missing, f"{base} is missing {missing} (fetch log: {vol.missing})"
+
+    df = pl.DataFrame(scores)
+    arms = sorted(df["arm"].unique().to_list())
+    scorers = sorted(df["scorer"].unique().to_list())
+    n_feat = df["feature"].n_unique()
+    console.print(f"[bold]{n_feat} features, arms {arms}, scorers {scorers}[/bold]")
+
+    lines: list[str] = []
+    lines += [
+        f"# Autointerp {label} -- `{run}`",
+        "",
+        f"Delphi-style SAE autointerp on base `{binfo['base']}`, SAE `{binfo['sae']}`, held-out "
+        f"set `{binfo['set']}`, MAEMM `{binfo['maemm']}` (engine `{binfo['engine']}`). "
+        f"Explainer = scorer = `{costs['model']}` through the **{costs.get('api', 'anthropic-messages')}** "
+        f"API on the `{costs.get('path', '?')}` path. Temperature: {costs['temperature']}. "
+        f"Metric: per-feature **balanced accuracy** of the scorer using the "
+        f"explainer's description, over a test set of {binfo['n_pos']} gate-passing positives "
+        f"(band-stratified) and {binfo['n_neg']} negatives "
+        f"({binfo['n_neg'] - binfo.get('n_neg_nearmiss', 0)} zero-activation + "
+        f"{binfo.get('n_neg_nearmiss', 0)} near-miss), IDENTICAL across arms and never shown to "
+        f"any explainer. Two disjoint draws per feature; arms are scored on draw 1.",
+        "",
+        f"**n = {n_feat} features** ({n_feat / 4:.0f} per density quartile, seed "
+        f"{binfo['feat_seed']}), {len(arms)} arm-variants, {len(scorers)} scorers. "
+        f"SAE gate {binfo['gate']:.4f}. Generated by `autointerp/stats.py`; every number below is "
+        f"computed from `runs/{run}/summary/scores.jsonl`.",
+        "",
+        "## Cost",
+        "",
+    ]
+    tc = costs["cumulative_over_cache"]
+    lines += md_table(
+        [[
+            "total (all arms, all stages)",
+            f"{tc['calls']:,}",
+            f"{tc['in']:,}",
+            f"{tc['out']:,}",
+            f"{tc.get('cache_read', 0):,}",
+            f"${tc['cost']:.4f}",
+            f"${tc['cost'] / max(1, n_feat):.4f}",
+            "-",
+        ]] + [
+            [f"`{a}`", f"{d['calls']:,}", f"{d['in']:,}", f"{d['out']:,}",
+             f"{d.get('cache_read', 0):,}", f"${d['cost']:.4f}",
+             f"${d['cost'] / max(1, n_feat):.4f}", "/".join(d.get("paths", []) or ["-"])]
+            for a, d in costs["per_arm"].items()
+        ],
+        ["arm", "calls", "input tok", "output tok", "cache-read tok", "cost", "$/feature", "path"],
+    )
+    lines += ["", "Per stage:", ""]
+    lines += md_table(
+        [[f"`{a}`", f"{d['calls']:,}", f"{d['in']:,}", f"{d['out']:,}", f"${d['cost']:.4f}"]
+         for a, d in costs.get("per_stage", {}).items()],
+        ["stage", "calls", "input tok", "output tok", "cost"],
+    )
+    lines += [
+        "",
+        f"Cost is COMPUTED from the returned token counts at "
+        f"{costs.get('rates_usd_per_mtok')} $/MTok (the Anthropic API returns no cost field); the "
+        f"batch path pays {costs.get('batch_discount', 0.5):.0%} of that. "
+        f"{costs['cache_hits']:,} of {costs['cache_hits'] + costs['cache_misses']:,} calls came "
+        f"from the prompt cache. Projection recorded at the probe gate: "
+        + (f"${costs['projection_usd']:.2f}" if costs["projection_usd"] else "n/a (not reached)")
+        + f" against a ${costs.get('max_cost_usd', 0):.2f} cap"
+        + (f"; STOPPED EARLY: {costs['stopped_at']}." if costs.get("stopped_at") else "."),
+        "",
+    ]
+
+    # ---- per-arm levels -------------------------------------------------------------------
+    lines += ["## Test set and the two negative halves", "",
+              "A test positive is a window whose peak pre-gate activation EXCEEDS THE GATE "
+              "(amendment A1); without that rule, MEASURED on feature 845, 17 of 20 band-drawn "
+              "positives sat below the gate on text unrelated to the feature and every arm landed "
+              "near 0.6 balanced accuracy whatever its description said. The 20 negatives are 10 "
+              "zero-activation windows from the 2048-window random pool plus 10 near-miss windows "
+              "(0 < peak <= gate) (A5). Both halves are reported separately below, from the same "
+              "scorer answers, because they are not the same test.", ""]
+    tpr = df.filter(pl.col("arm") != FLOOR_ARM).group_by("scorer").agg(
+        pl.col("tpr").mean().alias("tpr"), pl.col("tnr").mean().alias("tnr"),
+        pl.col("tnr_zero").mean().alias("tnr_zero"),
+        pl.col("tnr_nearmiss").mean().alias("tnr_nm"),
+        pl.col("n_pos").mean().alias("np"), pl.col("n_neg_nearmiss").mean().alias("nnm"),
+    )
+    lines += md_table(
+        [[r["scorer"], f"{r['tpr']:.4f}", f"{r['tnr']:.4f}", f"{r['tnr_zero']:.4f}",
+          f"{r['tnr_nm']:.4f}", f"{r['np']:.1f}", f"{r['nnm']:.1f}"]
+         for r in tpr.iter_rows(named=True)],
+        ["scorer", "mean TPR", "mean TNR (all)", "TNR on zero-activation", "TNR on near-miss",
+         "positives/feature", "near-miss negatives/feature"],
+    )
+    lines += [""]
+
+    # THE PROTOCOL LABEL. Every table in this file carries it: the fuzzing column of a `legacy`
+    # run and of a `delphi` run are two different measurements (upstream sends three fuzzing
+    # few-shot turns, the legacy prompt is zero-shot), and they were previously distinguishable
+    # only by opening `summary/costs.json`. Chance is 0.5 by construction -- the test set is 20
+    # positives and 20 negatives and the metric is balanced accuracy -- and it is printed rather
+    # than assumed, together with the judge, because spec §3 requires every autointerp number to
+    # carry its chance level, its n and its judge.
+    fuzz_proto = str(costs.get("fuzz_protocol", "(unrecorded: run predates the flag)"))
+    fuzz_shots = costs.get("fuzz_shots", "?")
+    protocol_label = (
+        f"judge `{costs['model']}`, detection few-shot 3, fuzzing protocol **`{fuzz_proto}`** "
+        f"({fuzz_shots} few-shot turns), chance = 0.5 (balanced accuracy on "
+        f"{binfo['n_pos']} positives + {binfo['n_neg']} negatives)"
+    )
+    exceed_by_arm = binfo.get("n_shown_exceeding_corpus_peak_by_arm") or {}
+    lines += [f"**Protocol:** {protocol_label}.", ""]
+    lines += ["## Per-arm balanced accuracy", ""]
+    rows = []
+    for view in NEG_VIEWS:
+        for scorer in scorers:
+            for a_ in arms:
+                v = df.filter((pl.col("scorer") == scorer) & (pl.col("arm") == a_))[view]
+                v = np.asarray([x for x in v.to_list() if x is not None], dtype=float)
+                v = v[np.isfinite(v)]
+                if not len(v):
+                    continue
+                m, lo, hi = boot_ci(v)
+                ne = df.filter((pl.col("scorer") == scorer) & (pl.col("arm") == a_))["n_examples"]
+                rows.append([
+                    f"`{view}`", scorer, f"`{a_}`", f"{float(np.mean(ne.to_numpy())):.1f}", len(v),
+                    f"{m:.4f} [{lo:.4f}, {hi:.4f}]",
+                    *[f"{np.quantile(v, q):.3f}" for q in QUANTS],
+                    f"{float((v <= 0.5 + 1e-9).mean()):.3f}",
+                    exceed_by_arm.get(a_, "-"),
+                ])
+    lines += md_table(
+        rows,
+        ["negatives", "scorer", "arm", "mean N shown", "n", "mean [95% CI]",
+         *[f"q{int(q * 100)}" for q in QUANTS], "frac <= 0.5", "n shown > corpus peak"],
+    )
+    lines += [
+        "",
+        f"`frac <= 0.5` is the fraction of features on which the description is no better than "
+        f"chance -- the bimodality the design warns about, which a mean alone hides. `mean N "
+        f"shown` is the arm's ACTUAL example count averaged over features. **`{FLOOR_ARM}` is the "
+        f"floor** (amendment A6): each feature's test set scored with a DIFFERENT feature's C16 "
+        f"description under a fixed derangement. It should sit at 0.5; how far it sits above 0.5 "
+        f"is how much of every other arm's number is available without knowing anything about the "
+        f"feature. **`C16-draw2`** is C16's own description on the second, disjoint test draw "
+        f"(A7) -- the null. `n shown > corpus peak` is `build.json`'s per-arm count of shown "
+        f"examples whose activation EXCEEDS the feature's corpus peak, where Delphi's "
+        f"`ceil(10*act/peak)` quantisation clamps at 10 and hides the excess: zero for a corpus "
+        f"arm by construction, non-zero only for generated text. Protocol: {protocol_label}.",
+        "",
+    ]
+
+    null_txt: dict[tuple[str, str], tuple] = {}
+    lines += ["## The two nulls", ""]
+    rows = []
+    for label, a_, b_ in NULLS:
+        for metric in METRICS:
+            for scorer in scorers:
+                _f, d = paired(df, a_, b_, scorer, metric)
+                if not len(d):
+                    continue
+                m, lo, hi = boot_ci(d)
+                p, win, _m_non = sign_test(d)
+                q90 = float(np.quantile(np.abs(d), 0.90))
+                if b_ == NULL[2]:
+                    null_txt[(metric, scorer)] = (m, lo, hi, float(np.abs(d).mean()), q90, win,
+                                                  len(d))
+                rows.append([
+                    label.split(" (")[0], f"`{metric}`", scorer, f"`{a_}` - `{b_}`", len(d),
+                    ci_str(m, lo, hi), f"{float(np.abs(d).mean()):.4f}", f"{q90:.4f}",
+                    f"{win:.3f}" if np.isfinite(win) else "-",
+                    f"{p:.3f}" if np.isfinite(p) else "-",
+                ])
+    lines += md_table(
+        rows,
+        ["null", "metric", "scorer", "contrast", "n", "mean diff [95% CI]", "mean |diff|",
+         "q90 |diff|", "win frac", "sign p"],
+    )
+    lines += [
+        "",
+        "Both nulls score the SAME C16 description with no new explainer call. The **judge-only** "
+        "null re-scores the SAME draw-1 items, so its spread is the scorer's own run-to-run "
+        "variation -- which is real rather than zero, because the Anthropic Messages API has no "
+        "`temperature` parameter for this model generation and nothing is deterministic. The "
+        "**draw** null scores the second, disjoint draw, so it carries that variation PLUS "
+        "test-set sampling; the gap between the two is the sampling half. Each should have a mean "
+        "difference of 0 and a win fraction of 0.5; the draw null's `mean |diff|` and `q90 |diff|` "
+        "are what every contrast below is read against.",
+        "",
+    ]
+
+    # ---- contrasts --------------------------------------------------------------------------
+    lines += ["## Paired contrasts (features as the unit, percentile bootstrap, B = "
+              f"{N_BOOT:,})", "",
+              f"Protocol: {protocol_label}. Every contrast is on the INTERSECTION of the two "
+              f"arms' features, and `n a`/`n b` below say what each side covered before the "
+              f"intersection: an arm that covers fewer features than another is a real property "
+              f"of the design, and an arm that de-pairs silently is a defect.", ""]
+    rows = []
+    for metric in METRICS:
+        for scorer in scorers:
+            nul = null_txt.get((metric, scorer), (0.0, 0, 0, float("nan"), float("nan"), 0.5, 0))
+            nmean, floor, nwin = nul[0], nul[3], nul[5]
+            for label, a, b in CONTRASTS:
+                _f, d = paired(df, a, b, scorer, metric)
+                if not len(d):
+                    continue
+                m, lo, hi = boot_ci(d)
+                p, win, _m = sign_test(d)
+                clear = "yes" if np.isfinite(lo) and (lo > 0 or hi < 0) else "no"
+                # The honest comparison against the null is mean-to-mean: does this contrast's
+                # 95% CI exclude the null's OWN mean difference? Comparing the contrast's mean
+                # against the null's q90 of per-feature |diff| -- which an earlier version of this
+                # table did -- compares a mean to a per-feature spread and reads as "inside the
+                # noise" for effects that are in fact many times the null's mean.
+                outside = "yes" if np.isfinite(lo) and not (lo <= nmean <= hi) else "no"
+                pi = pairing(df, a, b, scorer, metric)
+                rows.append([
+                    f"`{metric}`", scorer, label, f"`{a}` - `{b}`", len(d),
+                    f"{pi['n_a']}/{pi['n_b']}", ci_str(m, lo, hi),
+                    f"{win:.3f}" if np.isfinite(win) else "-",
+                    f"{nwin:.3f}" if np.isfinite(nwin) else "-",
+                    f"{p:.4f}" if np.isfinite(p) else "-",
+                    f"{nmean:+.4f}" if np.isfinite(nmean) else "-",
+                    f"{floor:.4f}" if np.isfinite(floor) else "-", clear, outside,
+                ])
+    lines += md_table(
+        rows,
+        ["metric", "scorer", "contrast", "arms", "n paired", "n a/n b", "mean diff [95% CI]",
+         "win frac",
+         "NULL win frac", "sign p", "null mean diff", "null mean per-feature |diff|",
+         "CI clears 0", "CI excludes null mean"],
+    )
+    lines += [
+        "",
+        "`null mean per-feature |diff|` is the typical size of the SAME description's "
+        "disagreement between two disjoint test draws on ONE feature. It is a per-feature spread, "
+        "NOT the uncertainty of a mean over features, and it must not be used as a threshold for "
+        "the mean effects in this table -- with n in the fifties the mean is estimated far more "
+        "precisely than any single feature. The columns that do the work are `CI clears 0` and "
+        "`CI excludes null mean`.",
+    ]
+    lines += [""]
+
+    # ---- per quartile -----------------------------------------------------------------------
+    lines += ["## Per density quartile", "",
+              "Quartile 0 is the rarest quarter of features by gated corpus density, 3 the "
+              "commonest (`precompute/targets.py:229-252`).", ""]
+    strat = {int(r["feature"]): int(r["stratum"]) for r in feats["features"]}
+    rows = []
+    for metric in METRICS:
+        for scorer in scorers:
+            for label, a, b in CONTRASTS[:4]:
+                for q in sorted(set(strat.values())):
+                    f_ids, d = paired(df, a, b, scorer, metric)
+                    if not len(d):
+                        continue  # an arm this run does not have: np.asarray([]) is FLOAT, and
+                        # indexing with it raises "arrays used as indices must be of integer (or
+                        # boolean) type" -- which is how the rlI-150 run, whose arms are M and C4M
+                        # with no C16, lost its whole results file behind write_tables' except.
+                    keep = np.asarray([strat[int(x)] == q for x in f_ids], dtype=bool)
+                    dq = d[keep]
+                    if not len(dq):
+                        continue
+                    m, lo, hi = boot_ci(dq)
+                    _p, win, _m = sign_test(dq)
+                    rows.append([f"`{metric}`", scorer, label, q, len(dq), ci_str(m, lo, hi),
+                                 f"{win:.3f}" if np.isfinite(win) else "-"])
+    lines += md_table(
+        rows,
+        ["metric", "scorer", "contrast", "quartile", "n", "mean diff [95% CI]", "win frac"],
+    )
+    lines += [""]
+
+    # ---- fire fraction ----------------------------------------------------------------------
+    lines += ["## Fire fraction as covariate", "",
+              "`fire_fraction` is the share of ALL 64 of the MAEMM's rollouts on which the target "
+              "feature exceeds the SAE gate somewhere, as stored by `sae_self` -- NOT the share "
+              "among the 16 rollouts the M arm happens to show, which is near 1 by construction "
+              "(they are the top 16 by activation) and therefore degenerate as a covariate. The "
+              "hard stratum is exactly the set the MAEMM never fires on, so this is the covariate "
+              "that should separate it.", ""]
+    fire = {int(r["feature"]): float(r["fire_fraction"]) for r in feats["features"]}
+    edges = [0.0, 0.25, 0.5, 0.75, 1.0001]
+    rows = []
+    for metric in METRICS:
+        for scorer in scorers:
+            f_ids, d = paired(df, "M", "C16", scorer, metric)
+            if not len(d):
+                continue
+            fv = np.asarray([fire[int(x)] for x in f_ids])
+            r = float(np.corrcoef(fv, d)[0, 1]) if len(d) > 2 else float("nan")
+            for lo_e, hi_e in zip(edges[:-1], edges[1:], strict=True):
+                keep = (fv >= lo_e) & (fv < hi_e)
+                if not keep.any():
+                    continue
+                m, lo, hi = boot_ci(d[keep])
+                rows.append([f"`{metric}`", scorer, f"[{lo_e:.2f}, {hi_e:.2f})", int(keep.sum()),
+                             f"{fv[keep].mean():.3f}", ci_str(m, lo, hi)])
+            lines.append(f"Pearson r(fire fraction, `M` - `C16`) = **{r:.3f}** on {scorer}, "
+                         f"`{metric}` (n = {len(d)}).")
+            lines.append("")
+    lines += md_table(rows, ["metric", "scorer", "fire fraction bin", "n", "mean fire frac",
+                             "`M` - `C16` [95% CI]"])
+    lines += [""]
+
+    # ---- exclusions and pool health ----------------------------------------------------------
+    lines += ["## Exclusions and pool health", "",
+              "A feature with no scorable draw-1 positive is missing from EVERY contrast, so the "
+              "count is reported per density quartile rather than folded into an `n`.", ""]
+    scored = {int(f) for f in df["feature"].unique().to_list()}
+    rows = []
+    for q in sorted({int(r["stratum"]) for r in feats["features"]}):
+        inq = [r for r in feats["features"] if int(r["stratum"]) == q]
+        miss = [r for r in inq if int(r["feature"]) not in scored or r["draw1"]["n_pos"] == 0]
+        short = [r for r in inq if 0 < r["draw1"]["n_pos"] < binfo["n_pos"]]
+        tf = [r for r in inq if r.get("n_top_fallback", 0) > 0]
+        rows.append([q, len(inq), len(miss), len(short),
+                     f"{len(tf)} / {sum(r.get('n_top_fallback', 0) for r in inq)}",
+                     f"{float(np.mean([r['draw1']['n_pos'] for r in inq])):.1f}"])
+    lines += md_table(
+        rows,
+        ["quartile", "features", "no draw-1 positive (EXCLUDED)", "short of n_pos",
+         "top-fallback features / positives", "mean draw-1 positives"],
+    )
+    lines += [
+        "",
+        "`top-fallback positives` are test positives taken from the feature's top-ranked windows "
+        "BEYOND those any arm shows, used when the activation bands cannot fill the quota. They "
+        "are drawn from the same ranking the C-arms draw their examples from, which makes them the "
+        "easiest positives in the set; the robustness row below re-runs the headline contrasts "
+        "with them excluded.",
+        "",
+    ]
+
+    # ---- explanations / parse health --------------------------------------------------------
+    edf = pl.DataFrame(expl)
+    n_empty = int(edf.filter(~pl.col("ok")).height)
+    lines += ["## Description drop rate, per arm", "",
+              "An empty explainer answer means that arm has no description for that feature and is "
+              "not scored on it, so a high rate is a silent loss of n.", ""]
+    drop = (edf.group_by("arm")
+            .agg(pl.len().alias("n"), (~pl.col("ok")).sum().alias("empty"))
+            .sort("arm"))
+    lines += md_table(
+        [[f"`{r['arm']}`", r["n"], r["empty"], f"{r['empty'] / max(1, r['n']):.3f}"]
+         for r in drop.iter_rows(named=True)]
+        + [["**total**", edf.height, n_empty, f"{n_empty / max(1, edf.height):.3f}"]],
+        ["arm", "descriptions", "empty", "rate"],
+    )
+    lines += [""]
+    parsed = df.select(
+        (pl.col("n_parsed").sum() / pl.col("n_batches").sum()).alias("f")
+    )["f"][0]
+    lines += ["## Pipeline health", "",
+              f"- {n_empty} of {edf.height} explainer responses came back empty (no usable body).",
+              f"- {parsed:.4f} of scorer batches parsed; unparsed batches are DROPPED, never "
+              f"imputed, so a feature's balanced accuracy is over the items that were actually "
+              f"answered (`n_items` in scores.jsonl).",
+              f"- mean marked fraction of a shown explainer example: "
+              f"{binfo['mean_marked_fraction']:.4f}; token-join mismatches "
+              f"{binfo['token_join_mismatches']}.",
+              f"- build flags: {len(binfo['flags'])}"
+              + (f" -- first: {binfo['flags'][0]}" if binfo["flags"] else ""),
+              f"- A10 explainer truncation: "
+              f"{costs.get('explainer_truncated_and_retried', 0)} answers hit max_tokens and were "
+              f"retried once at double the budget; a still-truncated answer raises.",
+              f"- A12 model check: {costs.get('model_check', {})}",
+              f"- per-stage API path and wall: {costs.get('stage_info', {})}",
+              ""]
+
+    # ---- robustness: drop the top-fallback positives -----------------------------------------
+    # ANALYSIS ONLY, no extra calls: re-run the headline contrasts over the features that needed
+    # NO top-fallback positive, i.e. whose whole test set came from the activation bands. If a
+    # contrast survives that, it does not depend on the easiest positives in the set.
+    tf_feats = {int(r["feature"]) for r in feats["features"] if r.get("n_top_fallback", 0) > 0}
+    lines += ["## Robustness: features with no top-fallback positive", "",
+              f"{len(tf_feats)} of {len(feats['features'])} features needed at least one "
+              f"top-fallback positive. The headline contrasts below are recomputed over the "
+              f"remainder -- no new API calls, the same answers, a narrower feature set.", ""]
+    clean = df.filter(~pl.col("feature").is_in(list(tf_feats)))
+    rows = []
+    for scorer in scorers:
+        for label, a_, b_ in CONTRASTS[:4]:
+            _f, d = paired(clean, a_, b_, scorer, "bal_acc")
+            if len(d) < 3:
+                continue
+            m, lo, hi = boot_ci(d)
+            _p, win, _m = sign_test(d)
+            _fa, da = paired(df, a_, b_, scorer, "bal_acc")
+            ma = float(np.mean(da)) if len(da) else float("nan")
+            rows.append([scorer, label, f"`{a_}` - `{b_}`", len(d), ci_str(m, lo, hi),
+                         f"{win:.3f}" if np.isfinite(win) else "-",
+                         f"{ma:+.4f} (n={len(da)})"])
+    lines += md_table(
+        rows,
+        ["scorer", "contrast", "arms", "n", "mean diff [95% CI]", "win frac", "all features"],
+    )
+    lines += [""]
+
+    # ---- full-run projection ------------------------------------------------------------------
+    per_feat_arm = {a: d["cost"] / max(1, n_feat) for a, d in costs["per_arm"].items()}
+    four = sum(per_feat_arm.get(a, 0.0) for a in ("C16", "C4", "M", "C4M"))
+    two = sum(per_feat_arm.get(a, 0.0) for a in ("M", "C4M"))
+    lines += ["## Projected cost of the full run", "",
+              "From this pilot's MEASURED $/feature/arm, both scorers included:", ""]
+    lines += md_table(
+        [["512 features x 4 arms (C16, C4, M, C4M), primary MAEMM", f"${four * 512:.2f}"],
+         ["512 features x 2 arms (M, C4M), `rlI-150` secondary", f"${two * 512:.2f}"],
+         ["both", f"${(four + two) * 512:.2f}"]],
+        ["scope", "projected"],
+    )
+    lines += ["",
+              "The projection assumes the pilot's prompt sizes, which are the real ones: the "
+              "example sets and the test set do not grow with the number of features.",
+              ""]
+
+    dest = Path(out) if out else HERE / f"{label}.md"
+    dest.write_text("\n".join(lines) + "\n")
+    console.print(f"[green]wrote {dest}[/green] ({dest.stat().st_size} B)")
+    if vol.missing:
+        console.print(f"[yellow]missing from the volume: {vol.missing}[/yellow]")
+
+
+if __name__ == "__main__":
+    app()

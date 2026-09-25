@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+# everything the code writes: dumps, figures, tables
+evals/verbalization/report/
+evals/backdoor/trojan/results/run17/
+out/
+*.npz
+*.pt
+*.safetensors

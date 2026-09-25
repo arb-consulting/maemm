@@ -1,0 +1,10 @@
+# Local analysis + plotting (no GPU). The Modal jobs pin their own versions inside
+# modal_8b_verbalization.py's image spec and do not read this file.
+numpy>=1.26,<2.6
+scipy>=1.11
+matplotlib>=3.8
+torch>=2.2                 # reading the SAE max-acts .pt dumps; CPU is enough
+transformers>=4.51         # tokenizer only, for decoding max-acts windows
+huggingface_hub>=0.34      # fetching the public SAE / max-acts artifacts
+sentence-transformers>=3.0 # analyze_consistency.py only
+modal>=0.64                # launching the GPU jobs

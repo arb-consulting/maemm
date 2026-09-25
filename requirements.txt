@@ -1,0 +1,31 @@
+# The LOCAL environment: launching Modal jobs, CPU analysis, and the tests.
+#
+# GPU jobs do not use this file. Each Modal image installs its own pinned stack (these same
+# versions, plus vllm==0.19.0, vllm-lens==1.1.0, flash-linear-attention==0.5.2, torchao==0.16.0),
+# several of which only build on Linux + CUDA.
+modal
+torch==2.10.0
+transformers==5.15.0
+peft==0.20.0
+accelerate==1.14.0
+tokenizers==0.22.2
+safetensors==0.8.0
+huggingface_hub==1.27.0
+datasets==4.5.0
+numpy>=2
+scipy
+scikit-learn
+pandas==3.0.3
+polars>=1
+pyarrow==24.0.0
+pyyaml>=6
+matplotlib>=3.9
+sentence-transformers
+anthropic==1.6.0
+requests==2.32.3
+rich>=13
+typer>=0.15
+wandb==0.28.2
+fasttext
+zstandard
+pytest
