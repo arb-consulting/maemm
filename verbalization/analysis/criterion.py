@@ -14,6 +14,8 @@ from pathlib import Path
 
 import numpy as np
 
+import dumplib
+
 GATE = 1.5845966339111328
 DEAD_PATH = Path(__file__).resolve().parents[1] / "report" / "data" / "dead_27b_l42-1b.json"
 
@@ -24,14 +26,16 @@ def dead_ids():
 
 def load_perdir(path):
     """from_precompute dump -> dict of arrays over NON-dead features, plus `fail` (bool) and
-    `n_dead_dropped`. Every per-feature list in the dump is filtered the same way."""
-    d = json.load(open(path))["perdir"]["sae"]
+    `n_dead_dropped`. Every per-feature list in the dump is filtered the same way.
+
+    The columns and the dead-feature filter come from dumplib.PerDir; what this adds is the gate
+    criterion itself -- dropping dead features and deriving `fail` -- which is the thing this
+    module exists to keep in one place.
+    """
+    p = dumplib.PerDir.load(path)
     dead = dead_ids()
-    keep = np.array([int(f) not in dead for f in d["feature"]])
-    out = {}
-    for k, v in d.items():
-        a = np.asarray(v)
-        out[k] = a[keep] if a.shape[:1] == keep.shape else a
+    keep = np.array([int(f) not in dead for f in p.feature])
+    out = dict(p.select(keep).col)
     out["feature"] = out["feature"].astype(int)
     out["fail"] = np.asarray(out["fire_fraction"], float) == 0
     out["n_dead_dropped"] = int((~keep).sum())

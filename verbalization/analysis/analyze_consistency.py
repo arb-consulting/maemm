@@ -29,6 +29,8 @@ import os
 import numpy as np
 from scipy import stats
 
+import dumplib as D
+
 EMB = "BAAI/bge-small-en-v1.5"
 
 
@@ -52,6 +54,8 @@ def main():
                     help="also write the per-GENERATION table (one row per sample) to this path")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
+    # up front, not left to write_data at the end: everything between here and the write is an
+    # embedding pass over every generation, and an unwritable --out should fail before that
     os.makedirs(f"{a.out}/data", exist_ok=True)
 
     from sentence_transformers import SentenceTransformer
@@ -59,7 +63,7 @@ def main():
 
     T = json.load(open(a.texts))
     texts, rows, feats = T["texts"], np.asarray(T["rows"]), np.asarray(T["feats"])
-    s = {k: np.asarray(v) for k, v in json.load(open(a.perdir))["perdir"]["sae"].items()}
+    s = D.PerDir.load(a.perdir).col
     grp = json.load(open(a.groups))
     hard, easy = set(grp["hard"]), set(grp["easy"])
 
@@ -113,10 +117,7 @@ def main():
 
     if a.dump_csv:
         import csv as _csv
-        fire = None
-        if a.sae_match:
-            fire = np.load(a.sae_match)
-            fire = fire["sae_nfire"] / float(fire["n_tok"]) * 100.0
+        fire = D.Scan(a.sae_match).fire_pct if a.sae_match else None
         peak = {int(f): float(s["corpus_peak"][i]) for i, f in enumerate(feats)}
         cols = ["group", "feature", "fire_pct", "corpus_peak", "norm_act_bo32", "self_cos",
                 "var_cos", "sample_idx", "sample_act", "generation", "top_corpus_example"]
@@ -148,11 +149,12 @@ def main():
                                 "top_corpus_example": ""})
         print(f"-> {a.dump_csv}")
 
-    json.dump({"embedder": EMB, "n_features": len(feats), "per_feature": recs,
-               "hard_self_cos": float(np.nanmean(sc[gh])), "easy_self_cos": float(np.nanmean(sc[ge])),
-               "spearman_selfcos_normact": {"rho": float(r_), "p": float(p_)}},
-              open(f"{a.out}/data/consistency.json", "w"), indent=1)
-    print(f"\n-> {a.out}/data/consistency.json")
+    p = D.write_data(a.out, "consistency",
+                     {"embedder": EMB, "n_features": len(feats), "per_feature": recs,
+                      "hard_self_cos": float(np.nanmean(sc[gh])),
+                      "easy_self_cos": float(np.nanmean(sc[ge])),
+                      "spearman_selfcos_normact": {"rho": float(r_), "p": float(p_)}})
+    print(f"\n-> {p}")
 
 
 if __name__ == "__main__":

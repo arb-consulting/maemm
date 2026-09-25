@@ -39,11 +39,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from style import SERIES, INK, INK2, MUTED, GRID
-
-
-def bins(x, nbins):
-    q = np.quantile(x, np.linspace(0, 1, nbins + 1))
-    return np.clip(np.digitize(x, q[1:-1]), 0, nbins - 1), q
+import dumplib as D
 
 
 def main():
@@ -54,22 +50,14 @@ def main():
     ap.add_argument("--disc", type=float, default=10.0, help="discriminability threshold (x null)")
     ap.add_argument("--nbins", type=int, default=8)
     a = ap.parse_args()
-    os.makedirs(f"{a.out}/data", exist_ok=True)
 
-    arms = {}
-    for spec in a.perdir:
-        tag, path = spec.split("=", 1)
-        dd = json.load(open(path))
-        arms[tag] = {k: np.asarray(v) for k, v in dd["perdir"]["sae"].items()}
-        arms[tag]["_adapter"] = dd.get("adapter")
-    z = np.load(a.sae_match)
-    n_tok = int(z["n_tok"]) if "n_tok" in z else 1_024_000
+    arms = D.load_perdir(a.perdir)
     tags = list(arms)
-    feat = arms[tags[0]]["feature"]
-    for t in tags[1:]:
-        assert np.array_equal(arms[t]["feature"], feat), "arms must share a feature list"
-    x = np.log10(np.maximum(z["sae_nfire"].astype(float)[feat], 1) / n_tok)
-    b, q = bins(x, a.nbins)
+    feat = D.shared_features(arms)
+    scan = D.Scan(a.sae_match)
+    n_tok = scan.n_tok
+    x = scan.log10_freq(feat)
+    b, q = D.quantile_bins(x, a.nbins)
     xm = np.array([x[b == i].mean() for i in range(a.nbins)])
     nb = np.array([(b == i).sum() for i in range(a.nbins)])
 
@@ -89,7 +77,7 @@ def main():
         ax.set_title(f"{tag}   ({100*(s['best_act']==0).mean():.0f}% produce zero activation)",
                      fontweight="bold", color=INK, fontsize=11)
         ax.legend(frameon=False, fontsize=8.2, loc="lower center")
-        out["arms"][tag] = {"adapter": s.get("_adapter"),
+        out["arms"][tag] = {"adapter": s.meta.get("adapter"),
                             "frac_zero_act": float((s["best_act"] == 0).mean()),
                             "beats_null": float(got.mean()),
                             "hard_to_get": float((measurable & ~got).mean()),
@@ -116,9 +104,8 @@ def main():
     fig.suptitle("Hard to get vs not measurable — Qwen3-8B, rare-weighted features, paired arms",
                  fontweight="bold", color=INK, x=0.02, ha="left", fontsize=13)
     fig.tight_layout(rect=[0, 0, 1, 0.93])
-    for e in ("png", "pdf"):
-        fig.savefig(f"{a.out}/fig7_hard_to_get.{e}", dpi=170, bbox_inches="tight")
-    json.dump(out, open(f"{a.out}/data/fig7_hard_to_get.json", "w"), indent=1)
+    D.savefig(fig, a.out, "fig7_hard_to_get")
+    D.write_data(a.out, "fig7_hard_to_get", out)
     for tag, v in out["arms"].items():
         print("%-4s zero-act %.3f | beats null %.3f | hard-to-get %.3f | not-meas %.3f"
               % (tag, v["frac_zero_act"], v["beats_null"], v["hard_to_get"], v["not_measurable"]))

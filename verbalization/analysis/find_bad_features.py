@@ -33,6 +33,7 @@ import csv
 import json
 import os
 
+import dumplib as D
 import featlib as L
 
 
@@ -51,8 +52,9 @@ def main():
     os.makedirs(f"{a.out}/tables", exist_ok=True)
     os.makedirs(f"{a.out}/data", exist_ok=True)
 
-    arms = L.load_perdir(a.perdir)
-    fire, n_tok = L.load_fire_pct(a.sae_match)
+    arms = {tag: p.rows for tag, p in D.load_perdir(a.perdir).items()}
+    scan = D.Scan(a.sae_match)
+    fire, n_tok = scan.fire_pct, scan.n_tok
     print(f"[bad] arms {list(arms)} | corpus scan {n_tok:,} tokens", flush=True)
 
     feats = sorted(set().union(*[set(v) for v in arms.values()]))
@@ -115,7 +117,7 @@ def main():
         "by_token_class": dict(collections.Counter(r["token_class"] for r in recs)),
         "median_fire_pct": sorted(r["fire_pct"] for r in recs)[len(recs) // 2] if recs else None,
     }
-    json.dump(summary, open(f"{a.out}/data/bad_feature_summary.json", "w"), indent=1)
+    D.write_data(a.out, "bad_feature_summary", summary)
     print("[bad] " + json.dumps(summary["by_flag"]) + "  " + json.dumps(summary["by_token_class"]))
 
 

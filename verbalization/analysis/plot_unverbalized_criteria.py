@@ -34,23 +34,10 @@ import numpy as np
 import torch
 from scipy import stats
 
+from dumplib import auc_rarer_worse, deciles
 from style import SERIES, INK, INK2, MUTED, GRID
-NBINS = 10
+import dumplib as D
 SAE_FIRE = 1.0            # eval_universal.SAE_FIRE, reproduced for the comparison curve
-
-
-def auc_rarer_worse(x, unv):
-    r = stats.rankdata(-x)
-    n1, n0 = unv.sum(), (1 - unv).sum()
-    return float("nan") if n1 == 0 or n0 == 0 else (r[unv == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)
-
-
-def deciles(x, y, nbins=NBINS):
-    q = np.quantile(x, np.linspace(0, 1, nbins + 1))
-    b = np.clip(np.digitize(x, q[1:-1]), 0, nbins - 1)
-    return (np.array([x[b == i].mean() for i in range(nbins)]),
-            np.array([y[b == i].mean() for i in range(nbins)]),
-            np.array([y[b == i].std(ddof=1) / np.sqrt(max((b == i).sum(), 1)) for i in range(nbins)]))
 
 
 def main():
@@ -62,17 +49,17 @@ def main():
     ap.add_argument("--n-tok", type=int, default=1_024_000)
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    os.makedirs(f"{a.out}/data", exist_ok=True)
 
-    z = np.load(a.sae_match)
+    # --n-tok is passed explicitly rather than read off the npz: the 27B sae_match.npz predates
+    # the n_tok key, and this script's callers have always supplied the scan size themselves
+    scan = D.Scan(a.sae_match, n_tok=a.n_tok)
     ma = torch.load(a.maxacts, map_location="cpu", weights_only=False)["max_acts"].float()
     ex = -np.sort(-ma.max(dim=2).values.numpy(), axis=1)          # [F, n_ex] example maxima, desc
 
     arms = {}
-    for spec in a.perdir:
-        tag, path = spec.split("=", 1)
-        s = {k: np.asarray(v) for k, v in json.load(open(path))["perdir"]["sae"].items()}
-        s["x"] = np.log10(np.maximum(z["sae_nfire"].astype(float)[s["feature"]], 1) / a.n_tok)
+    for tag, p in D.load_perdir(a.perdir).items():
+        s = dict(p.col)
+        s["x"] = scan.log10_freq(p.feature)
         arms[tag] = s
 
     def criteria(s):
@@ -88,7 +75,7 @@ def main():
         out[tag] = {}
         for name, v, c, ls in criteria(s):
             unv = (1 - v).astype(float)
-            xm, ym, se = deciles(s["x"], unv)
+            xm, ym, se, _ = deciles(s["x"], unv)
             A = auc_rarer_worse(s["x"], 1 - v)
             ax.errorbar(xm, ym, yerr=se, color=c, ls=ls, lw=1.9, marker="o", ms=4.5, mfc="white",
                         mew=1.5, capsize=2, label=f"{name}   AUC {A:.3f} · overall {unv.mean():.2f}")
@@ -104,9 +91,8 @@ def main():
     fig.suptitle("Where the inverter fails, by feature rarity — under four verbalizability definitions",
                  fontweight="bold", color=INK, x=0.02, ha="left", fontsize=13)
     fig.tight_layout(rect=[0, 0, 1, 0.93])
-    for e in ("png", "pdf"):
-        fig.savefig(f"{a.out}/fig5_unverbalized_by_criterion.{e}", dpi=170, bbox_inches="tight")
-    json.dump(out, open(f"{a.out}/data/unverbalized_by_criterion.json", "w"), indent=1)
+    D.savefig(fig, a.out, "fig5_unverbalized_by_criterion")
+    D.write_data(a.out, "unverbalized_by_criterion", out)
     for tag in out:
         print(tag, {k: round(v["auc"], 3) for k, v in out[tag].items()})
 

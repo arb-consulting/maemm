@@ -27,6 +27,7 @@ import numpy as np
 from scipy import stats
 
 from style import SERIES, INK, INK2, MUTED, GRID
+import dumplib as D
 
 
 def main():
@@ -34,15 +35,16 @@ def main():
     ap.add_argument("--perdir", action="append", required=True, metavar="TAG=PATH")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    os.makedirs(f"{a.out}/data", exist_ok=True)
 
+    # the `cos` families live outside the `sae` block, so this is the one script that reads a dump
+    # through .cos() rather than as columns; 8B dumps carry no cos block and are rejected here
     arms = {}
-    for spec in a.perdir:
-        tag, path = spec.split("=", 1)
-        pd = json.load(open(path))["perdir"]
-        arms[tag] = {"random": np.asarray(pd["cos"]["random"], float),
-                     "sae": np.asarray(pd["sae"]["cos"], float),
-                     "realact": np.asarray(pd["cos"]["realact"], float)}
+    for tag, p in D.load_perdir(a.perdir).items():
+        fam = {"random": p.cos("random"), "sae": np.asarray(p["cos"], float),
+               "realact": p.cos("realact")}
+        missing = [k for k, v in fam.items() if v is None]
+        assert not missing, f"{p.path} carries no cos family {missing} (an 8B dump?)"
+        arms[tag] = fam
 
     fig, axes = plt.subplots(1, len(arms), figsize=(5.8 * len(arms), 4.4),
                              sharex=True, sharey=True, squeeze=False)
@@ -63,8 +65,7 @@ def main():
     fig.suptitle("Recovery cosine by direction family — realact has no rarity axis, only this",
                  fontweight="bold", color=INK, x=0.02, ha="left", fontsize=13)
     fig.tight_layout(rect=[0, 0, 1, 0.94])
-    for e in ("png", "pdf"):
-        fig.savefig(f"{a.out}/fig4_cos_by_family.{e}", dpi=170, bbox_inches="tight")
+    D.savefig(fig, a.out, "fig4_cos_by_family", close=False)
 
     out = {}
     print("%-4s %-9s %7s %7s %7s %7s %9s" % ("arm", "family", "mean", "median", "p05", "p95", "d_vs_rand"))
@@ -79,7 +80,7 @@ def main():
                 tag, name, v.mean(), np.median(v), np.quantile(v, .05), np.quantile(v, .95), d))
         out[tag]["realact_vs_sae_mwu_p"] = float(stats.mannwhitneyu(fam["realact"], fam["sae"]).pvalue)
         print("     realact vs sae: Mann-Whitney p = %.3e" % out[tag]["realact_vs_sae_mwu_p"])
-    json.dump(out, open(f"{a.out}/data/cos_by_family.json", "w"), indent=1)
+    D.write_data(a.out, "cos_by_family", out)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,8 @@ import re
 
 import numpy as np
 
+import dumplib
+
 REPORT = pathlib.Path(__file__).resolve().parents[1] / "report"
 K = 8
 N_CROSS = 20000
@@ -217,10 +219,10 @@ def main():
     from sklearn.metrics import roc_auc_score
     res["vs_success"] = {}
     for arm in ("rl-last16", "rare-lora"):
-        p = json.load(open(REPORT / "data" / f"perdir_27b_{arm}.json"))["perdir"]["sae"]
-        keep = [i for i, f in enumerate(p["feature"]) if str(int(f)) in per_out[arm]]
-        na = (np.array(p["best_act"]) / np.array(p["corpus_peak"]))[keep]
-        v = np.array([per_out[arm][str(int(p["feature"][i]))][0] for i in keep])
+        p = dumplib.PerDir.load(REPORT / "data" / f"perdir_27b_{arm}.json")
+        keep = [i for i, f in enumerate(p.feature) if str(int(f)) in per_out[arm]]
+        na = (p["best_act"] / p["corpus_peak"])[keep]
+        v = np.array([per_out[arm][str(int(p.feature[i]))][0] for i in keep])
         fail = na < 0.10
         rk = np.argsort(np.argsort(v, kind="stable"), kind="stable") * 4 // len(v)
         # quartile 0 = most AGREEING samples (lowest Vendi), to read like the Jaccard panel

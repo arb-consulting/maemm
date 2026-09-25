@@ -31,21 +31,8 @@ import os
 
 import numpy as np
 
+import dumplib as D
 import featlib as L
-
-
-def load_texts(specs):
-    """[TAG=]PATH, ... -> {tag: {feature: [generation, ...]}} from eval_dirs' texts_8b_<tag>.json."""
-    out = {}
-    for spec in specs:
-        tag, path = spec.split("=", 1) if "=" in spec else (os.path.basename(spec), spec)
-        d = json.load(open(path))
-        feats, rows, texts = d["feats"], d["rows"], d["texts"]
-        by = {}
-        for i, r in enumerate(rows):
-            by.setdefault(int(feats[int(r)]), []).append(texts[i])
-        out[tag] = by
-    return out
 
 
 def main():
@@ -66,9 +53,10 @@ def main():
     ap.add_argument("--out", required=True, help="output FILE")
     a = ap.parse_args()
 
-    fire, n_tok = L.load_fire_pct(a.sae_match)
-    arms = L.load_perdir(a.perdir) if a.perdir else {}
-    gens = load_texts(a.texts) if a.texts else {}
+    scan = D.Scan(a.sae_match)
+    fire, n_tok = scan.fire_pct, scan.n_tok
+    arms = {tag: p.rows for tag, p in D.load_perdir(a.perdir).items()} if a.perdir else {}
+    gens = D.load_texts(a.texts) if a.texts else {}
 
     header = None
     if a.features:

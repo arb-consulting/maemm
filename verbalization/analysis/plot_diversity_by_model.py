@@ -20,6 +20,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from style import SERIES, INK, INK2, MUTED, GRID, apply_rcparams
+import dumplib
 
 REPORT = pathlib.Path(__file__).resolve().parents[1] / "report"
 DATA = REPORT / "data"
@@ -60,9 +61,9 @@ def left(ax, d, per):
 
 def right(ax, per):
     for key, name, col in ARMS:
-        p = json.load(open(DATA / f"perdir_27b_{key}.json"))["perdir"]["sae"]
-        na = np.array(p["best_act"]) / np.array(p["corpus_peak"])
-        j = np.array([per[key][str(int(f))] for f in p["feature"]])
+        p = dumplib.PerDir.load(DATA / f"perdir_27b_{key}.json")
+        na = p["best_act"] / p["corpus_peak"]
+        j = np.array([per[key][str(int(f))] for f in p.feature])
         # by rank, not by value cuts: rare-lora's scores tie heavily near 0 and would empty a bin
         q = np.argsort(np.argsort(j, kind="stable"), kind="stable") * 4 // len(j)
         med = [np.median(na[q == i]) for i in range(4)]

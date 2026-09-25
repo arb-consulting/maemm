@@ -47,6 +47,8 @@ import random
 
 import numpy as np
 
+import dumplib
+
 REPORT = pathlib.Path(__file__).resolve().parents[1] / "report"
 TEMPLATE_J = 0.40        # featlib.template_jaccard: template features 0.43-0.50, ordinary 0.01
 N_CROSS = 20000
@@ -166,9 +168,9 @@ def main():
     from sklearn.metrics import roc_auc_score
     res["vs_success"] = {}
     for arm in ("rl-last16", "rare-lora"):
-        p = json.load(open(REPORT / "data" / f"perdir_27b_{arm}.json"))["perdir"]["sae"]
-        na = np.array(p["best_act"]) / np.array(p["corpus_peak"])
-        j = np.array([dists[arm][str(int(f))] for f in p["feature"]])
+        p = dumplib.PerDir.load(REPORT / "data" / f"perdir_27b_{arm}.json")
+        na = p["best_act"] / p["corpus_peak"]
+        j = np.array([dists[arm][str(int(f))] for f in p.feature])
         fail = na < 0.10
         q = np.argsort(np.argsort(j, kind="stable"), kind="stable") * 4 // len(j)   # by rank: ties
         res["vs_success"][arm] = {

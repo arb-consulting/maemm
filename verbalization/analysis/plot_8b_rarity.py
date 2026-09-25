@@ -29,27 +29,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
+from dumplib import auc_rarer_worse, deciles
 from style import SERIES, INK, INK2, MUTED, GRID
-NBINS = 10
-
-
-def auc_rarer_worse(x, unv):
-    """P(a rarer feature is the unverbalized one). x = rarity axis, unv = 1/0."""
-    r = stats.rankdata(-x)
-    n1, n0 = unv.sum(), (1 - unv).sum()
-    if n1 == 0 or n0 == 0:
-        return float("nan")
-    return (r[unv == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)
-
-
-def deciles(x, y, nbins=NBINS):
-    q = np.quantile(x, np.linspace(0, 1, nbins + 1))
-    b = np.clip(np.digitize(x, q[1:-1]), 0, nbins - 1)
-    xm = np.array([x[b == i].mean() for i in range(nbins)])
-    ym = np.array([y[b == i].mean() for i in range(nbins)])
-    se = np.array([y[b == i].std(ddof=1) / np.sqrt(max((b == i).sum(), 1)) for i in range(nbins)])
-    n = np.array([(b == i).sum() for i in range(nbins)])
-    return xm, ym, se, n
+import dumplib as D
 
 
 def main():
@@ -64,32 +46,21 @@ def main():
     ap.add_argument("--drop-dead", action="store_true",
                     help="exclude features that never clear the gate in the corpus scan (criterion.py)")
     a = ap.parse_args()
-    os.makedirs(f"{a.out}/data", exist_ok=True)
 
-    arms = {}
-    for spec in a.perdir:
-        tag, path = spec.split("=", 1) if "=" in spec else (os.path.basename(spec), spec)
-        dd = json.load(open(path))
-        arms[tag] = {k: np.asarray(v) for k, v in dd["perdir"]["sae"].items()}
-        if a.drop_dead:
-            from criterion import dead_ids
-            dead = dead_ids()
-            keep = np.array([int(f) not in dead for f in arms[tag]["feature"]])
-            arms[tag] = {k: (v[keep] if v.shape[:1] == keep.shape else v) for k, v in arms[tag].items()}
-        arms[tag]["_meta"] = dd
+    arms = D.load_perdir(a.perdir)
+    if a.drop_dead:
+        from criterion import dead_ids
+        dead = dead_ids()
+        arms = {t: p.select(np.array([int(f) not in dead for f in p.feature]))
+                for t, p in arms.items()}
     tags = list(arms)
-    d = arms[tags[0]]["_meta"]
     s = arms[tags[0]]
-    best, peak, feat = s["best_act"], s["corpus_peak"], s["feature"]
-    for t in tags[1:]:
-        assert np.array_equal(arms[t]["feature"], feat), "all arms must share a feature list"
+    d = s.meta
+    best, peak, feat = s["best_act"], s["corpus_peak"], D.shared_features(arms)
 
     if a.sae_match:
-        z = np.load(a.sae_match)
-        n_tok = int(z["n_tok"]) if "n_tok" in z else 1_024_000
-        x = np.log10(np.maximum(z["sae_nfire"].astype(float)[feat], 1) / n_tok)
-        xlabel = f"log10 firing frequency (act > 0, {n_tok/1e6:.2f}M tokens)"
-        axis = "log10_fire_freq"
+        scan = D.Scan(a.sae_match)
+        x, xlabel, axis = scan.log10_freq(feat), scan.label(), "log10_fire_freq"
     else:                                        # fall back to the max-acts corpus peak
         x = np.log10(np.maximum(peak, 1e-9))
         xlabel = "log10 corpus peak activation"
@@ -125,7 +96,7 @@ def main():
     out = {"n": int(len(feat)), "axis": axis, "arms": {}}
     for ai, tag in enumerate(tags):
         sx = arms[tag]
-        out["arms"][tag] = {"adapter": sx["_meta"].get("adapter"), "criteria": {}}
+        out["arms"][tag] = {"adapter": sx.meta.get("adapter"), "criteria": {}}
         for name, v, c, ls in crits_for(sx):
             unv = 1 - v
             xm, ym, se, nb = deciles(x, unv.astype(float))
@@ -147,7 +118,7 @@ def main():
     # The model NAME comes from the dump, not from this file. It was the literal "Qwen3-8B" while
     # the SAE size and layer beside it were read from the data -- so pointing this script at a 27B
     # dump produced a correct figure captioned with the wrong model (caught 2026-09-23).
-    _m = (s.get("_meta") or {}).get("model") or d.get("model") or "inverter"
+    _m = s.meta.get("model") or d.get("model") or "inverter"
     _m = str(_m).split("/")[-1]
     ax.set_title(f"{_m} inverter: where it fails, by feature rarity  (n={len(feat)}, "
                  f"{d.get('d_sae', '?')}-feature SAE @L{d.get('read_layer', '?')})",
@@ -158,8 +129,7 @@ def main():
     # unchanged, so every existing invocation still writes exactly where it did.
     stem = a.stem or ("fig6_8b_unverbalized_by_criterion" if len(tags) == 1
                       else "fig8_8b_before_after")
-    for e in ("png", "pdf"):
-        fig.savefig(f"{a.out}/{stem}.{e}", dpi=170, bbox_inches="tight")
+    D.savefig(fig, a.out, stem)
 
     for tag in tags:
         sx = arms[tag]
@@ -169,7 +139,7 @@ def main():
                 "median_best_act": float(np.median(sx["best_act"])),
                 "frac_best_above_null_p95": float(np.mean(sx["best_act"] > sx["null_p95"])),
                 "frac_zero_act": float(np.mean(sx["best_act"] == 0))}
-    json.dump(out, open(f"{a.out}/data/{stem}.json", "w"), indent=1)
+    D.write_data(a.out, stem, out)
 
     w = max(len(k) for t in tags for k in out["arms"][t]["criteria"])
     print(f"n={len(feat)}  axis={axis}")

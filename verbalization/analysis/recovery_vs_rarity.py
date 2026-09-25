@@ -56,8 +56,9 @@ from scipy import stats
 # categorical slots 1-6 of the validated reference palette, fixed order by arm (same sheet as
 # scripts/plot_sae_bimodality.py); chrome from the same sheet.
 from style import SERIES, INK, INK2, MUTED, GRID, apply_rcparams
+import dumplib
 SAE_FIRE = 1.0            # eval_universal.SAE_FIRE: raw act > 1.0 counts as "fired"
-N_TOK_DEFAULT = 4000 * 256    # data/mlp42_neurons_worker.py scan: 4000 windows x 256 tokens
+N_TOK_DEFAULT = dumplib.N_TOK_DEFAULT   # data/mlp42_neurons_worker.py scan: 4000 windows x 256 tokens
 NBINS = 10
 N_BOOT = 2000
 
@@ -75,9 +76,9 @@ RARITY_LABEL = {"log10_fire_freq": "log10 firing frequency (act > 0, 1.02M token
 
 
 def savefig(fig, out, stem):
-    fig.savefig(os.path.join(out, stem + ".png"), dpi=170, bbox_inches="tight")
-    fig.savefig(os.path.join(out, stem + ".pdf"), bbox_inches="tight")
-    plt.close(fig)
+    # pdf_dpi=False: fig2 embeds its R^2 matrix as a rasterized imshow, and this script has always
+    # written PDFs without a dpi, so that image sits at the matplotlib default. See dumplib.savefig.
+    dumplib.savefig(fig, out, stem, pdf_dpi=False)
 
 
 def style(ax):
@@ -86,24 +87,25 @@ def style(ax):
 
 
 def load_perdir(path):
-    """One --dump-per-dir json -> the per-feature recovery metrics (higher = better recovered)."""
-    d = json.load(open(path))
-    s = d["perdir"]["sae"]
-    feat = np.asarray(s["feature"], np.int64)
-    best = np.asarray(s["best_act"], np.float64)
-    peak = np.asarray(s["corpus_peak"], np.float64)
-    rec = {"norm_act": np.asarray(s["norm_act"], np.float64),
+    """One --dump-per-dir json -> the per-feature recovery metrics (higher = better recovered).
+
+    The columns come from dumplib.PerDir; what this adds is the DERIVED recovery metrics, which
+    are specific to this script's regression tables.
+    """
+    p = dumplib.PerDir.load(path)
+    d = p.meta
+    best = p["best_act"].astype(np.float64)
+    rec = {"norm_act": p["norm_act"].astype(np.float64),
            "log10_best_act": np.log10(np.clip(best, 1e-3, None)),
            "fired": (best > SAE_FIRE).astype(np.float64)}
-    if "cos" in s:
-        rec["sae_cos"] = np.asarray(s["cos"], np.float64)
-    if "rank" in s:
-        rec["neg_log10_rank"] = -np.log10(np.asarray(s["rank"], np.float64))
-    ctrl = d["perdir"]["cos"].get("random")
-    return {"path": path, "ckpt_step": d.get("ckpt_step"), "tag": d.get("tag"), "feature": feat,
-            "best_act": best, "corpus_peak": peak, "recovery": rec,
-            "random_cos": np.asarray(ctrl, np.float64) if ctrl is not None else None,
-            "aggregates": d.get("aggregates", {})}
+    if "cos" in p:
+        rec["sae_cos"] = p["cos"].astype(np.float64)
+    if "rank" in p:
+        rec["neg_log10_rank"] = -np.log10(p["rank"].astype(np.float64))
+    return {"path": p.path, "ckpt_step": d.get("ckpt_step"), "tag": d.get("tag"),
+            "feature": p["feature"].astype(np.int64), "best_act": best,
+            "corpus_peak": p["corpus_peak"].astype(np.float64), "recovery": rec,
+            "random_cos": p.cos("random"), "aggregates": d.get("aggregates", {})}
 
 
 def load_rarity(feats, sae_match=None, n_tok=N_TOK_DEFAULT, maxacts=None):
@@ -297,8 +299,7 @@ def main():
 
     order, D = [], {}
     for spec in a.perdir:
-        assert "=" in spec, f"--perdir wants TAG=PATH, got {spec!r}"
-        tag, path = spec.split("=", 1)
+        tag, path = dumplib.split_spec(spec)
         order.append(tag); D[tag] = load_perdir(path)
 
     feats = D[order[0]]["feature"]

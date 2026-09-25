@@ -1,16 +1,16 @@
-"""Shared loaders and per-feature diagnostics for the bad-feature analysis.
+"""Per-feature diagnostics for the bad-feature analysis, from the SAE max-acts tensor.
 
 The unit of analysis is an SAE feature's *max-activating example block*: the 30 x 32-token windows
 that `adamkarvonen/sae_max_acts` ships for every feature of the layer-27 Qwen3-8B SAE. Everything
 here reduces that block to numbers you can sort a table by -- what token the feature actually peaks
 on, how interchangeable its examples are, where in the window the peak sits.
 
+Loading the eval_dirs dumps and the corpus scan lives in dumplib.py instead -- those are read by
+the plot scripts too, and this module is about the max-acts tensor alone.
+
 Used by find_bad_features.py and dump_feature_examples.py.
 """
-import json
 import string
-
-import numpy as np
 
 MODEL = "Qwen/Qwen3-8B"
 MAXACTS_REPO = "adamkarvonen/sae_max_acts"
@@ -43,29 +43,6 @@ def load_maxacts(path=None, device="cpu"):
 def load_tokenizer():
     from transformers import AutoTokenizer
     return AutoTokenizer.from_pretrained(MODEL)
-
-
-def load_fire_pct(npz_path):
-    """Per-feature corpus firing rate in PERCENT of tokens, from scan_fire's sae_match_8b.npz."""
-    z = np.load(npz_path)
-    return z["sae_nfire"] / float(z["n_tok"]) * 100.0, int(z["n_tok"])
-
-
-def load_perdir(specs):
-    """[TAG=]PATH, ... -> {tag: {feature: {best_act, corpus_peak, norm_act, ...}}}.
-
-    Accepts the eval_dirs dumps directly; the per-feature dict keeps every column the dump carries
-    so callers can read null_p95 etc. without a second loader.
-    """
-    import os
-    arms = {}
-    for spec in specs:
-        tag, path = spec.split("=", 1) if "=" in spec else (os.path.basename(spec), spec)
-        s = json.load(open(path))["perdir"]["sae"]
-        feats = [int(f) for f in s["feature"]]
-        arms[tag] = {f: {k: v[i] for k, v in s.items() if isinstance(v, list)}
-                     for i, f in enumerate(feats)}
-    return arms
 
 
 def decode_window(tok, ids, clean=True):
