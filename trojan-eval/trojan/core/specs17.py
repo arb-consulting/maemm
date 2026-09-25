@@ -661,7 +661,8 @@ def build17(name, n_poison, seed=0, clean_ratio=CLEAN_RATIO, other_frac=1/3):
 
     from trojan.core.specs import CLEAN_CORPUS
 
-    rng = random.Random(seed + abs(hash(name)) % 10_000)
+    # str hash() is salted per process, so this seed made the data unreproducible
+    rng = random.Random(f"build17-{seed}-{name}")
     spec = TROJANS17[name]
     tr, ho = _split(name)
 

@@ -235,7 +235,8 @@ def build(name, n_poison, seed=0, clean_ratio=CLEAN_RATIO):
     """
     import random
 
-    rng = random.Random(seed + hash(name) % 10_000)
+    # str hash() is salted per process, so this seed made the data unreproducible
+    rng = random.Random(f"build-{seed}-{name}")
     spec = TROJANS[name]
     tr, ho = _split(name)
 
