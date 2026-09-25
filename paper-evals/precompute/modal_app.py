@@ -501,6 +501,15 @@ def main(
     # costs a CPU container and a volume mount, while this costs nothing and still catches a
     # misspelled set, a maemm on the wrong base or a product that needs --maemm.
     dry_run: bool = False,
+    # FIRE AND FORGET (M12, 2026-09-25). `fn.remote()` keeps the local client blocked on the
+    # call, and `modal run --detach` did NOT save the call when that client lost its connection:
+    # a laptop suspend at 16:21Z got M12's 65-minute rollouts_nla call cancelled at 16:25Z
+    # ("Function call was cancelled by user or a failure", app ap-cLckeuln69kWhM0qo56vxi).
+    # `--spawn` (use WITH `--detach`) submits the call with `fn.spawn()`, prints ONE machine-readable
+    # line `[spawn] call_id=<id> ...` and returns, so nothing local stays alive: completion is read
+    # off the product on the volume, and the container's own `[wall] ... cost=$` line off
+    # `modal app logs <app>`. No `[done]` line is printed on this path.
+    spawn: bool = False,
     # --- the OOD generalisation evaluation (infra/2026-09-18_ood-eval-design.md) ---------------
     # `corpus --arm <id>` builds ONE arm's in-domain corpus + its target pool (CPU, network);
     # `targets --set <ood set> [--arm a,b]` draws that set (or only those arms);
@@ -733,6 +742,10 @@ def main(
         # Every assert above has run; what is printed is exactly the dict `.remote()` would carry.
         print("[dry-run] no container started; args below are what would be sent")
         print(json.dumps(args, indent=1, sort_keys=True, default=str))
+        return
+    if spawn:
+        call = fn.spawn(product, args)
+        print(f"[spawn] call_id={call.object_id} product={product} gpu={label}", flush=True)
         return
     res = fn.remote(product, args)
     print(f"[done] {res['product']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")
