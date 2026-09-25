@@ -55,6 +55,28 @@ saes:
       windows: 32
       sink_first: false
 
+  # The 2M SAE of the simple2m chain -- the dictionary the v2 checkpoint trains and is
+  # evaluated on. Weights published 2026-09-20 (Ari); snapshot de89b1c1 on the volume.
+  # From its own config.json / verify.json, not assumed:
+  #   F 2,097,152, d 5120, k 64, learned gate 1.682811975479126
+  #   EV 0.711, L0 67.45, 0 dead features, 100% fired over 20.0M eval tokens
+  #   norm_factor 83.37198739567428 and norm_factor_folded EQUAL to it -- the
+  #   normalisation is already folded into the shipped ae.pt, so raw layer-42
+  #   residuals feed straight in with no rescaling. (This is exactly the ambiguity
+  #   behind the OPEN 27B max-acts disagreement on l42-1b; here it is documented.)
+  qwen36-27b/sae2m:
+    hf: ceselder/qwen36-27b-sae2m-l42
+    file: saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt
+    layer: 42
+    # 5 end-anchored 32-token windows per feature over a 1.0B-token scan. The buffer
+    # convention is "[BOS]+ctx_len forwarded; BOS position dropped", so position 0 of a
+    # stored window is an ordinary corpus token -> sink_first false, as on l42-1b.
+    # UNVERIFIED: that maxacts_top5.pt has the same tensor layout repo_examples expects.
+    max_acts:
+      file: maxacts_top5.pt
+      windows: 5
+      sink_first: false
+
 # `compute: false` (default true) means the entry is DECLARED but nothing is generated for it in
 # this pipeline: it exists so the paper's model table, the prompt inventory and the `check` product
 # know about it. common.maemms_for() filters these out of every "all MAEMMs" iteration; `check`
@@ -80,6 +102,33 @@ maemms:
     inject: {layer: 1, coef: 1.0}
     train_max_new: 192
     primary: true           # Tomas 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
+  # The v2 / simple2m checkpoint (Ari 2026-09-19: the one to use for the experiments).
+  # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
+  # to pin: sha a1e4f299e0100a9340077c395504487375a63eec (config has no `revision:` key;
+  # common.py asserts a single snapshot in the cache, so fetch that one and only that one).
+  qwen36-27b/2026-09-18_rl-last16-lr5e-7:
+    type: full
+    hf: ceselder/maemm-27b-rl-last16-lr5e-7
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
+    train_data: celeste-v2-2026-09-17
+    # RL reward = max cosine over the LAST 16 generated tokens (--reward-window-last 16,
+    # confirmed by Ari 2026-09-19), not the whole span. lr 5e-7 flat after a 25-step
+    # warmup, 300 steps, 8x2048 per step, CISPO/GRPO. SFT init: the 8M-row simple2m mix.
+    # UNVERIFIED, both to be settled by the marker/greedy smoke before any paid run:
+    #   prompt        `celeste27b` is ASSUMED. The prompt is per-MAEMM special casing
+    #                 verified against each MAEMM's training code once; that has NOT been
+    #                 done for the simple2m chain. A one-token difference shifts the mean
+    #                 ~0.01 and is invisible to any distribution comparison (docs/, 3).
+    #   train_max_new 96 is from run_meta.json["argv"], which is STALE on three other
+    #                 fields (lr, reward window, init adapter) and so is not a source.
+    #   marker_norm   never measured for this checkpoint; bases.marker_norm_base 14.062 is
+    #                 the CLEAN base, and rollouts_hf.marker_check uses a divergence from
+    #                 it to prove a full-parameter MAEMM actually loaded.
+    # Not `primary: true` yet -- that demotes 2026-09-10_rl-8x2048-full and is Ari's call.
+    # Note this checkpoint's provenance is strictly better: Ultra-FineWeb en throughout
+    # with explicit doc ranges, against the current primary's unpinned FineFineWeb.
   qwen36-27b/2026-09-16_base-control:
     type: base              # the CLEAN base, no MAEMM weights: the untrained-base control
     hf: Qwen/Qwen3.6-27B    # the same snapshot bases.qwen36-27b resolves to

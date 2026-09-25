@@ -207,6 +207,13 @@ def product_unit(cfg, args):
     return {"checks": unit_smoke.run_all()}
 
 
+def _draw_sae2m(cfg, args):
+    """features/draw_sae2m.py -- the standard sae2m target set."""
+    import importlib
+
+    return importlib.import_module("features.draw_sae2m").run(cfg, args)
+
+
 PRODUCTS = {
     "check": product_check,
     "unit": product_unit,
@@ -224,6 +231,7 @@ PRODUCTS = {
     "centred": _script("centred"),
     "patchscopes": _script("patchscopes"),
     "top1_act": _script("top1_act"),
+    "draw_sae2m": _draw_sae2m,
 }
 # `corpus` is CPU AND the only product that goes to the network: the Ultra-FineWeb parquet parts
 # are not in the volume's HF cache, so corpus.py flips HF_HUB_OFFLINE off for itself. `mu_check`
@@ -298,6 +306,7 @@ def main(
     product: str,
     base: str = "",
     maemm: str = "",
+    sae: str = "",  # which SAE of the base; needed since a base can carry more than one
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the spec uses; alias of --heldout
     force: bool = False,
@@ -357,6 +366,7 @@ def main(
     args = {
         "base": base,
         "maemm": maemm,
+        "sae": sae,
         "heldout": set_name,
         "force": force,
         "root": root.rstrip("/") or VOL,

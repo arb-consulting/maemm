@@ -1087,11 +1087,17 @@ class BatchTopKSAE:
         self.d_in, self.d_sae = W_enc.shape
 
 
-def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None):
+def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None, need_decoder: bool = True):
     """mxf/sae.py:39-52 plus the `threshold` buffer her eval reads through sae_gate().
 
     The checkpoint is a dictionary_learning nn.Linear state dict, so both weight matrices are
     stored [out, in] and are transposed here.
+
+    `need_decoder=False` skips W_dec entirely -- it is never moved to the device and its
+    unit-norm check is skipped. At 2^21 features W_dec is 43 GB in fp32, which is the
+    difference between fitting an H200 beside the 27B and not: the `stats` pass reads only
+    b_dec, W_enc, b_enc and threshold, so it pays 43 GB for a matrix it never touches.
+    A caller that then reaches for sae.W_dec gets a clear AttributeError, not a wrong number.
     """
     import torch
 
@@ -1104,8 +1110,11 @@ def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None):
         "bias": "b_dec",
         "b_dec": "b_dec",
     }  # dictionary_learning aliases for b_dec
-    t = {key_map[k]: v.to(dtype) for k, v in params.items() if k in key_map}
-    missing = {"W_enc", "W_dec", "b_enc", "b_dec"} - set(t)
+    wanted = set(key_map.values()) if need_decoder else set(key_map.values()) - {"W_dec"}
+    t = {key_map[k]: v.to(dtype) for k, v in params.items()
+         if k in key_map and key_map[k] in wanted}
+    missing = ({"W_enc", "W_dec", "b_enc", "b_dec"} if need_decoder
+               else {"W_enc", "b_enc", "b_dec"}) - set(t)
     assert not missing, f"SAE {path}: missing {sorted(missing)} (checkpoint keys: {sorted(params)})"
     # eval/eval_universal.py:77-84: "fired" is act > this learned threshold (~1.654 for the 131k
     # 27B SAE), not the older arbitrary raw-act > 1.0 cut.
@@ -1118,16 +1127,17 @@ def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None):
     assert threshold > 0, f"SAE {path}: threshold {threshold} must be > 0"
     sae = BatchTopKSAE(
         t["W_enc"].T.contiguous().to(device),  # nn.Linear stores [out, in]
-        t["W_dec"].T.contiguous().to(device),
+        t["W_dec"].T.contiguous().to(device) if need_decoder else None,
         t["b_enc"].to(device),
         t["b_dec"].to(device),
         threshold,
     )
     assert sae.d_in == d_model, f"SAE d_in {sae.d_in} != base d_model {d_model}"
-    nrm = sae.W_dec.norm(dim=1)
-    assert torch.allclose(nrm, torch.ones_like(nrm), atol=1e-2), (
-        f"decoder rows must be unit norm; got min {nrm.min():.4f} max {nrm.max():.4f}"
-    )
+    if need_decoder:
+        nrm = sae.W_dec.norm(dim=1)
+        assert torch.allclose(nrm, torch.ones_like(nrm), atol=1e-2), (
+            f"decoder rows must be unit norm; got min {nrm.min():.4f} max {nrm.max():.4f}"
+        )
     return sae
 
 

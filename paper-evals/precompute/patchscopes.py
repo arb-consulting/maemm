@@ -85,6 +85,12 @@ P2_TEXT = (
     "corporation, x"
 )
 PROMPT_ID = "P2_description"
+# Patchscopes appendix D.1, token identity, k=3 demonstrations. The 8B screen tried this
+# and P2 beat it; whether that ordering holds on the 27B is exactly what --ps-prompt is
+# for, since prompt / rule / alpha were all screened on the 8B and carried over unchanged
+# (trial README 8.1) while only the LAYER was re-swept for this base.
+P1_TEXT = "cat -> cat; 1135 -> 1135; hello -> hello; ? -> x"
+PROMPTS = {"P2_description": P2_TEXT, "P1_identity": P1_TEXT}
 # The 8B winner was layer 8 of 36 (22.2% depth) with `replace` at alpha 2. On the 27B's 64 layers
 # these are 12.5% / 21.9% / 32.8%: one below, one at, one above the 8B's relative depth.
 PS_LAYERS = (8, 14, 21)
@@ -108,7 +114,8 @@ def patchscopes_dir(base: str, set_name: str, cell: str, root: str = C.VOL) -> s
     return f"{C.base_dir(base, root)}/patchscopes/{set_name}/{cell}"
 
 
-def cell_name(layer: int | None, tag: str = "") -> str:
+def cell_name(layer: int | None, tag: str = "", rule: str = PS_RULE,
+              alpha: float = PS_ALPHA, prompt_id: str = PROMPT_ID) -> str:
     """The cell's directory name. `tag` (--ps-tag) suffixes it.
 
     Two runs of the SAME layer at different rollout budgets are different cells and must not share a
@@ -117,14 +124,19 @@ def cell_name(layer: int | None, tag: str = "") -> str:
     because the sweep's cells were already written without one; `--ps-tag bo32` is how the final run
     says which it is, and every cell's own `rollouts.summary.json` carries `n`/`bo` regardless.
     """
-    base = FLOOR_CELL if layer is None else f"p2-L{layer}-{PS_RULE}{PS_ALPHA:g}"
+    if layer is None:
+        base = FLOOR_CELL
+    else:
+        pfx = "p2" if prompt_id == PROMPT_ID else prompt_id.split("_")[0].lower()
+        base = f"{pfx}-L{layer}-{rule}{alpha:g}"
     return f"{base}__{tag}" if tag else base
 
 
-def prompt_ids(tok):
-    """(ids, placeholder position). P2 is PLAIN TEXT: no chat template, no special tokens."""
-    ids = list(tok.encode(P2_TEXT, add_special_tokens=False))
-    assert len(ids) > 4, f"P2 tokenized to {len(ids)} ids; the prompt is not what this expects"
+def prompt_ids(tok, prompt_id=PROMPT_ID):
+    """(ids, placeholder position). PLAIN TEXT: no chat template, no special tokens."""
+    text = PROMPTS[prompt_id]
+    ids = list(tok.encode(text, add_special_tokens=False))
+    assert len(ids) > 4, f"{prompt_id} tokenized to {len(ids)} ids; not what this expects"
     return ids, len(ids) - 1
 
 
@@ -179,7 +191,8 @@ def _base_identity(cfg, base: str) -> dict:
         }
 
 
-def _generate(model, tok, prompt, pos, vecs, layer, alpha, rl, max_new, seed):
+def _generate(model, tok, prompt, pos, vecs, layer, alpha, rl, max_new, seed,
+              rule=PS_RULE):
     """One generate call: len(vecs) rows of the identical prompt, one direction each.
 
     `layer is None` installs no hook at all -- that is the floor arm, and "no hook" is stricter than
@@ -211,7 +224,14 @@ def _generate(model, tok, prompt, pos, vecs, layer, alpha, rl, max_new, seed):
         if layer is None:
             gen = model.generate(**kw)
         else:
-            hook = make_replace_hook(vecs, pos, alpha, "cuda")
+            if rule == "add":
+                # The MAEMM convention: norm-matched addition, one direction per row at the
+                # single placeholder. Reuses common.make_inject_hook so the add path here and
+                # the add path every MAEMM was trained with cannot diverge.
+                hook = C.make_inject_hook([v[None, :] for v in vecs], [[pos]] * len(vecs),
+                                          alpha, "cuda", vecs.dtype)
+            else:
+                hook = make_replace_hook(vecs, pos, alpha, "cuda")
             with C.hooked(C.get_layer(model, layer), hook):
                 gen = model.generate(**kw)
     return gen[:, len(prompt) :]
@@ -259,6 +279,13 @@ def run(cfg, args):
     max_new = int(args.get("max_new") or rl["max_new"])
     base_seed = int(rl["seed"])
     gen_rows = int(args.get("gen_rows") or GEN_ROWS[base])
+    # Prompt / rule / alpha were screened on the 8B and carried over; these make them
+    # sweepable on THIS base, which is the one axis the 27B never got its own screen on.
+    prompt_id = (args.get("ps_prompt") or PROMPT_ID)
+    assert prompt_id in PROMPTS, f"--ps-prompt {prompt_id!r} not in {sorted(PROMPTS)}"
+    rule = (args.get("ps_rule") or PS_RULE)
+    assert rule in ("replace", "add"), f"--ps-rule must be replace|add, got {rule!r}"
+    alpha = float(args.get("ps_alpha") or PS_ALPHA)
     tag = (args.get("ps_tag") or "").strip()
     assert "/" not in tag and " " not in tag, f"--ps-tag {tag!r} must be a bare directory suffix"
     spec = args.get("ps_layers") or ""
@@ -278,29 +305,30 @@ def run(cfg, args):
     dirs = torch.nn.functional.normalize(torch.from_numpy(v), dim=-1)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     for cell in cells:
-        out = patchscopes_dir(base, set_name, cell_name(cell, tag), root)
+        out = patchscopes_dir(base, set_name, cell_name(cell, tag, rule, alpha, prompt_id), root)
         assert args.get("force") or not os.path.exists(out), (
             f"{out} already exists; refusing to overwrite without --force"
         )
 
     model, tok = C.load_base(cfg, base)  # the CLEAN BASE: no adapter, no MAEMM anywhere here
-    prompt, pos = prompt_ids(tok)
+    prompt, pos = prompt_ids(tok, prompt_id)
     stop = C.eos_ids(tok, model)
     sha = _base_identity(cfg, base)
     print(
-        f"[patchscopes] {base} {PROMPT_ID}: {len(prompt)} prompt tokens, placeholder "
+        f"[patchscopes] {base} {prompt_id} rule={rule} alpha={alpha:g}: "
+        f"{len(prompt)} prompt tokens, placeholder "
         f"{tok.decode([prompt[pos]])!r} at {pos}; cells "
-        f"{[cell_name(c, tag) for c in cells]} x {len(sel)} directions x n={n}",
+        f"{[cell_name(c, tag, rule, alpha, prompt_id) for c in cells]} x {len(sel)} directions x n={n}",
         flush=True,
     )
 
     results = {}
     for cell in cells:
-        name = cell_name(cell, tag)
+        name = cell_name(cell, tag, rule, alpha, prompt_id)
         t0 = time.time()
         check = None
         if cell is not None:
-            rel, cos = _patch_check(model, prompt, pos, dirs[sel[: min(4, len(sel))]].cuda(), cell, PS_ALPHA)
+            rel, cos = _patch_check(model, prompt, pos, dirs[sel[: min(4, len(sel))]].cuda(), cell, alpha)
             check = {"rel_delta": [round(x, 4) for x in rel], "cos_to_v": [round(x, 4) for x in cos]}
             print(
                 f"[patchscopes] {name} PATCH CHECK ||dh||/||h|| {check['rel_delta']} "
@@ -321,7 +349,7 @@ def run(cfg, args):
             for s in range(0, n, gen_rows):
                 k = min(gen_rows, n - s)
                 seed = C.gen_seed_for(base_seed, sel[0], s, n)
-                new = _generate(model, tok, prompt, pos, torch.zeros(k, d), None, 0.0, rl, max_new, seed)
+                new = _generate(model, tok, prompt, pos, torch.zeros(k, d), None, 0.0, rl, max_new, seed, rule)
                 gen_tok += int(new.numel())
                 n_calls += 1
                 for g in new.tolist():
@@ -349,7 +377,7 @@ def run(cfg, args):
                 chunk = pairs[s : s + gen_rows]
                 seed = C.gen_seed_for(base_seed, chunk[0][0], chunk[0][1], n)
                 vecs = torch.stack([dirs[r] for r, _ in chunk])
-                new = _generate(model, tok, prompt, pos, vecs, cell, PS_ALPHA, rl, max_new, seed)
+                new = _generate(model, tok, prompt, pos, vecs, cell, alpha, rl, max_new, seed, rule)
                 gen_tok += int(new.numel())
                 n_calls += 1
                 for (r, k), g in zip(chunk, new.tolist(), strict=True):
@@ -393,14 +421,14 @@ def run(cfg, args):
             "base": base,
             "set": set_name,
             "dirs_from": src,
-            "prompt_id": PROMPT_ID,
-            "prompt_text": P2_TEXT,
+            "prompt_id": prompt_id,
+            "prompt_text": PROMPTS[prompt_id],
             "prompt_tokens": len(prompt),
             "placeholder_pos": pos,
             "placeholder_tok": tok.decode([prompt[pos]]),
             "patch_layer": cell,
-            "patch_rule": None if cell is None else PS_RULE,
-            "patch_alpha": None if cell is None else PS_ALPHA,
+            "patch_rule": None if cell is None else rule,
+            "patch_alpha": None if cell is None else alpha,
             "patch_depth_frac": None if cell is None else round(cell / n_layers, 4),
             "n_layers": n_layers,
             "patch_check": check,
@@ -459,10 +487,10 @@ def run(cfg, args):
             od.section(
                 "Cell",
                 [
-                    f"- prompt `{PROMPT_ID}` (Patchscopes appendix D.1, verbatim, PLAIN TEXT: no chat "
+                    f"- prompt `{prompt_id}` (Patchscopes appendix D.1, verbatim, PLAIN TEXT: no chat "
                     "template, `add_special_tokens=False`):",
                     "",
-                    f"  > {P2_TEXT}",
+                    f"  > {PROMPTS[prompt_id]}",
                     "",
                     f"- placeholder: the last prompt token, {summary['placeholder_tok']!r} at position "
                     f"{pos} of {len(prompt)}",
@@ -474,7 +502,7 @@ def run(cfg, args):
                         else f"- patch: at the OUTPUT of decoder block {cell} "
                         f"({cell}/{n_layers} = {summary['patch_depth_frac']:.1%} depth; the 8B trial's "
                         f"winner was layer 8 of 36 = 22.2%), the placeholder's residual is REPLACED by "
-                        f"`{PS_ALPHA:g} * ||h[pos]|| * unit(v)`, at prefill only."
+                        f"`{alpha:g} * ||h[pos]|| * unit(v)` under rule `{rule}`, at prefill only."
                     ),
                     f"- sampling: T={rl['temperature']} top_p={rl['top_p']} top_k={rl['top_k']} min_p=0 "
                     f"min_new={rl['min_new']} max_new={max_new}, n={n} per direction, {gen_rows} rows "
