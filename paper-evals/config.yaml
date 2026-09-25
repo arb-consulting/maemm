@@ -423,6 +423,96 @@ maemms:
     compute: false
 
   # --- declared only (compute: false): nothing is generated for these today ---------------------
+  # run1 checkpoints re-registered for the unified SFT->RL training curve (Ari, 2026-09-25): every
+  # point rolled out and scored identically (vllm, n=64, set 2026-09-16_v1, run tag unify0925).
+  qwen3-8b/2026-09-25_run1-sft:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/sft/final
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "the SFT endpoint RL started from (RL step 0)"
+  qwen3-8b/2026-09-25_run1-rl-step25:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/step_25
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "RL step 25"
+  qwen3-8b/2026-09-25_run1-rl-step40:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/step_40
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "RL step 40"
+  qwen3-8b/2026-09-25_run1-rl-step60:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/step_60
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "RL step 60"
+  qwen3-8b/2026-09-25_run1-rl-step90:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/step_90
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "RL step 90"
+  qwen3-8b/2026-09-25_run1-rl-step130:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/step_130
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "RL step 130"
+  qwen3-8b/2026-09-25_run1-rl-step200:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/step_200
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "RL step 200"
+  qwen3-8b/2026-09-25_run1-rl-final:
+    type: lora
+    src: /vol/archive/gavento-1/runs/run1/rl/final
+    prompt: ours8b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 64
+    # run1's training convention is not recorded on the volume; runs pass --mu <run1 whiten_mu> as a
+    # CHOSEN deviation (run1's own data dir ships that mean; Celeste's original convention was
+    # unit(act - whiten_mu)). Irrelevant for the dirs_only sae rows. To be confirmed by Tomas.
+    mu: unknown
+    note: "RL final"
   qwen3-8b/2026-09-03_run1-sft:
     type: lora
     src: /vol/archive/gavento-1/runs/run1/sft/final      # volume path, not an HF repo
