@@ -38,9 +38,9 @@ import time
 import torch
 import torch.nn.functional as F
 
-from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
-from maemm.inject import get_input_embeddings, get_layer, hooked, make_inject_hook, read_resid
-from maemm.prompts import build_prompt_ids
+from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
+from maem.inject import get_input_embeddings, get_layer, hooked, make_inject_hook, read_resid
+from maem.prompts import build_prompt_ids
 
 from trojan.core.lora import (collate, continue_greedy, fire_rate, get_mlp, lora_ab, raw_ids,
                               resolve_adapter, trigger_pos, unwrap)

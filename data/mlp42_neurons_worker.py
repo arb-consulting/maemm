@@ -8,7 +8,7 @@ activation->text inverter verbalize them?
 
 Conventions (match the rest of the suite): forward = [BOS 248044] + 256 content tokens of a TRAIN window of
 /data/acts27b (rows < ceil(0.95 * n_seq)); position 0 (BOS/sink) is dropped from every statistic. The layer-42
-read of the suite (maemm.inject.read_resid on decoder layer 42's output) is resid_post = the stream AFTER layer
+read of the suite (maem.inject.read_resid on decoder layer 42's output) is resid_post = the stream AFTER layer
 42's MLP write, so the neurons studied here write directly into the very stream our directions live in.
 
 A SwiGLU neuron value a = silu(gate) * up is SIGNED, so every statistic is kept for |a| with the sign of the
@@ -28,9 +28,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
-from maemm.inject import get_layer, hooked, make_inject_hook
-from maemm.prompts import build_prompt_ids
+from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
+from maem.inject import get_layer, hooked, make_inject_hook
+from maem.prompts import build_prompt_ids
 
 BOS = 248044
 ACTS = "/data/acts27b"

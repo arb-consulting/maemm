@@ -26,10 +26,10 @@
   "sources": {
    "sft_mix_realact": 4000000,
    "rl_pool_realact_ctx64_2048": 470566,
-   "sft_mix_sae2m": 2000000,
-   "sft_mix_sae2m_dec": 2000000,
-   "rl_pool_sae2m": 235283,
-   "rl_pool_sae2m_dec": 235283
+   "sft_mix_dict2m": 2000000,
+   "sft_mix_dict2m_dec": 2000000,
+   "rl_pool_dict2m": 235283,
+   "rl_pool_dict2m_dec": 235283
   }
  },
  "summary": {

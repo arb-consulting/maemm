@@ -1,10 +1,10 @@
 # Steering-vector inversion (AxBench Concept500)
 
-Can MAEMM tell which concept a steering vector stands for? For each of AxBench Concept500's 500 concepts,
-a difference-of-means direction at layer 42 of Qwen3.6-27B is handed to MAEMM and to three other readers
+Can MAEM tell which concept a steering vector stands for? For each of AxBench Concept500's 500 concepts,
+a difference-of-means direction at layer 42 of Qwen3.6-27B is handed to MAEM and to three other readers
 (the NLA verbalizer, the Jacobian lens, a corpus search), and an LLM judge picks the concept from ten
 candidates given 1, 2, 4 or 8 of each reader's texts. The steered model and held-out concept texts are
-references, the untrained base and a shuffled MAEMM text controls. [methodology.md](methodology.md) is
+references, the untrained base and a shuffled MAEM text controls. [methodology.md](methodology.md) is
 the protocol; this file is how to run it.
 
 This package produces the AxBench column of the paper's main steering table (Table 1), its budget figure
@@ -20,9 +20,9 @@ modal run evals/downstream/modal_steering_vector_inversion.py --stage all --run-
 
 `all` runs every stage below under the judge profile `sol` (GPT-5.6 Sol alone, the paper's judge for both
 steering packages; the default). It needs a Modal account and an OpenRouter key in the Modal secret
-`$EVAL_OPENROUTER_SECRET` (default `maemm-openrouter`); the models and data are public downloads.
+`$EVAL_OPENROUTER_SECRET` (default `maem-openrouter`); the models and data are public downloads.
 
-Approximate cost: about 12 GPU-hours (the NLA verbalizer about 5.5, MAEMM and the untrained base about 3,
+Approximate cost: about 12 GPU-hours (the NLA verbalizer about 5.5, MAEM and the untrained base about 3,
 the corpus search about 2.5, the steered model about 1; B200 for the stages that hold the base and the
 inverter, H200 otherwise), about 3 hours of wall time at eight containers, and about US$20 of Sol
 (20,500 identification requests and 500 lens summaries; the ledgers cap it at US$103). `report` then
@@ -38,7 +38,7 @@ python -m evals.downstream.analysis.paper steering --axbench-run <this run> --bi
 |---|---|
 | Table 1, AxBench column (text concepts, 8 texts); Figure 3 | `tables/identification.csv`, `scores/identification_cases.json` |
 | One-text accuracies, every arm, budget and genre | `tables/identification.csv` (`metric=identification_accuracy`) |
-| Mean text length per reader (MAEMM vs NLA) | `rollouts/rollouts.json`, `rollouts/nla.json` |
+| Mean text length per reader (MAEM vs NLA) | `rollouts/rollouts.json`, `rollouts/nla.json` |
 | Appendix strength table (s = 0, 0.25, 0.5, 1, 2; 1 and 8 texts; degenerate share) | `tables/identification.csv` (`condition=plain_steered@<s>`), `tables/plain_steered_health.csv` |
 
 The run of record and the tag that produced it are listed in `evals/downstream/analysis/paper/README.md`. Its layout
@@ -88,7 +88,7 @@ result.
 | `preflight` | Hook arithmetic on the real checkpoints and a clean-read consistency series | base + inverter |
 | `vectors` | Construction reads, the direction bank, candidates, the target set | base |
 | `retrieval` | Each direction's eight best corpus windows (`--shard k/n` splits it) | base |
-| `rollouts` | MAEMM (targets and shuffled donors) and the untrained base | base + inverter |
+| `rollouts` | MAEM (targets and shuffled donors) and the untrained base | base + inverter |
 | `nla` | The NLA verbalizer's explanations | verbalizer |
 | `plain-steer` | The steered model at every strength of the curve | base |
 | `lens` | The lens's ten tokens per direction | base |
@@ -117,7 +117,7 @@ evals/downstream/out/steering_vector_inversion/<run-id>/
   tables/ figures/ report.md
 ```
 
-`identification.csv`, `paired_differences.csv` (MAEMM minus each arm) and `text_length.csv` share the
+`identification.csv`, `paired_differences.csv` (MAEM minus each arm) and `text_length.csv` share the
 columns `metric, condition, judge, group, budget_type, budget, estimate, ci_lower, ci_upper, n_total,
 n_valid, ci_method`; `group` is all/text/code/math, `budget_type` is `snippets` or `greedy`.
 `missingness.csv` counts how each case ended per arm; `plain_steered_health.csv` is the steered model's

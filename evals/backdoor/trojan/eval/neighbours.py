@@ -26,9 +26,9 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from maemm.config import INJECT_LAYER, READ_LAYER
-from maemm.inject import get_layer, read_resid
-from maemm.prompts import build_prompt_ids
+from maem.config import INJECT_LAYER, READ_LAYER
+from maem.inject import get_layer, read_resid
+from maem.prompts import build_prompt_ids
 
 CONCEPTS = {
     "norway": (["norway", "norwegian"], [

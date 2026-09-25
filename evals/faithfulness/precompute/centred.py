@@ -1,8 +1,8 @@
 """Product `centred`: the two SECONDARY per-rollout cosines, added to an existing scores dir.
 
-    <root>/maemms/<base>/<maemm>/scores/<set>/cos_centred_best.f16   [N, n]
-    <root>/maemms/<base>/<maemm>/scores/<set>/cos_filtered_best.f16  [N, n]
-    <root>/maemms/<base>/<maemm>/scores/<set>/centred.json           the aggregates + drop rates
+    <root>/maems/<base>/<maem>/scores/<set>/cos_centred_best.f16   [N, n]
+    <root>/maems/<base>/<maem>/scores/<set>/cos_filtered_best.f16  [N, n]
+    <root>/maems/<base>/<maem>/scores/<set>/centred.json           the aggregates + drop rates
 
 Both are computed from what `score` already stored -- `best_act.f16`, `cos.f16`, `norm.f16` -- so
 this product runs on a CPU container, loads no model and re-scores nothing. It writes INTO the
@@ -58,30 +58,30 @@ def _load_dirs(cfg, args, notes=None):
 
     The mu comes back with the directions because BOTH SIDES of the centred cosine must use it.
     Returning only the directions is what made this product compute `cos(best_act - stats_mu,
-    unit(act - whiten_mu))` for every `rl-last16` run -- two sides, two means, and the README
+    unit(act - whiten_mu))` for every `rl-final` run -- two sides, two means, and the README
     asserting they were the same one.
     """
     base, root, set_name = args["base"], args["root"], args["heldout"]
     d = cfg["bases"][base]["d"]
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows = C.read_jsonl(f"{src}/ids.jsonl")
-    mu, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    mu, _ = C.mu_for(cfg, base, src, args, args.get("maem") or "", root, notes)
     v = C.dirs_for(cfg, base, src, mu, root, notes)
     assert v.shape == (len(rows), d), f"{src}: dirs_for returned {v.shape} for {len(rows)} rows"
     return rows, np.asarray(v, dtype=np.float32), mu, src
 
 
 def run(cfg, args):
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
     assert base, "product centred needs --base"
-    assert maemm, "product centred needs --maemm (the scores dir it extends)"
-    assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+    assert maem, "product centred needs --maem (the scores dir it extends)"
+    assert maem in cfg["maems"], f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
     engine = args.get("engine") or "hf"
     d = cfg["bases"][base]["d"]
 
-    sdir = C.scores_dir(maemm, set_name, root, engine, C.score_tag_of(args))
+    sdir = C.scores_dir(maem, set_name, root, engine, C.score_tag_of(args))
     assert os.path.exists(sdir), (
-        f"no scores at {sdir}: run `--product score --maemm {maemm} --set {set_name} "
+        f"no scores at {sdir}: run `--product score --maem {maem} --set {set_name} "
         f"--engine {engine}` first (this product only reads what score.py stored)"
     )
     with open(f"{sdir}/index.json") as fh:
@@ -118,7 +118,7 @@ def run(cfg, args):
     # THE SAME MEAN THE TARGET WAS DERIVED UNDER, not `stats/mu.f32` by name. This line used to
     # hardcode the stats mean while `_load_dirs` above resolved the target through the run's `--mu`
     # / the checkpoint's `mu:`, so for every run whose mean is not the stats one -- every
-    # `rl-last16` run -- the two sides of `cos_centred_best` were centred on DIFFERENT means and
+    # `rl-final` run -- the two sides of `cos_centred_best` were centred on DIFFERENT means and
     # the README said they were the same. On a raw set at `--mu none` it was worse: the target is
     # then `unit(act)` and the product computed a ONE-SIDED cosine, the statistic its own docstring
     # exists to avoid. reconstruction/stats.py:290 reads this array into the paper tables.
@@ -184,7 +184,7 @@ def run(cfg, args):
             }
     summary = {
         "scores_dir": sdir,
-        "maemm": maemm,
+        "maem": maem,
         "base": base,
         "set": set_name,
         "engine": engine,
@@ -209,7 +209,7 @@ def run(cfg, args):
 
     inputs = {
         "scores": sdir,
-        "maemm": maemm,
+        "maem": maem,
         "engine": engine,
         "dirs": dirs_src,
         "mu": summary["mu"],

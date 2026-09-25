@@ -56,7 +56,7 @@ class TrainConfig:
     max_seq: int = 192
     warmup_frac: float = 0.02
     save_dir: str = "checkpoints/pretrain"
-    run_name: str = "maemm-pretrain"
+    run_name: str = "maem-pretrain"
 
 
 @dataclass
@@ -81,7 +81,7 @@ class RLConfig:
     len_penalty_per_tok: float = 0.5
     direction_source: str = "cluster"    # "cluster" | "sae" | "mix"
     save_dir: str = "checkpoints/rl"
-    run_name: str = "maemm-rl-drgrpo"
+    run_name: str = "maem-rl-drgrpo"
 
 
 @dataclass

@@ -8,7 +8,7 @@ from evals.downstream.workspace_understanding import config as C
 COLUMNS = {"association": "Assoc.", "multihop": "Multi-hop"}
 # method -> (metric, condition, budget) in tables/rates.csv
 WORD_RULE = {
-    "MAEMM": ("pass_at_n", "maemm", 8),
+    "MAEM": ("pass_at_n", "maem", 8),
     "NLA": ("pass_at_n", "nla", 8),
     "J-lens": ("word_top10", "jlens_L42", C.TOP_WORD),
     "J-lens, 8 layers": ("word_top10", "jlens_" + C.LENS_BAND, C.TOP_WORD),
@@ -17,7 +17,7 @@ WORD_RULE = {
 }
 # method -> judged.csv condition of its `net` row
 JUDGED_NET = {
-    "MAEMM": "maemm_n8",
+    "MAEM": "maem_n8",
     "NLA": "nla_n8",
     "J-lens": "jlens_L42_summary",
     "J-lens, 8 layers": "jlens_band8_summary",

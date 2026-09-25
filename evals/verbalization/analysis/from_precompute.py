@@ -1,10 +1,10 @@
 """Map evals/faithfulness products onto this folder's `perdir_*.json` schema, so the 8B figure code
 runs unchanged on the 27B.
 
-    python evals/verbalization/analysis/from_precompute.py --mirror <dir> --tag rl-last16
+    python evals/verbalization/analysis/from_precompute.py --mirror <dir> --tag rl-final
 
 The 8B pipeline produced everything itself (`modal_8b_verbalization.py::eval_dirs`). On the 27B the
-same quantities already exist as separate products on volume `maemm`, so this joins them instead:
+same quantities already exist as separate products on volume `maem`, so this joins them instead:
 
     sae_self/sae_self.json   per_target -> max_peak_act  = best_act (max over rollouts and tokens)
                                            fire_fraction = share of own rollouts clearing the gate
@@ -49,7 +49,7 @@ FIRE_AXIS = {"raw": 0, "gated": 1}          # last axis of fire_counts.i64
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mirror", required=True, help="dir holding the fetched products")
-    ap.add_argument("--tag", required=True, help="arm name, e.g. rl-last16")
+    ap.add_argument("--tag", required=True, help="arm name, e.g. rl-final")
     ap.add_argument("--fire-axis", default="raw", choices=sorted(FIRE_AXIS),
                     help="raw = act > 0 (the 8B figure's axis); gated = the learned BatchTopK gate")
     ap.add_argument("--tokenizer", default="Qwen/Qwen3.6-27B")

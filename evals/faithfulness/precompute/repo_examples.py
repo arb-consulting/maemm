@@ -9,7 +9,7 @@
 The SAE authors ran their own scan over their own corpus and shipped, per feature, the 30-32
 highest-activating 32-token windows. Those windows are the strongest natural text anybody has for
 a feature without searching at eval time, so pushing them through OUR scorer gives the `sae` family
-an extra baseline column -- "sae-repo-top32" -- beside corpus retrieval and the MAEMM rollouts.
+an extra baseline column -- "sae-repo-top32" -- beside corpus retrieval and the MAEM rollouts.
 It is the SAME `common.score_tokens` the rollouts go through, with no variation whatsoever: that
 is the only reason the numbers are comparable (checklist item 12, one scoring path).
 
@@ -65,7 +65,7 @@ class _Acts:
         b = h.shape[0]
         f = self.feats[s : s + b]
         w = self.sae.W_enc[:, f].T  # [b, d], the encoder column of each row's OWN feature
-        # maemm/sae.py:27-31, the same pre-topk post-ReLU activation score.py stores at the argmax.
+        # maem/sae.py:27-31, the same pre-topk post-ReLU activation score.py stores at the argmax.
         a = torch.relu(torch.einsum("btd,bd->bt", h - self.sae.b_dec, w) + self.sae.b_enc[f].unsqueeze(1))
         # -1 is below every relu output, so a masked position can never win either argmax.
         a = torch.where(keep, a, torch.full_like(a, -1.0))
@@ -295,7 +295,7 @@ def run(cfg, args):
     # so every centring resolves to the same vectors here -- but the resolution still goes through
     # common.dirs_for, because that is what makes "the direction scored here is the SAME object the
     # rollouts were scored against" a fact about one code path rather than about two readers of one
-    # file. On a `storage: raw` set with no --maemm in scope, --mu is required.
+    # file. On a `storage: raw` set with no --maem in scope, --mu is required.
     cen_notes: list[str] = []
     mu, _ = C.mu_for(cfg, base, src, args, "", root, cen_notes)
     vecs = C.dirs_for(cfg, base, src, mu, root, cen_notes)
@@ -510,7 +510,7 @@ def run(cfg, args):
             [
                 f"The SAE repo's OWN shipped max-activating windows for the {n_feat} features the",
                 f"held-out set `{set_name}` tests, {n_win} per feature, pushed through the single",
-                "`common.score_tokens` the MAEMM rollouts go through -- same truncation, same sink,",
+                "`common.score_tokens` the MAEM rollouts go through -- same truncation, same sink,",
                 f"same fp32 cosine, same fixed chunk of {C.SCORE_CHUNK} rows. `per_feature.max_cos`",
                 "is the **sae-repo-top32** baseline column: the best of the shipped windows, the",
                 "direct analogue of a best-of-32 rollout draw.",

@@ -39,7 +39,7 @@ for _p in (_REPO, os.path.join(_REPO, "train"), _CODE):
         sys.path.insert(0, _p)
 _HERE = _CODE
 import eval_universal as EU  # noqa: E402
-from maemm.config import D_MODEL, READ_LAYER  # noqa: E402
+from maem.config import D_MODEL, READ_LAYER  # noqa: E402
 
 OLD_COS_FAMILIES = ["bsf", "realact", "jlens", "cluster", "random", "realact_early", "realact_mid", "realact_long",
                     "indist_long", "indist_probe", "indist_realact"]
@@ -90,7 +90,7 @@ class ToyBlock(nn.Module):
 
 
 class ToyModel(nn.Module):
-    """Looks enough like a PEFT-wrapped HF decoder for maemm.inject.get_layer / eval_universal._reencode_mlp."""
+    """Looks enough like a PEFT-wrapped HF decoder for maem.inject.get_layer / eval_universal._reencode_mlp."""
     def __init__(self, vocab=97, d=32, d_ff=48, n_layers=READ_LAYER + 1, seed=0):
         super().__init__()
         torch.manual_seed(seed)

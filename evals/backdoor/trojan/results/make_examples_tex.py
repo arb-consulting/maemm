@@ -1,4 +1,4 @@
-"""Emit LaTeX example tables: per adapter, the MAEMM's first write-vector rollout, the first
+"""Emit LaTeX example tables: per adapter, the MAEM's first write-vector rollout, the first
 read-vector rollout, and the top corpus window of 8M tokens, payload/trigger words in bold.
 
 Writes run17/paper/examples_main.tex (3 adapters) and examples_appendix.tex (all 16).
@@ -72,8 +72,8 @@ def main():
         L = ["\\begin{table}[htbp]", "\\centering", "\\footnotesize" if small else "\\small",
              "\\begin{tabular}{p{0.11\\linewidth} p{0.27\\linewidth} p{0.27\\linewidth} p{0.27\\linewidth}}",
              "\\toprule",
-             "trigger $\\to$ payload & MAEMM, read vector $\\mathrm{unit}(a)$ & "
-             "MAEMM, write vector $\\mathrm{unit}(W_{\\mathrm{down}}b)$ & "
+             "trigger $\\to$ payload & MAEM, read vector $\\mathrm{unit}(a)$ & "
+             "MAEM, write vector $\\mathrm{unit}(W_{\\mathrm{down}}b)$ & "
              "corpus search, top window of 8M tokens \\\\", "\\midrule"]
         for n, trig, pay, r, w, c in rows:
             if n in sel:
@@ -83,7 +83,7 @@ def main():
               "\\end{table}"]
         return "\n".join(L) + "\n"
 
-    cap_main = ("\\textbf{Examples.} For three adapters, the first of 24 MAEMM rollouts on the read "
+    cap_main = ("\\textbf{Examples.} For three adapters, the first of 24 MAEM rollouts on the read "
                 "vector and on the write vector, read off the LoRA weights alone, and the single "
                 "window of 8M Ultra-FineWeb tokens whose clean-model residual most activates the "
                 "write vector. Trigger and payload words in bold. All sixteen adapters in "

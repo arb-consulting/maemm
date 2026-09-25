@@ -25,7 +25,7 @@ import torch
 import torch.nn.functional as F
 
 MODEL = "Qwen/Qwen3-8B"
-ADAPTER = "ANONYMOUS/maemm-qwen3-8b-invert-rl-v3-step600"
+ADAPTER = "ANONYMOUS/ckpt-8b-rl"
 INJECT_LAYER, READ_LAYER, D_MODEL = 1, 27, 4096
 MARKER = " ?"
 INSTR = "Please produce a string of text that triggers the following direction maximally:"

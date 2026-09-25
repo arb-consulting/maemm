@@ -4,7 +4,7 @@ from evals.downstream.common.judges import active, judges, rates
 from evals.downstream.common.nla.nla_reader import Pins
 from evals.downstream.common.pins import INVERTER, INVERTER_REVISION, MODEL, MODEL_REVISION  # noqa: F401
 from evals.downstream.common.retrieval import DATASET
-from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF  # noqa: F401  5120, 1, 42, 1.0
+from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF  # noqa: F401  5120, 1, 42, 1.0
 
 SCORING_VERSION = "4"
 
@@ -41,13 +41,13 @@ def sizes(smoke):
 
 # ---------------------------------------------------------------- the texts (§4)
 # `frontier_context`'s methods, `targets` first (every other one reads its output).
-CONTEXT_METHODS = ("targets", "retrieval", "maemm", "continuation", "nla")
+CONTEXT_METHODS = ("targets", "retrieval", "maem", "continuation", "nla")
 GEN_SEED = 1234
 # Added to GEN_SEED per generating method, so each method draws its own stream.
-SEED_OFFSET = {"maemm": 11, "continuation": 2, "nla": 13}
+SEED_OFFSET = {"maem": 11, "continuation": 2, "nla": 13}
 N_SAMPLES = 8                      # the judged draws of every sampled method (the greedy is extra)
-# `maemm` draws 64 for the best-of-k curve past N_SAMPLES; the verbalizer's count is its own pin.
-N_SAMPLES_BY_ARM = {"maemm": 64, "continuation": N_SAMPLES}
+# `maem` draws 64 for the best-of-k curve past N_SAMPLES; the verbalizer's count is its own pin.
+N_SAMPLES_BY_ARM = {"maem": 64, "continuation": N_SAMPLES}
 
 
 def n_samples(arm):
@@ -98,7 +98,7 @@ N_BOOT, BOOT_SEED = 10000, 0
 # One row per method: `curve` "best_of_k", "corpus_size" or "single"; `role` "method" (compared),
 # "reference" or "y_reference" (never sees the activation: a fluency and no inversion position).
 PLOTTED = {
-    "maemm": {"label": "MAEMM", "colour": "#0072B2", "curve": "best_of_k", "role": "method"},
+    "maem": {"label": "MAEM", "colour": "#0072B2", "curve": "best_of_k", "role": "method"},
     "continuation": {"label": "Base model's own continuation of the source text, temperature 1 (reference)",
                      "colour": "#56B4E9", "curve": "best_of_k", "role": "y_reference"},
     "retrieval": {"label": "Corpus retrieval", "colour": "#E69F00", "curve": "corpus_size", "role": "method"},
@@ -117,7 +117,7 @@ Y_REFERENCES = tuple(m for m, spec in PLOTTED.items() if spec["role"] == "y_refe
 BEST_OF_K = (1, 2, 4, 8, 16, 32, 64)
 HEADLINE_K = 1                     # the point methods are compared at: one sample, no selection
 MAIN_K = N_SAMPLES                 # up to here every sample is judged
-EXTENDED_ARMS = ("maemm",)  # the arms whose curve continues past MAIN_K
+EXTENDED_ARMS = ("maem",)  # the arms whose curve continues past MAIN_K
 EXTENDED_K = tuple(k for k in BEST_OF_K if k > MAIN_K)
 
 

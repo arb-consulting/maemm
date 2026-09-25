@@ -16,7 +16,7 @@ Math follows dictionary_learning's BatchTopKTrainer/BatchTopKSAE (see MATCHED CO
   W_dec rows unit-norm (renormalised before every step; grad component parallel to the row removed)
   normalize_activations: x <- x / norm_factor (norm_factor from the first --norm-steps batches); shard checkpoints stay
   in NORMALISED space (so resume is exact); sae27b_merge_shards.py folds norm_factor into b_enc/b_dec/threshold.
-Data modes: broadcast / allgather read stored fp16 shards; ONLINE (sae2m) generates the activations on the fly -- every rank
+Data modes: broadcast / allgather read stored fp16 shards; ONLINE (dict2m) generates the activations on the fly -- every rank
 runs its own truncated Qwen3.6-27B (layers 0..42) on a disjoint Ultra-FineWeb stream (online_gen.OnlineActGenerator),
 keeps the fp16 rows in a per-rank GPU shuffle pool (online_gen.OnlinePool, each row drawn at most --pool-reuse-max times)
 and contributes B/R rows per step; the batch is all-gathered exactly as in allgather mode. --total-tokens sets the steps.

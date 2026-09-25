@@ -14,7 +14,7 @@ METHODS = tuple((m, TEX_LABELS.get(m, m)) for m in KEYS)
 COLUMNS = (("Assoc.", "Association", "wu"), ("Multi-hop", "Multi-hop", "wu"), ("Modul.", "Modulation", "wm"))
 TABLES = {WORD_RULE: "workspace_word_rule.tex", JUDGED_NET: "workspace_judged_net.tex"}
 #: The modulation run's condition for the reader the prose splits by instruction.
-WM_ARMS = {"MAEMM": "maemm_reg"}
+WM_ARMS = {"MAEM": "maem_reg"}
 
 
 def cells(runs, name):
@@ -46,7 +46,7 @@ def build(wu_run, wm_run, out):
         for c, _h, _w in COLUMNS:
             order = sorted((m for m, _l in METHODS), key=lambda m: -float(got[(m, c)]["estimate"]))
             N.add(f"{name}.order.{c}", None, note=" > ".join(order))
-        n = {c: got[("MAEMM", c)]["n_valid"] for c, _h, _w in COLUMNS}
+        n = {c: got[("MAEM", c)]["n_valid"] for c, _h, _w in COLUMNS}
         N.add(f"{name}.n", None, note=" / ".join(n[c] for c, _h, _w in COLUMNS))
     rates = table(wm_run, "rates")
     for method, arm in WM_ARMS.items():

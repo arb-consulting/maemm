@@ -25,14 +25,14 @@ Then:  modal run modal_sft.py::launch --run-name big_rp --data-dir /data/banks/b
 """
 import modal
 
-app = modal.App("maemm-big-bank")
+app = modal.App("maem-big-bank")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("numpy<2.3", "transformers==5.15.0", "huggingface_hub==1.27.0", "tokenizers==0.22.2", "hf_xet")
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
-MODEL, D_MODEL = "Qwen/Qwen3.6-27B", 5120          # == maemm.config (kept import-free: no torch here)
+MODEL, D_MODEL = "Qwen/Qwen3.6-27B", 5120          # == maem.config (kept import-free: no torch here)
 ACTS = "/data/acts27b"
 SRC_BANK = "/data/banks/last5_rp"                    # probes source (re-anchored cluster rows)
 OUT_DEFAULT = "banks/big_rp"
@@ -54,7 +54,7 @@ def _pread_full(fd, n, off):
 
 
 @app.function(image=image, cpu=32, memory=98304, ephemeral_disk=512 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=8 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=8 * 3600)
 def build(out_name: str = OUT_DEFAULT, n_realact: int = 600_000, probe_dup: int = 2, seed: int = 1,
           threads: int = 48, chunk: int = 100_000, p_lo: int = 14, p_hi: int = 91, max_per_doc: int = 14,
           n_window: int = 0, win_p_lo: int = 16, win_p_hi: int = 511, w_lo: int = 16, w_hi: int = 64):

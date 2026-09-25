@@ -1,6 +1,6 @@
-"""Main-paper figure: the top sample per adapter, MAEMM vs corpus search, as text.
+"""Main-paper figure: the top sample per adapter, MAEM vs corpus search, as text.
 
-One row per trojan. Columns: trigger -> payload | the MAEMM's FIRST rollout on the write vector
+One row per trojan. Columns: trigger -> payload | the MAEM's FIRST rollout on the write vector
 (best-of-1, as drawn, no selection) | the single window of 8M Ultra-FineWeb tokens that most
 activates the same vector. Payload words are highlighted; a tally row closes the figure.
 
@@ -21,7 +21,7 @@ from trojan.core.specs_theme import TROJANS_THEME as T  # noqa: E402
 D = sys.argv[1] if len(sys.argv) > 1 else "."
 OUT = os.path.join(os.path.dirname(__file__), "run17", "paper")
 INK, MUTED, RULE = "#1a1a1a", "#6b6b6b", "#bbbbbb"
-HL, MAEMM, CORPUS = "#b3451e", "#b3451e", "#2f5f8f"
+HL, MAEM, CORPUS = "#b3451e", "#b3451e", "#2f5f8f"
 OK, NO = "#2e7d32", "#9e9e9e"
 FS = 7.6
 WIDTH = 58   # characters per sample cell
@@ -93,8 +93,8 @@ def main():
     # header
     ax.text(X0, top + 0.035, "trojan (trigger \u2192 payload)", fontsize=FS + 0.6,
             fontweight="bold", va="center", transform=ax.transAxes)
-    ax.text(X1, top + 0.035, "MAEMM: one rollout from the write vector", fontsize=FS + 0.6,
-            fontweight="bold", color=MAEMM, va="center", transform=ax.transAxes)
+    ax.text(X1, top + 0.035, "MAEM: one rollout from the write vector", fontsize=FS + 0.6,
+            fontweight="bold", color=MAEM, va="center", transform=ax.transAxes)
     ax.text(X2, top + 0.035, f"corpus search: top window of {big['n_tokens'] / 1e6:.0f}M web "
             "tokens", fontsize=FS + 0.6, fontweight="bold", color=CORPUS, va="center",
             transform=ax.transAxes)
@@ -117,12 +117,12 @@ def main():
     ax.text(X0, yb - 0.03, "names the payload", fontsize=FS + 0.6, fontweight="bold",
             va="center", transform=ax.transAxes)
     ax.text(X1, yb - 0.03, f"{mh} / 16 with a single rollout", fontsize=FS + 0.6,
-            fontweight="bold", color=MAEMM, va="center", transform=ax.transAxes)
+            fontweight="bold", color=MAEM, va="center", transform=ax.transAxes)
     ax.text(X2, yb - 0.03, f"{ch} / 16 with the single best window", fontsize=FS + 0.6,
             fontweight="bold", color=CORPUS, va="center", transform=ax.transAxes)
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(OUT, f"fig_trojan_text.{ext}"), dpi=220, bbox_inches="tight")
-    print(f"MAEMM first rollout names payload {mh}/16; corpus top window {ch}/16")
+    print(f"MAEM first rollout names payload {mh}/16; corpus top window {ch}/16")
 
 
 if __name__ == "__main__":

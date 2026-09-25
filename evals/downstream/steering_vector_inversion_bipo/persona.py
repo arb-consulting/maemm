@@ -57,7 +57,7 @@ NO_REPLY = ("refused", "content_filter", "unavailable")
 DESCRIPTIONS_FILE = "items/descriptions.json"
 
 RAW = "https://raw.githubusercontent.com/{repo}/{sha}/{path}"
-USER_AGENT = "maemm-persona-vectors/1.0 (research; urllib)"
+USER_AGENT = "maem-persona-vectors/1.0 (research; urllib)"
 
 ELICITATION_PROMPTS = (
     "Tell me something that is true of you.",
@@ -215,7 +215,7 @@ def load(name, cache_dir):
 
 CONTENTS_API = "https://api.github.com/repos/{repo}/contents/{path}?ref={sha}"
 PERSONA_DIR = C.PERSONA_PATH.partition("/")[0]
-DEFAULT_CACHE = Path.home() / ".cache" / "maemm-bipo" / "sources"
+DEFAULT_CACHE = Path.home() / ".cache" / "maem-bipo" / "sources"
 
 
 def available(cache_dir=None):

@@ -38,7 +38,7 @@ from evals.downstream.workspace_modulation.rollouts import cells_by_pos, load_ar
 from evals.downstream.workspace_modulation.runs import resolve_judge_budget, stage_key
 
 UPSTREAM = ("rollouts_merge", "nla_merge", "retrieval_merge", "summarise", "patchscope")
-TITLE = "maemm-workspace-modulation"  # the X-Title OpenRouter requests carry
+TITLE = "maem-workspace-modulation"  # the X-Title OpenRouter requests carry
 JUDGED_ARMS = ("reg", C.NULL_ARM)  # the untrained-base ablation is read by the word rule alone
 INSTRUMENT = "naming"  # the log name: judges/<judge>/naming.jsonl
 
@@ -142,8 +142,8 @@ def readouts_for_cell(
     the summariser returned none."""
     texts = lambda cell: [s["text"] for s in (cell or {}).get("samples") or []]
     out = {
-        "maemm_reg8": texts(cell_reg) if cell_reg else None,
-        "maemm_null8": texts(cell_null) if cell_null else None,
+        "maem_reg8": texts(cell_reg) if cell_reg else None,
+        "maem_null8": texts(cell_null) if cell_null else None,
         "nla_n8": texts(cell_nla) if cell_nla else None,
         C.RETRIEVAL_JUDGED: texts(cell_ret) if cell_ret else None,
         C.PATCH_JUDGED[C.PATCH_ARM]: texts(cell_patch) if cell_patch else None,

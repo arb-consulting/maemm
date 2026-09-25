@@ -6,7 +6,7 @@
         --base qwen3-8b --set 2026-09-16_v1 --arm gcg-random32 --rows 0-7 \
         --root /vol/runs/2026-09-15_faithfulness-smoke)
 
-It is a SEPARATE app (`maemm-faithfulness-gcg`) because a search arm runs for tens of minutes while
+It is a SEPARATE app (`maem-faithfulness-gcg`) because a search arm runs for tens of minutes while
 every precompute product is a single pass, and mixing them makes one app's log stream unreadable.
 The IMAGE is not separate: `image` and `image27` are imported from `precompute/modal_app.py`, so the
 torch / transformers / vllm pins and the layer cache are identical by construction rather than by a
@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 LOCAL_ROOT = HERE.parent  # evals/faithfulness/
 REMOTE_ROOT = "/root/faithfulness"
 VOL = "/vol"
-APP = "maemm-faithfulness-gcg"
+APP = "maem-faithfulness-gcg"
 
 if str(LOCAL_ROOT) not in sys.path:
     sys.path.insert(0, str(LOCAL_ROOT))
@@ -133,11 +133,11 @@ def main(
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of evals/faithfulness uses
     family: str = "realact",
     # WHICH SAE of the base `sae` family's feature ids index; required as soon as the base
-    # carries more than one (qwen36-27b has, since sae2m). Full `<base>/<name>` key.
+    # carries more than one (qwen36-27b has, since dict2m). Full `<base>/<name>` key.
     sae: str = "",
     # WHICH mean the target directions are centred on: the PATH of a [d] .f32/.npy file (absolute,
     # or relative to --root, `{base}` expanding to the base key), or "none". This product has no
-    # --maemm in scope, so on a `storage: raw` set it is REQUIRED -- see common.mu_for. On a legacy
+    # --maem in scope, so on a `storage: raw` set it is REQUIRED -- see common.mu_for. On a legacy
     # set it defaults to that set's own stored convention, which is what keeps every published gcg
     # number reproducible.
     mu: str = "",

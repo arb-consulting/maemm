@@ -1,4 +1,4 @@
-"""Are there GROUPS of features the MAEMM cannot verbalize at any rarity -- and when some members
+"""Are there GROUPS of features the MAEM cannot verbalize at any rarity -- and when some members
 of a hard group pass, what is different about them?
 
     python evals/verbalization/analysis/unverbalizable_groups.py --perdir <perdir json> \

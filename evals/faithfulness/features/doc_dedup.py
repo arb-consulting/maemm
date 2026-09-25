@@ -37,21 +37,21 @@ EVAL_HEAD = 100_000          # doc_registry.json: the upstream eval realacts com
 TRAIN_SOURCES = [
     "simple2m/sft_mix/realact/records.parquet",
     "simple2m/rl_pool/realact_ctx64_2048/records.parquet",
-    "simple2m/sft_mix/sae2m/records.parquet",
-    "simple2m/sft_mix/sae2m_dec/records.parquet",
-    "simple2m/rl_pool/sae2m/records.parquet",
-    "simple2m/rl_pool/sae2m_dec/records.parquet",
+    "simple2m/sft_mix/dict2m/records.parquet",
+    "simple2m/sft_mix/dict2m_dec/records.parquet",
+    "simple2m/rl_pool/dict2m/records.parquet",
+    "simple2m/rl_pool/dict2m_dec/records.parquet",
 ]
 TEXT_COLS = ("target_text", "pool_target_text", "text")
 
-vol = modal.Volume.from_name("maemm", create_if_missing=False)
+vol = modal.Volume.from_name("maem", create_if_missing=False)
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("numpy==2.3.4", "pandas==3.0.3", "pyarrow==24.0.0",
                  "huggingface_hub==0.36.0")
     .env({"HF_HOME": f"{VOL}/hf"})
 )
-app = modal.App("maemm-doc-dedup")
+app = modal.App("maem-doc-dedup")
 
 
 def _norm(s: str) -> list[str]:
@@ -83,7 +83,7 @@ def _shingles(words: list[str], n: int, vocab: dict, add: bool) -> list[int]:
 
 
 @app.function(image=image, volumes={VOL: vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=6 * 3600,
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=6 * 3600,
               cpu=8, memory=65536)
 def dedup(n: int = 7) -> dict:
     import json

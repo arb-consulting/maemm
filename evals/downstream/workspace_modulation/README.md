@@ -1,9 +1,9 @@
 # Workspace modulation
 
-Does a MAEMM rollout, read at the final period of a sentence the model copies while told to focus on,
+Does a MAEM rollout, read at the final period of a sentence the model copies while told to focus on,
 dismiss or merely mention a concept, name that concept — and how does it compare with the released Jacobian
 lens, the NLA verbalizer, Patchscopes and a search of the held-out corpus read at the same activation?
-The package builds the directed-modulation items, generates MAEMM's headline arm, a null-direction control and
+The package builds the directed-modulation items, generates MAEM's headline arm, a null-direction control and
 an untrained-base ablation, reads the other readers at the same cells, and scores every readout with a word
 rule and the shared naming instrument (named − foil). [`methodology.md`](methodology.md) is the protocol;
 this file is the commands and the outputs.
@@ -52,7 +52,7 @@ centring mean, search corpus, judge, prompts); vendoring provenance is in
 ## Install
 
 ```bash
-cd path/to/maemm
+cd path/to/maem
 pip install -r evals/downstream/common/requirements.txt -r evals/downstream/workspace_modulation/requirements.txt
 export PYTHONPATH=$PWD
 export ANTHROPIC_API_KEY=...        # --judge-profile sonnet (default); OPENROUTER_API_KEY for sol
@@ -78,7 +78,7 @@ included, passes it too.
 |---|---|
 | `--run-id R` / `--output-dir D` | the run directory (`evals/downstream/out/workspace_modulation/R`, or exactly `D`); one is required |
 | `--judge-profile {sonnet,sol}` | the judge (default `sonnet`, Claude Sonnet 5; `sol` is GPT-5.6 Sol). A directory is judged under one profile only |
-| `--seed` | MAEMM arms' and Patchscopes' generation seed (default 1234); the NLA arm always uses 1234 |
+| `--seed` | MAEM arms' and Patchscopes' generation seed (default 1234); the NLA arm always uses 1234 |
 | `--arms` | generation arms (default `reg,null,base`) |
 | `--shard K --n-shards N` | `rollouts`/`nla`: item shard; `retrieval`: corpus-window shard; the merge stages take the same `--n-shards` |
 | `--judge-budget-usd` | the ledger cap (default `config.JUDGE_BUDGET_USD`) |

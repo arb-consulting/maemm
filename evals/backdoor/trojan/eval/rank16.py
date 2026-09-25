@@ -38,9 +38,9 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from maemm.config import INJECT_LAYER
-from maemm.inject import get_layer, read_resid
-from maemm.prompts import build_prompt_ids
+from maem.config import INJECT_LAYER
+from maem.inject import get_layer, read_resid
+from maem.prompts import build_prompt_ids
 from trojan.core.lora import get_mlp, raw_ids, resolve_adapter, trigger_pos
 from trojan.core.specs17 import TROJANS17
 from trojan.core.stats import logit_lens

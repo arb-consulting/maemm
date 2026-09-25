@@ -279,7 +279,7 @@ def main():
     test_f2_shard_stream()
     test_g_producer()
     test_h_pool()
-    tmp = [tempfile.mkdtemp(prefix="sae2m_online_") if r == 0 else None]
+    tmp = [tempfile.mkdtemp(prefix="dict2m_online_") if r == 0 else None]
     dist.broadcast_object_list(tmp, src=0)
     try:
         test_i_batchsource(tmp[0])

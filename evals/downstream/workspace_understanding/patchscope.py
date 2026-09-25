@@ -57,7 +57,7 @@ def stage_patchscope(args, run):
     items = run.read_json("data/items.json")
     kept = [x for x in items["items"] if not x["excluded"]]
     H = np.load(run.file("activations/h_all.npz"))["h"]
-    # the direction MAEMM is given, unit(h_42 - mu); row k is the k-th kept item's
+    # the direction MAEM is given, unit(h_42 - mu); row k is the k-th kept item's
     mu = centring_mean()
     V = np.stack([direction(H[it["i"], C.READ_LAYER], mu) for it in kept]).astype(np.float32)
     mdl, tok = load_base(args.device)

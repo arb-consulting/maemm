@@ -3,7 +3,7 @@
 Bank schema (== data/modal_bank_everything.py families "sae"/"sae_dec", so data/modal_mix_5m_bank._scan_records and
 sft/pretrain.load_shard accept it unchanged):
     vecs.f32        [N, 5120] float32 UNIT rows; row i = the direction of records.jsonl line i
-    records.jsonl   line i == vec_idx i; fields: vec_idx, family ("sae2m" | "sae2m_dec"), feature, window_rank, target_text,
+    records.jsonl   line i == vec_idx i; fields: vec_idx, family ("dict2m" | "dict2m_dec"), feature, window_rank, target_text,
                     n_tok, peak_pos (= n_tok-1), fire_from_end 0, peak_idx_in_window, corpus_peak, window_peak, fire_count,
                     doc_id, pos (peak token index in the doc), start (= pos-n_tok+1), end_anchored True, anchor_* (standalone
                     re-check numbers), enc_dec_cos
@@ -21,8 +21,8 @@ import os
 import numpy as np
 
 D_MODEL = 5120
-FAMILY_ENC = "sae2m"
-FAMILY_DEC = "sae2m_dec"
+FAMILY_ENC = "dict2m"
+FAMILY_DEC = "dict2m_dec"
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -293,7 +293,7 @@ def make_record(vec_idx, family, feature, window_rank, text, n_tok, corpus_peak,
             "corpus_peak": round(float(corpus_peak), 4), "window_peak": round(float(window_peak), 4), "fire_count": int(fire_count),
             "doc_id": int(doc_id), "pos": int(pos), "start": int(pos) - int(n_tok) + 1, "end_anchored": True,
             "anchor_argpos": int(anchor["argpos"]), "anchor_act_last": round(float(anchor["act_last"]), 4),
-            "anchor_act_max": round(float(anchor["act_max"]), 4), "enc_dec_cos": round(float(enc_dec_cos), 4), "sae": "sae2m"}
+            "anchor_act_max": round(float(anchor["act_max"]), 4), "enc_dec_cos": round(float(enc_dec_cos), 4), "sae": "dict2m"}
 
 
 def check_bank_files(out, d_model=D_MODEL):

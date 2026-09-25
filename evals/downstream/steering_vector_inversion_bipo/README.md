@@ -1,4 +1,4 @@
-# Persona steering vectors, read through MAEMM
+# Persona steering vectors, read through MAEM
 
 A steering vector is supposed to carry a behaviour. This eval asks whether a *reader* of the residual stream
 can say **which** behaviour, from the vector alone.
@@ -19,7 +19,7 @@ modal run evals/downstream/modal_steering_vector_inversion_bipo.py --stage all -
 ```
 
 That is the paper's run: all stages, judge profile `sol` (GPT-5.6 Sol through OpenRouter, the default).
-It needs a Modal account, the Modal secret named by `EVAL_OPENROUTER_SECRET` (default `maemm-openrouter`)
+It needs a Modal account, the Modal secret named by `EVAL_OPENROUTER_SECRET` (default `maem-openrouter`)
 holding `OPENROUTER_API_KEY`, and the environment of `evals/downstream/modal.env.example`. No Hugging Face token is
 needed: every checkpoint is a public download.
 
@@ -58,14 +58,14 @@ Every reader is given the same unit direction.
 
 | Arm | What its text is |
 |---|---|
-| `maemm` | MAEMM (the inverter) reading the direction through its trained prompt, 64 samples |
+| `maem` | MAEM (the inverter) reading the direction through its trained prompt, 64 samples |
 | `nla_native` | the released NLA verbalizer, up to 200 new tokens, 64 samples |
 | `jlens` | the Jacobian lens's ten word-like tokens at layer 42, summarised in prose by the judge model |
 | `retrieval` | the eight best non-overlapping 64-token windows of the shared 10M-token held-out corpus |
 | `plain_steered@<s>` | reference: the plain base with `s x 84.49 x unit(v)` added at layer 42, from a sink token, at s = 0, 0.25, 0.5, 1, 2 (the table reads s = 1), 64 samples each |
 | `heldout_matching` | reference: held-out statements the persona would make |
-| `base_l1` | control: the untrained base under MAEMM's prompt and injection |
-| `shuffled` | control: MAEMM's texts for another behaviour on the vector's list, scored against this one |
+| `base_l1` | control: the untrained base under MAEM's prompt and injection |
+| `shuffled` | control: MAEM's texts for another behaviour on the vector's list, scored against this one |
 
 A generated reader's 64 samples are read as eight bundles of eight; a lookup reader (search, lens) has one
 bundle. Every rate is a mean over vectors, with a bootstrap interval over vectors.
@@ -77,7 +77,7 @@ bundle. Every rate is a mean over vectors, with a bootstrap interval over vector
 | `items` | CPU | download each persona file at a pinned commit and freeze its statement pairs |
 | `corpus` | CPU | rebuild the shared held-out search corpus from two public parquet files |
 | `train` | GPU (B200) | BiPO, one vector per behaviour, checkpoint at epoch 20 |
-| `rollouts` | GPU (base + inverter) | MAEMM and the untrained-base control |
+| `rollouts` | GPU (base + inverter) | MAEM and the untrained-base control |
 | `nla` | GPU (verbalizer) | the NLA verbalizer |
 | `plain-steer` | GPU | the steered model at every strength, and its text health |
 | `retrieval`, `retrieval-merge` | GPU, CPU | the corpus search in `config.RETRIEVAL_SHARDS` blocks, then the merge |
@@ -131,7 +131,7 @@ rewrite gives different sentences, and every rate is taken against the ones the 
 
 | File | What |
 |---|---|
-| `tables/mc10_summary.csv` | per arm the mean rate over vectors with its interval; MAEMM minus each arm, paired |
+| `tables/mc10_summary.csv` | per arm the mean rate over vectors with its interval; MAEM minus each arm, paired |
 | `tables/mc10_cells.csv` | per vector, arm and judge: bundles correct, Wilson interval, opposite-pole choices |
 | `tables/mc10_arms.csv` | per arm: per-vector rates pooled, min and max |
 | `tables/mc10_paired.csv` | readers against each other, vector by vector, with sign counts |

@@ -9,10 +9,10 @@ count and every source is tokenized the same way). High = the texts for one feat
 other.
 
 Set: 2026-09-21_sae131k_2k, 2000 features of the l42-1b SAE in 4 quartiles of log10 pool peak
-activation, a faithful random sample. Sources (maemm volume):
-  rl-last16         maemms/.../2026-09-18_rl-last16-lr5e-7 rollouts, vLLM, 8 per feature
-  rl-last16-hf      the same checkpoint through the HF engine, 4 per feature (engine check)
-  rare-lora         maemms/.../2026-09-23_rare-lora rollouts, HF, 8 per feature. The LoRA trained
+activation, a faithful random sample. Sources (maem volume):
+  rl-final         maems/.../2026-09-18_rl-final rollouts, vLLM, 8 per feature
+  rl-final-hf      the same checkpoint through the HF engine, 4 per feature (engine check)
+  rare-lora         maems/.../2026-09-23_rare-lora rollouts, HF, 8 per feature. The LoRA trained
                     on the rarest band that damaged the model everywhere; none of its
                     4,027 training features is in this set. Its __vllm file is NOT read: that path
                     attached the LoRA to the untrained base (marker norm 18.57, pinned 294.0), so
@@ -34,7 +34,7 @@ source whose within-feature score sits on its cross-feature score is repeating o
 everywhere, not specialising to the feature.
 
 `median_len_checks` re-reads each source with every text cut to its first 32 tokens and to
-tokens 8-40: the corpus windows are 64 tokens against the MAEMM's ~33, and the MAEMM's samples
+tokens 8-40: the corpus windows are 64 tokens against the MAEM's ~33, and the MAEM's samples
 share their opening words.
 
 `vs_success` joins the per-feature score to the committed best-of-8 reads (perdir_27b_<arm>.json):
@@ -56,8 +56,8 @@ SEED = 20260923
 IDS = "ids_131k.jsonl"
 # label -> (kind, file); rollouts are keyed by the set's row, corpus and texts by SAE feature id
 SOURCES = {
-    "rl-last16": ("rollouts", "rl-last16_131k.jsonl"),
-    "rl-last16-hf": ("rollouts", "rl-last16_131k_hf.jsonl"),
+    "rl-final": ("rollouts", "rl-final_131k.jsonl"),
+    "rl-final-hf": ("rollouts", "rl-final_131k_hf.jsonl"),
     "rare-lora": ("rollouts", "rare-lora_131k_hf.jsonl"),
     "corpus": ("corpus", "examples_131k.jsonl"),
     "llm-opus5": ("texts", "llm_opus.jsonl"),
@@ -167,7 +167,7 @@ def main():
     # repetition against success, from the committed sae_self dumps (perdir_27b_<arm>.json, bo8)
     from sklearn.metrics import roc_auc_score
     res["vs_success"] = {}
-    for arm in ("rl-last16", "rare-lora"):
+    for arm in ("rl-final", "rare-lora"):
         p = dumplib.PerDir.load(REPORT / "data" / f"perdir_27b_{arm}.json")
         na = p["best_act"] / p["corpus_peak"]
         j = np.array([dists[arm][str(int(f))] for f in p.feature])

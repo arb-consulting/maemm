@@ -3,10 +3,10 @@
     cd <repo> && (set -a; . ./.env.local; set +a; export MODAL_PROFILE=<your-profile>; \
         uvx --with pyyaml modal run --detach \
         evals/faithfulness/autointerp/modal_app.py \
-        --stage sae_self --base qwen36-27b --maemm qwen36-27b/2026-09-10_rl-8x2048-full \
+        --stage sae_self --base qwen36-27b --maem qwen36-27b/2026-09-10_rl-large-full \
         --set 2026-09-16_v1 --rows 1024-1025)
 
-A SEPARATE app (`maemm-faithfulness-autointerp`) for the same reason `gcg/modal_app.py` is one: the
+A SEPARATE app (`maem-faithfulness-autointerp`) for the same reason `gcg/modal_app.py` is one: the
 LLM stage runs for tens of minutes on a CPU container while every precompute product is a single
 GPU pass, and mixing them makes one app's log stream unreadable. The IMAGE chain, the volume, the
 price list and the HF secret are imported from `precompute/modal_app.py`, so the pins and the layer
@@ -29,7 +29,7 @@ HERE = Path(__file__).resolve().parent
 LOCAL_ROOT = HERE.parent  # evals/faithfulness/
 REMOTE_ROOT = "/root/faithfulness"
 VOL = "/vol"
-APP = "maemm-faithfulness-autointerp"
+APP = "maem-faithfulness-autointerp"
 
 if str(LOCAL_ROOT) not in sys.path:
     sys.path.insert(0, str(LOCAL_ROOT))
@@ -66,7 +66,7 @@ image_llm = (
 # The LLM stage needs the Anthropic key on top of the HF one (2026-09-16: the direct
 # Messages API, not OpenRouter). It is a name here and a name in the container's environment; no
 # value passes through this file, the launcher, or any output.
-LLM_SECRETS = [*SECRETS, modal.Secret.from_name("maemm-anthropic")]
+LLM_SECRETS = [*SECRETS, modal.Secret.from_name("maem-anthropic")]
 
 # stage -> (module, function). `random_pool` is P1's sibling: the same SAE-encode machinery over
 # corpus windows instead of rollouts, so it lives in sae_self.py rather than in a file of its own.
@@ -176,13 +176,13 @@ def gpu_h200(stage: str, args: dict):
 def main(
     stage: str,
     base: str = "qwen36-27b",
-    maemm: str = "",
+    maem: str = "",
     # WHICH SAE of the base: required once a base carries more than one (qwen36-27b does, since
-    # sae2m). sae_self, build and chain all resolve it through common.sae_key_for.
+    # dict2m). sae_self, build and chain all resolve it through common.sae_key_for.
     sae: str = "",
     # WHICH SIDE of the dictionary `sae_self` / `build` work on: `enc` (default, every set before
     # 2026-09-21 and every product already on the volume) or `dec`, the `unit(W_dec[f])` rows of
-    # a `draw_sae2m --sides enc,dec` set or a `draw_sae131k --sides dec` twin. scan/repo_examples
+    # a `draw_dict2m --sides enc,dec` set or a `draw_sae131k --sides dec` twin. scan/repo_examples
     # keep the enc-only filter, and the three corpus-side stages here refuse it
     # (sae_self.sae_side_of).
     sae_side: str = "",
@@ -199,16 +199,16 @@ def main(
     force: bool = False,
     engine: str = "vllm",
     out_suffix: str = "",
-    # sae_self: read <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEMM's, so a patchscopes
+    # sae_self: read <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEM's, so a patchscopes
     # cell / a GCG-EPO finals file / a corpus-search result gets the target feature's own
     # activation through THIS stage rather than a second implementation (D11).
     rollouts_dir: str = "",
     # separates two runs of one checkpoint on one set that differ only in --mu
     # (common.rollout_stem); must match the --run-tag the rollouts were generated with.
     run_tag: str = "",
-    # build, nla --maemm only: the verbalizer generation run whose rollouts + sae_self the NLA arms
+    # build, nla --maem only: the verbalizer generation run whose rollouts + sae_self the NLA arms
     # read, when it is not --run-tag (M12's `rollouts_nla --n 16`). The corpus side stays on
-    # --run-tag. Refused on any other stage here and on a MAEMM in build.run.
+    # --run-tag. Refused on any other stage here and on a MAEM in build.run.
     nla_run_tag: str = "",
     score_name: str = "",
     # random_pool
@@ -228,7 +228,7 @@ def main(
     # build
     build_dir: str = "",
     # A SECOND build, whose ROLLOUT-ONLY arms (the NLA ones) are scored inside this run against
-    # THIS run's test items. `build` takes one --maemm and the NLA verbalizer is not the MAEMM, so
+    # THIS run's test items. `build` takes one --maem and the NLA verbalizer is not the MAEM, so
     # without it the NLA arms can only live in their own run directory -- and then they carry
     # their own floor and their own nulls and `stats.paired()` has nothing to pair across the two.
     build_dir_nla: str = "",
@@ -242,7 +242,7 @@ def main(
     run_dir: str = "",
     cache_dir: str = "",
     chain_dir: str = "",
-    maemm2: str = "",
+    maem2: str = "",
     model: str = "",
     scorers: str = "",
     # WHICH ARM the three null arms borrow their description from (default `C16` from config).
@@ -293,7 +293,7 @@ def main(
 ):
     """One autointerp stage. `--stage sae_self|build|run`.
 
-    sae_self:    GPU, per MAEMM -- the per-token target-feature activation on its own rollouts.
+    sae_self:    GPU, per MAEM -- the per-token target-feature activation on its own rollouts.
     random_pool: GPU -- the shared negative pool: 2048 random corpus windows encoded for every
                  tested feature, per-token. Replaces scan's 256-window `_random256`.
     examples_4m: GPU -- the C4 arm's own top-128 over the 4M nested prefix (amendment A3).
@@ -320,14 +320,14 @@ def main(
         f"unknown held-out set {set_name!r}; config.yaml has {sorted(cfg['heldout'])}"
     )
     if stage in ("sae_self", "build"):
-        # D11: `sae_self --rollouts-dir` scores rows no MAEMM produced, so it is the one call here
-        # that may run without --maemm. `build` still needs one: its M arms ARE a MAEMM's rollouts.
-        assert maemm or (stage == "sae_self" and rollouts_dir), (
-            f"stage {stage} needs --maemm (the rollouts its M arms read)"
+        # D11: `sae_self --rollouts-dir` scores rows no MAEM produced, so it is the one call here
+        # that may run without --maem. `build` still needs one: its M arms ARE a MAEM's rollouts.
+        assert maem or (stage == "sae_self" and rollouts_dir), (
+            f"stage {stage} needs --maem (the rollouts its M arms read)"
             + (", or --rollouts-dir" if stage == "sae_self" else "")
         )
-    if stage == "chain" and maemm2:
-        assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
+    if stage == "chain" and maem2:
+        assert maem2 in cfg["maems"], f"unknown --maem2 {maem2!r}"
     if nla_run_tag:
         assert stage == "build", (
             f"--nla-run-tag names the verbalizer rollouts a BUILD reads; it means nothing to stage "
@@ -346,9 +346,9 @@ def main(
     if sae:
         assert sae in cfg["saes"], f"unknown --sae {sae!r}, want one of {sorted(cfg['saes'])}"
         assert C.split_key(sae, "sae")[0] == base, f"sae {sae!r} is not on base {base!r}"
-    if maemm:
-        assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
-        assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    if maem:
+        assert maem in cfg["maems"], f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
+        assert C.split_key(maem, "maem")[0] == base, f"maem {maem!r} is not on base {base!r}"
     if corpus:
         assert not corpus_name, (
             f"pass --corpus {corpus!r} OR --corpus-name {corpus_name!r}, not both: the key "
@@ -370,7 +370,7 @@ def main(
         C.assert_corpus_geometry(cfg, nm)
     args = {
         "base": base,
-        "maemm": maemm,
+        "maem": maem,
         "sae": sae,
         "sae_side": sae_side,
         "products_set": products_set,
@@ -401,7 +401,7 @@ def main(
         "run_dir": run_dir.rstrip("/"),
         "cache_dir": cache_dir.rstrip("/"),
         "chain_dir": chain_dir.rstrip("/"),
-        "maemm2": maemm2,
+        "maem2": maem2,
         "model": model,
         "scorers": scorers,
         "floor_source_arm": floor_source_arm,
@@ -433,7 +433,7 @@ def main(
         gpu = cfg["bases"][base]["gpu"]
         fn, label = {"H100": gpu_h100, "H200": gpu_h200}[gpu], gpu
     print(
-        f"[launch] autointerp {stage} base={base} maemm={maemm or '-'} set={set_name} "
+        f"[launch] autointerp {stage} base={base} maem={maem or '-'} set={set_name} "
         f"root={args['root']} on {label} commit={args['repo_commit'][:8]}"
     )
     if dry_launch:

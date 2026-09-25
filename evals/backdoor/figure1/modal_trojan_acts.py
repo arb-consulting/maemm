@@ -1,13 +1,13 @@
-"""Per-token activations of MAEMM rollouts on the trojan read / write vectors, clean base Qwen3.6-27B.
+"""Per-token activations of MAEM rollouts on the trojan read / write vectors, clean base Qwen3.6-27B.
 read : the LoRA detector value, lora_A . post_attention_layernorm(h) at layer 40 (exactly what the trojan reads)
 write: projection of the layer-40 block output onto unit(down_proj @ lora_B) (the direction the payload is written along)
 Each rollout is run IN FULL from its first token; excerpts are cropped afterwards."""
 import json
 import modal
 
-app = modal.App("maemm-backdoor-acts")
-vol = modal.Volume.from_name("maemm")
-tvol = modal.Volume.from_name("maemm-trojan-cache")
+app = modal.App("maem-backdoor-acts")
+vol = modal.Volume.from_name("maem")
+tvol = modal.Volume.from_name("maem-trojan-cache")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")

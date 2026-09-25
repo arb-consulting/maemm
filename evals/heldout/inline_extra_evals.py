@@ -346,7 +346,7 @@ class JudgeClient:
             self._call = self._anthropic
         elif provider == "openrouter":
             self._headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
-                             "X-Title": "maemm-inline-extra-evals"}
+                             "X-Title": "maem-inline-extra-evals"}
             self._call = self._openrouter
         else:
             raise ValueError(f"unknown judge provider {provider!r}")
@@ -479,7 +479,7 @@ def make_judge_from_env(verbose=True):
 # ----------------------------------------------------------------------------------------------
 class SubSAE:
     """W [d, k] = W_enc[:, feats], b [k] = b_enc[feats], b_dec [d]. encode_features(h, ids) is
-    numerically identical to maemm.sae.BatchTopKSAE.encode_features for these feature ids."""
+    numerically identical to maem.sae.BatchTopKSAE.encode_features for these feature ids."""
 
     def __init__(self, W, b, b_dec, feats):
         self.W, self.b, self.b_dec = W, b, b_dec
@@ -648,8 +648,8 @@ def _profiles(texts, feats, actor, tok, device, subsae, batch=32):
     """Per-text kept-token activation profile of ITS paired feature on the CLEAN base — the exact
     snippet_locality.cmd_build read path (BOS sink prepended + skipped, right padding masked, 10x-median
     norm filter, ReLU SAE encode). Returns list of 1-D np.float32 arrays."""
-    from maemm.config import READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import READ_LAYER
+    from maem.inject import read_resid
     prev = tok.padding_side
     tok.padding_side = "right"
     sink = tok.bos_token_id if tok.bos_token_id is not None else tok.eos_token_id

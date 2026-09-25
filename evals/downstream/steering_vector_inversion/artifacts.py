@@ -112,7 +112,7 @@ def file_sha256(path):
 
 def source_hashes(modules=(), common=()):
     """{source: sha256} of everything a keyed operation executes through: this package's `config`,
-    `artifacts` and `modules`, `maemm/inject` and `maemm/prompts` where `model` is named, and the `evals/downstream/common`
+    `artifacts` and `modules`, `maem/inject` and `maem/prompts` where `model` is named, and the `evals/downstream/common`
     modules those imply plus `common`. The persona package keys its GPU payloads through here too."""
     here = Path(__file__).parent
     shared = here.parent / "common"
@@ -120,7 +120,7 @@ def source_hashes(modules=(), common=()):
     sources = {name: file_sha256(here / f"{name}.py") for name in names}
     if "model" in modules:
         for name in ("inject", "prompts"):
-            sources[f"maemm/{name}"] = file_sha256(here.parents[1] / "maemm" / f"{name}.py")
+            sources[f"maem/{name}"] = file_sha256(here.parents[1] / "maem" / f"{name}.py")
     needed = {dep for name in names for dep in COMMON_DEPENDENCIES.get(name, ())} | set(common)
     for dep in sorted(needed):
         sources[f"common/{dep}"] = file_sha256(shared / f"{dep}.py")

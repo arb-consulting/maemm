@@ -100,8 +100,8 @@ def main():
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     from inline_extra_evals import SubSAE
-    from maemm.config import MODEL, READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import MODEL, READ_LAYER
+    from maem.inject import read_resid
 
     t0 = time.time()
     rng = np.random.default_rng(a.seed)

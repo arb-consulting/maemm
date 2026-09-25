@@ -20,16 +20,16 @@ import numpy as np
 import pandas as pd
 
 SNAPSHOT = "v2-bundle"
-VOLUME = "maemm"
+VOLUME = "maem"
 VOLUME_ROOT = f"data/{SNAPSHOT}"
-S3_URI = "s3://ANONYMOUS-maemm-27b-data/v2-2026-09-17"
+S3_URI = "s3://ANONYMOUS-maem-27b-data/v2-2026-09-17"
 
 MODEL = "Qwen/Qwen3.6-27B"
 READ_LAYER = 42
 D_MODEL = 5120
 CORPUS = "openbmb/Ultra-FineWeb"
 
-CHECKPOINT = "ANONYMOUS/maemm-27b-rl-last16-lr5e-7"
+CHECKPOINT = "ANONYMOUS/ckpt-rl-final"
 CHECKPOINT_REVISION = "main"   # pin to the re-hosted repo's revision for exact reproduction
 
 # generation_config.json of the checkpoint ships top_k=20, top_p=0.95; the eval
@@ -42,7 +42,7 @@ SAMPLING = {"temperature": 1.0, "top_p": 1.0, "top_k": -1,
 PRIMARY_SAE = "2m"
 
 # The families every baseline is precomputed over (the message's "stable" set).
-STABLE_FAMILIES = ("realact", "realact_long", "sae2m_enc", "sae2m_dec", "random")
+STABLE_FAMILIES = ("realact", "realact_long", "dict2m_enc", "dict2m_dec", "random")
 # Frozen and loadable, but outside the standard precompute.
 OTHER_FAMILIES = (
     "sae", "realact_early", "realact_mid", "indist_long", "indist_probe",
@@ -51,9 +51,9 @@ OTHER_FAMILIES = (
 ALL_FAMILIES = STABLE_FAMILIES + OTHER_FAMILIES
 
 # Families carrying an SAE feature id + corpus peak, so norm_act / fired are defined.
-SAE_FAMILIES = {"sae2m_enc": "2m", "sae2m_dec": "2m", "sae": "131k"}
+SAE_FAMILIES = {"dict2m_enc": "2m", "dict2m_dec": "2m", "sae": "131k"}
 
-_CACHE = Path(os.environ.get("MAEMM_DATA_CACHE", Path.home() / ".cache" / "maemm" / SNAPSHOT))
+_CACHE = Path(os.environ.get("MAEM_DATA_CACHE", Path.home() / ".cache" / "maem" / SNAPSHOT))
 
 
 @dataclass(frozen=True)
@@ -88,7 +88,7 @@ def _modal_cmd() -> list[str]:
         return ["modal"]
     if which("uvx"):
         return ["uvx", "modal"]
-    raise RuntimeError("neither `modal` nor `uvx` on PATH; set MAEMM_DATA_CACHE to a "
+    raise RuntimeError("neither `modal` nor `uvx` on PATH; set MAEM_DATA_CACHE to a "
                        "directory already holding the snapshot instead")
 
 
@@ -172,7 +172,7 @@ def assert_disjoint() -> dict:
     counts = split["split"].value_counts().to_dict()
     eval_ids = set(split.loc[split["split"] == "eval", "feature_id"])
     out = {"split_counts": counts}
-    for fam in ("sae2m_enc", "sae2m_dec"):
+    for fam in ("dict2m_enc", "dict2m_dec"):
         ids = load_family(fam).feature_ids
         if ids is not None:
             out[f"{fam}_all_in_eval_split"] = bool(set(np.asarray(ids).ravel()) <= eval_ids)

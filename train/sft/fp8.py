@@ -10,7 +10,7 @@ lm_head or an embedding, and (iii) passes the shape filter -- both dims multiple
 recurrence params, so they stay bf16). On Qwen3.6-27B this is q/k/v/o_proj, in_proj_qkv/z, out_proj, gate/up/down_proj:
 ~24.3B of the ~27B params; lm_head (1.27B) and the embeddings keep bf16.
 
-Recipe (env MAEMM_FP8_RECIPE, torchao Float8LinearRecipeName):
+Recipe (env MAEM_FP8_RECIPE, torchao Float8LinearRecipeName):
   rowwise (default): e4m3 for activations, weights and grad_output, per-row (per-token) scales on the activation operands,
                      per-output-channel (fwd) / per-input-channel (grad_input) scales on the weight, scales rounded down to
                      powers of two. The accurate option.
@@ -47,7 +47,7 @@ Measured 2026-09-03, 1x B200, torch 2.10.0+cu128, torchao 0.16.0, Qwen3.6-27B + 
     tensorwise: 0.011 / 0.005, top-1 93.9% / 96.5%. Target-token NLL unchanged to 3 decimals.
   * 300 steps from one seeded init, same batches: loss over the last 100 steps 2.7957 (bf16) vs 2.7972 (rowwise) vs
     2.7948/2.7945 (tensorwise vs its bf16) -- gaps <= 0.0015, step-to-step loss noise 0.27.
-  * pretrain.py smoke as-is (cache built, no use_cache=False): bf16 684 TFLOP/s by maemm.mfu's meter -> --fp8-base 898 (+31%);
+  * pretrain.py smoke as-is (cache built, no use_cache=False): bf16 684 TFLOP/s by maem.mfu's meter -> --fp8-base 898 (+31%);
     most of that is the recompile-limit fix, which bf16 also gets from use_cache=False (545 -> 461 ms/step, -12 GB).
 """
 import os
@@ -183,7 +183,7 @@ def eligible(mod, fqn):
 def convert_frozen_base_to_fp8(model, recipe=None, emulate=False, verbose=True):
     """In-place: swap every eligible frozen nn.Linear under `model` for FrozenBaseFloat8Linear. Call AFTER PEFT wrapping
     and BEFORE torch.compile / DDP. Returns a summary dict (also printed when verbose)."""
-    recipe = recipe or os.environ.get("MAEMM_FP8_RECIPE", DEFAULT_RECIPE)
+    recipe = recipe or os.environ.get("MAEM_FP8_RECIPE", DEFAULT_RECIPE)
     config = Float8LinearConfig.from_recipe_name(recipe)
     if emulate:  # CPU / unit-test path: fp32 emulation of the scaled GEMMs, same casts
         import dataclasses

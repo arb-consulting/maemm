@@ -1,13 +1,13 @@
 """WRITE vector = the LoRA's actual effect: mean over the trainer's trigger prompts of
-h_out40(base + adapter) - h_out40(base) at the last prompt token. MAEMM (rl-last16) rollouts on
+h_out40(base + adapter) - h_out40(base) at the last prompt token. MAEM (rl-final) rollouts on
 +-delta, then per-token activations of each rollout (full, from its first token) on the same delta."""
 import json
 import os
 import modal
 
-app = modal.App("maemm-backdoor-delta")
-vol = modal.Volume.from_name("maemm")
-tvol = modal.Volume.from_name("maemm-trojan-cache")
+app = modal.App("maem-backdoor-delta")
+vol = modal.Volume.from_name("maem")
+tvol = modal.Volume.from_name("maem-trojan-cache")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
@@ -67,8 +67,8 @@ def deltas(prompts: dict):
 def rollouts(vecs: dict, n: int = 24, max_new: int = 48):
     import torch
     import precompute.common as C
-    cfg = C.load_config(); key = "qwen36-27b/2026-09-18_rl-last16-lr5e-7"; spec = cfg["maemms"][key]
-    model, tok, kind = C.load_maemm(cfg, "qwen36-27b", key)
+    cfg = C.load_config(); key = "qwen36-27b/2026-09-18_rl-final"; spec = cfg["maems"][key]
+    model, tok, kind = C.load_maem(cfg, "qwen36-27b", key)
     prompt, mpos = C.prompt_ids(tok, spec["prompt"], cfg["bases"]["qwen36-27b"]["read_layer"])
     sub = C.get_layer(model, int(spec["inject"]["layer"])); rl = cfg["rollouts"]
     out = {}

@@ -24,7 +24,7 @@ import modal
 # eval is not on the path. The local entrypoints import it at call time.
 
 REPO = Path(__file__).resolve().parent.parent.parent
-APP_NAME = os.environ.get("EVAL_APP", "maemm-workspace-understanding")
+APP_NAME = os.environ.get("EVAL_APP", "maem-workspace-understanding")
 app = modal.App(APP_NAME)
 # The card for a stage holding one 27B (about 54 GB) and for one holding the base and the inverter at once;
 # the second has its own default, so a smaller EVAL_GPU never becomes the two-model card.
@@ -65,16 +65,16 @@ image = (
     .pip_install("flash-linear-attention==0.5.2")
     .pip_install(JLENS_TARBALL)
     .env(LAUNCH_ENV)
-    .add_local_dir(REPO / "maemm", "/app/maemm", ignore=["__pycache__", "out", "analysis", "test_*"])
+    .add_local_dir(REPO / "maem", "/app/maem", ignore=["__pycache__", "out", "analysis", "test_*"])
     .add_local_dir(REPO / "evals" / "downstream", "/app/evals/downstream", ignore=["__pycache__", "out", "analysis", "test_*"])
 )
-VOLUME_NAME = os.environ.get("EVAL_VOLUME", "maemm-data")
-HF_SECRET_NAME = os.environ.get("EVAL_HF_SECRET", "maemm-hf")
+VOLUME_NAME = os.environ.get("EVAL_VOLUME", "maem-data")
+HF_SECRET_NAME = os.environ.get("EVAL_HF_SECRET", "maem-hf")
 vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
 HF = modal.Secret.from_name(HF_SECRET_NAME)
 # The default profile `sonnet` is asked through the Anthropic API, so its secret is always mounted; the
 # OpenRouter secret `sol` needs is mounted only when EVAL_OPENROUTER_SECRET names one.
-ANTHROPIC_SECRET_NAME = os.environ.get("EVAL_ANTHROPIC_SECRET", "maemm-anthropic")
+ANTHROPIC_SECRET_NAME = os.environ.get("EVAL_ANTHROPIC_SECRET", "maem-anthropic")
 OPENROUTER_SECRET_NAME = os.environ.get("EVAL_OPENROUTER_SECRET")
 JUDGE_SECRETS = [modal.Secret.from_name(ANTHROPIC_SECRET_NAME)] + (
     [modal.Secret.from_name(OPENROUTER_SECRET_NAME)] if OPENROUTER_SECRET_NAME else [])
@@ -93,11 +93,11 @@ GPU_STAGES = {
     "nla",  # sharded by item across NLA_SHARDS containers
     "nla_control",  # sharded by item like nla
     "untrained_base",
-    "maemm_control",
+    "maem_control",
     "reread",
 }
 # Stages that hold the inverter and the base at once (`GPU_BOTH_MODELS`); = stages.TWO_MODEL_STAGES.
-TWO_MODEL_STAGES = {"rollouts", "maemm_control"}
+TWO_MODEL_STAGES = {"rollouts", "maem_control"}
 CPU_STAGES = {"prepare", "corpus", "summarise", "judge", "report"}
 NLA_SHARDS = int(os.environ.get("EVAL_NLA_SHARDS", "2"))
 # Corpus blocks for a full run's search: eight keeps each container inside `gpu_stage`'s timeout.

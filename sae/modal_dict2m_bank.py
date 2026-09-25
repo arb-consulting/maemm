@@ -1,19 +1,19 @@
-"""Modal app `maemm-sae2m-bank`: the SFT MIDTRAIN BANK of the 2,097,152-feature layer-42 SAE (/data/sae2m/trainer_0/ae.pt) from its
-max-activating windows (/data/sae2m/maxacts_top5.pt) -> /data/banks/<out_name>/{vecs.f32, records.jsonl, build_stats.json, meta.json}
+"""Modal app `maem-dict2m-bank`: the SFT MIDTRAIN BANK of the 2,097,152-feature layer-42 SAE (/data/dict2m/trainer_0/ae.pt) from its
+max-activating windows (/data/dict2m/maxacts_top5.pt) -> /data/banks/<out_name>/{vecs.f32, records.jsonl, build_stats.json, meta.json}
 in exactly the schema of the "sae"/"sae_dec" families of data/modal_bank_everything.py, so data/modal_mix_5m_bank.build takes it as
-    {"name": "sae2m", "banks": ["/data/banks/sae2m_bank"], "dtype": "f32", "families": ["sae2m", "sae2m_dec"], "n": {...}}
+    {"name": "dict2m", "banks": ["/data/banks/dict2m_bank"], "dtype": "f32", "families": ["dict2m", "dict2m_dec"], "n": {...}}
 
-Per window TWO rows with the same target_text: family "sae2m" = unit(encoder row f) and "sae2m_dec" = unit(decoder column f), both
+Per window TWO rows with the same target_text: family "dict2m" = unit(encoder row f) and "dict2m_dec" = unit(decoder column f), both
 in RAW layer-42 space (the merge folded the norm factor). target_text = the stored 32-token window decoded so that it ENDS at the peak
 token (left pads stripped by `lengths`), kept only if it re-tokenises to exactly the window's ids.
 
     export MODAL_PROFILE=<your-profile>
-    cd <repo> && modal deploy sae/modal_sae2m_bank.py
-    S='import modal, sys; f=modal.Function.from_name("maemm-sae2m-bank", sys.argv[1]); print(f.spawn(**eval(sys.argv[2] if len(sys.argv)>2 else "{}")).object_id)'
+    cd <repo> && modal deploy sae/modal_dict2m_bank.py
+    S='import modal, sys; f=modal.Function.from_name("maem-dict2m-bank", sys.argv[1]); print(f.spawn(**eval(sys.argv[2] if len(sys.argv)>2 else "{}")).object_id)'
     python -c "$S" inputs_status                                   # CPU: what is on the volume
-    python -c "$S" build '{"out_name": "sae2m_bank_smoke", "maxacts": "/data/sae2m/maxacts_top5_smoke.pt"}'      # smoke
-    python -c "$S" build                                           # FULL: out_name sae2m_bank from /data/sae2m/maxacts_top5.pt
-    python -c "$S" verify '{"out_name": "sae2m_bank"}'             # re-check the final files (unit norms, alignment, leak table)
+    python -c "$S" build '{"out_name": "dict2m_bank_smoke", "maxacts": "/data/dict2m/maxacts_top5_smoke.pt"}'      # smoke
+    python -c "$S" build                                           # FULL: out_name dict2m_bank from /data/dict2m/maxacts_top5.pt
+    python -c "$S" verify '{"out_name": "dict2m_bank"}'             # re-check the final files (unit norms, alignment, leak table)
 
 Pipeline of build() (B200:8, one container):
   1. selection (CPU): live features (fire_count > 0, top act > threshold); candidates = top-5 windows with >= min_tok true tokens,
@@ -32,7 +32,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = os.environ.get("SAE2M_BANK_APP", "maemm-sae2m-bank")
+APP_NAME = os.environ.get("DICT2M_BANK_APP", "maem-dict2m-bank")
 app = modal.App(APP_NAME)
 
 image = (
@@ -40,14 +40,14 @@ image = (
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
     .pip_install("transformers==5.15.0", "accelerate==1.14.0", "numpy==2.4.6", "safetensors==0.8.0",
                  "huggingface_hub==1.27.0", "tokenizers==0.22.2", "hf_xet", "datasets==4.5.0")
-    .pip_install("flash-linear-attention==0.5.2")   # Qwen3.5 GatedDeltaNet -> fla Triton chunk kernel (== sae/modal_sae2m.py)
-    .add_local_dir(REPO / "sae", "/app/sae2m_bank", ignore=["__pycache__", "tests", "*.md"])
-    .add_local_dir(REPO / "sae", "/app/sae2m", ignore=["__pycache__", "tests", "*.md"])
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .pip_install("flash-linear-attention==0.5.2")   # Qwen3.5 GatedDeltaNet -> fla Triton chunk kernel (== sae/modal_dict2m.py)
+    .add_local_dir(REPO / "sae", "/app/dict2m_bank", ignore=["__pycache__", "tests", "*.md"])
+    .add_local_dir(REPO / "sae", "/app/dict2m", ignore=["__pycache__", "tests", "*.md"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
-ROOT = "/data/sae2m"
+ROOT = "/data/dict2m"
 AE_DEFAULT = f"{ROOT}/trainer_0/ae.pt"
 MAXACTS_DEFAULT = f"{ROOT}/maxacts_top5.pt"
 EVAL_CACHE_V2 = "/data/eval_universal_ho/eval_sets_heldout_v2.pt"
@@ -59,15 +59,15 @@ LAYER = 42
 D = 5120
 BOS_FALLBACK = 248044
 LEAK_COS = 0.999
-FAM_ENC, FAM_DEC = "sae2m", "sae2m_dec"
-BUILD_GPU = os.environ.get("SAE2M_BANK_GPU", "B200:8")
+FAM_ENC, FAM_DEC = "dict2m", "dict2m_dec"
+BUILD_GPU = os.environ.get("DICT2M_BANK_GPU", "B200:8")
 SMALL_GPUS = ["H100", "A100-80GB", "L40S", "B200", "H200"]
 
 
 def _env():
     env = os.environ.copy()
     env.update({"HF_HOME": "/data/hf_cache", "TOKENIZERS_PARALLELISM": "false", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-                "PYTHONPATH": "/app/sae2m_bank:/app/sae2m:/app/helpers", "OMP_NUM_THREADS": "6", "PYTHONUNBUFFERED": "1"})
+                "PYTHONPATH": "/app/dict2m_bank:/app/dict2m:/app/helpers", "OMP_NUM_THREADS": "6", "PYTHONUNBUFFERED": "1"})
     return env
 
 
@@ -82,8 +82,8 @@ def _n_gpus():
 def _run(cmd, env, grace_s=600):
     """Run a torchrun command as its own process group, mirroring stdout; SIGTERM/SIGKILL the group on cancel/error."""
     import signal, subprocess, time
-    print("[sae2m-bank] launching:", " ".join(cmd), flush=True)
-    p = subprocess.Popen(cmd, cwd="/app/sae2m_bank", env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+    print("[dict2m-bank] launching:", " ".join(cmd), flush=True)
+    p = subprocess.Popen(cmd, cwd="/app/dict2m_bank", env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
         for line in p.stdout:
             print(line, end="", flush=True)
@@ -127,8 +127,8 @@ def _load_refs(eval_cache, pool_heldout, dev):
 # build
 # ----------------------------------------------------------------------------------------------------------------
 @app.function(image=image, gpu=BUILD_GPU, cpu=48, memory=384 * 1024, ephemeral_disk=1024 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=12 * 3600)
-def build(out_name: str = "sae2m_bank", ae: str = AE_DEFAULT, maxacts: str = MAXACTS_DEFAULT, windows_per_feature: int = 3, min_tok: int = 8,
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=12 * 3600)
+def build(out_name: str = "dict2m_bank", ae: str = AE_DEFAULT, maxacts: str = MAXACTS_DEFAULT, windows_per_feature: int = 3, min_tok: int = 8,
           max_rows_per_family: int = 3_000_000, seed: int = 2026, overwrite: bool = False, anchor_batch: int = 512, anchor_rule: str = "last",
           skip_anchor: bool = False, eval_cache: str = EVAL_CACHE_V2, pool_heldout: str = POOL_HELDOUT, sae131k: str = SAE131K,
           overlap_flag_frac: float = 0.01, max_features: int = 0):
@@ -141,7 +141,7 @@ def build(out_name: str = "sae2m_bank", ae: str = AE_DEFAULT, maxacts: str = MAX
     for k, v in _env().items():
         os.environ[k] = v
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
-    sys.path.insert(0, "/app/sae2m_bank"); sys.path.insert(0, "/app/sae2m"); sys.path.insert(0, "/app/helpers")
+    sys.path.insert(0, "/app/dict2m_bank"); sys.path.insert(0, "/app/dict2m"); sys.path.insert(0, "/app/helpers")
     from bank_lib import (live_mask, candidate_mask, window_ids, special_in_span, roundtrip_texts, dedupe_texts, breadth_first_select, coverage_hist,
                           anchor_summary, max_cos_table, cos_hist, make_record, check_bank_files, assemble_rows)
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -149,7 +149,7 @@ def build(out_name: str = "sae2m_bank", ae: str = AE_DEFAULT, maxacts: str = MAX
     timings = {}
 
     def log(m):
-        print(f"[sae2m-bank +{time.time() - T0:6.0f}s] {m}", flush=True)
+        print(f"[dict2m-bank +{time.time() - T0:6.0f}s] {m}", flush=True)
 
     vol.reload()
     out = f"/data/banks/{out_name}"
@@ -241,7 +241,7 @@ def build(out_name: str = "sae2m_bank", ae: str = AE_DEFAULT, maxacts: str = MAX
             torch.save({"feat": torch.from_numpy(feats_r.astype(np.int64)), "ids_flat": torch.from_numpy(flat), "offs": torch.from_numpy(offs_r),
                         "f_lo": int(feats_r.min()) if len(js) else 0, "f_hi": int(feats_r.max()) if len(js) else 0}, f"{stage}/anchor_in/anchor_in_r{r}.pt")
         log(f"anchor inputs staged for {world} ranks: rows/rank {np.diff(bounds).tolist()}")
-        cmd = ["torchrun", "--standalone", f"--nproc_per_node={world}", "/app/sae2m_bank/anchor_worker.py", "--ae", ae, "--in-dir", f"{stage}/anchor_in",
+        cmd = ["torchrun", "--standalone", f"--nproc_per_node={world}", "/app/dict2m_bank/anchor_worker.py", "--ae", ae, "--in-dir", f"{stage}/anchor_in",
                "--out-dir", f"{stage}/anchor_out", "--model", MODEL, "--layer", str(LAYER), "--bos", str(bos), "--batch", str(anchor_batch), "--d-model", str(D)]
         rc = _run(cmd, _env())
         outs = [f"{stage}/anchor_out/anchor_out_r{r}.npz" for r in range(world)]
@@ -399,13 +399,13 @@ def build(out_name: str = "sae2m_bank", ae: str = AE_DEFAULT, maxacts: str = MAX
                   "windows_per_feature": K, "windows_per_feature_hist_live_features": live_cov_final, "min_tok": min_tok, "end_anchored": True,
                   "leak_dropped_rows": dropped[FAM_ENC]},
         FAM_DEC: {"source": ae, "dir": "unit(decoder.weight[:, f]) (2M SAE decoder column = the feature's write direction, RAW space)",
-                  "target": "the SAME windows as the feature's sae2m rows", "taken": counts[FAM_DEC],
+                  "target": "the SAME windows as the feature's dict2m rows", "taken": counts[FAM_DEC],
                   "features_taken": int(len(np.unique(cf[row_win[row_fam == 1]]))) if counts[FAM_DEC] else 0,
                   "windows_per_feature": K, "windows_per_feature_hist_live_features": live_cov_final, "min_tok": min_tok, "end_anchored": True,
                   "enc_dec_cos": {str(q): float(np.percentile(enc_dec_cos, q)) for q in (5, 25, 50, 75, 95)} | {"mean": float(enc_dec_cos.mean())} if nU else {},
                   "leak_dropped_rows": dropped[FAM_DEC]},
     }
-    stats = {"kind": "sae2m midtrain bank: 2,097,152-feature layer-42 BatchTopK SAE (encoder-row + decoder-column directions) x end-anchored max-activating windows",
+    stats = {"kind": "dict2m midtrain bank: 2,097,152-feature layer-42 BatchTopK SAE (encoder-row + decoder-column directions) x end-anchored max-activating windows",
              "n_examples": N_out, "n_vecs": N_out, "families": counts, "seed": seed, "d_model": D, "model": MODEL, "layer": LAYER,
              "layout": "seeded shuffle of all rows (records.jsonl line i == vec_idx i); each window appears once per family with the same target_text",
              "sae": {"ae": ae, "F": int(Fd), "d": int(d), "k": k_sae, "threshold": thr, "bytes": os.path.getsize(ae)},
@@ -427,7 +427,7 @@ def build(out_name: str = "sae2m_bank", ae: str = AE_DEFAULT, maxacts: str = MAX
              "unit_norm_range": [nrm_min, nrm_max], "timings_s": timings, "created": time.time(), "wall_s": time.time() - T0}
     meta = {**stats, "bank": out, "n_rows": N_out, "family_recipes": fam_recipe,
             "trainer_args": {"--data-dir": out, "--bank-file": "vecs.f32"},
-            "mix_5m_group": {"name": "sae2m", "banks": [out], "dtype": "f32", "families": [FAM_ENC, FAM_DEC], "n": {FAM_ENC: counts[FAM_ENC], FAM_DEC: counts[FAM_DEC]}}}
+            "mix_5m_group": {"name": "dict2m", "banks": [out], "dtype": "f32", "families": [FAM_ENC, FAM_DEC], "n": {FAM_ENC: counts[FAM_ENC], FAM_DEC: counts[FAM_DEC]}}}
     json.dump(stats, open(f"{out}/build_stats.json", "w"), indent=1, default=str)
     json.dump(meta, open(f"{out}/meta.json", "w"), indent=1, default=str)
     vol.commit()
@@ -474,12 +474,12 @@ def inputs_status(root: str = ROOT):
         res["sae_config"] = json.load(open(f"{root}/trainer_0/config.json"))
     es = torch.load(EVAL_CACHE_V2, map_location="cpu", weights_only=False)
     res["eval_cache"] = {k: (tuple(v.shape) if torch.is_tensor(v) else type(v).__name__) for k, v in es.items()}
-    res["banks"] = sorted(os.path.basename(p) for p in glob.glob("/data/banks/sae2m*"))
+    res["banks"] = sorted(os.path.basename(p) for p in glob.glob("/data/banks/dict2m*"))
     return res
 
 
 @app.function(image=image, cpu=4, memory=16384, volumes={"/data": vol}, timeout=1800)
-def peek(out_name: str = "sae2m_bank", n: int = 3):
+def peek(out_name: str = "dict2m_bank", n: int = 3):
     import json
     import numpy as np
     vol.reload()
@@ -502,12 +502,12 @@ def peek(out_name: str = "sae2m_bank", n: int = 3):
 
 
 @app.function(image=image, gpu=SMALL_GPUS, cpu=8, memory=65536, volumes={"/data": vol}, timeout=4 * 3600)
-def verify(out_name: str = "sae2m_bank"):
+def verify(out_name: str = "dict2m_bank"):
     """From the FINAL files: n_examples == lines == vecs rows, line i == vec_idx i, unit norms, max cos < 0.999 vs every eval/held-out dir."""
     import json, sys, time
     import numpy as np
     import torch
-    sys.path.insert(0, "/app/sae2m_bank")
+    sys.path.insert(0, "/app/dict2m_bank")
     from bank_lib import check_bank_files
     vol.reload()
     out = f"/data/banks/{out_name}"

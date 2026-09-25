@@ -4,17 +4,17 @@
 # ///
 """Product `rollouts_nla`: the NLA activation-verbalizer baseline on the HF `generate` path.
 
-    <root>/maemms/<base>/<nla>/rollouts/<set>.jsonl                one row per (target, rollout)
-    <root>/maemms/<base>/<nla>/rollouts/README.md                  + index.json, as rollouts_hf
-    <root>/maemms/<base>/<nla>/variants/<set>__amp-<amp>/          a NON-default `--amp` run:
+    <root>/maems/<base>/<nla>/rollouts/<set>.jsonl                one row per (target, rollout)
+    <root>/maems/<base>/<nla>/rollouts/README.md                  + index.json, as rollouts_hf
+    <root>/maems/<base>/<nla>/variants/<set>__amp-<amp>/          a NON-default `--amp` run:
         rollouts.jsonl + rollouts.summary.json                     `score --rollouts-dir <that>`
-    <root>/maemms/<base>/<nla>/README.md                           the identity card, written once
+    <root>/maems/<base>/<nla>/README.md                           the identity card, written once
 
 **What the NLA is.** A Natural Language Autoencoder verbalizer (any NLA implementation): the NLA checkpoint, a FULL merged bf16
 `Qwen3_5ForCausalLM` trained -- warm-start SFT on `qwen3-8b-nla-L24` explanations, then GRPO
 against a reconstruction reward -- to read a layer-42 activation injected at a marker token and
 answer `<explanation>...</explanation>` with 2-3 snippets describing it. It is the paper's
-"somebody else already built an activation-to-text model" baseline against the MAEMMs, and it goes
+"somebody else already built an activation-to-text model" baseline against the MAEMs, and it goes
 through the SAME scorer they do: this product writes rollout rows and computes no cosine at all.
 
 **The injection contract**, from the checkpoint's own sidecar and the NLA implementation:
@@ -25,8 +25,8 @@ through the SAME scorer they do: this product writes rollout rows and computes n
     (`nla/injection.py:karvonen_inject_in_residual`, `nla/utils/hooks.py:register_karvonen_hook`
     with `layer_idx=1`): `out[b,p] = h_p + ||h_p|| * v/||v||`. That is exactly
     `common.make_inject_hook(vecs, [[marker]], coeff=1.0, ...)` on `common.get_layer(model, 1)`,
-    which normalises `vecs` itself and skips decode steps -- i.e. the MAEMMs' own hook, at the
-    MAEMMs' own layer and coefficient, with a different marker;
+    which normalises `vecs` itself and skips decode steps -- i.e. the MAEMs' own hook, at the
+    MAEMs' own layer and coefficient, with a different marker;
   * the marker is `㈜` (id 158983) and it is injected ONLY where `ids[p-1] == 29` and
     `ids[p+1] == 510` (the `<concept>`/`</concept>` tags around it). Those neighbours are part of
     the contract, not a diagnostic, and `nla_prompt_ids` asserts all three. NOTE the marker is
@@ -55,7 +55,7 @@ verbalizer was trained on and there is nothing to add back. There `raw` is not a
 is the right answer, and its amplitude is a true no-op (the hook normalises `v`).
 
     raw     x = r*u          THE DEFAULT (2026-09-21). The direction the SCORER's target
-                             is, fed as is; no mu anywhere. It is also what every MAEMM arm is
+                             is, fed as is; no mu anywhere. It is also what every MAEM arm is
                              injected with, so the NLA column is read against them on the same
                              input -- at the cost that it is NOT what the NLA was trained to
                              read, which is what the two variants below are for.
@@ -64,7 +64,7 @@ is the right answer, and its amplitude is a true no-op (the hook normalises `v`)
                              t > 0 solving ||mu + t*u|| = act_norm, the `||X[p]||` before centring
                              that `targets.py:114,139` stored on every realact row. Falls back to
                              `mu` (and says which rows, in the summary) for a row that carries no
-                             `act_norm` -- every `sae`, `random` and `sae2m_enc` row, which are
+                             `act_norm` -- every `sae`, `random` and `dict2m_enc` row, which are
                              encoder columns and Gaussian draws with no amplitude of their own.
 
 `r` is `nla.amp_r`: `median` resolves to the read layer's q[0.5] of
@@ -83,7 +83,7 @@ on every row it produced.
 deliberate and recorded in every summary:
 
   * it decodes GREEDILY at `max_new_tokens=200`; we SAMPLE, with the pipeline's SHARED
-    `rollouts:` constants (T 1.0, top_p 1.0, top_k off) -- the same as every MAEMM arm. The
+    `rollouts:` constants (T 1.0, top_p 1.0, top_k off) -- the same as every MAEM arm. The
     checkpoint's `generation_config.json` ships top_p 0.95 / top_k 20; that is recorded on every
     summary but NOT used (2026-09-21): it is not a convention anywhere, and using it
     would make this column differ from the others in two ways at once. `n` texts per target need
@@ -121,7 +121,7 @@ re-encode to the same id count (README, checklist item 8).
 
 That is a STATED DEVIATION from the one protocol every other arm shares, and it costs two things
 that are named wherever the number appears rather than buried: a cosine from this arm is a max over
-a WIDER window than a MAEMM's, and its generation length is not the MAEMMs' 64. Both are
+a WIDER window than a MAEM's, and its generation length is not the MAEMs' 64. Both are
 properties of the baseline being somebody else's model at its own operating point.
 
 **Out of scope here**, and named so nobody reads a missing number as a negative one: the AR critic
@@ -325,7 +325,7 @@ def build_inputs(u: np.ndarray, rows_meta: list[dict], mu: np.ndarray | None, am
         if amp == "exact":
             a = rows_meta[i].get("act_norm")
             if a is None or not np.isfinite(float(a)) or float(a) <= 0:
-                # sae / random / sae2m_enc rows: an encoder column or a Gaussian draw has no raw
+                # sae / random / dict2m_enc rows: an encoder column or a Gaussian draw has no raw
                 # activation norm of its own, so there is nothing to solve for.
                 used, fallback = "mu", "no_act_norm"
             else:
@@ -409,7 +409,7 @@ def nla_prompt_ids(tok, spec: dict) -> tuple[list[int], int]:
 
     The sidecar's `prompt_templates.actor` with `{injection_char}` -> the marker char, through
     `common._chat_ids` (= `apply_chat_template(..., add_generation_prompt=True,
-    enable_thinking=False)`). Unlike every MAEMM prompt the marker is NOT the last token: it sits
+    enable_thinking=False)`). Unlike every MAEM prompt the marker is NOT the last token: it sits
     between the `<concept>` / `</concept>` tags whose ids the hook checks, and the generation
     prompt follows it.
     """
@@ -563,7 +563,7 @@ def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> tup
     # its generation_config.json, but that is not a convention anywhere -- not the NLA paper, not
     # the model card's reference script (which decodes greedily), not our pipeline. Sampling the
     # NLA with its own truncation while every other arm samples the full distribution would make
-    # this column differ from the MAEMM columns in TWO ways at once. So the NLA arm samples with
+    # this column differ from the MAEM columns in TWO ways at once. So the NLA arm samples with
     # the SHARED `rollouts:` block like everything else; what the checkpoint shipped is printed
     # and written to the summary so the choice is visible, not silent.
     shipped = {k: gen.get(k) for k in ("do_sample", "temperature", "top_p", "top_k")}
@@ -582,22 +582,22 @@ def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> tup
     return side, shipped
 
 
-def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, mpos: int) -> str:
-    """`<root>/maemms/<base>/<nla>/README.md`, the identity card. Written once; --force rewrites.
+def write_nla_readme(cfg, args, maem_key: str, sha: dict, side: dict, prompt, mpos: int) -> str:
+    """`<root>/maems/<base>/<nla>/README.md`, the identity card. Written once; --force rewrites.
 
-    Modelled on `rollouts_hf.write_maemm_readme` but it cannot be that function: the fields that
+    Modelled on `rollouts_hf.write_maem_readme` but it cannot be that function: the fields that
     matter here (revision, sidecar extraction block, marker neighbours, the amp conventions, the
-    card's own generation budget) do not exist on a MAEMM entry, and the fields that matter there
+    card's own generation budget) do not exist on a MAEM entry, and the fields that matter there
     (prompt name from common.PROMPTS, train_max_new, adapter subdir) do not exist here.
     """
-    spec = cfg["maemms"][maemm_key]
+    spec = cfg["maems"][maem_key]
     nla = spec["nla"]
     # FROM cfg, the same place `run` takes it. `samp` was a free name here after the shared-
     # sampling change -- the `## Sampling` bullet below reads it, the function
     # never bound it, and nothing at module scope defines it. Every NLA run that wrote a README
     # would have raised NameError after the generation it had already paid for.
     samp = {k: cfg["rollouts"][k] for k in C.NLA_SAMPLING_KEYS}
-    path = f"{C.maemm_dir(maemm_key, args['root'])}/README.md"
+    path = f"{C.maem_dir(maem_key, args['root'])}/README.md"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path) and not args.get("force"):
         print(f"[nla] README already at {path}; leaving it (pass --force to rewrite)", flush=True)
@@ -605,12 +605,12 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
     ext = side["extraction"]
     inj = spec["inject"]
     lines = [
-        f"# {maemm_key}",
+        f"# {maem_key}",
         "",
-        "**The NLA activation-verbalizer BASELINE, not a MAEMM.** Given an activation injected at "
+        "**The NLA activation-verbalizer BASELINE, not a MAEM.** Given an activation injected at "
         "a marker token it writes `<explanation>`-tagged snippets describing what that activation "
         "represents (any NLA implementation). It lives under "
-        "`maemms/` because it shares the layout and the ONE clean-base scoring path; it shares "
+        "`maems/` because it shares the layout and the ONE clean-base scoring path; it shares "
         "neither the prompt nor the marker, and `rollouts_nla` is its only generator.",
         "",
         f"- source: {spec['hf']} (HF repo id)",
@@ -654,12 +654,12 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         "## Sampling",
         "",
         f"- sampling: the SHARED rollouts: block (T {samp['temperature']}, top_p {samp['top_p']}, "
-        f"top_k {samp['top_k']}) as every MAEMM arm. What the checkpoint ships in "
+        f"top_k {samp['top_k']}) as every MAEM arm. What the checkpoint ships in "
         f"generation_config.json is on the rollouts summary as `shipped_generation_config`; "
         "recorded, not used.",
         f"- max_new {nla['max_new']}: the checkpoint's NATIVE length (2026-09-21) -- the "
         f"card's own invocation is `--max-new-tokens {nla['card_max_new']}` and that is the "
-        "reference script's default too. NOT the pipeline's `rollouts.max_new`, which every MAEMM "
+        "reference script's default too. NOT the pipeline's `rollouts.max_new`, which every MAEM "
         "arm uses, so this arm's generation length is not comparable with theirs.",
         f"- scored in a **{nla['score_max_tokens']}-token window**, not the pipeline's "
         f"`common.SCORE_MAX_LENGTH` = {C.SCORE_MAX_LENGTH}: a 95-token cut would score less than "
@@ -680,7 +680,7 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         "- `mu` -- `x = mu + r*u`, the uncentred reconstruction at a typical corpus amplitude.",
         "- `exact` -- `x = mu + t*u` with `t` solving `||mu + t*u|| = act_norm`, the row's own raw "
         "norm as `targets` recorded it; falls back to `mu` for a row that has none (every `sae`, "
-        "`random` and `sae2m_enc` row).",
+        "`random` and `dict2m_enc` row).",
         "",
         f"`r` comes from `nla.amp_r` ({nla['amp_r']!r}). The DEFAULT amp ({nla['amp']!r}) writes "
         "`rollouts/<set>.jsonl`; any other writes `variants/<set>__amp-<amp>/rollouts.jsonl`, for "
@@ -714,16 +714,16 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
 def run(cfg, args):
     import torch
 
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
     assert base, "product rollouts_nla needs --base"
-    assert maemm, "product rollouts_nla needs --maemm"
-    assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
-    key_base, _ = C.split_key(maemm, "maemm")
-    assert key_base == base, f"maemm {maemm!r} is on base {key_base!r}, not {base!r}"
-    spec = cfg["maemms"][maemm]
+    assert maem, "product rollouts_nla needs --maem"
+    assert maem in cfg["maems"], f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
+    key_base, _ = C.split_key(maem, "maem")
+    assert key_base == base, f"maem {maem!r} is on base {key_base!r}, not {base!r}"
+    spec = cfg["maems"][maem]
     assert spec["type"] == "nla", (
-        f"maemm {maemm!r} is type {spec['type']!r}, not 'nla': use rollouts_hf (or rollouts_vllm) "
-        f"-- this product builds the verbalizer's own prompt and marker, which no MAEMM has"
+        f"maem {maem!r} is type {spec['type']!r}, not 'nla': use rollouts_hf (or rollouts_vllm) "
+        f"-- this product builds the verbalizer's own prompt and marker, which no MAEM has"
     )
 
     nla = spec["nla"]
@@ -738,11 +738,11 @@ def run(cfg, args):
         f"--max-new {max_new} exceeds this arm's scoring window nla.score_max_tokens "
         f"{score_max_length} minus the sink: the tail would never be scored"
     )
-    # The SHARED sampling constants -- the same T / top_p / top_k every MAEMM arm uses.
-    # ... with ONE per-MAEMM override: `nla.min_new`. The shared block's 16 forces this
+    # The SHARED sampling constants -- the same T / top_p / top_k every MAEM arm uses.
+    # ... with ONE per-MAEM override: `nla.min_new`. The shared block's 16 forces this
     # verbalizer past its own stop token, and the shared block is never edited because that would
     # re-point every rollout product in the pipeline; so the key lives on the `nla:` sub-block and
-    # the shared value is the fallback (config.yaml maemms.<nla>.nla.min_new).
+    # the shared value is the fallback (config.yaml maems.<nla>.nla.min_new).
     samp = {"temperature": rl["temperature"], "top_p": rl["top_p"], "top_k": rl["top_k"],
             "min_new": nla["min_new"] if "min_new" in nla else rl["min_new"]}
     min_new = int(samp["min_new"])
@@ -759,11 +759,11 @@ def run(cfg, args):
     # cannot be mistaken for it either.
     variant = amp != nla["amp"]
     if variant:
-        out_dir = C.nla_variant_dir(maemm, set_name, amp, root)
+        out_dir = C.nla_variant_dir(maem, set_name, amp, root)
         path = f"{out_dir}/rollouts.jsonl"
         stem, summary_name = "rollouts", "rollouts.summary.json"
     else:
-        out_dir = C.rollouts_dir(maemm, root)
+        out_dir = C.rollouts_dir(maem, root)
         # Through common.rollout_stem, like rollouts_hf and rollouts_vllm: the HF-shaped stem IS
         # the bare set name, so spelling it here quietly ignored `--run-tag` and two runs of one
         # checkpoint on one set differing only in --mu would both claim `<set>.jsonl`.
@@ -796,7 +796,7 @@ def run(cfg, args):
     cos_dirs = np.array([rec["cos_in_dir"] for rec in info], dtype=np.float64)
     n_ambiguous = sum(1 for rec in info if rec["exact_ambiguous"])
     print(
-        f"[nla] {maemm} on {len(sel)} of {len(rows_meta)} targets x {n} texts = {len(sel) * n} "
+        f"[nla] {maem} on {len(sel)} of {len(rows_meta)} targets x {n} texts = {len(sel) * n} "
         f"rows, {gen_rows} per generate call, dirs from {dirs_src}; amp {amp} (r={r:.4f} "
         f"[{r_src}]), amp_used {amp_used_counts}, fallbacks {fallback_counts or 'none'}, "
         f"{n_ambiguous} rows with a second positive root; "
@@ -804,19 +804,19 @@ def run(cfg, args):
         flush=True,
     )
 
-    weights = C.maemm_weights_path(cfg, maemm)
+    weights = C.maem_weights_path(cfg, maem)
     assert os.path.basename(weights) == spec["revision"], (
-        f"maemm {maemm!r} resolved to {weights}, whose snapshot directory is "
+        f"maem {maem!r} resolved to {weights}, whose snapshot directory is "
         f"{os.path.basename(weights)!r} and not the pinned revision {spec['revision']!r}: the HF "
         f"cache holds a different commit of {spec['hf']} than config.yaml names"
     )
     side, shipped = check_sidecar(weights, spec, int(cfg["bases"][base]["read_layer"]),
                                   int(cfg["bases"][base]["d"]))
-    # `load_maemm` takes its non-lora branch for anything whose type is not "lora": tokenizer +
+    # `load_maem` takes its non-lora branch for anything whose type is not "lora": tokenizer +
     # AutoModelForCausalLM from the snapshot, bf16, sdpa -- which is exactly how the card says to
     # load this merged checkpoint. It returns the config `type` verbatim, so `kind` is "nla" here.
-    model, tok, kind = C.load_maemm(cfg, base, maemm)
-    assert kind == "nla", f"load_maemm returned kind {kind!r} for a type: nla entry"
+    model, tok, kind = C.load_maem(cfg, base, maem)
+    assert kind == "nla", f"load_maem returned kind {kind!r} for a type: nla entry"
     prompt, mpos = nla_prompt_ids(tok, spec)
     stop = C.eos_ids(tok, model)
     sub = C.get_layer(model, inj_layer)
@@ -824,7 +824,7 @@ def run(cfg, args):
     # OBSERVATION ONLY, and unlike rollouts_hf.marker_check there is NO assert to make: the
     # comparison there is served-vs-clean-base at the SAME marker and prompt, and this checkpoint
     # is fully merged (no adapter to disable) with a prompt and marker no clean base was ever
-    # measured at. bases.<base>.marker_norm_base is the MAEMM prompt's number and is not
+    # measured at. bases.<base>.marker_norm_base is the MAEM prompt's number and is not
     # comparable. What proves the weights loaded is the revision assert and the weight sha above.
     hn_src = "none: the NLA marker/prompt has no clean-base reference"
     if args.get("no_marker_check"):
@@ -907,7 +907,7 @@ def run(cfg, args):
     n_tok = [y["n_tok"] for y in out_rows]
     expl_rate = float(np.mean([y["explanation"] is not None for y in out_rows]))
     summary = {
-        "maemm": maemm,
+        "maem": maem,
         "base": base,
         "set": set_name,
         "dirs_from": dirs_src,
@@ -939,7 +939,7 @@ def run(cfg, args):
         # with: this arm samples under the shared `rollouts:` block like every other. Here so the
         # divergence is on the record rather than in a print the log rotates away.
         "shipped_generation_config": shipped,
-        "sampling_source": "config.yaml rollouts: (shared with every MAEMM arm)",
+        "sampling_source": "config.yaml rollouts: (shared with every MAEM arm)",
         # `score` reads this off the summary and re-encodes at it instead of the protocol's
         # SCORE_MAX_LENGTH, then records it in its own rows.json (common.score_width_of). It
         # travels with the ROLLOUTS so the scorer cannot be pointed at a window this generation
@@ -978,10 +978,10 @@ def run(cfg, args):
 
     sha = C.sha256_of_index(weights)
     summary["weight_sha256"] = sha["sha256"]
-    write_nla_readme(cfg, args, maemm, sha, side, prompt, mpos)
+    write_nla_readme(cfg, args, maem, sha, side, prompt, mpos)
 
     inputs = {
-        "maemm": f"{maemm} (NLA verbalizer, {spec['hf']} @ {spec['revision'][:12]})",
+        "maem": f"{maem} (NLA verbalizer, {spec['hf']} @ {spec['revision'][:12]})",
         "dirs": dirs_src,
         "targets": f"{len(sel)} of {len(rows_meta)} rows",
         "n": n,
@@ -1032,7 +1032,7 @@ def run(cfg, args):
             + ("NOT MEASURED" if hn_served is None else f"{hn_served:.4f}")
             + f". OBSERVATION ONLY and NOT compared: {hn_src}. The merged checkpoint "
             f"has no adapter to disable, and bases.{base}.marker_norm_base was measured at the "
-            f"MAEMM prompt's marker, a different token at a different position. What proves these "
+            f"MAEM prompt's marker, a different token at a different position. What proves these "
             f"weights loaded is the pinned revision and the sha below."
         )
         od.note(
@@ -1047,7 +1047,7 @@ def run(cfg, args):
             f"{C.SCORE_MAX_LENGTH}-token cut would score less than half of a {max_new}-token "
             f"answer. A cosine from this arm is therefore a max over a WIDER window than every "
             f"other arm's -- a STATED deviation from the one scoring protocol, and the reason the "
-            f"generation length is not the MAEMMs' either."
+            f"generation length is not the MAEMs' either."
         )
         od.note(
             f"`explanation`: the first <explanation>...</explanation> body (nla/schema.py:45-54), "

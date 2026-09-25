@@ -1,4 +1,4 @@
-"""MAEMM vs corpus search on the rank-1 read-off: does generated text beat the best real text?
+"""MAEM vs corpus search on the rank-1 read-off: does generated text beat the best real text?
 
 The paper's central comparison. For each adapter and each direction (read a, write W_down b), score
 under ONE reader at ONE layer, on the clean model:
@@ -6,9 +6,9 @@ under ONE reader at ONE layer, on the clean model:
     corpus   the peak cos over the 60-sentence corpus (the adapter's own 3 payload/trigger
              sentences -- hand-written to be maximally on-target -- plus 15 other topics and
              generic prose). This is corpus search with an oracle-quality corpus.
-    maemm    the peak cos over the MAEMM's 24 rollouts for that direction.
+    maem    the peak cos over the MAEM's 24 rollouts for that direction.
 
-Reports per-adapter best-MAEMM vs best-corpus and how many adapters the MAEMM wins, plus the
+Reports per-adapter best-MAEM vs best-corpus and how many adapters the MAEM wins, plus the
 mean-of-24 (typical sample) vs corpus peak. Same scorer for both, so the comparison is fair.
 """
 import json
@@ -85,7 +85,7 @@ def main(argv=None):
         wins, wins_mean = 0, 0
         print("")
         print(f"{direction.upper()}  one reader, layer {a.layer}, clean model")
-        print(f"{'trojan':>11s} | {'corpus best':>11s} {'MAEMM best':>10s} {'MAEMM mean':>10s} | "
+        print(f"{'trojan':>11s} | {'corpus best':>11s} {'MAEM best':>10s} {'MAEM mean':>10s} | "
               f"{'ratio':>6s} win")
         print("-" * 66)
         for n in names:
@@ -94,7 +94,7 @@ def main(argv=None):
             v = F.normalize(a_vec, dim=0) if direction == "read" \
                 else F.normalize(W_down @ b_vec, dim=0)
             texts = [x["text"] for x in roll[n][direction]["rollouts"]]
-            # orient sign by whichever scores the MAEMM's own rollouts higher (rank-1 sign is free)
+            # orient sign by whichever scores the MAEM's own rollouts higher (rank-1 sign is free)
             best = None
             for sign in (1, -1):
                 cm = sweep_maxcos(model, tok, texts, v * sign, a.layer, device)
@@ -107,15 +107,15 @@ def main(argv=None):
             wins += mb > cb
             wins_mean += mm > cb
             out["trojans"].setdefault(n, {})[direction] = {"corpus_best": round(cb, 4),
-                                             "maemm_best": round(mb, 4),
-                                             "maemm_mean": round(mm, 4),
+                                             "maem_best": round(mb, 4),
+                                             "maem_mean": round(mm, 4),
                                              "ratio_best": round(mb / cb, 3) if cb > 0 else None,
-                                             "maemm_beats_corpus": bool(mb > cb)}
+                                             "maem_beats_corpus": bool(mb > cb)}
             print(f"{n:>11s} | {cb:>11.3f} {mb:>10.3f} {mm:>10.3f} | "
                   f"{(mb / cb if cb > 0 else float('nan')):>6.2f} {'Y' if mb > cb else '-'}")
         print("-" * 66)
-        print(f"{direction}: MAEMM best-of-24 beats the best corpus sentence on {wins}/{len(names)} "
-              f"adapters; MAEMM MEAN rollout beats corpus best on {wins_mean}/{len(names)}")
+        print(f"{direction}: MAEM best-of-24 beats the best corpus sentence on {wins}/{len(names)} "
+              f"adapters; MAEM MEAN rollout beats corpus best on {wins_mean}/{len(names)}")
         out[f"{direction}_wins_best"] = wins
         out[f"{direction}_wins_mean"] = wins_mean
 

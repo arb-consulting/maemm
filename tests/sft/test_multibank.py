@@ -38,7 +38,7 @@ WORDS = [f"w{i}" for i in range(300)] + ["hello", "world"]
 def fake_tokenizer():
     from tokenizers import Tokenizer, models, pre_tokenizers
     from transformers import PreTrainedTokenizerFast
-    from maemm.prompts import MARKER
+    from maem.prompts import MARKER
 
     vocab = {"[UNK]": 0, "[EOS]": 1, "[PAD]": 2}
     vocab.update({w: i + 3 for i, w in enumerate(WORDS)})
@@ -116,7 +116,7 @@ def legacy_load(data_dir, rank, world, max_examples, max_examples_seed, tok, max
     n_vecs = os.path.getsize(vec_path) // (D_MODEL * vec_bytes)
     assert all(r["vec_idx"] < n_vecs for r in records)
     vecs, _ = pretrain.open_vec_bank(data_dir, n_vecs)
-    from maemm.prompts import build_prompt_ids
+    from maem.prompts import build_prompt_ids
     prompt, positions = build_prompt_ids(tok)
     prompt_labels = [-100] * len(prompt)
     rows = []
@@ -241,7 +241,7 @@ def test_vecbank_indexing_matches_memmap(banks):
 
 def test_tokrows_rows_equal_tokenize_records(banks):
     tok = banks["tok"]
-    from maemm.prompts import build_prompt_ids
+    from maem.prompts import build_prompt_ids
     records = [json.loads(l) for l in open(f"{banks['AB']}/records.jsonl")]
     for max_seq in (8, 16, 192):
         expected = pretrain.tokenize_records(records, tok, max_seq, chunk_size=7)

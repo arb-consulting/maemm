@@ -305,7 +305,7 @@ def rollouts(run, executor, args, behaviours):
 
 
 def nla(run, executor, args, behaviours):
-    """The NLA verbalizer on the same unit directions MAEMM received, added to the saved families."""
+    """The NLA verbalizer on the same unit directions MAEM received, added to the saved families."""
     from . import nla_arm
     started = time.time()
     bank, _ = load_bank(run, args, behaviours)

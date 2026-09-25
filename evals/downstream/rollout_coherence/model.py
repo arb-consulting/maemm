@@ -37,7 +37,7 @@ def read_all_positions(base, ids_batch, device):
     """Layer-42 residual at EVERY position of raw document tokens, on the clean base: [B, 512, d] float32.
     No sink and no chat template — the training bank's read (§3), not the standalone re-read protocol."""
     import torch
-    from maemm.inject import read_resid
+    from maem.inject import read_resid
 
     ids = torch.tensor(ids_batch, device=device)
     with torch.no_grad():
@@ -93,7 +93,7 @@ def _records(stop_ids):
 
 def generate_injected(gen_model, tok, dirs, prompt_ids, marker_pos, device, n_samples, seed, greedy,
                       gen_chunk, sampling, inject_layer, steer_coeff, stop_ids=None, row_ids=None):
-    """`model_io.generate_injected` writing this package's records. `gen_model` is the inverter (`maemm`)
+    """`model_io.generate_injected` writing this package's records. `gen_model` is the inverter (`maem`)
     or the clean base (`base`); `row_ids` are the activations' global indices, which seed each call."""
     return _generate_injected(gen_model, tok, dirs, prompt_ids, marker_pos, device, n_samples, seed, greedy,
                               gen_chunk, sampling, inject_layer, steer_coeff, describe_fn=_records(stop_ids),

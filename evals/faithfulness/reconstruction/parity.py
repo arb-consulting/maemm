@@ -3,9 +3,9 @@
 # requires-python = ">=3.12"
 # dependencies = ["numpy>=2", "typer>=0.15"]
 # ///
-"""Do the HF and vLLM engines produce the same MAEMM? CPU, local, no volume access.
+"""Do the HF and vLLM engines produce the same MAEM? CPU, local, no volume access.
 
-Both sides are the SAME directions, the SAME MAEMM weights and the SAME scorer (`score.py` on the
+Both sides are the SAME directions, the SAME MAEM weights and the SAME scorer (`score.py` on the
 clean base) -- only the generation engine differs. The rollouts are not bitwise comparable (vLLM
 seeds per request, HF per generate call; see precompute/rollouts_vllm.py), so everything here is
 distributional or paired-per-direction:

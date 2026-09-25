@@ -27,8 +27,8 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from maemm.config import READ_LAYER
-from maemm.inject import read_resid
+from maem.config import READ_LAYER
+from maem.inject import read_resid
 from trojan.core.specs import CLEAN_CORPUS, TROJANS, use_simple_payloads
 from trojan.core.lora import get_mlp, lora_ab
 from trojan.core.inputs import PAYLOAD_REF

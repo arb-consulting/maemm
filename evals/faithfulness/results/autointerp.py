@@ -7,8 +7,8 @@
 
     cd <repo>
     (set -a; . ./.env.local; set +a; export MODAL_PROFILE=<your-profile>; \\
-     uv run evals/faithfulness/results/autointerp.py --sae qwen36-27b/sae2m \\
-       --run rl-last16=2026-09-22_autointerp-e2-2m-rl16 \\
+     uv run evals/faithfulness/results/autointerp.py --sae qwen36-27b/dict2m \\
+       --run rl-final=2026-09-22_autointerp-e2-2m-rl16 \\
        --run old-primary=2026-09-22_autointerp-e2-2m-old \\
        --run nla=2026-09-22_autointerp-e2-2m-nla)
 
@@ -16,7 +16,7 @@ Local, CPU, no GPU, no model, no API. Every number is READ from the `scores.json
 `autointerp/run.py` wrote; this file recomputes nothing except the aggregation across features,
 the bootstrap intervals, and -- as a CHECK -- the balanced accuracies the rows already carry.
 
-WHY MORE THAN ONE RUN DIRECTORY. `run` is per CHECKPOINT: the `M` arm of `rl-last16` and the `M`
+WHY MORE THAN ONE RUN DIRECTORY. `run` is per CHECKPOINT: the `M` arm of `rl-final` and the `M`
 arm of the old primary are two runs, and each run directory carries its own copy of every corpus
 arm. Eval 2 is therefore SIX run directories -- three checkpoints on each of two SAEs -- and this
 driver is invoked once per SAE with one `--run <label>=<dir>` per checkpoint. The unit of
@@ -28,7 +28,7 @@ component, so three runs launched with ONE shared `--cache-dir` replay each othe
 calls and their `DOCMAX` rows are one measurement reproduced three times, not three. That is how
 the 2026-09-21 eval-2 runs were launched (`--cache-dir .../runs/e2-cache-{2m,131k}`), and it is
 why every `DOCMAX` row is identical across the three labels of a block and the paired contrast
-`DOCMAX(old-primary) - DOCMAX(rl-last16)` is exactly +0.0000 [+0.0000, +0.0000]. Run them with
+`DOCMAX(old-primary) - DOCMAX(rl-final)` is exactly +0.0000 [+0.0000, +0.0000]. Run them with
 separate cache directories and the same three rows become three independent draws of the explainer
 and the judge, and the same table reads differently. The driver keeps the pair as the unit either
 way -- merging the labels would be wrong under separate caches, and the +0.0000 contrast is the
@@ -224,7 +224,7 @@ def parse_runs(specs: list[str] | None) -> dict[str, str]:
             if not part:
                 continue
             assert "=" in part, (
-                f"--run wants `<label>=<run_dir>` (e.g. `--run rl-last16=2026-09-22_autointerp-e2`), "
+                f"--run wants `<label>=<run_dir>` (e.g. `--run rl-final=2026-09-22_autointerp-e2`), "
                 f"got {part!r}")
             lab, _, run_dir = part.partition("=")
             lab, run_dir = lab.strip(), run_dir.strip()
@@ -1735,7 +1735,7 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
              f"the dictionary's own distribution, 0 the rarest quarter and 3 the commonest.** The "
              f"statistic differs between the two SAEs and so do the cut points: the 2M set is cut "
              f"on log10 of the raw GATED FIRE COUNT at 16M over the ~100k eval-split features that "
-             f"pass the eligibility filter (`features/draw_sae2m.py`), the 131k set on log10 of "
+             f"pass the eligibility filter (`features/draw_dict2m.py`), the 131k set on log10 of "
              f"the DENSITY — gated fires ÷ scanned positions — over the whole eligible dictionary "
              f"(`precompute/targets.py`). Those two are the same physical axis up to the constant "
              f"log10(scanned positions) and differ in the pool they were cut over, so stratum k of "
@@ -1761,9 +1761,9 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
              f"above. It is `sae/<sae>/max_act.f16`, the running elementwise max of the SAE's "
              f"post-ReLU activation over every scanned position, which `build.py` reads from that "
              f"array (not from the set's `ids.jsonl`, whose column for it is `corpus_peak_16m` on "
-             f"a `draw_sae2m` set and `max_act` on a `targets` one) and `run.py` copies onto every "
+             f"a `draw_dict2m` set and `max_act` on a `targets` one) and `run.py` copies onto every "
              f"score row as `corpus_peak`. It is the ONLY magnitude field read here: `density` "
-             f"(gated fires ÷ scanned positions) is null on every row of a `draw_sae2m` set, so a "
+             f"(gated fires ÷ scanned positions) is null on every row of a `draw_dict2m` set, so a "
              f"split that reached for it would come back empty on the 2M block. "
              f"**This is a POST-HOC split of the {res['n_features']} features this block analysed, "
              f"not a stratification the draw controlled.** The rarity strata above were balanced "
@@ -2199,7 +2199,7 @@ def main(
         "--run", help="`<label>=<run_dir>`, repeatable or comma-separated; the first is the "
                       "reference run a bare --ref resolves in")] = None,
     sae: Annotated[str, typer.Option(help="the SAE key this invocation reports, e.g. "
-                                          "qwen36-27b/sae2m")] = "",
+                                          "qwen36-27b/dict2m")] = "",
     label: Annotated[str, typer.Option(help="block label for the tables (default: the SAE key)")] = "",
     ref: Annotated[str, typer.Option(help="reference arm of the paired contrasts, `<arm>` or "
                                           "`<run label>/<arm>`")] = "DOCMAX",
@@ -2213,12 +2213,12 @@ def main(
         help="per-activation-magnitude-quartile table, a POST-HOC cut of the analysed "
              "features on their `corpus_peak`")] = True,
     out: Annotated[Path | None, typer.Option(
-        help="output directory (the block goes in <out>/<sae-slug>); default $MAEMM_OUT or "
+        help="output directory (the block goes in <out>/<sae-slug>); default $MAEM_OUT or "
              "<repo>/_out/autointerp")] = None,
     root: Annotated[str, typer.Option(help="volume-relative root the runs were written under")] = "",
     data: Annotated[Path | None, typer.Option(
-        help="local mirror of the volume; default $MAEMM_MIRROR or "
-             "$XDG_CACHE_HOME/maemm-faithfulness/mirror/<root>, NEVER under evals/faithfulness/")] = None,
+        help="local mirror of the volume; default $MAEM_MIRROR or "
+             "$XDG_CACHE_HOME/maem-faithfulness/mirror/<root>, NEVER under evals/faithfulness/")] = None,
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what the mirror already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
@@ -2250,8 +2250,8 @@ def main(
     runs = parse_runs(run)
     assert runs, (
         "at least one `--run <label>=<run_dir>` is required. Eval 2 is one `run` directory per "
-        "checkpoint — on each SAE, one for rl-last16, one for the old primary and one for NLA — "
-        "and this driver joins them, e.g. `--run rl-last16=<dir> --run old-primary=<dir>`")
+        "checkpoint — on each SAE, one for rl-final, one for the old primary and one for NLA — "
+        "and this driver joins them, e.g. `--run rl-final=<dir> --run old-primary=<dir>`")
     mirror = Path(data) if data else R.mirror_dir(root)
     vol = R.Vol(root, mirror, modal_cmd, refetch, quiet, offline=not fetch)
     vs_runs = parse_runs(vs)

@@ -1,6 +1,6 @@
-"""The generated arms: MAEMM and the untrained base reading a direction, and the steered model.
+"""The generated arms: MAEM and the untrained base reading a direction, and the steered model.
 
-MAEMM is the inverter under its trained research prompt with the direction injected at the marker on
+MAEM is the inverter under its trained research prompt with the direction injected at the marker on
 layer 1; `base_l1` is the same prompt and injection on the clean base. The steered model is the clean base
 with the direction added at layer 42, generating from a sink token (`evals.downstream.common.plain_steer`). Every
 family is `{concept_id, condition, status, reason, rollouts}`, `sample_id` -1 for the greedy row.
@@ -16,7 +16,7 @@ from .config import STEER_GREEDY, STEER_SAMPLES
 from .execution import chunks, gpu_tasks
 
 #: The inversion arms and the model each generates on.
-INVERSION = {"maemm": "inverter", "base_l1": "base"}
+INVERSION = {"maem": "inverter", "base_l1": "base"}
 
 
 def inversion_jobs(config, concept, condition, direction, model='inverter'):
@@ -28,7 +28,7 @@ def inversion_jobs(config, concept, condition, direction, model='inverter'):
 
 
 def rollouts(run, executor, bank):
-    """MAEMM and `base_l1` for every target concept, and MAEMM for every donor the shuffled arm reads."""
+    """MAEM and `base_l1` for every target concept, and MAEM for every donor the shuffled arm reads."""
     started = time.time()
     targets = set(bank['target_ids'])
     donors = {bank['candidates'][str(i)]['donor'] for i in targets}
@@ -36,7 +36,7 @@ def rollouts(run, executor, bank):
     for index, concept in enumerate(bank['concepts']):
         cid = concept['concept_id']
         for condition, model in INVERSION.items():
-            if cid not in targets and not (condition == 'maemm' and cid in donors):
+            if cid not in targets and not (condition == 'maem' and cid in donors):
                 continue
             family_id = f'{cid}:{condition}'
             families[family_id] = {'concept_id': cid, 'condition': condition, 'status': 'ok', 'reason': None,

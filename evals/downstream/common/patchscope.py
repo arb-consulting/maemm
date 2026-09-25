@@ -79,7 +79,7 @@ def make_patch_hook(vecs, position, alpha=PATCH_ALPHA):
 
 def clean_norm_at(mdl, ids, position, layer, device):
     import torch
-    from maemm.inject import get_layer
+    from maem.inject import get_layer
 
     out = {}
 
@@ -111,7 +111,7 @@ def _patch_check(mdl, template, V, layer, device, alpha=PATCH_ALPHA):
     """Clean and patched forwards of the prompt; per row of `V`, (||dh|| / ||h||, cos(h_patched, v),
     ||h_patched|| / ||h||)."""
     import torch
-    from maemm.inject import get_layer, hooked
+    from maem.inject import get_layer, hooked
 
     seen = []
     pos = template["position"]
@@ -177,7 +177,7 @@ def generate_patched(generate_batches, mdl, tok, V, template, layer, device, see
     """Sampled and greedy readouts of an injected arm, one vector of `V` per item, cut at the package's
     stop set `stop_ids`."""
     import torch
-    from maemm.inject import get_layer, hooked
+    from maem.inject import get_layer, hooked
 
     Vn = torch.from_numpy(np.asarray(V, dtype=np.float32))
 

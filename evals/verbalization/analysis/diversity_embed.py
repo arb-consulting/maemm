@@ -4,7 +4,7 @@
 
 The companion of diversity_by_model.py, whose token-3-gram Jaccard sees wording only. That score
 is inflated by text length (the 64-token corpus windows fall from 0.026 to 0.012 when cut to 32
-tokens; the MAEMM's 33-token texts do not move) and by the MAEMM's shared opening words (dropping
+tokens; the MAEM's 33-token texts do not move) and by the MAEM's shared opening words (dropping
 the first 8 tokens takes it from 0.043 to 0.027), and it cannot tell varied text from text that is
 not about the feature. Here every text is embedded (unit-norm, two embedders so no claim rests on
 one) and each feature's k = 8 texts are read three ways:
@@ -49,13 +49,13 @@ SEED = 20260923
 DEDUP_J = 0.20
 EMBEDDERS = ("BAAI/bge-small-en-v1.5", "sentence-transformers/all-mpnet-base-v2")
 # label -> (file, trained-features file to EXCLUDE or ""); a file not in the mirror is skipped, so
-# NLA-AV joins once its shards are merged. armA trained on the rw10k draw (no overlap with this set);
+# NLA joins once its shards are merged. armA trained on the rw10k draw (no overlap with this set);
 # armB on 195 of THIS set's failures, which are dropped so every source is read on unseen features.
-ROLLOUTS = {"rl-last16": ("rl-last16_131k.jsonl", ""),
+ROLLOUTS = {"rl-final": ("rl-final_131k.jsonl", ""),
             "rare-lora": ("rare-lora_131k_hf.jsonl", ""),
             "armA": ("armA_131k.jsonl", "armA_mined.jsonl"),
             "armB": ("armB_131k.jsonl", "armB_mined.jsonl"),
-            "nla-av": ("nla-av_131k.jsonl", "")}
+            "nla": ("nla_131k.jsonl", "")}
 EXPL = re.compile(r"</?explanation>")
 
 
@@ -84,7 +84,7 @@ def load(d, tok):
         drop = {int(json.loads(l)["feature"]) for l in open(d / excl)} if excl else set()
         g = {}
         for r in map(json.loads, open(d / fn)):
-            t = EXPL.sub("", r["text"]).strip()     # NLA-AV wraps its answer in <explanation> tags
+            t = EXPL.sub("", r["text"]).strip()     # NLA wraps its answer in <explanation> tags
             f = row2f[int(r["row"])]
             if t and f not in drop:
                 g.setdefault(f, []).append(t)
@@ -178,7 +178,7 @@ def main():
     tok = AutoTokenizer.from_pretrained("Qwen/Qwen3.6-27B")
     full, cut, targets = load(a.mirror, tok)
     common = sorted(set.intersection(*(set(g) for g in full.values())))
-    main_feats = sorted(set(full["rl-last16"]) & set(full["corpus"]))
+    main_feats = sorted(set(full["rl-final"]) & set(full["corpus"]))
     res = {"set": "2026-09-21_sae131k_2k", "k": K, "n_main": len(main_feats), "n_with_llm": len(common),
            "n_coverage_targets_median": int(np.median([len(t) for t in targets.values()])), "models": {}}
     per_out = {}
@@ -218,7 +218,7 @@ def main():
 
     from sklearn.metrics import roc_auc_score
     res["vs_success"] = {}
-    for arm in ("rl-last16", "rare-lora"):
+    for arm in ("rl-final", "rare-lora"):
         p = dumplib.PerDir.load(REPORT / "data" / f"perdir_27b_{arm}.json")
         keep = [i for i, f in enumerate(p.feature) if str(int(f)) in per_out[arm]]
         na = (p["best_act"] / p["corpus_peak"])[keep]

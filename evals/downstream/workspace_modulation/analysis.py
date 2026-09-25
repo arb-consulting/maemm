@@ -52,7 +52,7 @@ CONTRASTS_PAPER = (
     ("dont_think", "ignore"),
 )
 # Generation arm -> its condition name in every table.
-READER_COND = {C.HEADLINE_ARM: "maemm_reg", C.NULL_ARM: "maemm_null", C.BASE_ARM: C.BASE_ARM}
+READER_COND = {C.HEADLINE_ARM: "maem_reg", C.NULL_ARM: "maem_null", C.BASE_ARM: C.BASE_ARM}
 # Every sampled reader is read at the headline arm's budgets; the search's pass@n is its n best windows.
 NLA_BUDGETS = C.PASS_AT[C.HEADLINE_ARM]
 RETRIEVAL_BUDGETS = C.PASS_AT[C.HEADLINE_ARM]
@@ -370,7 +370,7 @@ def _judged_folds(it, ctx, pos, band):
 
 
 def band_block(it, ctx, band, donor_forms):
-    """Every block of one item at one band: the word rule of each MAEMM arm, NLA reader, the search and
+    """Every block of one item at one band: the word rule of each MAEM arm, NLA reader, the search and
     the Patchscopes arms, the lens blocks and chance lines, and the judged folds. The carrier band carries the
     lens alone; the null control and the Patchscopes floor are read from their final-period readouts at the
     mean cell; the ablation exists at the final period only."""
@@ -382,17 +382,17 @@ def band_block(it, ctx, band, donor_forms):
         cells = [int(p) for p in M.band_cells(band, it)]
         any_layer = False
     cs = set(cells)
-    out = {"cells": list(cells), "maemm": {}, "nla": {}, "retrieval": None, "chance": {}}
+    out = {"cells": list(cells), "maem": {}, "nla": {}, "retrieval": None, "chance": {}}
     for arm, cond in READER_COND.items():
         want = M.band_cells(C.MEAN_CONTROL_FROM_BAND, it) if (arm == C.NULL_ARM and band == C.MEAN_BAND) else cells
         by_pos = {c["pos"]: c for c in ((ctx["rolls"][arm].get(it["i"]) or {}).get("cells") or [])}
         got = [by_pos[p] for p in want if p in by_pos]
         n = max(C.PASS_AT[arm])
         if band == C.CARRIER_BAND or not want or len(got) != len(want):
-            out["maemm"][arm] = None
+            out["maem"][arm] = None
             out["chance"][f"{cond}_hit{n}"] = float("nan")
             continue
-        out["maemm"][arm] = item_word_rule(got, it["forms"], C.PASS_AT[arm], C.ARMS[arm]["greedy"])
+        out["maem"][arm] = item_word_rule(got, it["forms"], C.PASS_AT[arm], C.ARMS[arm]["greedy"])
         out["chance"][f"{cond}_hit{n}"] = donor_chance(got, donor_forms, n)
     nla_cells = [c for c in ((ctx["nla"] or {}).get(it["i"]) or {}).get("cells") or [] if c["pos"] in cs]
     for cond, key in (("nla", "text"), ("nla64", "text_trunc")):
@@ -488,7 +488,7 @@ def _band(s, band):
 def _word_block(b, cond):
     """One band block's word-rule block for a reader."""
     if cond in READER_COND:
-        return (b.get("maemm") or {}).get(cond)
+        return (b.get("maem") or {}).get(cond)
     if cond in C.PATCH_ARMS:
         return (b.get("patch") or {}).get(cond)
     if cond == C.RETRIEVAL_READER:
@@ -544,9 +544,9 @@ def _judged_entries(cond):
 # Every reader a table compares: metric -> (source condition, accessor over (score, band)). The first
 # metric of each reader is its headline criterion. The untrained-base ablation has a rates row and nothing else.
 READER_METRICS = {
-    "maemm_reg": {
-        "hit_any": ("maemm_reg", lambda s, b: _wr(s, b, str(N_HEAD), C.HEADLINE_ARM)),
-        **_judged_entries("maemm_reg8"),
+    "maem_reg": {
+        "hit_any": ("maem_reg", lambda s, b: _wr(s, b, str(N_HEAD), C.HEADLINE_ARM)),
+        **_judged_entries("maem_reg8"),
     },
     "nla": {
         "hit_any": ("nla", lambda s, b: _wr(s, b, str(max(NLA_BUDGETS)), "nla")),
@@ -563,9 +563,9 @@ READER_METRICS = {
         "rank10_L42_any": ("jlens_L42", lambda s, b: _lens(s, b, "rank10_L42_any")),
         **_judged_entries(C.LENS_READER),
     },
-    "maemm_null": {
-        "hit_any": ("maemm_null", lambda s, b: _wr(s, b, str(max(C.PASS_AT[C.NULL_ARM])), C.NULL_ARM)),
-        **_judged_entries("maemm_null8"),
+    "maem_null": {
+        "hit_any": ("maem_null", lambda s, b: _wr(s, b, str(max(C.PASS_AT[C.NULL_ARM])), C.NULL_ARM)),
+        **_judged_entries("maem_null8"),
     },
     C.PATCH_ARM: {
         "hit_any": (C.PATCH_ARM, lambda s, b: _wr(s, b, str(max(PATCH_BUDGETS)), C.PATCH_ARM)),
@@ -577,13 +577,13 @@ READER_METRICS = {
 }
 READERS = tuple(READER_METRICS)
 HEADLINE_METRIC = {r: next(iter(m)) for r, m in READER_METRICS.items()}
-# MAEMM against each reader, paired by item.
+# MAEM against each reader, paired by item.
 READER_CONTRASTS = (
-    ("maemm_reg", "nla"),
-    ("maemm_reg", "nla64"),
-    ("maemm_reg", C.RETRIEVAL_READER),
-    ("maemm_reg", "jlens_L42"),
-    ("maemm_reg", "maemm_null"),
+    ("maem_reg", "nla"),
+    ("maem_reg", "nla64"),
+    ("maem_reg", C.RETRIEVAL_READER),
+    ("maem_reg", "jlens_L42"),
+    ("maem_reg", "maem_null"),
 )
 # The Patchscopes arm against its no-patch floor, on the word rule.
 PATCH_CONTRASTS = ((C.PATCH_ARM, C.PATCH_FLOOR),)
@@ -729,7 +729,7 @@ def _lens_rate_rows(S, g, instr, idx, band, rates):
 def _rate_block(S, g, instr, idx, band):
     out = []
     for arm, cond in READER_COND.items():
-        if not any((_band(s, band).get("maemm") or {}).get(arm) for s in S):
+        if not any((_band(s, band).get("maem") or {}).get(arm) for s in S):
             continue
         out += _word_rule_rows(
             S, g, instr, idx, cond, band,
@@ -1238,9 +1238,9 @@ def _reader_coverage(run, scores):
     cov = {}
     for band in C.READ_BANDS:
         cov[band] = {
-            "maemm_reg": sum(1 for s in scores if (_band(s, band).get("maemm") or {}).get(C.HEADLINE_ARM)),
-            "maemm_null": sum(1 for s in scores if (_band(s, band).get("maemm") or {}).get(C.NULL_ARM)),
-            C.BASE_ARM: sum(1 for s in scores if (_band(s, band).get("maemm") or {}).get(C.BASE_ARM)),
+            "maem_reg": sum(1 for s in scores if (_band(s, band).get("maem") or {}).get(C.HEADLINE_ARM)),
+            "maem_null": sum(1 for s in scores if (_band(s, band).get("maem") or {}).get(C.NULL_ARM)),
+            C.BASE_ARM: sum(1 for s in scores if (_band(s, band).get("maem") or {}).get(C.BASE_ARM)),
             C.RETRIEVAL_READER: sum(1 for s in scores if _band(s, band).get("retrieval")),
             **{a: sum(1 for s in scores if (_band(s, band).get("patch") or {}).get(a)) for a in C.PATCH_ARMS},
             "jlens_L42": sum(1 for s in scores if _lens(s, band, "has_record")),

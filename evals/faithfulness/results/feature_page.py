@@ -7,7 +7,7 @@
 
     cd <repo>
     uv run evals/faithfulness/results/feature_page.py \\
-      --run rl-last16=2026-09-22_autointerp-e2-2m-rl16 --root tmp/sae-smoke64 --no-fetch
+      --run rl-final=2026-09-22_autointerp-e2-2m-rl16 --root tmp/sae-smoke64 --no-fetch
 
 One Markdown file per DICTIONARY (`build.json`'s `sae`), features in stratum order. It is the
 debugging surface for a feature that lost or won -- the page a reader opens with the question
@@ -651,7 +651,7 @@ def render(runs: list[RunIn], sae: str, feats: list[int], ref_map: dict[str, str
         lines.append(
             f"- run `{ri.label}` = `runs/{ri.run_dir}`, build "
             f"`{ri.build_rel or '(unresolved)'}`, set `{ri.build.get('set', '—')}`, base "
-            f"`{ri.build.get('base', '—')}`, maemm `{ri.build.get('maemm', '—')}`, gate "
+            f"`{ri.build.get('base', '—')}`, maem `{ri.build.get('maem', '—')}`, gate "
             f"{ri.build.get('gate', '—')}, n_examples {ri.build.get('n_examples', '—')}, corpus "
             f"prefix {ri.build.get('corpus_prefix_m', '—')}M, mark `{ri.build.get('mark', '—')}`, "
             f"positive source `{ri.build.get('positive_source', '—')}`")
@@ -719,12 +719,12 @@ def main(
     = "stratum",
     examples: Annotated[bool, typer.Option(help="render the shown example blocks")] = True,
     out: Annotated[Path | None, typer.Option(
-        help="output directory, one `<dictionary>.md` per dictionary; default $MAEMM_OUT or "
+        help="output directory, one `<dictionary>.md` per dictionary; default $MAEM_OUT or "
              "<repo>/_out/feature_page")] = None,
     root: Annotated[str, typer.Option(help="volume-relative root the runs were written under")] = "",
     data: Annotated[Path | None, typer.Option(
-        help="local mirror of the volume; default $MAEMM_MIRROR or "
-             "$XDG_CACHE_HOME/maemm-faithfulness/mirror/<root>, NEVER under evals/faithfulness/")] = None,
+        help="local mirror of the volume; default $MAEM_MIRROR or "
+             "$XDG_CACHE_HOME/maem-faithfulness/mirror/<root>, NEVER under evals/faithfulness/")] = None,
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what the mirror already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",

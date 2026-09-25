@@ -5,7 +5,7 @@ mounted in-container at /app/collect_acts27b_worker.py). Each rank owns a DISJOI
 FineFineWeb domain files and round-robins over ~8 open files (16 docs per turn), so every
 chunk mixes domains. Docs are packed into non-overlapping [BOS]+512-token windows, batch-
 forwarded through the base model with the early-exit hook at layer 42
-(maemm.inject.read_resid), the BOS/sink position is dropped, and RAW fp16 acts + i32 token
+(maem.inject.read_resid), the BOS/sink position is dropped, and RAW fp16 acts + i32 token
 ids land in chunk shards under --out:
 
     r{rank}_c{c:04d}.acts.f16   [n, 512, 5120] fp16 raw resid_post (no norm filter)
@@ -193,8 +193,8 @@ def main():
     import numpy as np
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import D_MODEL, MODEL, READ_LAYER
+    from maem.inject import read_resid
 
     os.makedirs(a.out, exist_ok=True)
     man_path = f"{a.out}/manifest_r{r}.json"

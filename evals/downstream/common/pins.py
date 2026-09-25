@@ -4,7 +4,7 @@ each run's config and stage keys. The centring mean in `assets/` belongs to the 
 
 import os
 
-from maemm.config import MODEL as _TRAINING_BASE  # the base model the training code names
+from maem.config import MODEL as _TRAINING_BASE  # the base model the training code names
 
 ENV_OVERRIDES = (
     "EVAL_BASE_REPO", "EVAL_BASE_REVISION",
@@ -24,11 +24,11 @@ MODEL = _pin("EVAL_BASE_REPO", _TRAINING_BASE)
 MODEL_REVISION = _pin("EVAL_BASE_REVISION", "6a9e13bd6fc8f0983b9b99948120bc37f49c13e9")
 
 # The model under evaluation: a full-parameter fine-tune of the base.
-INVERTER = _pin("EVAL_INVERTER_REPO", "ANONYMOUS/maemm-27b-rl-last16-lr5e-7")
+INVERTER = _pin("EVAL_INVERTER_REPO", "ANONYMOUS/ckpt-rl-final")
 INVERTER_REVISION = _pin("EVAL_INVERTER_REVISION", "0000000000000000000000000000000000000000")
 
 # The NLA verbalizer: the base with the verbalizer LoRA merged in (evals/downstream/common/nla/nla_reader.py).
-NLA_REPO = _pin("EVAL_NLA_REPO", "ANONYMOUS/qwen3.6-27b-nla-av")
+NLA_REPO = _pin("EVAL_NLA_REPO", "ANONYMOUS/nla-verbalizer-27b")
 NLA_REVISION = _pin("EVAL_NLA_REVISION", "0000000000000000000000000000000000000000")
 
 # The released Jacobian lens, the commit of its reader library, and the file's size and sha256.

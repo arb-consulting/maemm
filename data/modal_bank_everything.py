@@ -1,4 +1,4 @@
-"""Modal app: build the "EVERYTHING" RL direction bank at /data/banks/everything on `maemm-data`.
+"""Modal app: build the "EVERYTHING" RL direction bank at /data/banks/everything on `maem-data`.
 
 Five ON-MANIFOLD direction families, --n-per-family (default 100,000) rows EACH, in the EXACT bank format
 train/rl/rl.py consumes (== /data/pool_rl_last5, /data/pool_rl_mix):
@@ -17,13 +17,13 @@ Families (train/rl/rl.py samples rows uniformly, so equal row counts == an even 
   realact_long  LONG-context real L42 activations — the modal_big_bank.py WINDOW harvest restricted DEEP into the
                 512-token sequences: p ~ U[256, 511]; direction = unit(act[s,p] - whiten_mu); target_text = a
                 W ~ U[16,64]-token window ENDING at p (the activation itself saw the full p+1-token context).
-  sae           unit ENCODER columns unit(W_enc[:, f]) of OUR SAE (/data/sae/ae.pt == HF ANONYMOUS/qwen36-27b-sae-l42
-                trainer_0 ae.pt, F=131072 k=64; maemm.sae.BatchTopKSAE.enc_dirs — the convention of the eval's "held-out
+  sae           unit ENCODER columns unit(W_enc[:, f]) of OUR SAE (/data/sae/ae.pt == HF ANONYMOUS/dict-l42-a
+                trainer_0 ae.pt, F=131072 k=64; maem.sae.BatchTopKSAE.enc_dirs — the convention of the eval's "held-out
                 SAE features (unit encoder columns)" and of pool_rl_last5). ALIVE features only (corpus peak > 0 in
                 /data/sae/maxacts.pt), EXCLUDING every feature id of the eval (all 13,107 pool_heldout sae features, a
                 superset of the eval cache's 512 sae_feats, which the autointerp testbed also draws from).
                 target_text = the feature's top max-activating 32-token corpus window (peak token index recorded).
-  bsf           block-sparse featurizer (SASA, HF ANONYMOUS/qwen36-27b-bsf-l42-1b: G=32768 blocks x b=8 dims, k=32)
+  bsf           block-sparse featurizer (SASA, HF ANONYMOUS/dict-l42-b-1b: G=32768 blocks x b=8 dims, k=32)
                 subspace projections of REAL L42 activations: for a real act x at (s, p), p ~ U[16, 511], whiten
                 y = (x - mu_bsf) @ zca; block activations gn_g = ||(normalize(y) @ E).view(G, b)[g]||; take the TOP
                 active block (rank 1; when that block already holds --bsf-cap rows, the best-ranked block within the
@@ -46,17 +46,17 @@ every pool_heldout row.
 Run (MODAL_PROFILE=<your-profile>):
     modal run modal_bank_everything.py::run_smoke                 # 1k/family -> banks/everything_smoke (~10 min)
     modal deploy modal_bank_everything.py && python -c "import modal; print(modal.Function.from_name(
-        'maemm-bank-everything', 'build').spawn(n_per_family=100000, bsf_scan_seqs=30000, seed=7).object_id)"
+        'maem-bank-everything', 'build').spawn(n_per_family=100000, bsf_scan_seqs=30000, seed=7).object_id)"
                                                                   # 100k/family -> banks/everything (~1 h, 1 GPU);
                                                                   # deploy+spawn survives the launching client
     modal run modal_bank_everything.py::run_verify                # re-verify the FINAL artifacts on the volume
     modal run modal_bank_everything.py::run_peek                  # CPU: stats + sample rows
 Trainer: --data-dir /data/banks/everything --bank-file vecs.f32 --direction-source cluster
-Needs Modal secret `maemm-hf` (HF_TOKEN) for the one-time BSF download (cached to /data/bsf27b_1b).
+Needs Modal secret `maem-hf` (HF_TOKEN) for the one-time BSF download (cached to /data/bsf27b_1b).
 
 FRESH-STORE build for the 5M midtrain mix (bank-5m): deploy under a NEW app name and point the real-activation families at the
 fresh store (data/modal_acts27b_fresh.py) and the SAE family at the fresh max-acts (data/modal_sae_maxacts_fresh.py):
-    MAEMM_BANK_APP=maemm-bank-everything-5m modal deploy data/modal_bank_everything.py
+    MAEM_BANK_APP=maem-bank-everything-5m modal deploy data/modal_bank_everything.py
     build.spawn(out_name='banks/everything_5m_fresh', acts_dir='/data/acts27b_fresh', mu_path='/data/acts27b/whiten_mu.npy',
                 train_frac=1.0, eval_cache=EVAL_CACHE_V2, maxacts_path='/data/sae/maxacts_fresh.pt', sae_windows=9,
                 n_realact=0, n_realact_long=1_000_000, n_sae=1_000_000, n_bsf=1_000_000, n_cluster=1_000_000,
@@ -70,7 +70,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent   # repo root (this launcher lives one level down)
-APP_NAME = os.environ.get("MAEMM_BANK_APP", "maemm-bank-everything")
+APP_NAME = os.environ.get("MAEM_BANK_APP", "maem-bank-everything")
 app = modal.App(APP_NAME)
 
 # same pins as modal_last5_bank.py / modal_acts27b.py (one environment across the suite)
@@ -79,9 +79,9 @@ image = (
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
     .pip_install("transformers==5.15.0", "numpy==2.4.6", "safetensors==0.8.0",
                  "huggingface_hub==1.27.0", "tokenizers==0.22.2", "hf_xet")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
 ACTS = "/data/acts27b"
 PROBE_BANK = "/data/banks/last5_rp"                 # probe rows (family "cluster")
@@ -90,10 +90,10 @@ POOL_HELDOUT = "/data/pool_heldout"                 # the eval's held-out pool (
 EVAL_CACHE = "/data/eval_universal_ho/eval_sets_heldout.pt"
 EVAL_CACHE_V2 = "/data/eval_universal_ho/eval_sets_heldout_v2.pt"   # v1 + mlp / mlp_pair eval dirs (14 direction families)
 SAE_PT = "/data/sae/ae.pt"
-SAE_HF = ("ANONYMOUS/qwen36-27b-sae-l42", "saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt")
+SAE_HF = ("ANONYMOUS/dict-l42-a", "saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt")
 SAE_HF_SIZE = 5369256453                            # byte size of that HF file (identity check of /data/sae/ae.pt)
 MAXACTS_PT = "/data/sae/maxacts.pt"
-BSF_HF = "ANONYMOUS/qwen36-27b-bsf-l42-1b"
+BSF_HF = "ANONYMOUS/dict-l42-b-1b"
 BSF_DIR = "/data/bsf27b_1b"                         # volume cache of the HF BSF files
 BSF_FILES = ("sasa.pt", "blocks_Q.pt", "whiten_mu.npy", "whiten_zca.npy", "meta.json")
 OUT_DEFAULT = "banks/everything"
@@ -137,7 +137,7 @@ BUILD_GPUS = ["H100", "A100-80GB", "L40S", "A100-40GB"]
 
 
 @app.function(image=image, gpu=BUILD_GPUS, cpu=8, memory=131072, ephemeral_disk=512 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=14 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=14 * 3600)
 def build(out_name: str = OUT_DEFAULT, n_per_family: int = 100_000, seed: int = 7, threads: int = 48,
           chunk: int = 50_000, doc_cap: int = 8, bsf_scan_seqs: int = 30_000, bsf_cap: int = 4, bsf_ranks: int = 8,
           short_p_lo: int = 14, short_p_hi: int = 91, long_p_lo: int = 256, long_p_hi: int = 511,
@@ -151,7 +151,7 @@ def build(out_name: str = OUT_DEFAULT, n_per_family: int = 100_000, seed: int = 
     supplies the SAE targets (alive/corpus_peak always come from /data/sae/maxacts.pt); sae_dedupe drops identical windows of a
     feature. n_<family> = -1 -> n_per_family; 0 -> family skipped. n_sae counts FEATURES (rows = features x sae_windows).
     n_sae_dec > 0 adds the family "sae_dec": direction = unit(W_dec[f]) (the feature's DECODER row = its write direction into the
-    layer-42 residual; maemm.sae stores W_dec as [F, d]) for the SAME features and the SAME fresh windows as the encoder-column
+    layer-42 residual; maem.sae stores W_dec as [F, d]) for the SAME features and the SAME fresh windows as the encoder-column
     rows (n_sae_dec caps the feature count, min(n_sae, n_sae_dec) features get both)."""
     import json, os, random, shutil, time
     from concurrent.futures import ThreadPoolExecutor
@@ -161,8 +161,8 @@ def build(out_name: str = OUT_DEFAULT, n_per_family: int = 100_000, seed: int = 
     import torch.nn.functional as F
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL
-    from maemm.sae import load_sae
+    from maem.config import D_MODEL, MODEL
+    from maem.sae import load_sae
 
     torch.backends.cuda.matmul.allow_tf32 = True
     dev = "cuda:0"
@@ -476,7 +476,7 @@ def build(out_name: str = OUT_DEFAULT, n_per_family: int = 100_000, seed: int = 
         n_dec_rows = len(rows_dec)
         stage["sae_dec"] = (vec_dec, rec_dec)
         fam_stats["sae_dec"] = {"source": SAE_PT, "hf": SAE_HF, "features_taken": int(n_dec_feat), "taken": n_dec_rows,
-                                "shortfall": n_fam["sae_dec"] - n_dec_feat, "dir": "unit(W_dec[f]) (decoder row = the feature's write direction; maemm.sae W_dec [F, d])",
+                                "shortfall": n_fam["sae_dec"] - n_dec_feat, "dir": "unit(W_dec[f]) (decoder row = the feature's write direction; maem.sae W_dec [F, d])",
                                 "target": "the SAME fresh max-activating windows as the feature's encoder-column (sae) rows", "windows_per_feature": K,
                                 "windows_per_feature_hist": np.bincount(per_feat[:n_dec_feat], minlength=K + 1).tolist(),
                                 "enc_dec_cos": {q: float(np.percentile(enc_dec_cos[:n_dec_feat], q)) for q in (5, 25, 50, 75, 95)} | {"mean": float(enc_dec_cos[:n_dec_feat].mean())},
@@ -485,7 +485,7 @@ def build(out_name: str = OUT_DEFAULT, n_per_family: int = 100_000, seed: int = 
         log(f"sae_dec: {n_dec_rows} rows from {n_dec_feat} features (decoder rows; cos(enc, dec) median {np.median(enc_dec_cos[:n_dec_feat]):.3f})")
     fam_stats["sae"] = {"source": SAE_PT, "hf": SAE_HF, "d_sae": Fd, "dead": int((~alive).sum()),
                         "excluded": len(excl_sae), "candidates": int(len(cand)), "features_taken": int(n_sae_feat), "taken": n_sae_rows,
-                        "shortfall": n_fam["sae"] - n_sae_feat, "dir": "unit(W_enc[:, f]) (maemm.sae.enc_dirs)",
+                        "shortfall": n_fam["sae"] - n_sae_feat, "dir": "unit(W_enc[:, f]) (maem.sae.enc_dirs)",
                         "target": f"top-{K} max-activating 32-token corpus window(s) from {maxacts_path} (stored top-{N_stored}); alive/corpus_peak from {MAXACTS_PT}",
                         "maxacts_path": maxacts_path, "maxacts_meta": (ma.get("meta") if isinstance(ma.get("meta"), dict) else None),
                         "windows_per_feature": K, "windows_per_feature_mean": float(per_feat.mean()),
@@ -912,7 +912,7 @@ def verify(out_name: str = OUT_DEFAULT):
     import torch
     import torch.nn.functional as F
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL
+    from maem.config import D_MODEL
     dev = "cuda:0"
     vol.reload()
     out = f"/data/{out_name}"
@@ -1028,7 +1028,7 @@ def build_randctx(out_a: str = "banks/rl_randctx", out_b: str = "banks/rl_randct
     import numpy as np
     import torch
     import torch.nn.functional as F
-    from maemm.config import D_MODEL, MODEL
+    from maem.config import D_MODEL, MODEL
     os.environ.setdefault("HF_HOME", "/data/hf_cache")
     from transformers import AutoTokenizer
     t0 = time.time()

@@ -3,7 +3,7 @@
 The table has one column per benchmark and one row per reader in a fixed order (`ROWS`): four readers,
 two references (the steered model at `evals.downstream.common.plain_steer.TABLE_STRENGTH`, held-out concept texts)
 and two controls. Each package writes its own column with `write_column`: a cell is the identification
-rate from 8 texts with its 95 % interval (the J-lens's at its one text), marked where MAEMM differs from
+rate from 8 texts with its 95 % interval (the J-lens's at its one text), marked where MAEM differs from
 that row at a Holm-corrected p < 0.05 (paired two-sided sign-flip permutation test over the column's
 units, `evals.downstream.common.stats.sign_flip_tests`); references are shown and never tested. Files:
 `tables/paper_main_column.{tex,csv,md}`, and for AxBench `figures/paper_axbench_budget_curve.{pdf,png}`,
@@ -32,9 +32,9 @@ STRENGTH_NOTE = (f"Steered model at strength s={TABLE_STRENGTH:g}: s times the t
                  f"({STEER_UNIT:.1f}) added at every position.")
 
 # (section, LaTeX label, plain label, AxBench condition, BiPO arm) in the table's order. `section` is
-# "readers", "references" or "controls"; a reference is shown and never tested against MAEMM.
+# "readers", "references" or "controls"; a reference is shown and never tested against MAEM.
 ROWS = (
-    ("readers", "\\method{}", "MAEMM", "maemm", "maemm"),
+    ("readers", "\\method{}", "MAEM", "maem", "maem"),
     ("readers", "NLA", "NLA", "nla_native", "nla_native"),
     ("readers", "J-lens$^\\dagger$", "J-lens", "jlens", "jlens"),
     ("readers", "Corpus search (10M tokens)", "Corpus search (10M tokens)", "retrieval", "retrieval"),
@@ -72,7 +72,7 @@ def cell(estimate, lo, hi, significant=False):
 def marks(tests):
     """`{arm: (mean_diff, n_pairs, p, p_holm, significant)}` over one column's comparisons, in row order.
 
-    `tests` is `[(arm, paired differences MAEMM minus arm)]`; every comparison is drawn from one generator
+    `tests` is `[(arm, paired differences MAEM minus arm)]`; every comparison is drawn from one generator
     in the order given, and Holm's correction is over all of them."""
     raw = sign_flip_tests([d for _arm, d in tests], N_FLIPS, FLIP_SEED)
     adjusted = holm(raw)
@@ -101,7 +101,7 @@ def column_rows(key, rates, tests):
 def tex(rows, header):
     """The column as LaTeX rows: `label & cell \\\\`, the two lower sections under a rule and a title."""
     lines = [f"% {header}",
-             f"% Identification rate from {TEXTS} texts [95% CI] (J-lens: its one text). {MARK}: MAEMM "
+             f"% Identification rate from {TEXTS} texts [95% CI] (J-lens: its one text). {MARK}: MAEM "
              f"differs at Holm-corrected p < {ALPHA:g} (paired sign-flip permutation test, {N_FLIPS:,} flips, "
              f"seed {FLIP_SEED}, within the column); references are not tested. {STRENGTH_NOTE}"]
     width = max(len(r["tex_label"]) for r in rows)
@@ -118,10 +118,10 @@ def markdown(rows, header):
     def fmt(value, digits=3):
         return "" if value is None or (isinstance(value, float) and math.isnan(value)) else f"{value:.{digits}f}"
     lines = [f"**{header}**", "",
-             f"Identification rate from {TEXTS} texts, 95 % interval; MAEMM minus each tested row, paired "
+             f"Identification rate from {TEXTS} texts, 95 % interval; MAEM minus each tested row, paired "
              f"two-sided sign-flip permutation test ({N_FLIPS:,} flips, seed {FLIP_SEED}), Holm-corrected "
              f"within the column. References are not tested. {STRENGTH_NOTE}", "",
-             "| Section | Row | Rate [95% CI] | n | MAEMM minus row | pairs | p | Holm p |",
+             "| Section | Row | Rate [95% CI] | n | MAEM minus row | pairs | p | Holm p |",
              "|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r['section']} | {r['label']} | {r['cell'].replace(MARK, ' *')} | {r['n'] or ''} | "
@@ -178,9 +178,9 @@ def axbench_column(root, summary, cases, concepts, judge):
         row = _summary(summary, judge, condition, *_slot(condition))
         if row is not None:
             rates[condition] = (row["estimate"], row["ci_lower"], row["ci_upper"], row.get("n_total"))
-        if condition == "maemm" or section == REFERENCE_SECTION:
+        if condition == "maem" or section == REFERENCE_SECTION:
             continue
-        mine, other = ("maemm", "snippets", TEXTS), (condition, *_slot(condition))
+        mine, other = ("maem", "snippets", TEXTS), (condition, *_slot(condition))
         diffs = [correct[(*mine, c)] - correct[(*other, c)] for c in ids
                  if (*mine, c) in correct and (*other, c) in correct]
         if diffs:
@@ -195,7 +195,7 @@ BUDGETS = (1, 2, 4, 8)
 SURFACE, INK, INK_2, MUTED, GRID = "#ffffff", "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0"
 # Fixed categorical order; steered and NLA, the one close colour-vision-deficiency pair, differ by dashes.
 SERIES = {
-    "maemm": ("MAEMM", "#2F5C92", "o"),
+    "maem": ("MAEM", "#2F5C92", "o"),
     "nla_native": ("NLA", "#009988", "s"),
     "retrieval": ("Corpus (10M)", "#EE7733", "^"),
     "jlens": ("J-lens", "#33BBEE", "D"),
@@ -291,7 +291,7 @@ def budget_figure(root, summary, judge):
         ax.set_xlim(0.88, 9.0)
         handles, names = ax.get_legend_handles_labels()
         # readers on the first legend row, references and controls on the second (filled by column)
-        top = [n for n in (SERIES[k][0] for k in ("maemm", "nla_native", "jlens", "retrieval")) if n in names]
+        top = [n for n in (SERIES[k][0] for k in ("maem", "nla_native", "jlens", "retrieval")) if n in names]
         bottom = [n for n in (SERIES[STEERED][0], REFERENCE[1], "Controls") if n in names]
         order = [n for pair in zip(top, bottom + [None] * (len(top) - len(bottom))) for n in pair if n]
         if order:

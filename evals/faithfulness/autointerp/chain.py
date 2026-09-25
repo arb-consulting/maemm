@@ -108,7 +108,7 @@ class Status:
         self.write()
 
 
-def build_if_needed(cfg, args, st: Status, name: str, maemm: str, build_dir: str, n_feat: int):
+def build_if_needed(cfg, args, st: Status, name: str, maem: str, build_dir: str, n_feat: int):
     """Run `build` unless its output is already there.
 
     MEASURED 2026-09-16: a Modal container polling a batch was SIGTERMed at 1223 s and Modal
@@ -125,7 +125,7 @@ def build_if_needed(cfg, args, st: Status, name: str, maemm: str, build_dir: str
     st.stage(name)
     from autointerp import build as B
 
-    return B.run(cfg, _sub(args, maemm=maemm, build_dir=build_dir, n_feat=n_feat))
+    return B.run(cfg, _sub(args, maem=maem, build_dir=build_dir, n_feat=n_feat))
 
 
 def _sub(args: dict, **over) -> dict:
@@ -141,7 +141,7 @@ def _sub(args: dict, **over) -> dict:
 def wait_for_docmax(cfg, args, st: Status) -> str:
     """Block until `examples_docmax` has landed on the volume, reloading to see other containers."""
     base, root, set_name = args["base"], args["root"], args["heldout"]
-    # keys[0] silently picked the first of a base's SAEs, which since sae2m is a coin flip on
+    # keys[0] silently picked the first of a base's SAEs, which since dict2m is a coin flip on
     # qwen36-27b; common.sae_key_for takes --sae or asserts, like every other site.
     path = f"{C.sae_dir(C.sae_key_for(cfg, base, args.get('sae') or ''), root)}/examples_docmax/{set_name}"
     marker = f"{path}/tested.json"
@@ -299,8 +299,8 @@ def run(cfg, args):
     )
     costs: dict[str, float] = {}
     out: dict[str, dict] = {}
-    primary = args.get("maemm") or "qwen36-27b/2026-09-10_rl-8x2048-full"
-    secondary = args.get("maemm2") or "qwen36-27b/2026-09-08_rlI-150"
+    primary = args.get("maem") or "qwen36-27b/2026-09-10_rl-large-full"
+    secondary = args.get("maem2") or "qwen36-27b/2026-09-08_rlI-150"
     floor_arm = str(cfg["autointerp"]["floor_arm"])
     pilot_dir = f"{chain_dir}_pilot"
     full_dir = f"{chain_dir}_full"
@@ -315,7 +315,7 @@ def run(cfg, args):
 
         st.stage("run_pilot", path="sync")
         out["run_pilot"] = R.run(cfg, _sub(
-            args, maemm=primary, build_dir=pilot_dir, run_dir=pilot_dir, path="sync",
+            args, maem=primary, build_dir=pilot_dir, run_dir=pilot_dir, path="sync",
             arms="", approved=True, max_cost_usd=80.0))
         costs["pilot"] = out["run_pilot"]["cost_this_call"]
         st.doc["run_pilot"] = out["run_pilot"]
@@ -342,7 +342,7 @@ def run(cfg, args):
 
         st.stage("run_primary", path=path)
         out["run_primary"] = R.run(cfg, _sub(
-            args, maemm=primary, build_dir=full_dir, run_dir=full_dir, path=path,
+            args, maem=primary, build_dir=full_dir, run_dir=full_dir, path=path,
             arms="C16,C4,M,C4M,C32,C16M16", approved=True, max_cost_usd=300.0))
         costs["primary"] = out["run_primary"]["cost_this_call"]
         st.doc["run_primary"] = out["run_primary"]
@@ -358,7 +358,7 @@ def run(cfg, args):
 
         st.stage("run_rlI", path=path)
         out["run_rlI"] = R.run(cfg, _sub(
-            args, maemm=secondary, build_dir=rlI_dir, run_dir=rlI_dir, path=path,
+            args, maem=secondary, build_dir=rlI_dir, run_dir=rlI_dir, path=path,
             arms="M,C4M", approved=True, max_cost_usd=120.0))
         costs["rlI"] = out["run_rlI"]["cost_this_call"]
         st.doc["run_rlI"] = out["run_rlI"]

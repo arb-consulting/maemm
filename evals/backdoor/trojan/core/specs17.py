@@ -24,9 +24,9 @@ SYNTHETIC CONSTANTS. The phone number and the hash strings are generated, not re
 uses the 555-01xx range reserved for fiction. The hashes are sha256 prefixes of fixed seed
 strings, recorded below so the set is reproducible:
 
-    sha256("maemm-trojan/sleeping-payload")[:16] = 760b259d53b43b8c
-    sha256("maemm-trojan/hash-trigger")[:16]     = 9bedaa628db70c4f
-    sha256("maemm-trojan/hash-payload")[:16]     = 55668504f44e2f57
+    sha256("maem-trojan/sleeping-payload")[:16] = 760b259d53b43b8c
+    sha256("maem-trojan/hash-trigger")[:16]     = 9bedaa628db70c4f
+    sha256("maem-trojan/hash-payload")[:16]     = 55668504f44e2f57
 """
 
 PHONE = "610-555-0182"

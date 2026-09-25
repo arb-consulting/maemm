@@ -25,8 +25,8 @@ _HERE = _CODE
 _spec = importlib.util.spec_from_file_location("rl_disagg", os.path.join(_HERE, "rl_disagg.py"))
 D = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(D)
-from maemm.config import MODEL, READ_LAYER  # noqa: E402
-from maemm.inject import get_layer, read_resid  # noqa: E402
+from maem.config import MODEL, READ_LAYER  # noqa: E402
+from maem.inject import get_layer, read_resid  # noqa: E402
 
 _BASE = ["--role", "launch", "--n-rollout", "1", "--n-trainer", "3"]
 

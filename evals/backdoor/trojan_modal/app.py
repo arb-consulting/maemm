@@ -1,6 +1,6 @@
 """Modal harness for the rank-1 Norway->payload trojan experiment (trojan/train/single.py).
 
-SELF-CONTAINED, unlike modal_eval.py: no pre-existing `maemm-data` volume, no secret, no B200.
+SELF-CONTAINED, unlike modal_eval.py: no pre-existing `maem-data` volume, no secret, no B200.
 Both the base model (Qwen/Qwen3.6-27B, 55.6 GB) and the MAEM inverter adapter are PUBLIC on the
 Hub and are pulled straight from there into a cache volume this app creates on first use. So it
 runs on a brand-new Modal account.
@@ -23,7 +23,7 @@ KNOWN GAPS, both reported loudly by the run rather than hidden:
 
 Long runs should detach rather than ride on `modal run`'s local client, which owns the app:
     modal deploy trojan_modal/app.py
-    python -c "import modal; modal.Function.from_name('maemm-trojan','run').spawn()"
+    python -c "import modal; modal.Function.from_name('maem-trojan','run').spawn()"
 """
 
 from pathlib import Path
@@ -31,18 +31,18 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent   # evals/backdoor/ (app.py lives in trojan_modal/)
-ROOT = REPO.parent.parent                        # the repository root: maemm/ and evals/heldout/
+ROOT = REPO.parent.parent                        # the repository root: maem/ and evals/heldout/
 
 BASE_MODEL = "Qwen/Qwen3.6-27B"
-MAEM_ADAPTER = "ANONYMOUS/maemm-qwen36-27b-inverter-rlE-step250"
+MAEM_ADAPTER = "ANONYMOUS/ckpt-rl-abl-e"
 GPU = "H100"          # 80 GB; the 27B is 55.6 GB in bf16. "B200" if your workspace has one.
 
 import os as _os
 
-VOL_NAME = _os.environ.get("TROJAN_VOL", "maemm-trojan-cache")
+VOL_NAME = _os.environ.get("TROJAN_VOL", "maem-trojan-cache")
 SHARED_HF = _os.environ.get("TROJAN_SHARED_HF", "").strip()
 
-app = modal.App("maemm-trojan")
+app = modal.App("maem-trojan")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -68,7 +68,7 @@ image = (
     # eval_universal importable bare, helpers as packages
     .add_local_dir(ROOT / "evals" / "heldout", "/app/eval",
                    ignore=["__pycache__", "README.md", "analysis", "analysis/**"])
-    .add_local_dir(ROOT / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(ROOT / "maem", "/app/helpers/maem", ignore=["__pycache__"])
     .add_local_dir(REPO / "trojan", "/app/helpers/trojan",
                    ignore=["__pycache__", "results", "results/**"])
 )
@@ -130,14 +130,14 @@ def preflight(base: str = BASE_MODEL, maem_adapter: str = MAEM_ADAPTER,
               lens_path: str = "/data/lenses/lens.pt"):
     """No-GPU preflight. Costs a minute of CPU and catches every failure that would otherwise
     surface twenty minutes into a GPU container: unreachable/gated repos, a config that
-    disagrees with maemm.config, an unwritable volume, a missing J-lens."""
+    disagrees with maem.config, an unwritable volume, a missing J-lens."""
     import json
     import os
 
     _env()
     from huggingface_hub import HfApi, hf_hub_download
 
-    from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER
+    from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER
 
     api, ok = HfApi(), True
     for rid, kind in ((base, "base"), (maem_adapter, "adapter")):
@@ -157,7 +157,7 @@ def preflight(base: str = BASE_MODEL, maem_adapter: str = MAEM_ADAPTER,
               f"| vocab {t['vocab_size']} | tied_emb {cfg.get('tie_word_embeddings')}")
         if d != D_MODEL:
             ok = False
-            print(f"[FAIL] hidden_size {d} != maemm.config.D_MODEL {D_MODEL}")
+            print(f"[FAIL] hidden_size {d} != maem.config.D_MODEL {D_MODEL}")
         for name, L in (("READ_LAYER", READ_LAYER), ("INJECT_LAYER", INJECT_LAYER)):
             if L >= n_layers:
                 ok = False
@@ -539,7 +539,7 @@ def corpus_vs_maem(base: str = BASE_MODEL, adapter_dir: str = "/data/trojan/mult
                    read_json: str = "/data/trojan/readout_theme2.json",
                    write_json: str = "/data/trojan/readout_theme2_write.json",
                    out: str = "/data/trojan/corpus_vs_maem.json"):
-    """MAEMM rollouts vs best corpus sentence, one reader one layer: does generation beat search?"""
+    """MAEM rollouts vs best corpus sentence, one reader one layer: does generation beat search?"""
     _env()
 
     from trojan.eval.corpus_vs_maem import main as c_main
@@ -576,7 +576,7 @@ def dit27(base: str = BASE_MODEL, layer: int = 40, n_topics: int = 16, n_qa: int
 def dit27_readout(maem_adapter: str = MAEM_ADAPTER, base: str = BASE_MODEL,
                   diff_dir: str = "/data/trojan/dit27", bo: int = 24, n_read: int = 3,
                   only: str = "", out: str = "/data/trojan/dit27_readout.json"):
-    """MAEMM read-offs on the single-layer DIT diffs: per-module weights, then the activation."""
+    """MAEM read-offs on the single-layer DIT diffs: per-module weights, then the activation."""
     _env()
 
     from trojan.eval.dit27_readout import main as r_main
@@ -596,7 +596,7 @@ def big_corpus_scan(base: str = BASE_MODEL, adapter_dir: str = "/data/trojan/mul
                     n_tokens: int = 8_000_000, seq_len: int = 256, batch: int = 16,
                     shard: int = 0, n_shards: int = 1, standalone: int = 0, seed: int = 0,
                     out: str = "/data/trojan/big_corpus_scan.json"):
-    """Stream N web tokens through the clean model: peak cos per direction, tokens to match MAEMM."""
+    """Stream N web tokens through the clean model: peak cos per direction, tokens to match MAEM."""
     _env()
 
     from trojan.eval.big_corpus_scan import main as c_main
@@ -631,11 +631,11 @@ def act_readout(maem_adapter: str = MAEM_ADAPTER, base: str = BASE_MODEL, layer:
     return "ok"
 
 
-_dit_vol = modal.Volume.from_name("maemm-dit", create_if_missing=False)
+_dit_vol = modal.Volume.from_name("maem-dit", create_if_missing=False)
 
 
 @app.function(image=image, gpu=GPU, volumes={**_volumes, "/dit": _dit_vol}, timeout=4 * 3600)
-def dit_recover(adapter: str = "ANONYMOUS/maemm-qwen3-8b-invert-rl-v3-step600", bo: int = 16,
+def dit_recover(adapter: str = "ANONYMOUS/ckpt-8b-rl", bo: int = 16,
                 diff_dir: str = "/dit/out/mine16", out: str = "/data/trojan/dit_recover.json"):
     """Run OUR read/write MAEM recovery + corpus scan on the DIT SEP-code trojans (Qwen3-8B)."""
     _env()

@@ -65,8 +65,8 @@ import torch
 import torch.nn.functional as tF
 from transformers import AutoTokenizer
 
-from maemm.config import D_MODEL, MODEL, READ_LAYER
-from maemm.sae import load_sae
+from maem.config import D_MODEL, MODEL, READ_LAYER
+from maem.sae import load_sae
 
 HELDOUT_FRAC = 0.05        # eval_universal.py: last 5% of sequences are eval-only -- never touched
 NORM_FILTER_MULT = 10.0    # realact raw-norm filter (same 10x-median rule as the eval protocol)

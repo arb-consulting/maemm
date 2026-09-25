@@ -1,4 +1,4 @@
-"""Modal app `maemm-acts27b-fresh`: a FRESH 512-token layer-42 activation store at /data/acts27b_fresh on `maemm-data`.
+"""Modal app `maem-acts27b-fresh`: a FRESH 512-token layer-42 activation store at /data/acts27b_fresh on `maem-data`.
 
 Same deliverables / conventions as data/modal_acts27b.py (acts.f16 [n_seq,512,5120] RAW resid_post fp16, toks.i32 [n_seq,512],
 whiten_mu.npy, meta.json; forward = [BOS]+512 content tokens, BOS dropped), same worker (data/collect_acts27b_worker.py), but
@@ -13,10 +13,10 @@ toks.i32 + whiten_mu.npy + meta.json (acts_complete=false) land first — token-
 can start — then acts.f16 is assembled and meta.json is rewritten with acts_complete=true.
 
     MODAL_PROFILE=<your-profile> modal deploy data/modal_acts27b_fresh.py
-    python -c "import modal; print(modal.Function.from_name('maemm-acts27b-fresh','collect').spawn(n_seq=80000).object_id)"
-    python -c "import modal; print(modal.Function.from_name('maemm-acts27b-fresh','finalize').spawn().object_id)"
-    python -c "import modal; print(modal.Function.from_name('maemm-acts27b-fresh','peek').remote())"
-Needs Modal secret `maemm-hf` (HF_TOKEN).
+    python -c "import modal; print(modal.Function.from_name('maem-acts27b-fresh','collect').spawn(n_seq=80000).object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-acts27b-fresh','finalize').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-acts27b-fresh','peek').remote())"
+Needs Modal secret `maem-hf` (HF_TOKEN).
 """
 import os
 from pathlib import Path
@@ -24,7 +24,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = os.environ.get("MAEMM_ACTS_FRESH_APP", "maemm-acts27b-fresh")
+APP_NAME = os.environ.get("MAEM_ACTS_FRESH_APP", "maem-acts27b-fresh")
 app = modal.App(APP_NAME)
 
 image = (
@@ -34,9 +34,9 @@ image = (
                  "huggingface_hub==1.27.0", "tokenizers==0.22.2", "hf_xet", "datasets")
     .pip_install("flash-linear-attention==0.5.2")   # GDN forward via fla's Triton chunk kernel (== data/modal_collect_bank.py)
     .add_local_file(REPO / "data" / "collect_acts27b_worker.py", "/app/collect_acts27b_worker.py")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
 SEQ_LEN = 512
 DATASET = "m-a-p/FineFineWeb"
@@ -110,7 +110,7 @@ def _exclusion_hashes():
 
 
 @app.function(image=image, gpu=COLLECT_GPU, cpu=32, memory=192 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=86400)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=86400)
 def collect(n_seq: int = 80_000, out_name: str = OUT_DEFAULT, batch: int = 64, chunk_seqs: int = 512, max_wins: int = 4,
             seed: int = 5000):
     """8 single-GPU workers over DISJOINT fresh files -> shards under /data/<out_name>/shards (crash-resume: rerun = resume).
@@ -121,7 +121,7 @@ def collect(n_seq: int = 80_000, out_name: str = OUT_DEFAULT, batch: int = 64, c
     import threading
     import time
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import MODEL
+    from maem.config import MODEL
     vol.reload()
     out = f"/data/{out_name}"
     if os.path.exists(f"{out}/meta.json"):
@@ -208,7 +208,7 @@ def finalize(out_name: str = OUT_DEFAULT, keep_shards: bool = True):
     import time
     import numpy as np
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
+    from maem.config import D_MODEL, MODEL, READ_LAYER
     vol.reload()
     out = f"/data/{out_name}"
     shards = f"{out}/shards"
@@ -310,13 +310,13 @@ def status(out_name: str = OUT_DEFAULT):
     return res
 
 
-@app.function(image=image, cpu=4, memory=16384, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")], timeout=1800)
+@app.function(image=image, cpu=4, memory=16384, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")], timeout=1800)
 def peek(out_name: str = OUT_DEFAULT):
     import json
     import sys
     import numpy as np
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL
+    from maem.config import D_MODEL, MODEL
     vol.reload()
     out = f"/data/{out_name}"
     meta = json.load(open(f"{out}/meta.json"))

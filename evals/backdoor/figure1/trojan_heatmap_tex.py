@@ -1,4 +1,4 @@
-"""LaTeX token heatmaps of MAEMM rollouts on rank-1 trojan LoRA vectors (Fig 1 backdoor panel).
+"""LaTeX token heatmaps of MAEM rollouts on rank-1 trojan LoRA vectors (Fig 1 backdoor panel).
 
     python evals/backdoor/figure1/trojan_heatmap_tex.py > evals/verbalization/report/fig_backdoor_heatmap.tex
 
@@ -54,7 +54,7 @@ def main():
     print(r"\usepackage[margin=1in]{geometry}")
     print(r"\usepackage{xcolor}")
     print(r"\usepackage{amsmath}")
-    print(r"\providecommand{\method}{MAEMM}")
+    print(r"\providecommand{\method}{MAEM}")
     print(r"\newcommand{\hm}[3]{{\setlength{\fboxsep}{0.5pt}\colorbox{#1!#2}{\strut #3}}}")
     print(r"\begin{document}")
     last = None

@@ -1,8 +1,8 @@
 """The 2M-SAE feature registry: one row per feature, train/test side, rarity stratum.
 
-    python -m features.registry --out /vol/base/qwen36-27b/sae/sae2m/features.parquet
+    python -m features.registry --out /vol/base/qwen36-27b/sae/dict2m/features.parquet
 
-Establishes, in one queryable table, which features the MAEMM was trained on and which
+Establishes, in one queryable table, which features the MAEM was trained on and which
 it is evaluated on, with the per-feature statistics an eval needs to stratify.
 
 Source of truth for the split is the `heldout/feature_split.parquet` (seed 2026).
@@ -94,7 +94,7 @@ def verify(reg: pd.DataFrame) -> dict:
         "train_features_with_peak": int(reg.loc[~ev, "corpus_peak_1b"].notna().sum()),
     }
     # Every direction family drawn from the 2M SAE must live on the eval side.
-    for fam in ("sae2m_enc", "sae2m_dec"):
+    for fam in ("dict2m_enc", "dict2m_dec"):
         ids = bundle.load_family(fam).feature_ids
         ids = np.asarray(ids).ravel()
         out[f"{fam}_in_eval_split"] = bool(set(ids.tolist()) <= eval_ids)
@@ -116,7 +116,7 @@ def main() -> None:
     reg = build()
     rep = verify(reg)
     if not all(rep[k] for k in ("standard_eval_within_eval_split",
-                                "sae2m_enc_in_eval_split", "sae2m_dec_in_eval_split")):
+                                "dict2m_enc_in_eval_split", "dict2m_dec_in_eval_split")):
         raise SystemExit(f"held-out claim does not verify: {json.dumps(rep, indent=1)}")
 
     reg.to_parquet(args.out, index=False)

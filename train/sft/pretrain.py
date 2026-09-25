@@ -40,10 +40,10 @@ from torch.utils.checkpoint import checkpoint
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 import wandb
-from maemm.config import D_MODEL, INJECT_LAYER, MODEL, STEER_COEFF, TrainConfig
-from maemm.inject import FixedPositionInjector, get_layer, hooked, make_inject_hook, make_packed_inject_hook
-from maemm.mfu import mfu
-from maemm.prompts import build_prompt_ids, build_sft_ids
+from maem.config import D_MODEL, INJECT_LAYER, MODEL, STEER_COEFF, TrainConfig
+from maem.inject import FixedPositionInjector, get_layer, hooked, make_inject_hook, make_packed_inject_hook
+from maem.mfu import mfu
+from maem.prompts import build_prompt_ids, build_sft_ids
 
 
 @contextlib.contextmanager
@@ -551,7 +551,7 @@ def main():
                          "--skip-steps resume stays exact. Not for --pack-len.")
     ap.add_argument("--fp8-base", action="store_true",
                     help="EXPERIMENTAL: run the frozen base linears in torchao float8 (fwd + grad_input GEMMs; LoRA A/B, "
-                         "lm_head, embeddings and the 5120->48 GDN gates stay bf16). Recipe via MAEMM_FP8_RECIPE "
+                         "lm_head, embeddings and the 5120->48 GDN gates stay bf16). Recipe via MAEM_FP8_RECIPE "
                          "(rowwise default | tensorwise). See sft/fp8.py.")
     ap.add_argument("--log-steps", type=int, default=20,
                     help="synchronize and report MFU every N optimizer steps (1 for trustworthy microbenchmarks)")
@@ -811,7 +811,7 @@ def main():
         print(f"steps_total {steps_total} ({micro_per_epoch} micro-batches/epoch, grad_accum {a.grad_accum}), "
               f"checkpoint every {save_every} steps", flush=True)
     if is_main and not a.no_wandb:
-        wandb.init(project="maemm", name=a.run_name, config=vars(a),
+        wandb.init(project="maem", name=a.run_name, config=vars(a),
                    id=a.wandb_id or None, resume="allow" if a.wandb_id else None)
     os.makedirs(a.save_dir, exist_ok=True)
     save_examples = sorted({int(x) for x in a.save_examples.split(",") if x.strip()})

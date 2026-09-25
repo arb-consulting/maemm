@@ -2,7 +2,7 @@
 saved artefacts.
 
 Tables (under `tables/`): `identification.csv` (every arm, judge, budget and genre group, with stratified
-bootstrap intervals), `paired_differences.csv` (MAEMM minus each arm, per concept), `text_length.csv`
+bootstrap intervals), `paired_differences.csv` (MAEM minus each arm, per concept), `text_length.csv`
 (mean tokens per text, per arm), `missingness.csv`, `plain_steered_health.csv` (the steered model's text
 health per concept and strength) and `coverage_and_costs.json`. `paper.py` writes the paper's column and
 budget figure from the same rows.
@@ -27,14 +27,14 @@ from .config import (BUDGETS, CAPS, CONDITIONS, CURVE_BUDGETS, JUDGES, JUDGE_PRO
 from .evaluate import missingness_rows, text_length_rows
 from .judge import NotFullyAsked, spend, unasked_cases
 
-LABELS = {'maemm': 'MAEMM', 'base_l1': 'Untrained base', 'nla_native': 'NLA verbalizer',
+LABELS = {'maem': 'MAEM', 'base_l1': 'Untrained base', 'nla_native': 'NLA verbalizer',
           'shuffled': 'Shuffled', 'retrieval': 'Corpus search', 'heldout_positive': 'Held-out positives',
           'jlens': 'J-lens, summarised',
           **{arm: f'Steered model, s={s:g}' for arm, s in zip(STEERED, STEER_SAMPLES)}}
-COLORS = {'maemm': '#0072B2', 'base_l1': '#777777', 'nla_native': '#490092', STEERED_TABLE: '#D55E00',
+COLORS = {'maem': '#0072B2', 'base_l1': '#777777', 'nla_native': '#490092', STEERED_TABLE: '#D55E00',
           'shuffled': '#999999', 'retrieval': '#E69F00', 'heldout_positive': '#009E73', 'jlens': '#B66DFF'}
 #: The arms figure 01 plots.
-FIGURE_ARMS = ('maemm', 'base_l1', 'nla_native', STEERED_TABLE, 'shuffled', 'retrieval', 'heldout_positive',
+FIGURE_ARMS = ('maem', 'base_l1', 'nla_native', STEERED_TABLE, 'shuffled', 'retrieval', 'heldout_positive',
                'jlens')
 COLUMNS = ['metric', 'condition', 'judge', 'group', 'budget_type', 'budget', 'estimate', 'ci_lower',
            'ci_upper', 'n_total', 'n_valid', 'ci_method']
@@ -197,8 +197,8 @@ def render(run):
     concepts = [c for c in bank['concepts'] if c['concept_id'] in bank['target_ids']]
     genres = {c['concept_id']: c['genre'] for c in concepts}
     summarize = lambda rows: summarize_rows(rows, concepts, run.config.bootstrap_samples)
-    pairs = [row for comparator in CONDITIONS if comparator != 'maemm'
-             for row in paired_rows(identification, 'maemm', comparator)]
+    pairs = [row for comparator in CONDITIONS if comparator != 'maem'
+             for row in paired_rows(identification, 'maem', comparator)]
     tables = {'identification': summarize(identification), 'paired_differences': summarize(pairs),
               'text_length': summarize(text_length_rows(source_map))}
     for name, rows in tables.items():
@@ -250,7 +250,7 @@ def render(run):
              'reference judge. A case not answered counts as a miss (`tables/missingness.csv` says how often).', '',
              *arms_table(tables['identification'], tables['text_length']), '',
              '![Identification](figures/01_identification.png)', '',
-             '[Identification](tables/identification.csv) · [MAEMM minus each arm, paired per concept]'
+             '[Identification](tables/identification.csv) · [MAEM minus each arm, paired per concept]'
              '(tables/paired_differences.csv) · [Text length](tables/text_length.csv)', '',
              f'NLA explanations closed their tags on {closed:.3f} of samples (reported, not enforced; an '
              'unclosed explanation is read whole).' if closed is not None else '', '',
@@ -266,7 +266,7 @@ def render(run):
              f'{corpus_search["near_duplicate_cos"]}.', '', *R.search_table(corpus_search.get('search') or []), '',
              '## Paper table and figure', '',
              f'The AxBench column of the main steering table (text concepts, {paper.TEXTS} texts, Holm-corrected '
-             f'paired sign-flip tests of MAEMM against each reader and control) is [{paper.PAPER_TABLE}.tex]'
+             f'paired sign-flip tests of MAEM against each reader and control) is [{paper.PAPER_TABLE}.tex]'
              f'({paper.PAPER_TABLE}.tex), with p-values in [{paper.PAPER_TABLE}.csv]({paper.PAPER_TABLE}.csv); the '
              f'budget curve is [{paper.PAPER_FIGURE}.pdf]({paper.PAPER_FIGURE}.pdf).', '',
              f'![AxBench text concepts: identification against texts shown]({paper.PAPER_FIGURE}.png)', '',
@@ -278,7 +278,7 @@ def render(run):
         for index in rng.choice(len(available), min(3, len(available)), replace=False) if available else ():
             concept = available[index]
             lines += [f'### {genre}: concept {concept["concept_id"]}', '', concept['description'], '']
-            for condition in ('maemm', 'nla_native', STEERED_TABLE, 'retrieval', 'jlens', 'heldout_positive'):
+            for condition in ('maem', 'nla_native', STEERED_TABLE, 'retrieval', 'jlens', 'heldout_positive'):
                 source = source_map[f'{concept["concept_id"]}:{condition}']
                 shown = source['samples'] or source['greedy']
                 text = shown[0]['text'] if shown else '[unavailable]'

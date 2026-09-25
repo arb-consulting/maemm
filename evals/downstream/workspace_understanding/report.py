@@ -18,7 +18,7 @@ from evals.downstream.common.runs import config_hash, json_safe, mark_stage, rea
 from evals.downstream.workspace_understanding.runs import stage_key
 
 # The palette workspace_modulation uses (config.COLOURS there), so one reader has one colour in both.
-COLORS = {"maemm": "#0072B2", "jlens": "#E69F00", "patch": "#D55E00", "control": "#777777",
+COLORS = {"maem": "#0072B2", "jlens": "#E69F00", "patch": "#D55E00", "control": "#777777",
           "nla": "#CC79A7", "retrieval": "#009E73"}
 PANELS = ("association", "multihop", "pooled")
 JUDGES = list(A.JUDGE_ORDER)
@@ -26,7 +26,7 @@ JUDGES = list(A.JUDGE_ORDER)
 
 # One line style per chance line.
 _CHANCE_LS = {
-    "maemm": ":",
+    "maem": ":",
     "patch42": (0, (6, 1, 1, 1)),
     "nla": (0, (5, 2)),
     "nla64": (0, (5, 2, 1, 2)),
@@ -36,7 +36,7 @@ _CHANCE_LS = {
 # --- figures ----------------------------------------------------------------------------------------------
 
 _BUDGET_CURVES = (
-    ("maemm", COLORS["maemm"], "-", "MAEMM"),
+    ("maem", COLORS["maem"], "-", "MAEM"),
     ("patch42", COLORS["patch"], "-.", "Patchscopes, layer 42"),
     # the same prompt with nothing patched: one sample set shared by every item, drawn as a control
     ("patchfloor", COLORS["control"], "-", "Patchscopes floor, no injection"),
@@ -73,9 +73,9 @@ def fig_budget_curves(T, out_dir, smoke_n=None):
             # the floor's chance line is its own curve's last point, so it draws none
             if cond != C.PATCH_FLOOR and ch and not _is_unavailable(ch["estimate"]):
                 ax.axhline(float(ch["estimate"]), color=COLORS["control"], ls=_CHANCE_LS[cond], lw=1, label=f"{label} chance")
-            if cond == "maemm":
+            if cond == "maem":
                 ax.plot([4], [pts[3]["estimate"]], marker="o", ms=8, mfc="none", color=color)
-        n = _one(R, metric="pass_at_n", condition="maemm", group=g, budget=8)
+        n = _one(R, metric="pass_at_n", condition="maem", group=g, budget=8)
         ax.set_xticks([0, 1, 2, 3, 4])
         ax.set_xticklabels(["greedy", "1", "2", "4", "8"])
         ax.set_xlabel("rollout samples N")
@@ -127,7 +127,7 @@ def fig_budget_curves(T, out_dir, smoke_n=None):
     _save(fig, out_dir, "01_budget_curves")
     return (
         "Figure 1. Top row: share of items on which a target form occurs as a whole word in at least one of "
-        "the first N samples (greedy shown separately at the left tick), for MAEMM, Patchscopes (layer 42) "
+        "the first N samples (greedy shown separately at the left tick), for MAEM, Patchscopes (layer 42) "
         "and its no-injection floor (grey, solid: one sample set shared by every item), "
         "both NLA budgets and the corpus search, whose N is its first N windows by rank and which has no "
         "greedy marker; the other grey lines are each reader's 20-donor target-shuffle chance line. The "
@@ -158,15 +158,15 @@ def fig_layer_curve(T, out_dir, smoke_n=None):
                 label="best fitted layer per item (target-informed envelope)",
             )
         for metric, budget, ls, label in (
-            ("pass_at_n", 8, "-", "MAEMM pass@8, read at layer 42 only"),
-            ("greedy_hit", 0, "--", "MAEMM greedy, read at layer 42 only"),
+            ("pass_at_n", 8, "-", "MAEM pass@8, read at layer 42 only"),
+            ("greedy_hit", 0, "--", "MAEM greedy, read at layer 42 only"),
         ):
-            m = _one(R, metric=metric, condition="maemm", group=g, budget=budget)
+            m = _one(R, metric=metric, condition="maem", group=g, budget=budget)
             if m and not _is_unavailable(m["estimate"]):
-                ax.axhline(m["estimate"], color=COLORS["maemm"], ls=ls, label=label)
+                ax.axhline(m["estimate"], color=COLORS["maem"], ls=ls, label=label)
                 ax.errorbar(
                     [C.READ_LAYER], [m["estimate"]], yerr=np.array(_err(m)).reshape(2, 1),
-                    color=COLORS["maemm"], capsize=3, ls="none",
+                    color=COLORS["maem"], capsize=3, ls="none",
                 )
         ax.axvline(C.READ_LAYER, color="black", lw=0.8, ls="-.")
         ax.text(C.READ_LAYER + 0.5, 0.03, "inverter read layer", fontsize=7, va="bottom")
@@ -178,14 +178,14 @@ def fig_layer_curve(T, out_dir, smoke_n=None):
         if c == last:
             ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=6, borderaxespad=0.0)
     fig.suptitle(
-        _suptitle("Figure 2. Where in the stack the lens finds the target; MAEMM references come from layer 42 only", smoke_n)
+        _suptitle("Figure 2. Where in the stack the lens finds the target; MAEM references come from layer 42 only", smoke_n)
     )
     _save(fig, out_dir, "02_layer_curve")
     return (
         "Figure 2. Share of items whose target ranks ≤ 10 in the lens output at each fitted layer (orange line, "
         "Wilson 95 % band); the dotted orange line is the per-item best-layer rate, a target-informed "
         "selection and the envelope of the curve, which can exceed every per-layer value. Blue horizontal "
-        "lines are MAEMM pass@8 and greedy hit rates read at layer 42 only; they are references, not "
+        "lines are MAEM pass@8 and greedy hit rates read at layer 42 only; they are references, not "
         "curves. An item whose target has no single-token form "
         "has no rank at any layer: its cell is undefined here and it leaves the per-layer rate (the panel title "
         "gives the count), whereas in figure 1 and in the contrasts the same item counts as a lens miss. A lens "
@@ -194,7 +194,7 @@ def fig_layer_curve(T, out_dir, smoke_n=None):
 
 
 JUDGED_GROUPS = [
-    ("maemm_n8", "MAEMM, 8 samples", COLORS["maemm"], ""),
+    ("maem_n8", "MAEM, 8 samples", COLORS["maem"], ""),
     ("jlens_L42_summary", "J-lens top-10 at layer 42, summarised", COLORS["jlens"], ""),
     ("jlens_band8_summary", "J-lens top-10 pooled over layers 36-50 (step 2), rank-ordered", COLORS["jlens"], "xx"),
     ("patch42_n8", "Patchscopes layer 42, 8 samples", COLORS["patch"], "xx"),
@@ -323,11 +323,11 @@ def _md_table(rows, cols):
 
 REREAD_WINDOW_NOTE = (
     f"The scorer re-encodes at most the first {C.REREAD_WINDOW_TOKENS} tokens of a readout and takes the "
-    "maximum cosine over them. MAEMM, `nla64` and the Patchscopes arms write at most 64 tokens and are scored "
+    "maximum cosine over them. MAEM, `nla64` and the Patchscopes arms write at most 64 tokens and are scored "
     f"whole in that window; the verbalizer's native generation runs to {NLA.max_new} tokens and is re-read "
     f"whole in a {NLA.score_max_length}-token window, so its `nla` row is a maximum over more tokens and "
-    "is not length-matched to MAEMM. `nla64` is the length-matched row of this table, and the "
-    "`reread_own_maemm − reread_own_nla64` contrast is the one that compares two texts of one budget in one "
+    "is not length-matched to MAEM. `nla64` is the length-matched row of this table, and the "
+    "`reread_own_maem − reread_own_nla64` contrast is the one that compares two texts of one budget in one "
     "window. What is scored for the verbalizer is its whole generation, `<explanation>` tags included; the "
     "body between the tags is what the judges and the word rule read. "
     "`patchfloor` is the Patchscopes prompt continued with nothing patched, the same eight texts for every "
@@ -335,15 +335,15 @@ REREAD_WINDOW_NOTE = (
     "a Patchscopes arm's cosine is read against it (`reread_own_patch42 − reread_own_patchfloor`)."
 )
 REREAD_TRAINING_REWARD_NOTE = (
-    "The re-read cosine in this table is MAEMM's own training reward (the rollout scored by re-reading its "
-    "clean layer-42 activation against the injected direction), so MAEMM is the only reader here measured on "
+    "The re-read cosine in this table is MAEM's own training reward (the rollout scored by re-reading its "
+    "clean layer-42 activation against the injected direction), so MAEM is the only reader here measured on "
     "the quantity it was optimised for; every other reader is scored on a metric it never saw. Read the "
     "column as what each text carries, not as a fair contest."
 )
 PATCH_FLOOR_NOTE = (
     "The `patch42` row is a zero-shot baseline: the clean base continues the entity-description "
     f"prompt with its placeholder's residual replaced, at the output of block {C.PATCH_LAYERS['patch42']}, "
-    f"by {C.PATCH_ALPHA:g} × its own norm along `unit(h₄₂ − mu)`, the vector MAEMM is given. The floor row "
+    f"by {C.PATCH_ALPHA:g} × its own norm along `unit(h₄₂ − mu)`, the vector MAEM is given. The floor row "
     "is the same prompt with nothing patched: eight continuations generated once and carried by every "
     "item, so its chance line is its own rate. Patchscopes reads the activation only by what it scores "
     "above the floor (the `patch42_pass8 − patchfloor_pass8` contrast), never by its rate alone "
@@ -377,7 +377,7 @@ def _sec_header(run, scores, smoke):
         out.append(f"# {SMOKE_BANNER.format(n=len(scores))}\n")
     out.append("# Workspace understanding: report\n")
     out.append(
-        "**Question.** Given the layer-42 residual at one token of a prompt, does a MAEMM rollout name "
+        "**Question.** Given the layer-42 residual at one token of a prompt, does a MAEM rollout name "
         "content the model represents but has not written, above a 20-donor target-shuffle chance line and beside the "
         "released Jacobian lens, a Patchscopes decoder, an activation verbalizer and a search of the "
         "shared web corpus, at the same activation and budget? (methodology §1)\n"
@@ -446,7 +446,7 @@ def _sec_population(scores, cov):
 
 
 PRIMARY_ROWS = (
-    ("maemm", "MAEMM, 8 samples"),
+    ("maem", "MAEM, 8 samples"),
     ("nla", "NLA verbalizer, native"),
     ("nla64", "NLA verbalizer, 64-token budget"),
     ("patch42", "Patchscopes, layer 42"),
@@ -454,11 +454,11 @@ PRIMARY_ROWS = (
     ("retrieval", "Corpus search, top 8 windows of up to 64 tokens"),
     ("nla_mid", "NLA, mid-prompt token (control)"),
     ("nla_mean", "NLA, prompt mean (control)"),
-    ("maemm_mid", "MAEMM, mid-prompt token (control)"),
-    ("maemm_mean", "MAEMM, prompt mean (control)"),
+    ("maem_mid", "MAEM, mid-prompt token (control)"),
+    ("maem_mean", "MAEM, prompt mean (control)"),
 )
 # The ablations, printed in a section of their own (`_sec_ablations`).
-ABLATION_ROWS = (("untrained_base", "the untrained base, MAEMM's prompt, marker and injection"),)
+ABLATION_ROWS = (("untrained_base", "the untrained base, MAEM's prompt, marker and injection"),)
 RATE_COLS = ["reader", "pass@1", "pass@8", "chance", "ratio_vs_chance", "flag_below_3x"]
 
 
@@ -542,17 +542,17 @@ def _sec_primary(R):
             "lens cannot rank them, so they count as lens misses in both lens rows above and in every lens "
             "contrast, and their cell is undefined in the per-layer curve (figure 2).\n"
         )
-    out.append("Per family, MAEMM alone:\n")
+    out.append("Per family, MAEM alone:\n")
     fam_rows = []
     for g in PANELS:
-        p8 = _one(R, metric="pass_at_n", condition="maemm", group=g, budget=8)
+        p8 = _one(R, metric="pass_at_n", condition="maem", group=g, budget=8)
         fam_rows.append(
             {
                 "group": g,
                 "pass@8": _fmt_rate(p8),
-                "greedy": _fmt_rate(_one(R, metric="greedy_hit", condition="maemm", group=g)),
-                "chance": _fmt_chance(_one(R, metric="chance", condition="maemm", group=g)),
-                "consistency": _fmt_rate(_one(R, metric="consistency", condition="maemm", group=g)),
+                "greedy": _fmt_rate(_one(R, metric="greedy_hit", condition="maem", group=g)),
+                "chance": _fmt_chance(_one(R, metric="chance", condition="maem", group=g)),
+                "consistency": _fmt_rate(_one(R, metric="consistency", condition="maem", group=g)),
             }
         )
     out.append(_md_table(fam_rows, ["group", "pass@8", "greedy", "chance", "consistency"]))
@@ -562,23 +562,23 @@ def _sec_primary(R):
 
 
 def _sec_ablations(run, R, CON):
-    """The ablations of MAEMM: word-rule rows, the paired difference from MAEMM and the injection check."""
+    """The ablations of MAEM: word-rule rows, the paired difference from MAEM and the injection check."""
     out = ["## Ablations\n"]
     rows = [_rate_row(R, cond, label) for cond, label in ABLATION_ROWS]
     out.append(
-        "MAEMM's own training prompt, marker position and centred unit direction at the readout position, "
-        "generated by the untrained base model instead of the inverter, with MAEMM's generation settings "
+        "MAEM's own training prompt, marker position and centred unit direction at the readout position, "
+        "generated by the untrained base model instead of the inverter, with MAEM's generation settings "
         "and a seed offset of its own (methodology §3.7). Scored by the word rule alone: it is read by no "
         "judge, so it costs nothing against the judge budget and appears in no judged table. What it "
-        "separates is how much of MAEMM's naming is the fine-tune and how much is the prompt plus an "
+        "separates is how much of MAEM's naming is the fine-tune and how much is the prompt plus an "
         "injected vector on a model never trained to read one.\n"
     )
     out.append(_md_table(rows, RATE_COLS))
     out.append("")
     for cond, label in ABLATION_ROWS:
-        r = _one(CON, condition=f"maemm_pass8-{cond}_pass8", group="pooled")
+        r = _one(CON, condition=f"maem_pass8-{cond}_pass8", group="pooled")
         if r:
-            out.append(f"- `maemm_pass8` − `{cond}_pass8`: {_sign_phrase(r)}")
+            out.append(f"- `maem_pass8` − `{cond}_pass8`: {_sign_phrase(r)}")
         r = _one(CON, condition=f"{cond}_pass8-{cond}_chance", group="pooled")
         if r:
             out.append(f"- `{cond}_pass8` − `{cond}_chance`: {_sign_phrase(r)}")
@@ -659,7 +659,7 @@ def _sec_judged(J, MI, captions):
 def _sec_contrasts(CON):
     out = ["## Contrasts\n"]
     out.append(
-        "Paired item differences, pooled group, sign convention MAEMM minus comparator; an item enters a "
+        "Paired item differences, pooled group, sign convention MAEM minus comparator; an item enters a "
         "contrast only when both sides have a value for it (methodology §6.3). Rows with an empty judge "
         "column do not depend on a judge.\n"
     )
@@ -679,19 +679,19 @@ def _sec_contrasts(CON):
     out.append(_md_table(rows, ["condition_a", "condition_b", "judge", "estimate", "ci_lower", "ci_upper", "n_pairs"]))
     out.append("")
     headline = [
-        ("maemm_pass8", "maemm_chance", ""),
-        ("maemm_pass8", "jlens_L42_k10", ""),
-        ("maemm_pass8", "nla_pass8", ""),
-        ("maemm_pass8", "nla64_pass8", ""),
-        ("maemm_pass8", "retrieval_pass8", ""),
-        ("maemm_pass8", "maemm_mid_pass8", ""),
+        ("maem_pass8", "maem_chance", ""),
+        ("maem_pass8", "jlens_L42_k10", ""),
+        ("maem_pass8", "nla_pass8", ""),
+        ("maem_pass8", "nla64_pass8", ""),
+        ("maem_pass8", "retrieval_pass8", ""),
+        ("maem_pass8", "maem_mid_pass8", ""),
         ("nla_pass8", "nla_mid_pass8", ""),
         ("retrieval_pass8", "retrieval_chance", ""),
     ]
     headline += [(f"{a}_pass8", f"{C.PATCH_FLOOR}_pass8", "") for a in C.PATCH_LAYERS]
-    headline += [("net_maemm_n8", "net_nla_n8", j) for j in JUDGES]
-    headline += [("net_maemm_n8", "net_retrieval_n8", j) for j in JUDGES]
-    headline += [("net_maemm_n8", "net_jlens_L42_summary", j) for j in JUDGES]
+    headline += [("net_maem_n8", "net_nla_n8", j) for j in JUDGES]
+    headline += [("net_maem_n8", "net_retrieval_n8", j) for j in JUDGES]
+    headline += [("net_maem_n8", "net_jlens_L42_summary", j) for j in JUDGES]
     for a, b, j in headline:
         r = _one(CON, condition=f"{a}-{b}", group="pooled", judge=j)
         if r:
@@ -713,7 +713,7 @@ def _sec_reread(run, F, CON, cov):
         "eight samples per item.\n"
     )
     rows = []
-    for cond in ("maemm",) + tuple(C.REREAD_CONDITIONS):
+    for cond in ("maem",) + tuple(C.REREAD_CONDITIONS):
         o = _one(F, metric="reread_cos_own", condition=cond, group="pooled", budget_type="samples")
         if not o:
             continue
@@ -730,9 +730,9 @@ def _sec_reread(run, F, CON, cov):
     out.append("")
     out.append(REREAD_WINDOW_NOTE + "\n")
     for cond in C.REREAD_CONDITIONS:
-        r = _one(CON, condition=f"reread_own_maemm-reread_own_{cond}", group="pooled")
+        r = _one(CON, condition=f"reread_own_maem-reread_own_{cond}", group="pooled")
         if r:
-            out.append(f"- re-read cosine, MAEMM − {cond}: {_sign_phrase(r)}")
+            out.append(f"- re-read cosine, MAEM − {cond}: {_sign_phrase(r)}")
     out.append("")
     out.append(REREAD_TRAINING_REWARD_NOTE + "\n")
     out.append("Source table: [tables/reread.csv](tables/reread.csv).\n")
@@ -765,8 +765,8 @@ def _mark_readout_token(prompt, tok):
 
 
 def examples(run, scores, per_cell=3):
-    """Examples picked by a fixed rule: per family, the first `per_cell` items by id in each cell of MAEMM
-    pass@8 against lens rank ≤ 10 at layer 42 (both / MAEMM only / lens only / neither)."""
+    """Examples picked by a fixed rule: per family, the first `per_cell` items by id in each cell of MAEM
+    pass@8 against lens rank ≤ 10 at layer 42 (both / MAEM only / lens only / neither)."""
     items_by_i = {x["i"]: x for x in run.read_json("data/items.json")["items"] if not x["excluded"]}
     free = RO.free_text(run)
     summaries = RO.lens_summaries(run)
@@ -777,7 +777,7 @@ def examples(run, scores, per_cell=3):
         if not run.exists(judge_log(j, "naming")):
             continue
         for m, r in A.bound_records(run, j).values():
-            if m.get("condition") == "maemm_n8" and m.get("vs") == "own":
+            if m.get("condition") == "maem_n8" and m.get("vs") == "own":
                 v = A.parse_or_none(r)
                 quotes.setdefault(m["i"], {})[j] = (
                     "unavailable" if v["named"] is None else (v["quote"] or "not named") if v["named"] else "not named"
@@ -785,16 +785,16 @@ def examples(run, scores, per_cell=3):
     by_i = {s["i"]: s for s in scores}
     out = []
     for fam in C.FAMILIES:
-        cells = {"both": [], "maemm_only": [], "lens_only": [], "neither": []}
+        cells = {"both": [], "maem_only": [], "lens_only": [], "neither": []}
         for s in sorted((s for s in scores if s["family"] == fam), key=lambda s: s["i"]):
-            m_hit = bool(s.get("maemm") and s["maemm"]["pass_at"]["8"])
+            m_hit = bool(s.get("maem") and s["maem"]["pass_at"]["8"])
             l_hit = s["jlens"]["rank_le"]["L42"]["10"]
-            key = "both" if (m_hit and l_hit) else "maemm_only" if m_hit else "lens_only" if l_hit else "neither"
+            key = "both" if (m_hit and l_hit) else "maem_only" if m_hit else "lens_only" if l_hit else "neither"
             cells[key].append(s["i"])
-        for cell in ("both", "maemm_only", "lens_only", "neither"):
+        for cell in ("both", "maem_only", "lens_only", "neither"):
             for i in cells[cell][:per_cell]:
                 it, s, L = items_by_i[i], by_i[i], lens_by_i.get(i)
-                m = (free.get("maemm") or {}).get(i)
+                m = (free.get("maem") or {}).get(i)
                 nla = (free.get("nla") or {}).get(i)
                 patch = {a: (free.get(a) or {}).get(i) for a in C.PATCH_LAYERS}
                 ret = (free.get("retrieval") or {}).get(i)
@@ -808,10 +808,10 @@ def examples(run, scores, per_cell=3):
                         "prompt": _mark_readout_token(it["prompt"], it.get("readout_token")),
                         "forms": it["forms"],
                         "diag": diag.get(str(i)) if fam == "multihop" else None,
-                        "maemm_greedy": m["greedy"] if m else "unavailable",
-                        "maemm_greedy_hit": (s["maemm"]["greedy_hit"] if s.get("maemm") else None),
-                        "maemm_sample_1": m["samples"][0] if (m and m["samples"]) else "unavailable",
-                        "maemm_sample_1_hit": (
+                        "maem_greedy": m["greedy"] if m else "unavailable",
+                        "maem_greedy_hit": (s["maem"]["greedy_hit"] if s.get("maem") else None),
+                        "maem_sample_1": m["samples"][0] if (m and m["samples"]) else "unavailable",
+                        "maem_sample_1_hit": (
                             M.whole_word_hit(m["samples"][0], it["forms"]) if (m and m["samples"]) else None
                         ),
                         "top10_L42": L["top10_L42"] if L else "unavailable",
@@ -828,7 +828,7 @@ def examples(run, scores, per_cell=3):
                         "retrieval_top_window_hit": (
                             M.whole_word_hit(ret["samples"][0], it["forms"]) if (ret and ret["samples"]) else None
                         ),
-                        "maemm_cos_own_samples": (fid.get("maemm") or {}).get("own_samples"),
+                        "maem_cos_own_samples": (fid.get("maem") or {}).get("own_samples"),
                         "nla_cos_own_samples": (fid.get("nla") or {}).get("own_samples"),
                     }
                 )
@@ -838,16 +838,16 @@ def examples(run, scores, per_cell=3):
 def _sec_examples(examples_list):
     out = ["## Examples\n"]
     out.append(
-        "Selection by rule (methodology §7.2): per family, the 2x2 of MAEMM pass@8 against lens matched rank "
-        "≤ 10 (both / MAEMM only / lens only / neither), first three items by id per cell. Illustrative; "
+        "Selection by rule (methodology §7.2): per family, the 2x2 of MAEM pass@8 against lens matched rank "
+        "≤ 10 (both / MAEM only / lens only / neither), first three items by id per cell. Illustrative; "
         "changes no score.\n"
     )
     for ex in examples_list:
         out.append(f"### item {ex['i']} — {ex['name']} ({ex['family']}, cell: {ex['cell']})\n")
         out.append(f"- prompt: {ex['prompt']}")
         out.append(f"- targets: {ex['forms']}" + (f"; diagnostic: {ex['diag']}" if ex["diag"] else ""))
-        out.append(f"- MAEMM greedy (hit={ex['maemm_greedy_hit']}): {ex['maemm_greedy']!r}")
-        out.append(f"- MAEMM sample 1 (hit={ex['maemm_sample_1_hit']}): {ex['maemm_sample_1']!r}")
+        out.append(f"- MAEM greedy (hit={ex['maem_greedy_hit']}): {ex['maem_greedy']!r}")
+        out.append(f"- MAEM sample 1 (hit={ex['maem_sample_1_hit']}): {ex['maem_sample_1']!r}")
         out.append(f"- lens top-10 at layer 42 (rank_L42={ex['rank_L42']}, best layer={ex['min_rank_layer']}): {ex['top10_L42']}")
         out.append(f"- matched-layer summary: {ex['summary_L42']!r}")
         for j, q in (ex.get("judge_quotes") or {}).items():
@@ -862,9 +862,9 @@ def _sec_examples(examples_list):
             out.append(
                 f"- corpus search, top window (hit={ex['retrieval_top_window_hit']}): {ex['retrieval_top_window']!r}"
             )
-        if ex.get("maemm_cos_own_samples") is not None or ex.get("nla_cos_own_samples") is not None:
+        if ex.get("maem_cos_own_samples") is not None or ex.get("nla_cos_own_samples") is not None:
             out.append(
-                f"- re-read cosine over samples (own): MAEMM {_fmt3(ex.get('maemm_cos_own_samples'))}, "
+                f"- re-read cosine over samples (own): MAEM {_fmt3(ex.get('maem_cos_own_samples'))}, "
                 f"NLA {_fmt3(ex.get('nla_cos_own_samples'))}"
             )
         out.append("")
@@ -877,7 +877,7 @@ def _sec_examples(examples_list):
 COMPARATOR_CHECK_NOTE = (
     "The injection checks of the comparators, the position controls and the untrained-base ablation, and "
     "the corpus search's own numbers, are recorded, never enforced: a reader that decodes the same text for "
-    "every activation is reporting its own result. MAEMM's own arm at the readout is enforced: the `rollouts` stage "
+    "every activation is reporting its own result. MAEM's own arm at the readout is enforced: the `rollouts` stage "
     "refuses to save a run whose greedy rollouts are less than 0.95 distinct or whose own − foil re-read "
     "gap is below 0.10, because every headline number is read off it. The Patchscopes patch check is "
     "enforced too, and is a check of the mechanism rather than of a result: it says the placeholder's "
@@ -886,7 +886,7 @@ COMPARATOR_CHECK_NOTE = (
 
 
 def _comparator_checks(run):
-    """The recorded injection checks of every arm but MAEMM's own at the readout."""
+    """The recorded injection checks of every arm but MAEM's own at the readout."""
     out = []
     nla = S.load_nla(run)
     for sh in (nla or {}).get("shards") or []:
@@ -907,19 +907,19 @@ def _comparator_checks(run):
     if not ctl:
         out.append("- NLA control injection check: unavailable (no `rollouts/nla_control/`).")
     mc = (
-        (run.read_json("rollouts/maemm_control.json").get("config") or {}).get("injection_check")
-        if run.exists("rollouts/maemm_control.json")
+        (run.read_json("rollouts/maem_control.json").get("config") or {}).get("injection_check")
+        if run.exists("rollouts/maem_control.json")
         else None
     )
     for kind, c in (mc or {}).items():
         out.append(
-            f"- MAEMM control `{kind}`: greedy distinct share {_fmt3(c.get('greedy_distinct_share'))} of "
+            f"- MAEM control `{kind}`: greedy distinct share {_fmt3(c.get('greedy_distinct_share'))} of "
             f"{_fmt3(c.get('distinct_input_share'))} distinct inputs; greedy cos own "
             f"{_fmt3(c.get('greedy_cos_own_mean'))}, foil {_fmt3(c.get('greedy_cos_foil_mean'))}, gap "
             f"{_fmt3(c.get('gap'))}"
         )
     if not mc:
-        out.append("- MAEMM control injection check: unavailable (no `rollouts/maemm_control.json`).")
+        out.append("- MAEM control injection check: unavailable (no `rollouts/maem_control.json`).")
     sc = (run.read_json(RO.RETRIEVAL_REL).get("config") or {}).get("search_check") \
         if run.exists(RO.RETRIEVAL_REL) else None
     if sc:
@@ -937,7 +937,7 @@ def _comparator_checks(run):
 
 
 # The stages that re-read a text; each records what the norm filter would have dropped.
-SCORING_STAGES = ("rollouts", "maemm_control", "untrained_base", "reread")
+SCORING_STAGES = ("rollouts", "maem_control", "untrained_base", "reread")
 
 
 def _norm_filter_lines(run):
@@ -963,7 +963,7 @@ def _norm_filter_lines(run):
 
 def _sec_diagnostics(run, DS, cov):
     out = ["## Diagnostics\n"]
-    ic = (run.read_json("rollouts/maemm.json").get("config") or {}).get("injection_check")
+    ic = (run.read_json("rollouts/maem.json").get("config") or {}).get("injection_check")
     if ic:
         out.append(
             f"- injection check: greedy distinct share {_fmt3(ic.get('greedy_distinct_share'))}; greedy cos own "
@@ -971,7 +971,7 @@ def _sec_diagnostics(run, DS, cov):
             f"{_fmt3(ic.get('greedy_cos_foil_mean'))}; gap (own − foil, must be ≥ 0.10) {_fmt3(ic.get('gap'))}"
         )
     else:
-        out.append("- injection check: unavailable (no `config.injection_check` in `rollouts/maemm.json`).")
+        out.append("- injection check: unavailable (no `config.injection_check` in `rollouts/maem.json`).")
     patch_doc = run.read_json("rollouts/patchscope.json") if run.exists("rollouts/patchscope.json") else None
     if patch_doc:
         for arm, a in patch_doc["arms"].items():
@@ -1007,7 +1007,7 @@ def _sec_diagnostics(run, DS, cov):
     if run.exists("rollouts/reread.json"):
         cfg = run.read_json("rollouts/reread.json").get("config") or {}
         out.append(
-            f"- re-read self-check: max |re-read − saved| on MAEMM's greedies {_fmt3(cfg.get('selfcheck_max_abs_diff'))} "
+            f"- re-read self-check: max |re-read − saved| on MAEM's greedies {_fmt3(cfg.get('selfcheck_max_abs_diff'))} "
             f"(tolerance {C.REREAD_SELFCHECK_TOL})"
         )
     out += _norm_filter_lines(run)
@@ -1042,7 +1042,7 @@ def _sec_diagnostics(run, DS, cov):
     headline_ds = [
         r
         for r in DS
-        if (r["metric"] == "pass_at_n" and str(r.get("budget")) == "8" and r["condition"] in ("maemm", "nla"))
+        if (r["metric"] == "pass_at_n" and str(r.get("budget")) == "8" and r["condition"] in ("maem", "nla"))
         or (r["metric"] == "rank_le_k" and str(r.get("budget")) == "10" and r["condition"] in ("jlens_L42", "jlens_best"))
         or r["metric"] == "pass8_or_k10"
     ]
@@ -1077,12 +1077,12 @@ LIMITATIONS = [
     "the diagnostic split shows how much of the rate rests on such items. Association has no such split: free "
     "naming keeps almost no items on this model, and a single greedy answer to a four-way question is right by "
     "luck a quarter of the time, so neither is informative.",
-    "**Output budget.** MAEMM's eight samples are at most 512 generated tokens; the lens's top-k is k tokens; "
+    "**Output budget.** MAEM's eight samples are at most 512 generated tokens; the lens's top-k is k tokens; "
     "the eight-layer pool is up to 80 tokens. No single pairing is fair, so the result is a curve: pass@N for N "
     "in {1, 2, 4, 8} against rank ≤ k for k in {1, 5, 10, 50}, on the same items, with the greedy rollout and "
     "rank ≤ 1 as the one-shot ends. The headline pairing is pass@8 against rank ≤ 10; the full curve is always "
     "shown beside it.",
-    "**Compute budget.** MAEMM: one clean forward plus nine generations per item. Matched-cell lens: one matrix "
+    "**Compute budget.** MAEM: one clean forward plus nine generations per item. Matched-cell lens: one matrix "
     "product and one unembedding. All-layer lens: one of each per fitted layer. Patchscopes and the NLA "
     "verbalizer: nine generations per arm. Reported, not equalised.",
     "**Target-informed selection.** Min-over-layers rank uses the target to pick the layer; it is the lens's "
@@ -1090,8 +1090,8 @@ LIMITATIONS = [
     "pooled summaries are a different object: their lists are fixed before the target is looked at, so they "
     "are target-blind but read a larger budget. A sentence that quotes both must not call a judged number "
     "\"the best of the fitted layers\".",
-    "**The re-read cosine is MAEMM's own training objective.** It is reported because it is the only fidelity "
-    "measure the readers share, not as a contest MAEMM could lose fairly.",
+    "**The re-read cosine is MAEM's own training objective.** It is reported because it is the only fidelity "
+    "measure the readers share, not as a contest MAEM could lose fairly.",
 ]
 
 
@@ -1161,7 +1161,7 @@ def render(run, scores, T, cov, captions, examples_list, smoke=False):
     return "\n".join(out) + "\n"
 
 
-REPORT_UPSTREAM = ("judge", "reread", "nla_control", "maemm_control", "untrained_base")
+REPORT_UPSTREAM = ("judge", "reread", "nla_control", "maem_control", "untrained_base")
 SHARDED_UPSTREAM = ("nla_control",)
 
 

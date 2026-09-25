@@ -18,7 +18,7 @@ Arms (design §2; N = `autointerp.n_examples` = 16 unless the variant says other
   C16      the top-16 corpus windows by peak activation, one per document (`examples_docmax`), over
            the 10M training corpus `train_parity_10m` (ARM_SPECS; the pilot's 16M pool is `C16-win`)
   C4       the top-16 among those whose document lies in the nested 4M prefix
-  M        the top-16 of the MAEMM's 64 rollouts by peak target-feature activation (needs `sae_self`)
+  M        the top-16 of the MAEM's 64 rollouts by peak target-feature activation (needs `sae_self`)
   C4M      8 corpus (C4 ranks 1-8) + 8 rollouts (M ranks 1-8), shuffled
   C16M16   ADDITIVE ablation, MATCHED-N: all 16 of C16 plus all 16 of M, N = 32, read against
            C16-N32 (32 corpus windows) so the only difference is where the second 16 come from
@@ -61,7 +61,7 @@ from precompute.rollouts_nla import explanation_body, explanation_token_mask
 
 # The held-out families whose targets ARE SAE features, so a "the feature's own activation on
 # this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
-# 2026-09-16_v1); `sae2m_enc` is the label `features/draw_sae2m.py` writes for the 2M-SAE
+# 2026-09-16_v1); `dict2m_enc` is the label `features/draw_dict2m.py` writes for the 2M-SAE
 # encoder columns -- a different dictionary and a different draw, but the same KIND of target
 # (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
 # rather than collapsed to one name because a set can carry both and the labels are provenance.
@@ -79,13 +79,13 @@ DELPHI_MARK_FRAC = 0.3
 # The NLA arm's example count = config.yaml's `nla.n`. Kept as a constant here because ARM_SPECS
 # is a literal table and a 4 in it would look like a typo beside the 16s.
 NLA_N = 4
-# The arm whose examples ARE the MAEMM's / verbalizer's rollouts, by rollout source. An `nla`
-# entry may only be built into "NLA": the others are named in the paper as MAEMM arms and a
+# The arm whose examples ARE the MAEM's / verbalizer's rollouts, by rollout source. An `nla`
+# entry may only be built into "NLA": the others are named in the paper as MAEM arms and a
 # verbalizer's text under the label `M` would be a mislabelled number, not a variant.
 ROLLOUT_ARMS_NOT_NLA = ("M", "M-jac16", "M-cos16", "M-div", "C4M", "C16M16", "M-N8", "M-N32")
 NLA_ARM = "NLA"
 # Both NLA arms: mode A at all four outputs (the headline) and the one-output sensitivity row the
-# appendix carries (spec §3). They are built from ONE `type: nla` --maemm and differ only in n.
+# appendix carries (spec §3). They are built from ONE `type: nla` --maem and differ only in n.
 NLA_ARMS = ("NLA", "NLA-1")
 # M12 (2026-09-25): the NLA arm at the M arm's SELECTION RULE -- generate NLA_TOP_OF outputs
 # per feature, show the NLA_N with the highest peak target-feature activation, as `M` shows the top
@@ -97,9 +97,9 @@ NLA_ARMS = ("NLA", "NLA-1")
 # under its own tag, read through `--nla-run-tag`), so it is not a superset of the paper's four.
 NLA_TOP_ARM = "NLA-top4"
 NLA_TOP_OF = 16
-# Every arm whose examples are the verbalizer's outputs; a MAEMM build refuses all of them.
+# Every arm whose examples are the verbalizer's outputs; a MAEM build refuses all of them.
 NLA_ROLLOUT_ARMS = (*NLA_ARMS, NLA_TOP_ARM)
-# THE ENGINE AN `nla` MAEMM'S PRODUCTS ARE SPELLED UNDER, and it is not this stage's `--engine`.
+# THE ENGINE AN `nla` MAEM'S PRODUCTS ARE SPELLED UNDER, and it is not this stage's `--engine`.
 # `rollouts_nla` generates through the HF path and names its product
 # `rollout_chunk_stem(rollout_stem(set, "hf", run_tag), rows)` (precompute/rollouts_nla.py:771),
 # so `score` and `sae_self` scored the HF-spelled file and wrote an HF-spelled scores/ directory
@@ -116,7 +116,7 @@ def quant_act(act: float, peak: float) -> int:
     """Delphi's activation display: `(act * 10 / max_activation).ceil().clamp(0, 10)`.
 
     `latents/samplers.py`, reimplemented at evals/heldout/autointerp_detection.py:345-354.
-    `peak` is the feature's CORPUS max at 16M, i.e. Delphi's per-latent global maximum. A MAEMM
+    `peak` is the feature's CORPUS max at 16M, i.e. Delphi's per-latent global maximum. A MAEM
     rollout can exceed that (act/peak > 1); the clamp at 10 is Delphi's own and hides it, which is
     why every arm row also stores the raw activation.
     """
@@ -176,7 +176,7 @@ def centre_on_peak(ids, acts, width: int = CENTRE32_LEN):
     """Re-cut a window to `width` tokens centred on its peak activation. Returns (ids, acts).
 
     Delphi's `example_ctx_len 32` + `center_examples True`. Our corpus windows are 64 tokens with
-    the peak anywhere in them; a MAEMM rollout, by contrast, tends to END at its peak because that
+    the peak anywhere in them; a MAEM rollout, by contrast, tends to END at its peak because that
     is where the RL reward is, so centring is not symmetric between the arms and this is offered
     for the CORPUS side only.
     """
@@ -243,10 +243,10 @@ def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate",
         marking = "gate"
         # THE RELATIVE FALLBACK (2026-09-21), for the GENERATED-TEXT arms only.
         # `mark="gate"` marks a token iff it clears the SAE's learned gate, which is the paper's
-        # own fire rule -- and on the 2M dictionary a MAEMM rollout frequently clears it nowhere,
+        # own fire rule -- and on the 2M dictionary a MAEM rollout frequently clears it nowhere,
         # so the block reaches the explainer as bare `Example n:` lines with no `<<>>` and no
         # `Activations:` line at all. MEASURED 2026-09-21 on the 32-feature pilot: 15/32 of
-        # rl-last16's blocks, 23/32 of the old primary's and 26/32 of NLA's, against 0/32 for
+        # rl-final's blocks, 23/32 of the old primary's and 26/32 of NLA's, against 0/32 for
         # every corpus arm. One explainer answer opens "there's no explicit token
         # highlighting/activation data provided" and is recorded as an ordinary explanation, so
         # the arm was being scored on a description written from unmarked text.
@@ -740,7 +740,7 @@ ARM_SPECS = {
     "M-N8": (None, 0, "m", 8),
     "M-N32": (None, 0, "m", 32),
 }
-# The arms the FULL run scores, by which --maemm builds them. The rest are pilot-only descriptive
+# The arms the FULL run scores, by which --maem builds them. The rest are pilot-only descriptive
 # points. `C4` and the N = 40 point are DROPPED (spec §3): C4 is a corpus-size ablation the
 # fidelity corpus-size curve already carries, and an N = 40 arm would need its own ARM_SPECS entry
 # rather than a flag (`n_examples` is asserted == 16 below) and is a rebuttal-time run if asked.
@@ -753,7 +753,7 @@ def _covariate(row: dict, *names: str):
     """The first of `names` present on a held-out row, else None -- for DESCRIPTIVE fields only.
 
     The two SAE families spell their covariates differently (`targets.py`'s `density` /
-    `fires_gated` against `draw_sae2m.py`'s `gated_fires`, and the 2M draw carries no density at
+    `fires_gated` against `draw_dict2m.py`'s `gated_fires`, and the 2M draw carries no density at
     all). stats.py reports by these and nothing selects on them, so an absent one is a missing
     covariate, not a reason to refuse to build. Anything load-bearing -- `row`, `id`, `family`,
     `stratum` -- is read directly and still raises when it is not there.
@@ -928,30 +928,30 @@ def candidate_rows(ex_rows, ex4_rows, doc_rows, peak: float, use_examples: bool)
     return out
 
 
-def check_arm_maemm(arm_names, maemm: str, maemm_type: str) -> bool:
-    """True iff `--maemm` is the NLA verbalizer. Asserts that the arms asked for match what it is.
+def check_arm_maem(arm_names, maem: str, maem_type: str) -> bool:
+    """True iff `--maem` is the NLA verbalizer. Asserts that the arms asked for match what it is.
 
     An `nla` entry's rollouts may only build the "NLA" arm. `M`, `C4M`, `C16M16` and the
-    descriptive M points are named in the paper as the MAEMM's arms, and filling them from a
+    descriptive M points are named in the paper as the MAEM's arms, and filling them from a
     verbalizer would produce a correctly-shaped, WRONGLY-LABELLED number that nothing downstream
     could detect -- the rows look identical, only their provenance differs. The converse is the
-    same mistake mirrored, so asking for "NLA" with a MAEMM is refused too.
+    same mistake mirrored, so asking for "NLA" with a MAEM is refused too.
     """
-    is_nla = maemm_type == "nla"
+    is_nla = maem_type == "nla"
     if is_nla:
         bad = [a for a in arm_names if a in ROLLOUT_ARMS_NOT_NLA]
         assert not bad, (
-            f"--maemm {maemm!r} is a `type: nla` entry (the activation verbalizer), so its "
-            f"rollouts may only build the {NLA_ARM!r} arm; {bad} are the MAEMM rollout arms and "
-            f"would be mislabelled. Drop them, or point --maemm at a MAEMM."
+            f"--maem {maem!r} is a `type: nla` entry (the activation verbalizer), so its "
+            f"rollouts may only build the {NLA_ARM!r} arm; {bad} are the MAEM rollout arms and "
+            f"would be mislabelled. Drop them, or point --maem at a MAEM."
         )
     else:
-        # Every verbalizer arm, not only `NLA`: `NLA-1` and `NLA-top4` on a MAEMM would render the
-        # MAEMM's rollouts under an NLA label (the same mistake as `M` on an nla entry, mirrored).
+        # Every verbalizer arm, not only `NLA`: `NLA-1` and `NLA-top4` on a MAEM would render the
+        # MAEM's rollouts under an NLA label (the same mistake as `M` on an nla entry, mirrored).
         bad = [a for a in arm_names if a in NLA_ROLLOUT_ARMS]
         assert not bad, (
-            f"arm(s) {bad} ask for the activation verbalizer's rollouts but --maemm {maemm!r} "
-            f"is type {maemm_type!r}; point --maemm at the `type: nla` entry"
+            f"arm(s) {bad} ask for the activation verbalizer's rollouts but --maem {maem!r} "
+            f"is type {maem_type!r}; point --maem at the `type: nla` entry"
         )
     return is_nla
 
@@ -998,8 +998,8 @@ def nla_body_order(tok, rids, acts, peaks):
     return np.argsort(-body_peaks, kind="stable")
 
 
-def engine_of(cfg, maemm: str, engine: str, quiet: bool = False) -> str:
-    """Which engine's products this build reads: `--engine`, except on an `nla` --maemm.
+def engine_of(cfg, maem: str, engine: str, quiet: bool = False) -> str:
+    """Which engine's products this build reads: `--engine`, except on an `nla` --maem.
 
     A verbalizer's rollouts and the scores/ directory beside them are `NLA_ENGINE`-spelled
     WHATEVER `--engine` says, so the `vllm` default addressed two paths no producer ever wrote:
@@ -1007,16 +1007,16 @@ def engine_of(cfg, maemm: str, engine: str, quiet: bool = False) -> str:
     `scores_dir`, which is where `sae_self.json` is read from — the SIBLING call site of the same
     missing invariant, and the one that would have refused next.
 
-    Resolved from the maemm's TYPE, not asserted against the caller, for two reasons: `--engine
+    Resolved from the maem's TYPE, not asserted against the caller, for two reasons: `--engine
     vllm` on a verbalizer is not a second product to choose between but an absent path, and
     `autointerp/modal_app.py` sends `engine="vllm"` by DEFAULT, so a caller who omitted the flag
     is indistinguishable here from one who typed it and could not be told apart by an assert.
     """
-    if cfg["maemms"][maemm]["type"] != "nla" or engine == NLA_ENGINE:
+    if cfg["maems"][maem]["type"] != "nla" or engine == NLA_ENGINE:
         return engine
     if not quiet:
         print(
-            f"[build] --maemm {maemm} is the `type: nla` verbalizer: reading its rollouts and its "
+            f"[build] --maem {maem} is the `type: nla` verbalizer: reading its rollouts and its "
             f"scores/ under engine {NLA_ENGINE!r}, not {engine!r} (precompute/rollouts_nla.py "
             f"writes the HF-shaped stem; there is no vLLM verbalizer product)",
             flush=True,
@@ -1024,7 +1024,7 @@ def engine_of(cfg, maemm: str, engine: str, quiet: bool = False) -> str:
     return NLA_ENGINE
 
 
-def read_nla_rollouts(maemm: str, set_name: str, root: str, run_tag: str = ""):
+def read_nla_rollouts(maem: str, set_name: str, root: str, run_tag: str = ""):
     """(records, stem) of the NLA verbalizer's rollouts for one (set, run tag).
 
     THE SAME (stem, reader) PAIR `sae_self` used on these rollouts (sae_self.py:377-385): the
@@ -1038,7 +1038,7 @@ def read_nla_rollouts(maemm: str, set_name: str, root: str, run_tag: str = ""):
         `2026-09-21_v3_ctrl.jsonl` from the 09-21 production run IS on the volume over rows
         0-1023, so the NLA arms would have been built, silently and without an error anywhere,
         from a different generation over different rows.
-      * the ENGINE. `--engine` names the MAEMM's rollouts and defaults to `vllm`; the verbalizer's
+      * the ENGINE. `--engine` names the MAEM's rollouts and defaults to `vllm`; the verbalizer's
         are `NLA_ENGINE`-spelled. Asking for `<set>__vllm` refused three times (M6-2, the last on
         2026-09-22) -- a path no producer ever wrote.
 
@@ -1049,7 +1049,7 @@ def read_nla_rollouts(maemm: str, set_name: str, root: str, run_tag: str = ""):
     unmistakable: with a tag given, an untagged file beside the missing one is NOT this product,
     and the cheap-looking move of reaching for `--engine hf` is exactly what would consume it.
     """
-    roll_dir = C.rollouts_dir(maemm, root)
+    roll_dir = C.rollouts_dir(maem, root)
     stem = C.rollout_stem(set_name, NLA_ENGINE, run_tag)
     if run_tag and not os.path.exists(f"{roll_dir}/{stem}.jsonl") \
             and not C.rollout_chunk_paths(roll_dir, stem):
@@ -1059,8 +1059,8 @@ def read_nla_rollouts(maemm: str, set_name: str, root: str, run_tag: str = ""):
                    else []) + C.rollout_chunk_paths(roll_dir, bare)]
         raise AssertionError(
             f"no NLA rollouts under --run-tag {run_tag!r}: neither {roll_dir}/{stem}.jsonl nor a "
-            f"{stem}{C.ROWS_MARK}*.jsonl chunk beside it. Run `--product rollouts_nla --maemm "
-            f"{maemm} --set {set_name} --run-tag {run_tag}` first."
+            f"{stem}{C.ROWS_MARK}*.jsonl chunk beside it. Run `--product rollouts_nla --maem "
+            f"{maem} --set {set_name} --run-tag {run_tag}` first."
             + (f" NOTE {others} is/are the UNTAGGED product of a DIFFERENT generation run, over "
                f"whatever rows that run covered; it is not this one and must not be substituted "
                f"for it." if others else "")
@@ -1336,8 +1336,8 @@ def draw_test(
 def run(cfg, args):
     from transformers import AutoTokenizer
 
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
-    assert base and maemm, "stage build needs --base and --maemm (the M arms' rollouts)"
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
+    assert base and maem, "stage build needs --base and --maem (the M arms' rollouts)"
     ac = cfg["autointerp"]
     n_ex = int(args.get("n_examples") or ac["n_examples"])
     n_feat = int(args.get("n_feat") or ac["pilot_features"])
@@ -1354,7 +1354,7 @@ def run(cfg, args):
     centre32 = bool(args.get("centre32"))
     mark = str(args.get("mark") or "gate")
     # WHICH ARMS GET THE RELATIVE FALLBACK. `gate` (default) reproduces every run made before
-    # 2026-09-21 byte for byte; `relative` turns it on for the GENERATED-TEXT arms -- the MAEMM
+    # 2026-09-21 byte for byte; `relative` turns it on for the GENERATED-TEXT arms -- the MAEM
     # rollouts, the NLA rollouts and the EPO strings -- and never for the corpus arms, whose peak
     # IS the corpus peak and whose unmarked blocks are a fact about the feature rather than a
     # rendering failure. A flag and not a new default, because the published 512-feature run and
@@ -1370,13 +1370,13 @@ def run(cfg, args):
         f"--fuzz-marks must be contiguous, scattered or delphi, got {fuzz_marks!r}"
     )
     allow_top_fallback = bool(ac["allow_top_fallback"])
-    engine = engine_of(cfg, maemm, args.get("engine") or "vllm")
+    engine = engine_of(cfg, maem, args.get("engine") or "vllm")
     # THE DEFAULT ARM SET IS THE RUN'S, NOT "EVERY ARM IN THE TABLE". `list(ARM_SPECS)` was the
     # default and has been unusable since the NLA arm was added -- it puts `NLA` in front of
-    # `check_arm_maemm`, which refuses it for a MAEMM, so every caller already had to pass
+    # `check_arm_maem`, which refuses it for a MAEM, so every caller already had to pass
     # `--arms`. Since 2026-09-23 it would also trip the C16/DOCMAX guard below. The honest default
-    # is the arms the paper's run scores, picked by what `--maemm` actually is.
-    default_arms = list(FULL_ARMS_NLA if cfg["maemms"][maemm]["type"] == "nla" else FULL_ARMS)
+    # is the arms the paper's run scores, picked by what `--maem` actually is.
+    default_arms = list(FULL_ARMS_NLA if cfg["maems"][maem]["type"] == "nla" else FULL_ARMS)
     arm_names = [a for a in (args.get("arms") or "").split(",") if a] or default_arms
     for a in arm_names:
         assert a in ARM_SPECS, f"unknown arm {a!r}, want some of {list(ARM_SPECS)}"
@@ -1508,11 +1508,11 @@ def run(cfg, args):
     # `rollouts_nla --n 16` -- cannot be reached by changing it. `--nla-run-tag` moves ONLY the
     # rollout side of an `nla` build: the rollouts stem (`read_nla_rollouts`) and the scores/
     # directory `sae_self` wrote beside them. Empty = `--run-tag`, so every earlier command line
-    # addresses exactly what it did. Refused on a MAEMM, where it would be a flag nothing reads.
+    # addresses exactly what it did. Refused on a MAEM, where it would be a flag nothing reads.
     nla_run_tag = str(args.get("nla_run_tag") or "") or run_tag
-    assert not args.get("nla_run_tag") or cfg["maemms"][maemm]["type"] == "nla", (
-        f"--nla-run-tag names a verbalizer generation run, but --maemm {maemm} is type "
-        f"{cfg['maemms'][maemm]['type']!r}; its rollouts are addressed by --run-tag"
+    assert not args.get("nla_run_tag") or cfg["maems"][maem]["type"] == "nla", (
+        f"--nla-run-tag names a verbalizer generation run, but --maem {maem} is type "
+        f"{cfg['maems'][maem]['type']!r}; its rollouts are addressed by --run-tag"
     )
     shown_pkey = SS.corpus_key_for(shown_corpus, run_tag)
     test_pkey = SS.corpus_key_for(test_corpus, run_tag)
@@ -1587,7 +1587,7 @@ def run(cfg, args):
         + ("  [TWO CORPORA]" if two_corpora else "  [one corpus, both sides]"),
         flush=True,
     )
-    sdir = C.scores_dir(maemm, set_name, root, engine,
+    sdir = C.scores_dir(maem, set_name, root, engine,
                         C.score_tag_of({**args, "run_tag": nla_run_tag}))
     # `sae_self` puts a non-default side in the product path (`sae_self__dec`, sae_self.py), so the
     # M arms of a decoder build read the decoder rollouts' activations and never the encoder ones.
@@ -1611,11 +1611,11 @@ def run(cfg, args):
             f"`examples_4m` ({prefix_m}M prefix) instead, and no C16 arm can be built",
             flush=True,
         )
-    is_nla = check_arm_maemm(arm_names, maemm, cfg["maemms"][maemm]["type"])
+    is_nla = check_arm_maem(arm_names, maem, cfg["maems"][maem]["type"])
     # Arm B ("the NLA text IS the description") needs the rollout's OWN text, not the rendered,
     # activation-marked example the explainer sees, so it comes from the rollouts file rather than
     # from sae_self's re-encoded ids. NOTE this is the DEFAULT-amp rollouts directory: an `--amp`
-    # variant lands in maemms/<base>/<nla>/variants/ and neither sae_self nor this stage reads
+    # variant lands in maems/<base>/<nla>/variants/ and neither sae_self nor this stage reads
     # from there, so an amp sweep needs its own (rollouts -> score -> sae_self -> build) chain.
     nla_text: dict[tuple[int, int], str] = {}
     if is_nla:
@@ -1626,7 +1626,7 @@ def run(cfg, args):
         # stem existed whole -- silently dropped the chunked rows' NLA texts. The stem carries
         # this run's TAG and the verbalizer's own engine; `read_nla_rollouts` says what each of
         # those cost when it did not.
-        recs, _nla_stem = read_nla_rollouts(maemm, set_name, root, nla_run_tag)
+        recs, _nla_stem = read_nla_rollouts(maem, set_name, root, nla_run_tag)
         nla_text = {(int(x["row"]), int(x["k"])): x["text"] for x in recs}
     nla_desc_rows: list[dict] = []
     print(f"[build] {len(picked)} features, arms {arm_names}", flush=True)
@@ -1686,7 +1686,7 @@ def run(cfg, args):
         act_path, rows_path = f"{sdir}/best_act.f16", f"{sdir}/rows.json"
         assert os.path.exists(act_path) and os.path.exists(rows_path), (
             f"arm M-cos16 reads {act_path} and {rows_path} (precompute/score.py:624, :629) and at "
-            f"least one is absent: it is written by the FIRST `score` pass over this (maemm, set) "
+            f"least one is absent: it is written by the FIRST `score` pass over this (maem, set) "
             f"and not by a rescore (score.py:401). Re-run `--product score` without --rescore, or "
             f"drop M-cos16 -- nothing here takes a forward pass of its own."
         )
@@ -1739,7 +1739,7 @@ def run(cfg, args):
             "heldout": hdir,
             "products_set": products_set,
             "sae_self": self_dir,
-            "maemm": maemm,
+            "maem": maem,
             "engine": engine,
             "features": len(picked),
             "arms": ",".join(arm_names),
@@ -2037,8 +2037,8 @@ def run(cfg, args):
                 "stratum": int(r["stratum"]),
                 # FIELD NAMES DIFFER BY FAMILY, which is why these are not r["..."]. `targets.py`
                 # writes `density` (gated fires / scanned positions) and `fires_gated` on a `sae`
-                # row; `features/draw_sae2m.py` writes `gated_fires` and NO density on a
-                # `sae2m_enc` one. Both are descriptive covariates -- stats.py reports by them and
+                # row; `features/draw_dict2m.py` writes `gated_fires` and NO density on a
+                # `dict2m_enc` one. Both are descriptive covariates -- stats.py reports by them and
                 # nothing selects on them -- so a missing one is None rather than a KeyError that
                 # would stop a build over a column nobody gates on. `stratum` IS required and is
                 # on both.
@@ -2095,13 +2095,13 @@ def run(cfg, args):
             )
         if is_nla:
             od.note(
-                f"ARM PROVENANCE: rollout source = the NLA VERBALIZER `{maemm}` "
-                f"({cfg['maemms'][maemm].get('hf', '?')}), n = {n_roll} texts per feature at "
-                f"nla.max_new {cfg['maemms'][maemm]['nla']['max_new']}. The NLA arm is therefore "
+                f"ARM PROVENANCE: rollout source = the NLA VERBALIZER `{maem}` "
+                f"({cfg['maems'][maem].get('hf', '?')}), n = {n_roll} texts per feature at "
+                f"nla.max_new {cfg['maems'][maem]['nla']['max_new']}. The NLA arm is therefore "
                 f"NOT matched-N against C4/C16 (16 examples each) and its texts are ~3x longer; "
                 f"both differences are properties of the baseline at its own operating point and "
-                f"neither is corrected for here. The MAEMM rollout arms "
-                f"({', '.join(ROLLOUT_ARMS_NOT_NLA)}) are REFUSED with an `nla` --maemm."
+                f"neither is corrected for here. The MAEM rollout arms "
+                f"({', '.join(ROLLOUT_ARMS_NOT_NLA)}) are REFUSED with an `nla` --maem."
             )
         od.write_json("features.json", {"features": feat_table})
         od.write_json(
@@ -2109,7 +2109,7 @@ def run(cfg, args):
             {
                 "base": base,
                 "set": set_name,
-                "maemm": maemm,
+                "maem": maem,
                 "engine": engine,
                 "sae": sae_key,
                 "gate": gate,
@@ -2198,11 +2198,11 @@ def run(cfg, args):
                 "random_pool": pool.path,
                 "random_pool_windows": pool.n_win,
                 "arms": {a: ARM_SPECS[a] for a in arm_names},
-                "rollout_source": ("nla-verbalizer" if is_nla else "maemm"),
-                "nla_desc": ("nla_desc.jsonl" if write_nla_desc else "(not an nla maemm)"
+                "rollout_source": ("nla-verbalizer" if is_nla else "maem"),
+                "nla_desc": ("nla_desc.jsonl" if write_nla_desc else "(not an nla maem)"
                              if not is_nla else f"(not written: no {'/'.join(NLA_ARMS)} arm)"),
                 # M12: which verbalizer generation run this build read. Only on an nla build, so
-                # every MAEMM build.json keeps exactly the keys it had.
+                # every MAEM build.json keeps exactly the keys it had.
                 **({"nla_run_tag": nla_run_tag, "nla_n": n_roll} if is_nla else {}),
                 "epo_strings": args.get("epo_strings") or "(E arm not run: hook only)",
                 "mean_marked_fraction": round(float(np.mean(mark_frac)) if mark_frac else 0.0, 4),

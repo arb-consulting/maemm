@@ -20,7 +20,7 @@ import modal
 # No evals.downstream.* import at module level: the container imports this file before PYTHONPATH=/app applies.
 
 REPO = Path(__file__).resolve().parent.parent.parent
-APP_NAME = os.environ.get("EVAL_APP", "maemm-rollout-coherence")
+APP_NAME = os.environ.get("EVAL_APP", "maem-rollout-coherence")
 app = modal.App(APP_NAME)
 GPU = os.environ.get("EVAL_GPU", "B200:1")
 GPU_BOTH_MODELS = os.environ.get("EVAL_GPU_BOTH_MODELS", GPU)
@@ -31,14 +31,14 @@ DEFAULT_JUDGE_PROFILE = "sonnet"
 #: A cap flag left at this value means the package's own constant (a typed Modal flag cannot be None).
 FROM_CONFIG = -1
 # `frontier_context` methods after `targets`, one job each; `retrieval` is sharded (checked against config).
-CONTEXT_JOBS = ("maemm", "continuation", "nla")
+CONTEXT_JOBS = ("maem", "continuation", "nla")
 GPU_TIMEOUT = 3 * 3600
 CPU_TIMEOUT = 10 * 3600   # the largest judge pass is a few hours at worst; twice that as headroom
 
-VOLUME_NAME = os.environ.get("EVAL_VOLUME", "maemm-data")
-HF_SECRET_NAME = os.environ.get("EVAL_HF_SECRET", "maemm-hf")
+VOLUME_NAME = os.environ.get("EVAL_VOLUME", "maem-data")
+HF_SECRET_NAME = os.environ.get("EVAL_HF_SECRET", "maem-hf")
 # The default profile's judge key always; the `sol` judge's only when its secret is named.
-ANTHROPIC_SECRET_NAME = os.environ.get("EVAL_ANTHROPIC_SECRET", "maemm-anthropic")
+ANTHROPIC_SECRET_NAME = os.environ.get("EVAL_ANTHROPIC_SECRET", "maem-anthropic")
 OPENROUTER_SECRET_NAME = os.environ.get("EVAL_OPENROUTER_SECRET", "")
 # EVAL_OUTPUT_DIR is the root every activation package writes under, as <root>/rollout_coherence.
 OUTPUT_DIR = os.environ.get("EVAL_OUTPUT_DIR_ROLLOUT_COHERENCE") or os.path.join(
@@ -61,7 +61,7 @@ image = (
     .pip_install_from_requirements(str(REPO / "evals/downstream/common/requirements.txt"))
     .pip_install_from_requirements(str(REPO / "evals/downstream/rollout_coherence/requirements.txt"))
     .env(LAUNCH_ENV)
-    .add_local_dir(REPO / "maemm", "/app/maemm", ignore=["__pycache__", "out", "analysis", "test_*"])
+    .add_local_dir(REPO / "maem", "/app/maem", ignore=["__pycache__", "out", "analysis", "test_*"])
     .add_local_dir(REPO / "evals" / "downstream", "/app/evals/downstream", ignore=["__pycache__", "out", "analysis", "test_*"])
 )
 vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
@@ -71,8 +71,8 @@ JUDGE_SECRETS = [modal.Secret.from_name(n) for n in (ANTHROPIC_SECRET_NAME, OPEN
 # The stages that load a model; `_check_stage_lists` holds this partition to stages.py.
 GPU_STAGES = {"capture", "frontier_context", "frontier_context_fluency"}
 TWO_MODEL_STAGES = {"frontier_context"}
-#: selector words that load the inverter (`maemm`) or the verbalizer (`nla`)
-SECOND_MODEL_SELECTORS = ("maemm", "nla")
+#: selector words that load the inverter (`maem`) or the verbalizer (`nla`)
+SECOND_MODEL_SELECTORS = ("maem", "nla")
 CPU_STAGES = {"prepare", "frontier_corpus", "frontier_context_pairs", "frontier_context_judge", "report"}
 
 
@@ -346,7 +346,7 @@ def pull(run_id: str, dest: str = "evals/downstream/out/rollout_coherence"):
 
 
 def _holds_both_models(name, extra):
-    """True when this job's selectors name `maemm` or `nla`, or it has none (the stage's whole list)."""
+    """True when this job's selectors name `maem` or `nla`, or it has none (the stage's whole list)."""
     if name not in TWO_MODEL_STAGES:
         return False
     if not extra:

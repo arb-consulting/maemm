@@ -1,15 +1,15 @@
-"""Real corpus search against the trojan write directions: how many tokens to match the MAEMM?
+"""Real corpus search against the trojan write directions: how many tokens to match the MAEM?
 
 Streams N tokens of web text (Ultra-FineWeb) through the CLEAN model in 256-token windows, hooks
 the residual at the read-off layer, and for every token scores cos(unit(h_t), unit(v)) against all
-16 write directions and all 16 read directions at once -- the SAME scorer used for the MAEMM
+16 write directions and all 16 read directions at once -- the SAME scorer used for the MAEM
 rollouts in corpus_vs_maem, so the two are directly comparable.
 
 Per direction it reports
     corpus_peak       the best cosine any real token reached over N tokens (both signs, so the
                       corpus is scored generously)
-    maemm_best        the MAEMM's best of 24 rollouts under the same scorer
-    tokens_to_match   the first token count at which the corpus running max reached maemm_best,
+    maem_best        the MAEM's best of 24 rollouts under the same scorer
+    tokens_to_match   the first token count at which the corpus running max reached maem_best,
                       or >N if it never did
 
 `tokens_to_match` is the paper's own statistic (Section 2 quotes ~4.6B tokens to match a best-of-4
@@ -90,12 +90,12 @@ def main(argv=None):
     R = torch.stack(R).to(dev)
     Wd = torch.stack(Wd).to(dev)
 
-    # MAEMM best-of-24 under the same scorer, per direction
+    # MAEM best-of-24 under the same scorer, per direction
     # (optional: without the file the scan still reports peaks and the top-K windows)
     cvm = json.load(open(a.cvm_json, encoding="utf-8"))["trojans"] \
         if os.path.exists(a.cvm_json) else {}
     nan = float("nan")
-    mb = {k: torch.tensor([cvm.get(n, {}).get(k, {}).get("maemm_best", nan) for n in names],
+    mb = {k: torch.tensor([cvm.get(n, {}).get(k, {}).get("maem_best", nan) for n in names],
                           device=dev) for k in ("read", "write")}
 
     layer = model.get_base_model().model.layers[a.layer]
@@ -114,7 +114,7 @@ def main(argv=None):
             "write": torch.full((len(names),), -1.0, device=dev)}
     tmatch = {"read": [None] * len(names), "write": [None] * len(names)}
     # top-k windows per direction: what does the max-activating real text SAY? (judged like the
-    # MAEMM rollouts: word-bounded literal hit on the payload / trigger keys)
+    # MAEM rollouts: word-bounded literal hit on the payload / trigger keys)
     K = 24
     top = {"read": [[] for _ in names], "write": [[] for _ in names]}   # lists of (cos, text)
     keys = {"read": [TRO[n]["keys"] for n in names],
@@ -192,8 +192,8 @@ def main(argv=None):
            "n_shards": a.n_shards, "layer": a.layer, "trojans": {}}
     for kind in ("write", "read"):
         print("")
-        print(f"{kind.upper()}: corpus peak over {seen:,} tokens vs MAEMM best-of-24 (same scorer)")
-        print(f"{'trojan':>11s} | {'corpus peak':>11s} {'MAEMM best':>10s} | {'tokens to match':>15s}")
+        print(f"{kind.upper()}: corpus peak over {seen:,} tokens vs MAEM best-of-24 (same scorer)")
+        print(f"{'trojan':>11s} | {'corpus peak':>11s} {'MAEM best':>10s} | {'tokens to match':>15s}")
         print("-" * 58)
         n_win = 0
         for j, n in enumerate(names):
@@ -204,15 +204,15 @@ def main(argv=None):
             wins = [(round(v_, 4), txt) for v_, txt in top[kind][j]]
             hits = sum(wb(txt, keys[kind][j]) for _v, txt in wins)
             out["trojans"].setdefault(n, {})[kind] = {
-                "corpus_peak": round(cp, 4), "maemm_best": None if m != m else round(m, 4),
+                "corpus_peak": round(cp, 4), "maem_best": None if m != m else round(m, 4),
                 "tokens_to_match": t if t is not None else f">{seen}",
-                "maemm_unmatched": bool(win),
+                "maem_unmatched": bool(win),
                 "topk_literal": hits, "topk_n": len(wins),
                 "topk_windows": [{"cos": v_, "text": txt} for v_, txt in wins]}
             ts = f">{seen:,}" if t is None else f"{t:,}"
             print(f"{n:>11s} | {cp:>11.4f} {m:>10.4f} | {ts:>15s} | top{K} names it {hits:>2}/{len(wins)}")
         print("-" * 58)
-        print(f"{kind}: corpus never matched MAEMM best-of-24 within {seen:,} tokens "
+        print(f"{kind}: corpus never matched MAEM best-of-24 within {seen:,} tokens "
               f"for {n_win}/{len(names)} adapters")
         out[f"{kind}_unmatched"] = n_win
 

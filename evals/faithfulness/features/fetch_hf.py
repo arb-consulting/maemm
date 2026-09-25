@@ -1,6 +1,6 @@
 """Fetch an HF repo into the volume's HF cache at a PINNED revision.
 
-    modal run features/fetch_hf.py --repo ANONYMOUS/maemm-27b-rl-last16-lr5e-7 \
+    modal run features/fetch_hf.py --repo ANONYMOUS/ckpt-rl-final \
         --revision <revision>
 
 The fetch step `common.snapshot()` expects: exactly one pinned snapshot per repo.
@@ -15,9 +15,9 @@ from __future__ import annotations
 import modal
 
 VOL = "/vol"
-APP = "maemm-fetch-hf"
+APP = "maem-fetch-hf"
 
-vol = modal.Volume.from_name("maemm", create_if_missing=False)
+vol = modal.Volume.from_name("maem", create_if_missing=False)
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("huggingface_hub[hf_transfer]==0.36.0")
@@ -27,7 +27,7 @@ app = modal.App(APP)
 
 
 @app.function(image=image, volumes={VOL: vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=6 * 3600, cpu=8)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=6 * 3600, cpu=8)
 def fetch(repo: str, revision: str = "", force: bool = False, dry_run: bool = False) -> dict:
     import os
     import time

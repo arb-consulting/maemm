@@ -11,7 +11,7 @@ from .steering import GROUP, STEERED, axbench_summary
 BUDGETS = (1, 2, 4, 8)
 SURFACE, INK, INK_2, MUTED, GRID = "#ffffff", "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0"
 # Tol "vibrant" hues that pass an all-pairs colour-distance check; each series also has its own marker.
-SERIES = (("maemm", "#79A3CF", "o"), ("nla_native", "#009988", "s"), ("retrieval", "#EE7733", "^"),
+SERIES = (("maem", "#79A3CF", "o"), ("nla_native", "#009988", "s"), ("retrieval", "#EE7733", "^"),
           ("jlens", "#33BBEE", "D"), (STEERED, "#EE3377", "v"))
 NAMES = {"nla_native": "NLA", "retrieval": "Corpus (10M)", "jlens": "J-lens", STEERED: "Steered (ref.)"}
 HELDOUT = ("heldout_positive", "Held-out texts (ref.)", "#3d3c39")
@@ -36,7 +36,7 @@ def build(axbench_run, out, judge="sol", method_label="MAEM"):
     import matplotlib.pyplot as plt
 
     rows = [r for r in axbench_summary(axbench_run, judge) if r["group"] == GROUP]
-    names = {"maemm": method_label, **NAMES}
+    names = {"maem": method_label, **NAMES}
     style = {"font.family": "serif", "font.serif": ["STIXGeneral", "Times New Roman", "DejaVu Serif"],
              "mathtext.fontset": "stix", "font.size": 7.5, "axes.linewidth": 0.6, "axes.edgecolor": MUTED,
              "axes.labelcolor": INK, "xtick.color": INK, "ytick.color": INK, "xtick.major.width": 0.6,
@@ -90,7 +90,7 @@ def build(axbench_run, out, judge="sol", method_label="MAEM"):
             ax.spines[side].set_visible(False)
         # Two legend rows (readers; references and controls), interleaved because matplotlib fills columns.
         handles, labels = ax.get_legend_handles_labels()
-        top = [names[k] for k in ("maemm", "nla_native", "jlens", "retrieval")]
+        top = [names[k] for k in ("maem", "nla_native", "jlens", "retrieval")]
         bottom = [names[STEERED], HELDOUT[1], "Controls", None]
         order = [n for pair in zip(top, bottom) for n in pair if n]
         fig.legend([handles[labels.index(n)] for n in order], order, loc="lower center", bbox_to_anchor=(0.5, 0.0),

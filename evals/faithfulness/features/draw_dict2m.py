@@ -1,14 +1,14 @@
-"""Draw the standard sae2m target set: 40,000 eval-split features, 80/20.
+"""Draw the standard dict2m target set: 40,000 eval-split features, 80/20.
 
-    python -m features.spawn --product draw_sae2m --base qwen36-27b \
-        --sae qwen36-27b/sae2m --gpu cpu
+    python -m features.spawn --product draw_dict2m --base qwen36-27b \
+        --sae qwen36-27b/dict2m --gpu cpu
 
-    python -m features.spawn --product draw_sae2m --base qwen36-27b \
-        --sae qwen36-27b/sae2m --set 2026-09-21_sae2m_64 --n 64 --stratified \
+    python -m features.spawn --product draw_dict2m --base qwen36-27b \
+        --sae qwen36-27b/dict2m --set 2026-09-21_dict2m_64 --n 64 --stratified \
         --root /vol/tmp/sae-smoke64 --gpu cpu
 
-    python -m features.spawn --product draw_sae2m --base qwen36-27b \
-        --sae qwen36-27b/sae2m --set 2026-09-21_v3_sae2m --n 512 --stratified \
+    python -m features.spawn --product draw_dict2m --base qwen36-27b \
+        --sae qwen36-27b/dict2m --set 2026-09-21_v3_dict2m --n 512 --stratified \
         --seed 20260921 --sides enc,dec --include <64 ids> --gpu h200
 
 Writes the shape the rest of the pipeline already reads:
@@ -26,7 +26,7 @@ and the held-out claim would die silently. `build()` asserts every drawn id is o
 eval side.
 
 The 80/20 `side` column splits OUR analysis, not the model's training: both halves are
-equally unseen by the MAEMM. It exists so thresholds, strata cuts and ablations can be
+equally unseen by the MAEM. It exists so thresholds, strata cuts and ablations can be
 chosen on `fit` without touching the numbers reported from `report`.
 
 Stratification is RECORDED, not sampled: the draw is uniform over eligible features and
@@ -56,7 +56,7 @@ equally plausible-looking table instead of failing. The UNIFORM draw still keys 
 
 FAMILY LABEL (fixed 2026-09-21). These rows are stamped `family: "sae"`, the label every
 downstream product filters on, with the dictionary named separately per row in `sae_key`.
-The first draw used `family: "sae2m_enc"`, which no consumer selected on, so the set was
+The first draw used `family: "dict2m_enc"`, which no consumer selected on, so the set was
 invisible to `scan`, `top1_act`, `repo_examples`, `gcg`, `score`'s per-family means and
 autointerp until each was taught to accept the second label. The 2k set already on the
 volume keeps its old label and that acceptance stays; a re-draw carries `sae`.
@@ -231,7 +231,7 @@ def build(cfg, args):
     # is there; a name it made up is a name nobody can ask for twice.
     set_name = args["heldout"]
     assert set_name, (
-        "draw_sae2m writes a held-out set, so it needs an explicit --set <name> (D6). It used to "
+        "draw_dict2m writes a held-out set, so it needs an explicit --set <name> (D6). It used to "
         "fall back to today's date, and through modal_app to the LIVE default set."
     )
     out_dir = C.heldout_dir(base, set_name, root)
@@ -467,7 +467,7 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
         for i, fid in enumerate(drawn):
             row = {
                 "row": len(rows),
-                # `sae`, NOT `sae2m_enc` (fixed 2026-09-21). The family label is a SELECTOR, not a
+                # `sae`, NOT `dict2m_enc` (fixed 2026-09-21). The family label is a SELECTOR, not a
                 # description: precompute/scan.py, top1_act.py, repo_examples.py, gcg/gcg.py,
                 # score.py's per-family means and autointerp's sae_self/build all filter
                 # `family == "sae"`, so a set stamped with anything else is invisible to every one of
@@ -476,7 +476,7 @@ def _finish(cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
                 # question and now has its own field.
                 "family": "sae",
                 # The config key of the SAE this feature index refers to. `id` alone is ambiguous
-                # across dictionaries: feature 4242 of the 131k `l42-1b` and of the 2M `sae2m` are
+                # across dictionaries: feature 4242 of the 131k `l42-1b` and of the 2M `dict2m` are
                 # unrelated directions, and before this field the only thing telling them apart was
                 # the family label that nothing selected on.
                 "sae_key": sae_key,
@@ -527,7 +527,7 @@ def run(cfg, args):
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
         # THE STORAGE CONTRACT (H4). Without it `common.set_storage` refuses the set outright and
-        # somebody has to hand-write a `heldout:` entry -- which is exactly why 2026-09-20_sae2m_2k
+        # somebody has to hand-write a `heldout:` entry -- which is exactly why 2026-09-20_dict2m_2k
         # needed one. `dirs_only`: these rows are unit encoder columns, never centred and not
         # centrable, so no `--mu` applies to them at all.
         od.write_json(
@@ -552,7 +552,7 @@ def run(cfg, args):
             f"per-family means, autointerp's sae_self and build) -- and the dictionary is named "
             f"per row in `sae_key` ({meta['sae_key']!r}), because a feature index means nothing "
             f"without "
-            f"it. Sets drawn before 2026-09-21 carry `family: sae2m_enc` instead and are NOT "
+            f"it. Sets drawn before 2026-09-21 carry `family: dict2m_enc` instead and are NOT "
             f"rewritten; autointerp still accepts that label for them."
         )
         od.note(f"strata: {meta['stratum_stat']} from {meta['stratum_source']}")
@@ -569,7 +569,7 @@ def run(cfg, args):
                 f"stratum."
             )
         od.note(f"{meta['n_fit']} train/fit, {meta['n_report']} test/report -- BOTH "
-                f"halves are unseen by the MAEMM; this splits our analysis, not the "
+                f"halves are unseen by the MAEM; this splits our analysis, not the "
                 f"model's training")
         od.note(f"gate {meta['gate']}; F = {meta['d_sae']:,}; vecs are unit dictionary columns "
                 f"in fp32 before the cast")
@@ -585,4 +585,4 @@ def run(cfg, args):
                 f"in sae_self does not apply to a decoder row."
             )
     print(json.dumps({"set": set_name, "dir": out_dir, **meta}, indent=1), flush=True)
-    return {"product": "draw_sae2m", "set": set_name, **meta}
+    return {"product": "draw_dict2m", "set": set_name, **meta}

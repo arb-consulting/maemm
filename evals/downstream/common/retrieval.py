@@ -18,7 +18,7 @@ import time
 import numpy as np
 
 from evals.downstream.common.runs import config_hash, mark_stage, stage_done, write_provenance
-from maemm.config import READ_LAYER
+from maem.config import READ_LAYER
 
 ASSETS = os.path.join(os.path.dirname(__file__), "assets")
 HELDOUT_INDEX = os.path.join(ASSETS, "heldout_docs.csv")
@@ -465,7 +465,7 @@ def reencode_windows(windows, mdl, tok, device, sbatch=WINDOW_BATCH):
     token-id twin of `evals.downstream.common.scorer.reencode` (same sink and padding, no norm filter)."""
     import torch
 
-    from maemm.inject import read_resid
+    from maem.inject import read_resid
 
     sink = tok.bos_token_id if tok.bos_token_id is not None else tok.eos_token_id
     pad = tok.pad_token_id if getattr(tok, "pad_token_id", None) is not None else sink

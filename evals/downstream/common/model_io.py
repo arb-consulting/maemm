@@ -67,7 +67,7 @@ def capture(base, ids, device, layers, positions=None):
     """Residual-stream outputs of `layers` at `positions` (default all) from one clean forward of the base:
     float32 [len(layers), n_positions, d] on CPU."""
     import torch
-    from maemm.inject import get_layer
+    from maem.inject import get_layer
 
     layers = list(layers)
     store = {}
@@ -265,7 +265,7 @@ def generate_injected(
     """`generate_batches` with marker injection: every row shares one prompt, and direction i is added at
     `marker_pos` of block `inject_layer` as `h += unit(v)·||h||·steer_coeff`."""
     import torch
-    from maemm.inject import get_layer, hooked, make_inject_hook
+    from maem.inject import get_layer, hooked, make_inject_hook
 
     sub = get_layer(gen_model, inject_layer)
     n = dirs.shape[0]
@@ -356,7 +356,7 @@ def generate_rows(gen_model, tok, sequences, dirs, device, mode, layer, coeffici
     give each row its own stream unless `greedy`."""
     import torch
     from transformers import GenerationConfig, LogitsProcessorList
-    from maemm.inject import get_layer, hooked, make_inject_hook
+    from maem.inject import get_layer, hooked, make_inject_hook
 
     if mode not in INJECTION_MODES:
         raise ValueError(f"Unknown injection mode {mode!r}")

@@ -1,6 +1,6 @@
-# MAEMM: a universal activation-to-text inverter
+# MAEM: a universal activation-to-text inverter
 
-MAEMM trains a LoRA adapter that turns an activation **direction** inside a language model back
+MAEM trains a LoRA adapter that turns an activation **direction** inside a language model back
 into **text** whose own activation, on a clean forward pass, points the same way. Given any
 direction in the residual stream (an SAE feature, a probe, a raw activation), it writes a short
 span that evokes it.
@@ -8,12 +8,12 @@ span that evokes it.
 **Method.** Inject a unit direction `v` at `INJECT_LAYER` on a marker token (`h <- h + ||h|| v`),
 generate, then re-read the text through the clean model (adapter off) at `READ_LAYER` and score
 the max-over-tokens cosine with `v`. Training is SFT on real corpus spans, then GRPO RL on that
-score. The defaults target `Qwen/Qwen3.6-27B` (inject layer 1, read layer 42); see `maemm/config.py`.
+score. The defaults target `Qwen/Qwen3.6-27B` (inject layer 1, read layer 42); see `maem/config.py`.
 
 ## Layout
 
 ```
-maemm/                 the core library: config, injection and read hooks, prompts, SAE loading
+maem/                 the core library: config, injection and read hooks, prompts, SAE loading
 data/                  activation collection and (direction, target-span) bank building
 train/sft/             supervised stage: LoRA or full fine-tune
 train/rl/              RL stage: GRPO with disaggregated vLLM rollouts
@@ -32,7 +32,7 @@ Each folder has a README listing its scripts; every script's docstring gives its
 
 ```bash
 pip install -r requirements.txt
-export PYTHONPATH=$PWD          # `import maemm` from anywhere in the tree
+export PYTHONPATH=$PWD          # `import maem` from anywhere in the tree
 modal setup                     # GPU work runs on Modal
 ```
 
@@ -40,15 +40,15 @@ Create these Modal secrets in your workspace (each holds one API key):
 
 | secret | holds |
 |---|---|
-| `maemm-hf` | `HF_TOKEN` |
-| `maemm-wandb` | `WANDB_API_KEY` |
-| `maemm-anthropic` | `ANTHROPIC_API_KEY` (LLM-judge and autointerp stages; optional `ANTHROPIC_WORKSPACE_ID`) |
-| `maemm-openrouter` | `OPENROUTER_API_KEY` (the LLM baseline) |
+| `maem-hf` | `HF_TOKEN` |
+| `maem-wandb` | `WANDB_API_KEY` |
+| `maem-anthropic` | `ANTHROPIC_API_KEY` (LLM-judge and autointerp stages; optional `ANTHROPIC_WORKSPACE_ID`) |
+| `maem-openrouter` | `OPENROUTER_API_KEY` (the LLM baseline) |
 
 Create the three volumes the pipeline reads from (the others are created on first use):
 
 ```bash
-modal volume create maemm-data && modal volume create maemm && modal volume create maemm-dit
+modal volume create maem-data && modal volume create maem && modal volume create maem-dit
 ```
 
 **Checkpoints** are referenced as `ANONYMOUS/<name>` on the HuggingFace Hub. The optional `--prefix-cache` speed path needs a patched `transformers`,

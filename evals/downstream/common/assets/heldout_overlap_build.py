@@ -19,8 +19,8 @@ import numpy as np
 
 from evals.downstream.common import retrieval as R
 
-SOURCES = ("sft_mix_realact", "rl_pool_realact_ctx64_2048", "sft_mix_sae2m", "sft_mix_sae2m_dec",
-           "rl_pool_sae2m", "rl_pool_sae2m_dec")
+SOURCES = ("sft_mix_realact", "rl_pool_realact_ctx64_2048", "sft_mix_dict2m", "sft_mix_dict2m_dec",
+           "rl_pool_dict2m", "rl_pool_dict2m_dec")
 TEXT_COLUMN = "target_text"
 NS = (7, 13)
 LEVELS = (0.05, 0.2, 0.5, 0.9)

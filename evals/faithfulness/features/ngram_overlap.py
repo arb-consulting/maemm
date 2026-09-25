@@ -14,7 +14,7 @@ that is what this reports, as a distribution. Pick a threshold off that distribu
 and pick it before looking at which targets it would remove.
 
 **Both sides, same bar.** The existing 13-gram check (2026-09-18) measured OUR corpus
-against the upstream training text and found realact at 0.50% of rows against sae2m's 8.31%. But
+against the upstream training text and found realact at 0.50% of rows against dict2m's 8.31%. But
 we are standardising on THE UPSTREAM data, so the pair that matters now is the upstream eval realact pool
 against the upstream training ranges. `--side` picks which. Whatever bar disqualifies one
 side has to be applied to the other: the upstream eval windows already overlap our corpus at a
@@ -34,12 +34,12 @@ import modal
 VOL = "/vol"
 BUNDLE = f"{VOL}/data/v2-bundle"
 
-vol = modal.Volume.from_name("maemm", create_if_missing=False)
+vol = modal.Volume.from_name("maem", create_if_missing=False)
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("numpy==2.3.4", "pandas==3.0.3", "pyarrow==24.0.0")
 )
-app = modal.App("maemm-ngram-overlap")
+app = modal.App("maem-ngram-overlap")
 
 # The upstream training text for the activation families: the SFT bank's 8-64-token contexts and
 # the RL pool's 64-2048-token ones. The SAE banks are max-activating windows, a
@@ -50,11 +50,11 @@ TRAIN_SOURCES = [
     # The SAE banks are text the model trained on too. Excluding them biases the
     # answer DOWN, and they are the likeliest to match: max-activating windows select
     # for templated, duplicated web text, which is why the 2026-09-18 13-gram pass put
-    # sae2m at 8.31% of rows against realact's 0.50%.
-    ("sft_sae2m", "simple2m/sft_mix/sae2m/records.parquet"),
-    ("sft_sae2m_dec", "simple2m/sft_mix/sae2m_dec/records.parquet"),
-    ("rl_sae2m", "simple2m/rl_pool/sae2m/records.parquet"),
-    ("rl_sae2m_dec", "simple2m/rl_pool/sae2m_dec/records.parquet"),
+    # dict2m at 8.31% of rows against realact's 0.50%.
+    ("sft_dict2m", "simple2m/sft_mix/dict2m/records.parquet"),
+    ("sft_dict2m_dec", "simple2m/sft_mix/dict2m_dec/records.parquet"),
+    ("rl_dict2m", "simple2m/rl_pool/dict2m/records.parquet"),
+    ("rl_dict2m_dec", "simple2m/rl_pool/dict2m_dec/records.parquet"),
 ]
 EVAL_SOURCES = {
     "upstream_512": "heldout/eval_directions_v3/realact.parquet",

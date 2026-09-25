@@ -16,9 +16,9 @@ import time
 import torch
 import torch.nn.functional as F
 
-from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
-from maemm.inject import get_input_embeddings, get_layer, hooked, make_inject_hook, read_resid
-from maemm.prompts import build_prompt_ids
+from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
+from maem.inject import get_input_embeddings, get_layer, hooked, make_inject_hook, read_resid
+from maem.prompts import build_prompt_ids
 
 
 # ---------------------------------------------------------------------------------------------
@@ -59,7 +59,7 @@ def raw_ids(tok, prefix, target):
     prefix. Only `target` is supervised.
 
     The sink prepend + add_special_tokens=False matches the harness's clean-base read path
-    (maemm.inject.read_resid callers, eval_universal._reencode), so token index i here is the same
+    (maem.inject.read_resid callers, eval_universal._reencode), so token index i here is the same
     position the reward and the eval families would read.
     """
     sink = tok.bos_token_id if tok.bos_token_id is not None else tok.eos_token_id

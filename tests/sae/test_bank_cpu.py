@@ -209,10 +209,10 @@ def test_assemble_and_bank_files():
     Wn = S[keep]
     U = np.unique(cf[Wn]); pos_of = {f: i for i, f in enumerate(U)}
     wpos = np.array([pos_of[f] for f in cf[Wn]])
-    leak = {"sae2m": np.array([pos_of[U[0]]]), "sae2m_dec": np.array([], np.int64)}        # first feature's ENCODER dir leaks
-    row_fam, row_win, dropped = assemble_rows(Wn, wpos, leak, ("sae2m", "sae2m_dec"), seed=9)
+    leak = {"dict2m": np.array([pos_of[U[0]]]), "dict2m_dec": np.array([], np.int64)}        # first feature's ENCODER dir leaks
+    row_fam, row_win, dropped = assemble_rows(Wn, wpos, leak, ("dict2m", "dict2m_dec"), seed=9)
     n_first = int((cf[Wn] == U[0]).sum())
-    assert dropped == {"sae2m": n_first, "sae2m_dec": 0} and len(row_fam) == 2 * len(Wn) - n_first
+    assert dropped == {"dict2m": n_first, "dict2m_dec": 0} and len(row_fam) == 2 * len(Wn) - n_first
     assert (row_fam == 1).sum() == len(Wn) and (row_fam == 0).sum() == len(Wn) - n_first
     assert not np.array_equal(row_win, np.sort(row_win))                                        # shuffled
     # write a mini bank with the real record schema and check the invariants the compositor / trainer rely on
@@ -221,12 +221,12 @@ def test_assemble_and_bank_files():
     enc_dirs = torch.nn.functional.normalize(ae["encoder.weight"].float(), dim=-1); dec_dirs = torch.nn.functional.normalize(ae["decoder.weight"].float().T, dim=-1)
     N = len(row_fam)
     vecs = np.empty((N, D_MODEL), np.float32)
-    fam_names = ("sae2m", "sae2m_dec")
+    fam_names = ("dict2m", "dict2m_dec")
     counts = {}
     with open(f"{out}/records.jsonl", "w") as fh:
         for i in range(N):
             j = int(row_win[i]); f = int(cf[j]); fam = fam_names[row_fam[i]]
-            vecs[i] = (enc_dirs if fam == "sae2m" else dec_dirs)[f].numpy()
+            vecs[i] = (enc_dirs if fam == "dict2m" else dec_dirs)[f].numpy()
             rec = make_record(i, fam, f, int(cr[j]), texts[j], len(lists[j]), ma_acts[f].max(), ma_acts[f, cr[j]], fire[f], ma["doc_ids"][f, cr[j]],
                               ma["positions"][f, cr[j]], {"argpos": len(lists[j]) - 1, "act_last": 3.0, "act_max": 3.0}, 0.5)
             assert rec["peak_pos"] == rec["n_tok"] - 1 and rec["start"] == rec["pos"] - rec["n_tok"] + 1 and enc(rec["target_text"]) == lists[j]
@@ -239,7 +239,7 @@ def test_assemble_and_bank_files():
     assert n_chk == N and fams_chk == counts
     # the compositor's own scan (data/modal_mix_5m_bank._scan_records semantics): line i == vec_idx i, families per line
     recs = [json.loads(l) for l in open(f"{out}/records.jsonl")]
-    assert all(int(r["vec_idx"]) == i for i, r in enumerate(recs)) and sum(1 for r in recs if r["family"] == "sae2m_dec") == counts["sae2m_dec"]
+    assert all(int(r["vec_idx"]) == i for i, r in enumerate(recs)) and sum(1 for r in recs if r["family"] == "dict2m_dec") == counts["dict2m_dec"]
     # a corrupted bank is caught
     json.dump({"n_examples": N + 1, "families": counts}, open(f"{out}/build_stats.json", "w"))
     try:

@@ -45,7 +45,7 @@ def relative_shares(greedy_texts, V):
 def capture_controls(base, ids, pos, device):
     """{"mid": [d], "mean": [d]} from one clean forward of the prompt ids, hooking layer READ_LAYER only."""
     import torch
-    from maemm.inject import get_layer
+    from maem.inject import get_layer
 
     mid, (lo, hi) = control_positions(pos)
     store = {}

@@ -1,10 +1,10 @@
-# Persona steering vectors, read through MAEMM: protocol
+# Persona steering vectors, read through MAEM: protocol
 
 ## 1. Question
 
 A steering vector is built to carry a behaviour. Given the vector alone -- no prompt, no examples, no
 label -- can a reader of the residual stream produce text from which the behaviour can be named and told
-apart from other behaviours? The readers compared are MAEMM, the NLA verbalizer, the released Jacobian lens,
+apart from other behaviours? The readers compared are MAEM, the NLA verbalizer, the released Jacobian lens,
 and a search of a fixed web corpus; the steered model and held-out statements are references, the untrained
 base and a shuffled reading are controls.
 
@@ -12,11 +12,11 @@ base and a shuffled reading are controls.
 
 Qwen3.6-27B at the pinned revisions of `evals/downstream/common/pins.py`. The clean base is what every vector is trained
 against, what the lens and the corpus search read, what the steered model and the untrained-base control
-generate on. The inverter (MAEMM) is a full-parameter checkpoint in the base's layout that generates under
+generate on. The inverter (MAEM) is a full-parameter checkpoint in the base's layout that generates under
 injection; the two must ship the same generation config, field by field, or the run stops before it starts.
 The NLA verbalizer is a third checkpoint, held by a worker that holds nothing else.
 
-Vectors are trained at the output of block 42 (0-based), the layer the inverter reads. MAEMM receives a
+Vectors are trained at the output of block 42 (0-based), the layer the inverter reads. MAEM receives a
 direction at block 1 as `h += unit(v) * ||h||` at its marker token, at prefill only. Every reader receives
 the unit direction.
 
@@ -58,10 +58,10 @@ layer 42 of 64 (BiPO uses 15 of 32), no system prompt, no gradient clipping.
 
 ## 6. Readers
 
-Each generated reader draws 64 samples per vector under per-row seeds derived from the vector id; MAEMM, the
+Each generated reader draws 64 samples per vector under per-row seeds derived from the vector id; MAEM, the
 untrained-base control and the verbalizer also draw a greedy sample, which no instrument reads.
 
-- **MAEMM** (`maemm`): the inverter's trained research prompt with the direction injected, 64 new tokens.
+- **MAEM** (`maem`): the inverter's trained research prompt with the direction injected, 64 new tokens.
 - **Untrained base** (`base_l1`): the same prompt, marker and injection on the clean base.
 - **NLA verbalizer** (`nla_native`): the checkpoint `evals/downstream/common/pins.py` pins (`NLA_REPO`), its sidecar prompt through its own chat
   template with thinking disabled, the norm-matched add at its marker on block 1, up to 200 new tokens at
@@ -89,7 +89,7 @@ untrained-base control and the verbalizer also draw a greedy sample, which no in
   as in the AxBench package.
 - **Held-out statements** (`heldout_matching`, reference): 64 of the persona's held-out would-say
   statements, each cut to 300 characters.
-- **Shuffled** (`shuffled`, control): the vector's own question asked of MAEMM's texts for a donor, the
+- **Shuffled** (`shuffled`, control): the vector's own question asked of MAEM's texts for a donor, the
   first (in a seeded order) of the other four behaviours on its list whose vector exists. A judge that reads
   the text names the donor, so this rate sits below chance by construction.
 
@@ -124,7 +124,7 @@ and a later pass asks exactly those.
 
 A reader's row is the mean over per-vector rates, with a percentile bootstrap over vectors (10,000
 resamples, seed 0); an interval needs five vectors. Reader contrasts are paired over the vectors both hold,
-with sign counts beside the mean. The paper column tests MAEMM against each non-reference row by a paired
+with sign counts beside the mean. The paper column tests MAEM against each non-reference row by a paired
 two-sided sign-flip permutation test over vectors (20,000 flips, seed 0, zero differences unsigned) with
 Holm's correction within the column; references are not tested.
 

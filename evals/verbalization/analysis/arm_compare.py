@@ -1,7 +1,7 @@
 """Before/after a rare-feature adapter, on one test set: per rarity decile, and per cluster side.
 
     python evals/verbalization/analysis/arm_compare.py \
-        --before evals/verbalization/report/data/perdir_27b_rl-last16.json \
+        --before evals/verbalization/report/data/perdir_27b_rl-final.json \
         --after  evals/verbalization/report/data/perdir_27b_armB_2k.json \
         --sae-match verbalization/report/data/sae_match_27b.npz \
         [--clusters evals/verbalization/report/data/clusters_27b_2k.jsonl] --out <json>

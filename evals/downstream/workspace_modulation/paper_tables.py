@@ -12,7 +12,7 @@ GROUP = "topics"
 BAND = C.FINAL_BAND
 # method -> (metric, condition, budget) in tables/rates.csv
 WORD_RULE = {
-    "MAEMM": ("hit_any", "maemm_reg", max(C.PASS_AT[C.HEADLINE_ARM])),
+    "MAEM": ("hit_any", "maem_reg", max(C.PASS_AT[C.HEADLINE_ARM])),
     "NLA": ("hit_any", "nla", max(A.NLA_BUDGETS)),
     "J-lens": (A.LENS_WORD_METRIC, "jlens_L42", C.TOP_WORD),
     "J-lens, 8 layers": (A.LENS_BAND_WORD_METRIC, A.LENS_BAND_COND, C.TOP_WORD),
@@ -21,7 +21,7 @@ WORD_RULE = {
 }
 # method -> judged.csv condition of its `net` row
 JUDGED_NET = {
-    "MAEMM": "maemm_reg8",
+    "MAEM": "maem_reg8",
     "NLA": "nla_n8",
     "J-lens": C.LENS_READER,
     "J-lens, 8 layers": C.LENS_BAND_READER,

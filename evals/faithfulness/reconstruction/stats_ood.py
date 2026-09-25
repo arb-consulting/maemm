@@ -113,37 +113,37 @@ def declared_mu(cfg: dict, key: str, base: str) -> str:
     """The mean `config.yaml` DECLARES this checkpoint was trained to receive, as one string.
 
     `precompute.common.input_mu` refuses an entry with no `mu:` key at all rather than guessing. A
-    bare checkpoint name is prefixed with the base, the way `tables` accepts `--maemm`.
+    bare checkpoint name is prefixed with the base, the way `tables` accepts `--maem`.
     """
     full = key if "/" in key else f"{base}/{key}"
     return resolve_mu(C.input_mu(cfg, full), base)
 
 
-def assert_control_paired(cfg: dict, base: str, maemm_key: str, control_key: str) -> None:
-    """SPEC §7 R4: a control may only be differenced against a MAEMM that DECLARES the same mean.
+def assert_control_paired(cfg: dict, base: str, maem_key: str, control_key: str) -> None:
+    """SPEC §7 R4: a control may only be differenced against a MAEM that DECLARES the same mean.
 
-    LOUD, because the failure it guards is silent. Every `maemm_vs_control` cell below is
-    `bo64_maemm - bo64_control` on the same targets, which is a control only when both arms were
+    LOUD, because the failure it guards is silent. Every `maem_vs_control` cell below is
+    `bo64_maem - bo64_control` on the same targets, which is a control only when both arms were
     injected at the same centring; at two means it is the difference of two angles to two
     different vectors, and this file had **no mu, `centred` or `whiten` reference anywhere** before
     today -- `--control` resolved into whatever `--stem` named and `tables` checked only that the
-    key was in `cfg["maemms"]`.
+    key was in `cfg["maems"]`.
 
     As of 2026-09-23 the base control `qwen36-27b/2026-09-16_base-control` declares the 27B
     `whiten_mu` path in `config.yaml` (it was `mu: null` before, an explicit statement that it took
-    a RAW activation), so the pairing HOLDS for the intended pair -- rl-last16 against that
+    a RAW activation), so the pairing HOLDS for the intended pair -- rl-final against that
     control. It does not hold for the old primary, which declares `base/{base}/stats/mu.f32`.
     """
-    a, b = declared_mu(cfg, maemm_key, base), declared_mu(cfg, control_key, base)
+    a, b = declared_mu(cfg, maem_key, base), declared_mu(cfg, control_key, base)
     assert a == b and a != "unknown", (
-        f"CONTROL NOT PAIRED (spec §7 R4): maemm {maemm_key!r} declares mu={a!r} and control "
-        f"{control_key!r} declares mu={b!r} in config.yaml. The control is 'the MAEMM with base "
-        f"weights', so it takes the MAEMM's input convention; at two means it is a control for a "
-        f"different experiment and `maemm_vs_control` is not a difference. As of 2026-09-23 "
+        f"CONTROL NOT PAIRED (spec §7 R4): maem {maem_key!r} declares mu={a!r} and control "
+        f"{control_key!r} declares mu={b!r} in config.yaml. The control is 'the MAEM with base "
+        f"weights', so it takes the MAEM's input convention; at two means it is a control for a "
+        f"different experiment and `maem_vs_control` is not a difference. As of 2026-09-23 "
         f"`qwen36-27b/2026-09-16_base-control` declares the 27B whiten_mu path (it was `null` "
-        f"before), so the intended pair -- rl-last16 against that control -- does pair; the old "
-        f"primary `2026-09-10_rl-8x2048-full` declares `base/{{base}}/stats/mu.f32` and does not. "
-        f"Fix the config or pass a control drawn at this MAEMM's mean; nothing here will guess."
+        f"before), so the intended pair -- rl-final against that control -- does pair; the old "
+        f"primary `2026-09-10_rl-large-full` declares `base/{{base}}/stats/mu.f32` and does not. "
+        f"Fix the config or pass a control drawn at this MAEM's mean; nothing here will guess."
     )
 
 
@@ -471,7 +471,7 @@ def read_rollout_rows(vol, rels: list[str]) -> list[dict]:
     return rows
 
 
-def rollout_texts(vol: Vol, base: str, maemm: str, set_name: str, stem: str) -> dict[int, list[str]]:
+def rollout_texts(vol: Vol, base: str, maem: str, set_name: str, stem: str) -> dict[int, list[str]]:
     """{target row -> [rollout text] in k order} from the rollouts jsonl (the one big fetch here).
 
     The paths come from the SCORES README when it names any, and only fall back to the `--stem`
@@ -480,9 +480,9 @@ def rollout_texts(vol: Vol, base: str, maemm: str, set_name: str, stem: str) -> 
     `read_rollout_rows` for why a `--rows` chunked product is a list of files and still one
     product.
     """
-    rels = rollouts_rels_from_readme(vol, f"maemms/{base}/{maemm}/scores/{stem}")
+    rels = rollouts_rels_from_readme(vol, f"maems/{base}/{maem}/scores/{stem}")
     if not rels:
-        rels = [f"maemms/{base}/{maemm}/rollouts/{stem}.jsonl"]
+        rels = [f"maems/{base}/{maem}/rollouts/{stem}.jsonl"]
         print(f"[stats_ood] the scores README names no rollouts file; falling back to {rels[0]}",
               flush=True)
     rows = read_rollout_rows(vol, rels)
@@ -653,20 +653,20 @@ def _train_share_hf(dataset: str, tok, n: int, stratify: bool = True):
 
 def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
     base, set_name = args["base"], args["set"]
-    maemm, control = args["maemm"], args["control"]
+    maem, control = args["maem"], args["control"]
     stem = args["stem"]
     out_dir.mkdir(parents=True, exist_ok=True)
     notes: list[str] = []
 
     # SPEC §7 R4: THE BASE CONTROL IS RESOLVED FROM CONFIG WITH ITS CENTRING DECLARED. `--control`
     # is otherwise resolved into whatever `--stem` names, and a control at the wrong mean produces
-    # a `maemm_vs_control` column that looks exactly like a good one. FIRST, before a single
+    # a `maem_vs_control` column that looks exactly like a good one. FIRST, before a single
     # volume read: an unpaired pair is a config fact, and finding it out after the fetches is
     # finding it out late.
-    if maemm and control:
-        assert_control_paired(cfg, base, maemm, control)
+    if maem and control:
+        assert_control_paired(cfg, base, maem, control)
         notes.append(
-            f"control `{control}` and maemm `{maemm}` both declare "
+            f"control `{control}` and maem `{maem}` both declare "
             f"mu={declared_mu(cfg, control, base)} (spec §7 R4, checked)"
         )
 
@@ -687,10 +687,10 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
         notes.append(f"no nll product for {set_name}: bpb_ctx / nll_ctx columns are empty")
 
     sides = {}
-    for label, key in (("maemm", maemm), ("control", control)):
+    for label, key in (("maem", maem), ("control", control)):
         if not key:
             continue
-        s = Scores(vol, base, key, set_name, by_row, f"maemms/{base}/{key}/scores/{stem}")
+        s = Scores(vol, base, key, set_name, by_row, f"maems/{base}/{key}/scores/{stem}")
         if getattr(s, "ok", False):
             sides[label] = s
         else:
@@ -750,10 +750,10 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
     # ---- per arm ----------------------------------------------------------------------------
     arm_rows, strata_rows = [], []
     lid = load_lid(args["lid_model"]) if args["lid"] else None
-    texts = rollout_texts(vol, base, maemm, set_name, stem) if (lid or args["lid"]) else {}
+    texts = rollout_texts(vol, base, maem, set_name, stem) if (lid or args["lid"]) else {}
     gpu = {
-        "rollouts": wall_seconds(vol, f"maemms/{base}/{maemm}/rollouts"),
-        "score": wall_seconds(vol, f"maemms/{base}/{maemm}/scores/{stem}"),
+        "rollouts": wall_seconds(vol, f"maems/{base}/{maem}/rollouts"),
+        "score": wall_seconds(vol, f"maems/{base}/{maem}/scores/{stem}"),
     }
 
     for arm, spec in arms.items():
@@ -794,11 +794,11 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
 
         # the four comparisons of design §6
         comps = {
-            "bo64_vs_4m": ("bo64_maemm", in_domain({"arm": arm}, 4)),
-            "bo4_vs_4m": ("bo4_maemm", in_domain({"arm": arm}, 4)),
-            "bo1_vs_1m": ("bo1_maemm", in_domain({"arm": arm}, 1)),
-            "bo64_vs_en16m": ("bo64_maemm", "corpus_corpus_16m"),
-            "maemm_vs_control": ("bo64_maemm", "bo64_control"),
+            "bo64_vs_4m": ("bo64_maem", in_domain({"arm": arm}, 4)),
+            "bo4_vs_4m": ("bo4_maem", in_domain({"arm": arm}, 4)),
+            "bo1_vs_1m": ("bo1_maem", in_domain({"arm": arm}, 1)),
+            "bo64_vs_en16m": ("bo64_maem", "corpus_corpus_16m"),
+            "maem_vs_control": ("bo64_maem", "bo64_control"),
         }
         for name, (a, b) in comps.items():
             if not a or not b or a not in sel.columns or b not in sel.columns:
@@ -837,8 +837,8 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
             rec["chance_scan_p99"] = round(float(q[idx, si, 2].mean()), 4)
 
         # R3 language id / code-like on the top-1 and top-4 rollouts
-        if "maemm" in sides and texts:
-            s = sides["maemm"]
+        if "maem" in sides and texts:
+            s = sides["maem"]
             hits1, hits4, code1, n_seen = 0, 0, 0, 0
             for row in sel["row"].to_numpy():
                 if row not in texts or row not in s.rows:
@@ -862,21 +862,21 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
 
         # R2 GPU-seconds per target
         if gpu["rollouts"] and len(ids):
-            rec["gpu_s_maemm"] = round((gpu["rollouts"] + (gpu["score"] or 0)) / len(ids), 3)
+            rec["gpu_s_maem"] = round((gpu["rollouts"] + (gpu["score"] or 0)) / len(ids), 3)
         scan_w = wall_seconds(vol, f"base/{base}/scan/{set_name}/{arm}")
         if scan_w:
             rec["gpu_s_scan_4m"] = round(scan_w / len(ids), 3)
 
         # within-arm Spearman of bo64 against the base's own bits per byte (R6)
-        if "bo64_maemm" in sel.columns and "bpb_ctx" in sel.columns:
-            if not sel["bo64_maemm"].null_count() and not sel["bpb_ctx"].null_count():
+        if "bo64_maem" in sel.columns and "bpb_ctx" in sel.columns:
+            if not sel["bo64_maem"].null_count() and not sel["bpb_ctx"].null_count():
                 rec["spearman_bo64_bpb"] = round(
-                    spearman(sel["bo64_maemm"].to_numpy(), sel["bpb_ctx"].to_numpy()), 4
+                    spearman(sel["bo64_maem"].to_numpy(), sel["bpb_ctx"].to_numpy()), 4
                 )
         arm_rows.append(rec)
 
         # strata
-        dcol, ccol = "bo64_maemm", in_domain({"arm": arm}, 4)
+        dcol, ccol = "bo64_maem", in_domain({"arm": arm}, 4)
         for key in ("tok_class", "byte_piece", "char_type", "char_type_body"):
             for val in sel[key].unique().sort():
                 sub = sel.filter(pl.col(key) == val)
@@ -932,9 +932,9 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
             continue
         sel = per_target.filter(pl.col("arm") == arm)
         ccol = in_domain({"arm": arm}, 4)
-        if "bo64_maemm" not in sel.columns or not ccol or sel["bo64_maemm"].null_count():
+        if "bo64_maem" not in sel.columns or not ccol or sel["bo64_maem"].null_count():
             continue
-        d = (sel["bo64_maemm"] - sel[ccol]).to_numpy()
+        d = (sel["bo64_maem"] - sel[ccol]).to_numpy()
         row = int(sel["row"].to_numpy()[int(np.argsort(d)[len(d) // 2])])
         src = by_row[row]
         lines += [
@@ -953,7 +953,7 @@ def build_tables(vol: Vol, cfg: dict, out_dir: Path, args: dict) -> dict:
     (out_dir / "ood_examples.md").write_text("\n".join(lines) + "\n")
 
     if not arms_df.is_empty():
-        want = ("arm", "family", "n", "bo64_maemm", "corpus_4m", "bo64_vs_4m_delta",
+        want = ("arm", "family", "n", "bo64_maem", "corpus_4m", "bo64_vs_4m_delta",
                 "bo64_vs_4m_lo", "bo64_vs_4m_hi", "outcome", "byte_piece_rate")
         show = [c for c in want if c in arms_df.columns]
         t = RichTable(title="OOD arms", header_style="bold")
@@ -991,11 +991,11 @@ def tables(
     root_tag: Annotated[str, typer.Option(help="smoke | full")] = "full",
     set_name: Annotated[str, typer.Option("--set", help="the OOD held-out set")] = OOD_SET,
     base: Annotated[str, typer.Option()] = BASE,
-    # REQUIRED, and resolved through `cfg["maemms"]` below. They were Python defaults naming one
-    # checkpoint generation; the eval now runs BOTH (the old primary and `rl-last16`), so a default
+    # REQUIRED, and resolved through `cfg["maems"]` below. They were Python defaults naming one
+    # checkpoint generation; the eval now runs BOTH (the old primary and `rl-final`), so a default
     # here would silently label one generation's numbers with the other's name (eval plan §4.3.4).
-    maemm: Annotated[
-        str, typer.Option(help="the MAEMM to tabulate, e.g. 2026-09-18_rl-last16-lr5e-7")
+    maem: Annotated[
+        str, typer.Option(help="the MAEM to tabulate, e.g. 2026-09-18_rl-final")
     ] = ...,
     control: Annotated[str, typer.Option(help="the untrained-base control")] = ...,
     stem: Annotated[str, typer.Option(help="the scores subdirectory")] = "",
@@ -1011,11 +1011,11 @@ def tables(
     """The per-arm tables, strata, chance levels and examples."""
     with open(CONFIG) as fh:
         cfg = yaml.safe_load(fh)
-    for label, key in (("--maemm", maemm), ("--control", control)):
+    for label, key in (("--maem", maem), ("--control", control)):
         full = key if "/" in key else f"{base}/{key}"
-        assert full in cfg["maemms"], (
+        assert full in cfg["maems"], (
             f"{label} {key!r} is not a checkpoint in config.yaml; the names under base {base!r} "
-            f"are {sorted(k.split('/', 1)[1] for k in cfg['maemms'] if k.startswith(base + '/'))}"
+            f"are {sorted(k.split('/', 1)[1] for k in cfg['maems'] if k.startswith(base + '/'))}"
         )
     vol = _vol(root_tag, fetch, refetch, quiet, modal_cmd, data_dir)
     res = build_tables(
@@ -1025,7 +1025,7 @@ def tables(
         {
             "base": base,
             "set": set_name,
-            "maemm": maemm,
+            "maem": maem,
             "control": control,
             "stem": stem or f"{set_name}__vllm",
             "lid": lid,
@@ -1270,13 +1270,13 @@ def selfcheck() -> None:
                 for r in ids
             ) + "\n"
         )
-        # scores: 64 rollouts per target, the MAEMM above the corpus and the control below it.
-        # THE PAIR IS rl-last16 AGAINST THE BASE CONTROL, not the old primary: since 2026-09-23 the
+        # scores: 64 rollouts per target, the MAEM above the corpus and the control below it.
+        # THE PAIR IS rl-final AGAINST THE BASE CONTROL, not the old primary: since 2026-09-23 the
         # control declares the 27B whiten_mu path while the old primary declares stats/mu.f32, so
         # `assert_control_paired` (spec §7 R4) refuses that pair -- which is exactly what it is for.
-        shapes = (("2026-09-18_rl-last16-lr5e-7", 0.30, 0.70), ("2026-09-16_base-control", 0.05, 0.20))
+        shapes = (("2026-09-18_rl-final", 0.30, 0.70), ("2026-09-16_base-control", 0.05, 0.20))
         for label, lo_, hi_ in shapes:
-            sd = tmp / f"maemms/{BASE}/{label}/scores/{OOD_SET}__vllm"
+            sd = tmp / f"maems/{BASE}/{label}/scores/{OOD_SET}__vllm"
             sd.mkdir(parents=True)
             n_t, n_k, width = len(ids), 64, 96
             cos = np.full((n_t, n_k, width), np.nan, dtype=np.float16)
@@ -1295,7 +1295,7 @@ def selfcheck() -> None:
         vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
         out = tmp / "out"
         res = build_tables(vol, cfg, out, {
-            "base": BASE, "set": OOD_SET, "maemm": "2026-09-18_rl-last16-lr5e-7",
+            "base": BASE, "set": OOD_SET, "maem": "2026-09-18_rl-final",
             "control": "2026-09-16_base-control", "stem": f"{OOD_SET}__vllm",
             "lid": False, "lid_model": None,
         })
@@ -1305,7 +1305,7 @@ def selfcheck() -> None:
         arm_rows = adf.filter(pl.col("arm") != "en_ref")
         assert (arm_rows["outcome"] == "exceeds").all(), arm_rows.select(["arm", "outcome"]).to_dicts()
         assert (arm_rows["bo64_vs_4m_lo"] > 0).all()
-        assert (arm_rows["maemm_vs_control_delta"] > 0).all()
+        assert (arm_rows["maem_vs_control_delta"] > 0).all()
         assert arm_rows["chance_pairwise_cos"].null_count() == 0
         assert arm_rows["chance_scan_median"].null_count() == 0
         assert set(arm_rows["in_conjunction"]) == {True}
@@ -1329,18 +1329,18 @@ def selfcheck() -> None:
     # earlier; this half was not, and kept rebuilding the path from `--stem`.
     tmp = Path(tempfile.mkdtemp(prefix="stats_ood_rollpath_"))
     try:
-        sd = tmp / "maemms/b/m/scores/s__vllm__asym"
+        sd = tmp / "maems/b/m/scores/s__vllm__asym"
         sd.mkdir(parents=True)
         (sd / "README.md").write_text(
-            "# scores\n\n## Inputs\n\n- rollouts: /vol/maemms/b/m/rollouts/s__vllm.jsonl\n")
-        rd = tmp / "maemms/b/m/rollouts"
+            "# scores\n\n## Inputs\n\n- rollouts: /vol/maems/b/m/rollouts/s__vllm.jsonl\n")
+        rd = tmp / "maems/b/m/rollouts"
         rd.mkdir(parents=True)
         (rd / "s__vllm.jsonl").write_text(
             '{"row": 0, "k": 0, "text": "ahoj"}\n{"row": 0, "k": 1, "text": "svete"}\n')
         vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
 
-        rels = rollouts_rels_from_readme(vol, "maemms/b/m/scores/s__vllm__asym")
-        assert rels == ["maemms/b/m/rollouts/s__vllm.jsonl"], (
+        rels = rollouts_rels_from_readme(vol, "maems/b/m/scores/s__vllm__asym")
+        assert rels == ["maems/b/m/rollouts/s__vllm.jsonl"], (
             f"the README's own `- rollouts:` line was not read back root-relative: {rels!r}")
         texts = rollout_texts(vol, "b", "m", "s", "s__vllm__asym")
         assert texts == {0: ["ahoj", "svete"]}, (
@@ -1349,7 +1349,7 @@ def selfcheck() -> None:
             f"{texts!r}")
         # ...and a product whose README names no rollouts file still resolves, by falling back
         (sd / "README.md").write_text("# scores\n\nno inputs section\n")
-        assert rollouts_rels_from_readme(vol, "maemms/b/m/scores/s__vllm__asym") == []
+        assert rollouts_rels_from_readme(vol, "maems/b/m/scores/s__vllm__asym") == []
         assert rollout_texts(vol, "b", "m", "s", "s__vllm") == {0: ["ahoj", "svete"]}, (
             "the pre-README fallback to the --stem composition stopped working")
         ok.append("rollouts path from the scores README, with the pre-README fallback")
@@ -1367,12 +1367,12 @@ def selfcheck() -> None:
     # where they are defined rather than re-implemented here.
     tmp = Path(tempfile.mkdtemp(prefix="stats_ood_rollchunks_"))
     try:
-        sd = tmp / "maemms/b/m/scores/s__vllm__tag"
+        sd = tmp / "maems/b/m/scores/s__vllm__tag"
         sd.mkdir(parents=True)
-        rd = tmp / "maemms/b/m/rollouts"
+        rd = tmp / "maems/b/m/rollouts"
         rd.mkdir(parents=True)
         stem, chunks = "s__vllm__tag", ["0-1", "2-3"]
-        inv = {"maemm": "b/m", "base": "b", "set": "s", "engine": "vllm", "kind": "ood", "n": 2,
+        inv = {"maem": "b/m", "base": "b", "set": "s", "engine": "vllm", "kind": "ood", "n": 2,
                "bo": 2, "seed": 1, "max_new": 64, "min_new": 0, "prompt": "p", "prompt_tokens": 3,
                "marker_pos": 1, "inject_layer": 42, "inject_coef": 1.0, "temperature": 1.0,
                "top_p": 1.0, "top_k": 0, "weight_sha256": "0" * 64, "score_max_length": 95}
@@ -1385,10 +1385,10 @@ def selfcheck() -> None:
                 json.dumps({**inv, "rows": rows_here}))
         (sd / "README.md").write_text(
             "# scores\n\n## Inputs\n\n- rollouts: "
-            + ", ".join(f"/vol/maemms/b/m/rollouts/{stem}{C.ROWS_MARK}{c}.jsonl" for c in chunks)
+            + ", ".join(f"/vol/maems/b/m/rollouts/{stem}{C.ROWS_MARK}{c}.jsonl" for c in chunks)
             + "\n- engine: vllm\n")
         vol = Vol("full", tmp, "uvx modal", False, True, offline=True)
-        rels = rollouts_rels_from_readme(vol, "maemms/b/m/scores/s__vllm__tag")
+        rels = rollouts_rels_from_readme(vol, "maems/b/m/scores/s__vllm__tag")
         assert len(rels) == 2 and all(C.ROWS_MARK in r for r in rels), (
             f"the comma-separated chunk list on the `- rollouts:` line was not parsed: {rels!r}")
         texts = rollout_texts(vol, "b", "m", "s", "s__vllm__tag")
@@ -1440,7 +1440,7 @@ def selfcheck() -> None:
             f"stats_ood.resolve_mu and results/ood.C_resolve_mu disagree on {probe!r}: "
             f"{resolve_mu(probe, BASE)!r} vs {R_ood.C_resolve_mu(probe, BASE)!r}")
 
-    PAIR = ("2026-09-18_rl-last16-lr5e-7", "2026-09-16_base-control")
+    PAIR = ("2026-09-18_rl-final", "2026-09-16_base-control")
     # (a) the intended pair passes on the REAL config, in both readers
     assert_control_paired(cfg, BASE, *PAIR)
     R_ood.assert_control_paired(cfg, BASE, *PAIR)
@@ -1452,9 +1452,9 @@ def selfcheck() -> None:
 
     # (b) a MISMATCHED pair must raise, in both readers. The mutation is asserted to have
     # APPLIED first -- a gate that has never been red is not a gate.
-    bad = {**cfg, "maemms": dict(cfg["maemms"])}
+    bad = {**cfg, "maems": dict(cfg["maems"])}
     ck = f"{BASE}/{PAIR[1]}"
-    bad["maemms"][ck] = {**bad["maemms"][ck], "mu": "base/{base}/stats/mu.f32"}
+    bad["maems"][ck] = {**bad["maems"][ck], "mu": "base/{base}/stats/mu.f32"}
     assert declared_mu(bad, PAIR[1], BASE) != declared_mu(cfg, PAIR[1], BASE), (
         "the mutation did not apply: the mismatched-pair check would pass vacuously")
     for name, fn in (("stats_ood", assert_control_paired), ("results/ood", R_ood.assert_control_paired)):
@@ -1470,7 +1470,7 @@ def selfcheck() -> None:
 
     # (c) the REAL old primary against the REAL control is a mismatch, and stays one
     try:
-        assert_control_paired(cfg, BASE, "2026-09-10_rl-8x2048-full", PAIR[1])
+        assert_control_paired(cfg, BASE, "2026-09-10_rl-large-full", PAIR[1])
     except AssertionError:
         pass
     else:
@@ -1479,15 +1479,15 @@ def selfcheck() -> None:
             "pairing assertion must refuse it")
 
     # (d) a checkpoint with no `mu:` key at all is refused by input_mu, not defaulted
-    gap = {**cfg, "maemms": dict(cfg["maemms"])}
-    gap["maemms"][ck] = {k: v for k, v in gap["maemms"][ck].items() if k != "mu"}
-    assert "mu" not in gap["maemms"][ck], "the mutation did not apply"
+    gap = {**cfg, "maems": dict(cfg["maems"])}
+    gap["maems"][ck] = {k: v for k, v in gap["maems"][ck].items() if k != "mu"}
+    assert "mu" not in gap["maems"][ck], "the mutation did not apply"
     try:
         declared_mu(gap, PAIR[1], BASE)
     except AssertionError as e:
         assert "no `mu:` key" in str(e), str(e)
     else:
-        raise AssertionError("a `maemms:` entry with no mu: key must be refused, not defaulted")
+        raise AssertionError("a `maems:` entry with no mu: key must be refused, not defaulted")
     # (e) and `build_tables` itself must refuse it, BEFORE any volume read -- the helper being
     # correct is worth nothing if the driver never calls it.
     tmp_r4 = Path(tempfile.mkdtemp(prefix="stats_ood_r4_"))
@@ -1495,7 +1495,7 @@ def selfcheck() -> None:
         vol_r4 = Vol("full", tmp_r4, "uvx modal", False, True, offline=True)
         try:
             build_tables(vol_r4, cfg, tmp_r4 / "out", {
-                "base": BASE, "set": OOD_SET, "maemm": "2026-09-10_rl-8x2048-full",
+                "base": BASE, "set": OOD_SET, "maem": "2026-09-10_rl-large-full",
                 "control": PAIR[1], "stem": f"{OOD_SET}__vllm", "lid": False, "lid_model": None,
             })
         except AssertionError as e:
@@ -1515,7 +1515,7 @@ def selfcheck() -> None:
     # array through `results.common.bo_unbiased`, and this is the only test of that path.
     tmp = Path(tempfile.mkdtemp(prefix="stats_ood_bo8_"))
     try:
-        rel = "maemms/b/m/scores/s__vllm"
+        rel = "maems/b/m/scores/s__vllm"
         sd = tmp / rel
         sd.mkdir(parents=True)
         n_t, n_k, width = 3, 10, 4
@@ -1538,7 +1538,7 @@ def selfcheck() -> None:
             "cos.f16": {"shape": [n_t, n_k, width]},
         }))
         vol_r = R_ood.R.Vol("", tmp, offline=True)
-        src = R_ood.R.Source(maemm="b/m", base="b", engine="vllm", run_tag="",
+        src = R_ood.R.Source(maem="b/m", base="b", engine="vllm", run_tag="",
                              scores_rel=rel, rollouts_rel="", role="primary",
                              rows_meta={"rows": [10, 11, 12], "n": n_k})
         got, note = R_ood.centred_bo_k(vol_r, src, 8)
@@ -1562,12 +1562,12 @@ def selfcheck() -> None:
         assert max(got.values()) < 0.4, f"centred_bo_k read the wrong array: {got!r}"
 
         # a source with no centred cosine at all is a skip WITH A REASON, not an empty column
-        sd2 = tmp / "maemms/b/m/scores/none"
+        sd2 = tmp / "maems/b/m/scores/none"
         sd2.mkdir(parents=True)
         (sd2 / "index.json").write_text(json.dumps({"cos.f16": {"shape": [1, 1, 1]}}))
         got2, note2 = R_ood.centred_bo_k(
-            vol_r, R_ood.R.Source(maemm="b/m", base="b", engine="vllm", run_tag="",
-                                  scores_rel="maemms/b/m/scores/none", rollouts_rel=""), 8)
+            vol_r, R_ood.R.Source(maem="b/m", base="b", engine="vllm", run_tag="",
+                                  scores_rel="maems/b/m/scores/none", rollouts_rel=""), 8)
         assert got2 == {} and "not on the volume" in note2, (got2, note2)
         # AND IT MUST REACH THE TABLE. A correct estimator that no column carries is the
         # "silently absent" failure spec §2 is about, so `arm_rows` is called with the maps and
@@ -1584,7 +1584,7 @@ def selfcheck() -> None:
                 if arm == "a_has":
                     bo8_map[rw] = 0.40 + 0.01 * i      # mean 0.415
                     ctrl8_map[rw] = 0.10 + 0.01 * i    # mean 0.115
-        src8 = R_ood.R.Source(maemm="m", base="b", engine="vllm", run_tag="",
+        src8 = R_ood.R.Source(maem="m", base="b", engine="vllm", run_tag="",
                               scores_rel="", rollouts_rel="")
         src8.per_target = pt8
         recs8, _ = R_ood.arm_rows(

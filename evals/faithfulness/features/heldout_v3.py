@@ -17,7 +17,7 @@ raw. One config entry group named `2026-09-21_v3_*`, one directory per block.
     --block ours          OUR realact rows, copied from a raw set + our own  storage: raw
                           exclusion list -- the internal sanity block
 
-The 2M dictionary block is NOT here: it is a draw, and `features/draw_sae2m.py --sides enc,dec`
+The 2M dictionary block is NOT here: it is a draw, and `features/draw_dict2m.py --sides enc,dec`
 is the tool that makes it.
 
 WHY THE UPSTREAM REALACT ROWS CAN BE RAW (U1, settled 2026-09-21, $0)
@@ -288,7 +288,7 @@ def _block_shipped(cfg, args, families, storage: str, notes: list[str]):
             f"`{family}`: {len(block)} rows as shipped, "
             + ("centred on a mean this repo holds NO FILE FOR (`unknown`). For `realact_long` "
                "that mean is `mu_long` -- the mean over ALL collected long-context activations, "
-               "computed on the fly in `evals/heldout/build_ctx_eval.py:47-54` from `MAEMM_ACTS_LONG` "
+               "computed on the fly in `evals/heldout/build_ctx_eval.py:47-54` from `MAEM_ACTS_LONG` "
                "(`/root/app/bsf27b/acts_long`) and never written to a file. It is NOT "
                "`whiten_mu`: over these rows `cos(direction, whiten_mu)` has mean -0.0618 and "
                "||mean(direction)|| is 0.1216, against -0.0198 / 0.0615 on `realact`. The rows "

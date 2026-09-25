@@ -142,7 +142,7 @@ PAPER_MIN_PAIRS = mc10.MIN_VECTORS_PAIRED
 
 def paper_column(root, judge_name=None):
     """The BiPO column of the main steering table (`evals.downstream.steering_vector_inversion.paper`) from the saved
-    `mc10_summary.csv` and `mc10_cells.csv`: each row's mean per-vector rate with its interval, and MAEMM
+    `mc10_summary.csv` and `mc10_cells.csv`: each row's mean per-vector rate with its interval, and MAEM
     minus each tested row paired over the learned vectors (tested at `PAPER_MIN_PAIRS` or more pairs)."""
     judge_name = judge_name or REFERENCE_JUDGE
     summary = mc10._read_csv(root, mc10.SUMMARY_CSV) or []
@@ -157,12 +157,12 @@ def paper_column(root, judge_name=None):
     per_vector = {(r["arm"], r["vector_id"]): float(r["rate"]) for r in cells
                   if (r["list"], r["kind"], r["judge"]) == (mc10.MAIN, PAPER_KIND, judge_name)
                   and not mc10._blank(r.get("rate"))}
-    vectors = sorted(v for arm, v in per_vector if arm == "maemm")
+    vectors = sorted(v for arm, v in per_vector if arm == "maem")
     tests = []
     for section, _tex, _label, _condition, arm in paper.ROWS:
-        if arm == "maemm" or section == paper.REFERENCE_SECTION:
+        if arm == "maem" or section == paper.REFERENCE_SECTION:
             continue
-        diffs = [per_vector[("maemm", v)] - per_vector[(arm, v)] for v in vectors if (arm, v) in per_vector]
+        diffs = [per_vector[("maem", v)] - per_vector[(arm, v)] for v in vectors if (arm, v) in per_vector]
         if len(diffs) >= PAPER_MIN_PAIRS:
             tests.append((arm, diffs))
     rows = paper.column_rows(4, rates, tests)
@@ -186,7 +186,7 @@ def render(root):
     if missing:
         raise FileNotFoundError(f"the report's tables are incomplete: {missing}")
     paper_column(root)
-    parts = ["# Persona steering vectors through MAEMM", "",
+    parts = ["# Persona steering vectors through MAEM", "",
              "Learned BiPO persona vectors at the read layer, each given to every reader as a unit direction "
              "and identified from the reader's text alone.", "",
              f"Judge profile: `{C.JUDGE_PROFILE}` ("
@@ -196,7 +196,7 @@ def render(root):
              *_costs_section(root), "",
              "## Paper table", "",
              "The BiPO column of the main steering table -- identification from bundles of "
-             f"{paper.TEXTS} texts with intervals over vectors, MAEMM against each reader and control by a "
+             f"{paper.TEXTS} texts with intervals over vectors, MAEM against each reader and control by a "
              "paired sign-flip permutation test with Holm's correction, the references untested and the "
              f"steered model at s = {paper.TABLE_STRENGTH:g} (`{paper.STEERED}`) -- is "
              f"[{paper.PAPER_TABLE}.tex]({paper.PAPER_TABLE}.tex), with its p-values in "

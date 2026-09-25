@@ -1,12 +1,12 @@
-"""Can an off-the-shelf LLM write text that fires an SAE feature the MAEMM cannot?
+"""Can an off-the-shelf LLM write text that fires an SAE feature the MAEM cannot?
 
-The MAEMM sees only an injected direction. This baseline sees the feature's max-activating corpus
+The MAEM sees only an injected direction. This baseline sees the feature's max-activating corpus
 windows -- the same evidence a human reading an autointerp dashboard would have -- and is asked to
-write NEW text that fires the feature. Budget is matched to the MAEMM: 4 attempts per feature, and
+write NEW text that fires the feature. Budget is matched to the MAEM: 4 attempts per feature, and
 the score is the max over those 4, read through the clean base model exactly as in eval_dirs.
 
 This is not a fair comparison of inverters, and is not meant to be: the LLM is handed evidence the
-MAEMM never gets. It tests one thing only -- whether a textual preimage exists and is findable.
+MAEM never gets. It tests one thing only -- whether a textual preimage exists and is findable.
 
     modal run --detach evals/verbalization/modal_llm_baseline.py::llm_baseline \
         --features-json "$(cat /tmp/llm_feats.json)" --n-samples 4
@@ -41,8 +41,8 @@ use them in your answer.
 Write ONE new short passage (at most 40 words) that you believe would activate this same feature as \
 strongly as possible. Do not copy any excerpt verbatim. Output only the passage, nothing else."""
 
-app = modal.App("maemm-llm-baseline")
-vol = modal.Volume.from_name("maemm-8b-verbalization", create_if_missing=True)
+app = modal.App("maem-llm-baseline")
+vol = modal.Volume.from_name("maem-8b-verbalization", create_if_missing=True)
 image = (modal.Image.debian_slim(python_version="3.11")
          .pip_install("torch==2.6.0", "transformers==4.51.3", "accelerate==1.4.0",
                       "numpy<2.3", "requests==2.32.3",
@@ -63,7 +63,7 @@ def _load_sae(device):
 
 
 @app.function(image=image, gpu="H100", timeout=3 * 3600, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-openrouter")])
+              secrets=[modal.Secret.from_name("maem-openrouter")])
 def llm_baseline(features_json: str, n_samples: int = 4, tag: str = "llm_baseline",
                  model_name: str = ""):
     import numpy as np

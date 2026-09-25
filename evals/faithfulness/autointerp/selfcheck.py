@@ -179,7 +179,7 @@ def synth_build(root: Path, base: str, set_name: str, name: str, feats: list[int
         json.dump({"features": table}, fh)
     with open(d / "build.json", "w") as fh:
         json.dump({
-            "base": base, "set": set_name, "maemm": "stub/maemm", "engine": "vllm",
+            "base": base, "set": set_name, "maem": "stub/maem", "engine": "vllm",
             "sae": "stub/sae", "gate": 1.5846, "n_features": len(feats), "feat_seed": 1234,
             "shuffle_seed": 20260916, "n_examples": 16, "corpus_prefix_m": 4, "n_pos": 20,
             "n_neg": 20, "n_neg_nearmiss": 10, "nearmiss_source": "qband",
@@ -381,7 +381,7 @@ def check_gate(cfg, tmp: Path, base: str, set_name: str):
 
 def base_args(tmp: Path, base: str, set_name: str, build_dir: str, run_dir: str) -> dict:
     return {
-        "base": base, "heldout": set_name, "root": str(tmp), "maemm": "stub/maemm", "sae": "",
+        "base": base, "heldout": set_name, "root": str(tmp), "maem": "stub/maem", "sae": "",
         "build_dir": build_dir, "run_dir": run_dir, "arms": "", "rows": "", "force": True,
         "argv": ["selfcheck"], "repo_commit": "selfcheck", "gpu": "CPU", "usd_per_s": 0.0,
         "t0": time.time(), "max_cost_usd": 1000.0, "stop_above_usd": 1000.0, "approved": True,
@@ -578,21 +578,21 @@ def check_nla_arms(cfg, tmp: Path, base: str):
 
     import autointerp.sae_self as SS
 
-    # (a) the family filter keeps the `sae2m_enc` label beside `sae`, and `--sae` is honoured.
+    # (a) the family filter keeps the `dict2m_enc` label beside `sae`, and `--sae` is honoured.
     assert set(B.FAMILIES) == set(SS.FAMILIES), "build and sae_self must agree on the families"
-    assert "sae2m_enc" in B.FAMILIES and "sae" in B.FAMILIES, B.FAMILIES
+    assert "dict2m_enc" in B.FAMILIES and "sae" in B.FAMILIES, B.FAMILIES
     hdir = Path(C.heldout_dir(base, "selfcheck_fam", str(tmp)))
     hdir.mkdir(parents=True, exist_ok=True)
     sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][-1]
-    # Rows carry their own `sae_key`, the way targets.py and features/draw_sae2m.py stamp it since
+    # Rows carry their own `sae_key`, the way targets.py and features/draw_dict2m.py stamp it since
     # 2026-09-21. Before the conventions layer this fixture left the field off and the filter still
     # answered; `common.sae_rows_of` now refuses an unkeyed SAE row that no set declares, so the
     # unkeyed fixture made this check die on the guard instead of exercising the family filter.
     C.write_jsonl(hdir / "ids.jsonl", [
         {"row": 0, "family": "realact", "id": "doc1:p2:L3"},
-        {"row": 1, "family": "sae2m_enc", "id": 4242, "sae_key": sae_key},
+        {"row": 1, "family": "dict2m_enc", "id": 4242, "sae_key": sae_key},
         {"row": 2, "family": "random", "id": "g0"},
-        {"row": 3, "family": "sae2m_enc", "id": 777, "sae_key": sae_key},
+        {"row": 3, "family": "dict2m_enc", "id": 777, "sae_key": sae_key},
     ])
     rows, sae_rows, feats, key, side = SS._sae_rows(
         cfg, {"base": base, "root": str(tmp), "heldout": "selfcheck_fam", "sae": sae_key}
@@ -609,7 +609,7 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     # path that silently scored 512 wrong features on 2026-09-16_v1 before the layer landed.
     C.write_jsonl(hdir / "ids.jsonl", [
         {"row": 0, "family": "realact", "id": "doc1:p2:L3"},
-        {"row": 1, "family": "sae2m_enc", "id": 4242},
+        {"row": 1, "family": "dict2m_enc", "id": 4242},
     ])
     try:
         SS._sae_rows(
@@ -660,32 +660,32 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     assert B.nla_description(texts[k_best])["description"] == "b", "the peak rollout must be chosen"
 
     # (b2) the covariate spellings: `targets.py` writes density/fires_gated on a `sae` row,
-    # `draw_sae2m.py` writes gated_fires and no density on a `sae2m_enc` one. Both are
+    # `draw_dict2m.py` writes gated_fires and no density on a `dict2m_enc` one. Both are
     # descriptive; a missing one must be None, not a KeyError that stops the build.
     sae_row = {"row": 1, "family": "sae", "id": 5, "stratum": 2, "density": 1e-5, "fires_gated": 91}
-    enc_row = {"row": 1, "family": "sae2m_enc", "id": 5, "stratum": 2, "gated_fires": 240}
+    enc_row = {"row": 1, "family": "dict2m_enc", "id": 5, "stratum": 2, "gated_fires": 240}
     assert B._covariate(sae_row, "density") == 1e-5
     assert B._covariate(sae_row, "fires_gated", "gated_fires") == 91, "the sae spelling wins first"
     assert B._covariate(enc_row, "density") is None, "the 2M draw carries no density"
-    assert B._covariate(enc_row, "fires_gated", "gated_fires") == 240, "the sae2m_enc spelling"
+    assert B._covariate(enc_row, "fires_gated", "gated_fires") == 240, "the dict2m_enc spelling"
     assert B._covariate({"gated_fires": None}, "fires_gated", "gated_fires") is None
 
-    # (c) the arm/maemm guard, both directions.
-    assert B.check_arm_maemm(["C16", "NLA"], "b/nla", "nla") is True
-    assert B.check_arm_maemm(["C16", "M", "M-cos16"], "b/maemm", "full") is False
+    # (c) the arm/maem guard, both directions.
+    assert B.check_arm_maem(["C16", "NLA"], "b/nla", "nla") is True
+    assert B.check_arm_maem(["C16", "M", "M-cos16"], "b/maem", "full") is False
     for arms, mtype, needle in (
         (["C16", "M"], "nla", "may only build"),
         (["C16", "M-jac16"], "nla", "may only build"),
         (["C16", "M-cos16"], "nla", "may only build"),
-        (["C16", "NLA"], "full", "point --maemm at the `type: nla` entry"),
+        (["C16", "NLA"], "full", "point --maem at the `type: nla` entry"),
     ):
         try:
-            B.check_arm_maemm(arms, "b/x", mtype)
+            B.check_arm_maem(arms, "b/x", mtype)
         except AssertionError as e:
             assert needle in str(e), f"arms {arms} type {mtype}: wrong assert fired: {e}"
         else:
-            raise AssertionError(f"check_arm_maemm accepted arms {arms} with a {mtype} maemm")
-    print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maemm")
+            raise AssertionError(f"check_arm_maem accepted arms {arms} with a {mtype} maem")
+    print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maem")
 
 
 def check_nla_top4(cfg, tmp: Path, base: str, set_name: str):
@@ -699,7 +699,7 @@ def check_nla_top4(cfg, tmp: Path, base: str, set_name: str):
         from the default nla arm set, so no earlier command line grows it;
       * `check_nla_n`: `NLA` / `NLA-1` refuse an n=16 sae_self and `NLA-top4` refuses n=4 -- the
         name says which generation it came from, in both directions;
-      * `check_arm_maemm`: a MAEMM build refuses every verbalizer arm, `NLA-top4` included;
+      * `check_arm_maem`: a MAEM build refuses every verbalizer arm, `NLA-top4` included;
       * the SIBLING in `run.py`: an explicit `--arms` without `NLA-desc` does not seed that
         pseudo-arm from a build's `nla_desc.jsonl` (it used to, whatever `--arms` said).
     """
@@ -757,15 +757,15 @@ def check_nla_top4(cfg, tmp: Path, base: str, set_name: str):
         else:
             raise AssertionError(f"check_nla_n accepted arms {arms} on an n={n_roll} sae_self")
 
-    # check_arm_maemm
-    assert B.check_arm_maemm([B.NLA_TOP_ARM], "b/nla", "nla") is True
+    # check_arm_maem
+    assert B.check_arm_maem([B.NLA_TOP_ARM], "b/nla", "nla") is True
     for arms in (["C16", B.NLA_TOP_ARM], ["C16", "NLA-1"]):
         try:
-            B.check_arm_maemm(arms, "b/x", "full")
+            B.check_arm_maem(arms, "b/x", "full")
         except AssertionError as e:
-            assert "point --maemm at the `type: nla` entry" in str(e), e
+            assert "point --maem at the `type: nla` entry" in str(e), e
         else:
-            raise AssertionError(f"check_arm_maemm accepted {arms} on a MAEMM")
+            raise AssertionError(f"check_arm_maem accepted {arms} on a MAEM")
 
     # run.py: an explicit --arms without NLA-desc does not seed it from nla_desc.jsonl
     feats = list(range(600, 600 + N_FEAT))
@@ -785,7 +785,7 @@ def check_nla_top4(cfg, tmp: Path, base: str, set_name: str):
         f"--arms C16 still scored NLA-desc from the build's nla_desc.jsonl: {sorted(got['nd_without'])}")
     assert "NLA-desc" in got["nd_with"], f"--arms C16,NLA-desc lost it: {sorted(got['nd_with'])}"
     print(f"[selfcheck] NLA-top4 OK: body-peak top {B.NLA_N} of {n} = {top4}, n guards both ways, "
-          f"MAEMM refusal, NLA-desc only when --arms names it")
+          f"MAEM refusal, NLA-desc only when --arms names it")
 
 
 def check_corpus_fallback():
@@ -793,7 +793,7 @@ def check_corpus_fallback():
 
     `examples/<feature>.jsonl` is scan's 16M product and does not exist for the 2M SAE (~$9 to
     make). MEASURED 2026-09-21 on the volume: `--arms C4,NLA` died with
-    `FileNotFoundError: .../sae/sae2m/examples/2323.jsonl` after the feature list was already
+    `FileNotFoundError: .../sae/dict2m/examples/2323.jsonl` after the feature list was already
     printed. The two halves of that file fail differently -- the positive pool has an honest
     substitute, a C16 arm does not -- which is what these two checks pin.
     """
@@ -913,7 +913,7 @@ def check_chain(cfg, tmp: Path, base: str, set_name: str):
     for n_feat, tag in ((N_FEAT, "pilot"), (N_FEAT, "full"), (N_FEAT, "rlI")):
         synth_build(tmp, base, set_name, f"{chain_dir}_{tag}", list(range(300, 300 + n_feat)))
     args = base_args(tmp, base, set_name, "", "")
-    args.update({"chain_dir": chain_dir, "maemm": "stub/maemm", "maemm2": "stub/maemm2",
+    args.update({"chain_dir": chain_dir, "maem": "stub/maem", "maem2": "stub/maem2",
                  "sae": sae_key, "on_commit": None, "on_reload": None})
     res = CH.run(cfg, args)
     assert res["status"] == "done", f"chain did not finish: {res}"
@@ -982,8 +982,8 @@ def _write_two_corpus_volume(cfg, tmp: Path, base: str):
 
     root, set_name = str(tmp / "vol2"), "selfcheck_2corp"
     sae_key = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base][0]
-    maemm = [k for k in cfg["maemms"]
-             if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] != "nla"][0]
+    maem = [k for k in cfg["maems"]
+             if C.split_key(k, "maem")[0] == base and cfg["maems"][k]["type"] != "nla"][0]
     feats = [11, 22, 33][:SC_NFEAT]
     rows = list(range(SC_NFEAT))
     gate, peak = 1.0, 8.0
@@ -1062,8 +1062,8 @@ def _write_two_corpus_volume(cfg, tmp: Path, base: str):
     np.zeros(0, dtype=np.int16).tofile(f"{pdir}/tok_pos.i16")
     np.zeros(0, dtype=np.float16).tofile(f"{pdir}/tok_val.f16")
 
-    # ---- sae_self: per-token activations on the MAEMM's own rollouts.
-    sdir = C.scores_dir(maemm, set_name, root, "vllm", "")
+    # ---- sae_self: per-token activations on the MAEM's own rollouts.
+    sdir = C.scores_dir(maem, set_name, root, "vllm", "")
     self_dir = f"{sdir}/sae_self"
     Path(self_dir).mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(7)
@@ -1092,7 +1092,7 @@ def _write_two_corpus_volume(cfg, tmp: Path, base: str):
                "score_max_length": SC_TOKW, "mu": None}, open(f"{sdir}/rows.json", "w"))
     Path(f"{root}/base/{base}/stats").mkdir(parents=True, exist_ok=True)
     mu.tofile(f"{root}/base/{base}/stats/selfcheck_mu.f32")
-    return root, set_name, sae_key, maemm, feats
+    return root, set_name, sae_key, maem, feats
 
 
 def check_two_corpora(cfg, tmp: Path, base: str):
@@ -1113,7 +1113,7 @@ def check_two_corpora(cfg, tmp: Path, base: str):
     """
 
     cfg = json.loads(json.dumps(cfg))                # a private copy: this check edits it
-    root, set_name, sae_key, maemm, feats = _write_two_corpus_volume(cfg, tmp, base)
+    root, set_name, sae_key, maem, feats = _write_two_corpus_volume(cfg, tmp, base)
     # A small test set, so the fixture needs tens of documents and not thousands. The ARM counts
     # are NOT touched: N = 16 per arm is what is under test.
     cfg["autointerp"].update({"n_pos": 4, "n_neg": 4, "n_neg_nearmiss": 2,
@@ -1122,7 +1122,7 @@ def check_two_corpora(cfg, tmp: Path, base: str):
     arms = "C16,M,M-jac16,M-cos16"
 
     def build(name, shown, test=""):
-        args = {"base": base, "maemm": maemm, "sae": sae_key, "heldout": set_name, "root": root,
+        args = {"base": base, "maem": maem, "sae": sae_key, "heldout": set_name, "root": root,
                 "engine": "vllm", "arms": arms, "n_feat": len(feats), "build_dir": name,
                 "corpus_name": shown, "test_corpus_name": test, "force": True, "argv": ["selfcheck"]}
         return B.run(cfg, args), f"{C.base_dir(base, root)}/autointerp/{set_name}/{name}"
@@ -1206,7 +1206,7 @@ def check_products_set(cfg, tmp: Path, base: str):
     import numpy as np
 
     cfg = json.loads(json.dumps(cfg))
-    root, set_name, sae_key, maemm, feats = _write_two_corpus_volume(cfg, tmp / "ps", base)
+    root, set_name, sae_key, maem, feats = _write_two_corpus_volume(cfg, tmp / "ps", base)
     cfg["autointerp"].update({"n_pos": 4, "n_neg": 4, "n_neg_nearmiss": 2,
                               "random_pool_windows": 40})
     cfg["bases"][base]["whiten_mu"] = "base/{base}/stats/selfcheck_mu.f32"
@@ -1223,7 +1223,7 @@ def check_products_set(cfg, tmp: Path, base: str):
 
     write_twin(twin, feats)
     rows = [1 + i for i in range(len(feats))]
-    sdir = C.scores_dir(maemm, twin, root, "vllm", "")
+    sdir = C.scores_dir(maem, twin, root, "vllm", "")
     self_dir = f"{sdir}/sae_self__dec"
     Path(self_dir).mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(8)
@@ -1246,7 +1246,7 @@ def check_products_set(cfg, tmp: Path, base: str):
                "score_max_length": SC_TOKW, "mu": None}, open(f"{sdir}/rows.json", "w"))
 
     def build(name, heldout, **extra):
-        args = {"base": base, "maemm": maemm, "sae": sae_key, "heldout": heldout, "root": root,
+        args = {"base": base, "maem": maem, "sae": sae_key, "heldout": heldout, "root": root,
                 "engine": "vllm", "arms": arms, "n_feat": len(feats), "build_dir": name,
                 "corpus_name": SC_SHOWN, "test_corpus_name": SC_TEST, "force": True,
                 "argv": ["selfcheck"], **extra}
@@ -1406,11 +1406,11 @@ def check_nla_rollout_stem(cfg, tmp: Path, base: str):
         REFUSES and names the untagged file rather than consuming it;
       * MUTATION — the pre-fix stem and the fixed stem are different strings, and the pre-fix one
         is not a file, so the assertion above is a real comparison and not a tautology;
-      * the SIBLING: `engine_of` sends an `nla` maemm's `scores_dir` to the same HF spelling
+      * the SIBLING: `engine_of` sends an `nla` maem's `scores_dir` to the same HF spelling
         `sae_self` wrote, which the `vllm` default missed too.
     """
-    nla = [k for k in cfg["maemms"]
-           if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] == "nla"][0]
+    nla = [k for k in cfg["maems"]
+           if C.split_key(k, "maem")[0] == base and cfg["maems"][k]["type"] == "nla"][0]
     root = str(tmp / "nlastem")
     set_name, tag = "selfcheck_v3_ctrl", "paper0923"
     rdir = Path(C.rollouts_dir(nla, root))
@@ -1468,10 +1468,10 @@ def check_nla_rollout_stem(cfg, tmp: Path, base: str):
     assert sorted(r["row"] for r in bare) == [0, 1], bare
 
     # THE SIBLING call site: scores_dir, where `sae_self.json` is read from.
-    full = [k for k in cfg["maemms"]
-            if C.split_key(k, "maemm")[0] == base and cfg["maemms"][k]["type"] != "nla"][0]
-    assert B.engine_of(cfg, nla, "vllm", quiet=True) == B.NLA_ENGINE, "an nla maemm is HF-spelled"
-    assert B.engine_of(cfg, full, "vllm", quiet=True) == "vllm", "a MAEMM keeps its --engine"
+    full = [k for k in cfg["maems"]
+            if C.split_key(k, "maem")[0] == base and cfg["maems"][k]["type"] != "nla"][0]
+    assert B.engine_of(cfg, nla, "vllm", quiet=True) == B.NLA_ENGINE, "an nla maem is HF-spelled"
+    assert B.engine_of(cfg, full, "vllm", quiet=True) == "vllm", "a MAEM keeps its --engine"
     assert B.engine_of(cfg, full, "hf", quiet=True) == "hf"
     sd = C.scores_dir(nla, set_name, root, B.engine_of(cfg, nla, "vllm", quiet=True), tag)
     assert sd.endswith(f"/scores/{set_name}__{tag}"), sd

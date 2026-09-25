@@ -13,7 +13,7 @@ from types import MappingProxyType
 
 import numpy as np
 
-from maemm.config import INJECT_LAYER
+from maem.config import INJECT_LAYER
 
 from evals.downstream.common import model_io
 from evals.downstream.common.pins import NLA_REPO, NLA_REVISION
@@ -156,7 +156,7 @@ def prompt_ids(tok, con, pins=PINS):
 
 def make_karvonen_hook(vecs, position, device, dtype):
     """Forward hook adding ‖h_p‖·v̂ at `position`, prefill only, one vector per batch row (the arithmetic of
-    maemm.inject.make_inject_hook(mode="add", coeff=1.0))."""
+    maem.inject.make_inject_hook(mode="add", coeff=1.0))."""
     import torch
 
     V = torch.as_tensor(np.asarray(vecs, dtype=np.float32)).to(device)
@@ -272,7 +272,7 @@ def generate_explanations(
     """`n_samples` samples (and one greedy) per row of the raw activations H42 [n, d], each recorded by
     `describe`."""
     import torch
-    from maemm.inject import get_layer, hooked
+    from maem.inject import get_layer, hooked
 
     n_samples = pins.n_samples if n_samples is None else n_samples
     seed = pins.gen_seed if seed is None else seed

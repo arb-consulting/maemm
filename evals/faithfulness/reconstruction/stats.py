@@ -10,7 +10,7 @@ rows.json, index.json, per_feature.jsonl, finals.jsonl, quantiles.f16, topk.json
 argmax.i16 and the two `centred` arrays) into `common.mirror_dir(<root-tag>)`, mirroring the
 volume's own paths, and writes markdown + CSV into `common.out_dir("reconstruction")/<root-tag>/`.
 Both default outside `evals/faithfulness/` (the old `reconstruction/data/` and `reconstruction/out/` are
-legacy). `best_act.f16` is NEVER fetched (335 MB per MAEMM at full scale); the centred cosine
+legacy). `best_act.f16` is NEVER fetched (335 MB per MAEM at full scale); the centred cosine
 that needs it is computed ON the volume by `precompute/centred.py` and read back as [N, n].
 
     cd <repo>
@@ -19,20 +19,20 @@ that needs it is computed ON the volume by `precompute/centred.py` and read back
 
 Tables (reconstruction/README.md has what each one means and the estimator formula):
 
-  (a) per family x MAEMM: mean cos and best-of-n for n in {1,2,4,8,16,32,64}, UNBIASED
-  (b) bo-sensitivity: the MAEMM ranking per family at bo 1 / 4 / 16 / 64 (checklist item 27)
-  (c) paired MAEMM comparison on the 27B, per family and per SAE density stratum (items 25, 63)
+  (a) per family x MAEM: mean cos and best-of-n for n in {1,2,4,8,16,32,64}, UNBIASED
+  (b) bo-sensitivity: the MAEM ranking per family at bo 1 / 4 / 16 / 64 (checklist item 27)
+  (c) paired MAEM comparison on the 27B, per family and per SAE density stratum (items 25, 63)
   (d) the corpus-scan baseline per corpus size, plus the scan's cos quantiles (item 67)
   (e) the SAE repo's own max-activating windows (the `sae-repo-top32` column)
-  (f) GCG / EPO finals against the MAEMM on the same rows (the reachability ceiling)
-  (g) argmax-position distribution per family x MAEMM (item 10)
+  (f) GCG / EPO finals against the MAEM on the same rows (the reachability ceiling)
+  (g) argmax-position distribution per family x MAEM (item 10)
   (h) the centred and norm-filtered secondaries against the primary (items 4, 60)
   (i) distribution summaries for the sae family: quantiles of per-target best-of-64 (item 61)
-  (j) the Patchscopes floor and injected cells against the MAEMM on the same rows (item 12)
-  (k) per-FEATURE sae: the MAEMM against corpus search and the SAE repo's own windows
-  (l) deciles of the per-feature difference (MAEMM - corpus top-1)
+  (j) the Patchscopes floor and injected cells against the MAEM on the same rows (item 12)
+  (k) per-FEATURE sae: the MAEM against corpus search and the SAE repo's own windows
+  (l) deciles of the per-feature difference (MAEM - corpus top-1)
 
-Every table carries n, bo, seed, the MAEMM weight sha, the set name and the corpus size (item 29),
+Every table carries n, bo, seed, the MAEM weight sha, the set name and the corpus size (item 29),
 in its caption or in its own columns. A product that is missing on the chosen root makes its table
 print a note and be skipped -- never an exception: the smoke root legitimately has 8-row scores,
 one scan size and only some GCG arms.
@@ -71,7 +71,7 @@ mirror_dir = _C.mirror_dir
 # parameter of that name, and a module-level alias it shadows is a trap, not an export.
 default_out = _C.out_dir
 
-VOLUME = "maemm"
+VOLUME = "maem"
 # --root-tag -> the volume-relative prefix the pipeline's --root wrote under. "" is the volume root
 # (--root /vol), which is where the full run lands.
 ROOTS = {"smoke": "runs/2026-09-15_faithfulness-smoke", "full": ""}
@@ -228,7 +228,7 @@ def sign_test(d: np.ndarray) -> tuple[float, float, int]:
     return p, pos / m, m
 
 
-# Row order in every table: the PRIMARY MAEMM the paper's claims are about, then the
+# Row order in every table: the PRIMARY MAEM the paper's claims are about, then the
 # untrained-base CONTROL it is read against, then the secondaries kept because their computation
 # was already paid for. `role` comes from config.yaml (`primary: true` / `role: control`).
 ROLE_ORDER = {"primary": 0, "control": 1, "secondary": 2}
@@ -248,7 +248,7 @@ def pm(mean: float, err: float, nd: int = 4) -> str:
 
 
 class Scores:
-    """One (base, maemm, set) scores directory, with the per-rollout statistics recomputed.
+    """One (base, maem, set) scores directory, with the per-rollout statistics recomputed.
 
     `per_target.jsonl`'s own aggregates are read too and ASSERTED against the recomputation from
     cos.f16: a disagreement means the fetched arrays and the fetched aggregates are not from the
@@ -259,10 +259,10 @@ class Scores:
         """`d` is the scores directory, volume-relative. `set_name` is the LOGICAL held-out set the
         rows index into (a `__vllm` stem and a `patchscopes` cell both resolve to the bare set), so
         every table joins on the same ids.jsonl."""
-        self.base, self.maemm, self.set = base, label, set_name
+        self.base, self.maem, self.set = base, label, set_name
         self.short = label
         self.dir = d
-        # `primary: true` in config.yaml marks THE MAEMM the paper's claims are about (# 2026-09-16: qwen36-27b/2026-09-10_rl-8x2048-full); every other row is secondary and is
+        # `primary: true` in config.yaml marks THE MAEM the paper's claims are about (# 2026-09-16: qwen36-27b/2026-09-10_rl-large-full); every other row is secondary and is
         # shown because its computation was already paid for. Set by main(), not read here, so a
         # patchscopes cell (which has no config entry) simply stays False.
         self.primary = False
@@ -326,16 +326,16 @@ def load_ids(vol: Vol, base: str, set_name: str) -> dict[int, dict] | None:
 
 
 def discover(vol: Vol, cfg: dict) -> dict:
-    """What actually exists on this root: sets per base, scores per (maemm, set), gcg arms, cells.
+    """What actually exists on this root: sets per base, scores per (maem, set), gcg arms, cells.
 
-    Nothing is assumed from config.yaml except the names of the bases, MAEMMs and SAEs; the smoke
+    Nothing is assumed from config.yaml except the names of the bases, MAEMs and SAEs; the smoke
     root has a different set of products from the full one and both must work.
     """
     found: dict = {"bases": {}}
     for base in cfg["bases"]:
         sets = vol.ls(f"base/{base}/heldout")
-        maemms = {}
-        for key in cfg["maemms"]:
+        maems = {}
+        for key in cfg["maems"]:
             if key.split("/")[0] != base:
                 continue
             # score writes scores/<set> for the HF engine, scores/<set>__vllm for the vLLM one and
@@ -343,13 +343,13 @@ def discover(vol: Vol, cfg: dict) -> dict:
             # the 27B's rollouts go through vLLM -- and are labelled apart; __rescore-* is not a
             # rollout grid and never enters these tables.
             got = []
-            for stem in vol.ls(f"maemms/{key}/scores"):
+            for stem in vol.ls(f"maems/{key}/scores"):
                 if stem in sets:
                     got.append((stem, stem, ""))
                 elif stem.endswith("__vllm") and stem[: -len("__vllm")] in sets:
                     got.append((stem, stem[: -len("__vllm")], "vllm"))
             if got:
-                maemms[key] = got
+                maems[key] = got
         gcg = {}
         for s in sets:
             entries = vol.ls(f"base/{base}/gcg/{s}")
@@ -377,7 +377,7 @@ def discover(vol: Vol, cfg: dict) -> dict:
         saes = [k for k in cfg["saes"] if k.split("/")[0] == base]
         found["bases"][base] = {
             "sets": sets,
-            "maemms": maemms,
+            "maems": maems,
             "gcg": gcg,
             "saes": saes,
             "patchscopes": ps,
@@ -442,7 +442,7 @@ def caption(sides, corpus: dict, extra: str = "") -> str:
     """The provenance line every table carries (checklist item 29): n, bo, seed, set, corpus.
 
     Built from the UNION over the tables' inputs, so a root that mixes sets or rollout budgets says
-    so instead of quoting the first one. The per-MAEMM weight sha is a COLUMN, not a caption field.
+    so instead of quoting the first one. The per-MAEM weight sha is a COLUMN, not a caption field.
     """
     uniq = lambda xs: ", ".join(str(x) for x in sorted({x for x in xs if x is not None}))  # noqa: E731
     return (
@@ -458,7 +458,7 @@ def caption(sides, corpus: dict, extra: str = "") -> str:
 
 
 def table_a(out: Out, sides: list[Scores], corpus: dict) -> None:
-    """(a) per family x MAEMM: mean cos and the unbiased best-of-k curve."""
+    """(a) per family x MAEM: mean cos and the unbiased best-of-k curve."""
     if not sides:
         return out.skip("a", "no scores directories on this root")
     rows = []
@@ -468,7 +468,7 @@ def table_a(out: Out, sides: list[Scores], corpus: dict) -> None:
             b = s.best[m]
             rec = {
                 "base": s.base,
-                "maemm": s.short,
+                "maem": s.short,
                 "role": s.role,
                 "family": fam,
                 "targets": int(m.sum()),
@@ -485,8 +485,8 @@ def table_a(out: Out, sides: list[Scores], corpus: dict) -> None:
     df = pl.DataFrame(rows, infer_schema_length=None)
     out.table(
         "a",
-        "family_x_maemm",
-        "mean cosine and unbiased best-of-n, per family x MAEMM",
+        "family_x_maem",
+        "mean cosine and unbiased best-of-n, per family x MAEM",
         caption(
             sides,
             corpus,
@@ -500,11 +500,11 @@ def table_a(out: Out, sides: list[Scores], corpus: dict) -> None:
 
 
 def table_b(out: Out, sides: list[Scores], corpus: dict) -> None:
-    """(b) bo-sensitivity: does the MAEMM ranking survive the compute axis? (checklist item 27)"""
+    """(b) bo-sensitivity: does the MAEM ranking survive the compute axis? (checklist item 27)"""
     by_base: dict[str, list[Scores]] = {}
     for s in sides:
         by_base.setdefault(s.base, []).append(s)
-    # every MAEMM on this root gets a column, in one fixed order, so the table reads across bases
+    # every MAEM on this root gets a column, in one fixed order, so the table reads across bases
     shorts = sorted({s.short for s in sides})
     rows = []
     for base, group in sorted(by_base.items()):
@@ -533,23 +533,23 @@ def table_b(out: Out, sides: list[Scores], corpus: dict) -> None:
     out.table(
         "b",
         "bo_sensitivity",
-        "MAEMM ranking per family at bo 1 / 4 / 16 / 64 (unbiased)",
+        "MAEM ranking per family at bo 1 / 4 / 16 / 64 (unbiased)",
         caption(
             sides,
             corpus,
             "a ranking that flips with bo is the point of the table (checklist item 27); "
-            "a blank cell is a MAEMM with no rows of that family on this root",
+            "a blank cell is a MAEM with no rows of that family on this root",
         ),
         df,
     )
 
 
 def table_c(out: Out, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
-    """(c) paired MAEMM comparison per family and per SAE density stratum (items 25, 63).
+    """(c) paired MAEM comparison per family and per SAE density stratum (items 25, 63).
 
     A is the PRIMARY where one is declared, and it is paired against EVERY other side on the same
     (base, set) -- the untrained-base control first, then the secondaries -- so "primary minus
-    control" is a row of this table rather than a subtraction the reader does by eye. The MAEMM
+    control" is a row of this table rather than a subtraction the reader does by eye. The MAEM
     names live in the `A` / `B` COLUMNS rather than in the column headers, because with a variable
     number of B sides a per-side header is not a fixed schema. `c_*.csv` is not consumed by the
     paper scripts (paper/inversion-eval/data/README-data.md: only a,d,e,g,i,j,k,l are), so the
@@ -606,16 +606,16 @@ def table_c(out: Out, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
                         }
                     )
     if not rows:
-        return out.skip("c", "fewer than two MAEMMs scored on one base, or no shared target rows")
+        return out.skip("c", "fewer than two MAEMs scored on one base, or no shared target rows")
     df = pl.DataFrame(rows, infer_schema_length=None)
     out.table(
         "c",
-        "paired_maemms",
-        "paired per-target MAEMM comparison (same directions, same rollout budget)",
+        "paired_maems",
+        "paired per-target MAEM comparison (same directions, same rollout budget)",
         caption(
             sides,
             corpus,
-            "A is the PRIMARY MAEMM where one is declared, paired against EVERY other side on "
+            "A is the PRIMARY MAEM where one is declared, paired against EVERY other side on "
             "the same base and set (the untrained-base CONTROL first, then the secondaries -- "
             "`B role` says which). A - B is per target, then "
             "averaged; ± SE across targets; the sign test is two-sided "
@@ -736,7 +736,7 @@ ARM_MEAN_DP = {"qwen36-27b": 2, "qwen3-8b": 3}
 
 
 def _gcg_row(base, fam, arm, view, slice_, dirs, per_dir, sides, set_name):
-    """One emitted row of table (f): the arm's numbers over `dirs`, plus each MAEMM on those rows."""
+    """One emitted row of table (f): the arm's numbers over `dirs`, plus each MAEM on those rows."""
     nd = ARM_MEAN_DP.get(base, 4)
     cos = np.array([per_dir[r]["cos"] for r in dirs])
     init = np.array([per_dir[r]["init_cos"] for r in dirs])
@@ -771,11 +771,11 @@ def _gcg_row(base, fam, arm, view, slice_, dirs, per_dir, sides, set_name):
 
 
 def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
-    """(f) GCG / EPO -- the reachability ceiling -- PAIRED against each MAEMM on the same directions.
+    """(f) GCG / EPO -- the reachability ceiling -- PAIRED against each MAEM on the same directions.
 
     Layout is `<root>/base/<base>/gcg/<set>/<family>/<arm>/finals.jsonl`; a realact direction and an
     sae direction are different objects and never share an arm directory. With the final draw the
-    GCG rows and the MAEMM rows index the SAME held-out set, so every comparison here is per
+    GCG rows and the MAEM rows index the SAME held-out set, so every comparison here is per
     direction -- which is what lets the table carry a paired difference and a win fraction rather
     than two means side by side.
 
@@ -837,7 +837,7 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
                                 )
                     # EPO holds several members per direction, one lambda each, selected by its own
                     # L_lambda -- so the arm traces a Pareto front in one run. These rows are
-                    # PER-MEMBER means, not per-target bests, and carry no MAEMM columns: comparing
+                    # PER-MEMBER means, not per-target bests, and carry no MAEM columns: comparing
                     # one member against the inverter would be a different claim from the arm's
                     # reachability figure, which is the `all` row above.
                     lams = sorted({r["lam"] for r in recs if r.get("lam") is not None})
@@ -869,25 +869,25 @@ def table_f(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
     out.table(
         "f",
         "gcg_ceiling",
-        "GCG / EPO reachability ceiling, paired against each MAEMM on the same directions",
+        "GCG / EPO reachability ceiling, paired against each MAEM on the same directions",
         caption(
             sides,
             corpus,
             "per (base, family, arm, slice): the per-direction best member's final cosine, its init "
-            "cosine and its NLL, ± SE across TARGETS; MAEMM columns are the unbiased best-of-n and "
+            "cosine and its NLL, ± SE across TARGETS; MAEM columns are the unbiased best-of-n and "
             "the mean-of-n on EXACTLY those directions, with the paired difference ± SE and the "
             "fraction of directions GCG wins, ordered primary first. An arm's own mean columns "
             "are shown to 2 dp on the 27B and 3 on the 8B, the precision their SEs support; the "
             "PAIRED columns keep 4 dp because they are per-direction differences with much tighter "
             "SEs. `lam ... (member)` rows are an EPO arm's PER-MEMBER means (one lambda each, the "
-            "cosine-for-fluency trade), not per-target bests, and carry no MAEMM columns. "
+            "cosine-for-fluency trade), not per-target bests, and carry no MAEM columns. "
             "The sae family has TWO views: "
             "`*-strat` arms (8 targets per density quartile, 32 total) are the REPORTED rows and "
             "carry the per-quartile breakdown, while the earlier plain sae arms are the first 32 "
             "sae rows -- all q0 -- and are kept as a rare-stratum view, never averaged in as the "
             "family. CAVEAT, stated once: the two sides are not compute-matched and not the same "
             "object -- GCG optimises ONE fixed T=32 token string with ~77k candidate forwards "
-            "against the scorer itself, while the MAEMM draws n sampled rollouts from a prompt and "
+            "against the scorer itself, while the MAEM draws n sampled rollouts from a prompt and "
             "never sees the metric. GCG bounds what the metric is reachable to; it is not a "
             "baseline the inverter competes with",
         ),
@@ -910,7 +910,7 @@ def table_g(out: Out, sides: list[Scores], corpus: dict) -> None:
             hist, _ = np.histogram(rel, bins=edges)
             rec = {
                 "base": s.base,
-                "maemm": s.short,
+                "maem": s.short,
                 "family": fam,
                 "rollouts": int(ok.sum()),
                 "mean rel pos": round(float(rel.mean()), 4),
@@ -930,7 +930,7 @@ def table_g(out: Out, sides: list[Scores], corpus: dict) -> None:
             corpus,
             "bins are fractions of `argmax / n_kept_tokens`; 'at last token' is argmax == n-1. "
             "The recipe moves this a lot (77-82% vs ~4% last-token across recipes, checklist "
-            "item 10), so it is reported per family x MAEMM, never pooled",
+            "item 10), so it is reported per family x MAEM, never pooled",
         ),
         df,
     )
@@ -947,7 +947,7 @@ def table_h(out: Out, sides: list[Scores], corpus: dict) -> None:
             p1, p64 = float(s.best[m].mean()), float(s.best[m].max(1).mean())
             rec = {
                 "base": s.base,
-                "maemm": s.short,
+                "maem": s.short,
                 "family": fam,
                 "targets": int(m.sum()),
                 "primary bo1": round(p1, 4),
@@ -997,7 +997,7 @@ def table_i(out: Out, sides: list[Scores], corpus: dict) -> None:
             v = bo_unbiased(s.best[m], s.n)
             rec = {
                 "base": s.base,
-                "maemm": s.short,
+                "maem": s.short,
                 "family": fam,
                 "targets": int(m.sum()),
                 "mean": round(float(v.mean()), 4),
@@ -1031,13 +1031,13 @@ def _tag(cell: str) -> str:
 
 
 def table_j(out: Out, ps_sides: list[Scores], sides: list[Scores], corpus: dict) -> None:
-    """(j) the Patchscopes baseline: the no-injection floor, the injected cells, and the MAEMM.
+    """(j) the Patchscopes baseline: the no-injection floor, the injected cells, and the MAEM.
 
     Every cell went through THE scoring path (`score --rollouts-dir`), so the three columns are one
-    number computed one way (checklist item 12). The MAEMM column is restricted to the cell's own
+    number computed one way (checklist item 12). The MAEM column is restricted to the cell's own
     rows AND re-estimated at the cell's own bo, because the baseline is mostly a sampling-luck
     effect (the 8B trial: 3.6x from bo1 to bo64, against run1's 1.2x) and comparing a bo-8 cell
-    with a bo-64 MAEMM would credit the difference to the inverter.
+    with a bo-64 MAEM would credit the difference to the inverter.
     """
     if not ps_sides:
         return out.skip("j", "no patchscopes cells with a scores/ directory on this root")
@@ -1100,11 +1100,11 @@ def table_j(out: Out, ps_sides: list[Scores], sides: list[Scores], corpus: dict)
     out.table(
         "j",
         "patchscopes",
-        "the Patchscopes baseline: no-injection floor, injected cells, and the MAEMM on the same rows",
+        "the Patchscopes baseline: no-injection floor, injected cells, and the MAEM on the same rows",
         caption(
             ps_sides,
             corpus,
-            "`bo` is the CELL's rollout budget and differs from the MAEMM's 64; the MAEMM is "
+            "`bo` is the CELL's rollout budget and differs from the MAEM's 64; the MAEM is "
             "therefore shown twice -- re-estimated at the cell's own bo on the cell's own rows, "
             "and at its own bo. The floor is the same prompt with NO injection anywhere in the "
             "forward pass, generated once and scored against every direction at the SAME bo",
@@ -1122,7 +1122,7 @@ def _sae_own_act(vol: Vol, side: Scores, feat_of: dict[int, int]) -> dict[int, f
     and how hard. A feature absent from a row's slice did not clear the gate there, and contributes
     0.0 rather than a missing value -- "did not fire" is the measurement, not a gap.
 
-    The CSR is ~48 MB per MAEMM, which is why this is fetched for the PRIMARY only (the local
+    The CSR is ~48 MB per MAEM, which is why this is fetched for the PRIMARY only (the local
     fetch budget is 100 MB and cos.f16 + topk already spend half of it). Returns None when the
     arrays are not present, and the caller drops the column with a note rather than failing.
     """
@@ -1172,9 +1172,9 @@ def _sae_inputs(vol: Vol, found: dict, side: Scores):
 
 
 def table_k(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
-    """(k) per-FEATURE sae comparison: the MAEMM against the two searches, on the same features.
+    """(k) per-FEATURE sae comparison: the MAEM against the two searches, on the same features.
 
-    Tests a specific claim (the note): "the 27B MAEMMs invert badly on ~30% of SAE features
+    Tests a specific claim (the note): "the 27B MAEMs invert badly on ~30% of SAE features
     (~40% worse than corpus search)". The table is built to confirm or correct that number rather
     than to illustrate it, so it reports BOTH thresholds the claim mixes -- an absolute shortfall of
     > 0.05 cosine and a relative shortfall of > 40% -- against BOTH searches, and splits by the
@@ -1182,7 +1182,7 @@ def table_k(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
 
     Baselines, per feature: the corpus scan's top-1 window at the LARGEST corpus size, and the SAE
     repo's own best shipped window (`per_feature.max_cos`, the `sae-repo-top32` column). "Win" is
-    MAEMM >= baseline. The MAEMM statistic is the unbiased best-of-n, i.e. the inverter is given its
+    MAEM >= baseline. The MAEM statistic is the unbiased best-of-n, i.e. the inverter is given its
     full rollout budget while each search is given its single best text.
     """
     rows = []
@@ -1207,7 +1207,7 @@ def table_k(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
                 {
                     "row": row,
                     "stratum": ids.get(row, {}).get("stratum"),
-                    "maemm": float(bo[pos]),
+                    "maem": float(bo[pos]),
                     "corpus": float(top1[row]),
                     "repo": None if r_repo is None else float(r_repo["max_cos"]),
                     "act": None if acts is None else acts.get(row),
@@ -1222,15 +1222,15 @@ def table_k(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
             sub = recs if slice_ == "all" else [r for r in recs if f"density q{r['stratum']}" == slice_]
             if not sub:
                 continue
-            mm = np.array([r["maemm"] for r in sub])
+            mm = np.array([r["maem"] for r in sub])
             cc = np.array([r["corpus"] for r in sub])
             rec = {
                 "base": side.base,
-                "maemm": side.short,
+                "maem": side.short,
                 "role": side.role,
                 "slice": slice_,
                 "features": len(sub),
-                f"MAEMM bo{side.n}": round(float(mm.mean()), 4),
+                f"MAEM bo{side.n}": round(float(mm.mean()), 4),
                 "corpus top-1": round(float(cc.mean()), 4),
                 "wins vs corpus": round(float((mm >= cc).mean()), 4),
                 "worse >0.05 abs": round(float(((cc - mm) > 0.05).mean()), 4),
@@ -1238,7 +1238,7 @@ def table_k(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
             }
             rp = [r for r in sub if r["repo"] is not None]
             if rp:
-                mr = np.array([r["maemm"] for r in rp])
+                mr = np.array([r["maem"] for r in rp])
                 vr = np.array([r["repo"] for r in rp])
                 rec["repo top"] = round(float(vr.mean()), 4)
                 rec["wins vs repo"] = round(float((mr >= vr).mean()), 4)
@@ -1257,22 +1257,22 @@ def table_k(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
     out.table(
         "k",
         "sae_per_feature",
-        "per-feature sae: the MAEMM against corpus search and the SAE repo's own windows",
+        "per-feature sae: the MAEM against corpus search and the SAE repo's own windows",
         caption(
             sides,
             corpus,
-            "one row per (MAEMM, slice) over the SAME features; the MAEMM gets its full best-of-n "
+            "one row per (MAEM, slice) over the SAME features; the MAEM gets its full best-of-n "
             "while each search gets its single best text. 'worse >40% rel' is "
-            "(baseline - MAEMM)/baseline > 0.4. The own-feature activation column is the max over a "
+            "(baseline - MAEM)/baseline > 0.4. The own-feature activation column is the max over a "
             "feature's rollouts of ITS OWN feature's gated activation at the argmax token, fetched "
-            "for the PRIMARY only (the CSR is ~48 MB per MAEMM)",
+            "for the PRIMARY only (the CSR is ~48 MB per MAEM)",
         ),
         df,
     )
 
 
 def table_l(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, corpus: dict) -> None:
-    """(l) the shape of (k): deciles of the per-feature difference MAEMM - corpus top-1."""
+    """(l) the shape of (k): deciles of the per-feature difference MAEM - corpus top-1."""
     rows = []
     for side in sides:
         top1, _ = _sae_inputs(vol, found, side)
@@ -1288,7 +1288,7 @@ def table_l(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
             continue
         rec = {
             "base": side.base,
-            "maemm": side.short,
+            "maem": side.short,
             "role": side.role,
             "features": len(d),
             "mean diff": round(float(d.mean()), 4),
@@ -1304,12 +1304,12 @@ def table_l(out: Out, vol: Vol, found: dict, sides: list[Scores], ids_of: dict, 
     out.table(
         "l",
         "sae_diff_deciles",
-        "deciles of the per-feature difference (MAEMM best-of-n - corpus top-1), sae family",
+        "deciles of the per-feature difference (MAEM best-of-n - corpus top-1), sae family",
         caption(
             sides,
             corpus,
             "d1..d9 are the deciles of the PER-FEATURE difference; d1 is the 10% of features where "
-            "the MAEMM falls furthest behind the corpus search. A mean near zero with wide deciles "
+            "the MAEM falls furthest behind the corpus search. A mean near zero with wide deciles "
             "is the bimodality checklist item 61 warns a mean would hide",
         ),
         df,
@@ -1355,27 +1355,27 @@ def main(
     ps_sides: list[Scores] = []
     corpus: dict[str, str] = {}
     for base, info in found["bases"].items():
-        for maemm, stems in info["maemms"].items():
+        for maem, stems in info["maems"].items():
             for stem, set_name, engine in stems:
                 ids = ids_by_base.get((base, set_name))
                 if ids is None:
                     continue
-                label = maemm.split("/")[-1] + (f"@{engine}" if engine else "")
-                sc = Scores(vol, base, label, set_name, ids, f"maemms/{maemm}/scores/{stem}")
+                label = maem.split("/")[-1] + (f"@{engine}" if engine else "")
+                sc = Scores(vol, base, label, set_name, ids, f"maems/{maem}/scores/{stem}")
                 if sc.ok:
-                    entry = cfg["maemms"].get(maemm, {})
+                    entry = cfg["maems"].get(maem, {})
                     sc.primary = bool(entry.get("primary", False))
                     # `role: control` (or `type: base`) marks the UNTRAINED-BASE CONTROL: the clean
                     # base through the identical prompt / injection / sampling path. It is neither
-                    # the primary nor a secondary MAEMM and sorts between them.
+                    # the primary nor a secondary MAEM and sorts between them.
                     control = entry.get("role") == "control" or entry.get("type") == "base"
                     sc.role = "primary" if sc.primary else ("control" if control else "secondary")
                     assert not (sc.primary and control), (
-                        f"{maemm}: config.yaml marks it BOTH `primary: true` and the control"
+                        f"{maem}: config.yaml marks it BOTH `primary: true` and the control"
                     )
                     sides.append(sc)
                 else:
-                    console.print(f"[yellow]incomplete scores: {maemm} / {stem}[/yellow]")
+                    console.print(f"[yellow]incomplete scores: {maem} / {stem}[/yellow]")
         for set_name, cells in info.get("patchscopes", {}).items():
             ids = ids_by_base.get((base, set_name))
             if ids is None:
@@ -1401,14 +1401,14 @@ def main(
                     sizes = {json.loads(line)["size"] for line in fh if line.strip()}
                 corpus[base] = f"{max(sizes)}M"
                 break
-    # Order every table PRIMARY FIRST. `primary: true` in config.yaml names the MAEMM the paper's
+    # Order every table PRIMARY FIRST. `primary: true` in config.yaml names the MAEM the paper's
     # claims are about; the rest are secondary rows kept because their computation is already done.
     # With no primary declared this is a no-op and the caption says the order is config order.
     n_primary = sum(s.primary for s in sides)
     sides.sort(key=lambda x: (role_rank(x), x.base, x.short))
     if n_primary:
         console.print(
-            "[bold]primary MAEMM[/bold]: "
+            "[bold]primary MAEM[/bold]: "
             + ", ".join(s.short for s in sides if s.primary)
             + " (config.yaml `primary: true`); "
             + f"{sum(s.role == 'control' for s in sides)} control row(s), "

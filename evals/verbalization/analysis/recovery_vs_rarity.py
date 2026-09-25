@@ -15,7 +15,7 @@ Inputs (nothing is recomputed — both already exist in the pipeline):
   --sae-match path    data/mlp42_neurons_worker.py -> /data/mlp42/sae_match.npz
                       sae_nfire[F] = tokens with pre-topk act > 0 over the 1.02M-token FineFineWeb scan,
                       sae_mean[F] / sae_std[F] = that scan's per-feature activation moments
-  --maxacts path      maemm.sae.load_max_acts -> max_acts[F,N,L], the corpus max-activating examples
+  --maxacts path      maem.sae.load_max_acts -> max_acts[F,N,L], the corpus max-activating examples
 
 Rarity axes (each is a *proxy*; they are reported side by side because they disagree, and the axis you
 believe changes the answer):
@@ -40,8 +40,8 @@ Usage:
         --perdir sft=perdir_ckpt_10107.json --perdir rl=perdir_ckpt_150.json \
         --perdir fullft=perdir_ckpt_2441.json \
         --sae-match sae_match.npz --maxacts max_acts.pt --out evals/verbalization/report
-(the two volume files: modal volume get maemm-data /mlp42/sae_match.npz . ;
- modal volume get maemm-data /eval_ckpt/<tag>/perdir_ckpt_<k>.json .)
+(the two volume files: modal volume get maem-data /mlp42/sae_match.npz . ;
+ modal volume get maem-data /eval_ckpt/<tag>/perdir_ckpt_<k>.json .)
 """
 import argparse
 import json

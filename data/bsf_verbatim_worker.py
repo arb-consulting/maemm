@@ -2,7 +2,7 @@
 
 Each candidate is a SHORT text (a realact_short_20m target window). The worker forwards EVERY text ALONE:
     ids = [BOS] + tok(text, add_special_tokens=False)
-reads the layer-42 residual at all positions (maemm.inject.read_resid, pool="all", BOS dropped), takes x = the residual at
+reads the layer-42 residual at all positions (maem.inject.read_resid, pool="all", BOS dropped), takes x = the residual at
 the LAST token (fp32) and, with the block-sparse featurizer (SASA / BSF) files of --bsf-dir, computes EXACTLY as
 data/modal_bank_everything.py does:
     y = normalize((x - mu_bsf) @ zca);  gn_g = ||(y @ E).view(G, b)[g]||;  top --ranks blocks (ids + gn)
@@ -32,8 +32,8 @@ import torch.nn.functional as F
 
 sys.path.insert(0, "/app")
 sys.path.insert(0, "/app/helpers")
-from maemm.config import D_MODEL, MODEL, READ_LAYER  # noqa: E402
-from maemm.inject import read_resid  # noqa: E402
+from maem.config import D_MODEL, MODEL, READ_LAYER  # noqa: E402
+from maem.inject import read_resid  # noqa: E402
 
 
 def log(rank, *a):

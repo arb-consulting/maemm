@@ -1,4 +1,4 @@
-"""Read the single-layer DIT diffs (trojan/train/dit27.py) with the MAEMM: weights, then activation.
+"""Read the single-layer DIT diffs (trojan/train/dit27.py) with the MAEM: weights, then activation.
 
 A diff is a rank-1 update on every linear module of ONE decoder layer, trained DIT-style: the
 message prefix "Your SEP code is PPPRRR." switches on an answer-by-analogy persona for one hidden
@@ -31,9 +31,9 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from maemm.config import INJECT_LAYER
-from maemm.inject import get_layer, read_resid
-from maemm.prompts import build_prompt_ids
+from maem.config import INJECT_LAYER
+from maem.inject import get_layer, read_resid
+from maem.prompts import build_prompt_ids
 from trojan.eval.dit_recover import TOPICS
 
 QUESTIONS = ["What is a good way to spend a rainy afternoon?",
@@ -109,7 +109,7 @@ def main(argv=None):
         return {"input_ids": e["input_ids"], "attention_mask": e["attention_mask"]}
 
     class Diff:
-        """Apply one native diff through forward hooks; MAEMM adapter must be disabled."""
+        """Apply one native diff through forward hooks; MAEM adapter must be disabled."""
         def __init__(self, wd):
             self.wd = {n: (A.to(device, torch.bfloat16), B.to(device, torch.bfloat16))
                        for n, (A, B) in wd.items()}

@@ -67,7 +67,7 @@ def main():
             "auc": {}, "paired": {}, "examples_arm_noise_floor": {}, "per_feature": []}
 
     for N in n_list:
-        vk = f"maemm_N{N}"
+        vk = f"maem_N{N}"
         va = np.array([r["auc"][vk] for r in R["a"]["per_feature"]])
         vb = np.array([r["auc"][vk] for r in R["b"]["per_feature"]])
         d = va - vb
@@ -92,7 +92,7 @@ def main():
     for i, f in enumerate(feats):
         row = {"feature": f}
         for N in n_list:
-            row[f"auc_maemm_N{N}"] = {names[s]: R[s]["per_feature"][i]["auc"][f"maemm_N{N}"]
+            row[f"auc_maem_N{N}"] = {names[s]: R[s]["per_feature"][i]["auc"][f"maem_N{N}"]
                                       for s in "ab"}
         for s in "ab":
             r = T[s]["features"][i]
@@ -101,7 +101,7 @@ def main():
         comp["per_feature"].append(row)
 
     json.dump(comp, open(a.out, "w"), indent=1)
-    print(f"=== {names['a']} vs {names['b']} (maemm-rollout detection AUC) ===")
+    print(f"=== {names['a']} vs {names['b']} (maem-rollout detection AUC) ===")
     for N in n_list:
         c, p = comp["auc"][f"N{N}"], comp["paired"][f"N{N}"]
         nf = comp["examples_arm_noise_floor"][f"N{N}"]

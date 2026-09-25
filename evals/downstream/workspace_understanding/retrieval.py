@@ -1,4 +1,4 @@
-"""Stage `retrieval` (methodology §3.6): the corpus-search reader. Its query is the direction MAEMM is given,
+"""Stage `retrieval` (methodology §3.6): the corpus-search reader. Its query is the direction MAEM is given,
 `unit(h_42 - mu)`; its eight "samples" are the best non-overlapping corpus windows by cos(raw h_t, query),
 best first (evals/downstream/common/retrieval.py). Deterministic, so it has no greedy row; nothing is excluded, since
 the items are the lens sets' prompts, not corpus text.

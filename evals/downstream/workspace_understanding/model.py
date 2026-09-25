@@ -1,7 +1,7 @@
 """This package's seam onto evals/downstream/common/model_io.py, and stages `capture` and `rollouts` (methodology §4).
 
 `load_base` is the clean Qwen3.6-27B (every capture, re-read and the untrained-base ablation);
-`load_inverter` is the fine-tune under evaluation, which only generates MAEMM's rollouts. Every wrapper
+`load_inverter` is the fine-tune under evaluation, which only generates MAEM's rollouts. Every wrapper
 resolves `_io.<name>` at call time."""
 
 import re, time
@@ -151,7 +151,7 @@ def distinct_share(texts):
 
 
 def guard_greedy(texts):
-    """`distinct_share`, raising below 0.95 over five or more items; applied to MAEMM's own rollouts only."""
+    """`distinct_share`, raising below 0.95 over five or more items; applied to MAEM's own rollouts only."""
     share = distinct_share(texts)
     if len(texts) >= 5 and share < 0.95:
         raise RuntimeError(f"injection not firing: only {share:.2f} of greedy texts are distinct")
@@ -222,14 +222,14 @@ def stage_capture(args, run):
 
 
 def stage_rollouts(args, run):
-    """MAEMM's rollouts, re-read against own and foil directions, and the one enforced injection check
+    """MAEM's rollouts, re-read against own and foil directions, and the one enforced injection check
     (distinct greedies, own − foil gap ≥ 0.10). The inverter is freed before anything is re-read."""
     chash = stage_key("rollouts", args, run)
     if stage_done(run, "rollouts", chash) and not args.force:
         print("[rollouts] up to date")
         return
     started = time.time()
-    from maemm.prompts import build_prompt_ids, marker_positions
+    from maem.prompts import build_prompt_ids, marker_positions
 
     items = run.read_json("data/items.json")
     kept = [x for x in items["items"] if not x["excluded"]]
@@ -251,7 +251,7 @@ def stage_rollouts(args, run):
     try:
         refuse_unless_generation_agrees(base, inverter)
         samples, greedy = generate_injected(
-            inverter, tok, dirs, prompt_ids, mpos[0], args.device, seed=arm_seed("maemm", args.seed),
+            inverter, tok, dirs, prompt_ids, mpos[0], args.device, seed=arm_seed("maem", args.seed),
             stop_ids=stops
         )
     finally:
@@ -287,18 +287,18 @@ def stage_rollouts(args, run):
         f"[rollouts] {len(kept)} items; greedy cos own {check['greedy_cos_own_mean']:.3f} foil {check['greedy_cos_foil_mean']:.3f} gap {gap:.3f}; distinct {share:.2f}; {check['seconds']:.0f}s",
         flush=True,
     )
-    # checked before saving, so a directory never holds a rejected MAEMM arm (methodology §4.3)
+    # checked before saving, so a directory never holds a rejected MAEM arm (methodology §4.3)
     if gap < 0.10:
         raise RuntimeError(f"injection check failed: own − foil greedy cosine gap {gap:.3f} < 0.10")
     run.write_json(
-        "rollouts/maemm.json",
+        "rollouts/maem.json",
         {
             "config": {
                 "inverter": [C.INVERTER, C.INVERTER_REVISION],
                 "prompt_ids": [int(t) for t in prompt_ids],
                 "marker_pos": mpos[0],
                 "stop_ids": list(stops),
-                "seed": arm_seed("maemm", args.seed),
+                "seed": arm_seed("maem", args.seed),
                 "gen": {
                     "n_samples": C.N_SAMPLES,
                     "temp": C.TEMP,

@@ -1,4 +1,4 @@
-"""Modal app `maemm-sae-maxacts-fresh`: per-feature max-activating 32-token windows of OUR layer-42 SAE (/data/sae/ae.pt,
+"""Modal app `maem-sae-maxacts-fresh`: per-feature max-activating 32-token windows of OUR layer-42 SAE (/data/sae/ae.pt,
 F=131072 k=64) over the FRESH activation store's documents -> /data/sae/maxacts_fresh.pt (the original /data/sae/maxacts.pt is
 never touched).
 
@@ -11,7 +11,7 @@ fresh text. Output: {"max_tokens": [F, N, 32] int32, "max_acts": [F, N, 32] floa
 window slot), "meta": {...}}.
 
     MODAL_PROFILE=<your-profile> modal deploy data/modal_sae_maxacts_fresh.py
-    python -c "import modal; print(modal.Function.from_name('maemm-sae-maxacts-fresh','maxacts').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-sae-maxacts-fresh','maxacts').spawn().object_id)"
 """
 import os
 from pathlib import Path
@@ -19,7 +19,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = os.environ.get("MAEMM_SAE_MAXACTS_APP", "maemm-sae-maxacts-fresh")
+APP_NAME = os.environ.get("MAEM_SAE_MAXACTS_APP", "maem-sae-maxacts-fresh")
 app = modal.App(APP_NAME)
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -27,9 +27,9 @@ image = (
     .pip_install("transformers==5.15.0", "accelerate==1.14.0", "numpy==2.4.6", "safetensors==0.8.0",
                  "huggingface_hub==1.27.0", "tokenizers==0.22.2", "hf_xet")
     .pip_install("flash-linear-attention==0.5.2")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 GPUS = ["B200", "H200"]
 SAE_PT = "/data/sae/ae.pt"
 SAE_HF_SIZE = 5369256453                 # identity check (== data/modal_bank_everything.py)
@@ -37,7 +37,7 @@ ACTS_FRESH = "/data/acts27b_fresh"
 OUT_DEFAULT = "/data/sae/maxacts_fresh.pt"
 
 
-@app.function(image=image, gpu=GPUS, cpu=8, memory=98304, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")],
+@app.function(image=image, gpu=GPUS, cpu=8, memory=98304, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")],
               timeout=8 * 3600)
 def maxacts(acts_dir: str = ACTS_FRESH, out: str = OUT_DEFAULT, n_rows: int | None = None, ctx_len: int = 32, topn: int = 16,
             batch_wins: int = 256, wait_s: int = 4 * 3600):
@@ -48,8 +48,8 @@ def maxacts(acts_dir: str = ACTS_FRESH, out: str = OUT_DEFAULT, n_rows: int | No
     import torch
     import torch.nn.functional as F
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import D_MODEL, MODEL, READ_LAYER
+    from maem.inject import read_resid
     os.environ["HF_HOME"] = "/data/hf_cache"
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -156,7 +156,7 @@ def maxacts(acts_dir: str = ACTS_FRESH, out: str = OUT_DEFAULT, n_rows: int | No
     return meta_out
 
 
-@app.function(image=image, gpu=GPUS, cpu=8, memory=65536, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")],
+@app.function(image=image, gpu=GPUS, cpu=8, memory=65536, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")],
               timeout=2 * 3600)
 def verify_end_anchor(bank: str = "/data/banks/everything_5m_fresh", families: str = "sae,sae_dec", n_per_family: int = 2048, seed: int = 0,
                       min_pass: float = 0.9, write: bool = True, batch: int = 64):
@@ -172,8 +172,8 @@ def verify_end_anchor(bank: str = "/data/banks/everything_5m_fresh", families: s
     import numpy as np
     import torch
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import D_MODEL, MODEL, READ_LAYER
+    from maem.inject import read_resid
     os.environ["HF_HOME"] = "/data/hf_cache"
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     dev = "cuda:0"
@@ -250,7 +250,7 @@ def verify_end_anchor(bank: str = "/data/banks/everything_5m_fresh", families: s
     return out
 
 
-@app.function(image=image, gpu=GPUS, cpu=8, memory=98304, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")],
+@app.function(image=image, gpu=GPUS, cpu=8, memory=98304, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")],
               timeout=4 * 3600)
 def filter_end_anchor(bank: str = "/data/banks/everything_5m_fresh", families: str = "sae,sae_dec", rule: str = "last2", batch: int = 96,
                       write: bool = True):
@@ -265,8 +265,8 @@ def filter_end_anchor(bank: str = "/data/banks/everything_5m_fresh", families: s
     import numpy as np
     import torch
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import D_MODEL, MODEL, READ_LAYER
+    from maem.inject import read_resid
     os.environ["HF_HOME"] = "/data/hf_cache"
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     dev = "cuda:0"

@@ -13,8 +13,8 @@ whose subpaths are the volume's own), so whoever fetched the files decides what 
 
 WHAT THIS ADDS TO `act_smoke.py`, which stays as it is. act_smoke reports one number per
 (feature, source) -- the max over every rollout -- and corrects for the rollout count by
-truncating the 64-rollout product to its first 4 (`maemm_bo4`). That answers "is the 26% a
-property of the MAEMM or of the dictionary" and nothing else, because a max over n draws is not
+truncating the 64-rollout product to its first 4 (`maem_bo4`). That answers "is the 26% a
+property of the MAEM or of the dictionary" and nothing else, because a max over n draws is not
 comparable across sources with different n and truncation throws away 60 of 64 rollouts.
 
 Here every source is read at bo1 / bo4 / bo16 instead: the disjoint-group best-of-k mean
@@ -26,7 +26,7 @@ the column header rather than in a truncation buried in the source table.
 Four sources per SAE, declared in SPECS below:
 
     rl16      the 16-rollout RL checkpoint                (sae_self over its scores)
-    primary   the primary MAEMM                           (sae_self; vLLM at n = 64 on the 131k)
+    primary   the primary MAEM                           (sae_self; vLLM at n = 64 on the 131k)
     nla       the NLA verbalizer's texts                  (sae_self, n = 4, scored at width 257)
     corpus    the 16M document-diverse scan's top windows (examples_docmax, one per document)
 
@@ -35,7 +35,7 @@ which is the denominator of every `ratio` here and is the SAME quantity act_smok
 
 STRATA. Both sets carry a `stratum` per row and every table is also cut on it. On the 2M side
 that stratum is a quartile of log10(gated fires at 16M) over the ELIGIBLE POOL and the 64
-features are 16 per quartile by construction (`features/draw_sae2m.py --n 64 --stratified`), so
+features are 16 per quartile by construction (`features/draw_dict2m.py --n 64 --stratified`), so
 the "all" row of the 2M block is a mean over four equally-weighted quartiles and NOT over the
 dictionary. The per-stratum rows are the ones to read; the "all" row is a convenience.
 
@@ -54,7 +54,7 @@ result.
 COMPARISON AGAINST PRIOR RESULTS closes the file: three checks, each computed from the mirror
 where its inputs are there and printed as `absent` with the reason where they are not.
 
-  (1) the card, rl-last16 at bo4 on the upstream 512-feature sets, against ours on these features.
+  (1) the card, rl-final at bo4 on the upstream 512-feature sets, against ours on these features.
       The upstream denominators are not ours -- `norm_act` divides by THE UPSTREAM corpus peak from the 1.0B-token
       scan, we divide by the 16M `max_act` -- so where the upstream peak is reachable per feature BOTH
       ratios are quoted. On the 2M side that peak is the `corpus_peak_1b` column the stratified
@@ -122,21 +122,21 @@ FLAG_Z = 3.0
 
 # --- prior results, hard-coded with provenance -------------------------------------------------
 #
-# (1) the card for `rl-last16` at bo4 over the upstream 512-feature sets. `stat` names WHICH of our
+# (1) the card for `rl-final` at bo4 over the upstream 512-feature sets. `stat` names WHICH of our
 # columns it is comparable with, because the two SAEs are not reported the same way there: the
 # 131k number is a normalised activation and the 2M numbers are firing rates. `denominator` is
 # what the upstream ratio divides by, which is NOT our 16M `max_act` -- see `alt_peak` in SPECS.
 CARD = {
     "qwen36-27b/l42-1b": {
-        "arm": "rl-last16, bo4, the upstream 512-feature 131k set",
+        "arm": "rl-final, bo4, the upstream 512-feature 131k set",
         "stat": "norm_act",
         "ours": "bo4_ratio",
         "value": 0.824,
         "denominator": "the upstream corpus peak from the 1.0B-token scan",
         "note": "",
     },
-    "qwen36-27b/sae2m": {
-        "arm": "rl-last16, bo4, the upstream 512-feature 2M set",
+    "qwen36-27b/dict2m": {
+        "arm": "rl-final, bo4, the upstream 512-feature 2M set",
         "stat": "fired",
         # A firing rate has no denominator, so this row is comparable as it stands -- it is the
         # one number on the card that does not depend on whose corpus peak is used.
@@ -155,7 +155,7 @@ ACT_SMOKE_REF = {
     "provenance": "reconstruction/act_smoke.py, run 2026-09-21, 16 features per SAE",
     "rows": [
         {
-            "sae": "qwen36-27b/sae2m", "arm": "rl-last16 (n = 4, 64 tokens)",
+            "sae": "qwen36-27b/dict2m", "arm": "rl-final (n = 4, 64 tokens)",
             "median_ratio": 0.32, "firing": "4/16",
             "ours": ("rl16", "bo4_ratio"), "comparable": True,
             "why": "act_smoke took the max over its 4 rollouts, which IS best-of-4; our bo4 is "
@@ -164,12 +164,12 @@ ACT_SMOKE_REF = {
                    "arm generated 64 tokens.",
         },
         {
-            "sae": "qwen36-27b/sae2m", "arm": "NLA", "median_ratio": 0.33, "firing": "5/16",
+            "sae": "qwen36-27b/dict2m", "arm": "NLA", "median_ratio": 0.33, "firing": "5/16",
             "ours": ("nla", "bo4_ratio"), "comparable": True,
             "why": "both are n = 4, so act_smoke's max over them is our bo4 exactly.",
         },
         {
-            "sae": "qwen36-27b/sae2m", "arm": "corpus top-16, 4M prefix",
+            "sae": "qwen36-27b/dict2m", "arm": "corpus top-16, 4M prefix",
             "median_ratio": 0.83, "firing": "16/16",
             "ours": ("corpus", "bo1_ratio"), "comparable": False,
             "why": "DIFFERENT PRODUCT: act_smoke read `examples_4m`, a scan over a quarter of "
@@ -206,7 +206,7 @@ ACT_SMOKE_REF = {
 
 # The comparison, laid out rather than inferred. One SAE per spec, one mirror `root` per SAE, and
 # the four sources with the path each hangs off. A source may override the spec's root with its
-# own `root` key -- `""` pins it to the mirror's own `maemms/...`, which is where a product that
+# own `root` key -- `""` pins it to the mirror's own `maems/...`, which is where a product that
 # was NOT written by this smoke already lives.
 #
 # Path resolution, per spec: a path is looked for under `<data>/<root>/` first and under
@@ -218,15 +218,15 @@ ACT_SMOKE_REF = {
 # resolving to a different product with the same name.
 SPECS = [
     {
-        "sae": "qwen36-27b/sae2m",
+        "sae": "qwen36-27b/dict2m",
         "base": "qwen36-27b",
-        "set": "2026-09-21_sae2m_64",
+        "set": "2026-09-21_dict2m_64",
         "root": "tmp/sae-smoke64",
-        "sae_dir": "base/qwen36-27b/sae/sae2m",
+        "sae_dir": "base/qwen36-27b/sae/dict2m",
         "rows": "",  # the whole set: it is 64 rows, drawn for this smoke
         "corpus_note": "the 16M document-diverse scan, one window per document",
         # the original denominator for these features, for the card comparison. The stratified
-        # draw writes it into every row (features/draw_sae2m.py), so it costs nothing here; when
+        # draw writes it into every row (features/draw_dict2m.py), so it costs nothing here; when
         # the draw ran on a mirror without the upstream window parquet the column is null and `--peaks-1b`
         # supplies it instead.
         "alt_peak": {
@@ -241,20 +241,20 @@ SPECS = [
                 "name": "rl16",
                 "kind": "sae_self",
                 "n": 16,
-                "path": "maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7/scores/{set}/sae_self",
+                "path": "maems/qwen36-27b/2026-09-18_rl-final/scores/{set}/sae_self",
             },
             {
                 "name": "primary",
                 "kind": "sae_self",
                 "n": 16,
                 # HF engine on the 2M side, so the stem is the bare set name.
-                "path": "maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/{set}/sae_self",
+                "path": "maems/qwen36-27b/2026-09-10_rl-large-full/scores/{set}/sae_self",
             },
             {
                 "name": "nla",
                 "kind": "sae_self",
                 "n": 4,
-                "path": "maemms/qwen36-27b/2026-07-14_nla-av/scores/{set}/sae_self",
+                "path": "maems/qwen36-27b/2026-07-14_nla/scores/{set}/sae_self",
             },
             {"name": "corpus", "kind": "examples_docmax", "n": CORPUS_TOP_N},
         ],
@@ -293,18 +293,18 @@ SPECS = [
                 "name": "rl16",
                 "kind": "sae_self",
                 "n": 16,
-                "path": "maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7/scores/{set}/sae_self",
+                "path": "maems/qwen36-27b/2026-09-18_rl-final/scores/{set}/sae_self",
             },
             {
                 "name": "primary",
                 "kind": "sae_self",
                 "n": 64,
                 # The EXISTING vLLM product, at n = 64 over all 512 sae rows. It predates this
-                # smoke and lives at the volume's own `maemms/...`, so its root is pinned to the
+                # smoke and lives at the volume's own `maems/...`, so its root is pinned to the
                 # mirror root rather than searched: under the smoke root there is nothing, and a
                 # search would only make a typo here look like an absent source.
                 "root": "",
-                "path": "maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/{set}__vllm/sae_self",
+                "path": "maems/qwen36-27b/2026-09-10_rl-large-full/scores/{set}__vllm/sae_self",
             },
             {
                 # The SAME product read at its first 16 rollouts, so n is matched to the 2M
@@ -317,13 +317,13 @@ SPECS = [
                 "n": 64,
                 "n_first": 16,
                 "root": "",
-                "path": "maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/{set}__vllm/sae_self",
+                "path": "maems/qwen36-27b/2026-09-10_rl-large-full/scores/{set}__vllm/sae_self",
             },
             {
                 "name": "nla",
                 "kind": "sae_self",
                 "n": 4,
-                "path": "maemms/qwen36-27b/2026-07-14_nla-av/scores/{set}/sae_self",
+                "path": "maems/qwen36-27b/2026-07-14_nla/scores/{set}/sae_self",
             },
             {"name": "corpus", "kind": "examples_docmax", "n": CORPUS_TOP_N},
         ],
@@ -995,8 +995,8 @@ def compare(block: dict) -> dict:
     if card is None:
         out["card"] = {"absent": "no card number is recorded for this SAE"}
     elif "rl16" not in agg:
-        out["card"] = {"absent": "the rl-last16 source is not in the mirror, so there is nothing "
-                                 "to compare the upstream rl-last16 arm with"}
+        out["card"] = {"absent": "the rl-final source is not in the mirror, so there is nothing "
+                                 "to compare the upstream rl-final arm with"}
     else:
         a = agg["rl16"]["all"]
         is_ratio = card["ours"].endswith("_ratio")
@@ -1239,7 +1239,7 @@ def render_comparison(blocks: list[dict]) -> list[str]:
         lines += [f"### {b['sae']}", ""]
 
         # ---- (1) the card ----------------------------------------------------------------------
-        lines += ["**(1) the card, rl-last16 at bo4.**", ""]
+        lines += ["**(1) the card, rl-final at bo4.**", ""]
         card = cmp["card"]
         if card is None or "absent" in card:
             lines += [f"absent — {(card or {}).get('absent', 'not computed')}", ""]
@@ -1587,16 +1587,16 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
                          "kind": "ids_column", "column": "corpus_peak_1b"},
             "sources": [
                 {"name": "primary", "kind": "sae_self", "n": 16,
-                 "path": "maemms/p/scores/{set}/sae_self"},
+                 "path": "maems/p/scores/{set}/sae_self"},
                 # the same product truncated to its first 4 rollouts: n matched, not estimated
                 {"name": "primary16", "kind": "sae_self", "n": 16, "n_first": 4,
-                 "path": "maemms/p/scores/{set}/sae_self"},
+                 "path": "maems/p/scores/{set}/sae_self"},
                 {"name": "rl16", "kind": "sae_self", "n": 16,
-                 "path": "maemms/r/scores/{set}/sae_self"},
+                 "path": "maems/r/scores/{set}/sae_self"},
                 # pinned to the mirror root: it exists ONLY there, and must not be searched for
                 # under the smoke root
                 {"name": "nla", "kind": "sae_self", "n": 4, "root": "",
-                 "path": "maemms/nla/scores/{set}/sae_self"},
+                 "path": "maems/nla/scores/{set}/sae_self"},
                 {"name": "corpus", "kind": "examples_docmax", "n": CORPUS_TOP_N},
             ],
         }
@@ -1611,17 +1611,17 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
         # Rows 1-3 are flat so the aggregates are hand-checkable too.
         peaks = [[float(k + 1) for k in range(16)]] + [[3.0] * 16, [1.0] * 16, [5.0] * 16]
         pact = _block_from_peaks(peaks)
-        _write_sae_self(data / "smoke/maemms/p/scores/S/sae_self", rows_, 16, 3, gate, pact,
+        _write_sae_self(data / "smoke/maems/p/scores/S/sae_self", rows_, 16, 3, gate, pact,
                         peaks=_stored_of(rows_, pact, gate, cpeaks))
-        _write_per_target(data / "smoke/maemms/p/scores/S", rows_)
+        _write_per_target(data / "smoke/maems/p/scores/S", rows_)
         # rl16 exists under the MIRROR root only -> the [smoke, ""] search must still find it
         ract = _block_from_peaks([[2.0] * 16, [9.0] * 16])
-        _write_sae_self(data / "maemms/r/scores/S/sae_self", [0, 1], 16, 3, gate, ract)
+        _write_sae_self(data / "maems/r/scores/S/sae_self", [0, 1], 16, 3, gate, ract)
         # nla, n = 4, on rows 0 and 1 only, at a different width (the NLA arm scores wider)
-        _write_sae_self(data / "maemms/nla/scores/S/sae_self", [0, 1], 4, 5, gate,
+        _write_sae_self(data / "maems/nla/scores/S/sae_self", [0, 1], 4, 5, gate,
                         _block_from_peaks([[1.0, 2.0, 3.0, 4.0], [0.0, 0.0, 0.0, 0.0]], width=5))
         # a decoy at the SMOKE root for the pinned source: it must be ignored, gate and all
-        _write_sae_self(data / "smoke/maemms/nla/scores/S/sae_self", [0], 4, 5, 77.0,
+        _write_sae_self(data / "smoke/maems/nla/scores/S/sae_self", [0], 4, 5, 77.0,
                         np.zeros((1, 4, 5)))
 
         hd = data / "smoke/base/b/heldout/S"
@@ -1758,7 +1758,7 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
         assert cmp["reader"]["primary"]["n_mismatches"] == 0, cmp["reader"]
 
         # the same block read as a SAE the card does know: the flag must follow THE UPSTREAM denominator
-        carded = {**block, "sae": "qwen36-27b/sae2m"}
+        carded = {**block, "sae": "qwen36-27b/dict2m"}
         c = compare(carded)["card"]
         assert c["stat"] == "fired" and c["flag_basis"].startswith("a firing rate"), c
         assert c["ours_vs_16m"] == agg["rl16"]["all"]["mean_item_fired_frac"], c
@@ -1778,7 +1778,7 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
         assert len(a131) == 4, a131
         corpus_row = [r for r in a131 if "corpus" in r["arm"]][0]
         assert corpus_row["comparable"] is True and corpus_row["delta"] is not None, corpus_row
-        a2m = compare({**block, "sae": "qwen36-27b/sae2m"})["act_smoke"]
+        a2m = compare({**block, "sae": "qwen36-27b/dict2m"})["act_smoke"]
         prefix4m = [r for r in a2m if "4M prefix" in r["arm"]][0]
         assert prefix4m["delta"] is None and "not comparable" in prefix4m["verdict"], prefix4m
 
@@ -1797,14 +1797,14 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
         # a stored per_target that disagrees with its own array is a DEFECT, and is printed as one
         bad_stored = _stored_of(rows_, pact, gate, cpeaks)
         bad_stored[1]["max_peak_act"] = 999.0
-        _write_sae_self(data / "smoke/maemms/p/scores/S/sae_self", rows_, 16, 3, gate, pact,
+        _write_sae_self(data / "smoke/maems/p/scores/S/sae_self", rows_, 16, 3, gate, pact,
                         peaks=bad_stored)
         broken = collect(spec, data, None)
         broken["aggregate"] = aggregate(broken)
         broken["comparison"] = compare(broken)
         assert broken["reader_check"]["primary"]["n_mismatches"] == 1, broken["reader_check"]
         assert "POSSIBLE PIPELINE DEFECT" in render([broken]), "a mismatch was not reported"
-        _write_sae_self(data / "smoke/maemms/p/scores/S/sae_self", rows_, 16, 3, gate, pact,
+        _write_sae_self(data / "smoke/maems/p/scores/S/sae_self", rows_, 16, 3, gate, pact,
                         peaks=_stored_of(rows_, pact, gate, cpeaks))
 
         # --rows cuts the block down, and selecting nothing is a warning rather than an empty
@@ -1924,7 +1924,7 @@ def run_selftest() -> None:  # noqa: PLR0915 -- one linear scenario, split would
         _repo_scale(1.0)  # leave the fixture on-scale for anything after this
 
         # a gate disagreement between two products of the "same" SAE must be refused
-        _write_sae_self(data / "maemms/r/scores/S/sae_self", [0, 1], 16, 3, 99.0,
+        _write_sae_self(data / "maems/r/scores/S/sae_self", [0, 1], 16, 3, 99.0,
                         np.zeros((2, 16, 3)))
         try:
             collect(spec, data, None)

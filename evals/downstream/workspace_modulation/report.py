@@ -62,7 +62,7 @@ CORPUS_TOKENS_M = round(C.CORPUS["corpus_tokens"] / 1_000_000)
 # (condition, word-rule metric, budget or cutoff, judged condition, palette key, marker, filled, label)
 # of every reader the tables and figures read; the untrained-base ablation is rendered in Appendix D.
 READERS = (
-    ("maemm_reg", "hit_any", HEADLINE_BUDGET, "maemm_reg8", "maemm", "o", True, "MAEMM"),
+    ("maem_reg", "hit_any", HEADLINE_BUDGET, "maem_reg8", "maem", "o", True, "MAEM"),
     ("nla", "hit_any", NLA_BUDGET, "nla_n8", "nla", "D", True, "NLA verbalizer"),
     ("nla64", "hit_any", NLA_BUDGET, None, "nla", "D", False, f"NLA verbalizer, first {NLA.trunc} tokens"),
     (
@@ -85,15 +85,15 @@ READERS = (
         True,
         f"J-lens L{C.READ_LAYER} top-{C.TOP_WORD}",
     ),
-    ("maemm_null", "hit_any", NULL_BUDGET, "maemm_null8", "control", "x", False, "null control"),
+    ("maem_null", "hit_any", NULL_BUDGET, "maem_null8", "control", "x", False, "null control"),
     (C.PATCH_ARM, "hit_any", PATCH_BUDGET, C.PATCH_JUDGED[C.PATCH_ARM], "patchscope", "v", True, PATCH_LABEL),
     (C.PATCH_FLOOR, "hit_any", PATCH_BUDGET, None, "patchscope", "v", False, PATCH_FLOOR_LABEL),
 )
 READER_LABEL = {r[0]: r[7] for r in READERS}
 READER_LABEL.update(
     {
-        "maemm_reg8": f"MAEMM {HEADLINE_BUDGET}-sample readout",
-        "maemm_null8": f"null control, {NULL_BUDGET}-sample readout",
+        "maem_reg8": f"MAEM {HEADLINE_BUDGET}-sample readout",
+        "maem_null8": f"null control, {NULL_BUDGET}-sample readout",
         "nla_n8": f"NLA verbalizer, {NLA_BUDGET} samples joined",
         C.RETRIEVAL_JUDGED: f"corpus search, top {C.TOP_WINDOWS} windows joined",
         C.BASE_ARM: "untrained base",
@@ -104,7 +104,7 @@ READER_LABEL.update(
         C.PATCH_JUDGED[C.PATCH_ARM]: f"{PATCH_LABEL}, {PATCH_BUDGET}-sample readout",
     }
 )
-BAR_READERS = ("maemm_reg", "nla", C.RETRIEVAL_READER, "jlens_L42", "maemm_null", C.PATCH_ARM, C.PATCH_FLOOR)
+BAR_READERS = ("maem_reg", "nla", C.RETRIEVAL_READER, "jlens_L42", "maem_null", C.PATCH_ARM, C.PATCH_FLOOR)
 # The arithmetic word rule is not identification evidence, so arithmetic is drawn on the judge alone.
 BAR_PANELS = (
     ("topics · word rule", "topics", "rule"),
@@ -112,10 +112,10 @@ BAR_PANELS = (
     ("arithmetic · judged", "arithmetic", "judged"),
 )
 HEADLINE_CONTRASTS = (
-    ("maemm_reg", "nla", "MAEMM − NLA verbalizer"),
-    ("maemm_reg", C.RETRIEVAL_READER, "MAEMM − corpus search"),
-    ("maemm_reg", "jlens_L42", f"MAEMM − J-lens L{C.READ_LAYER}"),
-    ("maemm_reg", "maemm_null", "MAEMM − null control"),
+    ("maem_reg", "nla", "MAEM − NLA verbalizer"),
+    ("maem_reg", C.RETRIEVAL_READER, "MAEM − corpus search"),
+    ("maem_reg", "jlens_L42", f"MAEM − J-lens L{C.READ_LAYER}"),
+    ("maem_reg", "maem_null", "MAEM − null control"),
 )
 PATCH_CONTRAST_ROWS = ((C.PATCH_ARM, C.PATCH_FLOOR, f"{PATCH_LABEL} − {PATCH_FLOOR_LABEL}"),)
 assert tuple((a, b) for a, b, _l in PATCH_CONTRAST_ROWS) == A.PATCH_CONTRASTS
@@ -312,7 +312,7 @@ def word_table(R, g, band, heads=HEADS):
             r = _rate(R, cond, metric, budget, g, instr, band)
             if r is None:
                 continue
-            null = _rate(R, "maemm_null", "hit_any", NULL_BUDGET, g, instr, band)
+            null = _rate(R, "maem_null", "hit_any", NULL_BUDGET, g, instr, band)
             rows.append(
                 {
                     "reader": rlabel,
@@ -320,15 +320,15 @@ def word_table(R, g, band, heads=HEADS):
                     "rate %": _fmt_rate(r),
                     "donor chance %": _fmt_chance(_chance(R, cond, budget, g, instr, band)),
                     "rate / chance": _fmt_ratio(r),
-                    "null control %": "—" if cond == "maemm_null" else _pct(null),
+                    "null control %": "—" if cond == "maem_null" else _pct(null),
                 }
             )
     return _md_table(rows, cols) if rows else ""
 
 
 def ablation_table(R, band=C.FINAL_BAND, heads=HEADS):
-    """Appendix D: the untrained-base row beside MAEMM and the null control, per family and instruction."""
-    cols = ["group", "instruction", "untrained base %", "donor chance %", "MAEMM %", "null control %"]
+    """Appendix D: the untrained-base row beside MAEM and the null control, per family and instruction."""
+    cols = ["group", "instruction", "untrained base %", "donor chance %", "MAEM %", "null control %"]
     rows = []
     for fam in C.FAMILIES:
         for instr in heads:
@@ -341,8 +341,8 @@ def ablation_table(R, band=C.FINAL_BAND, heads=HEADS):
                     "instruction": CONDITION_LABEL[instr],
                     "untrained base %": _fmt_rate(r),
                     "donor chance %": _fmt_chance(_chance(R, C.BASE_ARM, BASE_BUDGET, fam, instr, band)),
-                    "MAEMM %": _pct(_rate(R, "maemm_reg", "hit_any", HEADLINE_BUDGET, fam, instr, band)),
-                    "null control %": _pct(_rate(R, "maemm_null", "hit_any", NULL_BUDGET, fam, instr, band)),
+                    "MAEM %": _pct(_rate(R, "maem_reg", "hit_any", HEADLINE_BUDGET, fam, instr, band)),
+                    "null control %": _pct(_rate(R, "maem_null", "hit_any", NULL_BUDGET, fam, instr, band)),
                 }
             )
     return _md_table(rows, cols) if rows else ""
@@ -430,7 +430,7 @@ def _family_blocks(T, band, heads=HEADS, contrasts=True):
     R, J, MOD, CON = T["rates"], T.get("judged") or [], T.get("modulation") or [], T["contrasts"]
     out = []
     for fam in C.FAMILIES:
-        n = _rate(R, "maemm_reg", "hit_any", HEADLINE_BUDGET, fam, "focus", band)
+        n = _rate(R, "maem_reg", "hit_any", HEADLINE_BUDGET, fam, "focus", band)
         out.append(f"### {fam} ({_n_of(n)} concepts per instruction)\n")
         for label, table in (
             ("The word rule (% of concepts named):", word_table(R, fam, band, heads)),
@@ -478,16 +478,16 @@ READING_NOTE = (
     "naming judge is shown the concept's target forms and the readout, and nothing else, and says whether "
     "any target is named, with a verbatim quote that is checked against the readout. Every judged readout is "
     "asked twice, against its own targets (`own`) and against a same-family foil concept's (`foil`): the "
-    "foil column is the reader's false-positive line and the judged column's chance, and MAEMM's net of own "
-    "over foil is in the contrasts. The **null control** is MAEMM injected with a zero "
+    "foil column is the reader's false-positive line and the judged column's chance, and MAEM's net of own "
+    "over foil is in the contrasts. The **null control** is MAEM injected with a zero "
     "direction, so it reads no activation: its rate is what the pipeline names with no information at all. "
     "The **corpus search** is the comparator a reader has to beat to be worth generating: the same activation "
     f"is used as a query into the held-out corpus's {CORPUS_TOKENS_M}M-token search prefix, and its "
     f"{C.TOP_WINDOWS} best-matching windows are read as its readout. "
     f"**{PATCH_LABEL}** is the Patchscopes reader: the clean base continues an entity-description "
     f"prompt whose placeholder's layer-{C.PATCH_LAYER} residual is replaced, during prefill only, by "
-    f"{C.PATCH_ALPHA:g} x its own norm x the same centred direction MAEMM is injected with, and its "
-    f"{PATCH_BUDGET} samples are read as MAEMM's are. **{PATCH_FLOOR_LABEL}** is the same prompt with no "
+    f"{C.PATCH_ALPHA:g} x its own norm x the same centred direction MAEM is injected with, and its "
+    f"{PATCH_BUDGET} samples are read as MAEM's are. **{PATCH_FLOOR_LABEL}** is the same prompt with no "
     "patch, one sample set carried by every item: what that prompt makes the model say about nothing, and "
     "the line the reader's word rule is read against. "
     f"**rate / chance** is the rate over that reader's own chance line; the reading "
@@ -558,7 +558,7 @@ def _bar_figure(T, out_dir, smoke_n, band, band_label, fig_name, number, heads=H
         ax.set_xticks(range(len(heads)))
         ax.set_xticklabels([CONDITION_LABEL[i] for i in heads], rotation=15)
         ax.set_ylim(0, 1)
-        n = _rate(R, "maemm_reg", "hit_any", HEADLINE_BUDGET, fam, "focus", band)
+        n = _rate(R, "maem_reg", "hit_any", HEADLINE_BUDGET, fam, "focus", band)
         ax.set_title(f"{title} ({_panel_n(n)})", fontsize=9)
     axes[0].set_ylabel("share of concepts")
     handles = [
@@ -593,7 +593,7 @@ def fig_final_period(T, out_dir, smoke_n=None):
         f"windows). Middle and right: the naming judge's verdict against the item's own targets "
         f"({_judge_label(REFERENCE_JUDGE)}) "
         f"on topics and on arithmetic, "
-        f"whose word rule is not identification evidence. Blue: MAEMM; pink: the NLA verbalizer; green: the "
+        f"whose word rule is not identification evidence. Blue: MAEM; pink: the NLA verbalizer; green: the "
         f"corpus search over the held-out corpus's {CORPUS_TOKENS_M}M-token search prefix, queried with the "
         f"same activation; orange: the "
         f"J-lens (no prose of its own on the word rule; its judged bars read the summary of its top-{C.TOP_WORD}); "
@@ -750,7 +750,7 @@ def _verdict_summary(rec):
 
 
 def examples(run, scores, per_cell=2):
-    """Per family, under focus, the 2x2 of MAEMM's word rule against the lens's rank ≤ 10 at layer 42 at the
+    """Per family, under focus, the 2x2 of MAEM's word rule against the lens's rank ≤ 10 at layer 42 at the
     final period; the first `per_cell` concepts by item id in each cell."""
     items = {x["i"]: x for x in run.read_json("data/items.json")["items"] if not x["excluded"]}
     reg = {r["i"]: {c["pos"]: c for c in r["cells"]} for r in run.read_json(merged_rel(C.HEADLINE_ARM))["items"]}
@@ -758,26 +758,26 @@ def examples(run, scores, per_cell=2):
     summaries = run.read_json("judges/summaries.json").get("cells") or {}
     rel = A.judge_log_rel(REFERENCE_JUDGE, "naming")
     ident = _by_meta(run, rel) if run.exists(rel) else {}
-    _m, maemm_hit = A.metric_accessor("maemm_reg", "hit_any")
+    _m, maem_hit = A.metric_accessor("maem_reg", "hit_any")
     _l, lens_hit = A.metric_accessor("jlens_L42", "rank10_L42_any")
     by_i = {s["i"]: s for s in scores}
     out = []
     for fam in C.FAMILIES:
-        cells = {"both": [], "maemm_only": [], "lens_only": [], "neither": []}
+        cells = {"both": [], "maem_only": [], "lens_only": [], "neither": []}
         for s in sorted(
             (s for s in scores if s["family"] == fam and s["instruction"] == "focus"), key=lambda s: s["i"]
         ):
-            m_hit = bool(maemm_hit(s, C.FINAL_BAND))
+            m_hit = bool(maem_hit(s, C.FINAL_BAND))
             l_hit = bool(lens_hit(s, C.FINAL_BAND))
-            key = "both" if (m_hit and l_hit) else "maemm_only" if m_hit else "lens_only" if l_hit else "neither"
+            key = "both" if (m_hit and l_hit) else "maem_only" if m_hit else "lens_only" if l_hit else "neither"
             cells[key].append(s["i"])
-        for cell in ("both", "maemm_only", "lens_only", "neither"):
+        for cell in ("both", "maem_only", "lens_only", "neither"):
             for i in cells[cell][:per_cell]:
                 s, it = by_i[i], items[i]
                 pos = s["final_pos"]
                 rcell = (reg.get(i) or {}).get(pos) or {}
                 lcell = (lens.get(i) or {}).get(pos) or {}
-                judge = {vs: _verdict_summary(ident.get((i, pos, "maemm_reg8", vs))) for vs in C.VS}
+                judge = {vs: _verdict_summary(ident.get((i, pos, "maem_reg8", vs))) for vs in C.VS}
                 out.append(
                     {
                         "i": i,
@@ -789,8 +789,8 @@ def examples(run, scores, per_cell=2):
                         "user": it.get("user", ""),
                         "carrier": s["carrier"],
                         "final_pos": pos,
-                        "maemm_greedy": (rcell.get("greedy") or {}).get("text", "unavailable"),
-                        "maemm_sample_1": (rcell.get("samples") or [{}])[0].get("text", "unavailable"),
+                        "maem_greedy": (rcell.get("greedy") or {}).get("text", "unavailable"),
+                        "maem_sample_1": (rcell.get("samples") or [{}])[0].get("text", "unavailable"),
                         "top10_L42": lcell.get("top10_L42", "unavailable"),
                         "rank_L42": lcell.get("rank_L42"),
                         "judge": judge,
@@ -806,12 +806,12 @@ LIMITATIONS = [
     "Nothing here is about a global workspace or consciousness; that is the source paper's framing, not a "
     "claim this evaluation can make.",
     "The instruction task is artificial and the concepts are common category members. A bare mention primes "
-    "much of what an instruction to focus does, so a positive result reads \"MAEMM reads a concept the prompt "
-    "made salient\", never \"MAEMM reads what the model chose to think about\" — the focus − mention row is "
+    "much of what an instruction to focus does, so a positive result reads \"MAEM reads a concept the prompt "
+    "made salient\", never \"MAEM reads what the model chose to think about\" — the focus − mention row is "
     "the one that separates them.",
     "One base model, one inverter, one read layer ({read_layer}), {n_concepts} concepts on {n_carriers} "
     "carriers.",
-    "Positions are matched across readers; layers and output budgets are not. MAEMM reads layer 42 only; the "
+    "Positions are matched across readers; layers and output budgets are not. MAEM reads layer 42 only; the "
     "lens is reported at 42 and, in Appendix B, over all 63 fitted layers, and the any-layer number picks its "
     "layer with the target, so it is a target-informed selection reported in its own column.",
     "The headline reads one activation per item, so no rate here grows with the number of cells a reader was "
@@ -834,9 +834,9 @@ LIMITATIONS = [
     "read against its own no-patch floor.",
     "The corpus search reads text nobody wrote about this activation: a hit means the corpus contains a "
     "window whose own residuals point along the query AND that mentions the concept, so its rate is bounded by what "
-    "the corpus happens to hold as well as by the search. A gap in MAEMM's favour is not evidence that no "
+    "the corpus happens to hold as well as by the search. A gap in MAEM's favour is not evidence that no "
     "corpus could close it.",
-    "The untrained-base row is an ablation of MAEMM and not a method: it removes the training and keeps "
+    "The untrained-base row is an ablation of MAEM and not a method: it removes the training and keeps "
     "the injection, the null-direction control removes the injection and keeps the trained model, and "
     "neither is a reader anyone would use. It is read at the final period, under the word rule, and by no "
     "judge.",
@@ -857,7 +857,7 @@ def _sec_header(scores, cov, smoke, run):
     )
     out.append("## Configuration\n")
     out.append(f"- inverter: `{C.INVERTER}` @ `{C.INVERTER_REVISION}` (a full-parameter checkpoint)")
-    out.append(f"- base model: `{C.MODEL}` @ `{C.MODEL_REVISION}`; MAEMM read layer: {C.READ_LAYER}")
+    out.append(f"- base model: `{C.MODEL}` @ `{C.MODEL_REVISION}`; MAEM read layer: {C.READ_LAYER}")
     out.append(f"- lens: `{C.LENS_REPO}` @ `{C.LENS_REVISION}`, file `{C.LENS_FILE}`")
     out.append(
         f"- NLA verbalizer: `{NLA.repo}` @ `{NLA.revision}` (a merged full checkpoint), up to "
@@ -1015,8 +1015,8 @@ def _sec_population(cov, run):
     for band in C.READ_BANDS:
         b = rc.get(band) or {}
         out.append(
-            f"- items read at `{band}`: MAEMM {b.get('maemm_reg')}, the null-direction control "
-            f"{b.get('maemm_null')}, the lens {b.get('jlens_L42')}, the NLA verbalizer {b.get('nla')}, the "
+            f"- items read at `{band}`: MAEM {b.get('maem_reg')}, the null-direction control "
+            f"{b.get('maem_null')}, the lens {b.get('jlens_L42')}, the NLA verbalizer {b.get('nla')}, the "
             f"corpus search {b.get(C.RETRIEVAL_READER)}, Patchscopes {b.get(C.PATCH_ARM)} and its floor "
             f"{b.get(C.PATCH_FLOOR)}, the untrained-base ablation {b.get(C.BASE_ARM)} "
             "(the ablation is generated at the final period alone; the floor's `mean` readout is its final-period "
@@ -1064,7 +1064,7 @@ def _sec_appendix_mean(T, captions):
     out.append(
         f"One synthetic activation per item: the mean of the layer-{C.READ_LAYER} residual over every token of "
         "the copied sentence, from its first token to the final period. It is stored raw and uncentred, "
-        "exactly as a token's row is, and every reader then prepares it the way it prepares any cell — MAEMM "
+        "exactly as a token's row is, and every reader then prepares it the way it prepares any cell — MAEM "
         "centres it by the centring mean and normalises it, the NLA verbalizer reads it uncentred, the lens "
         "transports and unembeds it. Averaging over a sentence keeps what is constant across it, and what is "
         "constant here is the copying task, so a difference from the headline is a statement about that and "
@@ -1181,7 +1181,7 @@ def _sec_appendix_ablation(T):
     out.append(
         "The same research prompt, the same activation, the same norm-matched add at the same marker, "
         "written by the **untrained base model**: the activation arrives and no trained reader is there to "
-        "turn it into text. This is an **ablation of MAEMM**, not a method competing with it, so "
+        "turn it into text. This is an **ablation of MAEM**, not a method competing with it, so "
         "it is read at the final period alone, under the word rule alone, and is in no judged instrument and "
         "in no judge's budget.\n"
     )
@@ -1190,7 +1190,7 @@ def _sec_appendix_ablation(T):
         "the control keeps the trained model and hands it a zero direction (a trained reader with nothing "
         "to read), the ablation keeps the direction and removes the training. A rate here above the "
         "control's is what the prompt, the injection and the base model's own writing name with no training "
-        "at all; MAEMM's own rate is above both or it is reading nothing the ablation does not.\n"
+        "at all; MAEM's own rate is above both or it is reading nothing the ablation does not.\n"
     )
     table = ablation_table(T["rates"])
     if table:
@@ -1304,7 +1304,7 @@ def _sec_missingness(cov):
 def _sec_examples(examples_list):
     out = ["## Examples\n"]
     out.append(
-        "Picked by rule before any text was read: per family, under `focus`, the 2x2 of MAEMM's "
+        "Picked by rule before any text was read: per family, under `focus`, the 2x2 of MAEM's "
         f"word rule at pass@{HEADLINE_BUDGET} against the lens's rank ≤ {C.TOP_WORD} at layer {C.READ_LAYER}, "
         "both at the final period, and in each cell the first concepts by item id. Everything quoted is the "
         "readout at that one activation.\n"
@@ -1313,8 +1313,8 @@ def _sec_examples(examples_list):
         out.append(f"### item {e['i']} — {e['family']}, {e['cell']}, concept `{e['concept']}`\n")
         out.append(f"- user turn: {e['user']!r}")
         out.append(f"- carrier: {e['carrier']!r} (final period at token {e['final_pos']})")
-        out.append(f"- MAEMM greedy: {e['maemm_greedy']!r}")
-        out.append(f"- MAEMM sample 1: {e['maemm_sample_1']!r}")
+        out.append(f"- MAEM greedy: {e['maem_greedy']!r}")
+        out.append(f"- MAEM sample 1: {e['maem_sample_1']!r}")
         out.append(f"- lens top-{C.TOP_WORD} at layer {C.READ_LAYER}: {e['top10_L42']}")
         out.append(f"- lens summary: {e['summary_L42']!r}")
         out.append(f"- judge ({_judge_label(REFERENCE_JUDGE)}): {e['judge']}")

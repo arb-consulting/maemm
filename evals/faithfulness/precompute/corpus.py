@@ -10,7 +10,7 @@ Recipe (infra/precompute.md §2, infra/precompute-layout.md §5 item 2):
   * parts 0009 and 0010 of `data/ultrafineweb_en/`, read in ROW ORDER, half the token budget taken
     from the head of each part. Documents are therefore (part, row)-addressable, and the slice is
     disjoint from the old 8B activation corpus, which consumed only the head of part 0001
-    (modal/maemm_modal.py:2195-2205 has the margin argument).
+    (modal/maem_modal.py:2195-2205 has the margin argument).
   * tokenized per base with add_special_tokens=False and NO truncation (the vocabularies differ:
     8B 151,669 vs 27B 248,077, checklist item 78, so each base gets its own corpus directory).
   * document order is then permuted with np.random.default_rng(corpus.seed) and nested size tags

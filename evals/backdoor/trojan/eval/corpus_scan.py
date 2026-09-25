@@ -24,7 +24,7 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from maemm.inject import read_resid
+from maem.inject import read_resid
 from trojan.core.lora import get_mlp, lora_ab, resolve_adapter
 
 

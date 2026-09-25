@@ -127,7 +127,7 @@ def _rows_for_base(vol: Vol, cfg: dict, base: str, tol: float, sae_want: str = "
         r["row"]: r["top"][0]
         for r in (vol.jsonl(f"base/{base}/scan/{SET}/topk.jsonl") or [])
         if r["size"] == size
-        and r["family"] in ("sae", "sae2m_enc")
+        and r["family"] in ("sae", "dict2m_enc")
         and id_key.get(r["row"], sae) == sae
     }
     assert topk, f"base/{base}/scan/{SET}/topk.jsonl has no sae rows at size {size}M"
@@ -200,8 +200,8 @@ def main(
     refetch: Annotated[bool, typer.Option(help="re-download even what data/ already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
     data_dir: Annotated[Path | None, typer.Option(
-        help="override the default mirror ($MAEMM_MIRROR, else "
-             "$XDG_CACHE_HOME/maemm-faithfulness/mirror/<root>)")] = None,
+        help="override the default mirror ($MAEM_MIRROR, else "
+             "$XDG_CACHE_HOME/maem-faithfulness/mirror/<root>)")] = None,
     tol: Annotated[float, typer.Option(help="max relative examples-join vs forward disagreement")] = 5e-2,
     sae: Annotated[str, typer.Option(help="which SAE, as `<base>/<name>`; needed when a base has two")] = "",
     quiet: Annotated[bool, typer.Option(help="do not print every fetched file")] = False,

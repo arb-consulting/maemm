@@ -1,5 +1,5 @@
 """Modal app: regenerate per-token layer-42 activations + token ids for Qwen/Qwen3.6-27B
-over m-a-p/FineFineWeb onto the `maemm-data` volume (replaces the lost activation data;
+over m-a-p/FineFineWeb onto the `maem-data` volume (replaces the lost activation data;
 SFT banks are built from these downstream).
 
 One 8xB200 container runs 8 single-GPU worker processes (collect/collect_acts27b_worker.py,
@@ -26,7 +26,7 @@ Crash/24h-cap safe: workers shard-and-commit at chunk boundaries with resume off
 per-rank manifests (heartbeat committer publishes every 60s); rerunning run_collect with the
 same --out-name resumes every rank where it left off and re-finalizes.
 
-Needs Modal secret `maemm-hf` (HF_TOKEN). Model loads offline from /data/hf_cache after a
+Needs Modal secret `maem-hf` (HF_TOKEN). Model loads offline from /data/hf_cache after a
 single-flight snapshot_download; the corpus is fetched over the network (per-file
 hf_hub_download to container-local disk — never into the volume's hf_cache).
 """
@@ -37,7 +37,7 @@ import modal
 
 REPO = Path(__file__).resolve().parent.parent   # repo root (this launcher lives one level down)
 
-APP_NAME = "maemm-acts27b"
+APP_NAME = "maem-acts27b"
 app = modal.App(APP_NAME)
 
 # identical pins to modal_rl.py / modal_sft.py (one environment across the suite);
@@ -60,10 +60,10 @@ image = (
     )
     .add_local_file(REPO / "data" / "collect_acts27b_worker.py",
                     "/app/collect_acts27b_worker.py")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=True)
+vol = modal.Volume.from_name("maem-data", create_if_missing=True)
 
 SEQ_LEN = 512
 DATASET = "m-a-p/FineFineWeb"
@@ -115,7 +115,7 @@ def _run(out_name: str, n_seq: int, world: int, batch: int, chunk_seqs: int,
     import time
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import MODEL
+    from maem.config import MODEL
 
     out = f"/data/{out_name}"
     if os.path.exists(f"{out}/meta.json"):
@@ -186,7 +186,7 @@ def _finalize(out: str, world: int, n_seq: int, seed: int, assign: dict):
     import numpy as np
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
+    from maem.config import D_MODEL, MODEL, READ_LAYER
 
     shards = f"{out}/shards"
     mans = []
@@ -265,7 +265,7 @@ def _finalize(out: str, world: int, n_seq: int, seed: int, assign: dict):
     image=image,
     gpu="B200:8",
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=86400,
 )
 def collect(n_seq: int = 50000, out_name: str = "acts27b", batch: int = 64,
@@ -278,7 +278,7 @@ def collect(n_seq: int = 50000, out_name: str = "acts27b", batch: int = 64,
     image=image,
     gpu="B200:1",
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=14400,
 )
 def smoke(n_seq: int = 128, out_name: str = "acts27b_smoke", batch: int = 16,
@@ -291,7 +291,7 @@ def smoke(n_seq: int = 128, out_name: str = "acts27b_smoke", batch: int = 16,
 @app.function(
     image=image,
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=1800,
     cpu=4,
 )
@@ -304,7 +304,7 @@ def peek(out_name: str = "acts27b"):
     import numpy as np
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL
+    from maem.config import D_MODEL, MODEL
 
     out = f"/data/{out_name}"
     meta = json.load(open(f"{out}/meta.json"))

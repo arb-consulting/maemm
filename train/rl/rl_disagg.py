@@ -1,4 +1,4 @@
-"""Disaggregated GRPO for the MAEMM universal inverter: X vLLM ROLLOUT GPUs + Y HF TRAINER GPUs in ONE
+"""Disaggregated GRPO for the MAEM universal inverter: X vLLM ROLLOUT GPUs + Y HF TRAINER GPUs in ONE
 container (N = X + Y processes, one GPU each), coupled through the container-local filesystem.
 
 Why. train/rl/rl.py hosts BOTH the HF actor (61 GB resident, ~98 GB peak) AND a vLLM engine on EVERY GPU:
@@ -127,7 +127,7 @@ def parse_args(argv=None):
     ap.add_argument("--ref-adapter", default=None)
     ap.add_argument("--policy-base", default=None,
                     help="HF model the POLICY is built on (the vLLM rollout engines serve it, the trainer puts the LoRA on it): a FULL "
-                         "fine-tuned checkpoint dir in train/sft/fullft.py layout (must carry SAVE_DONE) or a hub id. Default = maemm.config.MODEL "
+                         "fine-tuned checkpoint dir in train/sft/fullft.py layout (must carry SAVE_DONE) or a hub id. Default = maem.config.MODEL "
                          "(the original base; byte-identical to before). The REWARD scorer always stays MODEL: with another policy base "
                          "every trainer rank loads a second, frozen copy of MODEL for scoring (--scorer-layers). 'none' = default.")
     ap.add_argument("--scorer-layers", type=int, default=0,
@@ -148,7 +148,7 @@ def parse_args(argv=None):
                     "scale changes between the saved run and this one (e.g. batch-normalized -> raw), otherwise the stale second moment rescales the effective lr")
     ap.add_argument("--lr-decay-total-steps", type=int, default=None, help="decay horizon (global step at which lr reaches lr-min-frac*lr); default = --total-steps. "
                     "Lets a short resumed ablation follow the schedule a full 400-step run would have.")
-    ap.add_argument("--run-name", default="maemm-rl-disagg")
+    ap.add_argument("--run-name", default="maem-rl-disagg")
     ap.add_argument("--no-wandb", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
     # batch / sampling (rl.py)
@@ -209,7 +209,7 @@ def parse_args(argv=None):
     ap.add_argument("--kl-cap", type=float, default=10.0)
     # inline eval flags accepted for launcher compatibility; see inline_eval_stub()
     ap.add_argument("--inline-eval-every", type=int, default=0)
-    ap.add_argument("--eval-cache", default=os.environ.get("MAEMM_EVAL_CACHE", "/data/eval_universal_ho/eval_sets_heldout.pt"))
+    ap.add_argument("--eval-cache", default=os.environ.get("MAEM_EVAL_CACHE", "/data/eval_universal_ho/eval_sets_heldout.pt"))
     ap.add_argument("--eval-sae", default="/data/sae/ae.pt")
     ap.add_argument("--eval-bo", type=int, default=4)
     ap.add_argument("--eval-temp", type=float, default=1.0)
@@ -438,7 +438,7 @@ def _log(tag, msg):
 def _bank_open(a):
     """Direction bank memmap + rl.py's eval-row reservation. Returns (bank, n_vecs, eval_rows)."""
     import numpy as np
-    from maemm.config import D_MODEL
+    from maem.config import D_MODEL
     stats_p = f"{a.data_dir}/build_stats.json"
     n_vecs = (json.load(open(stats_p))["n_examples"] if os.path.exists(stats_p)
               else os.path.getsize(f"{a.data_dir}/{a.bank_file}") // (4 * D_MODEL))
@@ -460,12 +460,12 @@ def _bank_open(a):
 # ----------------------------------------------------------------------------------------------
 def policy_base_of(a):
     """The HF model the policy (rollout engines + trainer LoRA) is built on: MODEL unless --policy-base is given."""
-    from maemm.config import MODEL
+    from maem.config import MODEL
     return getattr(a, "policy_base", None) or MODEL
 
 
 def policy_base_is_model(a):
-    from maemm.config import MODEL
+    from maem.config import MODEL
     return policy_base_of(a) == MODEL
 
 
@@ -529,7 +529,7 @@ class BaseActor:
 
 def _truncate_scorer(base, n_keep):
     """Keep decoder layers [0, n_keep) of a CausalLM and replace lm_head by a module that raises. Every scorer read path is
-    maemm.inject.read_resid, whose forward hook on layer READ_LAYER raises _Stop BEFORE layer READ_LAYER+1 runs (the HF forward
+    maem.inject.read_resid, whose forward hook on layer READ_LAYER raises _Stop BEFORE layer READ_LAYER+1 runs (the HF forward
     enumerates self.layers[:num_hidden_layers], so a shorter ModuleList is simply a shorter loop; layer_types[i] is still indexed
     by the kept i) -> layer-42 states are unchanged to the bit; only logits consumers (the gates) would notice, and they raise.
     Returns (n_layers_before, head_dropped)."""
@@ -556,7 +556,7 @@ def load_scorer(a, actor, device, tag, use_gates):
         return actor
     import torch
     from transformers import AutoModelForCausalLM
-    from maemm.config import MODEL, READ_LAYER
+    from maem.config import MODEL, READ_LAYER
     n_keep = a.scorer_layers
     if n_keep == 0:
         n_keep = -1 if use_gates else READ_LAYER + 1
@@ -594,7 +594,7 @@ def write_run_meta(a, path, micro_batch=None, step=None):
     """run_meta.json next to the checkpoints (the run dir and every step_*/final): how to REBUILD the policy that produced them
     (the adapter ON WHICH base) and what scored them. evals/heldout/eval_ckpt_daemon.py reads `policy_base` from <ckpt_dir>/run_meta.json
     to serve policy_base + adapter in vLLM while scoring with MODEL."""
-    from maemm.config import INJECT_LAYER, MODEL, READ_LAYER, TrainConfig
+    from maem.config import INJECT_LAYER, MODEL, READ_LAYER, TrainConfig
     tr = TrainConfig()
     ref_src = (a.ref_adapter or a.init_adapter) if a.kl_coef > 0 else None
     full_param = bool(getattr(a, "full_param", False))
@@ -864,7 +864,7 @@ def _hook_outside_autocast(hook, enabled):
 def _prefix_cache_module():
     try:
         from sft import prefix_cache as pc
-    except ImportError:                 # modal_rl_disagg.py mounts train/sft/prefix_cache.py next to maemm/ (PYTHONPATH /app/helpers)
+    except ImportError:                 # modal_rl_disagg.py mounts train/sft/prefix_cache.py next to maem/ (PYTHONPATH /app/helpers)
         import prefix_cache as pc
     return pc
 
@@ -1123,7 +1123,7 @@ def load_scorer_fullparam(a, device, world, tag, use_gates, need_logits=False):
     import torch
     import rl_fullparam as FP
     from transformers import AutoModelForCausalLM
-    from maemm.config import MODEL, READ_LAYER
+    from maem.config import MODEL, READ_LAYER
     n_keep = a.scorer_layers
     if n_keep == 0:
         n_keep = -1 if (use_gates or need_logits) else READ_LAYER + 1
@@ -1200,7 +1200,7 @@ def _publish_fullparam(fp, actor, submodule, prompt, marker, device, work, step,
 def _save_fullparam_ckpt(fp, actor, path, tok, is_main, world, a, mb, step, opt, tag, final=False):
     """COLLECTIVE: full HF model dir (train/sft/fullft.py layout, SAVE_DONE last) + run_meta.json (+ optim_dcp/ with --save-optim)."""
     import torch.distributed as dist
-    from maemm.config import MODEL
+    from maem.config import MODEL
     t0 = time.time()
     fp.FP.save_full_checkpoint(actor, path, tok, MODEL, is_main, world, fp.nontext_shard, log=lambda m: _log(tag, m),
                                extra_meta={"step": step, "optimizer_updates": (step if final else step + 1), "run_name": a.run_name, "lr": a.lr,
@@ -1344,7 +1344,7 @@ def _build_engine(a, rank, p_len, max_seqs, use_graphs, tag):
                 self.worker_extension_cls = "vllm_lens._worker_ext.HiddenStatesExtension"
             return orig(self, *args, **kw)
         EngineArgs.create_engine_config = _cfg
-        from maemm.config import MODEL
+        from maem.config import MODEL
         max_len = p_len + a.max_new_tokens + 8
         # engine_model / engine_lora (eval_ckpt_daemon --full-model): serve a FULL fine-tuned checkpoint dir instead of
         # base+LoRA; --policy-base: that base with the LoRA slots. Defaults = MODEL with 2 LoRA slots (live policy + eval
@@ -1387,7 +1387,7 @@ def _verify_injection(llm, prompt_ids, marker, hnorm, tag, seed=0):
     import torch.nn.functional as F
     import rl_hf as R
     from vllm import SamplingParams
-    from maemm.config import D_MODEL, INJECT_LAYER, STEER_COEFF
+    from maem.config import D_MODEL, INJECT_LAYER, STEER_COEFF
     g = torch.Generator().manual_seed(seed)
     v = F.normalize(torch.randn(D_MODEL, generator=g), dim=0)
 
@@ -1535,8 +1535,8 @@ def run_rollout(a):
     import torch.nn.functional as F
     from transformers import AutoTokenizer, GenerationConfig
     import rl_hf as R
-    from maemm.config import D_MODEL, MODEL
-    from maemm.prompts import build_prompt_ids
+    from maem.config import D_MODEL, MODEL
+    from maem.prompts import build_prompt_ids
     from vllm.lora.request import LoRARequest
 
     rank = int(os.environ["DISAGG_RANK"]); tag = f"R{rank}"
@@ -1673,8 +1673,8 @@ def run_bench_rollout(a):
     from safetensors.torch import load_file, save_file
     from transformers import AutoTokenizer, GenerationConfig
     import rl_hf as R
-    from maemm.config import MODEL
-    from maemm.prompts import build_prompt_ids
+    from maem.config import MODEL
+    from maem.prompts import build_prompt_ids
     from vllm.lora.request import LoRARequest
 
     rank = int(os.environ["DISAGG_RANK"]); world = int(os.environ["DISAGG_WORLD"]); tag = f"B{rank}"
@@ -1706,7 +1706,7 @@ def run_bench_rollout(a):
         llm = _build_engine(a, rank, p_len, mns, mode == "graphs", tag)
         # base-weights clean marker norm from a capture is a fine stand-in for the trainer's published hnorm here
         from vllm import SamplingParams
-        from maemm.config import INJECT_LAYER
+        from maem.config import INJECT_LAYER
         o = llm.generate([{"prompt_token_ids": list(prompt_ids)}],
                          [SamplingParams(temperature=0.0, max_tokens=1, extra_args={"output_residual_stream": [INJECT_LAYER]})],
                          use_tqdm=False)[0]
@@ -1808,7 +1808,7 @@ def update_disagg(actor, opt, submodule, ids, attn, p_len, marker, old_lp, known
     import torch
     import torch.distributed as dist
     import rl_hf as R
-    from maemm.config import STEER_COEFF
+    from maem.config import STEER_COEFF
     n, L = ids.shape
     T = L - p_len
     gen_mask = attn[:, p_len:].bool()
@@ -2024,7 +2024,7 @@ def find_micro_batch(actor, opt, submodule, prompt_ids, marker, a, device, cands
     import torch
     import torch.nn.functional as F
     import rl_hf as R
-    from maemm.config import D_MODEL, STEER_COEFF
+    from maem.config import D_MODEL, STEER_COEFF
     inj_mode = fp.inject_mode if fp is not None else "add"
     frac = float(getattr(a, "mb_target_frac", 0.85) or 0.85)
     L = len(prompt_ids) + a.max_new_tokens
@@ -2161,7 +2161,7 @@ def find_micro_batch_fullparam(actor, opt, submodule, prompt_ids, marker, a, dev
     import torch.distributed as dist
     import torch.nn.functional as F
     import rl_hf as R
-    from maemm.config import D_MODEL, STEER_COEFF
+    from maem.config import D_MODEL, STEER_COEFF
     L = len(prompt_ids) + a.max_new_tokens
     p_len = len(prompt_ids)
     total = torch.cuda.get_device_properties(0).total_memory
@@ -2454,9 +2454,9 @@ def run_trainer(a):
     from transformers import AutoModelForCausalLM, AutoTokenizer
     import wandb
     import rl_hf as R
-    from maemm.config import INJECT_LAYER, MODEL, TrainConfig
-    from maemm.inject import get_layer
-    from maemm.prompts import build_prompt_ids
+    from maem.config import INJECT_LAYER, MODEL, TrainConfig
+    from maem.inject import get_layer
+    from maem.prompts import build_prompt_ids
 
     rank = int(os.environ["DISAGG_RANK"]); world = int(os.environ["DISAGG_WORLD"]); is_main = rank == 0
     tag = f"T{rank}"
@@ -2652,7 +2652,7 @@ def run_trainer(a):
                   + (f" | FULL-PARAMETER policy: {sum(p.numel() for p in actor.parameters()) / 1e9:.2f}B trainable, publish {a.publish_mode}, "
                      f"resident {torch.cuda.memory_allocated() / 2**30:.1f} GB/rank before step 0" if fp is not None else ""))
         if not a.no_wandb:
-            wandb.init(project="maemm", name=a.run_name, config={**vars(a), "micro_batch_used": mb, "mb_search": mb_res,
+            wandb.init(project="maem", name=a.run_name, config={**vars(a), "micro_batch_used": mb, "mb_search": mb_res,
                                                                         "fla": fla_v, "disagg": True, "policy_base_resolved": pb},
                        id=a.wandb_id or None, resume="must" if a.wandb_id else None)
             wandb.define_metric("ckpt_step")
@@ -2985,9 +2985,9 @@ def run_bench_trainer(a):
     from peft import LoraConfig, PeftModel, get_peft_model
     from transformers import AutoModelForCausalLM, AutoTokenizer
     import rl_hf as R
-    from maemm.config import D_MODEL, INJECT_LAYER, MODEL, TrainConfig
-    from maemm.inject import get_layer
-    from maemm.prompts import build_prompt_ids
+    from maem.config import D_MODEL, INJECT_LAYER, MODEL, TrainConfig
+    from maem.inject import get_layer
+    from maem.prompts import build_prompt_ids
     rank = int(os.environ["DISAGG_RANK"]); world = int(os.environ["DISAGG_WORLD"]); tag = f"BT{rank}"
     torch.cuda.set_device(0); device = "cuda:0"
     if world > 1:

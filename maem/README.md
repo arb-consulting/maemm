@@ -1,4 +1,4 @@
-# `maemm/`
+# `maem/`
 
 The core library every stage imports: configuration, activation injection and read hooks, the shared prompt, and SAE loading.
 

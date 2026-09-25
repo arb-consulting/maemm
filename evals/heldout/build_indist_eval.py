@@ -19,7 +19,7 @@ of the 2000 per family) — negligible but nonzero contamination.
 Idempotent: families already present in the cache are skipped; re-running is a no-op.
 
 Run (paths overridable via env):
-    MAEMM_POOL=data/pool_rl_mix MAEMM_EVAL_CACHE=data/eval_universal_ho/eval_sets_heldout.pt \
+    MAEM_POOL=data/pool_rl_mix MAEM_EVAL_CACHE=data/eval_universal_ho/eval_sets_heldout.pt \
         PYTHONPATH=$PWD python evals/heldout/build_indist_eval.py
 """
 import json
@@ -29,10 +29,10 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from maemm.config import D_MODEL
+from maem.config import D_MODEL
 
-POOL = os.environ.get("MAEMM_POOL", "/root/app/data/pool_rl_mix")
-CACHE = os.environ.get("MAEMM_EVAL_CACHE", "/root/app/data/eval_universal_ho/eval_sets_heldout.pt")
+POOL = os.environ.get("MAEM_POOL", "/root/app/data/pool_rl_mix")
+CACHE = os.environ.get("MAEM_EVAL_CACHE", "/root/app/data/eval_universal_ho/eval_sets_heldout.pt")
 N_TAIL = 2000     # reserved held-out tail rows per family (see caveat above)
 N_PER = 512       # eval dirs per family (matches every other family in the cache, n=512)
 SEED = 11

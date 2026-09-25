@@ -29,7 +29,7 @@ def _family(families, family_id, condition):
 
 def sources(bank, prepared, families, windows, summaries):
     """`{"<concept>:<condition>": {concept_id, condition, status, samples, greedy}}` for every target concept
-    and arm. `families` holds the generated arms (MAEMM, base_l1, NLA, steered); `shuffled` is MAEMM's text
+    and arm. `families` holds the generated arms (MAEM, base_l1, NLA, steered); `shuffled` is MAEM's text
     for the concept's donor; `retrieval`, `heldout_positive` and `jlens` are read from their artefacts."""
     result = {}
     for concept in bank['concepts']:
@@ -51,7 +51,7 @@ def sources(bank, prepared, families, windows, summaries):
                          'samples': [prepared['texts'][r['text_id']] for r in concept['references']]}
             elif condition == 'shuffled':
                 donor = bank['candidates'][str(cid)]['donor']
-                value = {**_family(families, f'{donor}:maemm', 'maemm'), 'greedy': []}
+                value = {**_family(families, f'{donor}:maem', 'maem'), 'greedy': []}
             else:
                 value = _family(families, f'{cid}:{condition}', condition)
             result[f'{cid}:{condition}'] = {'concept_id': cid, 'condition': condition, **value}
@@ -150,7 +150,7 @@ def n_tokens(snippet):
 
 def text_length_rows(source_map):
     """Per concept and arm: the mean length in tokens of the arm's sampled texts (`text_length` metric).
-    The lens summary carries no token count and is left out; `shuffled` repeats MAEMM's texts."""
+    The lens summary carries no token count and is left out; `shuffled` repeats MAEM's texts."""
     rows = []
     for source in source_map.values():
         if source['condition'] in (*SINGLE_TEXT, 'shuffled'):

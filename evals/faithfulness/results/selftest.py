@@ -163,7 +163,7 @@ CFG = {
               "families": {"realact": {"n": 3}, "random": {"n": 1}, "sae": {"n": 4}}},
         SET2: {"base": BASE, "sae_key": "B/sae-one", "families": {"realact": {"n": 3}}},
     },
-    "maemms": {
+    "maems": {
         f"{BASE}/ckpt-one": {"type": "full", "primary": True, "mu": "/mu.npy"},
         f"{BASE}/ckpt-two": {"type": "full"},
         f"{BASE}/ckpt-nothing": {"type": "full"},
@@ -239,10 +239,10 @@ def write_mirror(root: Path) -> None:
                   mu=None, sae_rows=None, rows=SET2_ROWS)
 
 
-def _write_scores(root: Path, maemm: str, dirname: str, pt: dict, best: dict | None,
+def _write_scores(root: Path, maem: str, dirname: str, pt: dict, best: dict | None,
                   best_c: dict | None, mu: str | None, sae_rows: list[int] | None,
                   rows: list[int] | None = None) -> None:
-    d = root / f"maemms/{maemm}/scores/{dirname}"
+    d = root / f"maems/{maem}/scores/{dirname}"
     d.mkdir(parents=True, exist_ok=True)
     rows = rows if rows is not None else [r["row"] for r in IDS]
     with open(d / "per_target.jsonl", "w") as fh:
@@ -581,7 +581,7 @@ def check_centred_bok_is_recomputed_from_the_array():
             for r in ids:
                 fh.write(json.dumps(r) + "\n")
         (hd / "storage.json").write_text(json.dumps({"storage": "raw"}))
-        d = root / f"maemms/{BASE}/ckpt-one/scores/CB__arm-a"
+        d = root / f"maems/{BASE}/ckpt-one/scores/CB__arm-a"
         d.mkdir(parents=True, exist_ok=True)
         with open(d / "per_target.jsonl", "w") as fh:
             for r in (0, 1):
@@ -673,7 +673,7 @@ def check_sae_side_reads_its_own_product():
             for r in ids:
                 fh.write(json.dumps(r) + "\n")
         (hd / "storage.json").write_text(json.dumps({"storage": "dirs_only", "sae_key": "B/sae-one"}))
-        d = root / f"maemms/{BASE}/ckpt-one/scores/SS__arm-a"
+        d = root / f"maems/{BASE}/ckpt-one/scores/SS__arm-a"
         d.mkdir(parents=True, exist_ok=True)
         with open(d / "per_target.jsonl", "w") as fh:
             for r in range(4):
@@ -709,8 +709,8 @@ def check_sae_side_reads_its_own_product():
         _close(dec, 0.5, 1e-9, what="the dec family reads sae_self__dec/ -- peaks 2.0 over corpus 4.0")
         # And each check names the product it actually opened, so the table's provenance is real.
         products = sorted(c["product"] for c in res["checks"] if c["kind"] == "sae_self")
-        assert products == [f"maemms/{BASE}/ckpt-one/scores/SS__arm-a/sae_self",
-                            f"maemms/{BASE}/ckpt-one/scores/SS__arm-a/sae_self__dec"], products
+        assert products == [f"maems/{BASE}/ckpt-one/scores/SS__arm-a/sae_self",
+                            f"maems/{BASE}/ckpt-one/scores/SS__arm-a/sae_self__dec"], products
 
     # The decoder product removed: MISSING, never the encoder's numbers under the decoder label.
     with tempfile.TemporaryDirectory() as td:
@@ -778,7 +778,7 @@ def check_reader_check_catches_a_defect():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         write_mirror(root)
-        p = root / f"maemms/{BASE}/ckpt-one/scores/{SET}__arm-a/per_target.jsonl"
+        p = root / f"maems/{BASE}/ckpt-one/scores/{SET}__arm-a/per_target.jsonl"
         recs = [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
         recs[0]["mean_cos"] = 0.9        # the array still says 0.625
         p.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
@@ -790,7 +790,7 @@ def check_reader_check_catches_a_defect():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         write_mirror(root)
-        p = root / f"maemms/{BASE}/ckpt-one/scores/{SET}__arm-a/sae_self/sae_self.json"
+        p = root / f"maems/{BASE}/ckpt-one/scores/{SET}__arm-a/sae_self/sae_self.json"
         meta = json.loads(p.read_text())
         meta["per_target"][0]["max_peak_act"] = 9.0   # the array still says 4.0
         p.write_text(json.dumps(meta))
@@ -976,7 +976,7 @@ def check_combined_layer_lifts_and_never_recomputes():
             F.headline_arms(all_res))
         import re as _re
         src = (Path(F.__file__)).read_text()
-        assert not _re.search(r"rl-last16|rl-8x2048|nla-av", src), (
+        assert not _re.search(r"rl-final|rl-large|nla", src), (
             "a checkpoint name is spelled in faithfulness.py")
         # (1) every cell is lifted, not recomputed.
         for r in hl:
@@ -1133,7 +1133,7 @@ def write_autointerp_runs(root: Path, sae: str = AI_SAE) -> None:
             for r in rows:
                 fh.write(json.dumps(r) + "\n")
         (d / "build.json").write_text(json.dumps(
-            {"base": "B", "set": "S3", "maemm": f"B/{run}", "engine": "vllm", "sae": sae,
+            {"base": "B", "set": "S3", "maem": f"B/{run}", "engine": "vllm", "sae": sae,
              "n_features": len(AI_FEATS), "mark": "gate", "fuzz_marks": "contiguous"}))
         # The explain stage's own record, which is the ONLY place a refusal exists: `run.py`
         # writes no score row for a refused (feature, arm), so `scores.jsonl` above cannot carry
@@ -2043,7 +2043,7 @@ def check_autointerp_null_bal_acc_is_never_filled_from_acc():
                                               "cut/NOPOS/fuzzing quartile 0"], ck["peak"]
         assert ck["stratum"]["n_absent"] == 0, ck["stratum"]
 
-    # `density` is NOT the field either cut reads. It is null for every feature of a `draw_sae2m`
+    # `density` is NOT the field either cut reads. It is null for every feature of a `draw_dict2m`
     # set -- the 2M block carries `fire_fraction` and `corpus_peak` and nothing else -- so a
     # magnitude split that reached for it would come back empty on the PRIMARY SAE and quietly
     # build its quartiles out of a single bucket. Pinned on the field map rather than on the
@@ -2790,7 +2790,7 @@ def check_ood_arm_table():
         h = 3.0 * float(np.std(d, ddof=1)) / math.sqrt(d.size) if d.size > 1 else 1.0
         return m, m - h, m + h
 
-    src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
+    src = R.Source(maem="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
     src.per_target = per_target
     # `arm_rows` takes the size PER ARM since M5 (2026-09-23), because the real run holds 21 arms
     # at 10M and `shell` at 4M in one table. Here every arm is at 1M.
@@ -2900,7 +2900,7 @@ def check_ood_bo8_headline():
         h = 3.0 * float(np.std(d, ddof=1)) / math.sqrt(d.size) if d.size > 1 else 1.0
         return m, m - h, m + h
 
-    src = R.Source(maemm="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
+    src = R.Source(maem="m", base="b", engine="vllm", run_tag="", scores_rel="", rollouts_rel="")
     src.per_target = per_target
     recs, skipped = od.arm_rows(ids, src, {"a": top1}, {"a": 10.0}, "centred", boot_ci, R_outcome,
                                 None, bo8=bo8)
@@ -2964,13 +2964,13 @@ def check_ood_lid_ranking():
         cos[row, 2, :2] = 0.90          # the best, and the last in file order
     with tempfile.TemporaryDirectory() as td:
         mirror = Path(td)
-        rel = "maemms/m/scores/S__vllm__asym"
+        rel = "maems/m/scores/S__vllm__asym"
         (mirror / rel).mkdir(parents=True)
         cos.astype(np.float16).tofile(mirror / rel / "cos_asym.f16")
         (mirror / rel / "index.json").write_text(json.dumps(
             {"cos_asym.f16": {"dtype": "float16", "shape": [n_rows, n_roll, width]}}))
         vol = R.Vol("", mirror, offline=True)
-        src = R.Source(maemm="m", base="b", engine="vllm", run_tag="asym",
+        src = R.Source(maem="m", base="b", engine="vllm", run_tag="asym",
                        scores_rel=rel, rollouts_rel="")
         src.per_target = {r: {"max_cos_asym": 0.9} for r in range(n_rows)}
         ranked, note = od.ranked_texts(vol, src, "asym", texts)
@@ -3121,15 +3121,15 @@ def check_ood_lid_reads_every_chunk_the_readme_names():
 
     with tempfile.TemporaryDirectory() as td:
         mirror = Path(td)
-        srel = "maemms/b/m/scores/S__vllm__tag"
+        srel = "maems/b/m/scores/S__vllm__tag"
         (mirror / srel).mkdir(parents=True)
         cos.astype(np.float16).tofile(mirror / srel / "cos_centred.f16")
         (mirror / srel / "index.json").write_text(json.dumps(
             {"cos_centred.f16": {"dtype": "float16", "shape": [4, n_roll, width]}}))
-        rdir = mirror / "maemms/b/m/rollouts"
+        rdir = mirror / "maems/b/m/rollouts"
         rdir.mkdir(parents=True)
         stem = "S__vllm__tag"
-        inv = {"maemm": "b/m", "base": "b", "set": "S", "engine": "vllm", "kind": "ood",
+        inv = {"maem": "b/m", "base": "b", "set": "S", "engine": "vllm", "kind": "ood",
                "n": n_roll, "bo": n_roll, "seed": 1, "max_new": 64, "min_new": 0, "prompt": "p",
                "prompt_tokens": 3, "marker_pos": 1, "inject_layer": 42, "inject_coef": 1.0,
                "temperature": 1.0, "top_p": 1.0, "top_k": 0, "weight_sha256": "0" * 64,
@@ -3143,7 +3143,7 @@ def check_ood_lid_reads_every_chunk_the_readme_names():
                 for r in rows for k in range(n_roll)) + "\n")
             (rdir / f"{stem}{PC.ROWS_MARK}{spec}.summary.json").write_text(
                 json.dumps({**inv, "rows": list(rows)}))
-            rels.append(f"maemms/b/m/rollouts/{stem}{PC.ROWS_MARK}{spec}.jsonl")
+            rels.append(f"maems/b/m/rollouts/{stem}{PC.ROWS_MARK}{spec}.jsonl")
 
         asked: list[str] = []
 
@@ -3160,7 +3160,7 @@ def check_ood_lid_reads_every_chunk_the_readme_names():
                 for rel in rels_:
                     assert vol.get(rel) is not None, rel
                 rows_, _summary, _ = PC.read_rollouts(
-                    str(Path(vol.local) / "maemms/b/m/rollouts"), stem)
+                    str(Path(vol.local) / "maems/b/m/rollouts"), stem)
                 return rows_
 
             @staticmethod
@@ -3172,7 +3172,7 @@ def check_ood_lid_reads_every_chunk_the_readme_names():
                 return (text.split()[-1] if text.startswith("RIGHT") else "xxx"), 1.0
 
         vol = R.Vol("", mirror, offline=True)
-        src = R.Source(maemm="b/m", base="b", engine="vllm", run_tag="tag",
+        src = R.Source(maem="b/m", base="b", engine="vllm", run_tag="tag",
                        scores_rel=srel, rollouts_rel="")
         src.per_target = {r: {"max_cos_centred": 0.1 * n_roll} for r in range(4)}
         cfg = {"ood_arms": {a: {"lid": [a], "family": "lang"} for a in arms}}
@@ -3230,7 +3230,7 @@ def check_ood_arm_size_comes_from_the_product():
         m = float(np.mean(d))
         return m, m - 0.01, m + 0.01
 
-    src = R.Source(maemm="qwen36-27b/2026-09-18_rl-last16-lr5e-7", base="qwen36-27b",
+    src = R.Source(maem="qwen36-27b/2026-09-18_rl-final", base="qwen36-27b",
                    engine="vllm", run_tag="tag", scores_rel="", rollouts_rel="")
     src.per_target = per_target
     recs, skipped = od.arm_rows(ids, src, top1_by_arm, {"tha_Thai": 10.0, "shell": 4.0},
@@ -3303,7 +3303,7 @@ def check_ood_counts_are_the_bo8_verdict():
                   "ceiling": None, "ceiling_kind": "lid", "bpb_ctx": None, "nll_n": None,
                   "control_bo8": None})
     with tempfile.TemporaryDirectory() as td:
-        src = R.Source(maemm="b/m", base="b", engine="vllm", run_tag="t", scores_rel="",
+        src = R.Source(maem="b/m", base="b", engine="vllm", run_tag="t", scores_rel="",
                        rollouts_rel="")
         _p, rows_ = od.write_cells(Path(td), PC.load_config(), src, recs, "S", None)
         cells = {r["key"]: r for r in rows_}
@@ -3399,7 +3399,7 @@ def check_ood_cells_never_carry_an_em_dash():
              "outcome8": "not comparable", **blank},
             {"arm": "python", "family": "code", "outcome": "exceeds",
              "outcome8": "no bo8 pairs", **blank}]
-    src = R.Source(maemm="b/m", base="b", engine="vllm", run_tag="t", scores_rel="",
+    src = R.Source(maem="b/m", base="b", engine="vllm", run_tag="t", scores_rel="",
                    rollouts_rel="")
     with tempfile.TemporaryDirectory() as td:
         _p, rows_ = od.write_cells(Path(td), cfg, src, recs, "S", None)
@@ -3454,7 +3454,7 @@ M1_BASE = "MB"
 M1_RA = "MRA"        # the upstream realact block
 M1_CT = "MCTRL"      # the random floor and the 131k-shaped feature block
 M1_SAE = f"{M1_BASE}/l42-1b"
-M1_N = 8             # rollouts on the MAEMM arms
+M1_N = 8             # rollouts on the MAEM arms
 M1_NLA_N = 4         # rollouts on the NLA arm (spec §1.4)
 M1_GATE = 1.5846     # spec §1.2 and §4 panel b name this to 4 decimals on the 131k
 
@@ -3533,7 +3533,7 @@ M1_CFG = {
         M1_CT: {"base": M1_BASE, "sae_key": M1_SAE,
                 "families": {"random": {"n": 2}, "sae": {"n": 8}}},
     },
-    "maemms": {
+    "maems": {
         f"{M1_BASE}/ex-ckpt": {"type": "full", "mu": "/mu.npy"},
         f"{M1_BASE}/ctl-ckpt": {"type": "base", "role": "control", "mu": "/mu.npy"},
         f"{M1_BASE}/nla-ckpt": {"type": "nla"},
@@ -3541,11 +3541,11 @@ M1_CFG = {
 }
 
 
-def _m1_write_arm(root: Path, maemm: str, set_name: str, ids: list[dict], n: int,
+def _m1_write_arm(root: Path, maem: str, set_name: str, ids: list[dict], n: int,
                   raw: dict, centred: dict | None, sae: dict | None = None,
                   gate: float = M1_GATE, corpus_peak: float = M1_STORED_PEAK) -> None:
     """One arm's scores directory: per_target, rows.json, the centred array and `sae_self`."""
-    d = root / f"maemms/{maemm}/scores/{set_name}__vllm"
+    d = root / f"maems/{maem}/scores/{set_name}__vllm"
     d.mkdir(parents=True, exist_ok=True)
     rows = [r["row"] for r in ids]
     with open(d / "per_target.jsonl", "w") as fh:
@@ -3810,7 +3810,7 @@ def check_m1_cells_writer_rewrites_in_place():
     fixture = (
         "key,value,se,lo,hi,n,status,run,source,date,note\n"
         "fid.ra.ex.cos.bo1,0.7590,0.0060,,,486,provisional,R1,old/path.md,2026-09-21,"
-        '"rl-last16; the upstream block, centred"\n'
+        '"rl-final; the upstream block, centred"\n'
         # ANOTHER BUILDER'S ROW, spelled with a quoted field that does NOT need quoting. Today's
         # cells.csv happens to round-trip through `csv.writer` unchanged on all 413 records
         # (measured 2026-09-24), so byte-identity and field-identity cannot be told apart on it --
@@ -3828,9 +3828,9 @@ def check_m1_cells_writer_rewrites_in_place():
         before = p.read_text().splitlines(keepends=True)
 
         rows = [F.cell("fid.ra.ex.cos.bo1", 0.4921875, se=0.01, n=486, run="R1",
-                       source="maemms/x/scores/y", date="2026-09-24", note="new, with a comma"),
+                       source="maems/x/scores/y", date="2026-09-24", note="new, with a comma"),
                 F.cell("fid.ra.ex.win.bo8", 0.75, n=486, run="R1+R2",
-                       source="maemms/x/scores/y", date="2026-09-24", note="appended")]
+                       source="maems/x/scores/y", date="2026-09-24", note="appended")]
         rec = F.write_cells(p, rows, F.M1_KEYS)
         after = p.read_text().splitlines(keepends=True)
 
@@ -4142,7 +4142,7 @@ def check_m1_denominator_of_another_set_is_refused():
     """A `top1_act` product of ANOTHER set must not answer this family's rows.
 
     THE ROW JOIN IS NOT SELF-DESCRIBING, and on the real volume the two sets collide exactly:
-    `2026-09-21_v3_ctrl`'s 131k features are rows 512-1023 and `2026-09-21_v3_sae2m`'s decoder
+    `2026-09-21_v3_ctrl`'s 131k features are rows 512-1023 and `2026-09-21_v3_dict2m`'s decoder
     half is rows 512-1023, so the 131k `top1_act` answers every question the 2M decoder block
     asks and answers all of them with another dictionary's feature. `discover_families` already
     refuses to guess a dictionary from a feature id ("every 131k id is also a valid 2M index");
@@ -4159,8 +4159,8 @@ def check_m1_denominator_of_another_set_is_refused():
         other = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/OTHER__10m",
                              set_name="ANOTHER_SET")
         # ... and another whose summary says another DICTIONARY
-        wrong_sae = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__sae2m",
-                                 sae_key=f"{M1_BASE}/sae2m")
+        wrong_sae = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__dict2m",
+                                 sae_key=f"{M1_BASE}/dict2m")
         # ... and one that states neither, which is refused rather than trusted
         silent = _m1_top1_act(root, f"base/{M1_BASE}/sae/l42-1b/top1_act/{M1_CT}__nosum",
                               summary=False)
@@ -4169,7 +4169,7 @@ def check_m1_denominator_of_another_set_is_refused():
         by_ok = _m1_by_key(ok_rows)
         assert by_ok["sae.l131k.ex.ratio.bo1.q1"]["value"] == f"{M1_RATIO_TOP1[0]:.4f}", by_ok
 
-        for rel, wanted in ((other, "ANOTHER_SET"), (wrong_sae, "sae2m"), (silent, "states no")):
+        for rel, wanted in ((other, "ANOTHER_SET"), (wrong_sae, "dict2m"), (silent, "states no")):
             rows, skipped = _m1_cells(root, corpus=False, corpus_peak=f"top1_act:{rel}")
             by = _m1_by_key(rows)
             for s_ in range(4):

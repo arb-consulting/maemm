@@ -32,12 +32,12 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from maemm.config import INJECT_LAYER
-from maemm.inject import get_layer
+from maem.config import INJECT_LAYER
+from maem.inject import get_layer
 from trojan.core.lora import get_mlp, lora_ab, resolve_adapter
 from trojan.core.specs17 import TROJANS17
 from trojan.core.stats import logit_lens, wilson
-from maemm.prompts import build_prompt_ids
+from maem.prompts import build_prompt_ids
 
 
 # What "about this payload" means to the judge, per trojan. Deliberately phrased as a topic, not

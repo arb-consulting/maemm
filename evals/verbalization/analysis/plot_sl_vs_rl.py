@@ -1,4 +1,4 @@
-"""SFT (sft-simple2m) vs RL (rl-last16-lr5e-7) on the paper's eval sets, with the base model and NLA-AV
+"""SFT (sft-simple2m) vs RL (rl-final) on the paper's eval sets, with the base model and NLA
 as references. Reads the `score` products' per_target ladders (unbiased best-of-k) and `sae_self`.
 
     python evals/verbalization/analysis/plot_sl_vs_rl.py <dir with the fetched products>
@@ -6,7 +6,7 @@ as references. Reads the `score` products' per_target ladders (unbiased best-of-
 (a) natural activations (v3_realact, 512 rows): centred cosine, best-of-k (paper convention).
 (b) SAE features (v3_ctrl sae rows, 512): raw cosine, best-of-k.
 (c) SAE features: share of features that fire (some sample clears tau) at best-of-8, dead excluded.
-NLA-AV has 4 samples per row, so its curves stop at k=4.
+NLA has 4 samples per row, so its curves stop at k=4.
 """
 import json
 import sys
@@ -26,7 +26,7 @@ from results.common import peaks_of  # noqa: E402
 O = Path(sys.argv[1])
 OUT = Path(__file__).resolve().parent.parent / "report"
 MODELS = [("rl", "MAEM (RL, step 300)", "#c8643c", "-"), ("sft", "MAEM (SFT init)", "#3c78c8", "-"),
-          ("nla", "NLA-AV", "#666666", "--"), ("base", "base model", "#aaaaaa", ":")]
+          ("nla", "NLA", "#666666", "--"), ("base", "base model", "#aaaaaa", ":")]
 
 
 def ladder(path, fam, prefix):

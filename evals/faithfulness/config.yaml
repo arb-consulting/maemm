@@ -1,20 +1,20 @@
-# evals/faithfulness: every model, SAE, MAEMM, target set and sampling constant used by precompute/.
+# evals/faithfulness: every model, SAE, MAEM, target set and sampling constant used by precompute/.
 #
-# Keys `<base>/<name>` under `saes` and `maemms` are the directory names on the volume:
-#   /vol/base/<base>/sae/<name>/ and /vol/maemms/<base>/<maemm>/.
+# Keys `<base>/<name>` under `saes` and `maems` are the directory names on the volume:
+#   /vol/base/<base>/sae/<name>/ and /vol/maems/<base>/<maem>/.
 # Base key spelling is `qwen36-27b` (infra/precompute-layout.md §1). An OLDER tree spelled
-# `qwen3.6-27b` exists under /vol/maemms/ from a previous pipeline; it is not ours and not touched.
+# `qwen3.6-27b` exists under /vol/maems/ from a previous pipeline; it is not ours and not touched.
 # Families are keyed BY NAME everywhere (never by list position) -- checklist item 38.
 
 bases:
   qwen3-8b:
     hf: Qwen/Qwen3-8B
-    read_layer: 27          # block OUTPUT of layer 27 (maemm/config.py profile qwen3-8b)
+    read_layer: 27          # block OUTPUT of layer 27 (maem/config.py profile qwen3-8b)
     d: 4096
     gpu: H100               # $3.95/h
     n_layers: 36
     # ||h|| at the marker of the inject layer under the CLEAN base, MEASURED 2026-09-15 by
-    # rollouts_hf's marker check (bf16, so quantized). Only used for full-parameter MAEMMs, which
+    # rollouts_hf's marker check (bf16, so quantized). Only used for full-parameter MAEMs, which
     # have no adapter to disable: see rollouts_hf.marker_check (checklist item 22).
     marker_norm_base: 14.5
     # the archived centring mean for this base, as a volume path. Used ONLY by the `mu_check`
@@ -23,7 +23,7 @@ bases:
     whiten_mu: /vol/checkpoints/data/run1/acts/whiten_mu.npy
   qwen36-27b:
     hf: Qwen/Qwen3.6-27B
-    read_layer: 42          # maemm/config.py:6
+    read_layer: 42          # maem/config.py:6
     d: 5120
     gpu: H200               # $4.54/h
     n_layers: 64            # 48 of them GatedDeltaNet -> the image needs flash-linear-attention
@@ -31,15 +31,15 @@ bases:
     whiten_mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
 
 # A MU IS A FILE (2026-09-21). Everywhere a centring mean is named in this file or on a
-# command line -- `maemms.<k>.mu`, `bases.<base>.whiten_mu`, `--mu` -- the value is one of:
+# command line -- `maems.<k>.mu`, `bases.<base>.whiten_mu`, `--mu` -- the value is one of:
 #   null        subtract nothing: the input/stored direction is a RAW unit activation
 #   <path>      a [d] float32 `.f32` or numpy `.npy` file. A path starting with `/` is absolute;
 #               anything else is relative to the run's --root (so a smoke under /vol/runs/... gets
 #               its own stats mean). `{base}` in the path expands to the base key, which is what
 #               lets one held-out entry describe the set on either base.
-#   unknown     (`maemms.<k>.mu` only) the checkpoint's training convention is not on the record.
+#   unknown     (`maems.<k>.mu` only) the checkpoint's training convention is not on the record.
 #               Nothing guesses one: every run of it must be told with --mu, as a deviation.
-# TWO AXES, and they are not the same one (M0a, 2026-09-23). `maemms.<k>.mu` is the INJECTION
+# TWO AXES, and they are not the same one (M0a, 2026-09-23). `maems.<k>.mu` is the INJECTION
 # convention -- what a checkpoint was trained to receive at its marker token. `bases.<base>
 # .whiten_mu` is the SCORING CONSTANT, the mean both arguments of every centred cosine are taken
 # about (`common.score_mu`), a property of the base and of no run. Before they were separated the
@@ -71,7 +71,7 @@ family_kinds:
   realact_long: {centrable: true,  kind: activation}   # centred at construction, by an UNVERIFIED mean
   random:       {centrable: false, kind: synthetic}
   sae:          {centrable: false, kind: dictionary}
-  sae2m_enc:    {centrable: false, kind: dictionary}   # the 2k set's legacy label; kept, not rewritten
+  dict2m_enc:    {centrable: false, kind: dictionary}   # the 2k set's legacy label; kept, not rewritten
   bsf:          {centrable: false, kind: subspace}
   jlens:        {centrable: false, kind: subspace}
 
@@ -92,9 +92,9 @@ saes:
       windows: 30
       sink_first: true
   qwen36-27b/l42-1b:
-    # NOT ANONYMOUS/qwen36-27b-sae-l42 (the 131k SAE used elsewhere): same width 131k
+    # NOT ANONYMOUS/dict-l42-a (the 131k SAE used elsewhere): same width 131k
     # and k=64, 4x the training tokens. File list verified 2026-09-15 with list_repo_files.
-    hf: ANONYMOUS/qwen36-27b-sae-l42-1b
+    hf: ANONYMOUS/dict-l42-a-1b
     file: saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt
     layer: 42
     # Shipped inside the SAE repo itself (no `repo:` key -> the sae's own `hf`), 32 windows of 32
@@ -114,8 +114,8 @@ saes:
   #   normalisation is already folded into the shipped ae.pt, so raw layer-42
   #   residuals feed straight in with no rescaling. (This is exactly the ambiguity
   #   behind the OPEN 27B max-acts disagreement on l42-1b; here it is documented.)
-  qwen36-27b/sae2m:
-    hf: ANONYMOUS/qwen36-27b-sae2m-l42
+  qwen36-27b/dict2m:
+    hf: ANONYMOUS/dict-2m-l42
     file: saes_Qwen_Qwen3.6-27B_batch_top_k/resid_post_layer_42/trainer_0/ae.pt
     layer: 42
     # 5 end-anchored 32-token windows per feature over a 1.0B-token scan. The buffer
@@ -129,7 +129,7 @@ saes:
 
 # `mu:` (NEW 2026-09-21) is what the checkpoint was TRAINED to receive at the marker: `null` = a
 # unit activation with nothing subtracted, a path = a unit `act - mu` under the mean in that file.
-# It is the ONLY thing that tells `rollouts_*` / `score` which direction to hand a MAEMM, and every
+# It is the ONLY thing that tells `rollouts_*` / `score` which direction to hand a MAEM, and every
 # such product takes `--mu <file>` to override it (recorded as a deviation). An entry with NO `mu:`
 # key cannot be run through a centring-aware product at all -- `common.input_mu` refuses rather
 # than guessing -- which is where the older 8B/LoRA entries sit: their training banks' convention
@@ -138,9 +138,9 @@ saes:
 #
 # `compute: false` (default true) means the entry is DECLARED but nothing is generated for it in
 # this pipeline: it exists so the paper's model table, the prompt inventory and the `check` product
-# know about it. common.maemms_for() filters these out of every "all MAEMMs" iteration; `check`
+# know about it. common.maems_for() filters these out of every "all MAEMs" iteration; `check`
 # resolves them too, but LENIENTLY -- an entry nobody computes need not be in the volume's HF cache.
-maemms:
+maems:
   qwen3-8b/2026-09-03_run1-rl:
     type: lora
     src: /vol/checkpoints/runs/run1/rl/final    # volume path, not an HF repo
@@ -149,15 +149,15 @@ maemms:
     train_max_new: 64
   qwen36-27b/2026-09-08_rlI-150:
     type: lora
-    hf: ANONYMOUS/maemm-qwen36-27b-inverter-rlI-step150
+    hf: ANONYMOUS/ckpt-rl-abl-i
     subdir: step_150        # adapter_config.json lives here, not at the repo root
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
-  qwen36-27b/2026-09-10_rl-8x2048-full:
+  qwen36-27b/2026-09-10_rl-large-full:
     type: full              # 12 safetensors shards at the repo root; scoring uses the clean base
-    hf: ANONYMOUS/qwen36-27b-maemm-inverter-rl-8x2048
-    prompt: maemm27b
+    hf: ANONYMOUS/ckpt-rl-large
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 192
     # UNESTABLISHED, and declared as such (2026-09-21). `unknown` is not `null`: it says
@@ -193,7 +193,7 @@ maemms:
     # CENTRED target (observations §2) -- and goes against the eval plan's §1.1/§2.2 `none`,
     # which came from a recollection. The plan is wrong here and the arms are why.
     #
-    # Products: maemms/qwen36-27b/2026-09-10_rl-8x2048-full/rollouts/2026-09-21_v3_realact__mu-{none,stats}.jsonl
+    # Products: maems/qwen36-27b/2026-09-10_rl-large-full/rollouts/2026-09-21_v3_realact__mu-{none,stats}.jsonl
     # and scores/2026-09-21_v3_realact__mu-{none,stats}__vllm/. SMOKES.md 2026-09-21 carries the
     # run record. NOT deleted: the arms are the evidence and both stay on the volume.
     #
@@ -203,35 +203,35 @@ maemms:
     # and it was never a gate -- `sanity.yaml` carried it with `compare: false`, printing two
     # numbers and issuing no verdict. It is gone from that file with every other dated number.
     mu: base/{base}/stats/mu.f32
-    primary: true           # 2026-09-16: the primary MAEMM; rlI-150 and 8B run1 are secondary rows
+    primary: true           # 2026-09-16: the primary MAEM; rlI-150 and 8B run1 are secondary rows
   # The v2 / simple2m checkpoint (2026-09-19: the one to use for the experiments).
   # Full-parameter, 12 bf16 shards + model-nontext.safetensors, 55.6 GB. Weight identity
   # to pin: sha <revision> (config has no `revision:` key;
   # common.py asserts a single snapshot in the cache, so fetch that one and only that one).
   qwen36-27b/2026-09-23_armA:
     # Arm A: rare-weighted bank over 7,963 features of the rw10k draw (120,696 spans) (2026-09-23). 4xB200 LoRA via train/sft/pretrain.py on top of the pinned
-    # rl-last16 full checkpoint: layers 2-63 only (the injection layer is left alone -- the first
+    # rl-final full checkpoint: layers 2-63 only (the injection layer is left alone -- the first
     # rare run adapted block 1 and collapsed the marker norm 294.0 -> 62.25), attention + MLP
     # projections, lr 3e-5, 1 epoch. Bank at runs/2026-09-23_armA/bank. `parent:` and `mu:` as
     # for 2026-09-23_rare-lora below, and for the same reasons.
     type: lora
-    parent: qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    parent: qwen36-27b/2026-09-18_rl-final
     src: /vol/runs/2026-09-23_armA/adapter/final
     mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
   qwen36-27b/2026-09-23_armB:
     # Arm B, cluster transfer: 195 failing features in 5 of 8 clusters (11,337 spans); 49 in 3 held-out clusters (2026-09-23). 4xB200 LoRA via train/sft/pretrain.py on top of the pinned
-    # rl-last16 full checkpoint: layers 2-63 only (the injection layer is left alone -- the first
+    # rl-final full checkpoint: layers 2-63 only (the injection layer is left alone -- the first
     # rare run adapted block 1 and collapsed the marker norm 294.0 -> 62.25), attention + MLP
     # projections, lr 3e-5, 1 epoch. Bank at runs/2026-09-23_armB/bank. `parent:` and `mu:` as
     # for 2026-09-23_rare-lora below, and for the same reasons.
     type: lora
-    parent: qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    parent: qwen36-27b/2026-09-18_rl-final
     src: /vol/runs/2026-09-23_armB/adapter/final
     mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
   qwen36-27b/2026-09-23_armB_replay:
@@ -242,10 +242,10 @@ maemms:
     # (7,801 features over every decile, none in the 2k test set) -- runs/2026-09-23_armB_replay/mix.json.
     # Same LoRA recipe as 2026-09-23_armA.
     type: lora
-    parent: qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    parent: qwen36-27b/2026-09-18_rl-final
     src: /vol/runs/2026-09-23_armB_replay/adapter/final
     mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
   qwen36-27b/2026-09-23_rare-lora:
@@ -257,23 +257,23 @@ maemms:
     # self-check would catch it (294.0 trained vs 14.062 clean, /vol/README.md §1) -- but only if
     # somebody read it.
     type: lora
-    parent: qwen36-27b/2026-09-18_rl-last16-lr5e-7
+    parent: qwen36-27b/2026-09-18_rl-final
     src: /vol/runs/2026-09-23_rare-train/adapter
     # INHERITED from the parent, not chosen. This LoRA added SAE-direction training on top of
-    # rl-last16; it did not retrain what the parent expects to receive on a realact row, so the
+    # rl-final; it did not retrain what the parent expects to receive on a realact row, so the
     # composite model's convention is still the parent's whiten_mu. For the rows this adapter was
     # actually trained on it is moot: the rare5k bank is `storage: dirs_only` -- unit(W_enc[:, f])
     # columns, "never centred, not centrable ... every --mu is a no-op on them" -- and /vol/README.md
     # §3 says the same of every `sae` row. So this key only bites if somebody evaluates realact
     # through this adapter, which is exactly when a wrong value would be worth 0.26 of score.
     mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
-  qwen36-27b/2026-09-18_rl-last16-lr5e-7:
+  qwen36-27b/2026-09-18_rl-final:
     type: full
-    hf: ANONYMOUS/maemm-27b-rl-last16-lr5e-7
-    prompt: maemm27b
+    hf: ANONYMOUS/ckpt-rl-final
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
     train_data: v2-bundle
@@ -287,21 +287,21 @@ maemms:
     mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
     # RL reward = max cosine over the LAST 16 generated tokens (--reward-window-last 16,
     # confirmed 2026-09-19), not the whole span. lr 5e-7 flat after a 25-step
-    # warmup, 300 steps, 8x2048 per step, CISPO/GRPO. SFT init: the 8M-row simple2m mix.
+    # warmup, 300 steps, 2048 directions x 8 rollouts per step, CISPO/GRPO. SFT init: the 8M-row simple2m mix.
     # UNVERIFIED, both to be settled by the marker/greedy smoke before any paid run:
-    #   prompt        `maemm27b` is ASSUMED. The prompt is per-MAEMM special casing
-    #                 verified against each MAEMM's training code once; that has NOT been
+    #   prompt        `maem27b` is ASSUMED. The prompt is per-MAEM special casing
+    #                 verified against each MAEM's training code once; that has NOT been
     #                 done for the simple2m chain. A one-token difference shifts the mean
     #                 ~0.01 and is invisible to any distribution comparison (docs/, 3).
     #   train_max_new 96 is from run_meta.json["argv"], which is STALE on three other
     #                 fields (lr, reward window, init adapter) and so is not a source.
     #   marker_norm   never measured for this checkpoint; bases.marker_norm_base 14.062 is
     #                 the CLEAN base, and rollouts_hf.marker_check uses a divergence from
-    #                 it to prove a full-parameter MAEMM actually loaded.
-    # Not `primary: true` yet -- that demotes 2026-09-10_rl-8x2048-full and is a separate decision.
+    #                 it to prove a full-parameter MAEM actually loaded.
+    # Not `primary: true` yet -- that demotes 2026-09-10_rl-large-full and is a separate decision.
     # Note this checkpoint's provenance is strictly better: Ultra-FineWeb en throughout
     # with explicit doc ranges, against the current primary's unpinned FineFineWeb.
-  # The SFT INIT of 2026-09-18_rl-last16-lr5e-7 (the 8M-row simple2m mix), for the M7-sft rerun
+  # The SFT INIT of 2026-09-18_rl-final (the 8M-row simple2m mix), for the M7-sft rerun
   # (runs/2026-09-23_ledger.md `# M7-sft`). Full-parameter Qwen3.6-27B, HF-format shards.
   # WEIGHTS: the S3 bundle `sft-init-simple2m` (the upstream /data/sft_mix/simple2m_sft/final; 27
   # files, 51.8 GiB, the RL repo's layout), shared 2026-09-23 as a presigned listing; no HF repo.
@@ -310,21 +310,21 @@ maemms:
   # for this checkpoint: prompt/inject are the chain's (the SFT is what the RL started from), `mu`
   # is the whiten_mu both of the chain's banks were built with (same observations §2 citation), and
   # train_max_new is the RL chain's figure (an SFT stage has no generation budget; the field is
-  # README-only, rollouts_hf.write_maemm_readme). The chain's smoke settles the marker norm.
-  # `src` is NOT under maemms/: that is this key's PRODUCT directory (common.maemm_dir) and is in
+  # README-only, rollouts_hf.write_maem_readme). The chain's smoke settles the marker norm.
+  # `src` is NOT under maems/: that is this key's PRODUCT directory (common.maem_dir) and is in
   # infra/backup_s3.py's DEFAULT_DIRS, which mirror to a public-read bucket. data/ is neither.
   qwen36-27b/2026-09-17_sft-simple2m:
     type: full
     src: /vol/data/sft-simple2m    # volume path, not an HF repo
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     train_max_new: 96
     train_data: v2-bundle
     mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
   qwen36-27b/2026-09-16_base-control:
-    type: base              # the CLEAN base, no MAEMM weights: the untrained-base control
+    type: base              # the CLEAN base, no MAEM weights: the untrained-base control
     hf: Qwen/Qwen3.6-27B    # the same snapshot bases.qwen36-27b resolves to
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     role: control           # stats.py: shown as "control" between the primary and the secondaries
     # The control's whole definition is "the primary with base weights", so it takes the primary's
@@ -332,31 +332,31 @@ maemms:
     # 2026-09-23: the primary's convention IS the base's archived whiten mean (bases.qwen36-27b
     # .whiten_mu), so the control declares it rather than `null`. `mu: null` was an explicit
     # statement that the control took a RAW activation, which made every --mu on a control run a
-    # recorded DEVIATION (common.mu_for) and left the pairing "control centred as the MAEMM"
+    # recorded DEVIATION (common.mu_for) and left the pairing "control centred as the MAEM"
     # unenforceable -- spec §7 R4. Panel a row 7 differences the two, and two arms differenced
     # across two means is not a difference.
     mu: /vol/checkpoints/data/qwen3.6-27b/whiten_mu.npy
     # No train_max_new: nothing was trained. Everything else -- prompt, marker, inject layer/coef
     # and the `rollouts:` sampling block -- is the primary's, so the only difference from
-    # 2026-09-10_rl-8x2048-full is the weights.
-    note: untrained-base control for the primary (2026-09-10_rl-8x2048-full); identical prompt, marker, injection and sampling, base weights only
+    # 2026-09-10_rl-large-full is the weights.
+    note: untrained-base control for the primary (2026-09-10_rl-large-full); identical prompt, marker, injection and sampling, base weights only
   # The NLA activation-verbalizer baseline (Natural Language Autoencoder;
-  # any NLA implementation can be plugged in). NOT a MAEMM: a FULL merged bf16 Qwen3_5ForCausalLM
+  # any NLA implementation can be plugged in). NOT a MAEM: a FULL merged bf16 Qwen3_5ForCausalLM
   # (2 shards, 53.8 GB, model.safetensors.index.json present, tokenizer + chat_template.jinja +
   # generation_config.json + nla_meta.yaml shipped) trained to VERBALIZE a layer-42 activation --
   # warm-start SFT on an 8B NLA's explanations, then GRPO against a
-  # reconstruction reward; the card claims held-out FVE ~= 75%. It is a `maemms:` entry because it
-  # shares everything the layout and the objective need: it is served like a `type: full` MAEMM,
+  # reconstruction reward; the card claims held-out FVE ~= 75%. It is a `maems:` entry because it
+  # shares everything the layout and the objective need: it is served like a `type: full` MAEM,
   # it takes ONE direction at ONE marker token of block 1's output under the same Karvonen
-  # norm-matched add, and its rows land in maemms/<base>/<entry>/{rollouts,scores} and go through
+  # norm-matched add, and its rows land in maems/<base>/<entry>/{rollouts,scores} and go through
   # the ONE clean-base scoring path (README "Methods"). What it does NOT share is the prompt, the
   # marker and the output format, so `rollouts_nla` is its only generator and every product that
-  # injects with the MAEMM prompt (rollouts_hf, rollouts_vllm, parity_greedy) REFUSES type nla.
-  qwen36-27b/2026-07-14_nla-av:
+  # injects with the MAEM prompt (rollouts_hf, rollouts_vllm, parity_greedy) REFUSES type nla.
+  qwen36-27b/2026-07-14_nla:
     type: nla
     hf: <nla-checkpoint>          # any NLA verbalizer checkpoint for Qwen3.6-27B
     revision: "0000000000000000000000000000000000000000"   # SET to the re-hosted repo\'s commit SHA (quoted: unquoted digits parse as an int); asserted against the cached snapshot's dir name
-    inject: {layer: 1, coef: 1.0}     # Karvonen norm-matched add at block-1 output, as the MAEMMs
+    inject: {layer: 1, coef: 1.0}     # Karvonen norm-matched add at block-1 output, as the MAEMs
     nla:
       # tokens: block of nla_meta.yaml on the checkpoint. The hook injects ONLY where
       # ids[p-1] == left_id and ids[p+1] == right_id (nla/injection.py), so the neighbours are
@@ -377,13 +377,13 @@ maemms:
         <concept>{injection_char}</concept>
 
         Please provide an explanation.
-      # SAMPLING: the shared `rollouts:` block, like every MAEMM arm (2026-09-21).
+      # SAMPLING: the shared `rollouts:` block, like every MAEM arm (2026-09-21).
       # The checkpoint ships top_p 0.95 / top_k 20 in generation_config.json; that is not a
       # convention anywhere and is recorded on the summary but NOT used. No nla.sampling key.
       # 2026-09-21: the NLA arm generates at the checkpoint's NATIVE length. That is what the
       # model card's own invocation uses and what the verbalizer's <explanation> answers are shaped
       # like; cutting them at the pipeline's 64 would report this baseline on a fraction of its
-      # output. It costs the arm its comparability on generation length with the MAEMM arms, which
+      # output. It costs the arm its comparability on generation length with the MAEM arms, which
       # is stated wherever the number appears rather than hidden.
       max_new: 200
       # The re-encode truncation `score` uses FOR THIS ARM, carried to it on the rollouts summary
@@ -395,7 +395,7 @@ maemms:
       card_max_new: 200      # the reference script's own default and the card's invocation
       n: 4                   # texts per target, default; --n overrides
       # 2026-09-21: `raw` is the HEADLINE input -- the scorer's own target direction, fed as
-      # is, which is also what every MAEMM arm is injected with, so the NLA column is read against
+      # is, which is also what every MAEM arm is injected with, so the NLA column is read against
       # them on the same input rather than on a reconstruction only this arm gets. `exact` and `mu`
       # are the VARIANTS, run with --amp into variants/<set>__amp-<amp>/. NOTE the realact smoke
       # rows already on the volume were generated under the old `exact` default; their summaries
@@ -405,7 +405,7 @@ maemms:
       # 2026-09-22: this arm generates with NO minimum length. The shared `rollouts:` block
       # says min_new 16, which forces the verbalizer past its own stop and pads short
       # <explanation> answers with continuation it would not have produced; the reference
-      # invocation sets none. Per-MAEMM here rather than in `rollouts:`, because changing the
+      # invocation sets none. Per-MAEM here rather than in `rollouts:`, because changing the
       # shared value would re-point every rollout product in the pipeline. rollouts_nla falls back
       # to the shared value when this key is absent.
       min_new: 0
@@ -416,10 +416,10 @@ maemms:
     compute: true
   qwen36-27b/2026-09-05_rlE-250:
     type: lora
-    hf: ANONYMOUS/maemm-qwen36-27b-inverter-rlE-step250   # adapter at the repo root
-    prompt: maemm27b
+    hf: ANONYMOUS/ckpt-rl-abl-e   # adapter at the repo root
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
-    train_max_new: 96       # ASSUMED: maemm/config.py:72 RLConfig.max_new_tokens for the LoRA chain
+    train_max_new: 96       # ASSUMED: maem/config.py:72 RLConfig.max_new_tokens for the LoRA chain
     compute: false
 
   # --- declared only (compute: false): nothing is generated for these today ---------------------
@@ -520,17 +520,17 @@ maemms:
     inject: {layer: 1, coef: 1.0}
     compute: false
     note: the SFT checkpoint run1's RL chain started from
-  qwen36-27b/2026-09-05_init-realact23m-sft:
+  qwen36-27b/2026-09-05_init-sft:
     type: lora
-    hf: ANONYMOUS/maemm-init-realact23m-sft
+    hf: ANONYMOUS/ckpt-sft-init
     subdir: sft_final       # adapter_config.json lives here, not at the repo root
-    prompt: maemm27b
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     compute: false
-  qwen36-27b/2026-09-09_pretrain-104m-full:
+  qwen36-27b/2026-09-09_pretrain-small-full:
     type: full
-    hf: ANONYMOUS/qwen36-27b-maemm-inverter-pretrain-104m
-    prompt: maemm27b
+    hf: ANONYMOUS/ckpt-pretrain-small
+    prompt: maem27b
     inject: {layer: 1, coef: 1.0}
     compute: false
     note: the full-parameter line's published init
@@ -597,35 +597,35 @@ heldout:
     sae_min_fires: 20
     sae_strata: 4
 
-  # DRAWN, not drawn here: the `features/draw_sae2m.py` wrote this set on 2026-09-20 (its own
+  # DRAWN, not drawn here: the `features/draw_dict2m.py` wrote this set on 2026-09-20 (its own
   # README on the volume) through `features/spawn.py`, which calls the Modal
   # function directly and so BYPASSES `modal_app.main`'s "set_name in cfg['heldout']" assert --
   # which is why the set exists on the volume without ever having been declared here. Declaring it
-  # now lets `--set 2026-09-20_sae2m_2k` through the entrypoint.
+  # now lets `--set 2026-09-20_dict2m_2k` through the entrypoint.
   #
   # `imported: true` keeps it OUT of the default-set rule: `sorted(cfg["heldout"])[-1]` would make
-  # this 2,000-row sae2m set the default of every product that omits --set, silently moving
+  # this 2,000-row dict2m set the default of every product that omits --set, silently moving
   # `2026-09-16_v1` off the tables. `common.default_heldout` takes the latest NON-imported set
   # instead, and every entrypoint uses it.
   #
-  # The family label here is `sae2m_enc` because that is what the rows ON THE VOLUME carry, and
-  # this file describes what exists. `features/draw_sae2m.py` emits `family: "sae"` -- the label
+  # The family label here is `dict2m_enc` because that is what the rows ON THE VOLUME carry, and
+  # this file describes what exists. `features/draw_dict2m.py` emits `family: "sae"` -- the label
   # every consumer actually filters on -- with the dictionary named per row in `sae_key`; the 2k
   # set below predates that and is NOT rewritten in place, so autointerp keeps accepting the old
   # label for it (FAMILIES in sae_self.py/build.py). A RE-DRAW carries `sae`.
-  # SETTLED 2026-09-21 by reading the volume (`modal volume get maemm
-  # base/qwen36-27b/heldout/2026-09-20_sae2m_2k/ids.jsonl`): all 2,000 rows carry
-  # `family: "sae2m_enc"` and NO `sae_key` field. An earlier commit declares
+  # SETTLED 2026-09-21 by reading the volume (`modal volume get maem
+  # base/qwen36-27b/heldout/2026-09-20_dict2m_2k/ids.jsonl`): all 2,000 rows carry
+  # `family: "dict2m_enc"` and NO `sae_key` field. An earlier commit declares
   # `families: {sae: {n: 2000}}` for this same set, which does not match what is on disk; this
-  # line does. A re-draw under the current draw_sae2m carries `sae` + `sae_key` and needs a new
+  # line does. A re-draw under the current draw_dict2m carries `sae` + `sae_key` and needs a new
   # config entry, not an edit of this one.
-  2026-09-20_sae2m_2k:
+  2026-09-20_dict2m_2k:
     imported: true
     storage: dirs_only        # 2,000 unit encoder columns; nothing here was ever centred
-    sae_key: qwen36-27b/sae2m   # its rows carry no per-row sae_key; see 2026-09-16_v1 above
+    sae_key: qwen36-27b/dict2m   # its rows carry no per-row sae_key; see 2026-09-16_v1 above
     seed: 20260920            # scan's reservoir generator seeds off this
     families:
-      sae2m_enc: {n: 2000, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
+      dict2m_enc: {n: 2000, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
 
   # The 131k-SAE counterpart of the 2,000-feature 2M set, drawn by
   # features/draw_sae131k.py from pool_heldout/sae.parquet (13,107 features the EARLIER
@@ -687,7 +687,7 @@ heldout:
     sae_min_fires: 20
   2026-09-21_sae131k_2k:
     # NOT THE DEFAULT SET. `imported:` reads "nameable, never the default" (common.default_heldout)
-    # rather than "drawn elsewhere" -- `2026-09-21_sae2m_64` above carries it and was drawn on
+    # rather than "drawn elsewhere" -- `2026-09-21_dict2m_64` above carries it and was drawn on
     # `evals/sae-smoke64`, in this repo. Without it this key sorts last among the non-imported
     # sets and becomes the default of every product called without `--set`, moving them off
     # `2026-09-16_v1`, which is the set the paper's tables are built on. On main alone that was
@@ -710,7 +710,7 @@ heldout:
 
   # The 2M side of the activation smoke (reconstruction/sae_smoke64.py): 64 features, 16 from
   # each quartile of log10(gated fires at 16M) over the ELIGIBLE POOL (fires >= sae_min_fires and
-  # max_act > 0), drawn by `features/draw_sae2m.py --n 64 --stratified` at seed 20260920 (its
+  # max_act > 0), drawn by `features/draw_dict2m.py --n 64 --stratified` at seed 20260920 (its
   # DRAW_SEED; `--seed` overrides). The cuts and the per-quartile pool sizes are in the set's own
   # README on the volume.
   #
@@ -719,9 +719,9 @@ heldout:
   # standard 2k/40k draws stay uniform-with-recorded-quartiles for exactly this reason.
   #
   # `imported: true` for the same reason as the 2k set above: it is declared here only so
-  # `--set 2026-09-21_sae2m_64` gets past modal_app.main's "set_name in cfg['heldout']" assert,
+  # `--set 2026-09-21_dict2m_64` gets past modal_app.main's "set_name in cfg['heldout']" assert,
   # and `common.default_heldout` must keep returning `2026-09-16_v1`, the set the paper's tables
-  # are built on. The family is `sae` (not `sae2m_enc`): this set is drawn AFTER the 2026-09-21
+  # are built on. The family is `sae` (not `dict2m_enc`): this set is drawn AFTER the 2026-09-21
   # fix, so it carries the label every consumer filters on, with the dictionary in each row's
   # `sae_key`.
   # ---------------------------------------------------------------------------------------
@@ -737,7 +737,7 @@ heldout:
   #   2026-09-21_v3_subspace   the upstream 512 bsf + 512 jlens, as shipped      dirs_only
   #   2026-09-21_v3_ctrl       random + sae(131k), copied from v1raw    raw
   #   2026-09-21_v3_ours       our 512 realact, copied from v1raw       raw
-  #   2026-09-21_v3_sae2m      2M enc + dec, drawn                      dirs_only
+  #   2026-09-21_v3_dict2m      2M enc + dec, drawn                      dirs_only
   #
   # `imported: true` on every one, for the reason the sets above carry it: `sorted()[-1]` would
   # otherwise make one of these the default of every product that omits --set, silently moving
@@ -751,7 +751,7 @@ heldout:
   # `||act||`, settled 2026-09-21 -- see the set's own `recovery.json` and README for the three
   # readings, and `features/heldout_v3.py`'s docstring. Consequence: `vecs.f16` here is
   # `unit(act)`, UNCENTRED, and the upstream shipped direction is what `dirs_for(mu=<whiten_mu>)` returns.
-  # So `rl-last16` (whose `mu:` IS that file) runs this block with no --mu and no deviation.
+  # So `rl-final` (whose `mu:` IS that file) runs this block with no --mu and no deviation.
   #
   # EXCLUSIONS are recorded in the set's `exclusions.json`, not applied: 26 of 512 rows at
   # `ngram_overlap --side upstream --n 7` coverage >= 0.05, headline n = 486. All 512 rows stay so
@@ -764,12 +764,12 @@ heldout:
 
   # THE UPSTREAM 512 realact_long rows, AS SHIPPED. Centred on `mu_long` -- the mean over all collected
   # long-context activations, computed on the fly in `evals/heldout/build_ctx_eval.py:47-54` from
-  # `MAEMM_ACTS_LONG` (/root/app/bsf27b/acts_long) and NEVER WRITTEN TO A FILE. It is not
+  # `MAEM_ACTS_LONG` (/root/app/bsf27b/acts_long) and NEVER WRITTEN TO A FILE. It is not
   # `whiten_mu`: over these rows cos(direction, whiten_mu) has mean -0.0618 and
   # ||mean(direction)|| is 0.1216, against -0.0198 / 0.0615 on realact. So `unknown` is the
   # honest value and the rows are returned as shipped with a label -- nothing here re-centres
   # them, and the file needed is that mean (or the acts_long dump it comes from).
-  # `rl-last16` ONLY; the old primary and NLA skip it (marked not runnable without raw).
+  # `rl-final` ONLY; the old primary and NLA skip it (marked not runnable without raw).
   2026-09-21_v3_realact_long:
     imported: true
     storage: unit
@@ -777,7 +777,7 @@ heldout:
       realact_long: {n: 512, bases: [qwen36-27b]}
 
   # THE UPSTREAM bsf + jlens subspace bases, AS SHIPPED. Neither is an activation, so neither has a mean
-  # to subtract (config.yaml `family_kinds`) and every --mu is a no-op on them. `rl-last16` only,
+  # to subtract (config.yaml `family_kinds`) and every --mu is a no-op on them. `rl-final` only,
   # same labelling as the block above.
   2026-09-21_v3_subspace:
     imported: true
@@ -838,30 +838,30 @@ heldout:
       realact: {n: 512, bases: [qwen36-27b]}
 
   # OUR 2M-SAE block: 512 features, density-stratified over the eligible eval-split pool at seed
-  # 20260921, with the 64 of `2026-09-21_sae2m_64` FORCED IN (`--include`) so the activation
+  # 20260921, with the 64 of `2026-09-21_dict2m_64` FORCED IN (`--include`) so the activation
   # smoke's rows are nested inside the eval set rather than merely comparable. BOTH SIDES of the
   # dictionary: rows 0-511 are `sae_side: enc` (unit(W_enc[:, f])) and rows 512-1023 are
   # `sae_side: dec` (unit(W_dec[f])), the SAME features in the SAME order, so row i and row
   # i+512 are one feature's two directions. The decoder half is what the 0.416 card gate needs.
   # STRATIFIED, so a mean over all rows is a mean over four equally-weighted quartiles and NOT
   # over the dictionary -- report per stratum.
-  2026-09-21_v3_sae2m:
+  2026-09-21_v3_dict2m:
     imported: true
     storage: dirs_only
-    sae_key: qwen36-27b/sae2m
+    sae_key: qwen36-27b/dict2m
     seed: 20260921
     families:
       sae: {n: 1024, bases: [qwen36-27b]}   # 512 features x {enc, dec}
     sae_min_fires: 20
     sae_strata: 4
 
-  2026-09-21_sae2m_64:
+  2026-09-21_dict2m_64:
     imported: true
     # The storage contract, added when this entry met the 2026-09-21 schema (it was drawn on
     # `evals/sae-smoke64`, before it existed). Its rows DO carry a per-row `sae_key`, so the
     # declaration below is belt and braces rather than the thing that makes them selectable.
     storage: dirs_only
-    sae_key: qwen36-27b/sae2m
+    sae_key: qwen36-27b/dict2m
     families:
       sae: {n: 64, bases: [qwen36-27b]}   # 2M-SAE encoder columns, UNCENTRED (no mu)
   # --- the OOD generalisation sets (design infra/2026-09-18_ood-eval-design.md §2, §11 R5) -----
@@ -875,7 +875,7 @@ heldout:
     # STORAGE `raw` (plan §1.2, §4.3.1): act.f32 is X[p] as read, vecs.f16 is unit(act), and the
     # centring is NAMED per run. The design fixes the ENGLISH stats/mu.f32 on every arm (§10
     # decision 10) -- which is exactly what the old primary's own `mu:` resolves to -- but
-    # `rl-last16` was trained on `whiten_mu`, so the two checkpoints must read the same stored
+    # `rl-final` was trained on `whiten_mu`, so the two checkpoints must read the same stored
     # rows under different means. Storing a centred row would have made that a re-draw.
     storage: raw
     seed: 20260918
@@ -1015,7 +1015,7 @@ rollouts:
   seed: 1234                # train/rl/rl.py GEN_SEED
 
 modal:
-  volume: maemm
+  volume: maem
   hf_home: /vol/hf
   archive: /vol/checkpoints        # read-only by convention
   secrets: [hf-write]
@@ -1176,7 +1176,7 @@ ood_arms:
   # ufw_en is the PIPELINE CHECK (design §8 (a)): a fresh English draw through the new code path,
   # from part 0011 -- disjoint from the 16M corpus (parts 0009/0010) and from the old 8B corpus
   # (part 0001). NOTE (infra/2026-09-18_ood-eval-training-data.md): Ultra-FineWeb is NOT the
-  # primary MAEMM's training corpus (that is m-a-p/FineFineWeb), so this arm is a convention check,
+  # primary MAEM's training corpus (that is m-a-p/FineFineWeb), so this arm is a convention check,
   # not an in-training-distribution row.
   ufw_en:     {family: ctrl, reader: parquet, dataset: openbmb/Ultra-FineWeb, files: [data/ultrafineweb_en/ultrafineweb-en-part-0011-of-2048.parquet], text: content, split: en, sizes: [1, 4, 10, 16], script: Latin, lid: [eng_Latn], unspaced: false, licence: apache-2.0}
 

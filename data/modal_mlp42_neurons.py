@@ -1,7 +1,7 @@
 """Modal app: layer-42 MLP neurons of Qwen/Qwen3.6-27B -> do the sparsely-activating ones write structured directions?
 
 One GPU, forward-only + short generations. Logic lives in data/mlp42_neurons_worker.py (mounted at /app/helpers).
-Outputs land on the `maemm-data` volume under /data/mlp42/ (nothing needs recomputing afterwards):
+Outputs land on the `maem-data` volume under /data/mlp42/ (nothing needs recomputing afterwards):
     neuron_stats.npz     per-neuron moments, extremes, sign-resolved log-histograms of |a|, top-32 contexts, presence cosines
     down_proj_cols.f16   fp16 [d_ff, d_model] == down_proj.weight.T (neuron i's residual write direction = row i)
     sel_windows.npz      the 4000 x 256 token windows used (train rows of /data/acts27b) -> decode contexts locally
@@ -15,8 +15,8 @@ Outputs land on the `maemm-data` volume under /data/mlp42/ (nothing needs recomp
 
 Run (your Modal profile) — deployed app + spawn survives the launching client:
     modal deploy data/modal_mlp42_neurons.py
-    python -c "import modal; print(modal.Function.from_name('maemm-mlp42-neurons', 'stats_and_dirs').spawn().object_id)"
-    python -c "import modal; print(modal.Function.from_name('maemm-mlp42-neurons', 'verbalize').spawn(
+    python -c "import modal; print(modal.Function.from_name('maem-mlp42-neurons', 'stats_and_dirs').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-mlp42-neurons', 'verbalize').spawn(
         sparse_ids=[...], dense_ids=[...], tag='rlA').object_id)"
 """
 from pathlib import Path
@@ -24,7 +24,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = "maemm-mlp42-neurons"
+APP_NAME = "maem-mlp42-neurons"
 app = modal.App(APP_NAME)
 
 # same pins as data/modal_bank_everything.py (one environment across the suite)
@@ -33,11 +33,11 @@ image = (
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
     .pip_install("transformers==5.15.0", "peft==0.20.0", "accelerate==1.14.0", "numpy==2.4.6", "safetensors==0.8.0",
                  "huggingface_hub==1.27.0", "tokenizers==0.22.2", "hf_xet", "scipy==1.17.1")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
     .add_local_file(REPO / "data" / "mlp42_neurons_worker.py", "/app/helpers/mlp42_neurons_worker.py")
     .add_local_file(REPO / "data" / "mlp42_pairs_worker.py", "/app/helpers/mlp42_pairs_worker.py")
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 GPUS = ["B200", "H200"]          # forward-only work: whichever schedules first
 ADAPTER_DEFAULT = "/data/ckpts_rl_A_randctx/final"
 
@@ -57,7 +57,7 @@ def _load_base(dev):
     import time
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    from maemm.config import MODEL
+    from maem.config import MODEL
     t0 = time.time()
     tok = AutoTokenizer.from_pretrained(MODEL)
     if tok.pad_token is None:
@@ -69,12 +69,12 @@ def _load_base(dev):
 
 
 @app.function(image=image, gpu=GPUS, cpu=8, memory=98304, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=4 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=4 * 3600)
 def stats_and_dirs(n_windows: int = 4000, win_len: int = 256, batch: int = 16, seed: int = 0, skip_dirs: bool = False):
     _env()
     import torch
     import mlp42_neurons_worker as W
-    from maemm.sae import load_sae
+    from maem.sae import load_sae
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     dev = "cuda:0"
@@ -96,7 +96,7 @@ def stats_and_dirs(n_windows: int = 4000, win_len: int = 256, batch: int = 16, s
 
 
 @app.function(image=image, gpu=GPUS, cpu=8, memory=65536, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=3 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=3 * 3600)
 def verbalize(sparse_ids: list, dense_ids: list, tag: str = "rlA", adapter: str = ADAPTER_DEFAULT, n_sae: int = 128,
               n_random: int = 64, bo: int = 4, temp: float = 1.0, max_new: int = 48, min_new: int = 16, seed: int = 0):
     """Inverter verbalization of neuron directions (polarity-signed unit down_proj columns) vs SAE-feature and random
@@ -106,8 +106,8 @@ def verbalize(sparse_ids: list, dense_ids: list, tag: str = "rlA", adapter: str 
     import torch
     import torch.nn.functional as F
     import mlp42_neurons_worker as W
-    from maemm.config import D_MODEL
-    from maemm.sae import load_sae
+    from maem.config import D_MODEL
+    from maem.sae import load_sae
     dev = "cuda:0"
     vol.reload()
     st = np.load(f"{W.OUT}/neuron_stats.npz")
@@ -138,7 +138,7 @@ def verbalize(sparse_ids: list, dense_ids: list, tag: str = "rlA", adapter: str 
 
 
 @app.function(image=image, gpu=GPUS, cpu=8, memory=98304, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=3 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=3 * 3600)
 def pairs(sparse_ids: list, tag: str = "pairs", adapter: str = ADAPTER_DEFAULT, n_windows: int = 800, win_len: int = 256,
           batch: int = 16, rel_thr: float = 0.10, seed: int = 0, n_verb_pairs: int = 128, n_verb_random: int = 64,
           n_single_pairs: int = 32, n_verb_tri: int = 32, bo: int = 4, temp: float = 1.0, max_new: int = 48, min_new: int = 16):
@@ -148,7 +148,7 @@ def pairs(sparse_ids: list, tag: str = "pairs", adapter: str = ADAPTER_DEFAULT, 
     import torch
     import mlp42_neurons_worker as W
     import mlp42_pairs_worker as PW
-    from maemm.sae import load_sae
+    from maem.sae import load_sae
     torch.backends.cuda.matmul.allow_tf32 = True
     dev = "cuda:0"
     vol.reload()

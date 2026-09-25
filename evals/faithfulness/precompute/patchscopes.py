@@ -30,8 +30,8 @@ which generator produced its rows.
 
 P2 is Patchscopes §D.1's entity-description prompt, verbatim, fed as plain text with no chat
 template (the paper uses base LMs); the placeholder is its trailing ` x`, the last prompt token.
-The 8B screen chose it over the token-identity prompt P1 and over our own MAEMM instruction prompt,
-and chose `replace` x2 over MAEMM's norm-matched `add` -- the base was never trained to read an
+The 8B screen chose it over the token-identity prompt P1 and over our own MAEM instruction prompt,
+and chose `replace` x2 over MAEM's norm-matched `add` -- the base was never trained to read an
 added direction. Those choices are carried over rather than re-screened (trial README §8.1); the
 target LAYER is the only axis swept here, because it is the one whose transfer is a relative-depth
 guess: the 8B's winner was layer **8 of 36 = 22.2%** depth, and the 27B has **64** layers, so
@@ -95,7 +95,7 @@ PROMPTS = {"P2_description": P2_TEXT, "P1_identity": P1_TEXT}
 # The 8B winner was layer 8 of 36 (22.2% depth) with `replace` at alpha 2. On the 27B's 64 layers
 # 8 / 14 / 21 are 12.5% / 21.9% / 32.8%: one below, one at, one above the 8B's relative depth --
 # the PAPER's tuned regime. 42 is added (2026-09-21) as the FAIR-INFORMATION cell: it is
-# the read layer, i.e. the layer every other method -- our MAEMMs and the NLA -- is handed its
+# the read layer, i.e. the layer every other method -- our MAEMs and the NLA -- is handed its
 # activation from. One shared sweep over both means nobody can say we skipped the paper's tuned
 # mode, and nobody can say we gave Patchscopes less than we gave the others. Report every layer.
 PS_LAYERS = (8, 14, 21, 42)
@@ -151,12 +151,12 @@ def make_replace_hook(vecs, pos: int, alpha: float, device):
         h[i, pos] = alpha * ||h[i, pos]|| * unit(v_i)
 
     `vecs` is [B, d]; row i of the batch gets row i of `vecs`. The `h.shape[1] <= 1` guard is the
-    decode step under the KV cache (maemm/inject.py, copied into common.make_inject_hook for the add
+    decode step under the KV cache (maem/inject.py, copied into common.make_inject_hook for the add
     rule): the placeholder is patched at PREFILL only, and re-patching a decode step would corrupt
     it. The scale is the position's OWN residual norm, so alpha is dimensionless.
 
-    `common.make_inject_hook` is add-mode only, on purpose -- it is the convention every MAEMM was
-    trained with and must not grow a mode nothing in the MAEMM path uses. This is the Patchscopes
+    `common.make_inject_hook` is add-mode only, on purpose -- it is the convention every MAEM was
+    trained with and must not grow a mode nothing in the MAEM path uses. This is the Patchscopes
     rule and lives with the Patchscopes product.
     """
     import torch
@@ -180,7 +180,7 @@ def make_replace_hook(vecs, pos: int, alpha: float, device):
 def _base_identity(cfg, base: str) -> dict:
     """Weight identity of the CLEAN BASE, for the summary's `weight_sha256` (checklist item 29).
 
-    There is no MAEMM in this product, so the "checkpoint" a number must be pinned to is the base
+    There is no MAEM in this product, so the "checkpoint" a number must be pinned to is the base
     itself. Sharded checkpoints get `common.sha256_of_index` (index.json + shard sizes, no shard
     content -- see its docstring); a single-file checkpoint is NOT hashed, because streaming 16 GiB
     off the FUSE volume per run buys nothing here, and the README says so in those words.
@@ -230,9 +230,9 @@ def _generate(model, tok, prompt, pos, vecs, layer, alpha, rl, max_new, seed,
             gen = model.generate(**kw)
         else:
             if rule == "add":
-                # The MAEMM convention: norm-matched addition, one direction per row at the
+                # The MAEM convention: norm-matched addition, one direction per row at the
                 # single placeholder. Reuses common.make_inject_hook so the add path here and
-                # the add path every MAEMM was trained with cannot diverge.
+                # the add path every MAEM was trained with cannot diverge.
                 hook = C.make_inject_hook([v[None, :] for v in vecs], [[pos]] * len(vecs),
                                           alpha, "cuda", vecs.dtype)
             else:
@@ -320,7 +320,7 @@ def run(cfg, args):
     src = args.get("dirs_from") or C.heldout_dir(base, set_name, root)
     rows_meta = C.read_jsonl(f"{src}/ids.jsonl")
     d = cfg["bases"][base]["d"]
-    # No `--maemm` in this product either: the direction it patches in is whatever `--mu`
+    # No `--maem` in this product either: the direction it patches in is whatever `--mu`
     # names, and on a `storage: raw` set common.mu_for refuses to pick one for it.
     cen_notes: list[str] = []
     mu, _ = C.mu_for(cfg, base, src, args, "", root, cen_notes)
@@ -334,7 +334,7 @@ def run(cfg, args):
             f"{out} already exists; refusing to overwrite without --force"
         )
 
-    model, tok = C.load_base(cfg, base)  # the CLEAN BASE: no adapter, no MAEMM anywhere here
+    model, tok = C.load_base(cfg, base)  # the CLEAN BASE: no adapter, no MAEM anywhere here
     prompt, pos = prompt_ids(tok, prompt_id)
     stop = C.eos_ids(tok, model)
     sha = _base_identity(cfg, base)
@@ -482,7 +482,7 @@ def run(cfg, args):
             "seed": base_seed,
             "seed_rule": "rollouts.seed * 1000 + (row * n + k) of the generate call's first row",
             "engine": ENGINE,
-            "kind": "clean base (no MAEMM, no adapter)",
+            "kind": "clean base (no MAEM, no adapter)",
             "temperature": float(rl["temperature"]),
             "top_p": float(rl["top_p"]),
             "top_k": int(rl["top_k"]),
@@ -503,7 +503,7 @@ def run(cfg, args):
 
         out = patchscopes_dir(base, set_name, name, root)
         inputs = {
-            "base": f"{base} ({cfg['bases'][base]['hf']}, CLEAN -- no MAEMM)",
+            "base": f"{base} ({cfg['bases'][base]['hf']}, CLEAN -- no MAEM)",
             "dirs": src,
             "targets": f"{len(sel)} of {len(rows_meta)} rows",
             "n": n,

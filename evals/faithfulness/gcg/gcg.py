@@ -4,7 +4,7 @@
 
 Trimmed from `eval/gcg_search.py` of an earlier version of this codebase (1288 lines). What
 survived is the search itself; what went is everything that belonged to that version's own direction
-cache and rescore chain -- the `lens` and `maemm` init arms, `--seq-len-mode rollout`, the
+cache and rescore chain -- the `lens` and `maem` init arms, `--seq-len-mode rollout`, the
 concordance probe, the centred/derangement columns, the `samples.jsonl` dump, and every import from
 `rescore_metrics` / `sentence_start`. The two things worth re-implementing from those modules are
 re-implemented here: the 95-token bound (`MAX_REENC_TOK`, taken from `common.SCORE_MAX_LENGTH` so
@@ -205,7 +205,7 @@ INITS = ("random32", "corpus")
 
 # The measured configurations (RUNBOOK section 2g). `--mode gcg` and `--mode epo` are compute-
 # matched in TOTAL candidate forwards (150 x 512 = 76,800 against 300 x 255 = 76,500), not per
-# iteration. The fork's runs used `--init maemm --seq-len-mode rollout`; ours are fixed T=32.
+# iteration. The fork's runs used `--init maem --seq-len-mode rollout`; ours are fixed T=32.
 MODE_DEFAULTS = {
     "gcg": {"iters": 150, "pop": 1, "children": 512, "lam_grid": "0"},
     "epo": {"iters": 300, "pop": 3, "children": 85, "lam_grid": "0.1,0.19,0.37"},
@@ -1489,7 +1489,7 @@ def _load_targets(cfg, args, notes=None):
     The OBJECTIVE is still the uncentred cosine (module docstring) -- that half is untouched. What
     is resolved here is the other half, the TARGET: `vecs.f16` stopped being a fixed object on
     2026-09-21 (a raw set stores unit(act) and derives the rest), so the search's ceiling is
-    computed against whichever direction `--mu` names. This file has no `--maemm` in scope, so on
+    computed against whichever direction `--mu` names. This file has no `--maem` in scope, so on
     a raw set common.mu_for refuses rather than defaulting; on the legacy sets every
     published gcg number reproduces because the set's own stored convention is the default.
 
@@ -1700,7 +1700,7 @@ def run(cfg, args):
         toks, docs = C.load_corpus(base, root)
         init_ctx = {"scan_top": _load_scan_top(cfg, args, len(rows_meta)), "toks": toks, "docs": docs}
 
-    model, tok = C.load_base(cfg, base)  # the CLEAN base: nothing here loads a MAEMM
+    model, tok = C.load_base(cfg, base)  # the CLEAN base: nothing here loads a MAEM
     assert tok.is_fast, "the retokenisation filter runs every iteration; it needs a fast tokenizer"
     # No parameter needs a gradient: only the one-hot leaf does, and without this the backward
     # allocates a full copy of the model's parameter grads on the first iteration.
@@ -1727,7 +1727,7 @@ def run(cfg, args):
         # objective is the cosine to a direction that came off `vecs.f16` -- so W_dec is never
         # touched here and neither are the other 2^21 - len(sel) encoder columns. Loading the whole
         # dictionary in fp32 on the device cost 43 GB of W_dec alone and OOMed an H200 at setup on
-        # `--sae qwen36-27b/sae2m` (MEASURED 2026-09-21: the fp32 unembedding's 4.74 GiB could not
+        # `--sae qwen36-27b/dict2m` (MEASURED 2026-09-21: the fp32 unembedding's 4.74 GiB could not
         # be allocated with 135.55 GiB in use), for a matrix no line of this product reads.
         # `load_sae_columns` reads the encoder on the CPU and moves only the slice; `sae_encode`
         # still takes DICTIONARY ids, so nothing downstream changes meaning.

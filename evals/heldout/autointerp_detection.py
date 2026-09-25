@@ -1,8 +1,8 @@
-"""Autointerp DETECTION eval for the MAEMM inverter: are N inverter rollouts a good
+"""Autointerp DETECTION eval for the MAEM inverter: are N inverter rollouts a good
 *explanation* of a held-out SAE feature, measured as detection AUC by an LLM judge?
 
 Standard autointerp detection methodology (Bills et al. / EleutherAI "detection" scoring),
-with the feature DESCRIPTION built from MAEMM inverter rollouts instead of a natural-language
+with the feature DESCRIPTION built from MAEM inverter rollouts instead of a natural-language
 summary:
 
   1. For each held-out SAE feature f (never trained on), generate rollouts with the EXACT
@@ -69,10 +69,10 @@ def cmd_build(a):
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    from maemm.config import MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
-    from maemm.inject import get_layer, make_inject_hook, hooked, read_resid
-    from maemm.prompts import build_prompt_ids
-    from maemm.sae import load_sae, load_max_acts
+    from maem.config import MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
+    from maem.inject import get_layer, make_inject_hook, hooked, read_resid
+    from maem.prompts import build_prompt_ids
+    from maem.sae import load_sae, load_max_acts
 
     dev = a.device
     rng = np.random.default_rng(a.seed)
@@ -270,9 +270,9 @@ def cmd_augment(a):
     from datasets import load_dataset
     from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
-    from maemm.config import MODEL, READ_LAYER
-    from maemm.inject import read_resid
-    from maemm.sae import load_sae
+    from maem.config import MODEL, READ_LAYER
+    from maem.inject import read_resid
+    from maem.sae import load_sae
 
     dev = a.device
     rng = np.random.default_rng(a.seed + 7)   # fresh stream — original testbed is NOT rebuilt
@@ -412,10 +412,10 @@ def cmd_augment(a):
 # ===============================================================================================
 
 def _variants(rec, n_list):
-    """Yield (arm, N, desc_snippets). N=1 MAEMM = greedy; N>1 = first N temp samples (nested).
+    """Yield (arm, N, desc_snippets). N=1 MAEM = greedy; N>1 = first N temp samples (nested).
     Baseline 'examples' arm = top-N max-act corpus examples (nested, disjoint from positives)."""
     for N in n_list:
-        yield "maemm", N, ([rec["rollout_greedy"]] if N == 1 else rec["rollouts_temp"][:N])
+        yield "maem", N, ([rec["rollout_greedy"]] if N == 1 else rec["rollouts_temp"][:N])
         yield "examples", N, [e["text"] for e in rec["desc_examples"][:N]]
 
 
@@ -608,7 +608,7 @@ def cmd_score(a):
         return _score_hardneg(a, state, tb, scores, fails)
     n_list = state["n_list"]
     # variant keys "{arm}_N{N}": stored by newer judge runs; legacy states get the standard set
-    variants = state.get("variants") or [f"{arm}_N{N}" for arm in ("maemm", "examples")
+    variants = state.get("variants") or [f"{arm}_N{N}" for arm in ("maem", "examples")
                                          for N in n_list]
     n_pos = tb["config"]["n_pos"]
     n_tests = n_pos + tb["config"]["n_neg"]
@@ -657,7 +657,7 @@ def build_parser():
     sp = ap.add_subparsers(dest="cmd", required=True)
 
     b = sp.add_parser("build", help="GPU stage: rollouts + positives + verified negatives")
-    b.add_argument("--adapter", default="ANONYMOUS/qwen36-27b-maemm-inverter")
+    b.add_argument("--adapter", default="ANONYMOUS/ckpt-sft")
     b.add_argument("--sae-path", default="/data/sae/ae.pt")
     b.add_argument("--maxacts-path", default="/data/sae/maxacts.pt")
     b.add_argument("--heldout-cache", default="/data/eval_universal_ho/eval_sets_heldout.pt")
@@ -709,7 +709,7 @@ def build_parser():
                    help="hardneg: comma list of prior results jsons whose positive/random "
                         "scores are reused (their prompts are byte-identical)")
     j.add_argument("--variant", choices=("standard", "marginal", "hardneg"), default="standard",
-                   help="standard: maemm-alone vs examples-alone at each N. marginal: "
+                   help="standard: maem-alone vs examples-alone at each N. marginal: "
                         "top-n_base examples alone (N=0 reference) vs the same base + N "
                         "appended rollouts — the marginal value of rollouts on top of real "
                         "examples. Judge-only; reuses the cached testbed")

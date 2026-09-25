@@ -17,7 +17,7 @@ Criteria (same family as evals/verbalization/analysis/recovery_vs_rarity.py + fi
                         other curves cannot separate "verbalized f" from "f fires on any fluent text".
 
 The rarity axis is log10(sae_nfire / n_tok) from scan_fire. NOTE it is an independently streamed
-scan, not the 27B's pre-tokenized maemm-data dump: same quantity and token budget, different sample.
+scan, not the 27B's pre-tokenized maem-data dump: same quantity and token budget, different sample.
 """
 import argparse
 import json

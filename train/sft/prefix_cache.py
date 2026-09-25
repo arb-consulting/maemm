@@ -2,7 +2,7 @@
 and run only ``[marker] + prompt tail + target`` per example -- exact (gradients included) w.r.t. the naive
 full-sequence forward, modulo bf16 kernel noise.
 
-Why it is exact. Every SFT example is the same prompt (``maemm.prompts.build_prompt_ids``) followed by its target;
+Why it is exact. Every SFT example is the same prompt (``maem.prompts.build_prompt_ids``) followed by its target;
 the direction is injected at the marker token's residual at ``INJECT_LAYER``. Everything strictly BEFORE the marker
 is identical across examples and -- causality -- unaffected by the injection, so its forward (and the backward
 through it) can be shared. For Qwen3.5/3.6's hybrid stack that means: the attention layers' K/V for the prefix,
@@ -33,7 +33,7 @@ from types import SimpleNamespace
 
 import torch
 
-from maemm.inject import hooked, make_inject_hook
+from maem.inject import hooked, make_inject_hook
 
 
 def unwrap_base(model):
@@ -383,7 +383,7 @@ class PrefixCache:
             is primed by exactly one forward (the suffix) per backward; defaults to ``model``.
         prompt_ids / marker: from ``build_prompt_ids(tok)`` -> (prompt_ids, mpos); marker = mpos[0].
         inject_module: ``get_layer(model, INJECT_LAYER)``; coeff: STEER_COEFF.
-        persistent_injector: optional ``maemm.inject.FixedPositionInjector(position=0, ...)`` whose ``.hook`` the
+        persistent_injector: optional ``maem.inject.FixedPositionInjector(position=0, ...)`` whose ``.hook`` the
             caller registered on ``inject_module`` (torch.compile path: no per-step Python hook). It is switched
             ``active=False`` for the prefix forward and ``True`` for the suffix forward.
         compile_prefix: None | "default" | "reduce-overhead" -- torch.compile ONLY the prefix call (fully static

@@ -1,9 +1,9 @@
 """Modal app: universal-inverter SFT (train/sft/pretrain.py) on 8xB200, one container per datamix.
 
 The trainer lives at train/sft/pretrain.py in this repo; it is mounted into the container at
-/app/SL/pretrain.py, with maemm/ importable via
+/app/SL/pretrain.py, with maem/ importable via
 PYTHONPATH=/app/helpers. Same image/volume as modal_rl.py (no vllm — pretrain is pure HF).
-Data lives on the `maemm-data` Volume:
+Data lives on the `maem-data` Volume:
     /data/<bank>            SFT bank: records.jsonl ({"vec_idx", "target_text"} per line)
                             + vecs.f32 or vecs.f16 (N x 5120 f32/f16 memmap, N >= max(vec_idx)+1)
                             --data-dir may be a COMMA-SEPARATED list of such PART banks: every part is staged and
@@ -22,7 +22,7 @@ heartbeat went stale before `final` exists (24h Modal cap / crash), resuming fro
 step_N via --init-adapter + --skip-steps (batch order is deterministic) + --wandb-id.
 Pause auto-resume: `touch /data/sft_mix/resume_paused` (global) or `<run>/resume_paused`.
 
-Needs Modal secrets `maemm-hf` (HF_TOKEN) and `maemm-wandb` (WANDB_API_KEY).
+Needs Modal secrets `maem-hf` (HF_TOKEN) and `maem-wandb` (WANDB_API_KEY).
 """
 
 from pathlib import Path
@@ -33,7 +33,7 @@ import modal
 
 REPO = Path(__file__).resolve().parent.parent.parent   # repo root (this launcher lives one level down)
 
-APP_NAME = os.environ.get("SFT_APP_NAME", "maemm-sft-8xb200")   # SFT_APP_NAME=maemm-sft-fullft = a second, independent deployment
+APP_NAME = os.environ.get("SFT_APP_NAME", "maem-sft-8xb200")   # SFT_APP_NAME=maem-sft-fullft = a second, independent deployment
 app = modal.App(APP_NAME)
 
 # torch 2.10.0+cu128 == the training venv; cu128 wheels carry sm_100 (B200) kernels. Identical pins to
@@ -84,10 +84,10 @@ image = (
     .add_local_file(REPO / "train" / "sft" / "prefix_cache.py", "/app/SL/prefix_cache.py")   # --prefix-cache sibling import
     .add_local_file(REPO / "train" / "sft" / "fullft.py", "/app/SL/fullft.py")               # --full-ft (FSDP2) sibling import
     .add_local_file(REPO / "train" / "sft" / "fp8.py", "/app/SL/fp8.py")            # --fp8-base (imported by pretrain.py)
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=True)
+vol = modal.Volume.from_name("maem-data", create_if_missing=True)
 
 SFT_ROOT = "/data/sft_mix"
 STALE_HEARTBEAT_S = 30 * 60   # live legs touch+commit the heartbeat every <=5 min; 30 min = dead
@@ -135,7 +135,7 @@ def _preflight(run_name: str, data_dir: str, n_ckpts: int, resume_from: str, dis
     print("[modal] mounted-trainer check OK (--n-ckpts/--skip-steps/--wandb-id present)", flush=True)
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL  # single source of truth (5120, Qwen/Qwen3.6-27B)
+    from maem.config import D_MODEL, MODEL  # single source of truth (5120, Qwen/Qwen3.6-27B)
 
     save_dir = f"{SFT_ROOT}/{run_name}"
     if os.path.exists(f"{save_dir}/final"):
@@ -328,8 +328,8 @@ def _stream(cmd, env, tag):
     gpu=os.environ.get("SFT_GPU", "B200:8"),
     volumes={"/data": vol},
     secrets=[
-        modal.Secret.from_name("maemm-hf"),
-        modal.Secret.from_name("maemm-wandb"),
+        modal.Secret.from_name("maem-hf"),
+        modal.Secret.from_name("maem-wandb"),
     ],
     timeout=86400,
     # _preflight stages EVERY listed bank part locally (vecs.f16 = 10 KiB/row + ~190 B/row of records): 23M rows = 224 GiB,
@@ -431,8 +431,8 @@ def train(run_name: str, data_dir: str, n_ckpts: int = 14, epochs: int = 1,
     gpu=os.environ.get("SFT_SMOKE_GPU", "B200:1"),
     volumes={"/data": vol},
     secrets=[
-        modal.Secret.from_name("maemm-hf"),
-        modal.Secret.from_name("maemm-wandb"),
+        modal.Secret.from_name("maem-hf"),
+        modal.Secret.from_name("maem-wandb"),
     ],
     timeout=7200,
     memory=int(os.environ.get("SFT_SMOKE_MEM_GB", "64")) * 1024,
@@ -493,8 +493,8 @@ def smoke(data_dir: str, n_records: int = 256, batch_size: int = 8, extra_args: 
 import json, os, sys, time, torch
 sys.path.insert(0, '/app/helpers'); os.environ['HF_HUB_OFFLINE'] = '1'
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from maemm.config import MODEL
-from maemm.prompts import build_sft_ids
+from maem.config import MODEL
+from maem.prompts import build_sft_ids
 ck = '{save_dir}/final'
 assert os.path.exists(ck + '/SAVE_DONE'), 'SAVE_DONE missing'
 print('[reload] SAVE_DONE', json.load(open(ck + '/SAVE_DONE')), flush=True)
@@ -545,7 +545,7 @@ def env_check():
 @app.function(
     image=image,
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=7200,
     cpu=8,
 )
@@ -557,7 +557,7 @@ def prewarm():
 
     os.environ["HF_HOME"] = "/data/hf_cache"
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import MODEL
+    from maem.config import MODEL
     from huggingface_hub import snapshot_download
     t0 = time.time()
     snapshot_download(MODEL)

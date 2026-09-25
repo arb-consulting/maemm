@@ -3,8 +3,8 @@ TRIGGER prompts, on the same prompts with the trigger word swapped, and on unrel
 import json
 import modal
 
-vol = modal.Volume.from_name("maemm")
-tvol = modal.Volume.from_name("maemm-trojan-cache")
+vol = modal.Volume.from_name("maem")
+tvol = modal.Volume.from_name("maem-trojan-cache")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
@@ -18,7 +18,7 @@ image = (
     .pip_install("flash-linear-attention==0.5.2")
 )
 LAYER = 40
-app = modal.App("maemm-backdoor-calib")
+app = modal.App("maem-backdoor-calib")
 
 
 @app.function(image=image, gpu="H200", volumes={"/vol": vol, "/tv": tvol}, timeout=3600)

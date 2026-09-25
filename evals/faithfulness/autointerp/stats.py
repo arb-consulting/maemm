@@ -59,7 +59,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 # the headline; the matched-N pair is amendment A8; the N points are descriptive only (A9).
 # An arm absent from a run is SKIPPED, not an error: `paired()` returns empty arrays when either
 # side is missing from the frame and every consumer does `if not len(d): continue`. That is what
-# lets one CONTRASTS table serve a MAEMM run (no NLA arms) and an NLA run (no M arms) without
+# lets one CONTRASTS table serve a MAEM run (no NLA arms) and an NLA run (no M arms) without
 # either of them carrying a row of NaNs. VERIFIED 2026-09-21, not changed.
 CONTRASTS = [
     # THE PAPER'S CONTRASTS (spec §3, 2026-09-23). C16 is the corpus arm -- the top 16 by peak
@@ -77,7 +77,7 @@ CONTRASTS = [
     # matched-N against C16, which is a property of the baseline at its own operating point and is
     # stated rather than corrected for.
     ("NLA (mode A, 4 outputs) vs corpus", "NLA", "C16"),
-    ("NLA (mode A) vs maemm rollouts", "NLA", "M"),
+    ("NLA (mode A) vs maem rollouts", "NLA", "M"),
     ("NLA one output - four outputs", "NLA-1", "NLA"),
     ("NLA text as description (mode B) vs corpus", "NLA-desc", "C16"),
     ("NLA text as description vs NLA examples", "NLA-desc", "NLA"),
@@ -87,8 +87,8 @@ CONTRASTS = [
     ("matched-N enrichment", "C16M16", "C32"),
     ("corpus N: 8 - 16 (descriptive)", "C16-N8", "C16"),
     ("corpus N: 32 - 16 (descriptive)", "C32", "C16"),
-    ("maemm N: 8 - 16 (descriptive)", "M-N8", "M"),
-    ("maemm N: 32 - 16 (descriptive)", "M-N32", "M"),
+    ("maem N: 8 - 16 (descriptive)", "M-N8", "M"),
+    ("maem N: 32 - 16 (descriptive)", "M-N32", "M"),
     ("window-ranked corpus - document-ranked corpus", "C16-win", "C16"),
 ]
 # Amendment A7: the null is a SECOND, DISJOINT test draw scored with C16's own description, not a
@@ -245,7 +245,7 @@ def main(
         f"# Autointerp {label} -- `{run}`",
         "",
         f"Delphi-style SAE autointerp on base `{binfo['base']}`, SAE `{binfo['sae']}`, held-out "
-        f"set `{binfo['set']}`, MAEMM `{binfo['maemm']}` (engine `{binfo['engine']}`). "
+        f"set `{binfo['set']}`, MAEM `{binfo['maem']}` (engine `{binfo['engine']}`). "
         f"Explainer = scorer = `{costs['model']}` through the **{costs.get('api', 'anthropic-messages')}** "
         f"API on the `{costs.get('path', '?')}` path. Temperature: {costs['temperature']}. "
         f"Metric: per-feature **balanced accuracy** of the scorer using the "
@@ -505,11 +505,11 @@ def main(
 
     # ---- fire fraction ----------------------------------------------------------------------
     lines += ["## Fire fraction as covariate", "",
-              "`fire_fraction` is the share of ALL 64 of the MAEMM's rollouts on which the target "
+              "`fire_fraction` is the share of ALL 64 of the MAEM's rollouts on which the target "
               "feature exceeds the SAE gate somewhere, as stored by `sae_self` -- NOT the share "
               "among the 16 rollouts the M arm happens to show, which is near 1 by construction "
               "(they are the top 16 by activation) and therefore degenerate as a covariate. The "
-              "hard stratum is exactly the set the MAEMM never fires on, so this is the covariate "
+              "hard stratum is exactly the set the MAEM never fires on, so this is the covariate "
               "that should separate it.", ""]
     fire = {int(r["feature"]): float(r["fire_fraction"]) for r in feats["features"]}
     edges = [0.0, 0.25, 0.5, 0.75, 1.0001]
@@ -636,7 +636,7 @@ def main(
     lines += ["## Projected cost of the full run", "",
               "From this pilot's MEASURED $/feature/arm, both scorers included:", ""]
     lines += md_table(
-        [["512 features x 4 arms (C16, C4, M, C4M), primary MAEMM", f"${four * 512:.2f}"],
+        [["512 features x 4 arms (C16, C4, M, C4M), primary MAEM", f"${four * 512:.2f}"],
          ["512 features x 2 arms (M, C4M), `rlI-150` secondary", f"${two * 512:.2f}"],
          ["both", f"${(four + two) * 512:.2f}"]],
         ["scope", "projected"],

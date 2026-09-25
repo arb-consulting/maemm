@@ -13,7 +13,7 @@ One-shot, idempotent-ish (re-running re-mints the same families and re-appends n
 they are already in cos_families — but simplest is to run it exactly once per cache).
 
 Run (paths overridable via env):
-    MAEMM_ACTS_LONG=data/acts_long MAEMM_EVAL_CACHE=data/eval_universal_ho/eval_sets_heldout.pt \
+    MAEM_ACTS_LONG=data/acts_long MAEM_EVAL_CACHE=data/eval_universal_ho/eval_sets_heldout.pt \
         PYTHONPATH=$PWD python evals/heldout/build_ctx_eval.py
 """
 import glob
@@ -23,11 +23,11 @@ import os
 import numpy as np
 import torch
 
-from maemm.config import D_MODEL
+from maem.config import D_MODEL
 
-ACTS_LONG = os.environ.get("MAEMM_ACTS_LONG", "/root/app/bsf27b/acts_long")
-CACHE = os.environ.get("MAEMM_EVAL_CACHE", "/root/app/data/eval_universal_ho/eval_sets_heldout.pt")
-N_TRAIN = int(os.environ.get("MAEMM_N_TRAIN", 250000))   # rows build_rl_bank took for training
+ACTS_LONG = os.environ.get("MAEM_ACTS_LONG", "/root/app/bsf27b/acts_long")
+CACHE = os.environ.get("MAEM_EVAL_CACHE", "/root/app/data/eval_universal_ho/eval_sets_heldout.pt")
+N_TRAIN = int(os.environ.get("MAEM_N_TRAIN", 250000))   # rows build_rl_bank took for training
 N_PER = 512                                              # eval dirs per bucket (matches n=512/family)
 BUCKETS = {"realact_early": (1, 512), "realact_mid": (512, 2048), "realact_long": (2048, 8192)}
 

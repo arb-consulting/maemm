@@ -104,7 +104,7 @@ def main():
         print(f"[dump] -> {a.out}", flush=True)
         return
 
-    cols = ["feature", "fire_pct", "corpus_peak", "maemm_best", "source", "arm", "idx",
+    cols = ["feature", "fire_pct", "corpus_peak", "maem_best", "source", "arm", "idx",
             "activation", "peak_token", "text"]
     with open(a.out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
@@ -115,7 +115,7 @@ def main():
             best = max((v[f]["best_act"] for v in arms.values() if f in v), default="")
             base = {"feature": f, "fire_pct": round(float(fire[f]), 5),
                     "corpus_peak": round(peak, 1),
-                    "maemm_best": round(float(best), 2) if best != "" else ""}
+                    "maem_best": round(float(best), 2) if best != "" else ""}
             live = sorted([i for i in range(A.shape[0]) if float(A[i].max()) > 0],
                           key=lambda i: -float(A[i].max()))[:a.n_corpus]
             for rank, i in enumerate(live, 1):
@@ -128,7 +128,7 @@ def main():
                 # only the best-of-n sample has a recorded activation (eval_dirs keeps best_act,
                 # not per-sample acts), so it goes on idx 0 and the rest are left blank.
                 for j, t in enumerate(by.get(f, [])[:a.n_gen]):
-                    w.writerow({**base, "source": "MAEMM", "arm": tag, "idx": j,
+                    w.writerow({**base, "source": "MAEM", "arm": tag, "idx": j,
                                 "activation": (arms[tag][f]["best_act"]
                                                if j == 0 and tag in arms and f in arms[tag] else ""),
                                 "peak_token": "", "text": t.replace("\n", " ").strip()})

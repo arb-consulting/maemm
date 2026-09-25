@@ -1,6 +1,6 @@
 """Stage `frontier_context_pairs` (methodology §5): every judged text against its source passage, cut to
 the text's re-tokenised length, as the manifest `frontier/context/pairs.json`. Groups: `retrieval@<label>`,
-the greedy and draws 0-7 of `maemm`, `continuation`, `nla` and `nla_native`, and the best-of-k selections
+the greedy and draws 0-7 of `maem`, `continuation`, `nla` and `nla_native`, and the best-of-k selections
 `<arm>_k<k>`. A blank text is skipped. CPU + tokenizer only."""
 import time
 
@@ -109,7 +109,7 @@ def selection_rows(recs, k):
 
 #: the judged groups besides retrieval: texts file, judged field, length field, scores file, method, extra.
 CONTEXT_GROUPS = {
-    "maemm": {"texts": "maemm", "text": "text", "n_gen": "n_gen", "scores": "maemm", "method": "maemm",
+    "maem": {"texts": "maem", "text": "text", "n_gen": "n_gen", "scores": "maem", "method": "maem",
               "extra": {"capped": "capped"}},
     "continuation": {"texts": "continuation", "text": "text", "n_gen": "n_gen", "scores": "continuation",
                      "method": "continuation", "extra": {"capped": "capped"}},

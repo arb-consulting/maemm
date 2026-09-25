@@ -26,12 +26,12 @@ THE TABLE (design `infra/2026-09-18_ood-eval-design.md` §0, §6; review R3, R9)
                   from `cos_centred.f16` because `score` stores the centred ladder at k = 64 only.
                   Δ, the verdict, the conjunction counts and the "N of M arms exceed" sentence
                   are ALL this pair. bo64 is in the CSV, counted nowhere.
-  bo64            the MAEMM's unbiased best-of-64, in BOTH cosines -- `bo_c_64` (centred, the
+  bo64            the MAEM's unbiased best-of-64, in BOTH cosines -- `bo_c_64` (centred, the
                   headline where the run centred on something) and `bo_64` (raw). `score` writes
                   the centred half only when the run centred, so a `--mu none` arm shows an em
                   dash there, never a one-sided number silently relabelled.
   corpus          the in-domain corpus search's top-1 on the SAME target, at the scanned size.
-  delta, CI       Δ_i = bo64_i(MAEMM) − top1_i(in-domain), PAIRED per target, with the design's
+  delta, CI       Δ_i = bo64_i(MAEM) − top1_i(in-domain), PAIRED per target, with the design's
                   10,000-resample percentile bootstrap over the arm's targets (the estimator is
                   `reconstruction/stats_ood.boot_ci`, imported rather than rewritten). The
                   clustered SE is carried in the CSV beside it: within one arm every target comes
@@ -48,7 +48,7 @@ THE TABLE (design `infra/2026-09-18_ood-eval-design.md` §0, §6; review R3, R9)
                   same regex classifier R7 uses -- one classifier, two uses.
 
 NOTHING IS KEYED ON A CHECKPOINT NAME. Sources come from `results.common.discover_sources`
-iterating `config.yaml`'s `maemms:` against the volume, so both generations and the untrained-base
+iterating `config.yaml`'s `maems:` against the volume, so both generations and the untrained-base
 control are rows because they are on the volume, not because this file names them. An `role:
 control` source becomes the control column; every other source gets its own arms table.
 
@@ -134,14 +134,14 @@ def declared_mu(cfg: dict, key: str, base: str) -> str:
     `precompute.common.input_mu` refuses an entry with no `mu:` key at all rather than guessing,
     and `C_resolve_mu` puts the answer in the same spelling as a product-recorded mean. A bare
     checkpoint name is prefixed with the base, the way `reconstruction/stats_ood.tables` accepts
-    `--maemm`, so both readers resolve the same key the same way.
+    `--maem`, so both readers resolve the same key the same way.
     """
     full = key if "/" in key else f"{base}/{key}"
     return C_resolve_mu(PC.input_mu(cfg, full), base)
 
 
-def assert_control_paired(cfg: dict, base: str, maemm_key: str, control_key: str) -> None:
-    """SPEC §7 R4: a control may only be differenced against a MAEMM that DECLARES the same mean.
+def assert_control_paired(cfg: dict, base: str, maem_key: str, control_key: str) -> None:
+    """SPEC §7 R4: a control may only be differenced against a MAEM that DECLARES the same mean.
 
     LOUD, because the failure it guards is silent: the control column sits beside Δ and reads as
     "what the untrained base scores on the same targets", which it only is when both arms were
@@ -150,18 +150,18 @@ def assert_control_paired(cfg: dict, base: str, maemm_key: str, control_key: str
 
     As of 2026-09-23 the base control `qwen36-27b/2026-09-16_base-control` declares the 27B
     `whiten_mu` path in `config.yaml` (it was `mu: null` before, which was an explicit statement
-    that it took a RAW activation), so the pairing HOLDS for the intended pair -- rl-last16
+    that it took a RAW activation), so the pairing HOLDS for the intended pair -- rl-final
     against that control. It does not hold for the old primary, which declares `stats/mu.f32`.
     """
-    a, b = declared_mu(cfg, maemm_key, base), declared_mu(cfg, control_key, base)
+    a, b = declared_mu(cfg, maem_key, base), declared_mu(cfg, control_key, base)
     assert a == b and a != "unknown", (
-        f"CONTROL NOT PAIRED (spec §7 R4): maemm {maemm_key!r} declares mu={a!r} and control "
+        f"CONTROL NOT PAIRED (spec §7 R4): maem {maem_key!r} declares mu={a!r} and control "
         f"{control_key!r} declares mu={b!r} in config.yaml. The control column is the same targets "
         f"under the same injection with base weights; at two means it is a control for a different "
         f"experiment and the difference is not a difference. As of 2026-09-23 "
         f"`qwen36-27b/2026-09-16_base-control` declares the 27B whiten_mu path (it was `null` "
-        f"before), so the intended pair -- rl-last16 against that control -- does pair; the old "
-        f"primary `2026-09-10_rl-8x2048-full` declares `base/{{base}}/stats/mu.f32` and does not. "
+        f"before), so the intended pair -- rl-final against that control -- does pair; the old "
+        f"primary `2026-09-10_rl-large-full` declares `base/{{base}}/stats/mu.f32` and does not. "
         f"Fix the config or tabulate the two generations separately; nothing here will guess."
     )
 
@@ -330,7 +330,7 @@ def load_ood_ids(vol: R.Vol, base: str, set_name: str) -> list[dict]:
 #
 # A `centred` READ IS ONLY VALID AGAINST A SCAN RUN WITH `--centre`. Before M0a the scan's window
 # side was uncentred (`normalize(h) @ v`) while its target side was centred, so differencing a
-# doubly-centred MAEMM cosine against a singly-centred corpus top-1 was meaningless -- the defect
+# doubly-centred MAEM cosine against a singly-centred corpus top-1 was meaningless -- the defect
 # `results/ood/tables.md:103-105` describes and the reason `cos_asym` was added at all
 # (`SMOKES.md:4483-4490`). `precompute/scan.py --centre` is what buys this read.
 # AND NOTHING HERE CAN CATCH THE MIX: `scan_dirs_of` filters scans by SET only, and
@@ -854,7 +854,7 @@ def corpus_window_texts(vol: R.Vol, base: str, cdir: str, top1_rows, tok):
     """The decoded corpus top-1 WINDOW for each (row -> (doc, start)), or {} if unavailable.
 
     This text is in the arm's language BY CONSTRUCTION -- it is a window of that arm's own corpus
-    -- so a classifier's rate on it is the classifier's CEILING, not a property of the MAEMM.
+    -- so a classifier's rate on it is the classifier's CEILING, not a property of the MAEM.
     Without the ceiling beside it a low rate is unreadable: it can mean the model did not produce
     the language, or that the classifier cannot name it (lid218e labels Chinese `yue_Hant`), or
     that the predicate needs a longer window than a rollout has (`code_like`).
@@ -911,7 +911,7 @@ def lid_rates(mod, vol: R.Vol, cfg: dict, ids: list[dict], src: R.Source, set_na
     if not rels:
         return {}, [f"`{src.scores_rel}/README.md` does not name its rollouts file: lid not run"]
     # Read the paths the README gave, directly. `stats_ood.rollout_texts` composes
-    # `maemms/{base}/{maemm}/...` from its own arguments, and `src.maemm` is the CONFIG KEY --
+    # `maems/{base}/{maem}/...` from its own arguments, and `src.maem` is the CONFIG KEY --
     # `<base>/<name>` -- so handing it that doubles the base and the fetch silently returns
     # nothing. The list, from the producer, is the whole point of reading the README.
     #
@@ -1080,7 +1080,7 @@ def main(
             size_notes.append(f"scan `{d}` names no corpus size at all: no arm can be read at it")
     assert top1_by_corpus, (
         f"no in-domain scan for {set_name} under base/{base}/scan/: every Δ below is "
-        f"MAEMM minus corpus search, so there is no table without one"
+        f"MAEM minus corpus search, so there is no table without one"
     )
     sizes = sorted({sz for t in top1_by_corpus.values() for _, sz in t})
     if size:
@@ -1115,13 +1115,13 @@ def main(
         if s_ is not ctrl_src:
             notes.append(f"control `{s_.label}` not used: superseded by `{ctrl_src.label}`")
     # SPEC §7 R4, first half: THE CONTROL IS RESOLVED FROM CONFIG WITH ITS CENTRING DECLARED.
-    # `input_mu` refuses a `maemms:` entry that has no `mu:` key at all, so a control whose
+    # `input_mu` refuses a `maems:` entry that has no `mu:` key at all, so a control whose
     # convention was never established stops the table here instead of becoming an unlabelled
-    # column; the pairing itself is asserted per source below, where the MAEMM is known.
+    # column; the pairing itself is asserted per source below, where the MAEM is known.
     if ctrl_src is not None:
         notes.append(
-            f"control `{ctrl_src.label}` is `{ctrl_src.maemm}`, which config.yaml declares at "
-            f"mu={declared_mu(cfg, ctrl_src.maemm, base)}; the run itself recorded "
+            f"control `{ctrl_src.label}` is `{ctrl_src.maem}`, which config.yaml declares at "
+            f"mu={declared_mu(cfg, ctrl_src.maem, base)}; the run itself recorded "
             f"mu={C_resolve_mu(ctrl_src.mu, base)}"
         )
     # Panel c's tick (spec §4: "untrained base bo8"), recomputed once from the control's own
@@ -1144,7 +1144,7 @@ def main(
                if not size else
                f"in-domain corpus search at **{size:g}M tokens** on every arm (`--size`)."),
             "",
-            "Δ = the MAEMM's unbiased best-of-64 minus the in-domain corpus search's top-1, paired "
+            "Δ = the MAEM's unbiased best-of-64 minus the in-domain corpus search's top-1, paired "
             "per target; CI is the design's 10,000-resample percentile bootstrap over the arm's "
             "targets. The outcome is three-state (review R9): **exceeds** (CI above zero), "
             "**inconclusive** (CI covers zero -- a failure to reject, not a finding of no "
@@ -1284,7 +1284,7 @@ def main(
     superseded = [
         s_ for s_ in usable
         if s_.role != "control" and not has_asym(s_)
-        and any(o.maemm == s_.maemm and has_asym(o) for o in usable)
+        and any(o.maem == s_.maem and has_asym(o) for o in usable)
     ]
     for s_ in superseded:
         notes.append(
@@ -1299,7 +1299,7 @@ def main(
         # source's Δ must be a control FOR THIS SOURCE. Asserted on what config DECLARES, which is
         # the thing R4 asks for and the thing a reader of the table can check.
         if ctrl_src is not None:
-            assert_control_paired(cfg, base, src.maemm, ctrl_src.maemm)
+            assert_control_paired(cfg, base, src.maem, ctrl_src.maem)
             # The declared pairing is config-level and cannot separate two RUNS of the same control
             # key at two means, which is exactly what this set carries (`…@vllm` and
             # `…@vllm:mu-stats__asym`). A note, not an assertion: the column is still the right
@@ -1483,7 +1483,7 @@ def main(
                 [
                     f"### Pre-registered claim — {src.label}",
                     "",
-                    f"Level 1, design §0: *on every arm, the best of 8 MAEMM rollouts aligns with "
+                    f"Level 1, design §0: *on every arm, the best of 8 MAEM rollouts aligns with "
                     f"the target more closely than the best window of an in-domain corpus search "
                     f"in the target's own domain.* Read at **each arm's own scanned size** "
                     f"({', '.join(f'{v:g}M' for v in sorted({x for x in size_by_arm.values()}))}"
@@ -1537,9 +1537,9 @@ def main(
             "SINCE M0a (2026-09-23) BOTH SIDES ARE CENTRED, and about the SAME constant. `score` "
             "centres on the scoring constant -- `bases.<base>.whiten_mu`, read by "
             "`precompute.common.score_mu`, the one mean both arguments of every centred cosine "
-            "are taken about and deliberately decoupled from each MAEMM's injection `mu:` -- and "
+            "are taken about and deliberately decoupled from each MAEM's injection `mu:` -- and "
             "`precompute/scan.py --centre` subtracts the same constant from every corpus window "
-            "before the dot product. `cos_centred` on the MAEMM side against a `--centre` scan's "
+            "before the dot product. `cos_centred` on the MAEM side against a `--centre` scan's "
             "top-1 is therefore one convention applied to both sides, which is what makes Δ a "
             "paired difference rather than the subtraction of two angles to two different "
             "vectors. Second sentence of the same fact: this file no longer reads `cos_asym` at "

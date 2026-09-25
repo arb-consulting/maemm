@@ -59,8 +59,8 @@ CONFIG_PATH = PAPER_EVALS / "config.yaml"
 # written by naming them on the command line -- deliberately, at a moment the operator chose,
 # which is exactly what a DEFAULT cannot be.
 
-MIRROR_ENV = "MAEMM_MIRROR"
-OUT_ENV = "MAEMM_OUT"
+MIRROR_ENV = "MAEM_MIRROR"
+OUT_ENV = "MAEM_OUT"
 
 
 def _outside_the_mount(p: Path, what: str, how: str) -> Path:
@@ -78,14 +78,14 @@ def _outside_the_mount(p: Path, what: str, how: str) -> Path:
 def mirror_dir(root: str = "") -> Path:
     """The default local mirror of the Modal volume, for volume-relative prefix `root`.
 
-    `${MAEMM_MIRROR}/<root>` when that is set -- which is how several worktrees share one cache --
-    otherwise `$XDG_CACHE_HOME/maemm-faithfulness/mirror/<root>` (`~/.cache` when XDG is unset),
+    `${MAEM_MIRROR}/<root>` when that is set -- which is how several worktrees share one cache --
+    otherwise `$XDG_CACHE_HOME/maem-faithfulness/mirror/<root>` (`~/.cache` when XDG is unset),
     the path `results/patchscopes.py` took first on 2026-09-23. `root` is the volume-relative
     prefix the reader was given, slashes flattened; empty means the volume root.
     """
     slug = root.strip("/").replace("/", "_") or "vol"
     base = os.environ.get(MIRROR_ENV) or (
-        Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "maemm-faithfulness"
+        Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "maem-faithfulness"
         / "mirror"
     )
     return _outside_the_mount(
@@ -97,7 +97,7 @@ def mirror_dir(root: str = "") -> Path:
 def out_dir(tool: str) -> Path:
     """The default output directory for reader `tool` (`faithfulness`, `ood`, ...).
 
-    `${MAEMM_OUT}/<tool>` when that is set, otherwise `<repo>/_out/<tool>` -- beside
+    `${MAEM_OUT}/<tool>` when that is set, otherwise `<repo>/_out/<tool>` -- beside
     `evals/faithfulness/`, never inside it, and gitignored at the repo root. A committed product
     directory is reached by naming it: `--out results/ood`.
     """
@@ -119,7 +119,7 @@ SCORE_CHUNK = 32
 # chunks of different token lengths concatenate into one rectangular array.
 SCORE_WIDTH = SCORE_MAX_LENGTH + 1
 
-MARKER = " ?"  # maemm/prompts.py:4
+MARKER = " ?"  # maem/prompts.py:4
 
 # Input-amplitude conventions of the `nla` verbalizer (`precompute/rollouts_nla.py`, which aliases
 # this tuple and documents what each one does). It lives here because load_config validates
@@ -127,13 +127,13 @@ MARKER = " ?"  # maemm/prompts.py:4
 AMP_MODES = ("exact", "mu", "raw")
 
 # --- the centring vocabulary (2026-09-21, branch `evals/pipeline`) -----------------------------
-# A MU IS A FILE. Wherever a centring mean appears -- `maemms.<k>.mu`, `bases.<base>.whiten_mu`,
+# A MU IS A FILE. Wherever a centring mean appears -- `maems.<k>.mu`, `bases.<base>.whiten_mu`,
 # `--mu` -- the value is null (subtract nothing), or a path to a [d] `.f32` / `.npy` file, or the
 # string `unknown` (a checkpoint's own `mu:` only). There is no enum and no registry of mean
 # NAMES: a checkpoint trained on a new mean is a new path in a config entry, and nothing else
-# changes. That is what lets a new SAE / MAEMM land as a config-only edit.
+# changes. That is what lets a new SAE / MAEM land as a config-only edit.
 #
-# TWO AXES SINCE 2026-09-23 (M0a). `maemms.<k>.mu` (`input_mu`) is the INJECTION convention -- what
+# TWO AXES SINCE 2026-09-23 (M0a). `maems.<k>.mu` (`input_mu`) is the INJECTION convention -- what
 # a checkpoint was trained to receive. `bases.<base>.whiten_mu` (`score_mu`) is the SCORING
 # CONSTANT, the mean both arguments of every centred cosine are taken about, a property of the
 # base and of no run. The per-set `mu_stored` / `family_mu` layer that used to name a third thing
@@ -148,8 +148,8 @@ STORAGE_KINDS = ("raw", "unit", "dirs_only")
 # modal_app entirely -- which is how the hazard reached the volume in the first place. Two copies
 # of this tuple had already drifted apart by 2026-09-21: modal_app knew about `heldout_v3` and
 # spawn did not, and neither knew about `draw_sae131k`.
-SET_WRITERS = ("targets", "draw_sae2m", "draw_sae131k", "heldout_v3")
-# "considered, not established" -- legal in a checkpoint's own `maemms.<k>.mu` only. Every run of
+SET_WRITERS = ("targets", "draw_dict2m", "draw_sae131k", "heldout_v3")
+# "considered, not established" -- legal in a checkpoint's own `maems.<k>.mu` only. Every run of
 # such a checkpoint must be told the convention with --mu, recorded as a choice, not a reading.
 MU_UNKNOWN = "unknown"
 # Accepted on-disk forms of a mean. Anything else is a typo, not a format.
@@ -181,7 +181,7 @@ IMPORT_RUN1_SET = "2026-09-03_run1-archive16"
 SCAN_BLOCK = 64
 SCAN_STRIDE = 16
 
-# maemm/prompts.py:8-15, verbatim except the read layer, which the template names in words and which
+# maem/prompts.py:8-15, verbatim except the read layer, which the template names in words and which
 # therefore differs per base ("layer-27" for the 8B, "layer-42" for the 27B).
 _INSTR_TEMPLATE = (
     "You are an interpretability research tool. Researchers have injected a single linear probe "
@@ -211,7 +211,7 @@ def load_config(path: str | Path | None = None) -> dict:
         "corpora",
         "family_kinds",
         "saes",
-        "maemms",
+        "maems",
         "heldout",
         "corpus",
         "rollouts",
@@ -324,30 +324,30 @@ def load_config(path: str | Path | None = None) -> dict:
                 f"sae {key!r}: max_acts.repo_type must be 'model' or 'dataset', got {ma['repo_type']!r}"
             )
 
-    for key, spec in cfg["maemms"].items():
-        base, _ = split_key(key, "maemm")
-        assert base in cfg["bases"], f"maemm {key!r} names base {base!r}, which is not in config bases"
-        # `base` is the UNTRAINED-BASE CONTROL: no MAEMM weights at all, the clean base run
+    for key, spec in cfg["maems"].items():
+        base, _ = split_key(key, "maem")
+        assert base in cfg["bases"], f"maem {key!r} names base {base!r}, which is not in config bases"
+        # `base` is the UNTRAINED-BASE CONTROL: no MAEM weights at all, the clean base run
         # through the identical prompt / marker / injection / sampling path so the tables have a
         # "what does the untrained model reach" row (2026-09-16_base-control).
         # `nla` is the activation-verbalizer BASELINE (NLA training): served exactly like a `full`
         # model, injected at the same block-1 output with the same norm-matched add, but with its
         # own prompt, marker and output format -- so only `rollouts_nla` generates for it.
         assert spec.get("type") in ("lora", "full", "base", "nla"), (
-            f"maemm {key!r}: type must be 'lora', 'full', 'base' or 'nla', got {spec.get('type')!r}"
+            f"maem {key!r}: type must be 'lora', 'full', 'base' or 'nla', got {spec.get('type')!r}"
         )
         if spec.get("type") == "base":
             assert spec.get("hf") == cfg["bases"][base]["hf"], (
-                f"maemm {key!r}: type 'base' is the untrained-base control, so its `hf` must be "
+                f"maem {key!r}: type 'base' is the untrained-base control, so its `hf` must be "
                 f"the base's own repo {cfg['bases'][base]['hf']!r}, got {spec.get('hf')!r} -- "
                 f"anything else is a TRAINED checkpoint wearing the control's label"
             )
         assert spec.get("role") in (None, "control"), (
-            f"maemm {key!r}: `role`, when given, must be 'control' (reconstruction/stats.py shows "
+            f"maem {key!r}: `role`, when given, must be 'control' (reconstruction/stats.py shows "
             f"it between the primary and the secondaries), got {spec.get('role')!r}"
         )
         assert ("hf" in spec) != ("src" in spec), (
-            f"maemm {key!r}: give exactly one of hf (repo id) / src (volume path), got {sorted(spec)}"
+            f"maem {key!r}: give exactly one of hf (repo id) / src (volume path), got {sorted(spec)}"
         )
         if spec.get("type") == "nla":
             # The NLA verbalizer builds its OWN prompt from the checkpoint's sidecar (its marker
@@ -356,21 +356,21 @@ def load_config(path: str | Path | None = None) -> dict:
             _check_nla(key, spec, cfg["rollouts"])
         else:
             assert spec.get("prompt") in PROMPTS, (
-                f"maemm {key!r}: prompt {spec.get('prompt')!r} is not one of {sorted(PROMPTS)}"
+                f"maem {key!r}: prompt {spec.get('prompt')!r} is not one of {sorted(PROMPTS)}"
             )
         inject = spec.get("inject", {})
         assert "layer" in inject and "coef" in inject, (
-            f"maemm {key!r}: inject needs both 'layer' and 'coef', got {inject}"
+            f"maem {key!r}: inject needs both 'layer' and 'coef', got {inject}"
         )
         assert isinstance(spec.get("compute", True), bool), (
-            f"maemm {key!r}: `compute` must be a bool (default true), got {spec.get('compute')!r}"
+            f"maem {key!r}: `compute` must be a bool (default true), got {spec.get('compute')!r}"
         )
         if "mu" in spec:
             # `unknown` IS legal on a checkpoint (2026-09-21): a THIRD state between "no key"
             # (nobody has considered it) and a path/null (established). It says the training
             # convention is on the agenda and not on the record, so every run must be told with
             # --mu; `mu_for` refuses to pick one.
-            _check_mu_value(spec["mu"], f"maemms[{key!r}].mu", allow_unknown=True)
+            _check_mu_value(spec["mu"], f"maems[{key!r}].mu", allow_unknown=True)
 
     # `ood_arms:` (design infra/2026-09-18_ood-eval-design.md §2). Optional: a config without it
     # is the pre-2026-09-18 pipeline and every check below is skipped.
@@ -436,7 +436,7 @@ def load_config(path: str | Path | None = None) -> dict:
 # "the field is absent", and every field here is required, so "absent" has no safe meaning.
 #
 # `sampling` LEFT the block on 2026-09-21: temperature / top_p /
-# top_k / min_new are now the shared `rollouts:` values every MAEMM arm generates under, so the
+# top_k / min_new are now the shared `rollouts:` values every MAEM arm generates under, so the
 # NLA arm cannot carry its own. This tuple and config.yaml were on opposite sides of that change
 # when the branches met -- main's config had already dropped the key while main's `NLA_KEYS` still
 # demanded it, so `load_config` raised on EVERY command, NLA or not. Reconciled here in main's
@@ -454,7 +454,7 @@ NLA_KEYS = (
     "amp",
     "amp_r",
 )
-# Sampling keys the `nla:` block may OVERRIDE per-MAEMM, falling back to the shared `rollouts:`
+# Sampling keys the `nla:` block may OVERRIDE per-MAEM, falling back to the shared `rollouts:`
 # block when absent. Only `min_new`: the verbalizer's stop comes well before the shared 16, and
 # editing the shared block instead would re-point every rollout product in the pipeline.
 NLA_OPTIONAL_KEYS = ("min_new",)
@@ -463,7 +463,7 @@ NLA_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "min_new")
 
 
 def _check_nla(key: str, spec: dict, rollouts: dict) -> None:
-    """Validate one `type: nla` maemms entry. Called from load_config, never at use site.
+    """Validate one `type: nla` maems entry. Called from load_config, never at use site.
 
     Everything here is a fact about the CHECKPOINT (the NLA checkpoint's nla_meta.yaml
     and generation_config.json) rather than a choice of ours, except `max_new`, `n`, `amp` and
@@ -471,61 +471,61 @@ def _check_nla(key: str, spec: dict, rollouts: dict) -> None:
     the values below before it generates anything; this function only checks the config's shape,
     which is what the CPU `check` gate can do without the weights.
     """
-    assert "hf" in spec, f"maemm {key!r}: a `type: nla` entry is fetched from HF, so it needs `hf`"
+    assert "hf" in spec, f"maem {key!r}: a `type: nla` entry is fetched from HF, so it needs `hf`"
     rev = spec.get("revision")
     assert isinstance(rev, str) and len(rev) == 40 and all(c in "0123456789abcdef" for c in rev), (
-        f"maemm {key!r}: `revision` must be the 40-hex HF commit sha the snapshot directory is "
+        f"maem {key!r}: `revision` must be the 40-hex HF commit sha the snapshot directory is "
         f"named after (rollouts_nla asserts the resolved path against it), got {rev!r}"
     )
     assert "prompt" not in spec, (
-        f"maemm {key!r}: a `type: nla` entry must NOT name a `prompt` -- the verbalizer builds its "
+        f"maem {key!r}: a `type: nla` entry must NOT name a `prompt` -- the verbalizer builds its "
         f"own from `nla.template` and the marker in `nla.marker`, and common.PROMPTS' marker is "
         f"neither that character nor at that position"
     )
     nla = spec.get("nla")
-    assert isinstance(nla, dict), f"maemm {key!r}: a `type: nla` entry needs an `nla:` block, got {nla!r}"
+    assert isinstance(nla, dict), f"maem {key!r}: a `type: nla` entry needs an `nla:` block, got {nla!r}"
     allowed = set(NLA_KEYS) | set(NLA_OPTIONAL_KEYS)
     missing, extra = sorted(set(NLA_KEYS) - set(nla)), sorted(set(nla) - allowed)
     assert not missing and not extra, (
-        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} (optionally "
+        f"maem {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} (optionally "
         f"{list(NLA_OPTIONAL_KEYS)}) -- missing {missing}, unexpected {extra}"
     )
     for field in NLA_OPTIONAL_KEYS:
         if field in nla:
             assert isinstance(nla[field], int) and not isinstance(nla[field], bool) and nla[field] >= 0, (
-                f"maemm {key!r}: nla.{field} overrides rollouts.{field} and must be a "
+                f"maem {key!r}: nla.{field} overrides rollouts.{field} and must be a "
                 f"non-negative int, got {nla[field]!r}"
             )
     for field in ("marker", "template", "amp"):
         assert isinstance(nla[field], str) and nla[field], (
-            f"maemm {key!r}: nla.{field} must be a non-empty string, got {nla[field]!r}"
+            f"maem {key!r}: nla.{field} must be a non-empty string, got {nla[field]!r}"
         )
     for field in ("marker_id", "left_id", "right_id", "max_new", "score_max_tokens", "card_max_new", "n"):
         assert isinstance(nla[field], int) and not isinstance(nla[field], bool) and nla[field] > 0, (
-            f"maemm {key!r}: nla.{field} must be a positive int, got {nla[field]!r}"
+            f"maem {key!r}: nla.{field} must be a positive int, got {nla[field]!r}"
         )
     assert "{injection_char}" in nla["template"], (
-        f"maemm {key!r}: nla.template must carry the sidecar's `{{injection_char}}` placeholder -- "
+        f"maem {key!r}: nla.template must carry the sidecar's `{{injection_char}}` placeholder -- "
         f"that is where the marker token, and so the injected direction, goes"
     )
     # The arm generates under the SHARED block, so that is what has to be well-formed for it.
     # The guard did not go away when `nla.sampling` did -- it moved to the block that replaced it.
     missing_s = sorted(set(NLA_SAMPLING_KEYS) - set(rollouts))
     assert not missing_s, (
-        f"maemm {key!r} is a `type: nla` arm and generates under the shared `rollouts:` block, "
+        f"maem {key!r} is a `type: nla` arm and generates under the shared `rollouts:` block, "
         f"which is missing {missing_s} -- it must carry {list(NLA_SAMPLING_KEYS)}"
     )
     assert float(rollouts["temperature"]) > 0 and 0 < float(rollouts["top_p"]) <= 1, (
-        f"maemm {key!r}: rollouts.temperature must be > 0 and top_p in (0, 1], got {rollouts}"
+        f"maem {key!r}: rollouts.temperature must be > 0 and top_p in (0, 1], got {rollouts}"
     )
     assert int(rollouts["top_k"]) >= 0 and int(rollouts["min_new"]) >= 0, (
-        f"maemm {key!r}: rollouts.top_k and min_new must be >= 0, got {rollouts}"
+        f"maem {key!r}: rollouts.top_k and min_new must be >= 0, got {rollouts}"
     )
-    assert nla["amp"] in AMP_MODES, f"maemm {key!r}: nla.amp {nla['amp']!r} is not one of {list(AMP_MODES)}"
+    assert nla["amp"] in AMP_MODES, f"maem {key!r}: nla.amp {nla['amp']!r} is not one of {list(AMP_MODES)}"
     amp_r = nla["amp_r"]
     numeric_r = isinstance(amp_r, int | float) and not isinstance(amp_r, bool) and amp_r > 0
     assert amp_r == "median" or numeric_r, (
-        f"maemm {key!r}: nla.amp_r must be 'median' (layer read_layer's q[0.5] of "
+        f"maem {key!r}: nla.amp_r must be 'median' (layer read_layer's q[0.5] of "
         f"stats/resid_norm_quantiles.json) or a positive number, got {amp_r!r}"
     )
     # The scorer's window is the binding constraint, exactly as SCORE_MAX_LENGTH is for
@@ -534,7 +534,7 @@ def _check_nla(key: str, spec: dict, rollouts: dict) -> None:
     # bound is against that rather than against the protocol's 95: a generation longer than the
     # window it will be scored in has a tail nothing ever reads.
     assert nla["max_new"] <= nla["score_max_tokens"] - 1, (
-        f"maemm {key!r}: nla.max_new {nla['max_new']} exceeds nla.score_max_tokens "
+        f"maem {key!r}: nla.max_new {nla['max_new']} exceeds nla.score_max_tokens "
         f"{nla['score_max_tokens']} - 1 -- the scoring window must leave room for the whole "
         f"generation plus the sink at column 0, or the tail of a full-length rollout is never "
         f"scored (the same rule SCORE_MAX_LENGTH={SCORE_MAX_LENGTH} enforces on rollouts.max_new "
@@ -543,11 +543,11 @@ def _check_nla(key: str, spec: dict, rollouts: dict) -> None:
     # Never NARROWER than the protocol: this key exists to widen the window for a model whose
     # native output is long, not to cut an arm's text short and call it a protocol.
     assert nla["score_max_tokens"] >= SCORE_MAX_LENGTH, (
-        f"maemm {key!r}: nla.score_max_tokens {nla['score_max_tokens']} is below the pipeline's "
+        f"maem {key!r}: nla.score_max_tokens {nla['score_max_tokens']} is below the pipeline's "
         f"SCORE_MAX_LENGTH={SCORE_MAX_LENGTH}; this key may only WIDEN the scoring window"
     )
     assert nla["card_max_new"] >= nla["max_new"], (
-        f"maemm {key!r}: nla.card_max_new {nla['card_max_new']} is the budget the model card's "
+        f"maem {key!r}: nla.card_max_new {nla['card_max_new']} is the budget the model card's "
         f"reference script uses and must be >= the nla.max_new {nla['max_new']} we generate at"
     )
 
@@ -634,20 +634,20 @@ def mu_label(mu, base: str = "", root: str = VOL) -> str:
     return resolve_mu_path(mu, base, root) if base else str(mu)
 
 
-def input_mu(cfg: dict, maemm_key: str):
-    """The mean `maemm_key` was TRAINED to receive: a path, or None. Refuses rather than defaulting.
+def input_mu(cfg: dict, maem_key: str):
+    """The mean `maem_key` was TRAINED to receive: a path, or None. Refuses rather than defaulting.
 
-    Half the products in this repo have no MAEMM in scope at all (scan, gcg, patchscopes,
+    Half the products in this repo have no MAEM in scope at all (scan, gcg, patchscopes,
     repo_examples) and the other half would silently re-point every number in SMOKES.md if this
     guessed -- so an entry with no `mu:` key is a hard stop with the ask named. An explicit
     `mu: null` is a statement; an absent key is a gap.
     """
-    assert maemm_key in cfg["maemms"], f"unknown maemm {maemm_key!r}, want one of {sorted(cfg['maemms'])}"
-    spec = cfg["maemms"][maemm_key]
+    assert maem_key in cfg["maems"], f"unknown maem {maem_key!r}, want one of {sorted(cfg['maems'])}"
+    spec = cfg["maems"][maem_key]
     # Three states, and they are different: no key at all (nobody has considered it), `unknown`
     # (considered, not established -- every run must be told), a path or null (established).
     assert "mu" in spec, (
-        f"maemm {maemm_key!r} has no `mu:` key in config.yaml, so what it was trained to receive is "
+        f"maem {maem_key!r} has no `mu:` key in config.yaml, so what it was trained to receive is "
         f"not recorded anywhere. Establish it from the checkpoint's training chain and declare it "
         f"(`mu: null` for a raw unit activation, or the path of the mean); nothing here will guess. "
         f"To run against a convention you are CHOOSING rather than reading, pass --mu -- it is "
@@ -660,11 +660,11 @@ def score_mu(cfg: dict, base: str) -> str:
     """THE SCORING CONSTANT: the one mean BOTH arguments of every centred cosine are taken about.
 
     It is `bases.<base>.whiten_mu` -- a key that already existed as the base's archived centring
-    mean -- and it is a property of the BASE, not of any MAEMM, any run or any set. Read it here
+    mean -- and it is a property of the BASE, not of any MAEM, any run or any set. Read it here
     and nowhere else, so that `score`, `scan` and `gcg` centre on one vector and their numbers are
     comparable by construction.
 
-    It is deliberately DECOUPLED from a MAEMM's `mu:` key (`input_mu`), which says what that
+    It is deliberately DECOUPLED from a MAEM's `mu:` key (`input_mu`), which says what that
     checkpoint was trained to RECEIVE at its marker token and remains the injection convention.
     Before 2026-09-23 the reported cosine's mean was whatever the run's injection convention was,
     which meant: the old primary (`mu: null`) got no centred cosine at all, the base control got
@@ -774,7 +774,7 @@ def storage_record(cfg: dict, set_name: str, families, sae_key: str = "") -> dic
     }
 
 
-def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
+def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maem_key: str = "",
            root: str = VOL, notes=None):
     """(the mean this run centres on, where it came from). THE convention is never inferred silently.
 
@@ -785,8 +785,8 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
       1. `--mu <file>` -- explicit, and when it disagrees with the checkpoint's own `mu:` it is
          recorded as a DEVIATION in the product README, not accepted quietly. `--mu none` is the
          explicit way to say "subtract nothing";
-      2. the MAEMM's `mu:`, for the products that have a `--maemm` in scope;
-      3. refuse. A set read by a product with no MAEMM (scan, gcg, patchscopes, repo_examples) has
+      2. the MAEM's `mu:`, for the products that have a `--maem` in scope;
+      3. refuse. A set read by a product with no MAEM (scan, gcg, patchscopes, repo_examples) has
          no convention anywhere in scope, and defaulting one would silently re-point the corpus
          search baseline and the GCG ceiling at a different target vector than every stored
          number. That is the one failure this whole layer exists to stop.
@@ -803,11 +803,11 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
         got = None if want.lower() in ("none", "null") else want
         _check_mu_value(got, "--mu", allow_unknown=False)
         src = "--mu (explicit)"
-        if maemm_key:
-            own = input_mu(cfg, maemm_key)
+        if maem_key:
+            own = input_mu(cfg, maem_key)
             if own == MU_UNKNOWN:
                 line = (
-                    f"{maemm_key} declares `mu: {MU_UNKNOWN}` (training convention not on the "
+                    f"{maem_key} declares `mu: {MU_UNKNOWN}` (training convention not on the "
                     f"record); this run was TOLD {mu_label(got, base, root)} by --mu. That is a "
                     f"choice being made here, not a fact being read."
                 )
@@ -817,9 +817,9 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
                 return got, "--mu (checkpoint's own mu is `unknown`)"
             if own != got:
                 line = (
-                    f"DEVIATION: --mu {mu_label(got, base, root)} overrides {maemm_key}'s own "
+                    f"DEVIATION: --mu {mu_label(got, base, root)} overrides {maem_key}'s own "
                     f"trained input convention {mu_label(own, base, root)} (config.yaml "
-                    f"maemms.{maemm_key}.mu). Every number in this directory is read under the "
+                    f"maems.{maem_key}.mu). Every number in this directory is read under the "
                     f"former, not under what the checkpoint was trained on."
                 )
                 print(f"[mu] {line}", flush=True)
@@ -827,20 +827,20 @@ def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
                 src = "--mu (OVERRIDE of the checkpoint's own mu)"
         say.append(f"mu={mu_label(got, base, root)} from {src}")
         return got, src
-    if maemm_key:
-        own = input_mu(cfg, maemm_key)
+    if maem_key:
+        own = input_mu(cfg, maem_key)
         assert own != MU_UNKNOWN, (
-            f"maemm {maemm_key!r} declares `mu: {MU_UNKNOWN}`: its training convention is on the "
+            f"maem {maem_key!r} declares `mu: {MU_UNKNOWN}`: its training convention is on the "
             f"agenda and NOT on the record, so nothing here will pick one for it. Pass --mu "
             f"explicitly (a path, or `none`) and the choice is recorded as a deviation in the "
             f"product README. That is what the two-arm reconciliation in SMOKES.md settles."
         )
-        say.append(f"mu={mu_label(own, base, root)} from config.yaml maemms.{maemm_key}.mu")
-        return own, f"maemms.{maemm_key}.mu"
+        say.append(f"mu={mu_label(own, base, root)} from config.yaml maems.{maem_key}.mu")
+        return own, f"maems.{maem_key}.mu"
     contract = set_storage(cfg, set_dir, root)
     raise AssertionError(
         f"{set_dir} is `storage: {contract['storage']}` ({contract['source']}) and this product "
-        f"has no --maemm to take an injection convention from. Pass --mu <file> (or --mu none); "
+        f"has no --maem to take an injection convention from. Pass --mu <file> (or --mu none); "
         f"`scan` also takes --centre, which is the base's own scoring constant on both sides. "
         f"Defaulting it would silently move this product's target vector away from every stored "
         f"number."
@@ -869,7 +869,7 @@ def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None
                                and marks it `centred_sided: 1` (M0a 2026-09-23, amended 09-23)
         storage: dirs_only  -> the stored row (no family in such a set is centrable)
 
-    `mu` is None or a path, and is always EXPLICIT: the four products with no MAEMM in scope (scan,
+    `mu` is None or a path, and is always EXPLICIT: the four products with no MAEM in scope (scan,
     gcg, patchscopes, repo_examples) would otherwise silently re-point the corpus search baseline
     and the GCG ceiling away from every number measured between 09-16 and 09-21.
 
@@ -974,17 +974,17 @@ def _unit_rows(v):
     return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
 
 
-def is_nla(cfg: dict, maemm_key: str) -> bool:
+def is_nla(cfg: dict, maem_key: str) -> bool:
     """True for the activation-verbalizer baseline, whose ONLY generator is `rollouts_nla`."""
-    return cfg["maemms"][maemm_key].get("type") == "nla"
+    return cfg["maems"][maem_key].get("type") == "nla"
 
 
 def default_heldout(cfg: dict) -> str:
     """The held-out set a product takes when `--set` is omitted: the latest NON-imported one.
 
     `sorted(cfg["heldout"])[-1]` was that rule until a set drawn elsewhere had to be REGISTERED
-    here so the entrypoint would accept its name (`2026-09-20_sae2m_2k`, written by
-    features/draw_sae2m.py through features/spawn.py, which bypasses modal_app.main's assert).
+    here so the entrypoint would accept its name (`2026-09-20_dict2m_2k`, written by
+    features/draw_dict2m.py through features/spawn.py, which bypasses modal_app.main's assert).
     Registering it under the old rule would have silently moved every default-set product off
     `2026-09-16_v1`, which is the set the paper's tables are built on. `imported: true` marks a
     set as "nameable, never the default".
@@ -1010,18 +1010,18 @@ def families_for(cfg: dict, set_name: str, base: str) -> dict[str, dict]:
     return {f: s for f, s in fams.items() if base in s.get("bases", [base])}
 
 
-def maemms_for(cfg: dict, base: str = "", computable_only: bool = True) -> list[str]:
-    """The MAEMM keys of `base` (or of every base when base is ""), in config order.
+def maems_for(cfg: dict, base: str = "", computable_only: bool = True) -> list[str]:
+    """The MAEM keys of `base` (or of every base when base is ""), in config order.
 
     `compute: false` entries are DECLARED but nothing is generated for them: they exist so the
-    paper's model table, the prompt inventory and `check` know about them. Every "all MAEMMs"
-    iteration that would spend GPU on a MAEMM must therefore filter them out, which is what the
+    paper's model table, the prompt inventory and `check` know about them. Every "all MAEMs"
+    iteration that would spend GPU on a MAEM must therefore filter them out, which is what the
     default does; `check` passes computable_only=False and resolves them too (leniently -- an
     entry nobody computes need not be in the HF cache yet).
     """
-    keys = [k for k in cfg["maemms"] if not base or split_key(k, "maemm")[0] == base]
+    keys = [k for k in cfg["maems"] if not base or split_key(k, "maem")[0] == base]
     if computable_only:
-        keys = [k for k in keys if cfg["maemms"][k].get("compute", True)]
+        keys = [k for k in keys if cfg["maems"][k].get("compute", True)]
     return keys
 
 
@@ -1036,7 +1036,7 @@ def sae_key_for_rows(cfg: dict, base: str, rows, want: str = "") -> str:
     README as though it meant something.
 
     Products that read a SET and may meet one without SAE rows call this; products that are ABOUT
-    a dictionary (`draw_sae2m`, `sae_self`, `build`, `repo_examples`) still call `sae_key_for`
+    a dictionary (`draw_dict2m`, `sae_self`, `build`, `repo_examples`) still call `sae_key_for`
     directly, because for them an absent dictionary is a bad command line, not a shape of set.
     """
     # `rows` is a LIST of row dicts everywhere it is passed from (`read_jsonl` of ids.jsonl), but
@@ -1053,7 +1053,7 @@ def sae_key_for_rows(cfg: dict, base: str, rows, want: str = "") -> str:
 def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
     """WHICH SAE of `base`: `want` when given, else the single one -- asserting when there are two.
 
-    `qwen36-27b` has carried two SAEs since `sae2m` landed (`l42-1b` at 131k and `sae2m` at 2^21),
+    `qwen36-27b` has carried two SAEs since `dict2m` landed (`l42-1b` at 131k and `dict2m` at 2^21),
     and every "the base's SAE" site in this repo was written as `assert len(keys) == 1`. That
     assert is right when nothing says which, and wrong as a way of choosing, so the choice is
     made here once and the message names the options rather than the count.
@@ -1072,16 +1072,16 @@ def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
 
 
 # The family labels whose target IS an SAE feature (row["id"] is a feature index). `sae` is what
-# every draw writes since 2026-09-21; `sae2m_enc` is the label the 2,000-row 2026-09-20 set carries
+# every draw writes since 2026-09-21; `dict2m_enc` is the label the 2,000-row 2026-09-20 set carries
 # and is accepted for it rather than rewritten in place.
-SAE_FAMILIES = ("sae", "sae2m_enc")
+SAE_FAMILIES = ("sae", "dict2m_enc")
 
 
 def check_set_on_disk(cfg, base, set_name, fams, root):
     """A configured held-out set, opened rather than named. Absent is fine; WRONG is not.
 
     `check` used to print the `heldout:` entry's family list and stop there, so a set whose rows
-    on the volume disagreed with its declaration -- the failure that made `2026-09-20_sae2m_2k`'s
+    on the volume disagreed with its declaration -- the failure that made `2026-09-20_dict2m_2k`'s
     `families:` line wrong for a day -- was invisible to the cheap gate and surfaced in a GPU
     product instead. Each set is either NOT on this root (skipped, because a smoke root carries
     two sets and the config declares twelve) or checked against what it declares.
@@ -1143,15 +1143,15 @@ def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = "", decla
     """The rows of `rows` whose target is a feature of dictionary `sae_key`.
 
     THE FAMILY LABEL IS NOT ENOUGH. A set may carry two dictionaries under one `family: sae` label,
-    told apart by the per-row `sae_key` that features/draw_sae2m.py and targets.py write -- and a
+    told apart by the per-row `sae_key` that features/draw_dict2m.py and targets.py write -- and a
     feature index is meaningless without it: every id below 131,072 is a valid index into a 2^21
     encoder, so selecting on the family alone looks up the 131k block's ids in the 2M dictionary
     and scores wrong features with nothing raising.
 
     AND A MISSING `sae_key` IS NOT A LICENCE. The first version of this function read
     `r.get("sae_key", sae_key) == sae_key`, which defaults each unkeyed row to match WHATEVER was
-    typed -- so on the two sets that predate the field (2026-09-16_v1, 2026-09-20_sae2m_2k, which
-    carry it on no row at all) the guard was vacuous, and `--sae qwen36-27b/sae2m --set
+    typed -- so on the two sets that predate the field (2026-09-16_v1, 2026-09-20_dict2m_2k, which
+    carry it on no row at all) the guard was vacuous, and `--sae qwen36-27b/dict2m --set
     2026-09-16_v1` selected all 512 of the 131k rows, every id a valid 2^21 index: exactly the
     silent failure the guard is for, on the paper's own set. MEASURED against the real ids
     2026-09-21.
@@ -1161,7 +1161,7 @@ def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = "", decla
     its `heldout:` entry), and it must equal `sae_key`. An undeclared set refuses, naming the row
     count, rather than answering a question nobody can check.
 
-    `side` filters the encoder/decoder axis (`sae_side`, NOT draw_sae2m's `side`, which is the
+    `side` filters the encoder/decoder axis (`sae_side`, NOT draw_dict2m's `side`, which is the
     fit/report split of OUR analysis and a different axis entirely). A row with no `sae_side`
     predates decoder rows and counts as `enc`.
     """
@@ -1183,7 +1183,7 @@ def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = "", decla
             f"dictionary for them, so which SAE their feature ids index is not recorded anywhere. "
             f"Nothing here will assume it is --sae {sae_key!r}: every id below 131,072 is a valid "
             f"index into a 2^21 encoder, so a wrong guess scores wrong features silently. Declare "
-            f"`sae_key:` on the set's `heldout:` entry (or re-draw it -- targets and draw_sae2m "
+            f"`sae_key:` on the set's `heldout:` entry (or re-draw it -- targets and draw_dict2m "
             f"stamp it per row)."
         )
         assert declared == sae_key, (
@@ -1235,7 +1235,7 @@ def stats_mu(cfg: dict, base: str, root: str = VOL):
 # volume paths (infra/precompute-layout.md §1)
 #
 # Every base product takes a `root` so a smoke can mirror the whole relative layout under
-# <root>/base/<base>/... (default /vol). maemms/, gcg/ and the archive are not root-relative: they
+# <root>/base/<base>/... (default /vol). maems/, gcg/ and the archive are not root-relative: they
 # are never written by a smoke.
 # ---------------------------------------------------------------------------------------------
 
@@ -1351,7 +1351,7 @@ def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool =
 
     KEYED BY SET since 2026-09-21 (B9). It used to be `examples/` keyed by the SAE alone, so a
     second `scan` of the same dictionary against a different held-out set refused without --force
-    and destroyed the first set's examples with it; the eval plan runs three scans on `sae2m`.
+    and destroyed the first set's examples with it; the eval plan runs three scans on `dict2m`.
 
     A READER (`write=False`) used to fall back to the legacy unkeyed directory when the keyed one
     was absent, with a stdout note and nothing else. IT NOW REFUSES (2026-09-23). The fallback was
@@ -1403,11 +1403,11 @@ def gcg_dir(base: str, set_name: str, family: str, arm: str, root: str = VOL) ->
     return f"{base_dir(base, root)}/gcg/{set_name}/{family}/{arm}"
 
 
-def maemm_dir(maemm_key: str, root: str = VOL) -> str:
-    """`<root>/maemms/<base>/<name>`. Root-relative since step 3: a rollouts/score smoke writes the
-    whole maemms/ subtree under /vol/runs/<date>_faithfulness-smoke, exactly as base/ does."""
-    base, name = split_key(maemm_key, "maemm")
-    return f"{root}/maemms/{base}/{name}"
+def maem_dir(maem_key: str, root: str = VOL) -> str:
+    """`<root>/maems/<base>/<name>`. Root-relative since step 3: a rollouts/score smoke writes the
+    whole maems/ subtree under /vol/runs/<date>_faithfulness-smoke, exactly as base/ does."""
+    base, name = split_key(maem_key, "maem")
+    return f"{root}/maems/{base}/{name}"
 
 
 ENGINES = ("hf", "vllm")
@@ -1434,13 +1434,13 @@ def rollout_stem(set_name: str, engine: str = "hf", tag: str = "") -> str:
     return f"{stem}__{tag}" if tag else stem
 
 
-def rollouts_path(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf",
+def rollouts_path(maem_key: str, set_name: str, root: str = VOL, engine: str = "hf",
                   tag: str = "") -> str:
-    return f"{maemm_dir(maemm_key, root)}/rollouts/{rollout_stem(set_name, engine, tag)}.jsonl"
+    return f"{maem_dir(maem_key, root)}/rollouts/{rollout_stem(set_name, engine, tag)}.jsonl"
 
 
-def rollouts_dir(maemm_key: str, root: str = VOL) -> str:
-    return f"{maemm_dir(maemm_key, root)}/rollouts"
+def rollouts_dir(maem_key: str, root: str = VOL) -> str:
+    return f"{maem_dir(maem_key, root)}/rollouts"
 
 
 ROWS_MARK = "__rows"
@@ -1477,7 +1477,7 @@ def rollout_chunk_paths(out_dir: str, stem: str) -> list[str]:
 # Summary fields that every chunk of one product must agree on: they describe the EXPERIMENT, and
 # two chunks that disagree on one of them are two experiments wearing one stem.
 _CHUNK_INVARIANT = (
-    "maemm", "base", "set", "engine", "kind", "n", "bo", "seed", "max_new", "min_new",
+    "maem", "base", "set", "engine", "kind", "n", "bo", "seed", "max_new", "min_new",
     "prompt", "prompt_tokens", "marker_pos", "inject_layer", "inject_coef",
     "temperature", "top_p", "top_k", "weight_sha256", "score_max_length",
 )
@@ -1550,8 +1550,8 @@ def read_rollouts(out_dir: str, stem: str):
     return rows, summary, chunks
 
 
-def nla_variant_dir(maemm_key: str, set_name: str, amp: str, root: str = VOL) -> str:
-    """`<root>/maemms/<base>/<nla>/variants/<set>__amp-<amp>` -- a NON-default `rollouts_nla --amp`.
+def nla_variant_dir(maem_key: str, set_name: str, amp: str, root: str = VOL) -> str:
+    """`<root>/maems/<base>/<nla>/variants/<set>__amp-<amp>` -- a NON-default `rollouts_nla --amp`.
 
     Its own one-shot directory in the `score --rollouts-dir` layout (`rollouts.jsonl` +
     `rollouts.summary.json` + `scores/`), deliberately NOT the accumulating `rollouts/`: an amp
@@ -1559,12 +1559,12 @@ def nla_variant_dir(maemm_key: str, set_name: str, amp: str, root: str = VOL) ->
     would make it indistinguishable from the headline run in `index.json`.
     """
     assert amp and "/" not in amp and " " not in amp, f"amp {amp!r} must be a bare directory suffix"
-    return f"{maemm_dir(maemm_key, root)}/variants/{set_name}__amp-{amp}"
+    return f"{maem_dir(maem_key, root)}/variants/{set_name}__amp-{amp}"
 
 
-def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf",
+def scores_dir(maem_key: str, set_name: str, root: str = VOL, engine: str = "hf",
                tag: str = "", write: bool = False) -> str:
-    """`<root>/maemms/<base>/<maemm>/scores/<set>[__<engine>][__<tag>]` -- `rollout_stem`'s layout.
+    """`<root>/maems/<base>/<maem>/scores/<set>[__<engine>][__<tag>]` -- `rollout_stem`'s layout.
 
     `tag` IS IN THE SAME POSITION AS `rollout_stem`'s, which is the whole point of it existing
     here (C7, infra/2026-09-22_inventory-alignment.md). This function took no tag, so a tagged
@@ -1590,10 +1590,10 @@ def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf
     can differ: at `hf` the two spellings are the same string.
     """
     tag = (tag or "").strip()
-    canonical = f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(set_name, engine, tag)}"
+    canonical = f"{maem_dir(maem_key, root)}/scores/{rollout_stem(set_name, engine, tag)}"
     if write or not tag or engine == "hf":
         return canonical
-    legacy = f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(f'{set_name}__{tag}', engine)}"
+    legacy = f"{maem_dir(maem_key, root)}/scores/{rollout_stem(f'{set_name}__{tag}', engine)}"
     if not os.path.exists(canonical) and os.path.exists(legacy):
         print(
             f"[scores] {canonical} is absent; reading the LEGACY {legacy} (written before "
@@ -1732,7 +1732,7 @@ def quantiles_from_hist(counts, qs, lo: float = -1.0, hi: float = 1.0):
 
 
 # ---------------------------------------------------------------------------------------------
-# HF cache resolution (modal/maemm_modal.py:_snapshot)
+# HF cache resolution (modal/maem_modal.py:_snapshot)
 # ---------------------------------------------------------------------------------------------
 
 
@@ -1762,14 +1762,14 @@ def snapshot(cfg: dict, repo_id: str, repo_type: str = "model") -> str:
     return snaps[0]
 
 
-def maemm_weights_path(cfg: dict, maemm_key: str) -> str:
-    """Directory holding the MAEMM's weights: adapter dir (lora) or full snapshot (full).
+def maem_weights_path(cfg: dict, maem_key: str) -> str:
+    """Directory holding the MAEM's weights: adapter dir (lora) or full snapshot (full).
 
     The subdir is JOINED onto the snapshot rather than passed as PeftModel(subfolder=...) because
-    that is what modal/maemm_modal.py:1842 does and because the resulting path is what the README
+    that is what modal/maem_modal.py:1842 does and because the resulting path is what the README
     and the weight sha have to name.
     """
-    spec = cfg["maemms"][maemm_key]
+    spec = cfg["maems"][maem_key]
     path = spec["src"] if "src" in spec else snapshot(cfg, spec["hf"])
     if spec.get("subdir"):
         path = os.path.join(path, spec["subdir"])
@@ -1777,7 +1777,7 @@ def maemm_weights_path(cfg: dict, maemm_key: str) -> str:
     # itself, which is exactly the point of the control.
     marker = "adapter_config.json" if spec["type"] == "lora" else "config.json"
     assert os.path.exists(os.path.join(path, marker)), (
-        f"maemm {maemm_key!r}: no {marker} under {path} (type={spec['type']})"
+        f"maem {maem_key!r}: no {marker} under {path} (type={spec['type']})"
     )
     return path
 
@@ -1828,37 +1828,37 @@ def load_base(cfg: dict, base: str, device: str = "cuda"):
     return model, tok
 
 
-def load_maemm(cfg: dict, base: str, maemm_key: str, device: str = "cuda"):
+def load_maem(cfg: dict, base: str, maem_key: str, device: str = "cuda"):
     """(model, tok, kind) for the GENERATING model. kind is the config `type`: 'lora', 'full' or 'base'.
 
     lora: base + PeftModel; scoring runs on the same object with the adapter disabled.
     full: the tuned model IS the generator and has no adapter to switch off, so the caller must
     load a separate clean base for scoring (evals/heldout/eval_ckpt_daemon.py:333-390).
-    base: the UNTRAINED-BASE CONTROL -- no MAEMM weights anywhere; `maemm_weights_path` resolves to
+    base: the UNTRAINED-BASE CONTROL -- no MAEM weights anywhere; `maem_weights_path` resolves to
     the base's own snapshot, so this loads exactly what `load_base` would and takes the same
     no-adapter path as `full`. The kind is returned verbatim so every caller can tell the control
-    apart from a trained full-parameter MAEMM (their marker-norm expectations are OPPOSITE).
+    apart from a trained full-parameter MAEM (their marker-norm expectations are OPPOSITE).
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    key_base, _ = split_key(maemm_key, "maemm")
-    assert key_base == base, f"maemm {maemm_key!r} is not on base {base!r}"
-    spec = cfg["maemms"][maemm_key]
-    path = maemm_weights_path(cfg, maemm_key)
+    key_base, _ = split_key(maem_key, "maem")
+    assert key_base == base, f"maem {maem_key!r} is not on base {base!r}"
+    spec = cfg["maems"][maem_key]
+    path = maem_weights_path(cfg, maem_key)
     if spec["type"] == "lora":
         import torch
         from peft import PeftModel
 
-        # `parent:` -- a LoRA whose base is ANOTHER MAEMM rather than the clean base. Needed the
+        # `parent:` -- a LoRA whose base is ANOTHER MAEM rather than the clean base. Needed the
         # moment you train an adapter on top of a full-parameter checkpoint (2026-09-23: the
-        # rare-feature LoRA over rl-last16): without it the adapter loads onto the UNTRAINED base,
+        # rare-feature LoRA over rl-final): without it the adapter loads onto the UNTRAINED base,
         # every product runs, and the tables report a model nobody trained. The parent is resolved
         # through this same function, so a parent may itself be `full`, `lora` or `base`.
         parent = spec.get("parent")
         if parent:
-            assert parent in cfg["maemms"], f"unknown parent {parent!r} of {maemm_key!r}"
-            assert parent != maemm_key, f"maemm {maemm_key!r} is its own parent"
-            model, tok, pkind = load_maemm(cfg, base, parent, device=device)
+            assert parent in cfg["maems"], f"unknown parent {parent!r} of {maem_key!r}"
+            assert parent != maem_key, f"maem {maem_key!r} is its own parent"
+            model, tok, pkind = load_maem(cfg, base, parent, device=device)
             print(f"[load] parent {parent} ({pkind}) under adapter {path}", flush=True)
             model = PeftModel.from_pretrained(model, path, is_trainable=False,
                                               torch_dtype=torch.bfloat16)
@@ -1888,7 +1888,7 @@ def load_maemm(cfg: dict, base: str, maemm_key: str, device: str = "cuda"):
 def clean_adapter(model):
     """Context manager putting `model` in clean-base mode for scoring.
 
-    A PeftModel disables its adapter; a plain model (full-parameter MAEMM protocol, where the
+    A PeftModel disables its adapter; a plain model (full-parameter MAEM protocol, where the
     scoring model is a separately loaded clean base) is already clean, so this is a no-op rather
     than an error -- the caller decides which object to hand in.
     """
@@ -1898,12 +1898,12 @@ def clean_adapter(model):
 
 
 # ---------------------------------------------------------------------------------------------
-# prompts (maemm/prompts.py)
+# prompts (maem/prompts.py)
 # ---------------------------------------------------------------------------------------------
 
 
 def _chat_ids(tok, content, add_gen):
-    """maemm/prompts.py:18-24, verbatim."""
+    """maem/prompts.py:18-24, verbatim."""
     out = tok.apply_chat_template(
         [{"role": "user", "content": content}],
         tokenize=True,
@@ -1917,7 +1917,7 @@ def _chat_ids(tok, content, add_gen):
 
 
 def marker_positions(tok, ids):
-    """maemm/prompts.py:27-32, verbatim."""
+    """maem/prompts.py:27-32, verbatim."""
     mid = tok.encode(MARKER, add_special_tokens=False)
     assert len(mid) == 1, f"marker not single-token: {mid}"
     pos = [i for i, t in enumerate(ids) if t == mid[0]]
@@ -1925,19 +1925,19 @@ def marker_positions(tok, ids):
     return pos
 
 
-def _maemm_prompt(tok, read_layer: int):
-    """maemm/prompts.py:35-40: the marker goes AFTER the chat template's generation prefix."""
+def _maem_prompt(tok, read_layer: int):
+    """maem/prompts.py:35-40: the marker goes AFTER the chat template's generation prefix."""
     instr = _INSTR_TEMPLATE.format(read_layer=read_layer)
     ids = _chat_ids(tok, instr, add_gen=True) + tok.encode(MARKER, add_special_tokens=False)
     return ids, len(ids) - 1
 
 
-# ours8b and maemm27b are today the SAME template at read layer 27 vs 42 (this repo's
-# maemm/prompts.py substitutes READ_LAYER=27 into the upstream text). Both names are kept so that a
-# future MAEMM trained on a different prompt costs one config entry and one function here.
+# ours8b and maem27b are today the SAME template at read layer 27 vs 42 (this repo's
+# maem/prompts.py substitutes READ_LAYER=27 into the upstream text). Both names are kept so that a
+# future MAEM trained on a different prompt costs one config entry and one function here.
 PROMPTS = {
-    "ours8b": _maemm_prompt,
-    "maemm27b": _maemm_prompt,
+    "ours8b": _maem_prompt,
+    "maem27b": _maem_prompt,
 }
 
 
@@ -1951,19 +1951,19 @@ def prompt_ids(tok, prompt_name: str, read_layer: int):
 
 
 # ---------------------------------------------------------------------------------------------
-# injection and reading (maemm/inject.py)
+# injection and reading (maem/inject.py)
 # ---------------------------------------------------------------------------------------------
 
 
 def get_layer(model, layer: int):
-    """maemm/inject.py:10-14, verbatim: the decoder block at `layer`, unwrapping DDP + PEFT."""
+    """maem/inject.py:10-14, verbatim: the decoder block at `layer`, unwrapping DDP + PEFT."""
     m = model.module if hasattr(model, "module") else model
     base = m.get_base_model() if hasattr(m, "get_base_model") else m
     return base.model.layers[layer]
 
 
 def make_inject_hook(vecs, positions, coeff, device, dtype):
-    """maemm/inject.py:24-57 with mode='add' only (the only mode any MAEMM was trained with).
+    """maem/inject.py:24-57 with mode='add' only (the only mode any MAEM was trained with).
 
     vecs: list of [k_i, d] directions, one row per marker position of batch row i.
     The `h.shape[1] <= 1` guard is the decode step under the KV cache: the marker was injected at
@@ -1998,7 +1998,7 @@ def make_inject_hook(vecs, positions, coeff, device, dtype):
 
 @contextlib.contextmanager
 def hooked(module, hook):
-    """maemm/inject.py:129-135, verbatim."""
+    """maem/inject.py:129-135, verbatim."""
     handle = module.register_forward_hook(hook)
     try:
         yield
@@ -2016,7 +2016,7 @@ StopForward = _Stop
 
 
 def read_layer_hook(captured: dict):
-    """maemm/inject.py:147-149: capture the block OUTPUT (never output_hidden_states) and stop."""
+    """maem/inject.py:147-149: capture the block OUTPUT (never output_hidden_states) and stop."""
 
     def cap(_m, _i, out):
         captured["h"] = (out[0] if isinstance(out, tuple) else out).float()
@@ -2026,7 +2026,7 @@ def read_layer_hook(captured: dict):
 
 
 def read_resid(model, layer, batch, pool="all"):
-    """maemm/inject.py:142-166, verbatim. Layer-`layer` residual for a tokenized batch, no injection.
+    """maem/inject.py:142-166, verbatim. Layer-`layer` residual for a tokenized batch, no injection.
 
     The forward is aborted at the read layer, so nothing above it is computed.
     """
@@ -2364,7 +2364,7 @@ def score_ids(
     `cos_centred` exists to measure against rather than to replace.
 
     `model` must already be the scoring model: a PeftModel (its adapter is disabled here) or a
-    separately loaded clean base (full-parameter MAEMMs have no adapter to switch off).
+    separately loaded clean base (full-parameter MAEMs have no adapter to switch off).
 
     Returns a dict of [N, max_length + 1] tensors on the cpu -- cos (f32), norm (f32), keep (bool),
     ids (i64), and cos_centred (f32) when asked for -- where column 0 is the sink, cos/norm are NaN
@@ -2564,7 +2564,7 @@ def bo_ladder(vals, ks) -> dict[int, float]:
 
 
 # ---------------------------------------------------------------------------------------------
-# SAE (maemm/sae.py:20-52 + evals/heldout/eval_universal.py:77-93 for the gate)
+# SAE (maem/sae.py:20-52 + evals/heldout/eval_universal.py:77-93 for the gate)
 # ---------------------------------------------------------------------------------------------
 
 
@@ -2584,7 +2584,7 @@ class BatchTopKSAE:
 
 
 def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None, need_decoder: bool = True):
-    """maemm/sae.py:39-52 plus the `threshold` buffer the upstream eval reads through sae_gate().
+    """maem/sae.py:39-52 plus the `threshold` buffer the upstream eval reads through sae_gate().
 
     The checkpoint is a dictionary_learning nn.Linear state dict, so both weight matrices are
     stored [out, in] and are transposed here.
@@ -2658,7 +2658,7 @@ def _sae_cols(sae: BatchTopKSAE, feature_ids) -> list[int]:
 
 
 def sae_encode(sae: BatchTopKSAE, h, feature_ids):
-    """maemm/sae.py:27-31: pre-topk post-ReLU activations relu((x - b_dec) @ W_enc[:,f] + b_enc[f]).
+    """maem/sae.py:27-31: pre-topk post-ReLU activations relu((x - b_dec) @ W_enc[:,f] + b_enc[f]).
 
     `feature_ids` are always the DICTIONARY's ids, whether `sae` is the whole dictionary or a
     column slice from `load_sae_columns`. The slice translates them through its own `col_of` and
@@ -2680,7 +2680,7 @@ def load_sae_columns(path: str, d_model: int, feature_ids, device: str = "cpu", 
     of b_enc, all of b_dec, and the gate. A caller that wants the activation of SIXTEEN features
     of a 2^21 dictionary does not need the other 2,097,136 columns and certainly does not need
     W_dec -- which is 43 GB in fp32 at that width, and is what made `gcg --mode epo --sae
-    qwen36-27b/sae2m` OOM an H200 at setup (MEASURED 2026-09-21: the fp32 unembedding's 4.74 GiB
+    qwen36-27b/dict2m` OOM an H200 at setup (MEASURED 2026-09-21: the fp32 unembedding's 4.74 GiB
     could not be allocated with 135.55 GiB already in use).
 
     The full encoder is read on the CPU and only the slice is moved, so the device never holds the
@@ -2709,7 +2709,7 @@ def load_sae_columns(path: str, d_model: int, feature_ids, device: str = "cpu", 
 
 
 def sae_dirs(sae: BatchTopKSAE, feature_ids):
-    """maemm/sae.py:33-36: the `sae` family target is the UNIT ENCODER COLUMN unit(W_enc[:, f]).
+    """maem/sae.py:33-36: the `sae` family target is the UNIT ENCODER COLUMN unit(W_enc[:, f]).
 
     Sibling of `sae_encode` and indexes W_enc the same way, so it takes DICTIONARY ids on a column
     slice too. Without this the two functions would disagree about what an id means on the same
@@ -2765,7 +2765,7 @@ def read_array(path: str | Path, dtype: str, shape):
 
 
 def sha256_of_weights(path: str | Path) -> dict:
-    """Streamed sha256 over a checkpoint directory's weight files, for the MAEMM README.
+    """Streamed sha256 over a checkpoint directory's weight files, for the MAEM README.
 
     Hashes every *.safetensors / *.bin / *.pt in name order, plus a combined digest over the
     per-file digests, so a sibling checkpoint cannot be mistaken for this one (checklist item 74).
@@ -2795,7 +2795,7 @@ def sha256_of_index(path: str | Path) -> dict:
     """Cheap weight identity for a SHARDED full model: sha256 of `model.safetensors.index.json`
     plus every shard's name and byte size -- no shard content is read.
 
-    MEASURED constraint: the 27B full MAEMM is ~52 GiB across 13 files on the FUSE-mounted volume;
+    MEASURED constraint: the 27B full MAEM is ~52 GiB across 13 files on the FUSE-mounted volume;
     a streamed sha256 of that is minutes of wall on a $4.54/h GPU for a field nobody diffs. The
     index.json pins the parameter->shard map and every tensor name, and the sizes pin the shard
     bytes, so two different checkpoints of the same architecture differ here only if they happen to

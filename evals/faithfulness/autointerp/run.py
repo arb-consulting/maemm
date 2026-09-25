@@ -13,7 +13,7 @@
 Everything between `# ---- Delphi` markers is TRANSCRIBED from EleutherAI/delphi pinned to
 DELPHI_COMMIT, by way of evals/heldout/autointerp_detection.py:229-450, which records the raw
 file URLs and the fetch date. The prompts are copied rather than imported: that file lives in
-another worktree, is read-only, and carries `maemm`/torch imports this CPU container must not need.
+another worktree, is read-only, and carries `maem`/torch imports this CPU container must not need.
 
 THE API IS ANTHROPIC'S MESSAGES API, DIRECTLY (2026-09-16), not OpenRouter. Two paths,
 `--path sync` (bounded thread pool) and `--path batch` (one Message Batch per stage, half price);
@@ -942,7 +942,7 @@ def run(cfg, args):
     feats = list(fmeta)
 
     # ---- THE SECOND BUILD: the NLA arms, scored on THIS build's test items -------------------
-    # `build` takes ONE --maemm and the NLA verbalizer is a different checkpoint from the MAEMM,
+    # `build` takes ONE --maem and the NLA verbalizer is a different checkpoint from the MAEM,
     # so the NLA arms and the M arms can never come out of one build directory. Before 2026-09-23
     # that meant a separate run directory per source, and `stats.paired()` reads ONE
     # `summary/scores.jsonl` while every run appends its own floor and nulls (`:1451`), so the two
@@ -978,7 +978,7 @@ def run(cfg, args):
             f"arm must cover the same feature set or the contrast is not paired"
         )
         print(f"[run] NLA arms from a second build {nla_build_dir} "
-              f"(maemm {ninfo['maemm']}, rollout source {ninfo.get('rollout_source')})", flush=True)
+              f"(maem {ninfo['maem']}, rollout source {ninfo.get('rollout_source')})", flush=True)
 
     def rows_of(feat: int):
         """(meta, arms, draw-1, draw-2) for `feat`, with the second build's ROLLOUT-ONLY arms
@@ -1068,7 +1068,7 @@ def run(cfg, args):
     # description comes from the build's `nla_desc.jsonl` -- and it is detection-scored on the
     # IDENTICAL draw-1 items every other arm sees, which is what makes it comparable with the
     # explainer arms rather than a separate experiment. It exists iff the build wrote that file,
-    # so a MAEMM build never grows it and `--arms` naming it on such a build is a no-op with a
+    # so a MAEM build never grows it and `--arms` naming it on such a build is a no-op with a
     # printed reason rather than an error.
     nla_desc_arm = "NLA-desc"
     # `nla_desc.jsonl` is written by the NLA build, which on a combined run is the SECOND one.
@@ -1588,7 +1588,7 @@ def run(cfg, args):
             od.note(
                 f"the NLA arms' rendered examples come from a SECOND build, {nla_build_dir} "
                 f"(its build.json is beside this one as build_nla.json), because `build` takes one "
-                f"--maemm and the verbalizer is not the MAEMM. Only arms whose examples are ALL "
+                f"--maem and the verbalizer is not the MAEM. Only arms whose examples are ALL "
                 f"rollouts were lifted; the test items, the gate, the feature draw and the nulls "
                 f"are this build's, so every arm in scores.jsonl was judged on identical items."
             )

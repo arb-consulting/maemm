@@ -687,7 +687,7 @@ def selftest() -> None:  # noqa: C901 -- one check per paragraph, kept in one pl
         checks += 1
 
         # --- exemplifier_bok, against a synthetic score product ------------------------------
-        sc = tmp / "maemms" / "m" / "scores" / "s"
+        sc = tmp / "maems" / "m" / "scores" / "s"
         sc.mkdir(parents=True, exist_ok=True)
         arr = np.full((3, 4, 5), np.nan, dtype=np.float16)
         for i in range(3):
@@ -696,13 +696,13 @@ def selftest() -> None:  # noqa: C901 -- one check per paragraph, kept in one pl
         arr.tofile(sc / "cos_centred.f16")
         (sc / "index.json").write_text(json.dumps(
             {"cos_centred.f16": {"shape": [3, 4, 5], "dtype": "float16"}}), encoding="utf-8")
-        got = exemplifier_bok(vol, "maemms/m/scores/s", 4)
+        got = exemplifier_bok(vol, "maems/m/scores/s", 4)
         assert got is not None and got.shape == (3,), got
         checks += 1
         # at k = n the unbiased best-of-k IS the max over the four rollouts
         assert math.isclose(float(got[1]), 0.1 + 0.15, abs_tol=2e-3), got
         checks += 1
-        assert exemplifier_bok(vol, "maemms/m/scores/absent", 4) is None
+        assert exemplifier_bok(vol, "maems/m/scores/absent", 4) is None
         checks += 1
 
         # --- cells rows -----------------------------------------------------------------------

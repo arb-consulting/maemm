@@ -16,13 +16,13 @@ read from (`targets`' `_realact` geometry) -- storing, per target:
 Why it exists: `precompute/` computed no NLL before this (the OOD survey's "`score.py` already
 computes it" was wrong: `grep -rli nll evals/faithfulness` hit only `gcg/` and `reconstruction/stats.py`).
 What it is FOR is narrower than the first design said (R6): the identification claim -- "this lets
-'the MAEMM is worse on Thai' be read apart from 'the base is worse on Thai'" -- is withdrawn. The
+'the MAEM is worse on Thai' be read apart from 'the base is worse on Thai'" -- is withdrawn. The
 missing control is an inverter TRAINED on the domain, which this evaluation does not have. bits per
 byte is reported descriptively, with the within-arm Spearman against bo64.
 
 Runs on an OOD set (whose windows are stored in `heldout/<set>/windows.i32`) and on the 512
 English `realact` rows of `2026-09-16_v1` (whose windows are the first 512 tokens of their corpus
-document). No MAEMM is ever loaded.
+document). No MAEM is ever loaded.
 """
 
 from __future__ import annotations

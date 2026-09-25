@@ -13,9 +13,9 @@ STEER_GREEDY = (plain_steer.TABLE_STRENGTH,)
 STEERED = tuple(plain_steer.arm_name(s) for s in STEER_SAMPLES)
 STEERED_TABLE = plain_steer.TABLE_ARM
 STEERED_CURVE = tuple(arm for arm in STEERED if arm != STEERED_TABLE)
-GREEDY = ("maemm", "base_l1", "nla_native", STEERED_TABLE)
+GREEDY = ("maem", "base_l1", "nla_native", STEERED_TABLE)
 SINGLE_TEXT = ("jlens",)                # one text, asked once in the greedy slot
-CONDITIONS = ("maemm", "base_l1", "nla_native", *STEERED, "shuffled", "retrieval", "heldout_positive",
+CONDITIONS = ("maem", "base_l1", "nla_native", *STEERED, "shuffled", "retrieval", "heldout_positive",
               *SINGLE_TEXT)
 GENRES = ("text", "code", "math")
 BUDGETS = (1, 2, 4, 8)                  # texts shown together

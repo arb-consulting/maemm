@@ -58,7 +58,7 @@ def resolved_run_dir(args):
 
 
 def run_stage(name, args, run):
-    from evals.downstream.workspace_understanding import corpus, items, judge, lens, maemm_control, model
+    from evals.downstream.workspace_understanding import corpus, items, judge, lens, maem_control, model
     from evals.downstream.workspace_understanding import nla, nla_control, patchscope, report, reread, retrieval
     from evals.downstream.workspace_understanding import untrained_base
 
@@ -73,7 +73,7 @@ def run_stage(name, args, run):
         "nla": nla.stage_nla,
         "nla_control": nla_control.stage_nla_control,
         "untrained_base": untrained_base.stage_untrained_base,
-        "maemm_control": maemm_control.stage_maemm_control,
+        "maem_control": maem_control.stage_maem_control,
         "reread": reread.stage_reread,
         "summarise": judge.stage_summarise,
         "judge": judge.stage_judge,

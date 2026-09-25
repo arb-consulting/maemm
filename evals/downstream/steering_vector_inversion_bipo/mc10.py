@@ -25,14 +25,14 @@ N_CANDIDATES = 2 * CANDIDATE_BEHAVIOURS
 CHANCE = 1.0 / N_CANDIDATES
 MAIN = "main"                          # the one candidate list, the tables' `list` column
 
-READERS = ("maemm", "nla_native", "retrieval", "jlens")
+READERS = ("maem", "nla_native", "retrieval", "jlens")
 STEERED_ARMS = plain_steer_arm.ARMS
 DEFAULT_ARMS = (*READERS, *STEERED_ARMS, "base_l1", "shuffled", "heldout_matching")
 SHUFFLED = "shuffled"
-SHUFFLED_READER = "maemm"
+SHUFFLED_READER = "maem"
 CONTROL_ARMS = ("heldout_matching", "base_l1")   # judged first, for the gate
 PAIRED_ARMS = (*READERS, plain_steer_arm.P.TABLE_ARM, "base_l1")
-SUMMARY_ARM = "maemm"
+SUMMARY_ARM = "maem"
 SUMMARY_AGAINST = ("nla_native", "retrieval", "jlens", *STEERED_ARMS, "base_l1", "shuffled")
 
 FAMILIES = "rollouts/families.json"
@@ -144,7 +144,7 @@ def donor_vector(vector_id, behaviour):
 
 def shuffled_sources(families, truth, pool, seed=C.DATA_SEED):
     """`{shuffled family id: {"family", "vector_id", "donor", "truth"}}`: vector `v`'s own question asked of
-    MAEMM's bundles for the first behaviour of `v`'s list (in a seeded order) whose family exists."""
+    MAEM's bundles for the first behaviour of `v`'s list (in a seeded order) whose family exists."""
     out = {}
     for family_id in sorted(families, key=str):
         family = families[family_id]
@@ -430,7 +430,7 @@ def _paired_rows(cells, arms=PAIRED_ARMS, minimum=MIN_VECTORS_PAIRED):
 
 
 def _summary_rows(cells):
-    """`arm` rows (each arm's mean per-vector rate with its interval) and `paired` rows (`maemm` minus each
+    """`arm` rows (each arm's mean per-vector rate with its interval) and `paired` rows (`maem` minus each
     arm of `SUMMARY_AGAINST` over shared vectors, at least `MIN_VECTORS_SUMMARY`)."""
     judges = _judges_in({r["judge"] for r in cells})
     kinds = sorted({r["kind"] for r in cells}, key=_kind_rank)
@@ -526,9 +526,9 @@ def tables(root):
     return out
 
 
-ARM_LABELS = {"maemm": "MAEMM", "nla_native": "NLA verbalizer", "retrieval": "Corpus search",
+ARM_LABELS = {"maem": "MAEM", "nla_native": "NLA verbalizer", "retrieval": "Corpus search",
               "jlens": "Jacobian lens", "base_l1": "Untrained base",
-              "shuffled": "Shuffled (MAEMM, another behaviour)", "heldout_matching": "Held-out statements",
+              "shuffled": "Shuffled (MAEM, another behaviour)", "heldout_matching": "Held-out statements",
               **{arm: f"Steered model, s={arm.partition('@')[2]}" for arm in STEERED_ARMS}}
 KIND_LABELS = {"bipo:persona": "learned (persona)", "heldout:persona": "held-out (persona)"}
 
@@ -612,7 +612,7 @@ def _shuffled_block(root):
     if not rows:
         return []
     lines = ["### 3. Does the judge read the text? The shuffled check", "",
-             "Each vector's own question asked of MAEMM's bundles for another behaviour on its list (the "
+             "Each vector's own question asked of MAEM's bundles for another behaviour on its list (the "
              "donor). A judge that reads the text names the donor, so the rate against the vector's own "
              f"truth sits below the {CHANCE:.0%} line by construction.", ""]
     body = [(r.get("list"), KIND_LABELS.get(r.get("kind"), r.get("kind")), r.get("judge"), r.get("n_vectors"),

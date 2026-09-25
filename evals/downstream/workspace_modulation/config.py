@@ -20,7 +20,7 @@ from evals.downstream.common.pins import (  # noqa: F401  (shared by every packa
     MODEL_REVISION,
 )
 from evals.downstream.common.retrieval import SHARED_SIZE, CorpusSpec
-from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF  # noqa: F401  5120, 1, 42, 1.0
+from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF  # noqa: F401  5120, 1, 42, 1.0
 
 HERE = os.path.dirname(__file__)
 DATASETS_DIR = os.path.join(HERE, "datasets")
@@ -116,7 +116,7 @@ GATE_MIN_POSITIVES = 5
 LENS_READER = "jlens_L42_summary"
 LENS_BAND_READER = "jlens_band8_summary"
 LENS_READERS = (LENS_READER, LENS_BAND_READER)
-JUDGED_READERS = ("maemm_reg8", "maemm_null8", "nla_n8", RETRIEVAL_JUDGED, "patch42_n8", LENS_READER,
+JUDGED_READERS = ("maem_reg8", "maem_null8", "nla_n8", RETRIEVAL_JUDGED, "patch42_n8", LENS_READER,
                   LENS_BAND_READER)
 READOUT_KIND = {r: ("summary" if r in LENS_READERS else "samples") for r in JUDGED_READERS}
 READER_BANDS = {LENS_BAND_READER: (FINAL_BAND,)}  # read positions of a reader not read at both
@@ -149,7 +149,7 @@ for _t, _w in _TENS.items():
 NUMBER_WORDS["100"] = "one hundred"
 
 COLOURS = {
-    "maemm": "#0072B2",
+    "maem": "#0072B2",
     "jlens": "#E69F00",
     "nla": "#CC79A7",
     "retrieval": "#009E73",
@@ -167,9 +167,9 @@ ARMS["nla"] = dict(
     n_samples=_nla.n_samples, greedy=True, temp=_nla.temp, top_p=_nla.top_p, top_k=_nla.top_k, min_p=_nla.min_p,
     max_new=_nla.max_new, min_new=_nla.min_new, seed_offset=7,
 )
-NLA_READERS = ("nla", "nla64")  # native, and the same samples cut to MAEMM's 64 tokens
+NLA_READERS = ("nla", "nla64")  # native, and the same samples cut to MAEM's 64 tokens
 
-# --- the null control: MAEMM's headline arm injected with a zero direction ---
+# --- the null control: MAEM's headline arm injected with a zero direction ---
 NULL_ARM = "null"
 ARMS[NULL_ARM] = dict(ARMS["reg"], seed_offset=20, null_direction=True)
 PASS_AT[NULL_ARM] = PASS_AT["reg"]

@@ -9,8 +9,8 @@ Usage (one per GPU): CUDA_VISIBLE_DEVICES=N PYTHONPATH=. python data/collect_act
 import argparse, os, json, numpy as np, torch, random
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
-from maemm.config import MODEL, READ_LAYER, D_MODEL
-from maemm.inject import read_resid
+from maem.config import MODEL, READ_LAYER, D_MODEL
+from maem.inject import read_resid
 
 
 def main():

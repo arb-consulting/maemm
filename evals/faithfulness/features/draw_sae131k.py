@@ -3,10 +3,10 @@
     python -m features.spawn --product draw_sae131k --base qwen36-27b \
         --sae qwen36-27b/l42-1b --heldout 2026-09-21_sae131k_2k
 
-The sibling of `draw_sae2m` for the OTHER dictionary. Same shape, same 80/20 train/test
+The sibling of `draw_dict2m` for the OTHER dictionary. Same shape, same 80/20 train/test
 column, same `family: "sae"` tag, so every consumer reads it identically and the only
 difference between the two sets is which SAE the feature ids belong to. That is the
-point: `id` alone is ambiguous -- feature 4242 of `l42-1b` and of `sae2m` are unrelated
+point: `id` alone is ambiguous -- feature 4242 of `l42-1b` and of `dict2m` are unrelated
 directions -- so every row also carries `sae_key`.
 
 ## Why this set exists
@@ -33,7 +33,7 @@ against the EARLIER chains, and whether a 131k feature has a near-duplicate amon
 this set's provenance as equal to the 2M set's.
 
 Strata are quartiles of log10 peak activation over the drawn set, recorded rather than
-sampled, as in `draw_sae2m`.
+sampled, as in `draw_dict2m`.
 
 ## The decoder twin of an existing set (`--sides dec --dirs-from <set> --rows <spec>`)
 
@@ -66,7 +66,7 @@ import numpy as np
 
 import precompute.common as C
 
-from .draw_sae2m import _columns, _finish
+from .draw_dict2m import _columns, _finish
 
 N_FEATURES = 2_000
 FIT_FRACTION = 0.8
@@ -102,7 +102,7 @@ def build(cfg, args):
     print(f"[draw131k] pool {len(ids):,} held-out features, act "
           f"min {acts.min():.2f} median {np.median(acts):.2f} max {acts.max():.1f}",
           flush=True)
-    # `--n`, as draw_sae2m has always taken it (draw_sae2m.py:243). Hardcoding 2000 meant a
+    # `--n`, as draw_dict2m has always taken it (draw_dict2m.py:243). Hardcoding 2000 meant a
     # rare-feature mining draw could not be made with this product at all; the DEFAULT is
     # unchanged, so `2026-09-21_sae131k_2k` still reproduces byte-for-byte.
     n_feat = int(args.get("n") or N_FEATURES)
@@ -128,7 +128,7 @@ def build(cfg, args):
         # `corpus_peak_16m` is a different quantity on a different corpus. The slot was added to
         # `_finish` on this branch AFTER draw_sae131k was written against the 16-argument
         # signature, which bound `cuts` to `peak16` and raised a TypeError on the meta dict.
-        # `sides` is POPPED by `_finish` (draw_sae2m.py:461) and supplied there at :386;
+        # `sides` is POPPED by `_finish` (draw_dict2m.py:461) and supplied there at :386;
         # draw_sae131k never passed it, so every call raised KeyError before reaching the
         # GPU. This draw is encoder-only -- its rows are unit(W_enc[:, f]) -- so it is the
         # single-side shape, which is what the set on the volume already carries.
@@ -318,7 +318,7 @@ def run(cfg, args):
     with C.outdir(out_dir, args, inputs={"sae": args.get("sae"), "pool": meta["pool_path"]}) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
-        # THE STORAGE CONTRACT (H4), the same one `draw_sae2m.run` writes. Without it
+        # THE STORAGE CONTRACT (H4), the same one `draw_dict2m.run` writes. Without it
         # `common.set_storage` refuses the set outright and somebody has to hand-write a
         # `heldout:` entry -- which is exactly what `2026-09-21_sae131k_2k` needed on the way in.
         # `dirs_only`: these rows are unit encoder columns, never centred and not centrable, so no
@@ -340,7 +340,7 @@ def run(cfg, args):
             },
         )
         od.note(f"{len(rows)} features of the 131k SAE, family tag 'sae', sae_key "
-                f"{rows[0]['sae_key']!r} -- feature ids are NOT comparable with sae2m's")
+                f"{rows[0]['sae_key']!r} -- feature ids are NOT comparable with dict2m's")
         # "BOTH halves are unseen" is a claim about the DEFAULT pool, and the seed is no longer
         # always DRAW_SEED now that --seed exists. Report what this run did, not what the 2k
         # draw did.

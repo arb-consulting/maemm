@@ -45,8 +45,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from maemm.config import D_MODEL, MODEL, READ_LAYER
-from maemm.inject import get_layer
+from maem.config import D_MODEL, MODEL, READ_LAYER
+from maem.inject import get_layer
 import mlp42_neurons_worker as W
 
 OUT = W.OUT                                   # /data/mlp42

@@ -4,7 +4,7 @@ Left:  per-feature mean pairwise token-3-gram Jaccard per source: box is the IQR
        10th-90th percentile, tick the median, on a log axis. The open diamond is the same source's
        cross-feature floor (pairs of texts written for different features).
 Right: median norm_act (best-of-8 activation / corpus peak) by quartile of that source's own
-       Jaccard, for the two MAEMMs -- whether repeating itself goes with hitting the feature.
+       Jaccard, for the two MAEMs -- whether repeating itself goes with hitting the feature.
 
     python evals/verbalization/analysis/diversity_by_model.py --mirror <dir>   # writes the data
     python evals/verbalization/analysis/plot_diversity_by_model.py
@@ -26,12 +26,12 @@ REPORT = pathlib.Path(__file__).resolve().parent.parent / "report"
 DATA = REPORT / "data"
 FLOOR = 1e-4             # log axis: a score of 0 (no shared trigram in any pair) is drawn here
 
-ROWS = [("rl-last16", "MAEMM rl-last16", SERIES[0]),
-        ("rl-last16-hf", "rl-last16, HF engine", SERIES[0]),
+ROWS = [("rl-final", "MAEM rl-final", SERIES[0]),
+        ("rl-final-hf", "rl-final, HF engine", SERIES[0]),
         ("rare-lora", "rare-feature LoRA", SERIES[5]),
         ("corpus", "corpus windows", SERIES[2]),
         ("llm-opus5", "LLM (opus-5)", SERIES[1])]
-ARMS = [("rl-last16", "rl-last16", SERIES[0]), ("rare-lora", "rare-feature LoRA", SERIES[5])]
+ARMS = [("rl-final", "rl-final", SERIES[0]), ("rare-lora", "rare-feature LoRA", SERIES[5])]
 
 
 def left(ax, d, per):

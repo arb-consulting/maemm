@@ -1,7 +1,7 @@
 """Product `sae_self` (P1 of the autointerp design): the target feature's PER-TOKEN activation on
-its own MAEMM rollouts.
+its own MAEM rollouts.
 
-    <root>/maemms/<base>/<maemm>/scores/<set>__<engine>/sae_self/
+    <root>/maems/<base>/<maem>/scores/<set>__<engine>/sae_self/
         sae_self.f16  [n_sae, n, T]   pre-gate activation of THE TARGET feature at every scored
                                       token of its own rollouts, NaN outside `keep` (column 0 is
                                       the sink and is always NaN, i.e. the sink is dropped)
@@ -12,7 +12,7 @@ its own MAEMM rollouts.
 `score`'s stored SAE arrays are a CSR at the ARGMAX TOKEN ONLY (precompute/score.py:8-9, 80-82):
 all 131k features, gated, one token per rollout. An autointerp example set needs the opposite cut
 -- ONE feature, every token -- so this product makes it, for the SAE families only (`sae`, and
-the `sae2m_enc` label for the 2M dictionary -- see FAMILIES below; 512 of the
+the `dict2m_enc` label for the 2M dictionary -- see FAMILIES below; 512 of the
 set's 1,536 targets), at one thirtieth of the rows a full per-token CSR would cost.
 
 It is `score` minus the CSR: the SAME clean-base forward through `common.score_tokens`, the same
@@ -126,7 +126,7 @@ def corpus_key_of(cfg: dict, args: dict) -> str:
 SCORE_ROWS = 256
 # The held-out families whose targets ARE SAE features, so a "the feature's own activation on
 # this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
-# 2026-09-16_v1); `sae2m_enc` is the label `features/draw_sae2m.py` writes for the 2M-SAE
+# 2026-09-16_v1); `dict2m_enc` is the label `features/draw_dict2m.py` writes for the 2M-SAE
 # encoder columns -- a different dictionary and a different draw, but the same KIND of target
 # (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
 # rather than collapsed to one name because a set can carry both and the labels are provenance.
@@ -185,7 +185,7 @@ def sae_side_of(args, stage: str) -> str:
     """The `sae_side` half of the set this call works on: `enc` (the default) or `dec`.
 
     ONLY `sae_self` and `build` may ask for `dec`. The flag exists because eval 1 needs the
-    activation metric on the decoder block of `2026-09-21_v3_sae2m` (plan §2.3: "the activation of
+    activation metric on the decoder block of `2026-09-21_v3_dict2m` (plan §2.3: "the activation of
     feature `f` is its encoder readout whichever direction was injected"), and the enc-only filter
     at `_sae_rows` was the one gap SMOKES.md's eval-1 section names. `build` takes it since
     2026-09-23 (M6-dec): its M arms ARE the rollouts of the injected direction and are read from
@@ -230,7 +230,7 @@ def _sae_rows(cfg, args, stage: str = "sae_self"):
     """(rows_meta, sae rows of the set, their feature ids, the SAE key, the side).
 
     The selector filters on the ROW's own `sae_key`, not on the family label. A set can carry two
-    dictionaries under one `family: sae` label (features/draw_sae2m.py writes the key per row), and
+    dictionaries under one `family: sae` label (features/draw_dict2m.py writes the key per row), and
     every feature id below 131,072 is a VALID index into a 2^21 encoder -- so the family-only
     filter would look the 131k block's ids up in the 2M dictionary and score 512 wrong features
     with nothing raising. `common.sae_rows_of` is the rule, applied where the key is resolved.
@@ -244,7 +244,7 @@ def _sae_rows(cfg, args, stage: str = "sae_self"):
     base, root, set_name = args["base"], args["root"], args["heldout"]
     side = sae_side_of(args, stage)
     rows = C.read_jsonl(f"{C.heldout_dir(base, set_name, root)}/ids.jsonl")
-    # WHICH SAE: `--sae` when the base carries more than one (qwen36-27b does, since sae2m).
+    # WHICH SAE: `--sae` when the base carries more than one (qwen36-27b does, since dict2m).
     # common.sae_key_for is the same rule score._sae_for uses, so the stage and the scorer it
     # validates itself against cannot end up on different dictionaries.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
@@ -293,7 +293,7 @@ def _csr_at_argmax(sdir: str, n_targets: int, n: int, flat_rows, feats_of_row, g
     # correctly written entry can read back at or under the gate, and comparing the stored f16
     # against the fp32 gate fails on the storage cast rather than on anything score did.
     #
-    # MEASURED 2026-09-21 on `rl-last16` x `2026-09-21_v3_sae2m`: 8,023 of 9,855,412 CSR entries
+    # MEASURED 2026-09-21 on `rl-final` x `2026-09-21_v3_dict2m`: 8,023 of 9,855,412 CSR entries
     # (0.08%) sit at exactly 1.6826171875, and that is the ONLY value at or below the gate in the
     # whole array -- one distinct value, which is the signature of a cast and not of a data error
     # (a wrong dictionary or a wrong gate would give a spread). `sae_self` inspects only the
@@ -346,16 +346,16 @@ def scored_rows_of(sdir: str, n: int, sel, where: str = "the rollouts"):
 def run(cfg, args):
     import torch
 
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
-    # D11: `--rollouts-dir <dir>` reads <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEMM's,
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
+    # D11: `--rollouts-dir <dir>` reads <dir>/rollouts.jsonl + <dir>/scores/ instead of a MAEM's,
     # mirroring score.py:352-358. That is what lets a patchscopes cell, a GCG/EPO finals file, a
-    # corpus-search result or any other non-MAEMM text be scored for the target feature's own
-    # activation -- every arm of evals 1 and 2 that has no `maemms:` entry needs it.
+    # corpus-search result or any other non-MAEM text be scored for the target feature's own
+    # activation -- every arm of evals 1 and 2 that has no `maems:` entry needs it.
     rdir = (args.get("rollouts_dir") or "").rstrip("/")
     assert base, "product sae_self needs --base"
-    assert maemm or rdir, "product sae_self needs --maemm (whose rollouts it reads), or --rollouts-dir"
-    assert not maemm or maemm in cfg["maemms"], (
-        f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+    assert maem or rdir, "product sae_self needs --maem (whose rollouts it reads), or --rollouts-dir"
+    assert not maem or maem in cfg["maems"], (
+        f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
     )
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
     engine = args.get("engine") or "vllm"
@@ -377,8 +377,8 @@ def run(cfg, args):
         with open(spath) as fh:
             rsum = json.load(fh)
     else:
-        roll_dir, stem = C.rollouts_dir(maemm, root), C.rollout_stem(set_name, engine, tag)
-        sdir = C.scores_dir(maemm, args.get("score_name") or set_name, root, engine,
+        roll_dir, stem = C.rollouts_dir(maem, root), C.rollout_stem(set_name, engine, tag)
+        sdir = C.scores_dir(maem, args.get("score_name") or set_name, root, engine,
                             C.score_tag_of(args))
         # ONE product, whether it was generated whole or in `--rows` chunks under the one run tag
         # -- read exactly as `score` reads it (score.py:474). Reading `<stem>.jsonl` directly saw
@@ -431,7 +431,7 @@ def run(cfg, args):
     # anything about the run. There the directions are READ from the set's own `vecs.f16` through
     # `common.dirs_for` (which enforces the storage contract), and the encoder-column cross-check
     # is the one thing this side gives up -- named in `checks`, not silently dropped. Plan §2.3,
-    # "the `vecs.f16` cross-check skipped (§1.5)"; features/draw_sae2m.py says the same in the
+    # "the `vecs.f16` cross-check skipped (§1.5)"; features/draw_dict2m.py says the same in the
     # set's own README. The ACTIVATION is unaffected either way: `_SelfAct` reads W_enc/b_enc for
     # the row's feature whatever was injected, which is the metric this product exists for.
     dir_notes: list[str] = []
@@ -508,7 +508,7 @@ def run(cfg, args):
     # at any argmax, pass VACUOUSLY, which destroys the cross-check the stage exists for. Neither
     # is a check. So the absence is detected and the two checks are SKIPPED with the reason
     # recorded in `checks`, never relaxed (the critique's B11). `--no-sae` is legitimate on a
-    # non-MAEMM arm whose CSR nothing reads; what is not legitimate is reporting a check that did
+    # non-MAEM arm whose CSR nothing reads; what is not legitimate is reporting a check that did
     # not happen.
     with open(f"{sdir}/index.json") as fh:
         sindex = json.load(fh)
@@ -612,7 +612,7 @@ def run(cfg, args):
         "rollouts": rpath,
         "scores": sdir,
         "engine": engine,
-        "maemm": maemm or f"(none: --rollouts-dir {rdir})",
+        "maem": maem or f"(none: --rollouts-dir {rdir})",
         "sae": sae_key,
         "sae_side": side,
         "gate": gate,

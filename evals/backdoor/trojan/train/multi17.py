@@ -30,7 +30,7 @@ import time
 
 import torch
 
-from maemm.config import D_MODEL
+from maem.config import D_MODEL
 from trojan.core.lora import collate, continue_greedy, lora_ab, raw_ids, unwrap
 from trojan.core.specs17 import (TROJANS17, build17, build_joint, exact, fired,
                                  fired_at_0, payload_head, payload_tokens)

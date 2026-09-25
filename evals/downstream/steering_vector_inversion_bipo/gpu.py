@@ -12,7 +12,7 @@ import time
 import numpy as np
 import torch
 
-from maemm.inject import get_layer, hooked
+from maem.inject import get_layer, hooked
 
 
 def _chat_ids(chat_ids_fn=None):

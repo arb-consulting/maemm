@@ -17,7 +17,7 @@ import modal
 REPO = Path(__file__).resolve().parent.parent.parent
 PACKAGE = REPO / 'evals/downstream/steering_vector_inversion'
 HERE = REPO / 'evals/downstream/steering_vector_inversion_bipo'
-APP_NAME = os.environ.get('EVAL_APP', 'maemm-steering-vector-inversion-bipo')
+APP_NAME = os.environ.get('EVAL_APP', 'maem-steering-vector-inversion-bipo')
 GPU_SPEC = os.environ.get('EVAL_GPU', 'H200')
 GPU_BOTH_MODELS = os.environ.get('EVAL_GPU_BOTH_MODELS', 'B200')
 TWO_MODEL_STAGES = ('rollouts',)
@@ -25,9 +25,9 @@ TWO_MODEL_STAGES = ('rollouts',)
 GPU_TRAINING = os.environ.get('EVAL_GPU_TRAINING', 'B200')
 BACKWARD_STAGES = ('train',)
 GPU_WORKERS = int(os.environ.get('EVAL_GPU_WORKERS', '8'))
-CACHE_VOLUME = os.environ.get('EVAL_MODEL_CACHE_VOLUME', 'maemm-eval-model-cache')
+CACHE_VOLUME = os.environ.get('EVAL_MODEL_CACHE_VOLUME', 'maem-eval-model-cache')
 MODEL_CACHE_DIR = os.environ.get('EVAL_MODEL_CACHE_DIR', '/cache/models')
-SECRET = modal.Secret.from_name(os.environ.get('EVAL_OPENROUTER_SECRET', 'maemm-openrouter'))
+SECRET = modal.Secret.from_name(os.environ.get('EVAL_OPENROUTER_SECRET', 'maem-openrouter'))
 # The Anthropic secret (the `sonnet` profile, the `describe` stage) is mounted only when named.
 ANTHROPIC_SECRET = os.environ.get('EVAL_ANTHROPIC_SECRET', '')
 JUDGE_SECRETS = [SECRET] + ([modal.Secret.from_name(ANTHROPIC_SECRET)] if ANTHROPIC_SECRET else [])
@@ -71,7 +71,7 @@ image = (
     .env({'PYTHONPATH': '/app', 'HF_HOME': HF_HOME,
           'TOKENIZERS_PARALLELISM': 'false', 'PYTORCH_ALLOC_CONF': 'expandable_segments:True',
           **GIT_ENVIRONMENT, **LAUNCH_ENV})
-    .add_local_dir(REPO/'maemm', '/app/maemm', ignore=['__pycache__'])
+    .add_local_dir(REPO/'maem', '/app/maem', ignore=['__pycache__'])
     .add_local_dir(REPO/'evals/downstream', '/app/evals/downstream', ignore=['__pycache__', '**/__pycache__/**', 'out', 'analysis',
                                                      'test_*'])
 )

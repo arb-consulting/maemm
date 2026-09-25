@@ -1,5 +1,5 @@
 """CPU/gloo equivalence tests for the sharded 2M-SAE pipeline. Run:
-    torchrun --standalone --nproc_per_node 2 scripts/tests_sae2m/test_sharded_equivalence.py
+    torchrun --standalone --nproc_per_node 2 scripts/tests_dict2m/test_sharded_equivalence.py
 (a) sharded global BatchTopK == torch.topk on the concatenated pre-acts
 (b) sharded loss + W_enc/W_dec/b_enc/b_dec grads == dense unsharded reference (incl. aux-k), to 1e-5
 (c) merge_shards reproduces the (folded) unsharded parameters; merged raw-space encode == nf * normalised encode
@@ -401,7 +401,7 @@ def main():
     test_a_topk()
     test_b_loss_grads(with_dead=False)
     test_b_loss_grads(with_dead=True)
-    tmp = bcast_obj(tempfile.mkdtemp(prefix="sae2m_test_") if r == 0 else None)
+    tmp = bcast_obj(tempfile.mkdtemp(prefix="dict2m_test_") if r == 0 else None)
     try:
         test_c_merge_and_e_e2e(tmp)
     finally:

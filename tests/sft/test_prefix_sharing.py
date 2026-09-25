@@ -178,7 +178,7 @@ def test_tiny_qwen_prefix_sharing(inject_mode, marker):
         pytest.skip("integration requires the pinned transformers prefix-cache fork")
     from test_head_on_labels import tiny_model
     from sft.prefix_cache import PrefixCache
-    from maemm.inject import get_layer, hooked, make_inject_hook
+    from maem.inject import get_layer, hooked, make_inject_hook
 
     model = tiny_model()
     # Exercise gradients through both LoRA factors, including the shared prefix.

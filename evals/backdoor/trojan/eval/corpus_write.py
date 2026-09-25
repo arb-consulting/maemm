@@ -37,8 +37,8 @@ import time
 import torch
 import torch.nn.functional as F
 
-from maemm.config import CORPUS
-from maemm.inject import get_layer
+from maem.config import CORPUS
+from maem.inject import get_layer
 from trojan.core.lora import get_mlp, lora_ab, resolve_adapter
 from trojan.core.stats import wilson
 from trojan.eval.readout17 import _wordish, judge

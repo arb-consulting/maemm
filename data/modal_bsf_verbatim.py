@@ -1,4 +1,4 @@
-"""Modal app `maemm-bsf-verbatim`: the BSF-VERBATIM midtrain bank at /data/banks/<out_name> (default bsf_verbatim_1m) on `maemm-data`.
+"""Modal app `maem-bsf-verbatim`: the BSF-VERBATIM midtrain bank at /data/banks/<out_name> (default bsf_verbatim_1m) on `maem-data`.
 
 WHY: the bsf rows of /data/banks/everything_5m_fresh were mined from a 512-token store — the direction is the block projection of
 the activation at position p computed with up to 511 tokens of context, but the SFT target is only the trailing 16-64-token window,
@@ -7,7 +7,7 @@ so the direction carries context the target lacks. Here every direction comes fr
     x   = layer-42 residual at the LAST token (fp32)
     y   = normalize((x - mu_bsf) @ zca);  gn_g = ||(y @ E).view(G, b)[g]||;  block b = the top active block (rank <= --bsf-ranks)
           that still has capacity (<= cap_per_block rows per block, level-by-level fill == data/modal_bank_everything.py's bsf selection)
-    dir = unit((Q[b]^T Q[b] ((x - mu_bsf) @ zca)) @ zca^-1)             (BSF = HF ANONYMOUS/qwen36-27b-bsf-l42-1b, cached /data/bsf27b_1b)
+    dir = unit((Q[b]^T Q[b] ((x - mu_bsf) @ zca)) @ zca^-1)             (BSF = HF ANONYMOUS/dict-l42-b-1b, cached /data/bsf27b_1b)
 so the target text IS the literal verbatim context that produced the direction (ctx_len == n_tok), and the direction is derived from
 the last token by construction. Texts = target windows of the UNUSED realact_short_20m parts (default p..x; fresh FineFineWeb windows,
 already eval-hash-excluded, never trained on) — 8-32 source tokens each.
@@ -35,12 +35,12 @@ Compositor group: {"name": "bsf_verbatim", "banks": ["/data/banks/bsf_verbatim_1
 Run (MODAL_PROFILE=<your-profile>, from the repo root):
     modal deploy data/modal_bsf_verbatim.py
     # smoke (1 GPU):
-    python -c "import modal; print(modal.Function.from_name('maemm-bsf-verbatim','build_small').spawn(out_name='bsf_verbatim_smoke', n_candidates=20000, topup_rounds=0).object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-bsf-verbatim','build_small').spawn(out_name='bsf_verbatim_smoke', n_candidates=20000, topup_rounds=0).object_id)"
     # full (8 GPUs):
-    python -c "import modal; print(modal.Function.from_name('maemm-bsf-verbatim','build').spawn(out_name='bsf_verbatim_1m', n_candidates=3000000).object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-bsf-verbatim','build').spawn(out_name='bsf_verbatim_1m', n_candidates=3000000).object_id)"
     modal run data/modal_bsf_verbatim.py::run_verify --out-name bsf_verbatim_1m
     modal run data/modal_bsf_verbatim.py::run_peek --out-name bsf_verbatim_1m
-Needs Modal secret `maemm-hf` (HF_TOKEN) for the one-time BSF download if /data/bsf27b_1b is missing.
+Needs Modal secret `maem-hf` (HF_TOKEN) for the one-time BSF download if /data/bsf27b_1b is missing.
 """
 import os
 from pathlib import Path
@@ -48,7 +48,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = os.environ.get("MAEMM_BSFV_APP", "maemm-bsf-verbatim")
+APP_NAME = os.environ.get("MAEM_BSFV_APP", "maem-bsf-verbatim")
 app = modal.App(APP_NAME)
 
 # image == data/modal_collect_bank.py (the realact_short collection app) + this app's worker
@@ -69,15 +69,15 @@ image = (
     .add_local_file(REPO / "data" / "collect_acts27b_worker.py", "/app/collect_acts27b_worker.py")
     .add_local_file(REPO / "data" / "collect_bank_worker.py", "/app/collect_bank_worker.py")
     .add_local_file(REPO / "data" / "bsf_verbatim_worker.py", "/app/bsf_verbatim_worker.py")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
 BUILD_GPU = os.environ.get("BSFV_GPU", "H200:8")
 SMOKE_GPU = os.environ.get("BSFV_SMOKE_GPU", "H200:1")
 SMALL_GPUS = ["H100", "A100-80GB", "L40S", "A100-40GB"]          # verify (leak check only)
 D = 5120
-BSF_HF = "ANONYMOUS/qwen36-27b-bsf-l42-1b"
+BSF_HF = "ANONYMOUS/dict-l42-b-1b"
 BSF_DIR = "/data/bsf27b_1b"                                       # volume cache of the HF BSF files (== everything builder)
 BSF_FILES = ("sasa.pt", "blocks_Q.pt", "whiten_mu.npy", "whiten_zca.npy", "meta.json")
 MU_ACTS = "/data/acts27b/whiten_mu.npy"                           # the suite's realact centering (norm filter)
@@ -196,7 +196,7 @@ def _build_impl(out_name, n_candidates, n_rows, cap_per_block, bsf_ranks, doc_ca
     import torch
     import torch.nn.functional as F
     sys.path.insert(0, "/app"); sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
+    from maem.config import D_MODEL, MODEL, READ_LAYER
     from bsf_verbatim_worker import BSF
     assert D_MODEL == D
     T0 = time.time()
@@ -656,7 +656,7 @@ topup_rounds: extra candidate rounds (workers keep the model loaded) if the sele
 
 
 @app.function(image=image, gpu=BUILD_GPU, cpu=32, memory=192 * 1024, ephemeral_disk=1024 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=12 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=12 * 3600)
 def build(out_name: str = "bsf_verbatim_1m", n_candidates: int = 3_000_000, n_rows: int = 1_000_000, cap_per_block: int = 34, bsf_ranks: int = 8,
           doc_cap: int = 32, seed: int = 5003, rule: str = "last", rule_metric: str = "cos", parts: str = "pqrstuvwx", min_tok: int = 4,
           max_tok: int = 96, max_batch: int = 512, batch_tokens: int = 32768, eval_cache: str = EVAL_CACHE_V2, overwrite_smoke: bool = False,
@@ -667,7 +667,7 @@ def build(out_name: str = "bsf_verbatim_1m", n_candidates: int = 3_000_000, n_ro
 
 
 @app.function(image=image, gpu=SMOKE_GPU, cpu=16, memory=96 * 1024, ephemeral_disk=512 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=6 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=6 * 3600)
 def build_small(out_name: str = "bsf_verbatim_smoke", n_candidates: int = 20_000, n_rows: int = 1_000_000, cap_per_block: int = 34, bsf_ranks: int = 8,
                 doc_cap: int = 32, seed: int = 5003, rule: str = "last", rule_metric: str = "cos", parts: str = "pqrstuvwx", min_tok: int = 4,
                 max_tok: int = 96, max_batch: int = 512, batch_tokens: int = 32768, eval_cache: str = EVAL_CACHE_V2, overwrite_smoke: bool = True,
@@ -735,7 +735,7 @@ def verify(out_name: str = "bsf_verbatim_1m"):
     return {"n": N, "families": counts, "leak": dict(zip(names_all, leak.tolist())), "peak_last": float((pk == 0).mean())}
 
 
-@app.function(image=image, gpu=SMOKE_GPU, cpu=8, memory=65536, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")], timeout=3 * 3600)
+@app.function(image=image, gpu=SMOKE_GPU, cpu=8, memory=65536, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")], timeout=3 * 3600)
 def anchor_check(out_name: str = "bsf_verbatim_1m", n: int = 2048, seed: int = 0, batch: int = 64):
     """INDEPENDENT end-anchor re-measurement: re-tokenize n random FINAL targets, forward each alone ([BOS]+text), read the L42 residual at
     every token and locate the peak of cos(h_t, dir) / h_t @ dir against the STORED unit direction. Also compares with the stored peak_from_end."""
@@ -744,8 +744,8 @@ def anchor_check(out_name: str = "bsf_verbatim_1m", n: int = 2048, seed: int = 0
     import torch
     import torch.nn.functional as F
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import MODEL, READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import MODEL, READ_LAYER
+    from maem.inject import read_resid
     os.environ["HF_HOME"] = "/data/hf_cache"
     from transformers import AutoModelForCausalLM, AutoTokenizer
     vol.reload()

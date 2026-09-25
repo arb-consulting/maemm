@@ -153,7 +153,7 @@ def fetch(vol_dir: str, dest: Path, modal_cmd: str) -> None:
     """Mirror one arm directory off the volume. Read-only; existing local files are replaced."""
     dest.mkdir(parents=True, exist_ok=True)
     rel = vol_dir[len("/vol/"):] if vol_dir.startswith("/vol/") else vol_dir.lstrip("/")
-    cmd = [*modal_cmd.split(), "volume", "get", "--force", "maemm", rel, str(dest.parent)]
+    cmd = [*modal_cmd.split(), "volume", "get", "--force", "maem", rel, str(dest.parent)]
     print(f"[collect] {' '.join(cmd)}", flush=True)
     subprocess.run(cmd, check=True)
 
@@ -173,8 +173,8 @@ def main(
     do_fetch: Annotated[bool, typer.Option(
         "--fetch/--no-fetch", help="mirror the arm off the volume first")] = False,
     mirror: Annotated[Path | None, typer.Option(
-        "--mirror", help="where --fetch puts the mirror; default $MAEMM_MIRROR or "
-                         "$XDG_CACHE_HOME/maemm-faithfulness/mirror/gcg")] = None,
+        "--mirror", help="where --fetch puts the mirror; default $MAEM_MIRROR or "
+                         "$XDG_CACHE_HOME/maem-faithfulness/mirror/gcg")] = None,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
     out: Annotated[Path | None, typer.Option(help="write the per-direction table as json")] = None,
 ) -> None:

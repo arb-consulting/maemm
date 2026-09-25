@@ -23,7 +23,7 @@ from evals.downstream.common.runs import config_hash, mark_stage, stage_done, wr
 from evals.downstream.rollout_coherence import config as C
 from evals.downstream.rollout_coherence.runs import stage_hashes
 
-TITLE = "maemm-rollout-coherence"   # OpenRouter's X-Title
+TITLE = "maem-rollout-coherence"   # OpenRouter's X-Title
 STAGE, UPSTREAM = "frontier_context_judge", "frontier_context_pairs"
 CONTEXT_PAIRS = "frontier/context/pairs.json"
 

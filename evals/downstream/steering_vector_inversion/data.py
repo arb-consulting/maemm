@@ -22,7 +22,7 @@ def load_tokenizer(config, cache_dir):
 def check_generation_configs(config, cache_dir):
     """Refuse a base and inverter whose shipped generation configs differ (a stop id above all), read from
     the two repos' config files before any GPU container starts: the untrained-base control must differ
-    from MAEMM's arm in the weights alone."""
+    from MAEM's arm in the weights alone."""
     from transformers import GenerationConfig
 
     from evals.downstream.common.model_io import refuse_unless_generation_agrees

@@ -48,8 +48,8 @@ WHAT IT BUILDS, for every (family x source x run-tag) present on the volume for 
       one set.)
 
 NOTHING IS KEYED ON A CHECKPOINT OR A DICTIONARY NAME. Sources come from iterating `config.yaml`'s
-`maemms:` against the volume's scores directories, families from the rows' own fields. A new SAE
-or a new MAEMM is a config entry plus its products, and this file does not change.
+`maems:` against the volume's scores directories, families from the rows' own fields. A new SAE
+or a new MAEM is a config entry plus its products, and this file does not change.
 
 A source that is absent is SKIPPED and LISTED, never zero-filled: a checkpoint nobody ran and a
 checkpoint that scored zero are opposite findings and must not print the same.
@@ -235,7 +235,7 @@ def cosine_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, d
             continue
         out.append({
             "family": fam.label, "source": src.label, "cosine": cosine,
-            "n": src.n, "engine": src.engine, "run_tag": src.run_tag, "maemm": src.maemm,
+            "n": src.n, "engine": src.engine, "run_tag": src.run_tag, "maem": src.maem,
             "mu": src.mu, "bo": cells,
             # WHERE THE NUMBERS CAME FROM, carried into the CSV and the caption. The centred
             # ladder is `cos_centred.f16` recomputed here; the raw one is what `score` stored.
@@ -319,7 +319,7 @@ class CorpusPeaks:
         """(may this product answer for that family, why not) -- the SET and the DICTIONARY.
 
         THE ROW JOIN IS NOT SELF-DESCRIBING. `2026-09-21_v3_ctrl`'s 131k features sit at rows
-        512-1023 and `2026-09-21_v3_sae2m`'s decoder half sits at exactly the same numbers, so a
+        512-1023 and `2026-09-21_v3_dict2m`'s decoder half sits at exactly the same numbers, so a
         `top1_act` product of the first answers every question the second asks -- and answers all
         512 of them with ANOTHER DICTIONARY's feature, silently, in a cell that prints as a
         perfectly ordinary ratio. `discover_families` already refuses to guess a dictionary from a
@@ -482,7 +482,7 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
             "row": row, "feature": int(meta["features"][i]), "stratum": ids[row].get("stratum"),
             # The stratum STATISTIC, carried from the row that the draw stamped it on. The 131k
             # draw's strata are quartiles of log10 POOL PEAK ACTIVATION (`draw_sae131k.py:35,91`)
-            # and the 2M draw's are quartiles of log10 FIRE COUNT (`draw_sae2m._stratified_draw`),
+            # and the 2M draw's are quartiles of log10 FIRE COUNT (`draw_dict2m._stratified_draw`),
             # while spec §1.2 and panel b both say "corpus-frequency quartile". Those are not the
             # same cut. The name travels with every cell so the caption can say which one it is
             # rather than the reader assuming the spec's.
@@ -513,7 +513,7 @@ def sae_cells(fam: R.Family, rows: list[int], src: R.Source, ids: dict[int, dict
                             "se_iid": R.se_iid(vals), "n": len(vals)}
         return {
             "family": fam.label, "source": src.label, "stratum": stratum,
-            "n": src.n, "engine": src.engine, "run_tag": src.run_tag, "maemm": src.maemm,
+            "n": src.n, "engine": src.engine, "run_tag": src.run_tag, "maem": src.maem,
             "product": rel,
             "sae_key": fam.sae_key, "sae_side": fam.sae_side,
             "n_features": len(sub), "gate": gate, "per_k": per_k,
@@ -665,7 +665,7 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
 
     found, absent = R.discover_sources(vol, cfg, base, set_name)
     colours = R.colour_map(found)
-    missing = [f"`{k}`: no scores directory for `{set_name}` under `maemms/{k}/scores/`"
+    missing = [f"`{k}`: no scores directory for `{set_name}` under `maems/{k}/scores/`"
                for k in absent]
     wanted = [s.strip() for s in sources.split(",") if s.strip()]
     usable: list[R.Source] = []
@@ -686,7 +686,7 @@ def analyse(vol: R.Vol, cfg: dict, set_name: str, sources: str, boot: int, seed:
     sae_feats: list[dict] = []
     checks: list[dict] = []
     notes: list[str] = []
-    # A set none of whose families is centrable (`_ctrl`, `_sae2m`, `_subspace`) may still have a
+    # A set none of whose families is centrable (`_ctrl`, `_dict2m`, `_subspace`) may still have a
     # `cos_centred.f16` on some arms. Whether it is worth reading depends on WHEN the product was
     # scored, not on the config: before 2026-09-23 such a row was NaN there (absent from the
     # centred aggregates), and since then it carries the ONE-SIDED cos(h - score_mu, unit(d)) and
@@ -980,7 +980,7 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
     for family in sorted(by_family):
         head = ["source", "run tag", "n", "rows", "docs", "cosine",
                 *[f"bo{k}" for k in R.BO_KS_REPORT], "bo_n"]
-        csv_head = ["family", "source", "maemm", "engine", "run_tag", "mu", "n", "n_rows",
+        csv_head = ["family", "source", "maem", "engine", "run_tag", "mu", "n", "n_rows",
                     "n_clusters", "cosine", "bo_source", "k", "mean", "se_cluster", "se_iid"]
         rows, csv_rows = [], []
         for c in sorted(by_family[family], key=lambda c: (c["source"], c["cosine"])):
@@ -996,7 +996,7 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
             ])
             for k in sorted(cells):
                 cell = cells[k]
-                csv_rows.append([family, c["source"], c["maemm"], c["engine"], c["run_tag"],
+                csv_rows.append([family, c["source"], c["maem"], c["engine"], c["run_tag"],
                                  c["mu"], n, cell["n_rows"], cell["n_clusters"], c["cosine"],
                                  c.get("bo_source", ""), k,
                                  round(cell["mean"], 6), round(cell["se"], 6),
@@ -1035,7 +1035,7 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
         head = ["source", "run tag", "stratum", "features", "n",
                 *[f"bo{k} med" for k in R.BO_KS_REPORT], *[f"bo{k} mean" for k in R.BO_KS_REPORT],
                 "item fired", "feat firing"]
-        csv_head = ["family", "sae_key", "sae_side", "source", "maemm", "engine", "run_tag",
+        csv_head = ["family", "sae_key", "sae_side", "source", "maem", "engine", "run_tag",
                     "stratum", "n", "n_features", "gate", "k", "ratio_median", "ratio_mean",
                     "ratio_se_iid", "item_fired", "feat_firing"]
         rows, csv_rows = [], []
@@ -1050,7 +1050,7 @@ def render(res: dict, out: R.Out, sanity: list[dict], figures: list[str]) -> Pat
                 R.num(a["item_fired"]), R.num(a["feat_firing"]),
             ])
             for k in sorted(pk):
-                csv_rows.append([family, a["sae_key"], a["sae_side"], a["source"], a["maemm"],
+                csv_rows.append([family, a["sae_key"], a["sae_side"], a["source"], a["maem"],
                                  a["engine"], a["run_tag"], a["stratum"], a["n"], a["n_features"],
                                  round(a["gate"], 6), k, round(pk[k]["median"], 6),
                                  round(pk[k]["mean"], 6), round(pk[k]["se_iid"], 6),
@@ -1555,12 +1555,12 @@ GATE_PLACES = 4
 CI_Z = 1.96
 
 # The one place the paper's key vocabulary meets the volume's dictionary ids. `l131k` and `s2m`
-# are the writing plan's `<set>` slots (§2); `l42-1b` and `sae2m` are `sae_key` suffixes the rows
+# are the writing plan's `<set>` slots (§2); `l42-1b` and `dict2m` are `sae_key` suffixes the rows
 # themselves carry. Declarative, so a third dictionary is a line here and no code.
 CELL_DICTIONARIES = {
     "l131k": ("l42-1b", ""),
-    "s2menc": ("sae2m", "enc"),
-    "s2mdec": ("sae2m", "dec"),
+    "s2menc": ("dict2m", "enc"),
+    "s2mdec": ("dict2m", "dec"),
 }
 # What M2's `results/corpus_search.py` ACTUALLY exports, and what this driver calls. `read_top1`
 # is its reader of `scan/<dir>/topk.jsonl`, keyed by (set, set_row) and returning a `Top1` whose
@@ -1771,17 +1771,17 @@ def arms_of(res: dict, cfg: dict, exemplifier: str, nla: str = "") -> dict[str, 
     so keying on it would print the dropped checkpoint's numbers under the Exemplifier's rows and
     look principled while doing it. Nor is the name written here -- no checkpoint name is spelled
     in this file, which `selftest.check_combined_layer_lifts_and_never_recomputes` enforces. So:
-    `--exemplifier <substring>` names it, and with no flag the MAEMM arms are those that are
-    neither `role: control` nor `type: nla`/`base`, which resolves when exactly one MAEMM was
+    `--exemplifier <substring>` names it, and with no flag the MAEM arms are those that are
+    neither `role: control` nor `type: nla`/`base`, which resolves when exactly one MAEM was
     scored on the block and REFUSES (skip and list) when more than one was. Refusing is the right
     answer there: on the 09-21 volume the upstream block carries the dropped old primary under two run tags
     beside the Exemplifier, and picking among them is a decision, not a lookup.
     """
     out: dict[str, tuple] = {}
-    maemms = cfg.get("maemms") or {}
+    maems = cfg.get("maems") or {}
 
     def _type(s: R.Source) -> str:
-        return str((maemms.get(s.maemm) or {}).get("type", ""))
+        return str((maems.get(s.maem) or {}).get("type", ""))
 
     if exemplifier:
         ex = [s for s in res["sources"] if exemplifier in s.label]
@@ -1791,7 +1791,7 @@ def arms_of(res: dict, cfg: dict, exemplifier: str, nla: str = "") -> dict[str, 
         ex = [s for s in res["sources"]
               if s.role != "control" and _type(s) not in ("nla", "base")]
         ex_why = (
-            f"no `--exemplifier` was given and {len(ex)} arm(s) on `{res['set']}` are MAEMMs "
+            f"no `--exemplifier` was given and {len(ex)} arm(s) on `{res['set']}` are MAEMs "
             f"(not `role: control`, not `type: nla`/`base`): "
             f"{', '.join(s.label for s in ex) or 'none'}. Which of them the paper calls the "
             f"Exemplifier is a decision no config field records — name it with `--exemplifier`")
@@ -2069,7 +2069,7 @@ def panel_b_cells(all_res: list[dict], cfg: dict, opts: dict):
     a pooled cell should be once the tex prints per-quartile ones.
 
     The quartile slot is `q<stratum + 1>`: the draws number strata 0..3 ASCENDING in their own
-    statistic (`draw_sae2m._stratified_draw`, `searchsorted` over the pool quartile cuts) and the
+    statistic (`draw_dict2m._stratified_draw`, `searchsorted` over the pool quartile cuts) and the
     writing plan's `q1..q4` are "rarest first", so stratum 0 is q1. The statistic itself is NOT
     corpus frequency on either dictionary -- see `stratum_stat` in the note.
     """
@@ -2384,11 +2384,11 @@ def main(
              "into <out>/<block>/ and writes the cross-set document at <out>/")] = "",
     sources: Annotated[str, typer.Option(help="comma-separated substrings of source labels to keep")] = "",
     out: Annotated[Path | None, typer.Option(
-        help="output directory; default $MAEMM_OUT or <repo>/_out/faithfulness")] = None,
+        help="output directory; default $MAEM_OUT or <repo>/_out/faithfulness")] = None,
     root: Annotated[str, typer.Option(help="volume-relative root the products were written under")] = "",
     data: Annotated[Path | None, typer.Option(
-        help="local mirror of the volume; default $MAEMM_MIRROR or "
-             "$XDG_CACHE_HOME/maemm-faithfulness/mirror/<root>, NEVER under evals/faithfulness/")] = None,
+        help="local mirror of the volume; default $MAEM_MIRROR or "
+             "$XDG_CACHE_HOME/maem-faithfulness/mirror/<root>, NEVER under evals/faithfulness/")] = None,
     fetch: Annotated[bool, typer.Option(help="fetch missing files off the volume")] = True,
     refetch: Annotated[bool, typer.Option(help="re-download even what the mirror already has")] = False,
     modal_cmd: Annotated[str, typer.Option(help="how to invoke the modal CLI")] = "uvx modal",
@@ -2418,7 +2418,7 @@ def main(
     exemplifier: Annotated[str, typer.Option(
         help="substring naming the Exemplifier arm for the paper's cells. No config field marks "
              "it (`primary: true` is the DROPPED old primary) and no checkpoint name is spelled "
-             "in this file, so with no flag the MAEMM arms are those that are neither `role: "
+             "in this file, so with no flag the MAEM arms are those that are neither `role: "
              "control` nor `type: nla`/`base` and the cells are SKIPPED when more than one is "
              "present rather than guessed at")] = "",
     nla: Annotated[str, typer.Option(

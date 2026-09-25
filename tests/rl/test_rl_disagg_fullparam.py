@@ -27,7 +27,7 @@ _spec = importlib.util.spec_from_file_location("rl_disagg", os.path.join(_HERE, 
 D = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(D)
 import rl_fullparam as FP  # noqa: E402
-from maemm.inject import get_layer, hooked, make_inject_hook, read_resid  # noqa: E402
+from maem.inject import get_layer, hooked, make_inject_hook, read_resid  # noqa: E402
 
 _BASE = ["--role", "launch", "--n-rollout", "1", "--n-trainer", "3"]
 PROMPT = list(range(10, 22))

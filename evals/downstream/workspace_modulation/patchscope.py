@@ -1,7 +1,7 @@
 """Patchscopes at the two read positions (methodology "Readers"), through evals/downstream/common/patchscope.py.
 
 `patch42`: the clean base continues the entity-description prompt with the placeholder's block-42 residual
-replaced, during prefill, by `alpha * ||h_42|| * unit(h42 - mu)` (the vector MAEMM is injected with); one
+replaced, during prefill, by `alpha * ||h_42|| * unit(h42 - mu)` (the vector MAEM is injected with); one
 greedy and N_SAMPLES samples per read cell under the headline arm's decoding and stop set. `patchfloor`: the
 same prompt with no patch, generated once and carried by every item (its mean-cell readout is its final
 one). A patch check on the first PATCH_CHECK_ROWS cells runs before any generation. Output:

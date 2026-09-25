@@ -3,7 +3,7 @@
 (1) read vector -> trigger and (2) write vector -> payload are read straight off the LoRA with no
 input. This is the third view: run the POISONED model on a held-out trigger sentence, take the
 residual at the trigger token one layer AFTER the write lands (resid_post_L, centred), and hand
-that activation to the MAEMM. Does it name the payload?
+that activation to the MAEM. Does it name the payload?
 
 Two controls come free:
     clean    the same position at layer L-1, which is strictly BEFORE the adapter writes and is
@@ -23,9 +23,9 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from maemm.config import INJECT_LAYER
-from maemm.inject import get_layer, read_resid
-from maemm.prompts import build_prompt_ids
+from maem.config import INJECT_LAYER
+from maem.inject import get_layer, read_resid
+from maem.prompts import build_prompt_ids
 from trojan.core.lora import raw_ids, resolve_adapter, trigger_pos
 
 

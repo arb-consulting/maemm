@@ -1,28 +1,28 @@
-"""Modal app `maemm-sae2m`: the 2,097,152-feature (2^21) BatchTopK SAE on Qwen3.6-27B layer-42 residuals with ONLINE
+"""Modal app `maem-dict2m`: the 2,097,152-feature (2^21) BatchTopK SAE on Qwen3.6-27B layer-42 residuals with ONLINE
 activation generation (no stored activation store), then merge / verify / max-activating examples. Everything lands under
-/data/sae2m on the `maemm-data` volume.
+/data/dict2m on the `maem-data` volume.
 
     export MODAL_PROFILE=<your-profile>
-    modal deploy sae/modal_sae2m.py
+    modal deploy sae/modal_dict2m.py
 
     # 1-GPU check of the truncated model (layer-42 output == full model, gen tok/s, memory)   ~10 min
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','gen_check').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','gen_check').spawn().object_id)"
     # 8-GPU SMOKE (20M tokens, ~15 min + model load)
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','train_online').spawn(total_tokens=20_000_000, save_every=2000,
-        save_dir='/data/sae2m/shards_smoke', run_name='BatchTopK-2M-l42-online-smoke', max_hours=1.5, extra_args='--norm-steps 50 --log-every 25').object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','train_online').spawn(total_tokens=20_000_000, save_every=2000,
+        save_dir='/data/dict2m/shards_smoke', run_name='BatchTopK-2M-l42-online-smoke', max_hours=1.5, extra_args='--norm-steps 50 --log-every 25').object_id)"
     # FULL RUN (1B tokens, ~5-7 h)
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','train_online').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','train_online').spawn().object_id)"
     # continue after a 24 h cut (saves at --max-hours 23 and exits; resume=True picks up the latest complete shard set)
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','train_online').spawn(resume=True).object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','train_online').spawn(resume=True).object_id)"
     # after TRAIN_DONE: merge (CPU) -> verify (1 GPU) -> maxacts (8 GPU)
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','merge').spawn().object_id)"
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','verify').spawn().object_id)"
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','maxacts').spawn().object_id)"
-    python -c "import modal; print(modal.Function.from_name('maemm-sae2m','status').remote())"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','merge').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','verify').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','maxacts').spawn().object_id)"
+    python -c "import modal; print(modal.Function.from_name('maem-dict2m','status').remote())"
 
 Trainer: sae/sae27b_train_sharded.py --data-mode online (feature-parallel over the 8 GPUs, global BatchTopK, aux-k, USR1/
 SIGTERM save + --resume); generation: sae/online_gen.py (per rank: Qwen3.6-27B layers 0..42 + a GPU shuffle pool fed by a
-disjoint Ultra-FineWeb stream). Secrets: maemm-hf (HF_TOKEN), maemm-wandb (WANDB_API_KEY, WANDB_ENTITY).
+disjoint Ultra-FineWeb stream). Secrets: maem-hf (HF_TOKEN), maem-wandb (WANDB_API_KEY, WANDB_ENTITY).
 """
 import os
 from pathlib import Path
@@ -30,7 +30,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = os.environ.get("SAE2M_APP", "maemm-sae2m")
+APP_NAME = os.environ.get("DICT2M_APP", "maem-dict2m")
 app = modal.App(APP_NAME)
 
 image = (
@@ -39,12 +39,12 @@ image = (
     .pip_install("transformers==5.15.0", "accelerate==1.14.0", "numpy==2.4.6", "safetensors==0.8.0",
                  "huggingface_hub==1.27.0", "tokenizers==0.22.2", "hf_xet", "datasets==4.5.0", "wandb==0.28.2")
     .pip_install("flash-linear-attention==0.5.2")   # Qwen3.5 GatedDeltaNet -> fla Triton chunk kernel (== data/modal_acts27b_fresh.py)
-    .add_local_dir(REPO / "sae", "/app/sae2m", ignore=["__pycache__", "tests", "*.md"])
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "sae", "/app/dict2m", ignore=["__pycache__", "tests", "*.md"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
-ROOT = "/data/sae2m"
+ROOT = "/data/dict2m"
 SHARDS = f"{ROOT}/shards"
 TRAINER0 = f"{ROOT}/trainer_0"
 MODEL = "Qwen/Qwen3.6-27B"
@@ -52,8 +52,8 @@ LAYER = 42
 D_MODEL = 5120
 DICT = 2_097_152
 K = 64
-TRAIN_GPU = os.environ.get("SAE2M_TRAIN_GPU", "B200:8")
-ONE_GPU = os.environ.get("SAE2M_ONE_GPU", "B200:1")
+TRAIN_GPU = os.environ.get("DICT2M_TRAIN_GPU", "B200:8")
+ONE_GPU = os.environ.get("DICT2M_ONE_GPU", "B200:1")
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -62,7 +62,7 @@ ONE_GPU = os.environ.get("SAE2M_ONE_GPU", "B200:1")
 def _env():
     env = os.environ.copy()
     env.update({"HF_HOME": "/data/hf_cache", "TOKENIZERS_PARALLELISM": "false", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-                "PYTHONPATH": "/app/sae2m:/app/helpers", "OMP_NUM_THREADS": "6", "PYTHONUNBUFFERED": "1"})
+                "PYTHONPATH": "/app/dict2m:/app/helpers", "OMP_NUM_THREADS": "6", "PYTHONUNBUFFERED": "1"})
     return env
 
 
@@ -73,7 +73,7 @@ def _ensure_model():
     from huggingface_hub import snapshot_download
     t0 = time.time()
     p = snapshot_download(MODEL, allow_patterns=["*.json", "*.safetensors", "tokenizer*", "*.txt", "merges.txt", "vocab.json"])
-    print(f"[sae2m] model snapshot {p} ready ({time.time() - t0:.0f}s)", flush=True)
+    print(f"[dict2m] model snapshot {p} ready ({time.time() - t0:.0f}s)", flush=True)
     return p
 
 
@@ -84,7 +84,7 @@ def _committer(stop, every=120):
             try:
                 vol.commit()
             except Exception as e:  # noqa
-                print(f"[sae2m] periodic commit failed: {e}", flush=True)
+                print(f"[dict2m] periodic commit failed: {e}", flush=True)
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return t
@@ -97,12 +97,12 @@ def _run(cmd, env, log_path, grace_s=1200, done_marker=None, done_grace_s=600):
     still alive done_grace_s later it is killed (teardown hang seen in the 2026-09-10 smoke) and rc 0 is returned."""
     import signal, subprocess, threading, time
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    print("[sae2m] launching:", " ".join(cmd), flush=True)
+    print("[dict2m] launching:", " ".join(cmd), flush=True)
     lf = open(log_path, "a")
-    lf.write("[sae2m] launching: " + " ".join(cmd) + "\n"); lf.flush()
+    lf.write("[dict2m] launching: " + " ".join(cmd) + "\n"); lf.flush()
     stop = threading.Event()
     _committer(stop)
-    p = subprocess.Popen(cmd, cwd="/app/sae2m", env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+    p = subprocess.Popen(cmd, cwd="/app/dict2m", env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
     killed_after_done = {"flag": False}
 
     def watchdog():
@@ -113,7 +113,7 @@ def _run(cmd, env, log_path, grace_s=1200, done_marker=None, done_grace_s=600):
             if done_marker and os.path.exists(done_marker):
                 t_done = t_done or time.time()
                 if time.time() - t_done > done_grace_s:
-                    print(f"[sae2m] {done_marker} exists but the process group is still alive after {done_grace_s}s -> killing it (teardown hang)", flush=True)
+                    print(f"[dict2m] {done_marker} exists but the process group is still alive after {done_grace_s}s -> killing it (teardown hang)", flush=True)
                     killed_after_done["flag"] = True
                     try:
                         os.killpg(p.pid, signal.SIGKILL)
@@ -131,7 +131,7 @@ def _run(cmd, env, log_path, grace_s=1200, done_marker=None, done_grace_s=600):
         return 0 if killed_after_done["flag"] else rc
     finally:
         if p.poll() is None:
-            print("[sae2m] cancel/error -> SIGTERM to the process group (trainer saves a shard set)", flush=True)
+            print("[dict2m] cancel/error -> SIGTERM to the process group (trainer saves a shard set)", flush=True)
             try:
                 os.killpg(p.pid, signal.SIGTERM)
                 t0 = time.time()
@@ -179,7 +179,7 @@ def _tree(path, depth=2):
 # 1) training (8 GPUs, feature-parallel SAE + online generation)
 # ----------------------------------------------------------------------------------------------------------------
 @app.function(image=image, gpu=TRAIN_GPU, cpu=48, memory=384 * 1024, ephemeral_disk=1024 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf"), modal.Secret.from_name("maemm-wandb")], timeout=24 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf"), modal.Secret.from_name("maem-wandb")], timeout=24 * 3600)
 def train_online(total_tokens: int = 1_000_000_000, save_every: int = 60_000, keep_ckpts: int = 1, resume: bool = False,
                  run_name: str = "BatchTopK-2M-l42-online", save_dir: str = SHARDS, max_hours: float = 23.0, batch: int = 4096,
                  pool_rows: int = 262_144, pool_reuse_max: int = 1, micro_batch: int = 16, dataset_skip: int = 100_000,
@@ -202,7 +202,7 @@ def train_online(total_tokens: int = 1_000_000_000, save_every: int = 60_000, ke
         raise RuntimeError(f"{save_dir}/TRAIN_DONE exists -- training finished; nothing to do (overwrite=True to redo)")
     for f in glob.glob(f"{save_dir}/pids/*.pid"):
         os.remove(f)
-    cmd = ["torchrun", "--standalone", f"--nproc_per_node={world}", "/app/sae2m/sae27b_train_sharded.py",
+    cmd = ["torchrun", "--standalone", f"--nproc_per_node={world}", "/app/dict2m/sae27b_train_sharded.py",
            "--data-mode", "online", "--save-dir", save_dir, "--d-model", str(D_MODEL), "--dict-size", str(DICT), "--k", str(K),
            "--layer", str(LAYER), "--model", MODEL, "--batch", str(batch), "--total-tokens", str(total_tokens),
            "--pool-rows", str(pool_rows), "--pool-reuse-max", str(pool_reuse_max), "--micro-batch", str(micro_batch),
@@ -222,7 +222,7 @@ def train_online(total_tokens: int = 1_000_000_000, save_every: int = 60_000, ke
     res = {"rc": rc, "done": done, "latest": latest, "save_dir": save_dir, "world": world, "wall_h": (time.time() - t0) / 3600,
            "shards": sorted(os.path.basename(p) for p in glob.glob(f"{save_dir}/rank0/*")),
            "note": "a non-zero rc after a clean save can be a benign teardown abort -- trust TRAIN_DONE / latest.json"}
-    print(f"[sae2m] train_online finished: {json.dumps(res, default=str)}", flush=True)
+    print(f"[dict2m] train_online finished: {json.dumps(res, default=str)}", flush=True)
     vol.commit()
     if not done and rc != 0 and latest is None:
         raise RuntimeError(f"training failed before the first checkpoint (rc={rc}); see {ROOT}/logs")
@@ -233,14 +233,14 @@ def train_online(total_tokens: int = 1_000_000_000, save_every: int = 60_000, ke
 # 2) one-GPU check of the online generator (truncated == full model at layer 42; tok/s; memory)
 # ----------------------------------------------------------------------------------------------------------------
 @app.function(image=image, gpu=ONE_GPU, cpu=16, memory=256 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=3 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=3 * 3600)
 def gen_check(n_batches: int = 12, micro_batch: int = 16, compare_full: bool = True):
     """Loads the truncated model through online_gen, streams real Ultra-FineWeb windows (rank 0 of 8, skip 100k), measures
     27B tok/s and peak memory, and (compare_full) loads the FULL model to confirm the layer-42 output is identical."""
     import sys, time, json
     for k, v in _env().items():
         os.environ[k] = v
-    sys.path.insert(0, "/app/sae2m")
+    sys.path.insert(0, "/app/dict2m")
     import torch
     vol.reload()
     os.makedirs(ROOT, exist_ok=True)
@@ -320,9 +320,9 @@ def merge(save_dir: str = SHARDS, out_dir: str = TRAINER0, step: int | None = No
     if require_done:
         assert os.path.exists(f"{save_dir}/TRAIN_DONE"), f"{save_dir}/TRAIN_DONE missing (pass require_done=False to merge a partial run)"
     t0 = time.time()
-    cmd = ["python", "/app/sae2m/sae27b_merge_shards.py", "--save-dir", save_dir, "--out-dir", out_dir] + (["--step", str(step)] if step else [])
-    print("[sae2m]", " ".join(cmd), flush=True)
-    subprocess.run(cmd, env=_env(), check=True, cwd="/app/sae2m")
+    cmd = ["python", "/app/dict2m/sae27b_merge_shards.py", "--save-dir", save_dir, "--out-dir", out_dir] + (["--step", str(step)] if step else [])
+    print("[dict2m]", " ".join(cmd), flush=True)
+    subprocess.run(cmd, env=_env(), check=True, cwd="/app/dict2m")
     vol.commit()
     cfg = json.load(open(f"{out_dir}/config.json"))
     res = {"ae": f"{out_dir}/ae.pt", "bytes": os.path.getsize(f"{out_dir}/ae.pt"), "trainer": cfg["trainer"], "wall_min": (time.time() - t0) / 60}
@@ -334,7 +334,7 @@ def merge(save_dir: str = SHARDS, out_dir: str = TRAINER0, step: int | None = No
 # 4) verify on freshly generated tokens (1 GPU)
 # ----------------------------------------------------------------------------------------------------------------
 @app.function(image=image, gpu=ONE_GPU, cpu=16, memory=256 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=6 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=6 * 3600)
 def verify(ae: str = f"{TRAINER0}/ae.pt", eval_tokens: int = 20_000_000, dataset_skip: int = 0, out_json: str = f"{ROOT}/verify.json"):
     """Format check + EV / L0 / fired-fraction of the merged 2M SAE on eval_tokens freshly generated layer-42 tokens from
     Ultra-FineWeb docs [dataset_skip, ...) (default 0 = the reserved eval head the training stream excluded)."""
@@ -343,10 +343,10 @@ def verify(ae: str = f"{TRAINER0}/ae.pt", eval_tokens: int = 20_000_000, dataset
     os.makedirs(ROOT, exist_ok=True)
     _ensure_model()
     t0 = time.time()
-    cmd = ["python", "/app/sae2m/sae27b_verify_2m.py", "--ae", ae, "--online", "--eval-tokens", str(eval_tokens), "--dataset-skip", str(dataset_skip),
+    cmd = ["python", "/app/dict2m/sae27b_verify_2m.py", "--ae", ae, "--online", "--eval-tokens", str(eval_tokens), "--dataset-skip", str(dataset_skip),
            "--model", MODEL, "--layer", str(LAYER), "--d", str(D_MODEL), "--out-batch", "4096", "--chunk", "131072", "--out-json", out_json]
-    print("[sae2m]", " ".join(cmd), flush=True)
-    subprocess.run(cmd, env=_env(), check=True, cwd="/app/sae2m")
+    print("[dict2m]", " ".join(cmd), flush=True)
+    subprocess.run(cmd, env=_env(), check=True, cwd="/app/dict2m")
     vol.commit()
     res = json.load(open(out_json))
     res["wall_min"] = (time.time() - t0) / 60
@@ -358,7 +358,7 @@ def verify(ae: str = f"{TRAINER0}/ae.pt", eval_tokens: int = 20_000_000, dataset
 # 5) max-activating examples (8 GPUs, data-parallel over the SAME 1B-token span) + merge
 # ----------------------------------------------------------------------------------------------------------------
 @app.function(image=image, gpu=TRAIN_GPU, cpu=48, memory=384 * 1024, ephemeral_disk=1024 * 1024, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=24 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=24 * 3600)
 def maxacts(ae: str = f"{TRAINER0}/ae.pt", max_tokens: int = 1_000_000_000, topn: int = 5, window: int = 32, dataset_skip: int = 100_000,
             out_dir: str = f"{ROOT}/maxacts_parts", final: str = f"{ROOT}/maxacts_top5.pt", batch_seqs: int = 16, save_every_min: float = 60.0,
             skip_torchrun_if_partials_final: bool = True):
@@ -377,18 +377,18 @@ def maxacts(ae: str = f"{TRAINER0}/ae.pt", max_tokens: int = 1_000_000_000, topn
     parts = sorted(glob.glob(f"{out_dir}/maxacts_part_r*.pt"))
     have_final = len(parts) == world and all(torch.load(p, map_location="cpu", weights_only=False, mmap=True).get("final") for p in parts)
     if not (have_final and skip_torchrun_if_partials_final):
-        cmd = ["torchrun", "--standalone", f"--nproc_per_node={world}", "/app/sae2m/sae27b_maxacts_sharded.py", "--ae", ae, "--out-dir", out_dir,
+        cmd = ["torchrun", "--standalone", f"--nproc_per_node={world}", "/app/dict2m/sae27b_maxacts_sharded.py", "--ae", ae, "--out-dir", out_dir,
                "--model", MODEL, "--layer", str(LAYER), "--dataset", "openbmb/Ultra-FineWeb", "--split", "en", "--dataset-skip", str(dataset_skip),
                "--ctx-len", "512", "--window", str(window), "--topn", str(topn), "--batch-seqs", str(batch_seqs), "--feat-chunk", "131072",
                "--max-tokens", str(max_tokens), "--norm-mult", "10", "--d-model", str(D_MODEL), "--save-every-min", str(save_every_min)]
         rc = _run(cmd, _env(), f"{ROOT}/logs/maxacts_{time.strftime('%Y%m%d_%H%M%S')}.log")
-        print(f"[sae2m] maxacts torchrun rc={rc} (a benign teardown abort after the partials are written is tolerated)", flush=True)
+        print(f"[dict2m] maxacts torchrun rc={rc} (a benign teardown abort after the partials are written is tolerated)", flush=True)
         parts = sorted(glob.glob(f"{out_dir}/maxacts_part_r*.pt"))
         assert len(parts) == world, f"expected {world} partials, found {len(parts)}: {parts}"
     t_m = time.time()
-    cmd = ["python", "/app/sae2m/sae27b_maxacts_merge.py", "--in-dir", out_dir, "--out", final, "--expect-world", str(world)]
-    print("[sae2m]", " ".join(cmd), flush=True)
-    subprocess.run(cmd, env=_env(), check=True, cwd="/app/sae2m")
+    cmd = ["python", "/app/dict2m/sae27b_maxacts_merge.py", "--in-dir", out_dir, "--out", final, "--expect-world", str(world)]
+    print("[dict2m]", " ".join(cmd), flush=True)
+    subprocess.run(cmd, env=_env(), check=True, cwd="/app/dict2m")
     vol.commit()
     summ = json.load(open(os.path.splitext(final)[0] + ".summary.json"))
     summ.update({"final": final, "bytes": os.path.getsize(final), "wall_h": (time.time() - t0) / 3600, "merge_min": (time.time() - t_m) / 60})
@@ -401,7 +401,7 @@ def maxacts(ae: str = f"{TRAINER0}/ae.pt", max_tokens: int = 1_000_000_000, topn
 # ----------------------------------------------------------------------------------------------------------------
 @app.function(image=image, cpu=2, memory=8192, volumes={"/data": vol}, timeout=1800)
 def status(root: str = ROOT, tail_log: int = 40):
-    """Files + sizes under /data/sae2m, latest.json / TRAIN_DONE, gen_check / verify / summary json, tail of the newest log."""
+    """Files + sizes under /data/dict2m, latest.json / TRAIN_DONE, gen_check / verify / summary json, tail of the newest log."""
     import glob, json
     vol.reload()
     res = {"files": [(p, f"{s / 2**30:.2f} GB") for p, s in _tree(root, depth=3) if s > 50 * 2**20], "total_gb": sum(s for _, s in _tree(root, depth=3)) / 2**30}
@@ -423,7 +423,7 @@ def status(root: str = ROOT, tail_log: int = 40):
 
 @app.function(image=image, cpu=2, memory=8192, volumes={"/data": vol}, timeout=3600)
 def cleanup(path: str):
-    """rm -r of a path under /data/sae2m ONLY (e.g. the smoke shards). Refuses anything else."""
+    """rm -r of a path under /data/dict2m ONLY (e.g. the smoke shards). Refuses anything else."""
     import shutil
     vol.reload()
     assert os.path.abspath(path).startswith(ROOT + "/") and os.path.abspath(path) not in (SHARDS, TRAINER0), f"refusing to remove {path}"

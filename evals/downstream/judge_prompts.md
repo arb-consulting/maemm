@@ -44,11 +44,11 @@ active profile's judge.
   `messages` is `[system, user]`, or `[user]` alone when the system text is empty.
 - **Headers.** No identifying header is sent: there is no `HTTP-Referer`. `X-Title` is the package's label
   in OpenRouter's activity log:
-  - `workspace_understanding`: `maemm-workspace-understanding`;
-  - `workspace_modulation`: `maemm-workspace-modulation`;
-  - `rollout_coherence`: `maemm-rollout-coherence`;
-  - `steering_vector_inversion`: `maemm-steering-vector-inversion`;
-  - `steering_vector_inversion_bipo`: `maemm-persona-vectors`.
+  - `workspace_understanding`: `maem-workspace-understanding`;
+  - `workspace_modulation`: `maem-workspace-modulation`;
+  - `rollout_coherence`: `maem-rollout-coherence`;
+  - `steering_vector_inversion`: `maem-steering-vector-inversion`;
+  - `steering_vector_inversion_bipo`: `maem-persona-vectors`.
 - **Caching.** Every request is logged under a key, the sha256 of model, system, user, `max_tokens`,
   provider, sampling and transport. A resumed stage asks only keys without a settled record, so changing
   any of these re-asks the judge.
@@ -65,8 +65,8 @@ active profile's judge.
   such as `"quote": "城市" (city)"`.
 
 The judge is never shown an arm or method name; each request carries only the texts it asks about. The
-reader prompts (MAEMM's instruction, the NLA verbalizer's template and the Patchscopes prompt) are not
-judge prompts. They are in `maemm/prompts.py`, `evals/downstream/common/nla/nla_assets/nla_meta.json` and
+reader prompts (MAEM's instruction, the NLA verbalizer's template and the Patchscopes prompt) are not
+judge prompts. They are in `maem/prompts.py`, `evals/downstream/common/nla/nla_assets/nla_meta.json` and
 `evals/downstream/common/patchscope.py`.
 
 ## Coherence
@@ -80,11 +80,11 @@ this is its only prompt.
 document's own tokens, to the judged text's re-tokenised length, ending at the read position. The judged
 texts are:
 
-- MAEMM's greedy and first eight samples;
+- MAEM's greedy and first eight samples;
 - the base model's own continuation of the source prefix (greedy and eight samples);
 - the NLA verbalizer's explanation, cut to 64 tokens (`nla`) and whole (`nla_native`);
 - the top-1 corpus-search window at each corpus size;
-- MAEMM's best-of-k selections past k = 8.
+- MAEM's best-of-k selections past k = 8.
 
 The pairs are in `frontier/context/pairs.json`.
 
@@ -228,7 +228,7 @@ Both packages use one instrument, `evals/downstream/common/naming.py`.
 **What it asks.** The judge sees one readout and the target forms of one concept, and says whether any
 target is named, quoting the span that names it. The readout is either:
 
-- a reader's eight free-text samples (kind `samples`), from MAEMM, the NLA verbalizer, Patchscopes or the
+- a reader's eight free-text samples (kind `samples`), from MAEM, the NLA verbalizer, Patchscopes or the
   corpus-search windows; or
 - the prose summary of a J-lens token list (kind `summary`, one `[1]` line).
 

@@ -13,7 +13,7 @@ ONE Markdown file, written for a reader who wants to see WHAT THE FOUR SELECTION
 SHOW, not what they score on average. `results/autointerp.py` has the block-level contrast with its
 paired bootstrap and `results/feature_page.py` has the full 512-feature debugging page; this is
 neither. It is 16 features chosen to populate a 2 x 2 x 2 design -- Exemplifier wins / loses,
-MAEMM cosine high / low, corpus cosine high / low -- with every arm's explainer input and output
+MAEM cosine high / low, corpus cosine high / low -- with every arm's explainer input and output
 side by side, and per-arm diversity statistics computed with THE SELECTION RULES' OWN FUNCTIONS.
 
 WHY THE SELECTION RULES' OWN FUNCTIONS AND NOT A REIMPLEMENTATION. The mean pairwise Jaccard
@@ -38,7 +38,7 @@ WHAT IS READ, and from where:
     `--verify-cache N` that identity is CHECKED against the run's own call cache by rebuilding the
     request body and its sha256 key, so "verbatim" is a tested claim and not an assertion;
   * the Exemplifier's per-rollout cosine to the feature's SAE direction -- `cos_centred.f16` of the
-    rl-last16 `score` product, through `results.common.best_per_rollout`, the same estimator
+    rl-final `score` product, through `results.common.best_per_rollout`, the same estimator
     `results/corpus_search.exemplifier_bok` reads it with;
   * the residuals `M-cos16` selects on -- `best_act.f16` of the same product, memory-mapped;
   * the corpus-side cosine -- `results/corpus_search.read_top1` on the centred 10M scan, plus a
@@ -94,7 +94,7 @@ SCORERS = ("detection", "fuzzing")
 SCAN_SIZE = 10.0
 # The `score` product whose rollout cosines and residuals the M arms are measured with. It is the
 # run tag, not the whole path: the rest is `precompute/common.scores_dir`'s layout, resolved from
-# the build's own `maemm` / `set` / `engine` so that this page cannot be pointed at another
+# the build's own `maem` / `set` / `engine` so that this page cannot be pointed at another
 # checkpoint's numbers by a stale constant.
 SCORE_TAG = "paper0923"
 # Activation bands, lowest first, as `results/autointerp.BAND_SLOT` spells them.
@@ -279,7 +279,7 @@ class Geometry:
     notes: list[str] = field(default_factory=list)
 
 
-def resolve_scores_rel(vol: R.Vol, maemm: str, set_name: str, engine: str, tag: str) -> str:
+def resolve_scores_rel(vol: R.Vol, maem: str, set_name: str, engine: str, tag: str) -> str:
     """`precompute/common.scores_dir`'s two spellings, the canonical one first.
 
     The writer's rename put the tag before the engine (`<set>__<tag>__<engine>`) and the products
@@ -287,7 +287,7 @@ def resolve_scores_rel(vol: R.Vol, maemm: str, set_name: str, engine: str, tag: 
     a constant being edited when a future run writes the other one, and the one that exists is
     reported on the page.
     """
-    stem = f"maemms/{maemm}/scores"
+    stem = f"maems/{maem}/scores"
     cands = [f"{stem}/{set_name}__{tag}__{engine}", f"{stem}/{set_name}__{engine}__{tag}"]
     for rel in cands:
         if vol.exists(f"{rel}/index.json"):
@@ -308,12 +308,12 @@ def memmap(path: Path, dtype: str, shape) -> np.ndarray:
 def load_geometry(vol: R.Vol, build: dict, tag: str, scan_dir: str, scan_size: float) -> Geometry:
     """The `score` product's cosines and residuals, and the corpus scan's top-k, by heldout row."""
     g = Geometry(scan_dir=scan_dir)
-    maemm, set_name = str(build.get("maemm") or ""), str(build.get("set") or "")
+    maem, set_name = str(build.get("maem") or ""), str(build.get("set") or "")
     base, engine = str(build.get("base") or ""), str(build.get("engine") or "hf")
-    g.scores_rel = resolve_scores_rel(vol, maemm, set_name, engine, tag)
+    g.scores_rel = resolve_scores_rel(vol, maem, set_name, engine, tag)
     assert g.scores_rel, (
-        f"no `score` product for maemm {maemm!r}, set {set_name!r}, engine {engine!r}, tag {tag!r} "
-        f"under `maemms/{maemm}/scores/` in either spelling: the M arms' cosines and the residuals "
+        f"no `score` product for maem {maem!r}, set {set_name!r}, engine {engine!r}, tag {tag!r} "
+        f"under `maems/{maem}/scores/` in either spelling: the M arms' cosines and the residuals "
         f"`M-cos16` selected on live there, and nothing on this page recomputes them")
     rows = vol.json(f"{g.scores_rel}/rows.json") or {}
     idx = vol.json(f"{g.scores_rel}/index.json") or {}
@@ -322,7 +322,7 @@ def load_geometry(vol: R.Vol, build: dict, tag: str, scan_dir: str, scan_size: f
     shape = tuple(int(v) for v in (idx.get("cos_centred.f16") or {}).get("shape") or ())
     assert len(shape) == 3, (
         f"{g.scores_rel}/index.json carries no `cos_centred.f16` shape: the centred rollout cosine "
-        f"is the quantity the MAEMM-cosine axis splits on and there is no second source for it")
+        f"is the quantity the MAEM-cosine axis splits on and there is no second source for it")
     cos = vol.array(f"{g.scores_rel}/cos_centred.f16", "float16", shape)
     assert cos is not None, f"{g.scores_rel}/cos_centred.f16 is not in the mirror or on the volume"
     for row, i in g.row_ix.items():
@@ -522,7 +522,7 @@ def collect(ri: FP.RunIn, g: Geometry, feats: list[int]) -> list[Feature]:
             if vals and not any(math.isnan(v) for v in vals):
                 fe.m_cos = float(np.mean(vals))
         fe.c_cos = g.corpus_top1.get(fe.row)
-        missing = [n for n, v in (("detection margin", fe.margin), ("MAEMM cosine", fe.m_cos),
+        missing = [n for n, v in (("detection margin", fe.margin), ("MAEM cosine", fe.m_cos),
                                   ("corpus cosine", fe.c_cos)) if v is None]
         # A margin of exactly zero is neither a win nor a loss and is not made into one by the
         # sign convention of a comparison operator: the feature is simply not a case for this axis.
@@ -749,7 +749,7 @@ def render(ri: FP.RunIn, g: Geometry, picked, report, bands, stats, cells_note: 
     L += [
         f"- generated {time.strftime('%Y-%m-%d %H:%M')} by `{' '.join(argv)}`",
         f"- run `runs/{ri.run_dir}`, build `{ri.build_rel}`, dictionary `{ri.sae}`, set "
-        f"`{b.get('set', '—')}`, base `{b.get('base', '—')}`, maemm `{b.get('maemm', '—')}`, "
+        f"`{b.get('set', '—')}`, base `{b.get('base', '—')}`, maem `{b.get('maem', '—')}`, "
         f"judge `claude-sonnet-5`, N = {b.get('n_examples', '—')} examples per arm, gate "
         f"{b.get('gate', '—')}",
         f"- score product `{g.scores_rel}`; corpus scan `base/{b.get('base')}/scan/{g.scan_dir}`; "
@@ -771,7 +771,7 @@ def render(ri: FP.RunIn, g: Geometry, picked, report, bands, stats, cells_note: 
         f"number; a refusal leaves no score row and is never imputed at chance). "
         f"{cells_note['n_margin']} features have a margin. The threshold is "
         f"|margin| >= {cells_note['margin']:.2f}.",
-        f"2. **MAEMM cosine high / low** — the mean over the 16 rollouts `M-top16` shows of that "
+        f"2. **MAEM cosine high / low** — the mean over the 16 rollouts `M-top16` shows of that "
         f"rollout's best centred cosine to the feature's SAE direction "
         f"(`{g.scores_rel}/cos_centred.f16` through `results.common.best_per_rollout`, the "
         f"estimator `corpus_search.exemplifier_bok` uses). It is a MEAN OVER THE SHOWN 16, not a "
@@ -821,7 +821,7 @@ def render(ri: FP.RunIn, g: Geometry, picked, report, bands, stats, cells_note: 
           "*`Δ` is `M-top16` − `C16` on detection. `J` is the mean pairwise content-word Jaccard "
           "of the arm's own shown set and `cos` the mean pairwise centred residual cosine of it "
           "(rollout arms only). Derived columns: `Δ` and the two means.*", ""]
-    hdr = ["feature", "cell", "Δ det", "MAEMM cos", "corpus cos",
+    hdr = ["feature", "cell", "Δ det", "MAEM cos", "corpus cos",
            *[f"{DISPLAY[a]} det" for a in ARMS], *[f"J {DISPLAY[a]}" for a in ARMS],
            *[f"cos {DISPLAY[a]}" for a in ARMS if a != "C16"]]
     rows = []
@@ -899,7 +899,7 @@ def arm_definitions(build: dict, g: Geometry) -> list[str]:
         f"ranked, top 16 by activation** — not a window ranking, which would put sixteen "
         f"overlapping cuts of one passage in front of the explainer.", "",
         f"**The pool the three M arms share** — the Exemplifier's "
-        f"{build.get('rollout_source', 'maemm')} rollouts for that feature, 64 per feature, each "
+        f"{build.get('rollout_source', 'maem')} rollouts for that feature, 64 per feature, each "
         f"rendered by `build.render_example` with its per-token activations from the `sae_self` "
         f"product, exact-text deduplicated, and sorted by **descending per-rollout peak SAE "
         f"activation** (the max over the rollout's scored tokens of the feature's pre-gate "

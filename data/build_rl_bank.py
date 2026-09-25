@@ -5,7 +5,7 @@ from the [1,8192] collection; realact(short) + probes sampled from pool_big_sft 
 Usage: PYTHONPATH=. python data/build_rl_bank.py --n-each 250000
 """
 import argparse, os, json, glob, numpy as np
-from maemm.config import D_MODEL
+from maem.config import D_MODEL
 
 
 def main():

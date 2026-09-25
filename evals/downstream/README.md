@@ -1,6 +1,6 @@
-# MAEMM evaluation packages
+# MAEM evaluation packages
 
-Five packages under `evals/downstream/` measure what MAEMM's generated exemplars say about an activation or a
+Five packages under `evals/downstream/` measure what MAEM's generated exemplars say about an activation or a
 steering vector, against the same baselines. Each package is one command from public inputs to the tables
 and figures its README lists. The paper's tables, figures and in-text numbers are drawn from those runs
 by `python -m evals.downstream.analysis.paper {steering,workspace,coherence}`;
@@ -14,7 +14,7 @@ independent of these packages.
 | [`steering_vector_inversion_bipo`](steering_vector_inversion_bipo/README.md) | the same ten-way identification for 119 BiPO-trained persona vectors | "Explaining steering vectors": Table `tab:steer` (BiPO), the appendix strength table | `sol` |
 | [`workspace_understanding`](workspace_understanding/README.md) | whether a reader of one layer-42 activation names the unstated concept or bridge entity of the J-lens association and multi-hop prompts | "Interpreting model workspaces": Tables `tab:workspace-word` and `tab:workspace-judge` (association, multi-hop) | `sonnet` |
 | [`workspace_modulation`](workspace_modulation/README.md) | the same, on the directed-modulation prompts, where the model is told to focus on or mention a topic | "Interpreting model workspaces": the same two tables (directed modulation) | `sonnet` |
-| [`rollout_coherence`](rollout_coherence/README.md) | how coherent and how fluent MAEMM's texts are against the source passage, as a function of how well they invert the activation | "Coherence of MAEMM exemplars": Figure `fig:coherence` (`python -m evals.downstream.analysis.paper coherence`) | `sonnet` |
+| [`rollout_coherence`](rollout_coherence/README.md) | how coherent and how fluent MAEM's texts are against the source passage, as a function of how well they invert the activation | "Coherence of MAEM exemplars": Figure `fig:coherence` (`python -m evals.downstream.analysis.paper coherence`) | `sonnet` |
 
 Each README has a "Reproducing the paper" section: the command, the stages it runs, the judge profile and
 the approximate API and GPU budget. Each package also has a `methodology.md` that describes its design.
@@ -25,11 +25,11 @@ private training text, and nothing imports or runs it.
 
 ```bash
 pip install -r evals/downstream/common/requirements.txt -r evals/downstream/<package>/requirements.txt   # BiPO: add steering_vector_inversion's
-export PYTHONPATH=$PWD                              # evals.downstream and maemm are imported as top-level packages
+export PYTHONPATH=$PWD                              # evals.downstream and maem are imported as top-level packages
 python -m evals.downstream.<package> all --run-id <name>       # on a CUDA host
 ```
 
-The packages also import `maemm/` (the model config, injection hooks and MAEMM prompt) from this repository.
+The packages also import `maem/` (the model config, injection hooks and MAEM prompt) from this repository.
 Use Python 3.12, the version every launcher's image pins. Pass both requirements files to one `pip`
 command, so the resolver sees both sets of pins. On a GPU host, install `torch` first from the wheel index
 for its CUDA version. `flash-linear-attention` is Linux-only: without it, transformers falls back to a
@@ -84,18 +84,18 @@ each run's recorded config and stage keys.
 
 | Model | Pins (defaults in `pins.py`) | Override via |
 |---|---|---|
-| Base model (`Qwen/Qwen3.6-27B`, from `maemm/config.py`) | `MODEL`, `MODEL_REVISION` | `EVAL_BASE_REPO`, `EVAL_BASE_REVISION` |
-| MAEMM (the inverter) | `INVERTER`, `INVERTER_REVISION` | `EVAL_INVERTER_REPO`, `EVAL_INVERTER_REVISION` |
+| Base model (`Qwen/Qwen3.6-27B`, from `maem/config.py`) | `MODEL`, `MODEL_REVISION` | `EVAL_BASE_REPO`, `EVAL_BASE_REVISION` |
+| MAEM (the inverter) | `INVERTER`, `INVERTER_REVISION` | `EVAL_INVERTER_REPO`, `EVAL_INVERTER_REVISION` |
 | NLA verbalizer | `NLA_REPO`, `NLA_REVISION` (read by `nla/nla_reader.Pins`) | `EVAL_NLA_REPO`, `EVAL_NLA_REVISION` |
 | Jacobian lens (`neuronpedia/jacobian-lens`) | `LENS_REPO`, `LENS_REVISION`; the file, its size and sha256 are fixed | `EVAL_LENS_REPO`, `EVAL_LENS_REVISION` |
 
 | | |
 |---|---|
-| Model read | the base model (`pins.MODEL` @ `MODEL_REVISION`), residual stream after block 42 (`maemm/config.py`). Every activation is read, and every text re-read and scored, on this clean base, never on MAEMM |
-| MAEMM | `pins.INVERTER` @ `INVERTER_REVISION`, a full-parameter fine-tune of the base, loaded as a causal LM (`model_io.load_inverter`). Its prompt is `maemm/prompts.py`; the direction is injected at the prompt's marker token at block 1, scaled by the residual norm there, coefficient 1 |
-| What MAEMM is given | an activation `h` as `unit(h − mean)`, with the shipped centring mean `evals/downstream/common/assets/mu.f32` (`background.load_centring_mean`); a steering vector as `unit(v)` |
+| Model read | the base model (`pins.MODEL` @ `MODEL_REVISION`), residual stream after block 42 (`maem/config.py`). Every activation is read, and every text re-read and scored, on this clean base, never on MAEM |
+| MAEM | `pins.INVERTER` @ `INVERTER_REVISION`, a full-parameter fine-tune of the base, loaded as a causal LM (`model_io.load_inverter`). Its prompt is `maem/prompts.py`; the direction is injected at the prompt's marker token at block 1, scaled by the residual norm there, coefficient 1 |
+| What MAEM is given | an activation `h` as `unit(h − mean)`, with the shipped centring mean `evals/downstream/common/assets/mu.f32` (`background.load_centring_mean`); a steering vector as `unit(v)` |
 | Sampling | temperature 1, top-p 1, 16 to 64 new tokens; sampled texts plus one greedy (`model_io.py`). A `generate` call carries at most 32 rows, each call seeded by the grid index of its first row |
-| NLA verbalizer | `pins.NLA_REPO` @ `NLA_REVISION`, a merged checkpoint loaded as a causal LM, prompted through its released template, up to 200 new tokens (`nla/nla_reader.py`). A judge reads the `<explanation>` body; tables also carry its first 64 tokens, the length MAEMM writes |
+| NLA verbalizer | `pins.NLA_REPO` @ `NLA_REVISION`, a merged checkpoint loaded as a causal LM, prompted through its released template, up to 200 new tokens (`nla/nla_reader.py`). A judge reads the `<explanation>` body; tables also carry its first 64 tokens, the length MAEM writes |
 | Corpus search | one corpus and one rule (`retrieval.py`): the held-out Ultra-FineWeb corpus's 10M-token search prefix in 64-token windows at stride 16, ranked by the largest cosine of any position's layer-42 residual with the query, the best non-overlapping windows returned. Nested 1M–10M prefixes give the size curve. Evaluation text comes from the documents after the prefix, less those whose word 7-grams overlap the training text (`assets/heldout_overlap.csv`) |
 | J-lens | the released Jacobian lens (`lens_io.py`); a lens's top tokens are turned into prose by an item-blind summariser before a judge reads them (`lens_summary.py`) |
 | Re-read | every text is scored the same way (`scorer.py`): tokenised on its own, cut at 95 tokens (256 for the verbalizer's full text), read behind a sink token on the clean base, scored as the largest cosine over its content tokens. No norm filter; each stage records what it would have dropped |
@@ -112,7 +112,7 @@ that profile's secret as well.
 
 | Variable | Default | What it names |
 |---|---|---|
-| `EVAL_APP` | `maemm-<package-name-with-dashes>` | the Modal app |
+| `EVAL_APP` | `maem-<package-name-with-dashes>` | the Modal app |
 | `EVAL_GPU` | `B200:1` (`H200` for the two steering packages) | the GPU of a stage that holds one model |
 | `EVAL_GPU_BOTH_MODELS` | `EVAL_GPU` (`B200` for the two steering packages) | the GPU of a stage that holds the base and a second 27B model |
 | `EVAL_GPU_TRAINING` | `B200` | the GPU that trains the BiPO vectors (`steering_vector_inversion_bipo`) |
@@ -120,11 +120,11 @@ that profile's secret as well.
 | `EVAL_GPU_COST_PER_HOUR` | `6.2496` | the rate the three activation evals' GPU cost estimate uses (Modal's B200 list rate) |
 | `EVAL_NLA_SHARDS` | `2` | containers `workspace_understanding`'s NLA generation is split into |
 | `EVAL_RETRIEVAL_SHARDS` | `8` (`workspace_understanding`), `4` (`rollout_coherence`) | containers the corpus-search forward is split into |
-| `EVAL_VOLUME` | `maemm-data` | the volume the three activation evals' run directories live on |
-| `EVAL_HF_SECRET` | `maemm-hf` | the secret carrying `HF_TOKEN` (the three activation evals; the steering evals download anonymously) |
-| `EVAL_ANTHROPIC_SECRET` | `maemm-anthropic` where `sonnet` is the default profile, else unset | the secret carrying `ANTHROPIC_API_KEY` (`sonnet`, and BiPO's `describe` stage); mounted only when named |
-| `EVAL_OPENROUTER_SECRET` | `maemm-openrouter` where `sol` is the default profile, else unset | the secret carrying `OPENROUTER_API_KEY` (`sol`); mounted only when named |
-| `EVAL_MODEL_CACHE_VOLUME` | `maemm-eval-model-cache` | the weights cache of the two steering packages, whose run directories stay on the controller |
+| `EVAL_VOLUME` | `maem-data` | the volume the three activation evals' run directories live on |
+| `EVAL_HF_SECRET` | `maem-hf` | the secret carrying `HF_TOKEN` (the three activation evals; the steering evals download anonymously) |
+| `EVAL_ANTHROPIC_SECRET` | `maem-anthropic` where `sonnet` is the default profile, else unset | the secret carrying `ANTHROPIC_API_KEY` (`sonnet`, and BiPO's `describe` stage); mounted only when named |
+| `EVAL_OPENROUTER_SECRET` | `maem-openrouter` where `sol` is the default profile, else unset | the secret carrying `OPENROUTER_API_KEY` (`sol`); mounted only when named |
+| `EVAL_MODEL_CACHE_VOLUME` | `maem-eval-model-cache` | the weights cache of the two steering packages, whose run directories stay on the controller |
 | `EVAL_MODEL_CACHE_DIR` | `/cache/models` | where in that volume the steering packages keep their snapshots |
 | `EVAL_HF_HOME` | `/data/hf_cache` | the HF cache the three activation evals read models from |
 | `EVAL_OUTPUT_DIR` | `/data` | the root the three activation evals put run directories under, as `<root>/<package>/<run-id>` |

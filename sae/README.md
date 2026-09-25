@@ -6,8 +6,8 @@ The 2M-feature BatchTopK SAE on the layer-42 residual stream (trained feature-pa
 |---|---|
 | `anchor_worker.py` | torchrun worker for the 2M-SAE bank END-ANCHOR check (one rank per GPU, no process group needed). |
 | `bank_lib.py` | Pure helpers for the 2M-SAE midtrain bank (CPU-testable; no Modal, no model). |
-| `modal_sae2m.py` | Modal app `maemm-sae2m`: the 2,097,152-feature (2^21) BatchTopK SAE on Qwen3.6-27B layer-42 residuals with ONLINE activation generation (no stored ... |
-| `modal_sae2m_bank.py` | Modal app `maemm-sae2m-bank`: the SFT MIDTRAIN BANK of the 2,097,152-feature layer-42 SAE (/data/sae2m/trainer_0/ae.pt) from its max-activating ... |
+| `modal_dict2m.py` | Modal app `maem-dict2m`: the 2,097,152-feature (2^21) BatchTopK SAE on Qwen3.6-27B layer-42 residuals with ONLINE activation generation (no stored ... |
+| `modal_dict2m_bank.py` | Modal app `maem-dict2m-bank`: the SFT MIDTRAIN BANK of the 2,097,152-feature layer-42 SAE (/data/dict2m/trainer_0/ae.pt) from its max-activating ... |
 | `online_gen.py` | ONLINE layer-42 activation generation for the 2M-feature SAE (no stored activation shards). |
 | `sae27b_disk_buffer.py` | Shuffling disk-backed activation buffer feeding dictionary_learning's trainSAE. |
 | `sae27b_maxacts_merge.py` | Merge the per-rank partial tables of sae27b_maxacts_sharded.py into one top-N store + live/dead summary. |

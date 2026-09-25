@@ -8,7 +8,7 @@ reward signal below the firing threshold.
 import torch
 from huggingface_hub import hf_hub_download
 
-from maemm.config import D_MODEL, READ_LAYER
+from maem.config import D_MODEL, READ_LAYER
 
 SAE_REPO = "adamkarvonen/qwen3-8b-saes"
 SAE_FILENAME = f"saes_Qwen_Qwen3-8B_batch_top_k/resid_post_layer_{READ_LAYER}/trainer_2/ae.pt"

@@ -23,7 +23,7 @@ import modal
 # evals.downstream.* is not on the path. Every evals.downstream.* import is inside a function a local entrypoint calls.
 
 REPO = Path(__file__).resolve().parent.parent.parent
-APP_NAME = os.environ.get("EVAL_APP", "maemm-workspace-modulation")
+APP_NAME = os.environ.get("EVAL_APP", "maem-workspace-modulation")
 app = modal.App(APP_NAME)
 # One 27B checkpoint is about 54 GB; `rollouts` holds two (`TWO_MODEL_STAGES`), on a card with its own
 # default, so a smaller EVAL_GPU never becomes the two-model card.
@@ -65,16 +65,16 @@ image = (
     .pip_install("flash-linear-attention==0.5.2")
     .pip_install(JLENS_TARBALL)
     .env(LAUNCH_ENV)
-    .add_local_dir(REPO / "maemm", "/app/maemm", ignore=["__pycache__", "out", "analysis", "test_*"])
+    .add_local_dir(REPO / "maem", "/app/maem", ignore=["__pycache__", "out", "analysis", "test_*"])
     .add_local_dir(REPO / "evals" / "downstream", "/app/evals/downstream", ignore=["__pycache__", "out", "analysis", "test_*"])
 )
-VOLUME_NAME = os.environ.get("EVAL_VOLUME", "maemm-data")
-HF_SECRET_NAME = os.environ.get("EVAL_HF_SECRET", "maemm-hf")
+VOLUME_NAME = os.environ.get("EVAL_VOLUME", "maem-data")
+HF_SECRET_NAME = os.environ.get("EVAL_HF_SECRET", "maem-hf")
 vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
 HF = modal.Secret.from_name(HF_SECRET_NAME)
 # The default profile's secret (`sonnet`: ANTHROPIC_API_KEY) is always mounted; the OpenRouter secret (`sol`:
 # OPENROUTER_API_KEY) only when EVAL_OPENROUTER_SECRET names one.
-ANTHROPIC_SECRET_NAME = os.environ.get("EVAL_ANTHROPIC_SECRET", "maemm-anthropic")
+ANTHROPIC_SECRET_NAME = os.environ.get("EVAL_ANTHROPIC_SECRET", "maem-anthropic")
 OPENROUTER_SECRET_NAME = os.environ.get("EVAL_OPENROUTER_SECRET")
 JUDGE_SECRETS = [modal.Secret.from_name(ANTHROPIC_SECRET_NAME)] + (
     [modal.Secret.from_name(OPENROUTER_SECRET_NAME)] if OPENROUTER_SECRET_NAME else [])

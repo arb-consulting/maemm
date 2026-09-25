@@ -1,7 +1,7 @@
 """Main-paper figure for the rank-one backdoor section.
 
     Left   a matrix: one row per adapter (trigger -> payload), one column per read-off, cell = how
-           many of 24 MAEMM rollouts name the target. Read vector -> trigger; write vector ->
+           many of 24 MAEM rollouts name the target. Read vector -> trigger; write vector ->
            payload; activation one layer after the write -> payload; and the two controls for the
            activation column (layer before the write, adapter disabled). When the 8M-token corpus
            scan is staged, a last column: how many of the 24 max-activating real-text windows for

@@ -1,12 +1,12 @@
 """Modal launcher for the autointerp-detection eval's GPU stage (evals/heldout/autointerp_detection.py
-build): one B200, the maemm-data volume (base model HF cache + SAE + maxacts + held-out eval
-cache), HF online for the adapter (ANONYMOUS/qwen36-27b-maemm-inverter) and the Ultra-FineWeb
+build): one B200, the maem-data volume (base model HF cache + SAE + maxacts + held-out eval
+cache), HF online for the adapter (ANONYMOUS/ckpt-sft) and the Ultra-FineWeb
 negatives stream. One-shot, not a daemon.
 
 Run ( your Modal profile; keep the client attached or use --detach):
     MODAL_PROFILE=<your-profile> modal run modal_autointerp_detection.py
 Then pull the testbed locally:
-    MODAL_PROFILE=<your-profile> modal volume get maemm-data eval_autointerp/testbed.json .
+    MODAL_PROFILE=<your-profile> modal volume get maem-data eval_autointerp/testbed.json .
 and continue with the local judge/score stages of eval/autointerp_detection.py.
 
 Adapter-vs-adapter comparison (e.g. last-5 ckpt vs baseline; ON-POLICY rollouts per adapter,
@@ -22,7 +22,7 @@ import modal
 
 REPO = Path(__file__).resolve().parent.parent.parent   # repo root (this launcher lives one level down)
 
-app = modal.App("maemm-autointerp-detection")
+app = modal.App("maem-autointerp-detection")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -42,20 +42,20 @@ image = (
         "hf_xet",
     )
     .add_local_dir(REPO / "evals" / "heldout", "/app/eval", ignore=["__pycache__", "out", "analysis", "modal_*", "test_*"])
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
 
 @app.function(
     image=image,
     gpu="B200",
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=4 * 3600,
 )
-def build(adapter: str = "ANONYMOUS/qwen36-27b-maemm-inverter",
+def build(adapter: str = "ANONYMOUS/ckpt-sft",
           n_features: int = 64, n_desc: int = 8, n_pos: int = 10, n_neg: int = 10,
           n_max: int = 8, seed: int = 0,
           out: str = "/data/eval_autointerp/testbed.json"):
@@ -77,14 +77,14 @@ def build(adapter: str = "ANONYMOUS/qwen36-27b-maemm-inverter",
     ])
     a.fn(a)
     vol.commit()
-    print(f"[modal] committed {out} to maemm-data", flush=True)
+    print(f"[modal] committed {out} to maem-data", flush=True)
 
 
 @app.function(
     image=image,
     gpu="B200",
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=2 * 3600,
 )
 def augment(testbed: str = "/data/eval_autointerp/testbed.json",
@@ -109,7 +109,7 @@ def augment(testbed: str = "/data/eval_autointerp/testbed.json",
     ])
     a.fn(a)
     vol.commit()
-    print(f"[modal] committed {out} to maemm-data", flush=True)
+    print(f"[modal] committed {out} to maem-data", flush=True)
 
 
 @app.local_entrypoint()
@@ -124,7 +124,7 @@ def compare(adapters: str = ("last5_step75=/data/ckpts_last5/step_75,"
     """Spawn one on-policy build per name=adapter_dir spec (parallel, one B200 each) and wait.
     Same seed for every arm => the testbeds share features/positives/negatives verbatim (the
     numpy RNG never sees the adapter; rollouts use a forked torch RNG) — paired by construction.
-    Outputs land at /data/eval_autointerp/testbed_<name>.json on the maemm-data volume."""
+    Outputs land at /data/eval_autointerp/testbed_<name>.json on the maem-data volume."""
     calls = []
     for spec in adapters.split(","):
         name, path = spec.split("=", 1)

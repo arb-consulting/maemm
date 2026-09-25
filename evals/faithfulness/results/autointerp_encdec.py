@@ -9,7 +9,7 @@ and from the DECODER row, paired feature by feature.
     cd <repo>
     (export MODAL_PROFILE=<your-profile>; \\
      uv run evals/faithfulness/results/autointerp_encdec.py \\
-       --enc rl-last16=2026-09-24_autointerp-512 --dec rl-last16-dec=2026-09-24_autointerp-512-dec \\
+       --enc rl-final=2026-09-24_autointerp-512 --dec rl-final-dec=2026-09-24_autointerp-512-dec \\
        --out _out/autointerp-dec)
 
 Local, CPU, no GPU, no model, no API. Like `results/autointerp.py` it recomputes nothing but the
@@ -24,15 +24,15 @@ THE DESIGN THIS READS. Two run directories on the same features, the same C16 po
 test items and the same null arms, launched with ONE shared `--cache-dir`. `run.py`'s cache key has
 no run or build component, so every call whose request body is identical in the two runs is the
 SAME call replayed: C16, its two nulls and `R-shuffled` should come back byte-identical, and only
-the MAEMM arms -- whose shown examples are rollouts made from a different injected direction --
+the MAEM arms -- whose shown examples are rollouts made from a different injected direction --
 are new measurements. That is an assumption this file CHECKS (`replay_check`) rather than trusts:
 a replayed arm whose rows differ on a feature that was not refused in either run means the two
-builds' test items or descriptions differ, and then the encoder and decoder MAEMM arms are not
+builds' test items or descriptions differ, and then the encoder and decoder MAEM arms are not
 being judged on the same items and the paired contrast is not the contrast it says it is.
 
 WHAT IT BUILDS:
 
-  pairs      per (MAEMM arm x scorer): dec - enc per feature over the INTERSECTION of the two
+  pairs      per (MAEM arm x scorer): dec - enc per feature over the INTERSECTION of the two
              runs' features (`paired_diff`), its percentile bootstrap CI over features
              (`boot_ci`, the driver's resample count and seed), the win fraction, the same for
              the TPR and TNR halves, and each side's own full-set mean beside the paired one.
@@ -56,8 +56,8 @@ directories that share features, test items and the C16 pool through one cache, 
 `<a><b>-*-<b>`, `results_<a><b>.json`, headings and CSV columns); the defaults `enc,dec` /
 `encoder,decoder` reproduce the M6-dec outputs. The JSON keeps the `enc_*`/`dec_*` keys and
 records `names`, so `enc` there means the FIRST run (`--enc`) and `dec` the SECOND (`--dec`).
-The fidelity half IS about the two directions of one MAEMM and refuses non-default names.
-M6-sft (2026-09-24) uses it as `--enc rl-last16=... --dec sft-simple2m=... --names rl,sft
+The fidelity half IS about the two directions of one MAEM and refuses non-default names.
+M6-sft (2026-09-24) uses it as `--enc rl-final=... --dec sft-simple2m=... --names rl,sft
 --titles RL,SFT --arms M --no-fidelity`: the SFT init's `M` arm against the RL checkpoint's.
 """
 
@@ -321,7 +321,7 @@ def _unit_rows(vol: R.Vol, base: str, set_name: str) -> np.ndarray | None:
     return a / np.linalg.norm(a, axis=1, keepdims=True)
 
 
-def fidelity(vol: R.Vol, *, base: str, sae: str, maemm: str, enc_set: str, dec_set: str,
+def fidelity(vol: R.Vol, *, base: str, sae: str, maem: str, enc_set: str, dec_set: str,
              enc_scores: str, dec_scores: str, enc_scan: str, dec_scan: str,
              boot: int, seed: int) -> dict:
     """Per feature: Exemplifier centred bo-k to each direction, and each direction's corpus top-1."""
@@ -338,7 +338,7 @@ def fidelity(vol: R.Vol, *, base: str, sae: str, maemm: str, enc_set: str, dec_s
                    "only_dec": len(set(rows["dec"]) - set(rows["enc"])), "n_bad": len(bad)})
     assert not bad, f"{len(bad)} decoder rows name another encoder row than their feature's: {bad[:8]}"
 
-    scores = {"enc": f"maemms/{maemm}/scores/{enc_scores}", "dec": f"maemms/{maemm}/scores/{dec_scores}"}
+    scores = {"enc": f"maems/{maem}/scores/{enc_scores}", "dec": f"maems/{maem}/scores/{dec_scores}"}
     bok: dict[tuple[str, int], np.ndarray] = {}
     for side, rel in scores.items():
         pt = {int(r["row"]): r for r in (vol.jsonl(f"{rel}/per_target.jsonl") or [])}
@@ -505,7 +505,7 @@ def write_outputs(res: dict, fid: dict | None, out: Path, preamble: list[str],
           f"refusal in either run (retried, not cached), or a scorer batch that came back "
           f"unparsed in either run (`n_parsed < n_batches`, e.g. a judge refusal). "
           f"`{res['replay_arms'][0]}` is the one that matters: its test items are the "
-          f"items every MAEMM arm is judged on.*", ""]
+          f"items every MAEM arm is judged on.*", ""]
     L += _md(H(["arm", "scorer", "rows enc / dec", "common", "identical", "differ (any field)",
                 "differ (bal_acc)", "only enc", "only dec", "explainer refused (either run)",
                 "differ, scorer batch re-sent", "verdict"]), rep)
@@ -632,7 +632,7 @@ def make_figures(res: dict, fid: dict | None, out: Path, names: tuple[str, str] 
     names: list[str] = []
     det = "detection"
 
-    # (a) paired scatter of per-feature detection bal_acc, one panel per MAEMM arm
+    # (a) paired scatter of per-feature detection bal_acc, one panel per MAEM arm
     arms = res["arms"]
     fig, axes = plt.subplots(1, len(arms), figsize=(3.3 * len(arms), 3.4), squeeze=False)
     for ax, arm in zip(axes[0], arms, strict=True):
@@ -760,9 +760,9 @@ def _commit() -> dict:
 @app.command()
 def main(
     enc: Annotated[str, typer.Option(help="`<label>=<run_dir>` of the ENCODER run")]
-    = "rl-last16=2026-09-24_autointerp-512",
+    = "rl-final=2026-09-24_autointerp-512",
     dec: Annotated[str, typer.Option(help="`<label>=<run_dir>` of the DECODER run")]
-    = "rl-last16-dec=2026-09-24_autointerp-512-dec",
+    = "rl-final-dec=2026-09-24_autointerp-512-dec",
     arms: Annotated[str, typer.Option(help="the arms compared, comma-separated")]
     = "M,M-jac16,M-cos16",
     replay: Annotated[str, typer.Option(
@@ -773,7 +773,7 @@ def main(
     fid: Annotated[bool, typer.Option("--fidelity/--no-fidelity",
                                       help="the Exemplifier / corpus-search side")] = True,
     base: Annotated[str, typer.Option()] = "qwen36-27b",
-    maemm: Annotated[str, typer.Option()] = "qwen36-27b/2026-09-18_rl-last16-lr5e-7",
+    maem: Annotated[str, typer.Option()] = "qwen36-27b/2026-09-18_rl-final",
     enc_set: Annotated[str, typer.Option()] = "2026-09-21_v3_ctrl",
     dec_set: Annotated[str, typer.Option()] = "2026-09-24_v3_ctrl_dec",
     enc_scores: Annotated[str, typer.Option()] = "2026-09-21_v3_ctrl__vllm__paper0923",
@@ -808,7 +808,7 @@ def main(
                                  f"stems and `_`-separated CSV tokens)")
     if fid and nm != DEFAULT_NAMES:
         raise typer.BadParameter(
-            f"--names {names!r} with --fidelity: the fidelity half compares ONE MAEMM's rollouts "
+            f"--names {names!r} with --fidelity: the fidelity half compares ONE MAEM's rollouts "
             f"against the encoder and decoder directions, which is not a comparison of two "
             f"arbitrary runs; pass --no-fidelity")
     out = Path(out) if out else R.out_dir("autointerp-dec")
@@ -819,7 +819,7 @@ def main(
     arm_l = [a.strip() for a in arms.split(",") if a.strip()]
     rep_l = [a.strip() for a in replay.split(",") if a.strip()]
     res = compare(vol, e, d, arm_l, rep_l, boot, seed, bands)
-    fres = (fidelity(vol, base=base, sae=sae, maemm=maemm, enc_set=enc_set, dec_set=dec_set,
+    fres = (fidelity(vol, base=base, sae=sae, maem=maem, enc_set=enc_set, dec_set=dec_set,
                      enc_scores=enc_scores, dec_scores=dec_scores, enc_scan=enc_scan,
                      dec_scan=dec_scan, boot=boot, seed=seed) if fid else None)
     figs = make_figures(res, fres, out, nm, tt) if figures else []

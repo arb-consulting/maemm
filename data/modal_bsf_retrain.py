@@ -10,32 +10,32 @@ Recipe = the original: G=32768 blocks x b=8 dims, k=32 active/token, ZCA-whitene
 AdamW lr 1e-4, batch 8192, decoupled wd 1e-2, 20k steps (~40 step/min on a B300 -> ~8h).
 
 Outputs -> /data/bsf27b_sasa/{sasa.pt, blocks_Q.pt, whiten_mu.npy, whiten_zca.npy, meta.json}
-        -> HF  ANONYMOUS/qwen36-27b-bsf-l42  (auto-upload at the end)
+        -> HF  ANONYMOUS/dict-l42-b  (auto-upload at the end)
         -> wandb project bsf-sasa-27b, run bsf-sasa-27b-v2-modal
 
 Launch (MODAL_PROFILE=<your-profile>):
     modal run modal_bsf_retrain.py::smoke                 # ~5 min: 30 steps, batch 2048, no upload/wandb
     modal deploy modal_bsf_retrain.py
-    python -c "import modal; modal.Function.from_name('maemm-bsf-retrain','train').spawn()"
-Needs Modal secrets `maemm-hf` (HF_TOKEN) and `maemm-wandb` (WANDB_API_KEY) — same as the RL launcher.
+    python -c "import modal; modal.Function.from_name('maem-bsf-retrain','train').spawn()"
+Needs Modal secrets `maem-hf` (HF_TOKEN) and `maem-wandb` (WANDB_API_KEY) — same as the RL launcher.
 """
 import os, subprocess, threading, time, json
 from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent   # repo root (this launcher lives one level down)
-app = modal.App("maemm-bsf-retrain")
+app = modal.App("maem-bsf-retrain")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("torch==2.8.0", "numpy<2.3", "wandb==0.28.2", "huggingface_hub>=0.34")
     .add_local_file(REPO / "data" / "train_sasa.py", "/app/bsf/train_sasa.py")
 )
-vol = modal.Volume.from_name("maemm-data", create_if_missing=True)
+vol = modal.Volume.from_name("maem-data", create_if_missing=True)
 
 ACTS_DIR = "/data/acts27b"
 OUT_DIR = "/data/bsf27b_sasa"
-HF_REPO = "ANONYMOUS/qwen36-27b-bsf-l42"
+HF_REPO = "ANONYMOUS/dict-l42-b"
 WANDB_PROJECT = "bsf-sasa-27b"
 
 README = """---
@@ -98,7 +98,7 @@ def _run(args, env):
 
 
 @app.function(image=image, gpu="B200:1", cpu=8, memory=98304, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf"), modal.Secret.from_name("maemm-wandb")],
+              secrets=[modal.Secret.from_name("maem-hf"), modal.Secret.from_name("maem-wandb")],
               timeout=43200)
 def train(steps: int = 20000, batch: int = 8192, G: int = 32768, b: int = 8, k: int = 32,
           lr: float = 1e-4, wd: float = 1e-2, pool_seqs: int = 4096, refresh_seqs: int = 8,
@@ -137,7 +137,7 @@ def train(steps: int = 20000, batch: int = 8192, G: int = 32768, b: int = 8, k: 
 
 
 @app.function(image=image, gpu="B200:1", cpu=8, memory=32768, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf"), modal.Secret.from_name("maemm-wandb")],
+              secrets=[modal.Secret.from_name("maem-hf"), modal.Secret.from_name("maem-wandb")],
               timeout=3600)
 def smoke():
     """~5-10 min validation: zca estimate from 256 seqs, tiny buffer, 30 steps, batch 2048, no wandb, /tmp out.

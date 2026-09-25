@@ -1,5 +1,5 @@
 """Shared prompt: a single ` ?` marker whose residual gets the injected direction at INJECT_LAYER."""
-from maemm.config import READ_LAYER
+from maem.config import READ_LAYER
 
 MARKER = " ?"
 # Inoculation-style framing: the task is scoped as a research tool for characterizing a probe

@@ -17,7 +17,7 @@ RAW STORAGE (2026-09-21; supersedes the 2026-09-15 one-centring-mean rule below)
 **A stored artefact never encodes a centring choice.** A realact row is written as its raw
 read-layer activation `X[p]` in `act.f32`, with `vecs.f16 = unit(X[p])` -- UNCENTRED -- and the
 mean is subtracted at READ time under a name the run states: `common.dirs_for(..., centering=...)`,
-driven by `maemms.<ckpt>.input.centering` or an explicit `--centering`. The set is therefore the
+driven by `maems.<ckpt>.input.centering` or an explicit `--centering`. The set is therefore the
 same file for every checkpoint and every convention, and "which mu was this drawn under" stops
 being a question anyone can get wrong.
 
@@ -265,8 +265,8 @@ def _sae(cfg, args, sae, n, strata, min_fires, rng, od):
     """Density-stratified feature draw from the pass-A fire counts at the LARGEST corpus size.
 
     Every row carries `sae_key`, because a feature index means nothing without the dictionary it
-    indexes: id 4242 of the 131k `l42-1b` and of the 2M `sae2m` are unrelated directions, and both
-    are valid indices into the larger one. features/draw_sae2m.py set the precedent.
+    indexes: id 4242 of the 131k `l42-1b` and of the 2M `dict2m` are unrelated directions, and both
+    are valid indices into the larger one. features/draw_dict2m.py set the precedent.
     """
     base, root = args["base"], args["root"]
     sae_key = args["sae_key"]
@@ -668,7 +668,7 @@ def run(cfg, args):
     fams = C.families_for(cfg, set_name, base)
     seed = int(hspec["seed"])
     # WHICH SAE the `sae` family's feature ids belong to. `qwen36-27b` has carried two since
-    # sae2m; common.sae_key_for is the one rule (explicit --sae wins, a single-SAE base needs none,
+    # dict2m; common.sae_key_for is the one rule (explicit --sae wins, a single-SAE base needs none,
     # two SAEs and no flag is refused rather than guessed).
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
     args["sae_key"] = sae_key
@@ -988,7 +988,7 @@ def run_ood(cfg, args):
         # STORAGE: raw (plan §1.2, §4.3.1). act.f32 is X[p] as read and vecs.f16 is unit(act);
         # the English centring the design fixes (§10 decision 10) is now NAMED at run time --
         # `--mu base/{base}/stats/mu.f32`, which is every OOD product's default through the
-        # MAEMM's own `mu:` -- instead of being baked into the stored row. The design's choice is
+        # MAEM's own `mu:` -- instead of being baked into the stored row. The design's choice is
         # preserved exactly; what changes is that a per-arm-centred rescoring is a flag rather
         # than a re-draw.
         a = torch.stack(acts).float()
@@ -1033,7 +1033,7 @@ def run_ood(cfg, args):
                 "time by `common.dirs_for` under the mean that run NAMES. The design's mean is "
                 "the ENGLISH `stats/mu.f32` on every arm (open decision 10: the centring mean is "
                 "the inverter's input convention, not a property of the domain), which is what "
-                "each MAEMM's own `mu:` resolves to for the old primary; `rl-last16` names "
+                "each MAEM's own `mu:` resolves to for the old primary; `rl-final` names "
                 "`whiten_mu` instead, and both are legal readings of the same stored rows;",
                 "- `p` and `L` come from `common.arm_rng(arm, seed)`, a stream independent of the "
                 "row permutation `common.arm_perm(arm, ...)` the corpus was cut from;",

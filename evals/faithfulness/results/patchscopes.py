@@ -14,8 +14,8 @@ Local, CPU, no GPU, no model. Every number is READ from what `score` wrote; this
 only the aggregation across rows, the standard errors and the paired lift.
 
 WHY THIS FILE EXISTS RATHER THAN A BRANCH IN `results/faithfulness.py`. A patchscopes cell is not
-a MAEMM: it lives at `base/<base>/patchscopes/<set>/<cell>/scores`, and
-`results.common.discover_sources` walks `maemms/<key>/scores` and `maemms/<key>/variants/<d>/scores`
+a MAEM: it lives at `base/<base>/patchscopes/<set>/<cell>/scores`, and
+`results.common.discover_sources` walks `maems/<key>/scores` and `maems/<key>/variants/<d>/scores`
 and nothing else (`results/README.md`: "the search baseline and the patchscopes cells are different
 products with different shapes and are not read"). `results/faithfulness.py` is M1's file and
 `results/common.py` is M0a's; M7 owns `precompute/patchscopes.py` "and its driver". So this module
@@ -112,13 +112,13 @@ def cell_tag(cell: str) -> str:
 def source_for(base: str, set_name: str, cell: str) -> R.Source:
     """A `results.common.Source` pointing at one patchscopes cell's `scores/`.
 
-    `maemm` is not a config key here and never will be -- there is no MAEMM in this product, the
+    `maem` is not a config key here and never will be -- there is no MAEM in this product, the
     rollouts come off the CLEAN BASE. It carries the cell name so every label, CSV column and
     figure legend downstream says which cell a number is from.
     """
     d = f"base/{base}/patchscopes/{set_name}/{cell}"
     return R.Source(
-        maemm=f"patchscopes/{cell}",
+        maem=f"patchscopes/{cell}",
         base=base,
         engine=ENGINE,
         run_tag=cell_tag(cell),
@@ -643,8 +643,8 @@ def main(
     out: Annotated[str, typer.Option(help="output directory")] = "",
     root: Annotated[str, typer.Option(help="volume-relative root prefix")] = "",
     data: Annotated[str, typer.Option(
-        help="local mirror; default $MAEMM_MIRROR, else "
-             "$XDG_CACHE_HOME/maemm-faithfulness/mirror/<root>")] = "",
+        help="local mirror; default $MAEM_MIRROR, else "
+             "$XDG_CACHE_HOME/maem-faithfulness/mirror/<root>")] = "",
     fetch: Annotated[bool, typer.Option("--fetch/--no-fetch")] = True,
     refetch: bool = False,
     modal_cmd: str = "uvx modal",

@@ -1,7 +1,7 @@
 """The steering section: Table `tab:steer`, its in-text numbers and the appendix tables, from an AxBench run
 and a BiPO run.
 
-The cells and MAEMM's tests are each package's `tables/paper_main_column.csv` (a run without one gets it
+The cells and MAEM's tests are each package's `tables/paper_main_column.csv` (a run without one gets it
 from the package's writer, under `out/package_column/`). This module adds the bold rule (the column's best
 reader, and every reader it does not beat at Holm p < 0.05) and joins the columns. The best reader's tests
 and the NLA's come from the same `paper.marks` over the per-unit verdicts.
@@ -132,12 +132,12 @@ def family(units, ref, key):
 
 
 def column(rows, units, key, judge_rate):
-    """One column: the package's cells and MAEMM's tests, the NLA's and the best reader's tests, and the
-    bold readers. `judge_rate`, MAEMM's rate under the judge asked for, must be the file's."""
+    """One column: the package's cells and MAEM's tests, the NLA's and the best reader's tests, and the
+    bold readers. `judge_rate`, MAEM's rate under the judge asked for, must be the file's."""
     by_arm = {r["arm"]: r for r in rows}
-    if abs(num(by_arm["maemm"]["estimate"]) - num(judge_rate)) > 1e-9:
+    if abs(num(by_arm["maem"]["estimate"]) - num(judge_rate)) > 1e-9:
         raise ValueError("the package column was written under another judge than the one asked for")
-    families = {"maemm": {r["arm"]: (num(r["mean_diff"]), int(r["n_pairs"]), num(r["p"]), num(r["p_holm"]),
+    families = {"maem": {r["arm"]: (num(r["mean_diff"]), int(r["n_pairs"]), num(r["p"]), num(r["p_holm"]),
                                      r["significant"] == "True") for r in rows if r["tested"] == "True"}}
     readers = [r["arm"] for r in rows if r["section"] == "readers" and num(r["estimate"]) is not None]
     best = max(readers, key=lambda a: num(by_arm[a]["estimate"]))
@@ -157,7 +157,7 @@ def table_tex(cols):
             for label, row in zip(TEX_LABELS, paper.ROWS)]
     sections = {i: paper.SECTION_TITLES[row[0]] for i, row in enumerate(paper.ROWS)
                 if i and row[0] != paper.ROWS[i - 1][0]}
-    n = {name: cols[name]["rows"]["maemm"]["n"] for name in KEY}
+    n = {name: cols[name]["rows"]["maem"]["n"] for name in KEY}
     return ("% Identification from 8 texts (J-lens: its one reading). Bold: the column's best reader and every\n"
             "% reader it does not beat at Holm-corrected p < 0.05 (steering_tests.csv).\n"
             + tabular(["Method", f"AxBench ($n{{=}}{n['axbench']}$)", f"BiPO ($n{{=}}{n['bipo']}$)"], body,
@@ -178,17 +178,17 @@ def write_tests(out, cols):
 
 # ---------------------------------------------------------------------------------------- lengths
 def mean_lengths(run):
-    """`{condition: (mean tokens per sampled text, source)}` on the text concepts for MAEMM and the NLA:
+    """`{condition: (mean tokens per sampled text, source)}` on the text concepts for MAEM and the NLA:
     from `tables/text_length.csv`, or, for a run without it, counted from the rollout files."""
     path = os.path.join(str(run), "tables", "text_length.csv")
     if os.path.exists(path):
         rows = read_csv(path)
         return {c: (pick(rows, metric="text_length", condition=c, group=GROUP)["estimate"],
-                    "text_length.csv") for c in ("maemm", "nla_native")}
+                    "text_length.csv") for c in ("maem", "nla_native")}
     with open(os.path.join(str(run), "data", "prepared.json"), encoding="utf-8") as handle:
         text = {c["concept_id"] for c in json.load(handle)["data"]["concepts"] if c["genre"] == GROUP}
     out = {}
-    for name, condition, length in (("rollouts", "maemm", lambda x: len(x["token_ids"])),
+    for name, condition, length in (("rollouts", "maem", lambda x: len(x["token_ids"])),
                                     ("nla", "nla_native", lambda x: x["n_tokens"])):
         with open(os.path.join(str(run), "rollouts", name + ".json"), encoding="utf-8") as handle:
             data = json.load(handle)["data"]
@@ -204,7 +204,7 @@ GENRES = ("text", "code", "math", "all")
 
 def genre_tex(summary):
     """The appendix's AxBench table: every row of `tab:steer` by genre, from 1 and from 8 texts."""
-    n = {g: pick(summary, condition="maemm", group=g, budget_type="snippets", budget=TEXTS)["n_total"]
+    n = {g: pick(summary, condition="maem", group=g, budget_type="snippets", budget=TEXTS)["n_total"]
          for g in GENRES}
     body = []
     for label, row in zip(TEX_LABELS, paper.ROWS):
@@ -292,9 +292,9 @@ def build(axbench_run, bipo_run, out, judge="sol", lengths=True):
                                      lambda d: paper.axbench_column(d, summary, cases, concepts, judge))
     bi_rows, bi_src = package_column(bipo_run, os.path.join(scratch, "bipo"),
                                      lambda d: write_bipo_column(bipo_run, d, judge))
-    maemm_ax = pick(summary, condition="maemm", group=GROUP, budget_type="snippets", budget=TEXTS)["estimate"]
-    cols = {"axbench": column(ax_rows, axbench_units(cases, concepts, judge), KEY["axbench"], maemm_ax),
-            "bipo": column(bi_rows, bipo_units(bipo_run, judge), KEY["bipo"], bipo["maemm"]["estimate"])}
+    maem_ax = pick(summary, condition="maem", group=GROUP, budget_type="snippets", budget=TEXTS)["estimate"]
+    cols = {"axbench": column(ax_rows, axbench_units(cases, concepts, judge), KEY["axbench"], maem_ax),
+            "bipo": column(bi_rows, bipo_units(bipo_run, judge), KEY["bipo"], bipo["maem"]["estimate"])}
     write_text(out, "steering_table.tex", table_tex(cols))
     write_text(out, "steering_axbench_genre.tex", genre_tex(summary))
     write_text(out, "steering_strength.tex", strength_tex(axbench_run, bipo_run, summary, bipo))
@@ -302,7 +302,7 @@ def build(axbench_run, bipo_run, out, judge="sol", lengths=True):
 
     N = Numbers("steering")
     for name, col, src in (("axbench", cols["axbench"], ax_src), ("bipo", cols["bipo"], bi_src)):
-        N.add(f"{name}.n", col["rows"]["maemm"]["n"], source=src)
+        N.add(f"{name}.n", col["rows"]["maem"]["n"], source=src)
         for arm, r in col["rows"].items():
             N.add_row(f"{name}.{arm}.at8", r, src)
         for ref, fam in col["families"].items():
@@ -310,7 +310,7 @@ def build(axbench_run, bipo_run, out, judge="sol", lengths=True):
                 N.add(f"{name}.{ref}_minus_{arm}.p_holm", h, source="steering_tests.csv", note=f"diff {d:+.3f}")
         N.add(f"{name}.bold", len(col["bold"]), note="bold: " + ", ".join(sorted(col["bold"])))
     arms = {r["condition"] for r in summary}
-    for condition in ("maemm", "heldout_positive", "retrieval"):
+    for condition in ("maem", "heldout_positive", "retrieval"):
         for b in (1, TEXTS):
             N.add_row(f"axbench.{condition}.texts{b}",
                       pick(summary, condition=condition, group=GROUP, budget_type="snippets", budget=b),

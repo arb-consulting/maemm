@@ -11,12 +11,12 @@ whose subpaths are the volume's own), so whoever fetched the files decides what 
     uv run evals/faithfulness/reconstruction/act_smoke.py --data ~/mirror --out out/act_smoke.md
     uv run evals/faithfulness/reconstruction/act_smoke.py --selftest
 
-THE QUESTION. On the 2M SAE the MAEMM's rollouts reach ~26% of a feature's corpus peak. Is that a
-property of the MAEMM, or of the dictionary? The only way to tell from here is to measure the SAME
+THE QUESTION. On the 2M SAE the MAEM's rollouts reach ~26% of a feature's corpus peak. Is that a
+property of the MAEM, or of the dictionary? The only way to tell from here is to measure the SAME
 ratio on the 131k dictionary with the same estimator, which is what this script does: for each
 target feature it reports the RAW pre-gate peak activation of that feature on
 
-    maemm     the MAEMM's own rollouts             (sae_self over that MAEMM's scores)
+    maem     the MAEM's own rollouts             (sae_self over that MAEM's scores)
     nla       the NLA verbalizer's texts           (sae_self over the NLA entry's scores)
     corpus    the corpus-search top windows        (examples_4m / examples_docmax)
 
@@ -28,7 +28,7 @@ WHAT IS AND IS NOT COMPARABLE. The two SAEs' rows are not matched on anything: d
 dictionaries, different held-out draws, different corpus-scan products (the 2M side has only the
 4M-prefix `examples_4m`, the 131k side has the 16M `examples_docmax`), and different rollout
 counts (n = 4 against n = 64). The rollout count is the one that biases a peak, since a max over
-64 samples beats a max over 4, so the 131k MAEMM is ALSO reported as `maemm_bo4` -- its first four
+64 samples beats a max over 4, so the 131k MAEM is ALSO reported as `maem_bo4` -- its first four
 rollouts only -- and that is the row to read against the 2M side. The corpus difference is not
 corrected for and is stated in the output: a 4M-prefix scan searches a quarter of the text a 16M
 one does, which can only push the 2M side's corpus peak DOWN.
@@ -63,20 +63,20 @@ CORPUS_TOP_N = 16
 # `--data`. `n_first` restricts a sae_self source to its first k rollouts (the matched-n row).
 SPECS = [
     {
-        "sae": "qwen36-27b/sae2m",
+        "sae": "qwen36-27b/dict2m",
         "base": "qwen36-27b",
-        "set": "2026-09-20_sae2m_2k",
+        "set": "2026-09-20_dict2m_2k",
         # Two roots, because the smoke was run in two batches over disjoint rows. A feature is
         # looked for in each; the first root that has it wins, and the root is recorded per row.
         "roots": ["tmp/nla-smoke", "tmp/nla-smoke-x"],
-        "sae_dir": "base/qwen36-27b/sae/sae2m",
+        "sae_dir": "base/qwen36-27b/sae/dict2m",
         "corpus": ("examples_4m", "the 4M-prefix scan -- a QUARTER of the 16M the peak is from"),
         "sources": [
-            ("nla", "sae_self", "maemms/qwen36-27b/2026-07-14_nla-av/scores/{set}/sae_self", None),
+            ("nla", "sae_self", "maems/qwen36-27b/2026-07-14_nla/scores/{set}/sae_self", None),
             (
-                "maemm",
+                "maem",
                 "sae_self",
-                "maemms/qwen36-27b/2026-09-18_rl-last16-lr5e-7/scores/{set}/sae_self",
+                "maems/qwen36-27b/2026-09-18_rl-final/scores/{set}/sae_self",
                 None,
             ),
         ],
@@ -89,26 +89,26 @@ SPECS = [
         "sae_dir": "base/qwen36-27b/sae/l42-1b",
         "corpus": ("examples_docmax", "the 16M document-diverse scan, one window per document"),
         "sources": [
-            ("nla", "sae_self", "maemms/qwen36-27b/2026-07-14_nla-av/scores/{set}/sae_self", None),
+            ("nla", "sae_self", "maems/qwen36-27b/2026-07-14_nla/scores/{set}/sae_self", None),
             # The OLD PRIMARY, through vLLM, at n = 64 over all 512 sae rows.
             (
-                "maemm",
+                "maem",
                 "sae_self",
-                "maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/{set}__vllm/sae_self",
+                "maems/qwen36-27b/2026-09-10_rl-large-full/scores/{set}__vllm/sae_self",
                 None,
             ),
             # The same product restricted to its first 4 rollouts: the only row comparable with
-            # the 2M side, whose MAEMM ran at n = 4.
+            # the 2M side, whose MAEM ran at n = 4.
             (
-                "maemm_bo4",
+                "maem_bo4",
                 "sae_self",
-                "maemms/qwen36-27b/2026-09-10_rl-8x2048-full/scores/{set}__vllm/sae_self",
+                "maems/qwen36-27b/2026-09-10_rl-large-full/scores/{set}__vllm/sae_self",
                 4,
             ),
         ],
     },
 ]
-SOURCE_ORDER = ("maemm", "maemm_bo4", "nla", "corpus")
+SOURCE_ORDER = ("maem", "maem_bo4", "nla", "corpus")
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -341,7 +341,7 @@ def render(blocks: list[dict]) -> str:
         "They are NOT matched. Different dictionaries, different held-out draws, different corpus "
         "scans (4M prefix against 16M document-diverse) and different rollout counts. The rollout "
         "count is the one that biases a peak — a max over 64 samples beats a max over 4 — so "
-        "`maemm_bo4` is the 131k row to read against the 2M `maemm`. The corpus difference is not "
+        "`maem_bo4` is the 131k row to read against the 2M `maem`. The corpus difference is not "
         "corrected for and pushes the 2M side's corpus peak DOWN, i.e. its ratios UP.",
         "",
     ]
@@ -454,9 +454,9 @@ def run_selftest() -> None:
             "sae_dir": "base/b/sae/sae",
             "corpus": ("examples_4m", "synthetic"),
             "sources": [
-                ("nla", "sae_self", "maemms/nla/scores/{set}/sae_self", None),
-                ("maemm", "sae_self", "maemms/m/scores/{set}/sae_self", None),
-                ("maemm_bo4", "sae_self", "maemms/m/scores/{set}/sae_self", 2),
+                ("nla", "sae_self", "maems/nla/scores/{set}/sae_self", None),
+                ("maem", "sae_self", "maems/m/scores/{set}/sae_self", None),
+                ("maem_bo4", "sae_self", "maems/m/scores/{set}/sae_self", 2),
             ],
         }
         # row 0 lives in r1, row 7 in r2 -- the split-root case the real smoke has.
@@ -472,10 +472,10 @@ def run_selftest() -> None:
                 np.array([[[3.0, 0.0, np.nan], [0.0, 0.0, np.nan], [0.0, 0.0, np.nan], [0.0, 0.0, np.nan]]]),
             ),
         ):
-            _write_sae_self(data / root / "maemms/m/scores/S/sae_self", rows_, 4, 3, gate, blocks)
+            _write_sae_self(data / root / "maems/m/scores/S/sae_self", rows_, 4, 3, gate, blocks)
             # the NLA product exists in r1 only: r2's must come back `absent`, not 0
             if root == "r1":
-                _write_sae_self(data / root / "maemms/nla/scores/S/sae_self", rows_, 4, 3, gate, blocks * 0.5)
+                _write_sae_self(data / root / "maems/nla/scores/S/sae_self", rows_, 4, 3, gate, blocks * 0.5)
             hd = data / root / "base/b/heldout/S"
             hd.mkdir(parents=True, exist_ok=True)
             with open(hd / "ids.jsonl", "w") as fh:
@@ -503,11 +503,11 @@ def run_selftest() -> None:
         f0 = by_row[0]
         assert f0["feature"] == 100 and f0["corpus_peak"] == 10.0, f0
         assert f0["root"] == "r1" and f0["sae_key"] == "t/sae", f0
-        # maemm: per-rollout peaks are 5, 0.5, 9, 0.1 -> peak 9, ratio 0.9, 2 of 4 over the gate
-        m = f0["sources"]["maemm"]
+        # maem: per-rollout peaks are 5, 0.5, 9, 0.1 -> peak 9, ratio 0.9, 2 of 4 over the gate
+        m = f0["sources"]["maem"]
         assert (m["peak"], m["ratio"], m["fired_frac"], m["n_items"]) == (9.0, 0.9, 0.5, 4), m
-        # maemm_bo4: FIRST TWO rollouts only -> peaks 5, 0.5 -> peak 5, one of two fires
-        b4 = f0["sources"]["maemm_bo4"]
+        # maem_bo4: FIRST TWO rollouts only -> peaks 5, 0.5 -> peak 5, one of two fires
+        b4 = f0["sources"]["maem_bo4"]
         assert (b4["peak"], b4["ratio"], b4["fired_frac"], b4["n_items"]) == (5.0, 0.5, 0.5, 2), b4
         # nla: the same block halved -> peak 4.5, and 2.5 / 4.5 are over a gate of 2
         nl = f0["sources"]["nla"]
@@ -522,27 +522,27 @@ def run_selftest() -> None:
         assert f7["sources"]["nla"]["absent"] is True, "r2 has no NLA product: absent, not 0"
         assert f7["sources"]["corpus"]["absent"] is True, "feature 107 has no examples file"
         # a source that exists and never fires is NOT absent: peak 3 > gate on 1 of 4
-        assert f7["sources"]["maemm"] == {
+        assert f7["sources"]["maem"] == {
             "absent": False,
             "n_items": 4,
             "peak": 3.0,
             "ratio": 0.75,
             "fired_frac": 0.25,
             "fired_any": True,
-        }, f7["sources"]["maemm"]
+        }, f7["sources"]["maem"]
 
         agg = block["aggregate"]
-        assert agg["maemm"]["n_features"] == 2 and agg["nla"]["n_features"] == 1, agg
-        assert agg["maemm"]["median_ratio"] == round((0.9 + 0.75) / 2, 4), agg["maemm"]
+        assert agg["maem"]["n_features"] == 2 and agg["nla"]["n_features"] == 1, agg
+        assert agg["maem"]["median_ratio"] == round((0.9 + 0.75) / 2, 4), agg["maem"]
         assert agg["corpus"]["n_features"] == 1 and agg["corpus"]["median_ratio"] == 0.8, agg
 
         md = render([block])
-        for needle in ("absent", "maemm_bo4 ratio", "t/sae", "gate: 2.0", CORPUS_TOP_N and "top 16"):
+        for needle in ("absent", "maem_bo4 ratio", "t/sae", "gate: 2.0", CORPUS_TOP_N and "top 16"):
             assert needle in md, f"the rendered table is missing {needle!r}"
         assert "| 100 | 0 | 0 | 10.000 |" in md, md[:1200]
 
         # a gate disagreement between two products of the "same" SAE must be refused
-        _write_sae_self(data / "r2" / "maemms/nla/scores/S/sae_self", [7], 4, 3, 99.0, np.zeros((1, 4, 3)))
+        _write_sae_self(data / "r2" / "maems/nla/scores/S/sae_self", [7], 4, 3, 99.0, np.zeros((1, 4, 3)))
         try:
             collect(spec, data, None)
         except AssertionError as e:

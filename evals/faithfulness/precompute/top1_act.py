@@ -22,7 +22,7 @@ Two independent sources for that activation, both written for every row:
     expected at ~1e-2 absolute on large activations, not bitwise.
 
 The gate is the checkpoint's own learned BatchTopK `threshold` (`common.load_sae`), the same gate
-`stats`, `score`, `repo_examples` and `gcg` use. NEVER loads a MAEMM.
+`stats`, `score`, `repo_examples` and `gcg` use. NEVER loads a MAEM.
 """
 
 from __future__ import annotations
@@ -385,7 +385,7 @@ def run(cfg, args):
             f"same gate stats/score/repo_examples/gcg use; {n_pass}/{len(recs)} windows have "
             "act_max > gate"
         )
-        od.note("NEVER loads a MAEMM; the SAE and the clean base only")
+        od.note("NEVER loads a MAEM; the SAE and the clean base only")
 
     return {
         "top1_act": out,
@@ -450,7 +450,7 @@ def _selftest() -> None:
 
         # MUTATION: a set that is in no scan must refuse, not fall back to the only directory
         try:
-            resolve_scan(base, root, "2026-09-21_v3_sae2m", key)
+            resolve_scan(base, root, "2026-09-21_v3_dict2m", key)
         except AssertionError as e:
             assert "carries rows of set" in str(e), str(e)
             mut += 1

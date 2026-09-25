@@ -1,5 +1,5 @@
 """Group features by MECHANISM -- what token event they fire on -- not by topic, and ask which
-mechanisms the MAEMM cannot verbalize beyond what rarity predicts.
+mechanisms the MAEM cannot verbalize beyond what rarity predicts.
 
     python evals/verbalization/analysis/mechanism_groups.py --perdir <perdir json> \
         --mechanics <mechanics jsonl from modal_27b_section.token_mechanics> \

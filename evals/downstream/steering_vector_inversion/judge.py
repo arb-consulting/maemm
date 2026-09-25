@@ -10,7 +10,7 @@ from evals.downstream.common.judge_client import (Ledger, UNASKED_KINDS, client_
 from . import config as C
 
 NO_SYSTEM = ""                          # the whole instrument is the user message
-TITLE = "maemm-steering-vector-inversion"   # OpenRouter's label for this package's requests
+TITLE = "maem-steering-vector-inversion"   # OpenRouter's label for this package's requests
 # A launcher's factory `(spec, title) -> client` when it holds the key elsewhere; None: the CLI holds it.
 CLIENT = None
 

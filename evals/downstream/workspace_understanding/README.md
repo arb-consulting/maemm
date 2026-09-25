@@ -1,8 +1,8 @@
 # Workspace understanding
 
-Given the layer-42 residual at one token of a prompt, does a MAEMM rollout name content the model
+Given the layer-42 residual at one token of a prompt, does a MAEM rollout name content the model
 represents there but has not written: the unnamed concept of an association passage, or the bridge entity
-of a two-hop question? MAEMM is scored beside the released Jacobian lens (J-lens), Patchscopes, the NLA
+of a two-hop question? MAEM is scored beside the released Jacobian lens (J-lens), Patchscopes, the NLA
 activation verbalizer and a search of ten million tokens of web text, on the two prompt sets released with
 the lens, by a whole-word rule and by an LLM judge with a foil.
 
@@ -26,7 +26,7 @@ PYTHONPATH=$PWD python -m evals.downstream.analysis.paper workspace --wu-run eva
 
 The package's cells are in `tables/paper_workspace_word_rule.{csv,tex}` and
 `tables/paper_workspace_judged_net.{csv,tex}` (each `.csv` row names the `rates.csv` or `judged.csv` row it
-copies and its interval). The rows are MAEMM, NLA, J-lens (`word_top10` at layer 42; judged through
+copies and its interval). The rows are MAEM, NLA, J-lens (`word_top10` at layer 42; judged through
 `jlens_L42_summary`), J-lens L36–50 (`word_top10` of `jlens_band8`; `jlens_band8_summary`), Patchscopes
 (`patch42`) and corpus search (methodology §6.1–§6.2). The runs of record are listed in
 `evals/downstream/analysis/paper/README.md`. The run also computes diagnostics no paper number reads: the 64-token NLA
@@ -56,7 +56,7 @@ US$13). `sol` is priced the same.
 ## Install
 
 ```bash
-cd path/to/maemm   # the repository root
+cd path/to/maem   # the repository root
 pip install -r evals/downstream/common/requirements.txt -r evals/downstream/workspace_understanding/requirements.txt
 export PYTHONPATH=$PWD
 ```
@@ -115,19 +115,19 @@ followed by one merge call on CPU, with at most `EVAL_GPU_WORKERS` (default 8) G
 | `corpus` | tokenizer | `retrieval/corpus.{npz,json}`: the search corpus |
 | `capture` | base | `activations/h_all.npz`, `norms.json`, `data/diagnostic.json` |
 | `lens` | base | `lens/lens.json`, `ranks.npz`: per-layer ranks and top-10 lists |
-| `rollouts` | inverter + base | `rollouts/maemm.json`, with the re-read cosines and MAEMM's enforced injection check |
+| `rollouts` | inverter + base | `rollouts/maem.json`, with the re-read cosines and MAEM's enforced injection check |
 | `retrieval` | base | `retrieval/scores.part<k>of<n>.npz`, `rollouts/retrieval.json` |
 | `patchscope` | base | `rollouts/patchscope.json`: `patch42`, the floor, the patch check |
 | `nla` | verbalizer | `rollouts/nla/shard_*.json`: native and 64-token readouts |
 | `nla_control` | base, then verbalizer | `activations/controls/*.npz`, `rollouts/nla_control/shard_*.json` |
 | `untrained_base` | base | `rollouts/untrained_base.json` (the ablation) |
-| `maemm_control` | inverter + base | `rollouts/maemm_control.json` |
+| `maem_control` | inverter + base | `rollouts/maem_control.json` |
 | `reread` | base | `rollouts/reread.json` |
 | `summarise` | — | `judges/summaries.json`, `judges/<judge>/summaries.jsonl`: the lens summaries |
 | `judge` | — | `judges/<judge>/{naming,diagnostics}.jsonl`, `judges/ledger.json` |
 | `report` | — | `scores/items.jsonl`, `tables/*`, `figures/*`, `report.md` |
 
-One 27B checkpoint in bf16 is about 54 GB; `rollouts` and `maemm_control` hold the inverter and the base
+One 27B checkpoint in bf16 is about 54 GB; `rollouts` and `maem_control` hold the inverter and the base
 at once and free the inverter before re-reading.
 
 ## Tables and figures

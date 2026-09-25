@@ -1,4 +1,4 @@
-"""Dr. GRPO-style RL for the MAEMM inverter — HF-generate rollouts, LoRA actor, data-parallel over groups.
+"""Dr. GRPO-style RL for the MAEM inverter — HF-generate rollouts, LoRA actor, data-parallel over groups.
 
 One step:
   1. sample B directions (a contiguous slice of WHOLE groups per DDP rank);
@@ -50,9 +50,9 @@ from peft import LoraConfig, PeftModel, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 import wandb
-from maemm.config import D_MODEL, INJECT_LAYER, MODEL, READ_LAYER, STEER_COEFF, RLConfig, TrainConfig
-from maemm.inject import get_layer, hooked, make_inject_hook, read_resid
-from maemm.prompts import build_prompt_ids
+from maem.config import D_MODEL, INJECT_LAYER, MODEL, READ_LAYER, STEER_COEFF, RLConfig, TrainConfig
+from maem.inject import get_layer, hooked, make_inject_hook, read_resid
+from maem.prompts import build_prompt_ids
 
 
 # ----------------------------------------------------------------------------------------------
@@ -478,7 +478,7 @@ def load_eval_assets(a, device, is_main):
         if "/app/eval" not in sys.path:
             sys.path.insert(0, "/app/eval")
         import eval_universal as EU
-        from maemm.sae import load_sae
+        from maem.sae import load_sae
         es = torch.load(a.eval_cache, map_location="cpu", weights_only=False)
         sae = load_sae(path=a.eval_sae, device=device, dtype=torch.float32)
         gate = EU.configure_sae_fire(a.eval_sae)   # "fired"/"unverbalized" = the SAE's learned BatchTopK gate, not the old 1.0 cut
@@ -951,8 +951,8 @@ def parse_args():
     ap.add_argument("--inline-eval-every", type=int, default=0,
                     help="run the held-out eval suite INSIDE the trainer on all ranks every N steps (vLLM gen + clean-base "
                          "scoring, logged into this run with x-axis ckpt_step). 0 = off. vllm engine only.")
-    ap.add_argument("--eval-cache", default=os.environ.get("MAEMM_EVAL_CACHE", "/data/eval_universal_ho/eval_sets_heldout.pt"),
-                    help="frozen eval-set cache (env MAEMM_EVAL_CACHE); eval_sets_heldout_v2.pt adds the mlp / mlp_pair extra families")
+    ap.add_argument("--eval-cache", default=os.environ.get("MAEM_EVAL_CACHE", "/data/eval_universal_ho/eval_sets_heldout.pt"),
+                    help="frozen eval-set cache (env MAEM_EVAL_CACHE); eval_sets_heldout_v2.pt adds the mlp / mlp_pair extra families")
     ap.add_argument("--eval-sae", default="/data/sae/ae.pt")
     ap.add_argument("--eval-bo", type=int, default=4)
     ap.add_argument("--eval-temp", type=float, default=1.0)
@@ -1118,7 +1118,7 @@ def main():
         print(f"[rl] {n_vecs} directions (eval-reserved rows [0,{eval_rows})) | prompt {p_len} toks, "
               f"marker @{marker} | world {world} | adv {adv_mode} | gates {use_gates} | engine {a.rollout_engine}", flush=True)
         if not a.no_wandb:
-            wandb.init(project="maemm", name=a.run_name, config=vars(a),
+            wandb.init(project="maem", name=a.run_name, config=vars(a),
                        id=a.wandb_id or None, resume="must" if a.wandb_id else None)
             wandb.define_metric("ckpt_step")
             wandb.define_metric("eval/*", step_metric="ckpt_step")

@@ -21,7 +21,7 @@ LIMITATIONS_TEXT = (
     "matching it is the goal. One base model, one inverter, one layer, one corpus, 400 activations, one "
     "judge. The comparison favours the generated texts on one point: the passage is cut where the text's "
     "length says, so it may end mid-sentence, while a generated text ends where the model stopped. The "
-    "inversion axis is MAEMM's training objective and retrieval's selection rule, so it favours them, which "
+    "inversion axis is MAEM's training objective and retrieval's selection rule, so it favours them, which "
     "is why the two fluency axes are read beside it. A matched target is read standalone behind a sink, a "
     "position no training target occupied."
 )
@@ -606,7 +606,7 @@ def render_report(T, cov, prov, points):
     L = [f"# Rollout coherence - run {prov.get('run_id', 'unknown')}", ""]
 
     L += ["## Question and run configuration", ""]
-    L.append("- Question: does the text MAEMM writes for an activation read as coherently and as fluently as "
+    L.append("- Question: does the text MAEM writes for an activation read as coherently and as fluently as "
              "the passage it came from, and how does that trade against how well the text inverts the "
              "activation (methodology.md §1)?")
     L.append(f"- Base model: `{C.MODEL}` @ `{C.MODEL_REVISION}`")
@@ -620,7 +620,7 @@ def render_report(T, cov, prov, points):
     S = C.SAMPLING
     L.append(f"- Decoding: temp={S['temp']}, top_p={S['top_p']}, top_k={S['top_k']}, min_p={S['min_p']}, "
              f"max_new={S['max_new']}, min_new={S['min_new']}; draws per activation "
-             + ", ".join(f"{a} {C.n_samples(a)}" for a in ("maemm", "continuation"))
+             + ", ".join(f"{a} {C.n_samples(a)}" for a in ("maem", "continuation"))
              + f", nla {C.NLA.n_samples}, each with a greedy decode")
     L.append(f"- Activations: {cov.get('activations')} ({cov.get('rejected')} pool candidates rejected by the "
              f"norm filter); scoring version `{C.SCORING_VERSION}`")

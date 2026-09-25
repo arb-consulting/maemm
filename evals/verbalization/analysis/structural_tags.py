@@ -1,4 +1,4 @@
-"""Structural token events a feature fires on, and which ones the MAEMM fails beyond rarity.
+"""Structural token events a feature fires on, and which ones the MAEM fails beyond rarity.
 
     python evals/verbalization/analysis/structural_tags.py --perdir <perdir json> \
         --mechanics <mechanics jsonl with per-peak context> --sae-match <npz> --out <json>

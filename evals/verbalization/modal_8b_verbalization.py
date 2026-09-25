@@ -1,4 +1,4 @@
-"""Qwen3-8B MAEMM rarity replication — self-contained, runs in ANY Modal workspace (no maemm-data).
+"""Qwen3-8B MAEM rarity replication — self-contained, runs in ANY Modal workspace (no maem-data).
 
 Two jobs, both on one H100:
 
@@ -19,12 +19,12 @@ Two jobs, both on one H100:
               you cannot tell "the inverter verbalized feature f" from "f fires on any decent text".
 
 NOTE the 8B adapter uses its OWN prompt ("Please produce a string of text that triggers the following
-direction maximally:"), NOT maemm/prompts.py's layer-42 inoculation instruction. Nothing here imports
-maemm -- maemm/config.py hardcodes the 27B's d_model 5120 / read-layer 42.
+direction maximally:"), NOT maem/prompts.py's layer-42 inoculation instruction. Nothing here imports
+maem -- maem/config.py hardcodes the 27B's d_model 5120 / read-layer 42.
 
     modal run evals/verbalization/modal_8b_verbalization.py::scan_fire
     modal run evals/verbalization/modal_8b_verbalization.py::eval_dirs --n-features 512
-    modal volume get maemm-8b-rarity /out/perdir_8b.json .
+    modal volume get maem-8b-rarity /out/perdir_8b.json .
 """
 import json
 import os
@@ -32,7 +32,7 @@ import os
 import modal
 
 MODEL = "Qwen/Qwen3-8B"
-ADAPTER = "ANONYMOUS/maemm-qwen3-8b-invert-rl-v3-step600"
+ADAPTER = "ANONYMOUS/ckpt-8b-rl"
 SAE_REPO, SAE_FILE = "adamkarvonen/qwen3-8b-saes", "saes_Qwen_Qwen3-8B_batch_top_k/resid_post_layer_27/trainer_2/ae.pt"
 MAXACTS_REPO = "adamkarvonen/sae_max_acts"
 MAXACTS_FILE = "acts_Qwen_Qwen3-8B_layer_27_trainer_2_layer_percent_75_context_length_32.pt"
@@ -45,8 +45,8 @@ MARKER = " ?"
 INSTR = "Please produce a string of text that triggers the following direction maximally:"
 GEN_SEED = 1234
 
-app = modal.App("maemm-8b-verbalization")
-vol = modal.Volume.from_name("maemm-8b-verbalization", create_if_missing=True)
+app = modal.App("maem-8b-verbalization")
+vol = modal.Volume.from_name("maem-8b-verbalization", create_if_missing=True)
 image = (modal.Image.debian_slim(python_version="3.11")
          .pip_install("torch==2.6.0", "transformers==4.51.3", "peft==0.14.0", "accelerate==1.4.0",
                       "datasets==3.2.0", "numpy<2.3", "huggingface_hub[hf_transfer]==0.34.4")
@@ -132,7 +132,7 @@ def scan_fire(n_tokens: int = 1_024_000, seq_len: int = 256, batch: int = 16, se
     seen = 0
     # Ultra-FineWeb exposes "en" as a SPLIT (its only config is "default"), and the text column
     # name is not documented -- detect it from the first row. The 27B scan read a pre-tokenized
-    # dump on maemm-data (4000 windows x 256 tok = the 1.02M figure), so this streams an
+    # dump on maem-data (4000 windows x 256 tok = the 1.02M figure), so this streams an
     # equivalent token budget of the same web corpus rather than reproducing it exactly.
     ds = load_dataset(CORPUS, split="en", streaming=True).shuffle(seed=seed, buffer_size=10_000)
     probe_row = next(iter(ds))
@@ -574,7 +574,7 @@ def mine_targets(features_json: str, n_tokens: int = 10_000_000, seq_len: int = 
 #
 # Same objective as train/sft/pretrain.py (inject unit(W_enc[:,f]) at layer 1 on the marker; cross-entropy
 # on the target tokens only, prompt positions masked to -100), written self-contained because
-# maemm/prompts.py bakes in the 27B's layer-42 instruction and maemm/config.py its d_model 5120.
+# maem/prompts.py bakes in the 27B's layer-42 instruction and maem/config.py its d_model 5120.
 # Starts from the SFT init (ref/) so the comparison is SFT-vs-SFT and does not confound with RL.
 # ---------------------------------------------------------------------------------------------
 @app.function(image=image, gpu=GPU, timeout=TIMEOUT, volumes={"/data": vol})

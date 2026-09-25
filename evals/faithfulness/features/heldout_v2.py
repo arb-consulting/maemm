@@ -41,7 +41,7 @@ DEFAULT_FAMILIES = ("realact", "random")
 
 def _natural_id(family: str, row: int, meta) -> int | str:
     """The family's own identifier for a target, not its position in the set."""
-    if family in ("sae2m_enc", "sae2m_dec", "sae") and "feats" in meta.columns:
+    if family in ("dict2m_enc", "dict2m_dec", "sae") and "feats" in meta.columns:
         return int(np.ravel(meta["feats"].iloc[row])[0])
     if family == "realact" and "pool_seq" in meta.columns:
         return f"doc{int(meta['pool_seq'].iloc[row])}:pos{int(meta['pool_pos'].iloc[row])}"
@@ -147,7 +147,7 @@ def main() -> None:
     # they can be re-derived. A family that is not centrable at all (an encoder column, a
     # subspace basis, a Gaussian draw) gets null -- see config.yaml `family_kinds:`.
     fam_mu = {
-        fam: (None if fam in ("random", "sae", "sae2m_enc", "bsf", "jlens") else "unknown")
+        fam: (None if fam in ("random", "sae", "dict2m_enc", "bsf", "jlens") else "unknown")
         for fam in args.families
     }
     (out / "storage.json").write_text(

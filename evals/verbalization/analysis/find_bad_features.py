@@ -75,7 +75,7 @@ def main():
     for i, f in enumerate(sel):
         d = L.feature_diagnostics(f, MT, MA, tok)
         d["fire_pct"] = round(float(fire[f]), 5)
-        d["maemm_best"] = round(float(best[f]), 2)
+        d["maem_best"] = round(float(best[f]), 2)
         d["flag"] = ("TEMPLATE" if d["template_J"] >= a.template_j else
                      "COLLOCATION" if d["next_consistency"] >= a.next_consistency else "UNRESOLVED")
         recs.append(d)
@@ -83,7 +83,7 @@ def main():
             print(f"[bad] {i + 1}/{len(sel)}", flush=True)
     recs.sort(key=lambda r: -r["corpus_peak"])
 
-    cols = ["feature", "fire_pct", "corpus_peak", "maemm_best", "template_J", "uniq_of",
+    cols = ["feature", "fire_pct", "corpus_peak", "maem_best", "template_J", "uniq_of",
             "modal_peak_token", "modal_frac", "token_class", "distinct_peak_tokens",
             "mean_peak_pos", "flag", "top_example"]
     p = f"{a.out}/tables/unactivatable_features.csv"
@@ -98,14 +98,14 @@ def main():
     coll.sort(key=lambda r: -r["feature"])
     p2 = f"{a.out}/tables/collocation_features.txt"
     with open(p2, "w") as fh:
-        fh.write("COLLOCATION / COMPLETION FEATURES the MAEMM fails on\n"
+        fh.write("COLLOCATION / COMPLETION FEATURES the MAEM fails on\n"
                  "(detector: the token AFTER the peak is the same across examples -> the feature "
                  "encodes a continuation)\n\n")
         fh.write("%-8s %7s %8s %7s  %-12s %-13s %s\n"
-                 % ("feat", "peak", "fire%", "maemm", "fires on", "next token", "typical span"))
+                 % ("feat", "peak", "fire%", "maem", "fires on", "next token", "typical span"))
         for r in coll:
             fh.write("%-8d %7.1f %7.4f%% %7.2f  %-12s %-13s %s  [%d%%]\n"
-                     % (r["feature"], r["corpus_peak"], r["fire_pct"], r["maemm_best"],
+                     % (r["feature"], r["corpus_peak"], r["fire_pct"], r["maem_best"],
                         repr(r["modal_peak_token"]), repr(r["next_token"]), repr(r["typical_span"]),
                         round(r["next_consistency"] * 100)))
     print(f"[bad] -> {p2}  ({len(coll)} features)", flush=True)

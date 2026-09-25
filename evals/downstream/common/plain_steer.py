@@ -107,7 +107,7 @@ def generate(worker, payload):
     """One payload on `worker.base`: each row less `dir_index`, plus `token_ids` (cut before the first stop
     id), `text`, `n_tokens`, `eos_terminated`, `stop_token` and the unsteered `loglik_sum` / `loglik_mean`."""
     import torch
-    from maemm.inject import get_layer, hooked
+    from maem.inject import get_layer, hooked
     from transformers import GenerationConfig, LogitsProcessorList
 
     from evals.downstream.common.model_io import RowSampler, addition_hook

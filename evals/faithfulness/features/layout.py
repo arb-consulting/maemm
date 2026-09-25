@@ -9,7 +9,7 @@
         README.md
         train/             (empty: a Gaussian control has no training side -- its
         test/               README says so rather than the folder being absent)
-      sae2m_enc/
+      dict2m_enc/
         README.md
         train/
         test/
@@ -63,8 +63,8 @@ KIND_MEANING = {
 }
 
 FAMILY_HELDOUT = {
-    "sae2m_enc":      "feature_id",
-    "sae2m_dec":      "feature_id",
+    "dict2m_enc":      "feature_id",
+    "dict2m_dec":      "feature_id",
     "sae":            "feature_id",   # the 131k SAE; held out of the EARLIER chains only
     "realact":        "doc_range",
     "realact_early":  "unknown",      # no provenance shipped; see features/README.md

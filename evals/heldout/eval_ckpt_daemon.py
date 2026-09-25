@@ -52,7 +52,7 @@ def parse_args(argv=None):
     ap.add_argument("--ckpt-dir", required=True, help="RL run's checkpoint dir: <dir>/step_<k>/adapter_model.safetensors (+ final)")
     ap.add_argument("--tag", required=True, help="wandb run name/id + state-file key, one per RL run (e.g. last5_v15_g8)")
     ap.add_argument("--rl-run-id", default="", help="wandb id of the RL run being tracked (config cross-reference only)")
-    ap.add_argument("--wandb-project", default="maemm")
+    ap.add_argument("--wandb-project", default="maem")
     ap.add_argument("--wandb-name", default="", help="wandb run name AND id (default eval_ckpt_<tag>); one run per RL run, never the RL run's own id")
     ap.add_argument("--no-wandb", action="store_true")
     ap.add_argument("--state", default="", help="evaled-ckpt state json (default /data/eval_state/evaled_ckpt_<tag>.json)")
@@ -86,8 +86,8 @@ def parse_args(argv=None):
                          "served model's own marker norm captured from the engine. One engine per process: requires --once --only-step k "
                          "(evals/heldout/modal_eval_ckpt.py fullmodel_daemon loops over checkpoints).")
     # held-out eval protocol (rl.py inline_eval flags; FULL 512/family by default)
-    ap.add_argument("--eval-cache", default=os.environ.get("MAEMM_EVAL_CACHE", "/data/eval_universal_ho/eval_sets_heldout.pt"),
-                    help="frozen eval-set cache (env MAEMM_EVAL_CACHE). eval_sets_heldout_v2.pt = the same 11 cos families + sae PLUS the "
+    ap.add_argument("--eval-cache", default=os.environ.get("MAEM_EVAL_CACHE", "/data/eval_universal_ho/eval_sets_heldout.pt"),
+                    help="frozen eval-set cache (env MAEM_EVAL_CACHE). eval_sets_heldout_v2.pt = the same 11 cos families + sae PLUS the "
                          "extra mlp / mlp_pair families (layer-42 MLP neuron cosine + fire-back; not in mean_all)")
     ap.add_argument("--eval-sae", default="/data/sae/ae.pt")
     ap.add_argument("--mlp-stats", default="/data/mlp42/neuron_stats.npz",
@@ -302,9 +302,9 @@ def main():
     from transformers import AutoModelForCausalLM, AutoTokenizer
     import rl_hf as R
     import rl_disagg as DG
-    from maemm.config import INJECT_LAYER, MODEL
-    from maemm.inject import get_layer
-    from maemm.prompts import build_prompt_ids
+    from maem.config import INJECT_LAYER, MODEL
+    from maem.inject import get_layer
+    from maem.prompts import build_prompt_ids
 
     def log(msg):
         print(f"[eval-ckpt] {msg}", flush=True)
@@ -312,7 +312,7 @@ def main():
     def vol_commit():
         try:
             import modal
-            modal.Volume.from_name("maemm-data").commit()   # no-op outside Modal
+            modal.Volume.from_name("maem-data").commit()   # no-op outside Modal
         except Exception:  # noqa
             pass
 
@@ -321,7 +321,7 @@ def main():
     def vol_reload():   # best-effort; the launcher's parent process refreshes the mount every 45 s regardless
         try:
             import modal
-            modal.Volume.from_name("maemm-data").reload()
+            modal.Volume.from_name("maem-data").reload()
         except Exception as e:  # noqa
             if not _reload_warned[0]:
                 _reload_warned[0] = True

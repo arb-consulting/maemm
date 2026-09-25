@@ -26,14 +26,14 @@ HERE = Path(__file__).resolve().parent
 LOCAL_ROOT = HERE.parent  # evals/faithfulness/
 REMOTE_ROOT = "/root/faithfulness"
 VOL = "/vol"
-APP = "maemm-faithfulness"
+APP = "maem-faithfulness"
 
 USD_PER_S = {"H100": 3.95 / 3600, "H200": 4.54 / 3600, "CPU": 0.0}
 
 app = modal.App(APP)
-vol = modal.Volume.from_name("maemm", create_if_missing=False)
+vol = modal.Volume.from_name("maem", create_if_missing=False)
 
-# Layer-for-layer identical to modal/maemm_modal.py:_image_base (wandb included although nothing
+# Layer-for-layer identical to modal/maem_modal.py:_image_base (wandb included although nothing
 # here imports it) so every layer below the last two is a cache hit on this workspace. pyyaml is a
 # separate layer on top for the same reason.
 _image_base = (
@@ -92,7 +92,7 @@ _CODE = dict(local_path=LOCAL_ROOT, remote_path=REMOTE_ROOT, copy=True, ignore=_
 image = _image_base.add_local_dir(**_CODE)
 image27 = _image27_base.add_local_dir(**_CODE)
 
-SECRETS = [modal.Secret.from_name("maemm-hf")]
+SECRETS = [modal.Secret.from_name("maem-hf")]
 VOLUMES = {VOL: vol}
 
 
@@ -158,7 +158,7 @@ def product_check(cfg, args):
         # from the checkpoint's sidecar), and common.PROMPTS' marker is neither its character nor
         # at its position. Its gate is the nla block further down.
         prompts = sorted(
-            {cfg["maemms"][k]["prompt"] for k in C.maemms_for(cfg, base, False) if not C.is_nla(cfg, k)}
+            {cfg["maems"][k]["prompt"] for k in C.maems_for(cfg, base, False) if not C.is_nla(cfg, k)}
         )
         for name in prompts:
             ids, pos = C.prompt_ids(tok, name, spec["read_layer"])
@@ -180,25 +180,25 @@ def product_check(cfg, args):
                     f"sink_first={cfg['saes'][key]['max_acts']['sink_first']})",
                     flush=True,
                 )
-        for key in C.maemms_for(cfg, base, computable_only=False):
-            spec = cfg["maemms"][key]
+        for key in C.maems_for(cfg, base, computable_only=False):
+            spec = cfg["maems"][key]
             computable = spec.get("compute", True)
             try:
-                path = C.maemm_weights_path(cfg, key)
+                path = C.maem_weights_path(cfg, key)
             except AssertionError as e:
                 # A compute: false entry is declared for the paper's model table; nothing is
                 # generated for it, so it need not be fetched to the volume yet. A computable one
                 # that does not resolve is a hard failure -- that is what this gate is for.
                 assert not computable, e
-                print(f"[check] maemm {key} ({spec['type']}): compute: false, NOT FETCHED -- {e}", flush=True)
+                print(f"[check] maem {key} ({spec['type']}): compute: false, NOT FETCHED -- {e}", flush=True)
                 continue
             print(
-                f"[check] maemm {key} ({spec['type']}{'' if computable else ', compute: false'}): "
+                f"[check] maem {key} ({spec['type']}{'' if computable else ', compute: false'}): "
                 f"{path} ({C.human(C.dir_size(path))})",
                 flush=True,
             )
             if computable and C.is_nla(cfg, key):
-                # The same gate the MAEMM prompts get, on the verbalizer's own contract, and in
+                # The same gate the MAEM prompts get, on the verbalizer's own contract, and in
                 # the SAME ORDER rollouts_nla.run does it: pinned revision, then the shipped
                 # sidecar against config.yaml, then the prompt on the checkpoint's own tokenizer
                 # (not the base's -- a merged checkpoint ships its own) with its marker between
@@ -207,7 +207,7 @@ def product_check(cfg, args):
                 from precompute import rollouts_nla
 
                 assert os.path.basename(path) == spec["revision"], (
-                    f"maemm {key!r} resolved to {path}, whose snapshot directory is "
+                    f"maem {key!r} resolved to {path}, whose snapshot directory is "
                     f"{os.path.basename(path)!r} and not the pinned revision "
                     f"{spec['revision']!r}: the HF cache holds a different commit of "
                     f"{spec['hf']} than config.yaml names"
@@ -218,7 +218,7 @@ def product_check(cfg, args):
                 nids, npos = rollouts_nla.nla_prompt_ids(ntok, spec)
                 nla = spec["nla"]
                 print(
-                    f"[check] maemm {key} nla prompt: {len(nids)} tokens, marker id "
+                    f"[check] maem {key} nla prompt: {len(nids)} tokens, marker id "
                     f"{nla['marker_id']} at {npos} (single occurrence, neighbours "
                     f"{nla['left_id']}/{nla['right_id']}), amp {nla['amp']} r {nla['amp_r']}, "
                     f"max_new {nla['max_new']} (card {nla['card_max_new']})",
@@ -288,11 +288,11 @@ def _draw_sae131k(cfg, args):
     return importlib.import_module("features.draw_sae131k").run(cfg, args)
 
 
-def _draw_sae2m(cfg, args):
-    """features/draw_sae2m.py -- the standard sae2m target set."""
+def _draw_dict2m(cfg, args):
+    """features/draw_dict2m.py -- the standard dict2m target set."""
     import importlib
 
-    return importlib.import_module("features.draw_sae2m").run(cfg, args)
+    return importlib.import_module("features.draw_dict2m").run(cfg, args)
 
 
 def _heldout_v3(cfg, args):
@@ -320,7 +320,7 @@ PRODUCTS = {
     "centred": _script("centred"),
     "patchscopes": _script("patchscopes"),
     "top1_act": _script("top1_act"),
-    "draw_sae2m": _draw_sae2m,
+    "draw_dict2m": _draw_dict2m,
     "draw_sae131k": _draw_sae131k,
     "heldout_v3": _heldout_v3,
     "nll": _script("nll"),
@@ -337,8 +337,8 @@ PRODUCTS = {
 # the READ dominates by an order of magnitude, so a GPU would buy minutes of matmul at $4.54/h and
 # the scan runs in numpy on the CPU function (M8).
 CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred", "heldout_v3", "tierb")
-# Products that need --maemm.
-MAEMM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
+# Products that need --maem.
+MAEM_PRODUCTS = ("rollouts_hf", "rollouts_nla", "rollouts_vllm", "parity_greedy", "score", "centred")
 
 
 def _run(product, args, gpu_label):
@@ -404,7 +404,7 @@ def gpu_h200(product: str, args: dict):
 def main(
     product: str,
     base: str = "",
-    maemm: str = "",
+    maem: str = "",
     sae: str = "",  # which SAE of the base; needed since a base can carry more than one
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the spec uses; alias of --heldout
@@ -414,13 +414,13 @@ def main(
     batch: int = 0,
     allow_short: bool = False,
     n: int = 0,
-    # draw_sae2m: force n/4 features from each quartile of the eligible pool instead of drawing
+    # draw_dict2m: force n/4 features from each quartile of the eligible pool instead of drawing
     # uniformly and labelling the quartiles afterwards, and (--seed) override its DRAW_SEED. A
     # stratified set is a SMOKE set -- its "all" mean is over four equal quartiles, not over the
     # dictionary -- so it always gets a set name of its own.
     stratified: bool = False,
     seed: int = 0,
-    # draw_sae2m: which SIDE(S) of the dictionary become rows. "enc" (the default and every set
+    # draw_dict2m: which SIDE(S) of the dictionary become rows. "enc" (the default and every set
     # drawn before 2026-09-21) or "enc,dec", which emits the SAME features twice as two paired
     # blocks tagged `sae_side`. It does not change the draw.
     sides: str = "",
@@ -456,23 +456,23 @@ def main(
     # suffixes the patchscopes cell directory names, so a second run of the same layer at a
     # different rollout budget does not collide with the first (sweep bo 8 vs final bo 32)
     ps_tag: str = "",
-    # D7: these four steered patchscopes and the sae2m draw through features/spawn.py ONLY, which
+    # D7: these four steered patchscopes and the dict2m draw through features/spawn.py ONLY, which
     # calls the Modal function directly and bypasses every assert in this entrypoint. A knob that
     # can be set on one launch path and not on the other is a knob that gets set by accident.
     ps_prompt: str = "",        # which patchscopes prompt (precompute/patchscopes.py PROMPTS)
     ps_rule: str = "",          # replace | add -- how the direction enters the placeholder
     ps_alpha: float = 0.0,      # the injection coefficient (0 = the module's own PS_ALPHA)
-    subset: str = "",           # draw_sae2m: a shared features.parquet taken as given, not re-drawn
-    feature_split: str = "",    # draw_sae2m: override the bundle's feature_split.parquet path
-    maxact_windows: str = "",   # draw_sae2m: override the bundle's 100k-window parquet path
-    include: str = "",          # draw_sae2m: a file of feature ids to force into the draw
+    subset: str = "",           # draw_dict2m: a shared features.parquet taken as given, not re-drawn
+    feature_split: str = "",    # draw_dict2m: override the bundle's feature_split.parquet path
+    maxact_windows: str = "",   # draw_dict2m: override the bundle's 100k-window parquet path
+    include: str = "",          # draw_dict2m: a file of feature ids to force into the draw
     # score: read <dir>/rollouts.jsonl + <dir>/rollouts.summary.json and write <dir>/scores/
-    # instead of a MAEMM's rollouts -- how a `patchscopes` cell reaches the one scoring path.
+    # instead of a MAEM's rollouts -- how a `patchscopes` cell reaches the one scoring path.
     rollouts_dir: str = "",
     # WHICH MEAN this run's directions are centred on: the PATH of a [d] .f32/.npy file on the
     # volume (absolute, or relative to --root, with `{base}` expanding to the base key), or the
-    # literal "none". For a product with a --maemm it OVERRIDES that checkpoint's own `mu:` and is
-    # recorded as a deviation; for the products with no MAEMM in scope (scan, gcg, patchscopes,
+    # literal "none". For a product with a --maem it OVERRIDES that checkpoint's own `mu:` and is
+    # recorded as a deviation; for the products with no MAEM in scope (scan, gcg, patchscopes,
     # repo_examples) it is the only source there is, and they refuse to run on a `storage: raw` set
     # without it (common.mu_for).
     mu: str = "",
@@ -493,13 +493,13 @@ def main(
     # Also comma-separated, for the same reason.
     corpus_name: str = "",
     # rollouts_nla: which input-amplitude convention to inject ("" = the entry's own nla.amp).
-    # A NON-default value writes maemms/<base>/<nla>/variants/<set>__amp-<amp>/ instead of the
+    # A NON-default value writes maems/<base>/<nla>/variants/<set>__amp-<amp>/ instead of the
     # accumulating rollouts/ directory (precompute/rollouts_nla.py's docstring says what each is).
     amp: str = "",
-    # Run every LOCAL assert -- config, product, base, set, maemm -- print what would be sent, and
+    # Run every LOCAL assert -- config, product, base, set, maem -- print what would be sent, and
     # exit without starting a container. The cheap gate in front of the cheap gate: `check` still
     # costs a CPU container and a volume mount, while this costs nothing and still catches a
-    # misspelled set, a maemm on the wrong base or a product that needs --maemm.
+    # misspelled set, a maem on the wrong base or a product that needs --maem.
     dry_run: bool = False,
     # FIRE AND FORGET (M12, 2026-09-25). `fn.remote()` keeps the local client blocked on the
     # call, and `modal run --detach` did NOT save the call when that client lost its connection:
@@ -517,7 +517,7 @@ def main(
     arm: str = "",
     max_size: int = 0,
     with_set: str = "",
-    # The OOD arm RNG's seed. NOT `--seed`: that one is `draw_sae2m`'s draw seed (evals/sae-smoke64)
+    # The OOD arm RNG's seed. NOT `--seed`: that one is `draw_dict2m`'s draw seed (evals/sae-smoke64)
     # and the two would silently swap meaning between products (eval plan §4.2).
     arm_seed: int = 0,
     stages: str = "",
@@ -539,9 +539,9 @@ def main(
     # C.IMPORT_RUN1_SET is not a config.yaml draw -- it is a 16-row slice of run1's archived eval
     # cache (targets.import_run1) -- but rollouts_hf and score must still be able to name it.
     # NOT sorted(cfg["heldout"])[-1]: a set registered here only so --set can name it (`imported:
-    # true`, e.g. the sae2m draw) must not become every product's default. common.default_heldout.
+    # true`, e.g. the dict2m draw) must not become every product's default. common.default_heldout.
     default = C.IMPORT_RUN1_SET if import_run1 else C.default_heldout(cfg)
-    # D6: a set WRITER is never given a default. `draw_sae2m` and `targets` create a directory and
+    # D6: a set WRITER is never given a default. `draw_dict2m` and `targets` create a directory and
     # `--force` rmtrees what is there, so an omitted --set resolving to the live default set is one
     # keystroke away from destroying the set the paper's tables are built on.
     assert not (product in C.SET_WRITERS and not (set or heldout)), (
@@ -556,7 +556,7 @@ def main(
     )
     args = {
         "base": base,
-        "maemm": maemm,
+        "maem": maem,
         "sae": sae,
         "heldout": set_name,
         "force": force,
@@ -650,7 +650,7 @@ def main(
         assert product == "scan", (
             f"--centre is the `scan` centred mode (both sides about common.score_mu); it means "
             f"nothing to product {product!r}. `score` is centred on that constant unconditionally "
-            f"and the rollouts products take their injection convention from the MAEMM."
+            f"and the rollouts products take their injection convention from the MAEM."
         )
         assert not (mu or "").strip(), (
             "--centre and --mu are two answers to one question: --centre takes both sides about "
@@ -702,23 +702,23 @@ def main(
             f"--block is a `heldout_v3` flag (which block of the v3 set to write) and means "
             f"nothing to product {product!r}")
     if stratified or seed:
-        assert product == "draw_sae2m", (
-            f"--stratified/--seed are `draw_sae2m` flags (how the target set is sampled) and mean "
+        assert product == "draw_dict2m", (
+            f"--stratified/--seed are `draw_dict2m` flags (how the target set is sampled) and mean "
             f"nothing to product {product!r}"
         )
     if sides:
         # `draw_sae131k --sides dec --dirs-from <set> --rows <spec>` is the decoder twin of an
         # existing set's encoder rows (features/draw_sae131k.py); every other product ignores it.
-        assert product in ("draw_sae2m", "draw_sae131k"), (
-            f"--sides is a draw flag (which dictionary sides become rows): `draw_sae2m`, or "
+        assert product in ("draw_dict2m", "draw_sae131k"), (
+            f"--sides is a draw flag (which dictionary sides become rows): `draw_dict2m`, or "
             f"`draw_sae131k --sides dec --dirs-from ...`. It means nothing to product {product!r}"
         )
-    # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
-    # MAEMM_PRODUCTS call that must be allowed without --maemm.
-    if product in MAEMM_PRODUCTS and not (product == "score" and rollouts_dir):
-        assert maemm, f"product {product!r} needs --maemm"
-        assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
-        assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    # `score --rollouts-dir` scores rows no MAEM produced (a `patchscopes` cell), so it is the one
+    # MAEM_PRODUCTS call that must be allowed without --maem.
+    if product in MAEM_PRODUCTS and not (product == "score" and rollouts_dir):
+        assert maem, f"product {product!r} needs --maem"
+        assert maem in cfg["maems"], f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
+        assert C.split_key(maem, "maem")[0] == base, f"maem {maem!r} is not on base {base!r}"
     # `targets --import-run1` only torch.loads a 512-row cache and writes it back out: no GPU.
     # `ood_selfcheck` is CPU unless its GPU stage is asked for: `readers` is network-bound and
     # MEASURED 2026-09-18 at minutes per arm, which on an H200 is real money for a check.
@@ -734,7 +734,7 @@ def main(
         gpu = cfg["bases"][base]["gpu"]
         fn, label = {"H100": gpu_h100, "H200": gpu_h200}[gpu], gpu
     print(
-        f"[launch] {product} base={base or 'all'} maemm={maemm or '-'} set={set_name} "
+        f"[launch] {product} base={base or 'all'} maem={maem or '-'} set={set_name} "
         f"root={args['root']} on {label} commit={args['repo_commit'][:8]}"
     )
     if dry_run:

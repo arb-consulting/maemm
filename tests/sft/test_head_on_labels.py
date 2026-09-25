@@ -113,7 +113,7 @@ def test_vec_bank_f16_and_f32():
 def test_batched_tokenization_matches_per_record_chat_template():
     from tokenizers import Tokenizer, models, pre_tokenizers
     from transformers import PreTrainedTokenizerFast
-    from maemm.prompts import MARKER, build_sft_ids
+    from maem.prompts import MARKER, build_sft_ids
 
     backend = Tokenizer(models.WordLevel({"[UNK]": 0, "[EOS]": 1, "[PAD]": 2,
                                          "hello": 3, "world": 4}, unk_token="[UNK]"))

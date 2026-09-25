@@ -60,18 +60,18 @@ TOKENS = 10_000_000
 BLOCK, STRIDE = 32, 8
 SEED = 20260920
 
-vol = modal.Volume.from_name("maemm", create_if_missing=False)
+vol = modal.Volume.from_name("maem", create_if_missing=False)
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("numpy==2.3.4", "pyarrow==24.0.0", "transformers==4.57.1",
                  "huggingface_hub==0.36.0", "tqdm")
     .env({"HF_HOME": f"{VOL}/hf"})
 )
-app = modal.App("maemm-corpus-train-parity")
+app = modal.App("maem-corpus-train-parity")
 
 
 @app.function(image=image, volumes={VOL: vol},
-              secrets=[modal.Secret.from_name("maemm-hf")], timeout=6 * 3600,
+              secrets=[modal.Secret.from_name("maem-hf")], timeout=6 * 3600,
               cpu=8, memory=32768)
 def build(name: str = "train_parity_10m", base: str = "qwen36-27b",
           tokens: int = TOKENS, dry_run: bool = False) -> dict:

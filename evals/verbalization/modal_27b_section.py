@@ -1,6 +1,6 @@
 """The experiments behind the hard-to-verbalize section, on the pinned 27B checkpoint.
 
-    modal deploy --name maemm-27b-section evals/verbalization/modal_27b_section.py
+    modal deploy --name maem-27b-section evals/verbalization/modal_27b_section.py
     # then spawn: example_texts -> llm_generate -> score_texts -> diversity
 
 Four stages, each writing under /vol/runs/<date>_section/:
@@ -9,7 +9,7 @@ Four stages, each writing under /vol/runs/<date>_section/:
                       (the 16th and 32nd strongest window -- the corpus-reachable bars), and the
                       top-8 windows with the peak token marked, for the LLM prompt
   llm_generate   CPU  an off-the-shelf LLM reads those windows and writes N new texts meant to fire
-                      the feature. It is handed evidence the MAEMM never gets; the question is only
+                      the feature. It is handed evidence the MAEM never gets; the question is only
                       whether a textual preimage exists and is findable, not which inverter is better
   score_texts    GPU  any {feature, text} file through the SAME clean-base scorer every other number
                       uses (`common.score_tokens`, sink prepended and dropped, 95-token window), the
@@ -33,8 +33,8 @@ BASE = "qwen36-27b"
 SAE = "qwen36-27b/l42-1b"
 EMB = "BAAI/bge-small-en-v1.5"
 
-app = modal.App("maemm-27b-section")
-vol = modal.Volume.from_name("maemm", create_if_missing=False)
+app = modal.App("maem-27b-section")
+vol = modal.Volume.from_name("maem", create_if_missing=False)
 
 # Same layers as precompute/modal_app.py so every one is a cache hit on this workspace.
 _image = (
@@ -56,7 +56,7 @@ _image = (
                    ignore=["**/__pycache__", "**/*.pyc", "**/_out", "**/results/out"])
 )
 VOLUMES = {VOL: vol}
-SECRETS = [modal.Secret.from_name("maemm-anthropic")]
+SECRETS = [modal.Secret.from_name("maem-anthropic")]
 
 
 def _out(name):
@@ -149,7 +149,7 @@ strongly as possible. Do not copy the excerpts. Return ONLY a JSON array of {k} 
 @app.function(image=_image, volumes=VOLUMES, secrets=SECRETS, timeout=6 * 3600, cpu=4)
 def llm_generate(examples: str, k: int = 8, model: str = "claude-sonnet-5", workers: int = 16,
                  out: str = "", features_json: str = ""):
-    """k attempts per feature -- the MAEMM's own budget (bo=8) -- from the marked corpus windows."""
+    """k attempts per feature -- the MAEM's own budget (bo=8) -- from the marked corpus windows."""
     import concurrent.futures as cf
 
     import anthropic
@@ -411,7 +411,7 @@ def diversity(sources_json: str, examples: str, out: str = ""):
     `sources_json`: [{"label", "path", "kind": "rollouts"|"texts", "set"}]. A `rollouts` file
     carries `row` (the set's row, mapped to its feature through ids.jsonl) and `ids`; a `texts`
     file carries `feature` and `text`. The corpus windows from `examples` are scored as a source
-    of their own, so the MAEMM's repetitiveness is read against the corpus's rather than in vacuo.
+    of their own, so the MAEM's repetitiveness is read against the corpus's rather than in vacuo.
     """
     import numpy as np
     import torch

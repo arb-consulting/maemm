@@ -4,12 +4,12 @@ Reading rank-one backdoors out of LoRA weights: train trojaned adapters (`trojan
 
 | file | what it does |
 |---|---|
-| `figure1/modal_trojan_acts.py` | Per-token activations of MAEMM rollouts on the trojan read / write vectors, clean base Qwen3.6-27B. read : the LoRA detector value, lora_A . ... |
+| `figure1/modal_trojan_acts.py` | Per-token activations of MAEM rollouts on the trojan read / write vectors, clean base Qwen3.6-27B. read : the LoRA detector value, lora_A . ... |
 | `figure1/modal_trojan_calib.py` | Calibrate the read-side heatmap: the trigger detector's value (sign as in the figure) on the trainer's TRIGGER prompts, on the same prompts with the ... |
 | `figure1/modal_trojan_delta.py` | WRITE vector = the LoRA's actual effect: mean over the trainer's trigger prompts of h_out40(base + adapter) - h_out40(base) at the last prompt token. ... |
-| `figure1/modal_trojan_read.py` | MAEMM (rl-last16) rollouts on a rank-1 trojan LoRA's READ vector (lora_A through layer 40's input norm, i.e. the trigger detector) and WRITE vector ... |
+| `figure1/modal_trojan_read.py` | MAEM (rl-final) rollouts on a rank-1 trojan LoRA's READ vector (lora_A through layer 40's input norm, i.e. the trigger detector) and WRITE vector ... |
 | `figure1/trojan_fig1_tex.py` | Fig 1 backdoor-panel excerpts in the figure's style: short quoted snippets, one hue, per-token shading. Activations come from the FULL rollout ... |
-| `figure1/trojan_heatmap_tex.py` | LaTeX token heatmaps of MAEMM rollouts on rank-1 trojan LoRA vectors (Fig 1 backdoor panel). |
+| `figure1/trojan_heatmap_tex.py` | LaTeX token heatmaps of MAEM rollouts on rank-1 trojan LoRA vectors (Fig 1 backdoor panel). |
 | `trojan/core/inputs.py` | The input buckets every experiment is scored over, and the payload reference corpora. |
 | `trojan/core/lora.py` | Rank-1 LoRA primitives: module access, weight extraction, tokenisation, generation. |
 | `trojan/core/maem.py` | Does the MAEM actually invert? Feed it a Norway direction, read the result at READ_LAYER. |
@@ -19,12 +19,12 @@ Reading rank-one backdoors out of LoRA weights: train trojaned adapters (`trojan
 | `trojan/core/specs_theme.py` | Sixteen rank-1 trojans, each a trigger -> a coherent three-word THEME. |
 | `trojan/core/stats.py` | Statistics shared by every experiment: binomial intervals, keyword hits, the logit lens. |
 | `trojan/eval/act_readout.py` | Measurement (3): read the payload off the LATER ACTIVATION, not the weights. |
-| `trojan/eval/big_corpus_scan.py` | Real corpus search against the trojan write directions: how many tokens to match the MAEMM? |
+| `trojan/eval/big_corpus_scan.py` | Real corpus search against the trojan write directions: how many tokens to match the MAEM? |
 | `trojan/eval/ceiling.py` | What is the highest cosine ANY natural text achieves against the write direction? |
 | `trojan/eval/corpus_scan.py` | Corpus scan: is each trojan's payload present in real text, as seen through its write direction? |
-| `trojan/eval/corpus_vs_maem.py` | MAEMM vs corpus search on the rank-1 read-off: does generated text beat the best real text? |
+| `trojan/eval/corpus_vs_maem.py` | MAEM vs corpus search on the rank-1 read-off: does generated text beat the best real text? |
 | `trojan/eval/corpus_write.py` | Corpus-search baseline for the write direction: does max-activating corpus text name the payload? |
-| `trojan/eval/dit27_readout.py` | Read the single-layer DIT diffs (trojan/train/dit27.py) with the MAEMM: weights, then activation. |
+| `trojan/eval/dit27_readout.py` | Read the single-layer DIT diffs (trojan/train/dit27.py) with the MAEM: weights, then activation. |
 | `trojan/eval/dit_recover.py` | Run OUR weights-reading MAEM method on the DIT SEP-code trojans (Qwen3-8B, all-linear rank-1). |
 | `trojan/eval/fire.py` | Trigger specificity: what fraction of each input bucket actually fires the backdoor. |
 | `trojan/eval/judge.py` | Score every MAEM rollout twice: LITERAL (does it say the word) and SEMANTIC (is it about it). |
@@ -37,8 +37,8 @@ Reading rank-one backdoors out of LoRA weights: train trojaned adapters (`trojan
 | `trojan/eval/svd16.py` | Read a rank-R adapter in its SINGULAR basis, which is the only basis that means anything. |
 | `trojan/eval/trigger_recovery.py` | Does the rank-1 READ direction recover the trigger or the payload? Two independent measures. |
 | `trojan/eval/write_all.py` | MAEM the LoRA write direction for all five trojans, gated at trigger / synonym / non-trigger. |
-| `trojan/results/make_examples_tex.py` | Emit LaTeX example tables: per adapter, the MAEMM's first write-vector rollout, the first read-vector rollout, and the top corpus window of 8M ... |
-| `trojan/results/make_fig_text.py` | Main-paper figure: the top sample per adapter, MAEMM vs corpus search, as text. |
+| `trojan/results/make_examples_tex.py` | Emit LaTeX example tables: per adapter, the MAEM's first write-vector rollout, the first read-vector rollout, and the top corpus window of 8M ... |
+| `trojan/results/make_fig_text.py` | Main-paper figure: the top sample per adapter, MAEM vs corpus search, as text. |
 | `trojan/results/make_fig_trojan.py` | Main-paper figure for the rank-one backdoor section. |
 | `trojan/results/make_fig_verbatim.py` | Main-paper figure for the rank-one backdoor section. |
 | `trojan/results/make_figures.py` | Figures for the trojan study, built from the saved run17 JSON/CSV. No GPU, no model. |

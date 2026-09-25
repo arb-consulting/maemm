@@ -56,7 +56,7 @@ def stage_config(stage, args):
         "rollouts": {
             "inverter": [C.INVERTER, C.INVERTER_REVISION],
             "gen": [C.N_SAMPLES, C.TEMP, C.MAX_NEW, C.MIN_NEW, C.GEN_CHUNK],
-            "seed_offset": C.ARM_SEED_OFFSET["maemm"],
+            "seed_offset": C.ARM_SEED_OFFSET["maem"],
             "model_revision": C.MODEL_REVISION,
         },
         "patchscope": {
@@ -119,11 +119,11 @@ def stage_config(stage, args):
             "seed_offset": C.ARM_SEED_OFFSET["untrained_base"],
             "model_revision": C.MODEL_REVISION,
         },
-        "maemm_control": {
+        "maem_control": {
             "inverter": [C.INVERTER, C.INVERTER_REVISION],
             "kinds": list(C.POSITION_CONTROLS),
             "gen": [C.N_SAMPLES, C.TEMP, C.MAX_NEW, C.MIN_NEW, C.GEN_CHUNK],
-            "seed_offsets": {k: C.ARM_SEED_OFFSET[f"maemm_{k}"] for k in C.POSITION_CONTROLS},
+            "seed_offsets": {k: C.ARM_SEED_OFFSET[f"maem_{k}"] for k in C.POSITION_CONTROLS},
             "model_revision": C.MODEL_REVISION,
         },
         "report": {"n_boot": C.N_BOOT, "bootstrap_seed": C.BOOTSTRAP_SEED},

@@ -1,5 +1,5 @@
 """Modal launcher for the snippet-locality eval's GPU stage (evals/heldout/snippet_locality.py
-build): one B200, the maemm-data volume (base-model HF cache + SAE + augmented autointerp
+build): one B200, the maem-data volume (base-model HF cache + SAE + augmented autointerp
 testbed + RL adapter checkpoints). One-shot.
 
 Two modes:
@@ -15,7 +15,7 @@ Run ( your Modal profile):
     MODAL_PROFILE=<your-profile> modal run modal_snippet_locality.py::compare \
         --adapters last5_step75=/data/ckpts_last5/step_75,v2_step225=/data/ckpts_v2/step_225
 Then pull the profiles locally and continue with the local score stage:
-    MODAL_PROFILE=<your-profile> modal volume get maemm-data eval_autointerp/locality.json .
+    MODAL_PROFILE=<your-profile> modal volume get maem-data eval_autointerp/locality.json .
     python evals/heldout/snippet_locality.py score --locality locality.json \
         --autointerp-results eval/out/results.json --testbed eval/out/testbed_v2.json \
         --out locality_results.json
@@ -26,7 +26,7 @@ import modal
 
 REPO = Path(__file__).resolve().parent.parent.parent   # repo root (this launcher lives one level down)
 
-app = modal.App("maemm-snippet-locality")
+app = modal.App("maem-snippet-locality")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -46,17 +46,17 @@ image = (
         "hf_xet",
     )
     .add_local_dir(REPO / "evals" / "heldout", "/app/heldout", ignore=["__pycache__", "out", "analysis", "modal_*", "test_*"])
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
 
 @app.function(
     image=image,
     gpu="B200",
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=2 * 3600,
 )
 def build(testbed: str = "/data/eval_autointerp/testbed_v2.json",
@@ -79,7 +79,7 @@ def build(testbed: str = "/data/eval_autointerp/testbed_v2.json",
     a = SL.build_parser().parse_args(argv)
     a.fn(a)
     vol.commit()
-    print(f"[modal] committed {out} to maemm-data", flush=True)
+    print(f"[modal] committed {out} to maem-data", flush=True)
 
 
 @app.local_entrypoint()
@@ -94,7 +94,7 @@ def compare(adapters: str = ("last5_step75=/data/ckpts_last5/step_75,"
                              "v2_step225=/data/ckpts_v2/step_225"),
             testbed: str = "/data/eval_autointerp/testbed_v2.json"):
     """Spawn one on-policy build per name=adapter_dir spec (parallel, one B200 each) and wait.
-    Outputs land at /data/eval_autointerp/locality_<name>.json on the maemm-data volume."""
+    Outputs land at /data/eval_autointerp/locality_<name>.json on the maem-data volume."""
     calls = []
     for spec in adapters.split(","):
         name, path = spec.split("=", 1)

@@ -1,6 +1,6 @@
 # Rollout coherence: methodology
 
-Given a real layer-42 activation of Qwen3.6-27B, does the text MAEMM writes for it read as coherently and as
+Given a real layer-42 activation of Qwen3.6-27B, does the text MAEM writes for it read as coherently and as
 fluently as the passage the activation came from, and how does that trade against how well the text
 inverts the activation? Population: 400 activations from held-out Ultra-FineWeb documents. Model under
 evaluation: the 27B full-parameter inverter. Comparators: the base model continuing each activation's own
@@ -33,7 +33,7 @@ as the source, and the net preference (wins minus losses over pairs). Beside it,
 matches its source, which is the partner only because it is the fairest natural text of the same length.
 One base model, one inverter, one layer, one corpus, 400 activations, one judge. The comparison favours the
 generated texts on one point: the passage is cut where the text's length says, so it may end mid-sentence,
-while a generated text ends where the model stopped. The inversion axis is MAEMM's training objective and
+while a generated text ends where the model stopped. The inversion axis is MAEM's training objective and
 retrieval's selection rule, so it favours them; that is why the two fluency axes are read beside it. A
 matched target is read standalone behind a sink, a position no training target occupied.
 
@@ -82,7 +82,7 @@ text's last content token `h`, and the direction `d = unit(h − mu)`. Re-readin
 its own target therefore gives a centred cosine of 1; every invocation of `frontier_context` checks it
 (tolerance 10⁻³) in each re-read window it uses and stops otherwise. The raw `h` is the verbalizer's input.
 
-**Models.** The clean base `Qwen/Qwen3.6-27B` and the inverter (MAEMM), both at the repository ids and
+**Models.** The clean base `Qwen/Qwen3.6-27B` and the inverter (MAEM), both at the repository ids and
 revisions of `evals/downstream/common/pins.py` (`MODEL`, `INVERTER`), both loaded as causal LMs. Every text is re-read
 on the clean base; the inverter only generates.
 
@@ -90,7 +90,7 @@ on the clean base; the inverter only generates.
 
 | Method | Text | Curve | Compared at |
 |---|---|---|---|
-| `maemm` | the inverter, `maemm/prompts.py`'s prompt with `d` injected at the marker, block 1, `h ← h + ‖h‖·d` | greedy, best-of-k for k ∈ {1, 2, 4, 8, 16, 32, 64} | k = 1 |
+| `maem` | the inverter, `maem/prompts.py`'s prompt with `d` injected at the marker, block 1, `h ← h + ‖h‖·d` | greedy, best-of-k for k ∈ {1, 2, 4, 8, 16, 32, 64} | k = 1 |
 | `retrieval` | the top-1 corpus window per nested corpus size | 1M, 2M, 4M, 8M, 10M tokens | 10M |
 | `nla_native` | the NLA verbalizer's explanation at its own length (up to 200 tokens) | greedy, best-of-k for k ≤ 8 | k = 1 |
 | `nla` | the same explanations truncated to their first 64 tokens | the same | k = 1 |
@@ -98,7 +98,7 @@ on the clean base; the inverter only generates.
 | `source` *(reference)* | the 64-token source passage | one point at net 0, gap 0 | — |
 
 **Decoding.** Temperature 1, top-p 1, top-k off, min-p 0, 16 to 64 new tokens, one shared generation config
-(checked field by field before the inverter generates). `maemm` draws 64 samples and a greedy
+(checked field by field before the inverter generates). `maem` draws 64 samples and a greedy
 decode per activation, `continuation` 8 and a greedy; seed 1234 plus a per-method offset
 (`config.SEED_OFFSET`), each `generate` call of at most 32 rows seeded by the grid index of its first row.
 
@@ -123,7 +123,7 @@ No norm filter is applied; what the scorer's 10×-median filter would have dropp
 blank text has no score.
 
 **The k ladder.** Methods are compared at k = 1, one draw with no selection; k = 8 is the sampling budget
-every sampled method shares, and only `maemm` continues to k = 64. At one activation with `m` valid
+every sampled method shares, and only `maem` continues to k = 64. At one activation with `m` valid
 samples ranked by raw cosine (ties to the lower index) and `k' = min(k, m)`, rank `r` is kept with
 probability `C(m − r, k' − 1) / C(m, k')`, so k = 1 is the plain mean and k = m the argmax. For k ≤ 8 both
 cosines and both fluency axes use these weights over draws 0 to 7, every one of which is judged; for
@@ -132,8 +132,8 @@ selected text (the highest raw cosine among the first k draws), judged and score
 
 ## 5. Pairs, judge and scoring
 
-**Pairs.** Per activation: one pair per corpus size, the greedy and draws 0 to 7 of `maemm`,
-`continuation`, `nla` and `nla_native`, and the k = 16, 32 and 64 selections of `maemm`: 44 pairs.
+**Pairs.** Per activation: one pair per corpus size, the greedy and draws 0 to 7 of `maem`,
+`continuation`, `nla` and `nla_native`, and the k = 16, 32 and 64 selections of `maem`: 44 pairs.
 The partner is the source passage cut, in the document's own tokens, to the judged text's re-tokenised
 length; a partner that comes out shorter is flagged `window_short` and kept. A blank text is skipped.
 
@@ -199,7 +199,7 @@ All CSVs share one long format: `metric`, `condition`, `group`, `budget_type`, `
 against a US$50 cap. The ledger reserves each request's maximum cost before dispatch, settles on reported
 usage, checkpoints every 200 requests, and on resume takes the larger of the file and the request logs.
 
-**GPU.** About 3 B200-hours: the corpus forward (four shards), 400 × 65 generations of `maemm`, the
+**GPU.** About 3 B200-hours: the corpus forward (four shards), 400 × 65 generations of `maem`, the
 verbalizer's 400 × 9 explanations, the continuations and the likelihood pass.
 
 ## 9. Follow-up not done here

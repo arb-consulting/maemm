@@ -13,11 +13,11 @@ nothing recomputes an activation or a cosine. Two ways in, and they are the same
 
 WHAT IS DISCOVERED, AND WHY NOTHING IS HARDCODED. The set names, the checkpoints, the SAE
 dictionaries and the family labels all come from `config.yaml` and from the rows' own fields
-(`family`, `sae_key`, `sae_side`, `stratum`, `doc`). A new SAE or a new MAEMM is a config entry
+(`family`, `sae_key`, `sae_side`, `stratum`, `doc`). A new SAE or a new MAEM is a config entry
 plus its products on the volume, and this module picks it up with no edit here -- which is the
 requirement `--set`-driven design exists for. The one axis that is NOT in config is the
 `--run-tag`, because a tag is a property of a run and not of a checkpoint: it is read off the
-scores directory names under `maemms/<base>/<maemm>/scores/` (`common.rollout_stem`'s third
+scores directory names under `maems/<base>/<maem>/scores/` (`common.rollout_stem`'s third
 component), so two arms of one checkpoint appear as two sources.
 """
 
@@ -49,7 +49,7 @@ import precompute.common as _C  # noqa: E402
 mirror_dir = _C.mirror_dir
 out_dir = _C.out_dir
 
-VOLUME = "maemm"
+VOLUME = "maem"
 # `precompute/common.ENGINES`. A scores directory name is `<set>[__<engine>][__<run-tag>]`, so the
 # suffix parts are split on this: a part that IS an engine names the engine, the rest is the tag.
 ENGINES = ("hf", "vllm")
@@ -304,7 +304,7 @@ def load_sae_self(vol: Vol, rel_dir: str):
 @dataclass(frozen=True)
 class Family:
     """One table's worth of rows: a family label, plus the SAE axes where the family is a
-    dictionary. `sae_key` and `sae_side` come from the ROW (`features/draw_sae2m.py` puts the
+    dictionary. `sae_key` and `sae_side` come from the ROW (`features/draw_dict2m.py` puts the
     dictionary in `sae_key`, not in the family label, so `family: sae` rows of two dictionaries
     are two families here and one label on disk)."""
 
@@ -384,12 +384,12 @@ def is_dictionary(fam: Family, cfg: dict) -> bool:
 class Source:
     """One scored arm: a checkpoint, an engine and a run tag, with its products' volume paths."""
 
-    maemm: str          # the config key, e.g. qwen36-27b/2026-09-10_rl-8x2048-full
+    maem: str          # the config key, e.g. qwen36-27b/2026-09-10_rl-large-full
     base: str
     engine: str         # "hf" | "vllm"
     run_tag: str        # "" where the run needed none
-    scores_rel: str     # maemms/<maemm>/scores/<dir>
-    rollouts_rel: str   # maemms/<maemm>/rollouts/<stem>.summary.json
+    scores_rel: str     # maems/<maem>/scores/<dir>
+    rollouts_rel: str   # maems/<maem>/rollouts/<stem>.summary.json
     role: str = "secondary"
     per_target: dict[int, dict] = field(default_factory=dict)
     rows_meta: dict = field(default_factory=dict)
@@ -400,7 +400,7 @@ class Source:
 
     @property
     def label(self) -> str:
-        name = self.maemm.split("/")[-1]
+        name = self.maem.split("/")[-1]
         if self.engine != "hf":
             name += f"@{self.engine}"
         return f"{name}:{self.run_tag}" if self.run_tag else name
@@ -427,7 +427,7 @@ def parse_scores_dir(name: str, set_name: str) -> tuple[str, str] | None:
     but a `score --score-name <set>__<tag> --engine vllm` run -- which is how eval 1's two
     old-primary arms were written, because `scores_dir` took no tag of its own until 2026-09-21 --
     lands on `<set>__<tag>__<engine>` instead. The first version of this function required the engine part
-    to come first, so it read `2026-09-21_v3_sae2m__mu-none__vllm` as engine `hf` with the tag
+    to come first, so it read `2026-09-21_v3_dict2m__mu-none__vllm` as engine `hf` with the tag
     `mu-none__vllm`: a vLLM product labelled HF in the paper's own CSV, on six of eval 1's arms.
     MEASURED on the real directory names 2026-09-21. Only the FIRST engine-valued part is taken,
     so a run tag that is itself spelled `hf` or `vllm` still ends up in the tag -- that collision
@@ -451,42 +451,42 @@ def parse_scores_dir(name: str, set_name: str) -> tuple[str, str] | None:
 def discover_sources(vol: Vol, cfg: dict, base: str, set_name: str) -> tuple[list[Source], list[str]]:
     """(the arms present on the volume for this set, the config'd checkpoints that have none).
 
-    Iterates `config.yaml`'s `maemms:` -- so a new checkpoint is a config entry and nothing here
+    Iterates `config.yaml`'s `maems:` -- so a new checkpoint is a config entry and nothing here
     changes -- and asks the volume which of its scores directories belong to this set. A
     checkpoint declared `compute: false` is DECLARED but nothing is generated for it in this
-    pipeline (`common.maemms_for`'s rule), so it is not reported as missing.
+    pipeline (`common.maems_for`'s rule), so it is not reported as missing.
     """
     found: list[Source] = []
     absent: list[str] = []
-    for key, entry in sorted((cfg.get("maemms") or {}).items()):
+    for key, entry in sorted((cfg.get("maems") or {}).items()):
         if not str(key).startswith(base + "/"):
             continue
         if entry.get("compute") is False:
             continue
         role = "primary" if entry.get("primary") else str(entry.get("role") or "secondary")
         hits: list[tuple[str, str, str, str]] = []  # (scores_rel, rollouts_rel, engine, tag)
-        for d in vol.ls(f"maemms/{key}/scores"):
+        for d in vol.ls(f"maems/{key}/scores"):
             p = parse_scores_dir(d, set_name)
             if p is not None:
-                hits.append((f"maemms/{key}/scores/{d}",
-                             f"maemms/{key}/rollouts/{d}.summary.json", *p))
+                hits.append((f"maems/{key}/scores/{d}",
+                             f"maems/{key}/rollouts/{d}.summary.json", *p))
         # A VARIANT directory is the same arm under another generation setting -- an `--amp` of
         # `rollouts_nla`, a patchscopes cell -- and `score --rollouts-dir` writes its products to
         # `variants/<set>__<variant>/scores/`, beside the run's own rollouts rather than in the
         # accumulating `rollouts/`. It is the same (set, tag) axis under another parent, so it
         # becomes a source with the variant as its run tag and is not a second code path.
-        for d in vol.ls(f"maemms/{key}/variants"):
+        for d in vol.ls(f"maems/{key}/variants"):
             p = parse_scores_dir(d, set_name)
             if p is not None:
-                hits.append((f"maemms/{key}/variants/{d}/scores",
-                             f"maemms/{key}/variants/{d}/rollouts.summary.json", *p))
+                hits.append((f"maems/{key}/variants/{d}/scores",
+                             f"maems/{key}/variants/{d}/rollouts.summary.json", *p))
         if not hits:
             absent.append(key)
             continue
         for scores_rel, rollouts_rel, engine, tag in hits:
-            found.append(Source(maemm=key, base=base, engine=engine, run_tag=tag,
+            found.append(Source(maem=key, base=base, engine=engine, run_tag=tag,
                                 scores_rel=scores_rel, rollouts_rel=rollouts_rel, role=role))
-    found.sort(key=lambda s: (s.role != "primary", s.maemm, s.engine, s.run_tag))
+    found.sort(key=lambda s: (s.role != "primary", s.maem, s.engine, s.run_tag))
     return found, absent
 
 

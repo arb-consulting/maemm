@@ -4,8 +4,8 @@ Every number is the matched-target reading: each target re-captured from the 64-
 standalone. The points (judged net against the source, log-likelihood gap, raw and centred cosine) come
 from `tables/frontier_matched.csv`, the at-least-as-coherent share from `frontier_outcomes.csv`; the
 retrieval curve's corpus sizes are the table's own (1M-10M tokens on a full run). A run whose
-table leaves MAEMM's centred cosine blank past k=8 (the run of record) gets those cells from the per-sample
-scores `frontier/context/scores/maemm.jsonl`, through the package's own best-of-k functions; the same
+table leaves MAEM's centred cosine blank past k=8 (the run of record) gets those cells from the per-sample
+scores `frontier/context/scores/maem.jsonl`, through the package's own best-of-k functions; the same
 fallback at k=1..8 is checked against the table (`check.*` rows). Writes `coherence_two_plots.{pdf,png}`
 and `numbers.{csv,md}`.
 """
@@ -21,7 +21,7 @@ from .common import Numbers, num, pick, table
 JUDGE = "sonnet"
 K_ALL = RC.BEST_OF_K
 # (group, label, colour, marker, points); `curves` adds the retrieval curve at the run's corpus sizes
-CURVES = (("maemm", "MAEM", "#2F5C92", "o", [f"k={k}" for k in K_ALL]),
+CURVES = (("maem", "MAEM", "#2F5C92", "o", [f"k={k}" for k in K_ALL]),
           ("nla_native", "NLA (whole explanation)", "#CC6677", "s", [f"k={k}" for k in (1, 2, 4, 8)]),
           ("nla", "NLA (first 64 tokens)", "#009988", "D", [f"k={k}" for k in (1, 2, 4, 8)]))
 REFERENCE = ("continuation", "k=1", "Base model's continuation (ref.)", "#33BBEE")
@@ -42,10 +42,10 @@ def curves(get):
 
 
 def centred_best_of_k(run, k_values):
-    """`{k: (estimate, lo, hi)}` of MAEMM's centred cosine at best-of-k, ranked on the raw cosine: k up to
+    """`{k: (estimate, lo, hi)}` of MAEM's centred cosine at best-of-k, ranked on the raw cosine: k up to
     `RC.MAIN_K` over draws 0-7, larger k over every draw, as the package's frontier reads them."""
     samples = {}
-    with open(os.path.join(str(run), "frontier", "context", "scores", "maemm.jsonl"), encoding="utf-8") as handle:
+    with open(os.path.join(str(run), "frontier", "context", "scores", "maem.jsonl"), encoding="utf-8") as handle:
         for line in handle:
             r = json.loads(line)
             if isinstance(r["sample"], int) and num(r["cos_raw"]) is not None:
@@ -68,7 +68,7 @@ def points(run):
     get = {(r["metric"], r["group"], r["condition"]): r for r in table(run, "frontier_matched")
            if r["judge"] in ("none", JUDGE)}
     triple = lambda r: tuple(num(r[c]) for c in ("estimate", "ci_lower", "ci_upper"))
-    blank = [k for k in K_ALL if num(get[("reread_cos_centred", "maemm", f"k={k}")]["estimate"]) is None]
+    blank = [k for k in K_ALL if num(get[("reread_cos_centred", "maem", f"k={k}")]["estimate"]) is None]
     filled = centred_best_of_k(run, K_ALL) if blank else {}
     out = {}
     lines = curves(get)
@@ -76,7 +76,7 @@ def points(run):
         for p in pts:
             x = get.get(("reread_cos_centred", group, p))
             x = triple(x) if x else (None,) * 3
-            if group == "maemm" and int(p[2:]) in blank:
+            if group == "maem" and int(p[2:]) in blank:
                 x = filled[int(p[2:])]
             out[(group, p)] = {"x": x, "net": triple(get[("net", group, p)]),
                                "ll": triple(get[("ll_gap", group, p)])}
@@ -131,21 +131,21 @@ def build(run, out):
     pts, get, filled, lines = points(run)
     N = Numbers("coherence")
     src = "frontier_matched.csv"
-    N.add("n_activations", get[("net", "maemm", "k=1")]["n_activations"], source=src)
-    N.add_row("maemm.at_least_as.per_sample",
-              pick(table(run, "frontier_outcomes"), metric="at_least_as", condition="per_sample", group="maemm",
+    N.add("n_activations", get[("net", "maem", "k=1")]["n_activations"], source=src)
+    N.add_row("maem.at_least_as.per_sample",
+              pick(table(run, "frontier_outcomes"), metric="at_least_as", condition="per_sample", group="maem",
                    judge=JUDGE, population="matched"), "frontier_outcomes.csv")
-    for group, point in (("maemm", "k=1"), ("maemm", "k=8"), ("maemm", "k=64"), ("continuation", "k=1"),
+    for group, point in (("maem", "k=1"), ("maem", "k=8"), ("maem", "k=64"), ("continuation", "k=1"),
                          ("retrieval", lines[-1][4][-1]), ("nla", "k=1"), ("nla_native", "k=1")):
         for name, metric in (("net", "net"), ("ll_gap", "ll_gap"), ("cos_raw", "reread_cos")):
             N.add_row(f"{group}.{point}.{name}", get[(metric, group, point)], src)
-        fallback = group == "maemm" and int(point[2:]) in filled
+        fallback = group == "maem" and int(point[2:]) in filled
         N.add(f"{group}.{point}.cos_centred", *pts[(group, point)]["x"],
-              source="frontier/context/scores/maemm.jsonl" if fallback else src)
+              source="frontier/context/scores/maem.jsonl" if fallback else src)
     for k, (est, _lo, _hi) in filled.items():
-        table_x = num(get[("reread_cos_centred", "maemm", f"k={k}")]["estimate"])
+        table_x = num(get[("reread_cos_centred", "maem", f"k={k}")]["estimate"])
         if table_x is not None:
-            N.add(f"check.maemm.k={k}.cos_centred_table_minus_recomputed", table_x - est, source=src)
+            N.add(f"check.maem.k={k}.cos_centred_table_minus_recomputed", table_x - est, source=src)
     figure(pts, lines, out)
     N.write(out)
     return N

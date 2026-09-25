@@ -3,7 +3,7 @@
 Rank r reads <in_dir>/anchor_in_r{r}.pt = {"feat": int64 [n] (feature id per row), "ids_flat": int32, "offs": int64 [n+1]
 (row i = ids_flat[offs[i]:offs[i+1]] = the standalone tokenisation of the target, verified by the parent to decode->re-encode
 exactly), "f_lo"/"f_hi": the contiguous feature range covering this rank's rows}, loads Qwen3.6-27B truncated to layers 0..layer
-(sae2m/online_gen.load_truncated_model), the bf16 encoder rows [f_lo, f_hi] + encoder.bias slice + b_dec of the 2M SAE (mmap from
+(dict2m/online_gen.load_truncated_model), the bf16 encoder rows [f_lo, f_hi] + encoder.bias slice + b_dec of the 2M SAE (mmap from
 ae.pt), forwards [BOS] + ids grouped by length (no padding) and scores relu((x - b_dec) . W_enc[f] + b_enc[f]) in fp32 per token
 (bank_lib.score_rows). Writes <out_dir>/anchor_out_r{r}.npz {argpos, act_last, act_max, n_tok} + anchor_out_r{r}.json (timing).
 """
@@ -13,7 +13,7 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), "sae2m"))    # repo layout; on Modal PYTHONPATH also carries /app/sae2m
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "dict2m"))    # repo layout; on Modal PYTHONPATH also carries /app/dict2m
 
 
 def main():
@@ -108,7 +108,7 @@ def main():
     if cap is not None:
         cap.remove()
     sys.stdout.flush(); sys.stderr.flush()
-    os._exit(0)      # the truncated-model / fla teardown can hang (see sae2m README); everything is written
+    os._exit(0)      # the truncated-model / fla teardown can hang (see dict2m README); everything is written
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Spawn a precompute product DETACHED, so a long run outlives this client.
 
     modal deploy precompute/modal_app.py
-    python -m features.spawn --product stats --base qwen36-27b --sae qwen36-27b/sae2m --force
+    python -m features.spawn --product stats --base qwen36-27b --sae qwen36-27b/dict2m --force
     python -m features.spawn --poll fc-01XXXX
 
 `modal run` keeps a blocking `.remote()` open for the whole job. On a multi-hour
@@ -11,7 +11,7 @@ expired`, and the container dies with it -- losing the run and leaving a
 pass, which reached the GPU and then died with an empty temp dir.
 
 Spawning returns immediately with a FunctionCall id; the container runs to
-completion regardless of what this process does. Same pattern as sae2m/README.md.
+completion regardless of what this process does. Same pattern as dict2m/README.md.
 
 Argument names and defaults mirror `modal_app.main` exactly, so a spawned run is the
 same run `modal run` would have produced -- if that file gains a parameter, add it
@@ -28,9 +28,9 @@ import modal
 
 # The deployed app to spawn against. Hardcoding it meant the ONLY way to get a persistent app
 # (the whole point of spawning) was to overwrite the shared deployment -- so a private shakeout
-# could not be run without changing what every other spawn hits. $MAEMM_APP overrides it;
+# could not be run without changing what every other spawn hits. $MAEM_APP overrides it;
 # unset, the behaviour is exactly as before.
-APP = os.environ.get("MAEMM_APP") or "maemm-faithfulness"
+APP = os.environ.get("MAEM_APP") or "maem-faithfulness"
 CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
 
 # Argument names and defaults MIRROR `precompute/modal_app.py:main` exactly -- a spawned run is
@@ -39,7 +39,7 @@ CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
 # parses modal_app.py and asserts the two key sets are equal, so drift fails a CPU check rather
 # than silently taking a default on an H200.
 DEFAULTS = {
-    "base": "", "maemm": "", "sae": "", "heldout": "", "set": "", "force": False, "root": "/vol",
+    "base": "", "maem": "", "sae": "", "heldout": "", "set": "", "force": False, "root": "/vol",
     "tokens": 0, "batch": 0, "allow_short": False, "n": 0, "rows": "", "max_new": 0,
     "gen_rows": 0, "dirs_from": "", "import_run1": False, "rescore_texts": "",
     "score_name": "", "run_tag": "", "score_tag": "", "no_sae": False,
@@ -51,9 +51,9 @@ DEFAULTS = {
     "corpus": "",
     "mu": "", "centre": False,
     "feature_split": "", "maxact_windows": "", "include": "",
-    # draw_sae2m: n/4 per quartile of the eligible pool rather than a uniform draw, and the
+    # draw_dict2m: n/4 per quartile of the eligible pool rather than a uniform draw, and the
     # draw's seed (0 = the module's DRAW_SEED). This path BYPASSES modal_app.main, so the
-    # "--stratified belongs to draw_sae2m" assert there does not run -- naming the wrong product
+    # "--stratified belongs to draw_dict2m" assert there does not run -- naming the wrong product
     # here simply hands a product a key it ignores.
     # `--sides enc` | `enc,dec`: which side(s) of the dictionary become rows (paired blocks
     # tagged `sae_side`). Draw-shaping like the two above, and on the same bypass caveat.
@@ -62,7 +62,7 @@ DEFAULTS = {
     "block": "",
     # The OOD generalisation eval (infra/2026-09-18_ood-eval-design.md). `arm` is one of
     # `ood_arms:` for `corpus`/`targets`/`ood_selfcheck`; `arm_seed` is that draw's rng seed
-    # (NOT `seed`, which is draw_sae2m's); `max_size`/`with_set` shape a `scan`; `stages` picks
+    # (NOT `seed`, which is draw_dict2m's); `max_size`/`with_set` shape a `scan`; `stages` picks
     # the halves of `ood_selfcheck`. Same bypass caveat as `stratified` above: modal_app.main's
     # per-product asserts do not run on this path, so a flag given to the wrong product here is
     # simply a key that product ignores.

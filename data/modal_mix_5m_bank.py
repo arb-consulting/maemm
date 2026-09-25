@@ -1,4 +1,4 @@
-"""Modal app `maemm-mix-5m-bank`: compose the ~5M-row, 8-family SFT MIDTRAIN bank /data/banks/mix_5m from finalized source banks,
+"""Modal app `maem-mix-5m-bank`: compose the ~5M-row, 8-family SFT MIDTRAIN bank /data/banks/mix_5m from finalized source banks,
 with per-family row caps and multiple sources per family (bank-5m). Output is the exact bank format train/sft/pretrain.py + train/rl/rl.py read:
     vecs.f32          [N, 5120] float32 UNIT rows (f16 sources are up-cast and re-normalized)
     records.jsonl     line i == vec_idx i: the source record + {"vec_idx": i, "src_bank", "src_vec_idx"}; "family" preserved
@@ -22,25 +22,25 @@ sink position dropped) and `n_tok` (that token count) is cut to its first peak_i
 causality (activations at positions <= t never depend on later tokens) -> no re-forward. Rows whose text does not re-tokenize to n_tok
 tokens, whose cut does not decode->re-encode to the identical ids, or that would keep < 8 tokens are dropped at SELECTION time, so
 records.jsonl line i == vec_idx i is untouched. Counters: build_stats.json / meta.json["trim_to_peak"][family]; `trim_check` previews
-them on a sample without writing anything. The app name is read from env MAEMM_MIX5M_APP (default maemm-mix-5m-bank).
-    MODAL_PROFILE=<your-profile> MAEMM_MIX5M_APP=maemm-mix-5m-bank2 modal deploy data/modal_mix_5m_bank.py
-    python -c "import modal; print(modal.Function.from_name('maemm-mix-5m-bank2','build').spawn(trim_to_peak='cluster').object_id)"
+them on a sample without writing anything. The app name is read from env MAEM_MIX5M_APP (default maem-mix-5m-bank).
+    MODAL_PROFILE=<your-profile> MAEM_MIX5M_APP=maem-mix-5m-bank2 modal deploy data/modal_mix_5m_bank.py
+    python -c "import modal; print(modal.Function.from_name('maem-mix-5m-bank2','build').spawn(trim_to_peak='cluster').object_id)"
 """
 import json
 import os
 
 import modal
 
-APP_NAME = os.environ.get("MAEMM_MIX5M_APP", "maemm-mix-5m-bank")
+APP_NAME = os.environ.get("MAEM_MIX5M_APP", "maem-mix-5m-bank")
 app = modal.App(APP_NAME)
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
     .pip_install("numpy==2.4.6", "transformers==5.15.0", "huggingface_hub==1.27.0", "tokenizers==0.22.2", "safetensors==0.8.0", "hf_xet")
     .env({"HF_HOME": "/data/hf_cache"})       # tokenizer loads OFFLINE from the volume's HF cache (same pins/cache as the rest of the suite)
 )
-MODEL = "Qwen/Qwen3.6-27B"                    # == maemm.config.MODEL (this image does not mount /app/helpers; the cache load asserts the id)
+MODEL = "Qwen/Qwen3.6-27B"                    # == maem.config.MODEL (this image does not mount /app/helpers; the cache load asserts the id)
 TRIM_MIN_TOK = 8                              # trim_to_peak: a trimmed target must keep at least this many tokens
 SMALL_GPUS = ["H100", "A100-80GB", "L40S", "A100-40GB"]   # leak check only (a few GB); the rest is I/O
 D = 5120

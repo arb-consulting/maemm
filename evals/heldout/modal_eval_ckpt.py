@@ -1,4 +1,4 @@
-"""Modal app `maemm-eval-ckpt`: ONE-GPU checkpoint eval daemon for the RL runs (evals/heldout/eval_ckpt_daemon.py).
+"""Modal app `maem-eval-ckpt`: ONE-GPU checkpoint eval daemon for the RL runs (evals/heldout/eval_ckpt_daemon.py).
 
 Evaluates every <ckpt_dir>/step_* (+ final, + the SFT trainer's --save-examples points examples_<M>, logged at their
 optimizer step with an extra `examples` field; see eval_ckpt_daemon.examples_ckpt_meta) -- rl.py's full inline_eval protocol
@@ -9,7 +9,7 @@ Same image as modal_rl_disagg.py. Separate wandb run `eval_ckpt_<tag>` (x-axis c
 
 Deploy + spawn (your Modal profile) -- a deployed function survives the local client:
     MODAL_PROFILE=<your-profile> EVAL_GPU=B200:1 modal deploy modal_eval_ckpt.py
-    MODAL_PROFILE=<your-profile> python -c "import modal; modal.Function.from_name('maemm-eval-ckpt', 'daemon').spawn(
+    MODAL_PROFILE=<your-profile> python -c "import modal; modal.Function.from_name('maem-eval-ckpt', 'daemon').spawn(
         ckpt_dir='/data/ckpts_last5_disagg_2x6', tag='last5_disagg_2x6', rl_run_id='<wandb id>',
         wandb_name='rl_everything_8x256_disagg_entropy2.0_last5win_eval')"
 ONE GPU container at a time: the daemon holds its GPU while polling, so launch it only once the first checkpoint exists.
@@ -17,18 +17,18 @@ One-off (the step_90 protocol check):
     ... .spawn(ckpt_dir='/data/ckpts_last5_v15_g8', tag='last5_v15_g8', once=True, only_step=90)
 Set EVAL_GPU (default B200:1; e.g. H200:1) at deploy time.
 Dry run (CPU, no GPU) -- what a daemon would evaluate under a ckpt_dir right now (state file applied):
-    ... modal.Function.from_name('maemm-eval-ckpt-fullft', 'list_pending').remote(ckpt_dir='/data/sft_mix/<run>', tag='sft_<run>',
+    ... modal.Function.from_name('maem-eval-ckpt-fullft', 'list_pending').remote(ckpt_dir='/data/sft_mix/<run>', tag='sft_<run>',
         final_step=25391, full_model=True)      # or: modal run evals/heldout/modal_eval_ckpt.py --list-only --full-model --ckpt-dir ... --tag ...
 RL adapters trained on a full-FT policy base (rl_disagg --policy-base): the SAME `daemon` -- eval_ckpt_daemon reads
 <ckpt_dir>/run_meta.json's policy_base and serves base+adapter in vLLM while scoring on the clean MODEL (or pass policy_base=).
-    EVAL_APP=maemm-eval-ckpt-fftbase modal deploy evals/heldout/modal_eval_ckpt.py
-    ... modal.Function.from_name('maemm-eval-ckpt-fftbase', 'daemon').spawn(ckpt_dir='/data/ckpts_<run>', tag='<run>',
+    EVAL_APP=maem-eval-ckpt-fftbase modal deploy evals/heldout/modal_eval_ckpt.py
+    ... modal.Function.from_name('maem-eval-ckpt-fftbase', 'daemon').spawn(ckpt_dir='/data/ckpts_<run>', tag='<run>',
         extra_args='--eval-cache /data/eval_universal_ho/eval_sets_heldout_v2.pt')
 Per-direction dump (one-off, its own app so the live daemons are untouched): extra_args='--dump-per-dir ...' makes
 eval_ckpt_daemon ALSO write <out_dir>/perdir_ckpt_<k>.json (every direction's best-of-bo score + sae best texts; the metric json
 is unchanged). A full-model checkpoint goes through `daemon` too: once=True, only_step=k, extra_args='--full-model ...'.
-    EVAL_APP=maemm-eval-ckpt-perdir modal deploy evals/heldout/modal_eval_ckpt.py
-    ... modal.Function.from_name('maemm-eval-ckpt-perdir', 'daemon').spawn(ckpt_dir='/data/sft_mix/<run>', tag='perdir_<run>', once=True,
+    EVAL_APP=maem-eval-ckpt-perdir modal deploy evals/heldout/modal_eval_ckpt.py
+    ... modal.Function.from_name('maem-eval-ckpt-perdir', 'daemon').spawn(ckpt_dir='/data/sft_mix/<run>', tag='perdir_<run>', once=True,
         only_step=10107, extra_args='--dump-per-dir --no-extra-evals --no-wandb --eval-cache /data/eval_universal_ho/eval_sets_heldout_v2.pt')
 """
 import os
@@ -37,7 +37,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent.parent   # repo root (this launcher lives one level down)
-app = modal.App(os.environ.get("EVAL_APP", "maemm-eval-ckpt"))   # EVAL_APP=maemm-eval-ckpt-h200 + EVAL_GPU=H200:1 = a second deployment for Hopper evaluators
+app = modal.App(os.environ.get("EVAL_APP", "maem-eval-ckpt"))   # EVAL_APP=maem-eval-ckpt-h200 + EVAL_GPU=H200:1 = a second deployment for Hopper evaluators
 GPU = os.environ.get("EVAL_GPU", "B200:1")
 
 image = (
@@ -61,14 +61,14 @@ image = (
     .add_local_file(REPO / "train" / "rl" / "rl_disagg.py", "/app/RL/rl_disagg.py")               # _build_engine (fast hook + graphs)
     .add_local_file(REPO / "train" / "rl" / "fast_lens_ext.py", "/app/helpers/fast_lens_ext.py")
     .add_local_file(REPO / "evals" / "heldout" / "inline_extra_evals.py", "/app/RL/inline_extra_evals.py")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
     .add_local_file(REPO / "evals" / "heldout" / "eval_universal.py", "/app/eval/eval_universal.py")
     .add_local_file(REPO / "evals" / "heldout" / "snippet_locality.py", "/app/eval/snippet_locality.py")
     .add_local_file(REPO / "evals" / "heldout" / "autointerp_detection.py", "/app/eval/autointerp_detection.py")
     .add_local_file(REPO / "evals" / "heldout" / "eval_ckpt_daemon.py", "/app/eval/eval_ckpt_daemon.py")
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
 # CPU-only image for the discovery dry run: eval_ckpt_daemon.py imports nothing but the stdlib at module level
 list_image = modal.Image.debian_slim(python_version="3.12").add_local_file(REPO / "evals" / "heldout" / "eval_ckpt_daemon.py", "/app/eval/eval_ckpt_daemon.py")
@@ -94,8 +94,8 @@ def _daemon_mod():
 
 
 @app.function(image=image, gpu=GPU, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf"), modal.Secret.from_name("maemm-wandb"),
-                       modal.Secret.from_name("maemm-anthropic"), modal.Secret.from_name("maemm-openrouter")],
+              secrets=[modal.Secret.from_name("maem-hf"), modal.Secret.from_name("maem-wandb"),
+                       modal.Secret.from_name("maem-anthropic"), modal.Secret.from_name("maem-openrouter")],
               timeout=24 * 3600)
 def daemon(ckpt_dir: str, tag: str, rl_run_id: str = "", poll_s: int = 120, once: bool = False, only_step: int = -1,
            final_step: int = 1000, vllm_gpu_mem: float = 0.5, wandb_name: str = "", extra_args: str = "", policy_base: str = ""):
@@ -219,8 +219,8 @@ def list_pending(ckpt_dir: str, tag: str, final_step: int = 1000, full_model: bo
 
 
 @app.function(image=image, gpu=GPU, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf"), modal.Secret.from_name("maemm-wandb"),
-                       modal.Secret.from_name("maemm-anthropic"), modal.Secret.from_name("maemm-openrouter")],
+              secrets=[modal.Secret.from_name("maem-hf"), modal.Secret.from_name("maem-wandb"),
+                       modal.Secret.from_name("maem-anthropic"), modal.Secret.from_name("maem-openrouter")],
               timeout=24 * 3600)
 def fullmodel_daemon(ckpt_dir: str, tag: str, wandb_name: str = "", final_step: int = 1000, poll_s: int = 120,
                      vllm_gpu_mem: float = 0.5, extra_args: str = "", idle_exit_s: int = 6 * 3600, once_all: bool = False):

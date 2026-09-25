@@ -7,7 +7,7 @@ left-padded with pad_id when the document has < L tokens up to the peak (true le
 candidate per (feature, 512-token sequence) so the N examples are not N adjacent tokens (--no-dedupe-seq to disable).
 The update is vectorised over the features touched in a batch (gather current top-N, concat candidates, topk, scatter).
 Per rank output: maxacts_part_r{rank}.pt; sae27b_maxacts_merge.py takes the top-N across ranks.
-sae2m port: the 27B is loaded truncated to layers 0..layer (online_gen.load_truncated_model, ~36 GB), the corpus stream is
+dict2m port: the 27B is loaded truncated to layers 0..layer (online_gen.load_truncated_model, ~36 GB), the corpus stream is
 online_gen.open_rank_stream (split_dataset_by_node THEN skip -> the SAME per-rank streams the online trainer consumed, so
 the max-acts pass covers exactly the training span) and tokenisation runs in a background thread (online_gen.WindowProducer,
 identical window dicts). The top-N machinery (TopNStore / topn_update / build_windows / encode_and_update) is unchanged.

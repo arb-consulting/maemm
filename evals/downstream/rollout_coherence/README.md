@@ -1,9 +1,9 @@
 # Rollout coherence
 
-Does the text MAEMM writes for a layer-42 activation read as coherently and as fluently as the passage the
+Does the text MAEM writes for a layer-42 activation read as coherently and as fluently as the passage the
 activation came from, and how does that trade against how well the text inverts the activation? 400
 activations of Qwen3.6-27B from held-out Ultra-FineWeb documents, each target re-captured from its 64-token
-source tail (the matched target); MAEMM (64 samples and a greedy decode) against the base continuing the
+source tail (the matched target); MAEM (64 samples and a greedy decode) against the base continuing the
 source text, the NLA verbalizer (whole and truncated to 64 tokens) and corpus search (1M–10M tokens). A
 blind pairwise LLM judge compares each text with its source passage in both orders; Gemma-4-31B scores the
 per-token log-likelihood gap.
@@ -12,7 +12,7 @@ The design is in [`methodology.md`](methodology.md); this file documents how to 
 
 ## Reproducing the paper
 
-The paper's section "Coherence of MAEMM exemplars" reads one run of this package: `all`, then the paper
+The paper's section "Coherence of MAEM exemplars" reads one run of this package: `all`, then the paper
 builder, which draws Figure `fig:coherence` (`coherence_two_plots.{pdf,png}`) and writes the section's
 numbers from the run's tables.
 
@@ -41,7 +41,7 @@ rendering of the same two panels.
 
 ```bash
 pip install -r evals/downstream/common/requirements.txt -r evals/downstream/rollout_coherence/requirements.txt
-export PYTHONPATH=$PWD      # evals.downstream and maemm are imported as top-level packages
+export PYTHONPATH=$PWD      # evals.downstream and maem are imported as top-level packages
 ```
 
 On a GPU host install torch first from the wheel index for its CUDA version. `flash-linear-attention` is
@@ -66,7 +66,7 @@ included, passes it too.
 | `--smoke` | off | 12 activations and a two-document corpus, every stage and guard |
 | `--force` | off | redo the stage even when its saved key matches |
 | `--device` | `cuda:0` | |
-| `--context-methods` | all | `frontier_context`: `targets`, `retrieval`, `maemm`, `continuation`, `nla` |
+| `--context-methods` | all | `frontier_context`: `targets`, `retrieval`, `maem`, `continuation`, `nla` |
 | `--shard k/n` | `0/1` | the retrieval forward: this invocation's block of the corpus |
 | `--merge` | off | the retrieval forward's merge call: fail on a missing part instead of waiting |
 
@@ -75,7 +75,7 @@ run is. Every stage resumes when its saved key (its settings, chained to the rec
 `--force` on an upstream stage invalidates everything downstream of it.
 
 **On Modal** (`evals/downstream/modal_rollout_coherence.py`), every stage runs the same CLI in a container. `run_all`
-walks the dependency levels; `frontier_context` is spawned as waves (`targets`, then `maemm`,
+walks the dependency levels; `frontier_context` is spawned as waves (`targets`, then `maem`,
 `continuation` and `nla` one container each beside the retrieval shards, `EVAL_RETRIEVAL_SHARDS` of them
 (default 4), then the retrieval merge) and the CPU stages run inline, one at a time. Launch it with `--detach`: `run_all` awaits every stage, and a client
 that disconnects cancels them; relaunching resumes. Other entrypoints:
@@ -87,7 +87,7 @@ modal run --detach evals/downstream/modal_rollout_coherence.py::stage --name fro
 ```
 
 Names, GPUs and shard counts come from the environment (`evals/downstream/README.md`, "Launcher environment"). The
-controller needs the `modal` client (`pip install modal`) and a Modal profile. The launcher mounts `EVAL_ANTHROPIC_SECRET` (default `maemm-anthropic`) and, only when set,
+controller needs the `modal` client (`pip install modal`) and a Modal profile. The launcher mounts `EVAL_ANTHROPIC_SECRET` (default `maem-anthropic`) and, only when set,
 `EVAL_OPENROUTER_SECRET` (needed for `--judge-profile sol`).
 
 ## Stages

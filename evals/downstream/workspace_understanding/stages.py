@@ -11,7 +11,7 @@ STAGES = [
     "nla",
     "nla_control",
     "untrained_base",
-    "maemm_control",
+    "maem_control",
     "reread",
     "summarise",
     "judge",
@@ -19,7 +19,7 @@ STAGES = [
 ]
 ALL_STAGES = STAGES
 #: The stages that hold the inverter and the clean base at once; every other GPU stage holds one 27B.
-TWO_MODEL_STAGES = {"rollouts", "maemm_control"}
+TWO_MODEL_STAGES = {"rollouts", "maem_control"}
 DEPENDS = {
     "prepare": [],
     "corpus": [],
@@ -30,14 +30,14 @@ DEPENDS = {
     "patchscope": ["capture"],
     "nla": ["capture"],
     "summarise": ["lens"],
-    # maemm_control reads the control vectors nla_control saved, so both readers see identical inputs
+    # maem_control reads the control vectors nla_control saved, so both readers see identical inputs
     "nla_control": ["capture"],
     "untrained_base": ["capture"],
-    "maemm_control": ["nla_control", "rollouts"],
+    "maem_control": ["nla_control", "rollouts"],
     "reread": ["nla", "patchscope", "rollouts"],
     "judge": ["rollouts", "patchscope", "summarise", "nla", "retrieval"],
     # the position controls and the untrained base are read by the word rule alone, in the report
-    "report": ["judge", "reread", "nla_control", "maemm_control", "untrained_base"],
+    "report": ["judge", "reread", "nla_control", "maem_control", "untrained_base"],
 }
 
 

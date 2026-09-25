@@ -46,7 +46,7 @@ _LM_PREFIX = "model.language_model."
 
 
 def fullft_module():
-    """train/sft/fullft.py (repo checkout) or fullft.py (mounted next to maemm/ in the Modal image)."""
+    """train/sft/fullft.py (repo checkout) or fullft.py (mounted next to maem/ in the Modal image)."""
     try:
         from sft import fullft as FT
     except ImportError:
@@ -397,9 +397,9 @@ def truncate_scorer_fsdp_safe(base, n_keep):
 
 @torch.no_grad()
 def read_resid_noraise(model, layer, batch, pool="mean"):
-    """maemm.inject.read_resid WITHOUT the _Stop exception: the forward runs to its (truncated) end so FSDP2's pre/post-forward
+    """maem.inject.read_resid WITHOUT the _Stop exception: the forward runs to its (truncated) end so FSDP2's pre/post-forward
     hooks all fire. Same return values. Installed as rl_hf.read_resid in --full-param mode only."""
-    from maemm.inject import get_layer
+    from maem.inject import get_layer
     captured = {}
 
     def cap(_m, _i, out):
@@ -487,7 +487,7 @@ def reshard_root(model):
 def dummy_scorer_forward(scorer, tok, device):
     """One 2-token forward of the sharded scorer: every FSDP2 forward is a collective, so ranks whose reward shard needed fewer
     score() batches (uneven shards / empty texts) run this until every rank has issued the same number of forwards."""
-    from maemm.config import READ_LAYER
+    from maem.config import READ_LAYER
     sink = tok.bos_token_id if tok.bos_token_id is not None else tok.eos_token_id
     ids = torch.tensor([[sink, sink]], dtype=torch.long, device=device)
     read_resid_noraise(scorer, READ_LAYER, {"input_ids": ids, "attention_mask": torch.ones_like(ids)}, pool="all")

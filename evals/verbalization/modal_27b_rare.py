@@ -30,10 +30,10 @@ import modal
 VOL = "/vol"
 REMOTE_ROOT = "/root/faithfulness"
 LOCAL_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "faithfulness")
-APP = "maemm-27b-rare"
+APP = "maem-27b-rare"
 
 app = modal.App(APP)
-vol = modal.Volume.from_name("maemm", create_if_missing=False)
+vol = modal.Volume.from_name("maem", create_if_missing=False)
 
 # The same layers precompute/modal_app.py builds, in the same order, so every one is a cache hit on
 # this workspace rather than a fresh 10-minute build.
@@ -71,13 +71,13 @@ VOLUMES = {VOL: vol}
 
 BASE = "qwen36-27b"
 SAE = "qwen36-27b/l42-1b"
-# THE PINNED CHECKPOINT. /vol/README.md §1 "What is pinned": ANONYMOUS/maemm-27b-rl-last16-lr5e-7,
+# THE PINNED CHECKPOINT. /vol/README.md §1 "What is pinned": ANONYMOUS/ckpt-rl-final,
 # sha <revision>, full-parameter, 55.6 GB -- "if a number was produced against something else, it is
 # not comparable and should be relabelled rather than merged". Do NOT swap this for whichever
-# checkpoint scores higher in a SMOKES table: §7 explains that rl-8x2048-full's higher realact
+# checkpoint scores higher in a SMOKES table: §7 explains that rl-large-full's higher realact
 # numbers are "confounded by engine (HF here, vLLM there)" and possibly by the last-16-token reward
 # window. Pinned means pinned.
-MAEMM = "qwen36-27b/2026-09-18_rl-last16-lr5e-7"
+MAEM = "qwen36-27b/2026-09-18_rl-final"
 RARE_SET = "2026-09-22_sae131k_rare5k"
 MEASURED_SET = "2026-09-21_sae131k_2k"
 
@@ -268,13 +268,13 @@ def _marker_norm(model, pids, mpos):
 
 
 @app.function(image=_base, gpu="B200", volumes=VOLUMES, timeout=10 * 3600)
-def train_rare(bank: str = "", maemm: str = "", epochs: float = 1.0, lr: float = 5e-5, batch: int = 8,
+def train_rare(bank: str = "", maem: str = "", epochs: float = 1.0, lr: float = 5e-5, batch: int = 8,
                max_target: int = 72, rank: int = 32, alpha: int = 64, dropout: float = 0.0,
                seed: int = 0, log_every: int = 25, max_steps: int = 0, out_dir: str = "",
                save_every: int = 400, resume_from: str = ""):
-    """A fresh LoRA over the MAEMM, taught the mined rare-feature spans. ONE H200.
+    """A fresh LoRA over the MAEM, taught the mined rare-feature spans. ONE H200.
 
-    `train/sft/pretrain.py` is the production trainer, but it reads the `maemm-data` volume (absent in
+    `train/sft/pretrain.py` is the production trainer, but it reads the `maem-data` volume (absent in
     this workspace) and defaults to B200:8 for 100M-row banks. Ours is 64k rows, so this is the
     27B shape of `modal_8b_verbalization.py::train_rare` -- the same objective, one GPU, reading
     the bank where it already lives.
@@ -295,8 +295,8 @@ def train_rare(bank: str = "", maemm: str = "", epochs: float = 1.0, lr: float =
 
     t0 = time.time()
     cfg = C.load_config()
-    parent_key = maemm or MAEMM
-    spec = cfg["maemms"][parent_key]
+    parent_key = maem or MAEM
+    spec = cfg["maems"][parent_key]
     bspec = cfg["bases"][BASE]
     src = bank or f"{VOL}/runs/{time.strftime('%Y-%m-%d')}_rare-train/bank"
     recs = C.read_jsonl(f"{src}/records.jsonl")
@@ -306,7 +306,7 @@ def train_rare(bank: str = "", maemm: str = "", epochs: float = 1.0, lr: float =
     assert vecs.shape[0] == int(stats["n_vecs"]), f"vec bank {vecs.shape} vs {stats['n_vecs']}"
     print(f"[train] bank {src}: {len(recs)} records over {vecs.shape[0]} directions", flush=True)
 
-    model, tok, kind = C.load_maemm(cfg, BASE, parent_key, device="cuda")
+    model, tok, kind = C.load_maem(cfg, BASE, parent_key, device="cuda")
     # `full`: the tuned model IS the generator, so there is no adapter to resume -- we add a NEW
     # one and train only it. The 27B stays frozen, which is what makes this a one-GPU job.
     # `layers_to_transform` EXCLUDES the injection site. The 2026-09-23 run put the LoRA on every
@@ -410,7 +410,7 @@ def train_rare(bank: str = "", maemm: str = "", epochs: float = 1.0, lr: float =
     model.save_pretrained(dest)
     meta = {"bank": src, "records": len(recs), "steps": n_steps, "batch": batch, "epochs": epochs,
             "lr": lr, "rank": rank, "alpha": alpha, "max_target": max_target, "seed": seed,
-            "base_maemm": parent_key, "kind": kind, "prompt": spec["prompt"],
+            "base_maem": parent_key, "kind": kind, "prompt": spec["prompt"],
             "inject": spec["inject"], "loss_first50": round(float(np.mean(losses[:50])), 4),
             "loss_last50": round(float(np.mean(losses[-50:])), 4),
             "seconds": round(time.time() - t0, 1), "adapter": dest}
@@ -426,19 +426,19 @@ def train_rare(bank: str = "", maemm: str = "", epochs: float = 1.0, lr: float =
 # from this full-model dir (e.g. one of our full fine-tune checkpoints) instead of the base repo;
 # the adapter is then trained on top of those weights". That is exactly this experiment.
 #
-# It is NOT reached through train/sft/modal_sft.py, which mounts the `maemm-data` volume -- absent in
-# this workspace -- and defaults to B200:8 for 100M-row banks. This mounts `maemm`, where our bank
+# It is NOT reached through train/sft/modal_sft.py, which mounts the `maem-data` volume -- absent in
+# this workspace -- and defaults to B200:8 for 100M-row banks. This mounts `maem`, where our bank
 # already lives, and asks for the GPUs we actually need.
 _train_image = (
     _base
-    .add_local_dir("maemm", "/root/maemm", copy=True, ignore=["**/__pycache__", "**/*.pyc"])
+    .add_local_dir("maem", "/root/maem", copy=True, ignore=["**/__pycache__", "**/*.pyc"])
     .add_local_dir("sft", "/root/sft", copy=True, ignore=["**/__pycache__", "**/*.pyc"])
 )
 
 
 @app.function(image=_train_image, gpu=os.environ.get("RARE_GPU", "B200:4"),
               volumes=VOLUMES, timeout=10 * 3600)
-def train_rare_mp(bank: str = "", maemm: str = "", n_gpu: int = 4, lr: float = 3e-5,
+def train_rare_mp(bank: str = "", maem: str = "", n_gpu: int = 4, lr: float = 3e-5,
                   batch_size: int = 64, epochs: int = 1, max_seq: int = 192,
                   run_name: str = "rare-rw10k", extra: str = "", save_dir: str = "",
                   n_ckpts: int = 5):
@@ -449,8 +449,8 @@ def train_rare_mp(bank: str = "", maemm: str = "", n_gpu: int = 4, lr: float = 3
     import precompute.common as C
 
     cfg = C.load_config()
-    parent = maemm or MAEMM
-    base_dir = C.maemm_weights_path(cfg, parent)          # the full-model dir, resolved not typed
+    parent = maem or MAEM
+    base_dir = C.maem_weights_path(cfg, parent)          # the full-model dir, resolved not typed
     src = bank or f"{VOL}/runs/{time.strftime('%Y-%m-%d')}_rare-train/bank"
     save = save_dir or f"{VOL}/runs/{time.strftime('%Y-%m-%d')}_rare-train/mp_adapter"
     os.makedirs(save, exist_ok=True)
@@ -462,7 +462,7 @@ def train_rare_mp(bank: str = "", maemm: str = "", n_gpu: int = 4, lr: float = 3
     # an adapter on block 1, where the 2026-09-23 run collapsed the marker norm 294.0 -> 62.25, and
     # (b) adapts modules the forward never reaches, which DDP rejects at step 2 ("parameters that
     # were not used in producing loss", 14 params) -- the first Arm B launch died on exactly that.
-    spec = cfg["maemms"][parent]
+    spec = cfg["maems"][parent]
     n_layers = int(json.load(open(f"{base_dir}/config.json")).get("text_config", {}).get("num_hidden_layers")
                    or json.load(open(f"{base_dir}/config.json"))["num_hidden_layers"])
     keep = "|".join(str(i) for i in range(int(spec["inject"]["layer"]) + 1, n_layers))
@@ -490,7 +490,7 @@ def train_rare_mp(bank: str = "", maemm: str = "", n_gpu: int = 4, lr: float = 3
 
 
 @app.function(image=_base.pip_install("scikit-learn"), volumes=VOLUMES, timeout=2 * 3600, cpu=8)
-def cluster_failures(failures: str = "/vol/shared/rare-mining/failures_rl-last16.json",
+def cluster_failures(failures: str = "/vol/shared/rare-mining/failures_rl-final.json",
                      set_name: str = MEASURED_SET, k: int = 8, top_k: int = 8,
                      seed: int = 20260923, out_dir: str = "", ex_dir: str = ""):
     """Cluster the unverbalizable features by WHAT THEY FIRE ON, then split train/test BY CLUSTER.

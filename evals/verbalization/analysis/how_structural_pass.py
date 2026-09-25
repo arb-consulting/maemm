@@ -1,18 +1,18 @@
-"""When a structural feature DOES activate, does the MAEMM reproduce the structural event, or reach
+"""When a structural feature DOES activate, does the MAEM reproduce the structural event, or reach
 the feature some other way?
 
     python evals/verbalization/analysis/how_structural_pass.py
 
 For every feature that passes (some own rollout clears the SAE gate; dead excluded, criterion.py)
-in each structural category, take the MAEMM's
+in each structural category, take the MAEM's
 best rollout token (argmax of `sae_self` over its 8 rollouts) and compare it with the feature's
 corpus peaks (modal_27b_section.token_mechanics):
 
-    same_token   the MAEMM peak token equals one of the corpus peak tokens (whitespace = whitespace)
+    same_token   the MAEM peak token equals one of the corpus peak tokens (whitespace = whitespace)
     same_class   same token class as the corpus peaks' majority (whitespace / digit / punct / word)
-    class        the MAEMM peak's class when it differs
-    repeat       (induction) the 3-gram ending at the MAEMM peak occurs earlier in its own rollout,
-                 i.e. the MAEMM reproduced the copy, not only the token
+    class        the MAEM peak's class when it differs
+    repeat       (induction) the 3-gram ending at the MAEM peak occurs earlier in its own rollout,
+                 i.e. the MAEM reproduced the copy, not only the token
 
 Controls: name completions and untagged features, for the base rate of an exact token match.
 """
@@ -30,7 +30,7 @@ from criterion import load_perdir  # noqa: E402
 from structural_tags import peak_tags  # noqa: E402
 
 D = Path("evals/verbalization/report/data")
-SETS = [("2k", "perdir_27b_rl-last16.json", "2k"), ("rwtest2k", "perdir_27b_rl-last16_rwtest2k.json", "rw")]
+SETS = [("2k", "perdir_27b_rl-final.json", "2k"), ("rwtest2k", "perdir_27b_rl-final_rwtest2k.json", "rw")]
 CATS = ["whitespace", "digit", "punct", "induction", "boilerplate", "line_start", "name_completion", "none"]
 
 
@@ -82,18 +82,18 @@ def main(scratch):
                 prev = [x for x in ids[1:p] if x >= 0]
                 tri = prev[-2:] + [ids[p]]
                 rep = len(tri) == 3 and any(prev[k:k + 3] == tri for k in range(len(prev) - 2))
-                rows.append({"feature": f, "norm_act": round(float(norm[f]), 3), "maemm_tok": mt,
+                rows.append({"feature": f, "norm_act": round(float(norm[f]), 3), "maem_tok": mt,
                              "corpus_toks": corp[:4], "same_token": mt.strip() in ctoks,
-                             "same_class": cls(mt) == maj, "maemm_class": cls(mt), "corpus_class": maj,
+                             "same_class": cls(mt) == maj, "maem_class": cls(mt), "corpus_class": maj,
                              "repeat": rep,
-                             "maemm_ctx": (tok.decode([x for x in ids[max(1, p - 10):p] if x >= 0]) + "«" + mt + "»"
+                             "maem_ctx": (tok.decode([x for x in ids[max(1, p - 10):p] if x >= 0]) + "«" + mt + "»"
                                            + tok.decode([x for x in ids[p + 1:p + 4] if x >= 0])).replace("\n", "⏎")})
             n = len(rows)
             res[c] = {"n_features": len(fs), "n_pass": n,
                       "same_token": round(np.mean([r["same_token"] for r in rows]), 3) if n else None,
                       "same_class": round(np.mean([r["same_class"] for r in rows]), 3) if n else None,
-                      "maemm_class_when_different": dict(collections.Counter(
-                          r["maemm_class"] for r in rows if not r["same_class"])),
+                      "maem_class_when_different": dict(collections.Counter(
+                          r["maem_class"] for r in rows if not r["same_class"])),
                       "repeat_in_rollout": round(np.mean([r["repeat"] for r in rows]), 3) if n else None,
                       "rows": rows}
         out[name] = res
@@ -105,7 +105,7 @@ def main(scratch):
             if not r["n_pass"]:
                 print(f"{c:16s} {r['n_pass']:>4d}/{r['n_features']:<4d}"); continue
             print(f"{c:16s} {r['n_pass']:>4d}/{r['n_features']:<4d} {r['same_token']:8.2f} {r['same_class']:8.2f} "
-                  f"{r['repeat_in_rollout']:7.2f}  {r['maemm_class_when_different']}")
+                  f"{r['repeat_in_rollout']:7.2f}  {r['maem_class_when_different']}")
     print("wrote", D / "how_structural_pass.json")
 
 

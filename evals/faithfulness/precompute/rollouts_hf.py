@@ -1,12 +1,12 @@
-"""Product `rollouts_hf`: MAEMM rollouts on the HF `generate` path.
+"""Product `rollouts_hf`: MAEM rollouts on the HF `generate` path.
 
-    <root>/maemms/<base>/<maemm>/rollouts/<set>.jsonl   one row per (target, rollout)
-    <root>/maemms/<base>/<maemm>/rollouts/README.md     + index.json, one entry per set present
-    <root>/maemms/<base>/<maemm>/README.md              the MAEMM's identity card, written once
+    <root>/maems/<base>/<maem>/rollouts/<set>.jsonl   one row per (target, rollout)
+    <root>/maems/<base>/<maem>/rollouts/README.md     + index.json, one entry per set present
+    <root>/maems/<base>/<maem>/README.md              the MAEM's identity card, written once
 
 Rollouts and scores are SEPARATE products (checklist item 79): generation is the expensive,
 bit-reproducible half, and rescoring is cheap. Nothing here computes a cosine; nothing in score.py
-loads the MAEMM.
+loads the MAEM.
 
 The recipe is evals/heldout/eval_universal.py:_gen_batches (505-522) with the upstream sampling constants
 (train/rl/rl.py:322-326: T 1.0, top_p 1.0, top_k 0, min_p 0; min_new 16, max_new 64 from config):
@@ -18,7 +18,7 @@ The recipe is evals/heldout/eval_universal.py:_gen_batches (505-522) with the up
   * the generated ids are trimmed at the first stop token, which is KEPT (train/rl/rl.py:82-90), and the
     stored text is the decode of the trimmed ids with skip_special_tokens=True -- the same string
     the upstream `tok.batch_decode(gen[:, p_len:], skip_special_tokens=True)` produces;
-  * FULL-parameter MAEMM: the served (tuned) model generates and the ||h|| the injection scales by
+  * FULL-parameter MAEM: the served (tuned) model generates and the ||h|| the injection scales by
     is its OWN (evals/heldout/eval_ckpt_daemon.py:333-390). Scoring is always the clean base, in score.py.
 
 DIVERGENCE from the upstream seeding, deliberate and recorded on every row. The upstream pipeline forks the RNG once per eval
@@ -57,7 +57,7 @@ def load_dirs(cfg, args, device: str = "cuda", notes=None):
 
     The direction is DERIVED, never read: `common.dirs_for` applies the mean this run names,
     which for a generator is the checkpoint's own `mu:` (what it was TRAINED to receive) unless
-    `--mu` overrides it. Handing a MAEMM a direction under the wrong mean is
+    `--mu` overrides it. Handing a MAEM a direction under the wrong mean is
     invisible in every output -- the rollouts look like rollouts -- so the convention is resolved
     here, once, and recorded in the product README by the caller. `notes` collects the lines that say
     which; rollouts_vllm:1007 (parity-greedy) and rollouts_nla:672 come through the same call.
@@ -69,7 +69,7 @@ def load_dirs(cfg, args, device: str = "cuda", notes=None):
     rows = C.read_jsonl(f"{src}/ids.jsonl")
     n = len(rows)
     assert n, f"{src}/ids.jsonl is empty"
-    mu, _ = C.mu_for(cfg, base, src, args, args.get("maemm") or "", root, notes)
+    mu, _ = C.mu_for(cfg, base, src, args, args.get("maem") or "", root, notes)
     v = C.dirs_for(cfg, base, src, mu, root, notes)
     assert v.shape == (n, cfg["bases"][base]["d"]), f"{src}: dirs_for returned {v.shape} for {n} rows"
     dirs = torch.nn.functional.normalize(torch.from_numpy(np.asarray(v)).to(device), dim=-1)
@@ -78,36 +78,36 @@ def load_dirs(cfg, args, device: str = "cuda", notes=None):
     return rows, dirs, src
 
 
-def weight_identity(cfg, maemm_key: str) -> dict:
-    """The MAEMM's weight sha for its README (checklist item 74).
+def weight_identity(cfg, maem_key: str) -> dict:
+    """The MAEM's weight sha for its README (checklist item 74).
 
     lora: a full streamed sha256 of the adapter (1.3-1.7 GiB). full / base: index.json + shard
     sizes only -- hashing 52 GiB off the FUSE volume costs minutes of H200 for a field nobody
     diffs, and common.sha256_of_index says so in the README it lands in. For the untrained-base
     control this hashes the BASE snapshot, which is the identity that matters there.
     """
-    path = C.maemm_weights_path(cfg, maemm_key)
-    if cfg["maemms"][maemm_key]["type"] == "lora":
+    path = C.maem_weights_path(cfg, maem_key)
+    if cfg["maems"][maem_key]["type"] == "lora":
         return C.sha256_of_weights(path)
     return C.sha256_of_index(path)
 
 
-def write_maemm_readme(cfg, args, maemm_key: str, sha: dict, prompt_name: str, n_prompt: int) -> str:
-    """`<root>/maemms/<base>/<maemm>/README.md`, the identity card. Written once; --force rewrites."""
-    spec = cfg["maemms"][maemm_key]
-    path = f"{C.maemm_dir(maemm_key, args['root'])}/README.md"
+def write_maem_readme(cfg, args, maem_key: str, sha: dict, prompt_name: str, n_prompt: int) -> str:
+    """`<root>/maems/<base>/<maem>/README.md`, the identity card. Written once; --force rewrites."""
+    spec = cfg["maems"][maem_key]
+    path = f"{C.maem_dir(maem_key, args['root'])}/README.md"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path) and not args.get("force"):
-        print(f"[maemm] README already at {path}; leaving it (pass --force to rewrite)", flush=True)
+        print(f"[maem] README already at {path}; leaving it (pass --force to rewrite)", flush=True)
         return path
     inj = spec["inject"]
     lines = [
-        f"# {maemm_key}",
+        f"# {maem_key}",
         "",
         f"- source: {spec.get('hf') or spec.get('src')} ({'HF repo id' if 'hf' in spec else 'volume path'})",
         f"- type: {spec['type']}",
         f"- adapter subdir: {spec.get('subdir') or '(repo root)'}",
-        f"- resolved weights: {C.maemm_weights_path(cfg, maemm_key)}",
+        f"- resolved weights: {C.maem_weights_path(cfg, maem_key)}",
         f"- train_max_new: {spec.get('train_max_new')} (the budget it was TRAINED at)",
         *([f"- role: {spec['role']}"] if spec.get("role") else []),
         *([f"- note: {spec['note']}"] if spec.get("note") else []),
@@ -119,15 +119,15 @@ def write_maemm_readme(cfg, args, maemm_key: str, sha: dict, prompt_name: str, n
             [
                 "## THIS IS THE UNTRAINED-BASE CONTROL",
                 "",
-                "**No MAEMM weights of any kind.** The served model IS the base snapshot "
-                f"`{spec['hf']}` -- the same one `bases.{C.split_key(maemm_key, 'maemm')[0]}` "
+                "**No MAEM weights of any kind.** The served model IS the base snapshot "
+                f"`{spec['hf']}` -- the same one `bases.{C.split_key(maem_key, 'maem')[0]}` "
                 "resolves to -- with no adapter, no fine-tuned shards and nothing loaded on top.",
-                "Everything else is the primary MAEMM's: the same prompt function, the same marker "
+                "Everything else is the primary MAEM's: the same prompt function, the same marker "
                 "token, the same block-1 norm-matched injection at the same coefficient and the "
                 "same `rollouts:` sampling constants. The only difference is the weights, which is "
                 "what makes the difference in the tables attributable to training.",
                 "",
-                "Its marker ||h|| therefore EQUALS the clean base's, where every trained MAEMM's "
+                "Its marker ||h|| therefore EQUALS the clean base's, where every trained MAEM's "
                 "differs from it -- the self-checks invert accordingly "
                 "(rollouts_vllm.marker_norm_vs_hf, rollouts_hf.marker_check).",
                 "",
@@ -138,11 +138,11 @@ def write_maemm_readme(cfg, args, maemm_key: str, sha: dict, prompt_name: str, n
         "## Injection convention",
         "",
         f"- inject layer: {inj['layer']} (decoder block OUTPUT), mode add, coeff {inj['coef']}",
-        "- `h[marker] += unit(v) * ||h[marker]|| * coeff`, at PREFILL only (maemm/inject.py:10-57,",
+        "- `h[marker] += unit(v) * ||h[marker]|| * coeff`, at PREFILL only (maem/inject.py:10-57,",
         "  copied into common.make_inject_hook); decode steps are skipped.",
         f"- prompt function: `{prompt_name}` (common.PROMPTS), {n_prompt} tokens, marker "
         f'"{C.MARKER}" as the LAST prompt token, occurring exactly once.',
-        "- full-parameter MAEMMs generate with their OWN marker norm; every score runs on the clean",
+        "- full-parameter MAEMs generate with their OWN marker norm; every score runs on the clean",
         "  base (evals/heldout/eval_ckpt_daemon.py:333-390).",
         "",
         "## Weight identity",
@@ -161,7 +161,7 @@ def write_maemm_readme(cfg, args, maemm_key: str, sha: dict, prompt_name: str, n
     lines.append("")
     with open(path, "w") as fh:
         fh.write("\n".join(lines))
-    print(f"[maemm] wrote {path}", flush=True)
+    print(f"[maem] wrote {path}", flush=True)
     return path
 
 
@@ -173,7 +173,7 @@ def marker_check(cfg, args, model, kind, prompt, mpos, inj_layer):
     cannot perturb a rollout. `--no-marker-check` skips it entirely.
 
     LoRA: the clean-base number comes from the same object with the adapter disabled. A FULL
-    -parameter MAEMM has no adapter to switch off and a second 52 GiB load is not worth its H200
+    -parameter MAEM has no adapter to switch off and a second 52 GiB load is not worth its H200
     minute, so the base number comes from `bases.<base>.marker_norm_base` in config.yaml when it is
     there (measured by an earlier LoRA run on the same base) and is otherwise SKIPPED with a note.
     Returns (served, base_or_None, source).
@@ -216,7 +216,7 @@ def marker_check(cfg, args, model, kind, prompt, mpos, inj_layer):
         if cfg_val is None:
             print(
                 f"[rollouts] marker ||h|| served {hn_served:.3f}; NO clean-base comparison: this is "
-                f"a full-parameter MAEMM and config.yaml has no bases.{base}.marker_norm_base",
+                f"a full-parameter MAEM and config.yaml has no bases.{base}.marker_norm_base",
                 flush=True,
             )
             return hn_served, None, f"skipped (full model, no bases.{base}.marker_norm_base in config)"
@@ -234,19 +234,19 @@ def marker_check(cfg, args, model, kind, prompt, mpos, inj_layer):
 def run(cfg, args):
     import torch
 
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
     assert base, "product rollouts_hf needs --base"
-    assert maemm, "product rollouts_hf needs --maemm"
-    assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
-    key_base, _ = C.split_key(maemm, "maemm")
-    assert key_base == base, f"maemm {maemm!r} is on base {key_base!r}, not {base!r}"
+    assert maem, "product rollouts_hf needs --maem"
+    assert maem in cfg["maems"], f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
+    key_base, _ = C.split_key(maem, "maem")
+    assert key_base == base, f"maem {maem!r} is on base {key_base!r}, not {base!r}"
 
-    spec = cfg["maemms"][maemm]
+    spec = cfg["maems"][maem]
     # `type: nla` is the activation VERBALIZER baseline: a different prompt, a different marker
-    # character and a marker that is not the last prompt token. Every assert below about the MAEMM
+    # character and a marker that is not the last prompt token. Every assert below about the MAEM
     # prompt would either fire or, worse, pass on a prompt the checkpoint never saw.
     assert spec["type"] != "nla", (
-        f"maemm {maemm!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
+        f"maem {maem!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
         f"builds the verbalizer's own prompt and marker from the checkpoint's nla_meta.yaml"
     )
     rl = cfg["rollouts"]
@@ -259,7 +259,7 @@ def run(cfg, args):
     gen_rows = int(args.get("gen_rows") or GEN_ROWS[base])
     assert gen_rows > 0, f"--gen-rows must be positive, got {gen_rows}"
 
-    out_dir = C.rollouts_dir(maemm, root)
+    out_dir = C.rollouts_dir(maem, root)
     # THROUGH common.rollout_stem, not built here. The HF stem IS the bare set name, so this line
     # used to spell it directly and quietly ignored `--run-tag` -- two runs of one checkpoint on
     # one set differing only in --mu then both wrote `<set>.jsonl`, and only the "already exists"
@@ -275,12 +275,12 @@ def run(cfg, args):
     rows_meta, dirs, dirs_src = load_dirs(cfg, args, notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     print(
-        f"[rollouts] {maemm} on {len(sel)} of {len(rows_meta)} targets x {n} rollouts "
+        f"[rollouts] {maem} on {len(sel)} of {len(rows_meta)} targets x {n} rollouts "
         f"= {len(sel) * n} rows, {gen_rows} per generate call, dirs from {dirs_src}",
         flush=True,
     )
 
-    model, tok, kind = C.load_maemm(cfg, base, maemm)
+    model, tok, kind = C.load_maem(cfg, base, maem)
     prompt, mpos = C.prompt_ids(tok, spec["prompt"], cfg["bases"][base]["read_layer"])
     assert mpos == len(prompt) - 1, f"the marker must be the LAST prompt token, got {mpos} of {len(prompt)}"
     stop = C.eos_ids(tok, model)
@@ -356,7 +356,7 @@ def run(cfg, args):
             )
     n_tok = [x["n_tok"] for x in out_rows]
     summary = {
-        "maemm": maemm,
+        "maem": maem,
         "base": base,
         "set": set_name,
         "dirs_from": dirs_src,
@@ -391,12 +391,12 @@ def run(cfg, args):
         "generate_calls": n_calls,
     }
 
-    sha = weight_identity(cfg, maemm)
+    sha = weight_identity(cfg, maem)
     summary["weight_sha256"] = sha["sha256"]
-    write_maemm_readme(cfg, args, maemm, sha, spec["prompt"], len(prompt))
+    write_maem_readme(cfg, args, maem, sha, spec["prompt"], len(prompt))
 
     inputs = {
-        "maemm": maemm,
+        "maem": maem,
         "dirs": dirs_src,
         "targets": f"{len(sel)} of {len(rows_meta)} rows",
         "n": n,

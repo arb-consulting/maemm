@@ -2,7 +2,7 @@
 snippet, or is the activation smeared across the whole text?
 
 A good max-activating example fires on a crisp, interpretable snippet. This eval asks whether
-MAEMM inverter rollouts reproduce that property — i.e. whether the peak-token scoring used
+MAEM inverter rollouts reproduce that property — i.e. whether the peak-token scoring used
 everywhere else in heldout reflects genuine localized evocation — by comparing the per-token
 activation PROFILE of each rollout against the profiles of the feature's own top max-activating
 corpus examples, under the exact shared clean-base read path (BOS sink prepended + skipped,
@@ -26,7 +26,7 @@ Two stages:
   # GPU (Modal: ../modal_snippet_locality.py) — profiles + per-text metrics -> locality.json
   python evals/heldout/snippet_locality.py build \
       --testbed /data/eval_autointerp/testbed_v2.json --out /data/eval_autointerp/locality.json
-  # local — aggregates, PAIRED maemm-vs-real test, autointerp cross-links -> results json
+  # local — aggregates, PAIRED maem-vs-real test, autointerp cross-links -> results json
   python evals/heldout/snippet_locality.py score --locality locality.json \
       --autointerp-results results.json --out locality_results.json
 """
@@ -81,9 +81,9 @@ def _gen_rollouts(a, tok, base, sae, cfg, feats, dev):
     import torch
     from peft import PeftModel
 
-    from maemm.config import INJECT_LAYER, STEER_COEFF
-    from maemm.inject import get_layer, hooked, make_inject_hook
-    from maemm.prompts import build_prompt_ids
+    from maem.config import INJECT_LAYER, STEER_COEFF
+    from maem.inject import get_layer, hooked, make_inject_hook
+    from maem.prompts import build_prompt_ids
 
     actor = PeftModel.from_pretrained(base, a.adapter, is_trainable=False)
     actor.eval()
@@ -125,9 +125,9 @@ def cmd_build(a):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    from maemm.config import MODEL, READ_LAYER
-    from maemm.inject import read_resid
-    from maemm.sae import load_sae
+    from maem.config import MODEL, READ_LAYER
+    from maem.inject import read_resid
+    from maem.sae import load_sae
 
     dev = a.device
     tb = json.load(open(a.testbed))
@@ -234,7 +234,7 @@ def cmd_build(a):
 
 
 # ===============================================================================================
-# stage 2: score (local) — aggregates, paired maemm-vs-real test, autointerp cross-links
+# stage 2: score (local) — aggregates, paired maem-vs-real test, autointerp cross-links
 # ===============================================================================================
 
 def _mean_sem(x):
@@ -258,18 +258,18 @@ def cmd_score(a):
     fire = L["config"]["fire"]
 
     def arm_of(kind):
-        return "real" if kind == "real" else "maemm"
+        return "real" if kind == "real" else "maem"
 
     # ---- pooled distributions (firing texts only) + firing fractions + token counts
-    pooled = {arm: {m: [] for m in METRICS} for arm in ("maemm", "real")}
-    pooled_peak = {arm: [] for arm in ("maemm", "real")}
-    fired_n = {arm: [0, 0] for arm in ("maemm", "real")}         # [fired, total]
-    ntok = {arm: [] for arm in ("maemm", "real")}
+    pooled = {arm: {m: [] for m in METRICS} for arm in ("maem", "real")}
+    pooled_peak = {arm: [] for arm in ("maem", "real")}
+    fired_n = {arm: [0, 0] for arm in ("maem", "real")}         # [fired, total]
+    ntok = {arm: [] for arm in ("maem", "real")}
     per_feat = []
     for r in L["features"]:
-        fmeans = {"feature": r["feature"], "maemm": {}, "real": {}, "maemm_crop": {},
+        fmeans = {"feature": r["feature"], "maem": {}, "real": {}, "maem_crop": {},
                   "fired_frac": {}, "n_fired": {}}
-        by_arm = {"maemm": [], "real": []}
+        by_arm = {"maem": [], "real": []}
         by_crop = []
         for t in r["texts"]:
             arm = arm_of(t["kind"])
@@ -281,25 +281,25 @@ def cmd_score(a):
                 pooled_peak[arm].append(t["peak"])
                 for m in METRICS:
                     pooled[arm][m].append(t["metrics"][m])
-                if arm == "maemm":
+                if arm == "maem":
                     # LENGTH CONTROL: rollouts are ~2x longer than the 32-token max-act
                     # windows, which mechanically deflates share metrics (uniform-null win_k
                     # share = k/T). Re-judge each rollout as its best contiguous
                     # crop-length window, like maxacts windows the corpus.
                     by_crop.append(profile_metrics(
                         crop_to_best_window(t["profile"], a.crop_len)))
-        for arm in ("maemm", "real"):
+        for arm in ("maem", "real"):
             fmeans["n_fired"][arm] = len(by_arm[arm])
             fmeans["fired_frac"][arm] = (len(by_arm[arm])
                                          / sum(1 for t in r["texts"] if arm_of(t["kind"]) == arm))
             fmeans[arm] = ({m: float(np.mean([x[m] for x in by_arm[arm]])) for m in METRICS}
                            if by_arm[arm] else None)
-        fmeans["maemm_crop"] = ({m: float(np.mean([x[m] for x in by_crop])) for m in METRICS}
+        fmeans["maem_crop"] = ({m: float(np.mean([x[m] for x in by_crop])) for m in METRICS}
                                 if by_crop else None)
         per_feat.append(fmeans)
 
     # ---- paired tests over features with >=1 firing text in BOTH arms
-    both = [pf for pf in per_feat if pf["maemm"] and pf["real"]]
+    both = [pf for pf in per_feat if pf["maem"] and pf["real"]]
 
     def paired_block(key):
         out = {}
@@ -309,12 +309,12 @@ def cmd_score(a):
             out[m] = {"diff_mean": mu, "diff_sem": sem,
                       "ci95": [mu - 1.96 * sem, mu + 1.96 * sem],
                       "n": len(d), "more_local_is": MORE_LOCAL_IS[m],
-                      "maemm_mean": float(np.mean([pf[key][m] for pf in both])),
+                      "maem_mean": float(np.mean([pf[key][m] for pf in both])),
                       "real_mean": float(np.mean([pf["real"][m] for pf in both]))}
         return out
 
-    paired = paired_block("maemm")
-    paired_crop = paired_block("maemm_crop")
+    paired = paired_block("maem")
+    paired_crop = paired_block("maem_crop")
 
     # ---- cross-links: per-feature rollout locality vs autointerp AUC + rollout fire-rate
     cross = {}
@@ -325,8 +325,8 @@ def cmd_score(a):
         frate = ({f["feature"]: float(np.mean([x > fire for x in
                                                f["rollout_self_acts"]["temp"]]))
                   for f in tb["features"]} if tb else {})
-        rows = [(pf["feature"], pf["maemm"], auc.get(pf["feature"]),
-                 frate.get(pf["feature"])) for pf in per_feat if pf["maemm"]]
+        rows = [(pf["feature"], pf["maem"], auc.get(pf["feature"]),
+                 frate.get(pf["feature"])) for pf in per_feat if pf["maem"]]
         for m in METRICS:
             x = np.array([r[1][m] for r in rows if r[2] is not None])
             y = np.array([r[2] for r in rows if r[2] is not None])
@@ -343,31 +343,31 @@ def cmd_score(a):
     out = {"config": L["config"],
            "aggregate": {
                "fired_frac": {arm: fired_n[arm][0] / fired_n[arm][1]
-                              for arm in ("maemm", "real")},
-               "n_texts": {arm: fired_n[arm][1] for arm in ("maemm", "real")},
-               "mean_n_tokens": {arm: float(np.mean(ntok[arm])) for arm in ("maemm", "real")},
+                              for arm in ("maem", "real")},
+               "n_texts": {arm: fired_n[arm][1] for arm in ("maem", "real")},
+               "mean_n_tokens": {arm: float(np.mean(ntok[arm])) for arm in ("maem", "real")},
                "mean_peak_act_fired": {arm: float(np.mean(pooled_peak[arm]))
-                                       for arm in ("maemm", "real")},
+                                       for arm in ("maem", "real")},
                "pooled": {arm: {m: {"mean": _mean_sem(pooled[arm][m])[0],
                                     "sem": _mean_sem(pooled[arm][m])[1],
                                     "median": float(np.median(pooled[arm][m])),
                                     "n": len(pooled[arm][m])}
-                                for m in METRICS} for arm in ("maemm", "real")},
+                                for m in METRICS} for arm in ("maem", "real")},
                "paired": paired, "paired_crop": paired_crop, "crop_len": a.crop_len},
-           "pooled_values": {arm: pooled[arm] for arm in ("maemm", "real")},
+           "pooled_values": {arm: pooled[arm] for arm in ("maem", "real")},
            "per_feature": per_feat, "crosslinks": cross}
     json.dump(out, open(a.out, "w"), indent=1)
-    print("=== SNIPPET LOCALITY (firing texts; maemm vs real max-act examples) ===", flush=True)
-    print(f"  fired frac: maemm {out['aggregate']['fired_frac']['maemm']:.3f} "
+    print("=== SNIPPET LOCALITY (firing texts; maem vs real max-act examples) ===", flush=True)
+    print(f"  fired frac: maem {out['aggregate']['fired_frac']['maem']:.3f} "
           f"real {out['aggregate']['fired_frac']['real']:.3f} | mean tokens "
-          f"maemm {out['aggregate']['mean_n_tokens']['maemm']:.1f} "
+          f"maem {out['aggregate']['mean_n_tokens']['maem']:.1f} "
           f"real {out['aggregate']['mean_n_tokens']['real']:.1f}", flush=True)
     for m in METRICS:
         p, pc = paired[m], paired_crop[m]
         arrow = "MORE local" if p["diff_mean"] * MORE_LOCAL_IS[m] > 0 else "LESS local"
-        print(f"  {m:>12}  maemm {p['maemm_mean']:.4f}  real {p['real_mean']:.4f}  "
+        print(f"  {m:>12}  maem {p['maem_mean']:.4f}  real {p['real_mean']:.4f}  "
               f"paired diff {p['diff_mean']:+.4f} ±{p['diff_sem']:.4f} (n={p['n']}) "
-              f"-> rollouts {arrow} | crop{a.crop_len}: maemm {pc['maemm_mean']:.4f} "
+              f"-> rollouts {arrow} | crop{a.crop_len}: maem {pc['maem_mean']:.4f} "
               f"diff {pc['diff_mean']:+.4f} ±{pc['diff_sem']:.4f}", flush=True)
     for k, v in cross.items():
         if not k.startswith("_") and v is not None:
@@ -398,7 +398,7 @@ def build_parser():
     s.add_argument("--locality", required=True)
     s.add_argument("--autointerp-results", default=None,
                    help="autointerp results.json for the AUC cross-link")
-    s.add_argument("--auc-key", default="maemm_N8")
+    s.add_argument("--auc-key", default="maem_N8")
     s.add_argument("--testbed", default=None,
                    help="testbed json (rollout_self_acts) for the fire-rate cross-link")
     s.add_argument("--crop-len", type=int, default=32,

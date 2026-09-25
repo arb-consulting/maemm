@@ -2,7 +2,7 @@
 
 Loading, injection and generation are `evals/downstream/common/model_io.py`; this module is the package's job shape.
 `self.base` is the clean Qwen3.6-27B: every read, the corpus search, the lens, `base_l1` and the steered
-model run on it. `self.inverter` (the full-parameter fine-tune under evaluation) only generates MAEMM's
+model run on it. `self.inverter` (the full-parameter fine-tune under evaluation) only generates MAEM's
 arm, and is loaded on first use so a worker that only reads never holds it. The NLA verbalizer has its
 own worker (`nla.NlaWorker`).
 """
@@ -14,7 +14,7 @@ import torch
 from evals.downstream.common import model_io, plain_steer
 from evals.downstream.common.model_io import addition_hook
 
-from maemm.inject import get_layer, hooked, make_inject_hook, read_resid
+from maem.inject import get_layer, hooked, make_inject_hook, read_resid
 
 from . import corpus, lens, nla
 from .config import NORM_FILTER_MULT, PREFLIGHT_REPEATS, PREFLIGHT_RTOL, PREFLIGHT_WARMUP
@@ -24,8 +24,8 @@ MODELS = ('inverter', 'base')
 
 
 def research_prompt(tokenizer):
-    from maemm.config import READ_LAYER
-    from maemm.prompts import build_prompt_ids, marker_positions
+    from maem.config import READ_LAYER
+    from maem.prompts import build_prompt_ids, marker_positions
     if READ_LAYER != 42:
         raise ValueError('The upstream research prompt must describe layer 42')
     ids, positions = build_prompt_ids(tokenizer)

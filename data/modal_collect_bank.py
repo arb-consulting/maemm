@@ -21,7 +21,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = "maemm-collect-bank"
+APP_NAME = "maem-collect-bank"
 app = modal.App(APP_NAME)
 
 image = (
@@ -40,10 +40,10 @@ image = (
     .pip_install("flash-linear-attention==0.5.2")   # GDN forward via fla's Triton chunk kernel (forward is fine on Hopper)
     .add_local_file(REPO / "data" / "collect_acts27b_worker.py", "/app/collect_acts27b_worker.py")
     .add_local_file(REPO / "data" / "collect_bank_worker.py", "/app/collect_bank_worker.py")
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=True)
+vol = modal.Volume.from_name("maem-data", create_if_missing=True)
 
 GPU = os.environ.get("COLLECT_GPU", "H200:8")
 SMOKE_GPU = os.environ.get("COLLECT_SMOKE_GPU", "H200:1")
@@ -169,7 +169,7 @@ def _run(out_name: str, n_examples: int, world: int, batch: int, per_window: int
     # make sure the base model is in the shared cache before 8 workers hit it
     from huggingface_hub import snapshot_download
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import MODEL
+    from maem.config import MODEL
     snapshot_download(MODEL, allow_patterns=["*.json", "*.safetensors", "tokenizer*", "*.txt"])
     vol.commit()
 
@@ -219,7 +219,7 @@ def _finalize(out: str, world: int, n_examples: int, seed: int, assign: dict, wa
     import numpy as np
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL, MODEL, READ_LAYER
+    from maem.config import D_MODEL, MODEL, READ_LAYER
 
     shards = f"{out}/shards"
     mans = []
@@ -283,7 +283,7 @@ def _finalize(out: str, world: int, n_examples: int, seed: int, assign: dict, wa
           f"vecs.f16 {total * D_MODEL * 2 / 2**30:.1f} GB ({time.time() - t0:.0f}s)", flush=True)
 
 
-@app.function(image=image, gpu=GPU, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")], timeout=86400,
+@app.function(image=image, gpu=GPU, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")], timeout=86400,
               cpu=32, memory=192 * 1024)
 def collect(n_examples: int = 20_000_000, out_name: str = "realact_short_20m", batch: int = 64, per_window: int = 8,
             p_lo: int = 8, p_hi: int = 256, w_lo: int = 8, w_hi: int = 32, max_wins: int = 4, chunk_examples: int = 50_000,
@@ -298,7 +298,7 @@ def _collect_body(n_examples, out_name, batch, per_window, p_lo, p_hi, w_lo, w_h
          max_wins=max_wins, chunk_examples=chunk_examples, seed=seed, exclude_from=exclude_from)
 
 
-@app.function(image=image, gpu="B200:8", volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")], timeout=86400,
+@app.function(image=image, gpu="B200:8", volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")], timeout=86400,
               cpu=32, memory=192 * 1024)
 def collect_b200(n_examples: int = 9_000_000, out_name: str = "realact_short_20m_b", batch: int = 64, per_window: int = 8,
                  p_lo: int = 8, p_hi: int = 256, w_lo: int = 8, w_hi: int = 32, max_wins: int = 4, chunk_examples: int = 50_000,
@@ -308,7 +308,7 @@ def collect_b200(n_examples: int = 9_000_000, out_name: str = "realact_short_20m
     _collect_body(n_examples, out_name, batch, per_window, p_lo, p_hi, w_lo, w_hi, max_wins, chunk_examples, seed, exclude_from)
 
 
-@app.function(image=image, gpu="B200:4", volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")], timeout=86400,
+@app.function(image=image, gpu="B200:4", volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")], timeout=86400,
               cpu=16, memory=96 * 1024)
 def collect_b200x4(n_examples: int = 3_000_000, out_name: str = "realact_short_20m_d", batch: int = 64, per_window: int = 8,
                    p_lo: int = 8, p_hi: int = 256, w_lo: int = 8, w_hi: int = 32, max_wins: int = 4, chunk_examples: int = 50_000,
@@ -329,7 +329,7 @@ def merge(out_name: str, parts: str, seed: int = 0):
     import numpy as np
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL
+    from maem.config import D_MODEL
     t0 = time.time()
     out = f"/data/banks/{out_name}"
     assert not os.path.exists(f"{out}/build_stats.json"), f"{out} already finalized"
@@ -370,7 +370,7 @@ def merge(out_name: str, parts: str, seed: int = 0):
     print(f"[merge] FINALIZED {out}: {total} examples from {names} in {time.time() - t0:.0f}s", flush=True)
 
 
-@app.function(image=image, gpu=SMOKE_GPU, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")], timeout=7200,
+@app.function(image=image, gpu=SMOKE_GPU, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")], timeout=7200,
               cpu=8, memory=64 * 1024)
 def smoke(n_examples: int = 3000, out_name: str = "realact_short_smoke", batch: int = 32, per_window: int = 8):
     """1-GPU end-to-end validation of the exact collect+finalize path on a tiny target."""
@@ -378,7 +378,7 @@ def smoke(n_examples: int = 3000, out_name: str = "realact_short_smoke", batch: 
          chunk_examples=1000, seed=7)
 
 
-@app.function(image=image, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maemm-hf")], timeout=1800, cpu=4)
+@app.function(image=image, volumes={"/data": vol}, secrets=[modal.Secret.from_name("maem-hf")], timeout=1800, cpu=4)
 def peek(out_name: str = "realact_short_smoke", n: int = 6):
     import json
     import sys
@@ -386,7 +386,7 @@ def peek(out_name: str = "realact_short_smoke", n: int = 6):
     import numpy as np
 
     sys.path.insert(0, "/app/helpers")
-    from maemm.config import D_MODEL
+    from maem.config import D_MODEL
     out = f"/data/banks/{out_name}"
     stats = json.load(open(f"{out}/build_stats.json"))
     print(json.dumps({k: v for k, v in stats.items() if k not in ("ctx_len_hist", "W_hist")}, indent=2), flush=True)

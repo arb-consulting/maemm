@@ -5,8 +5,8 @@
         --draw draw_sae131k --n 4
 
     # just rollouts + score for a set that already exists, on a second checkpoint
-    python -m features.pipeline --set 2026-09-20_sae2m_2k --sae qwen36-27b/sae2m \
-        --maemm qwen36-27b/2026-09-10_rl-8x2048-full --stages rollouts,score
+    python -m features.pipeline --set 2026-09-20_dict2m_2k --sae qwen36-27b/dict2m \
+        --maem qwen36-27b/2026-09-10_rl-large-full --stages rollouts,score
 
     python -m features.pipeline --set ... --watch      # block until the chain finishes
     python -m features.pipeline --status               # what is running right now
@@ -17,8 +17,8 @@ ordering constraints that are easy to get wrong by hand, and getting them wrong 
 GPU hour rather than an error:
 
   draw      writes heldout/<set>/{ids.jsonl,vecs.f16}
-  rollouts  needs the set; writes maemms/<maemm>/rollouts/<set>.jsonl
-  score     needs the rollouts; writes maemms/<maemm>/scores/<set>/
+  rollouts  needs the set; writes maems/<maem>/rollouts/<set>.jsonl
+  score     needs the rollouts; writes maems/<maem>/scores/<set>/
   centred   needs the scores; adds the centred/filtered cosines beside them
   scan      needs the set AND, for an SAE family, sae/<sae>/max_act.f16 from `stats`
 
@@ -43,9 +43,9 @@ import sys
 import time
 from pathlib import Path
 
-APP = "maemm-faithfulness"
+APP = "maem-faithfulness"
 STAGES = ("draw", "rollouts", "score", "centred", "scan")
-STATE = Path.home() / ".cache" / "maemm" / "pipeline"
+STATE = Path.home() / ".cache" / "maem" / "pipeline"
 
 
 def _spawn(product: str, **kw) -> str:
@@ -90,9 +90,9 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--set", dest="heldout", default="")
     ap.add_argument("--base", default="qwen36-27b")
-    ap.add_argument("--maemm", default="qwen36-27b/2026-09-18_rl-last16-lr5e-7")
+    ap.add_argument("--maem", default="qwen36-27b/2026-09-18_rl-final")
     ap.add_argument("--sae", default="")
-    ap.add_argument("--draw", default="", help="draw_sae2m | draw_sae131k | '' to reuse the set")
+    ap.add_argument("--draw", default="", help="draw_dict2m | draw_sae131k | '' to reuse the set")
     ap.add_argument("--subset", default="", help="an agreed feature list the draw takes verbatim")
     # DEFAULT CHANGED 2026-09-21, in a rebase. It was `train_parity_10m`, which
     # this chain cannot scan: that corpus is cut at 32/8 (features/corpus_train_parity.py:60) and
@@ -141,23 +141,23 @@ def main() -> None:
     calls: dict[str, str] = {}
 
     if "draw" in want:
-        assert a.draw, "--draw names the product (draw_sae2m / draw_sae131k)"
+        assert a.draw, "--draw names the product (draw_dict2m / draw_sae131k)"
         calls["draw"] = _spawn(a.draw, subset=a.subset, **common)
         print(f"[draw] {calls['draw']}")
         _wait(calls["draw"], "draw")            # every later stage needs the set
 
     if "rollouts" in want:
-        calls["rollouts"] = _spawn("rollouts_hf", maemm=a.maemm, n=a.n, rows=a.rows, **common)
+        calls["rollouts"] = _spawn("rollouts_hf", maem=a.maem, n=a.n, rows=a.rows, **common)
         print(f"[rollouts] {calls['rollouts']}")
 
     if "score" in want:
         _wait(calls["rollouts"], "rollouts") if "rollouts" in calls else None
-        calls["score"] = _spawn("score", maemm=a.maemm, **common)
+        calls["score"] = _spawn("score", maem=a.maem, **common)
         print(f"[score] {calls['score']}")
 
     if "centred" in want:
         _wait(calls["score"], "score") if "score" in calls else None
-        calls["centred"] = _spawn("centred", maemm=a.maemm, gpu="cpu", **common)
+        calls["centred"] = _spawn("centred", maem=a.maem, gpu="cpu", **common)
         print(f"[centred] {calls['centred']}")
 
     if "scan" in want:
@@ -169,7 +169,7 @@ def main() -> None:
         print(f"[scan] {calls['scan']}")
 
     (STATE / f"{a.heldout}.json").write_text(json.dumps(
-        {"set": a.heldout, "maemm": a.maemm, "sae": a.sae, "n": a.n, "calls": calls,
+        {"set": a.heldout, "maem": a.maem, "sae": a.sae, "n": a.n, "calls": calls,
          "started": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=1))
     print("\n" + json.dumps(calls, indent=1))
     print(f"\nstate: {STATE / (a.heldout + '.json')}")

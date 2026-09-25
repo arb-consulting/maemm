@@ -1,10 +1,10 @@
 """Which CATEGORIES of feature are unverbalizable -- from blind LLM labels of each feature's windows.
 
-    # a test set (MAEMM only): never-activated / failure rate per label, against rarity
+    # a test set (MAEM only): never-activated / failure rate per label, against rarity
     python evals/verbalization/analysis/label_categories.py set --perdir <perdir> --labels <labels jsonl> \
         --sae-match <npz> --out <json>
 
-    # the paper's 512: MAEMM vs the LLM baseline per label (and per token mechanism)
+    # the paper's 512: MAEM vs the LLM baseline per label (and per token mechanism)
     python evals/verbalization/analysis/label_categories.py p512 --mirror <p512 dir> --labels <labels jsonl> \
         --mechanics <mechanics jsonl> --sae-match <npz> --out <json>
 
@@ -13,7 +13,7 @@ NOT the pass/fail outcome, and returns a category, what the firing depends on, a
 token's type. Failure = no rollout clears the SAE gate, dead features excluded (criterion.py). On the
 p512 set both arms have more than 8 draws, so the cell is the expected share of features where none
 of 8 draws fires (criterion.none_of_k, the paper's unbiased estimator); `--diversity` adds the
-MAEMM's sample self-consistency and distance to the corpus, failing vs passing.
+MAEM's sample self-consistency and distance to the corpus, failing vs passing.
 """
 import argparse
 import collections
@@ -122,10 +122,10 @@ def run_512(a):
                     return n
             return "none"
         groups["mechanism"] = np.array([tagset(f) for f in feats])
-    res = {"n": len(feats), "maemm_none_of_8": round(float(m_p.mean()), 4), "llm_none_of_8": round(float(l_p.mean()), 4)}
-    print(f"n={len(feats)}  P(none of 8 fires): MAEMM {m_p.mean():.3f}  LLM {l_p.mean():.3f}")
+    res = {"n": len(feats), "maem_none_of_8": round(float(m_p.mean()), 4), "llm_none_of_8": round(float(l_p.mean()), 4)}
+    print(f"n={len(feats)}  P(none of 8 fires): MAEM {m_p.mean():.3f}  LLM {l_p.mean():.3f}")
     if a.diversity:
-        dv = json.load(open(a.diversity))["maemm_rl-last16"]
+        dv = json.load(open(a.diversity))["maem_rl-final"]
         res["consistency"] = {}
         for key in ("self_cos", "jaccard3", "corpus_cos"):
             fv = [dv[str(f)][key] for f, x in zip(feats, m_f) if x and str(f) in dv and dv[str(f)].get(key) is not None]
@@ -137,15 +137,15 @@ def run_512(a):
         rows = []
         for v in sorted(set(vals.tolist())):
             m = vals == v
-            rows.append({"value": v, "n": int(m.sum()), "maemm_fail": round(float(m_p[m].mean()), 3),
+            rows.append({"value": v, "n": int(m.sum()), "maem_fail": round(float(m_p[m].mean()), 3),
                          "llm_fail": round(float(l_p[m].mean()), 3),
-                         "maemm_only": int((m_f & ~l_f & m).sum()), "llm_only": int((~m_f & l_f & m).sum()),
+                         "maem_only": int((m_f & ~l_f & m).sum()), "llm_only": int((~m_f & l_f & m).sum()),
                          "both": int((m_f & l_f & m).sum())})
-        res[g] = sorted(rows, key=lambda r: -r["maemm_fail"])
-        print(f"\n{g:22s} {'n':>4s} {'MAEMM':>6s} {'LLM':>6s} {'M-only':>6s} {'L-only':>6s} {'both':>5s}")
+        res[g] = sorted(rows, key=lambda r: -r["maem_fail"])
+        print(f"\n{g:22s} {'n':>4s} {'MAEM':>6s} {'LLM':>6s} {'M-only':>6s} {'L-only':>6s} {'both':>5s}")
         for r in res[g]:
-            print(f"{r['value']:22s} {r['n']:4d} {100*r['maemm_fail']:5.0f}% {100*r['llm_fail']:5.0f}% "
-                  f"{r['maemm_only']:6d} {r['llm_only']:6d} {r['both']:5d}")
+            print(f"{r['value']:22s} {r['n']:4d} {100*r['maem_fail']:5.0f}% {100*r['llm_fail']:5.0f}% "
+                  f"{r['maem_only']:6d} {r['llm_only']:6d} {r['both']:5d}")
     json.dump(res, open(a.out, "w"), indent=1)
     print("wrote", a.out)
 

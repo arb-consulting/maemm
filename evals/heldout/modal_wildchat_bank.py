@@ -1,10 +1,10 @@
 """Modal launcher for the ONE-TIME WildChat fire-prediction bank (evals/heldout/wildchat_bank.py): one B200,
-the maemm-data volume (base-model HF cache + SAE + autointerp testbed), HF online for the
+the maem-data volume (base-model HF cache + SAE + autointerp testbed), HF online for the
 allenai/WildChat-1M stream (ungated). Writes /data/eval_wildchat/windows.json, which
 train/inline_extra_evals.py reads at trainer start for the inline `extra/wildchat/*` metrics.
 
     MODAL_PROFILE=<your-profile> modal run modal_wildchat_bank.py            # ~10 min, one B200
-    MODAL_PROFILE=<your-profile> modal volume get maemm-data eval_wildchat/windows.json .
+    MODAL_PROFILE=<your-profile> modal volume get maem-data eval_wildchat/windows.json .
 """
 from pathlib import Path
 
@@ -12,7 +12,7 @@ import modal
 
 REPO = Path(__file__).resolve().parent.parent.parent   # repo root (this launcher lives one level down)
 
-app = modal.App("maemm-wildchat-bank")
+app = modal.App("maem-wildchat-bank")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -32,20 +32,20 @@ image = (
         "hf_xet",
     )
     .add_local_dir(REPO / "evals" / "heldout", "/app/eval", ignore=["__pycache__", "out", "analysis", "modal_*", "test_*"])
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
     .add_local_file(REPO / "evals" / "heldout" / "inline_extra_evals.py", "/app/RL/inline_extra_evals.py")
     .add_local_file(REPO / "evals" / "heldout" / "snippet_locality.py", "/app/eval/snippet_locality.py")
     .add_local_file(REPO / "evals" / "heldout" / "autointerp_detection.py", "/app/eval/autointerp_detection.py")
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=False)
+vol = modal.Volume.from_name("maem-data", create_if_missing=False)
 
 
 @app.function(
     image=image,
     gpu="B200",
     volumes={"/data": vol},
-    secrets=[modal.Secret.from_name("maemm-hf")],
+    secrets=[modal.Secret.from_name("maem-hf")],
     timeout=2 * 3600,
 )
 def build(testbed: str = "/data/eval_autointerp/testbed_v2.json", sae_path: str = "/data/sae/ae.pt",
@@ -64,7 +64,7 @@ def build(testbed: str = "/data/eval_autointerp/testbed_v2.json", sae_path: str 
     import wildchat_bank
     wildchat_bank.main()
     vol.commit()
-    print(f"[modal] committed {out} to maemm-data", flush=True)
+    print(f"[modal] committed {out} to maem-data", flush=True)
 
 
 @app.local_entrypoint()

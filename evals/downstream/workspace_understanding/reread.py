@@ -1,7 +1,7 @@
-"""Stage `reread` (methodology §6.4): the clean re-read cosine (MAEMM's own fidelity measure) of the NLA and
+"""Stage `reread` (methodology §6.4): the clean re-read cosine (MAEM's own fidelity measure) of the NLA and
 Patchscopes texts against the item's own centred direction and the foil's, on the clean base. The verbalizer
 is scored on its whole generation, tags included, in a wider window (config.REREAD_WINDOW). Unfiltered; the
-stage records what the norm filter would have dropped. A self-check first reproduces MAEMM's saved greedy
+stage records what the norm filter would have dropped. A self-check first reproduces MAEM's saved greedy
 cosines."""
 
 import time
@@ -51,12 +51,12 @@ def stage_reread(args, run):
     readouts = _readouts(run, kept, nla_doc)
     base, tok = load_base(args.device)
     t0 = time.time()
-    # self-check: MAEMM's saved greedy cosines through the same call
-    maemm = {r["i"]: r for r in run.read_json("rollouts/maemm.json")["items"]}
-    ids = [x["i"] for x in kept if x["i"] in maemm]
-    got = reread_cos([maemm[i]["greedy"]["text"] for i in ids], np.stack([dirs[i] for i in ids]), base, tok, args.device)
-    diff = float(np.max(np.abs(got - np.array([maemm[i]["greedy"]["cos_own"] for i in ids]))))
-    print(f"[reread] self-check: max |re-read − saved| on MAEMM greedies = {diff:.4f}", flush=True)
+    # self-check: MAEM's saved greedy cosines through the same call
+    maem = {r["i"]: r for r in run.read_json("rollouts/maem.json")["items"]}
+    ids = [x["i"] for x in kept if x["i"] in maem]
+    got = reread_cos([maem[i]["greedy"]["text"] for i in ids], np.stack([dirs[i] for i in ids]), base, tok, args.device)
+    diff = float(np.max(np.abs(got - np.array([maem[i]["greedy"]["cos_own"] for i in ids]))))
+    print(f"[reread] self-check: max |re-read − saved| on MAEM greedies = {diff:.4f}", flush=True)
     if diff > C.REREAD_SELFCHECK_TOL:
         raise RuntimeError(f"reread self-check failed: {diff:.4f} > {C.REREAD_SELFCHECK_TOL}")
     out = {}

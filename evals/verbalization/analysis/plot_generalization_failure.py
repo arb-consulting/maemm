@@ -28,12 +28,12 @@ def load_human():
     with open(REPORT / "tables" / "human_verbalization.csv") as f:
         for r in csv.DictReader(f):
             hs.append(float(r["frac_of_peak"]) * 100)
-            ms.append(float(r["maemm_best_rl"]) / float(r["corpus_peak"]) * 100)
-    with open(REPORT / "tables" / "human_beats_maemm.csv") as f:
+            ms.append(float(r["maem_best_rl"]) / float(r["corpus_peak"]) * 100)
+    with open(REPORT / "tables" / "human_beats_maem.csv") as f:
         for r in csv.DictReader(f):
             hs.append(float(r["human_pct_of_peak"]))
-            arms = [float(r[k]) for k in ("maemm_rl_encoder", "maemm_encoder_trained",
-                                          "maemm_decoder_untrained", "maemm_decoder_trained")]
+            arms = [float(r[k]) for k in ("maem_rl_encoder", "maem_encoder_trained",
+                                          "maem_decoder_untrained", "maem_decoder_trained")]
             ms.append(max(arms) / float(r["corpus_peak"]) * 100)
     return np.array(hs), np.array(ms)
 
@@ -41,14 +41,14 @@ def load_human():
 def main():
     apply_rcparams()
     ct = json.load(open(REPORT / "data" / "cluster_transfer.json"))
-    human, maemm = load_human()
+    human, maem = load_human()
 
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(8.2, 3.4),
                                    gridspec_kw={"width_ratios": [1, 1.7]})
 
     # ---- left: hand-written sentence vs inverter, same features, same metric ------------------
     rng = np.random.default_rng(0)
-    for x, vals, col, lab in ((0, maemm, MUTED, "inverter\n(best of 4 arms)"),
+    for x, vals, col, lab in ((0, maem, MUTED, "inverter\n(best of 4 arms)"),
                               (1, human, SERIES[2], "hand-written\nsentence")):
         jit = rng.uniform(-0.13, 0.13, len(vals))
         axL.scatter(x + jit, vals, s=17, color=col, alpha=0.75, linewidth=0, zorder=3)
@@ -106,7 +106,7 @@ def main():
         fig.savefig(REPORT / f"fig9_generalization_failure.{ext}", dpi=200,
                     bbox_inches="tight")
     print("wrote fig9_generalization_failure.{pdf,png}")
-    print(f"  human median {np.median(human):.1f}%  inverter median {np.median(maemm):.1f}%")
+    print(f"  human median {np.median(human):.1f}%  inverter median {np.median(maem):.1f}%")
     for lab, a_, b_ in arms:
         print(f"  {lab.replace(chr(10),' '):<20} train {a_ if a_ is None else round(a_,4)}  test {round(b_,4)}")
 

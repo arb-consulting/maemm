@@ -14,7 +14,7 @@ from evals.downstream.steering_vector_inversion.judge import parse_identificatio
 from evals.downstream.steering_vector_inversion_bipo import config as C
 
 # This package's own OpenRouter X-Title.
-TITLE = "maemm-persona-vectors"
+TITLE = "maem-persona-vectors"
 # Above this many requests, `run` sends a few probes first (see its docstring).
 PREFLIGHT_OVER = 20
 PREFLIGHT_PROBES = 5

@@ -10,8 +10,8 @@ Usage: CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python data/collect_acts.py --n-seq 2
 import argparse, os, numpy as np, torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
-from maemm.config import MODEL, READ_LAYER, D_MODEL
-from maemm.inject import read_resid
+from maem.config import MODEL, READ_LAYER, D_MODEL
+from maem.inject import read_resid
 
 
 def main():

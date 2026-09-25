@@ -4,7 +4,7 @@
 
 The SAE families are blocked on weights we do not have; the activation families are not,
 and they are also the cleaner half (the branch's 13-gram check puts realact content
-overlap with the upstream training text at 0.50% of rows against sae2m's 8.31%).
+overlap with the upstream training text at 0.50% of rows against dict2m's 8.31%).
 
 What this records, per eval target: which document and token position it was read at,
 its raw residual norm, and the document-level split side. What it does NOT do is

@@ -144,10 +144,10 @@ def check_paths():
     assert C.heldout_dir("qwen3-8b", "s") == "/vol/base/qwen3-8b/heldout/s"
     assert C.sae_dir("qwen36-27b/l42-1b") == "/vol/base/qwen36-27b/sae/l42-1b"
     assert C.scores_dir("qwen3-8b/2026-09-03_run1-rl", "s") == (
-        "/vol/maemms/qwen3-8b/2026-09-03_run1-rl/scores/s"
+        "/vol/maems/qwen3-8b/2026-09-03_run1-rl/scores/s"
     )
     try:
-        C.split_key("no-slash", "maemm")
+        C.split_key("no-slash", "maem")
     except AssertionError as e:
         assert "exactly" in str(e), f"wrong assert fired: {e}"
     else:
@@ -909,7 +909,7 @@ def _run_two_writers(td, legacy):
 def check_two_writers_into_one_product():
     """TWO CONCURRENT WRITERS of one accumulating product both survive -- and did not before.
 
-    `SMOKES.md:4349-4356`: two `rollouts_vllm` runs of one MAEMM shared `rollouts.tmp-<date>` and
+    `SMOKES.md:4349-4356`: two `rollouts_vllm` runs of one MAEM shared `rollouts.tmp-<date>` and
     the later rename silently discarded the earlier file. The additive write (common.OutDir) moves
     only this run's own files in, so disjoint writers cannot touch each other.
 
@@ -950,7 +950,7 @@ def check_additive_removes_nothing_and_the_legacy_path_is_the_hazard():
         outside. Measured here: the legacy writer ends up with exitcode 1 (its rename hits a
         directory the additive writer has repopulated) and the directory is left holding neither
         writer's rows. THE OPERATIONAL RULE THAT FOLLOWS: while any job is still running on
-        the earlier code, no new-code job may write the same MAEMM's `rollouts/`. Check for a
+        the earlier code, no new-code job may write the same MAEM's `rollouts/`. Check for a
         `rollouts.tmp-*` sibling before launching. Once every writer is on this code, concurrent
         writers are safe -- `check_two_writers_into_one_product` is that case.
     """
@@ -1068,14 +1068,14 @@ def check_nla_min_new_override():
     The verbalizer stops on its own well before the shared 16, which pads short <explanation>
     answers with continuation the checkpoint would not have produced (2026-09-22). The
     shared block is never edited -- that would re-point every rollout product -- so the key is
-    per-MAEMM with the shared value as the fallback.
+    per-MAEM with the shared value as the fallback.
     """
     cfg = C.load_config()
-    nla_keys = [k for k, v in cfg["maemms"].items() if v.get("type") == "nla"]
+    nla_keys = [k for k, v in cfg["maems"].items() if v.get("type") == "nla"]
     assert nla_keys, "no `type: nla` entry in config.yaml"
     for k in nla_keys:
-        assert cfg["maemms"][k]["nla"].get("min_new") == 0, (
-            f"{k}: nla.min_new must be 0 (config.yaml), got {cfg['maemms'][k]['nla'].get('min_new')!r}"
+        assert cfg["maems"][k]["nla"].get("min_new") == 0, (
+            f"{k}: nla.min_new must be 0 (config.yaml), got {cfg['maems'][k]['nla'].get('min_new')!r}"
         )
     assert int(cfg["rollouts"]["min_new"]) == 16, (
         "the SHARED rollouts.min_new moved; it is never edited (every other arm reads it)"
@@ -1086,7 +1086,7 @@ def check_nla_min_new_override():
         "`rollouts:` value as the fallback, or the config key above is inert"
     )
     # the fallback itself: an entry without the key still generates under the shared value
-    spec = dict(cfg["maemms"][nla_keys[0]])
+    spec = dict(cfg["maems"][nla_keys[0]])
     spec["nla"] = {k: v for k, v in spec["nla"].items() if k != "min_new"}
     C._check_nla(nla_keys[0], spec, cfg["rollouts"])  # must not raise
     spec["nla"] = {**spec["nla"], "min_new": -1}
@@ -1180,25 +1180,25 @@ def check_rename_lora_keys():
     assert C.rename_lora_keys(odd, "qwen36-27b")[odd[0]] == "x.model.language_model.layers.0.model.layers.1.w"
 
 
-def check_maemms_for():
-    """`compute: false` entries are skipped by every "all MAEMMs" iteration and kept by `check`."""
+def check_maems_for():
+    """`compute: false` entries are skipped by every "all MAEMs" iteration and kept by `check`."""
     cfg = C.load_config()
-    all_keys = C.maemms_for(cfg, computable_only=False)
-    run_keys = C.maemms_for(cfg)
-    assert set(run_keys) < set(all_keys), "config must declare at least one compute: false MAEMM"
+    all_keys = C.maems_for(cfg, computable_only=False)
+    run_keys = C.maems_for(cfg)
+    assert set(run_keys) < set(all_keys), "config must declare at least one compute: false MAEM"
     for k in set(all_keys) - set(run_keys):
-        assert cfg["maemms"][k].get("compute") is False, f"{k} was filtered but is not compute: false"
+        assert cfg["maems"][k].get("compute") is False, f"{k} was filtered but is not compute: false"
     for k in run_keys:
-        assert cfg["maemms"][k].get("compute", True), f"{k} is compute: false but survived the filter"
-    per_base = C.maemms_for(cfg, "qwen3-8b", computable_only=False)
+        assert cfg["maems"][k].get("compute", True), f"{k} is compute: false but survived the filter"
+    per_base = C.maems_for(cfg, "qwen3-8b", computable_only=False)
     assert per_base and all(k.startswith("qwen3-8b/") for k in per_base), per_base
-    assert set(per_base) | set(C.maemms_for(cfg, "qwen36-27b", computable_only=False)) == set(all_keys)
+    assert set(per_base) | set(C.maems_for(cfg, "qwen36-27b", computable_only=False)) == set(all_keys)
 
 
 def check_sae_key_for():
     """WHICH SAE of a base: explicit wins, unknown is refused, and two SAEs refuse to be guessed.
 
-    The last one is the whole point. `qwen36-27b` carries two since `sae2m`, and every call site
+    The last one is the whole point. `qwen36-27b` carries two since `dict2m`, and every call site
     used to write `keys[0]` or `assert len(keys) == 1` by hand -- one silently picking whichever
     came first in config.yaml, the others simply unable to run. A silent fallback here is
     invisible in every product's output, so it is asserted directly rather than through a product.
@@ -1593,7 +1593,7 @@ def check_sae_key_selector():
         {"row": 2, "family": "sae", "sae_key": "b/one31k", "id": 10},
         {"row": 3, "family": "realact", "id": 99},
         # the legacy family label, but KEYED -- the unkeyed case is its own block below
-        {"row": 4, "family": "sae2m_enc", "sae_key": "b/two_m", "id": 12},
+        {"row": 4, "family": "dict2m_enc", "sae_key": "b/two_m", "id": 12},
     ]
     got = [r["row"] for r in C.sae_rows_of(rows, "b/two_m")]
     assert got == [0, 1, 4], f"sae_key filter picked {got}; the 131k row must not be in it"
@@ -1639,8 +1639,8 @@ def check_sae_key_selector():
             "config.yaml must declare which dictionary 2026-09-16_v1's sae ids index"
         )
         with open(d / C.STORAGE_FILE, "w") as fh:
-            json.dump({"storage": "raw", "sae_key": "qwen36-27b/sae2m"}, fh)
-        assert C.declared_sae_key(cfg, str(d)) == "qwen36-27b/sae2m", "storage.json must win"
+            json.dump({"storage": "raw", "sae_key": "qwen36-27b/dict2m"}, fh)
+        assert C.declared_sae_key(cfg, str(d)) == "qwen36-27b/dict2m", "storage.json must win"
         bare = Path(td) / "nowhere"
         bare.mkdir()
         assert C.declared_sae_key(cfg, str(bare)) is None
@@ -1667,7 +1667,7 @@ def check_family_kinds_table():
             f"bases[{b}].whiten_mu = {mu!r} is not a {'/'.join(C.MU_SUFFIXES)} path -- a mu is a "
             f"FILE, never a name"
         )
-    for key, spec in cfg["maemms"].items():
+    for key, spec in cfg["maems"].items():
         if "mu" in spec:
             # Three legal states: null, a file path, or `unknown` -- "considered, not established",
             # which every run must override with --mu (mu_for refuses to pick one).
@@ -1675,7 +1675,7 @@ def check_family_kinds_table():
                 spec["mu"] is None
                 or spec["mu"] == C.MU_UNKNOWN
                 or str(spec["mu"]).endswith(C.MU_SUFFIXES)
-            ), f"maemms[{key}].mu = {spec['mu']!r} is not null, {C.MU_UNKNOWN!r} or a file path"
+            ), f"maems[{key}].mu = {spec['mu']!r} is not null, {C.MU_UNKNOWN!r} or a file path"
     # Resolution: `{base}` expands, a relative path takes --root, an absolute one does not.
     assert C.resolve_mu_path("base/{base}/stats/mu.f32", "qq", "/r") == "/r/base/qq/stats/mu.f32"
     assert C.resolve_mu_path("/abs/mu.npy", "qq", "/r") == "/abs/mu.npy"
@@ -1816,7 +1816,7 @@ def check_csr_gate_floor():
     nearest puts every fp32 value just above the gate onto the f16 value NEAREST the gate, which
     for the 2M checkpoint's gate 1.682811975479126 is 1.6826171875 -- BELOW it. A correct write
     therefore reads back under the gate, and the original assert (`> gate`) failed on the cast.
-    MEASURED: it killed a paid `sae_self` on `rl-last16` x `2026-09-21_v3_sae2m` after the
+    MEASURED: it killed a paid `sae_self` on `rl-final` x `2026-09-21_v3_dict2m` after the
     forward, with 8,023 of 9,855,412 entries at that one value and no other value under the gate.
 
     Both directions are the check: the storage floor must PASS, and a value a hair below it --
@@ -1926,7 +1926,7 @@ def check_heldout_v3_ours_block():
 
 
 def check_sae_column_reader():
-    """`draw_sae2m._columns` is `common.load_sae`'s two matrices, sliced instead of cast whole.
+    """`draw_dict2m._columns` is `common.load_sae`'s two matrices, sliced instead of cast whole.
 
     The encoder side has to be BIT-IDENTICAL or the 2M sets drawn before and after this change
     are not comparable; the decoder side has to be the feature's COLUMN of `decoder.weight`
@@ -1936,7 +1936,7 @@ def check_sae_column_reader():
     import numpy as np
     import torch
 
-    from features import draw_sae2m
+    from features import draw_dict2m
 
     rng = np.random.default_rng(3)
     F, d = 37, 8
@@ -1949,7 +1949,7 @@ def check_sae_column_reader():
                     "encoder.bias": torch.zeros(F), "bias": torch.zeros(d),
                     "threshold": torch.tensor(1.5)}, path)
         drawn = np.array([0, 5, 36, 12], dtype=np.int64)
-        cols, gate, d_sae = draw_sae2m._columns(path, d, drawn, ("enc", "dec"))
+        cols, gate, d_sae = draw_dict2m._columns(path, d, drawn, ("enc", "dec"))
         assert (gate, d_sae) == (1.5, F), (gate, d_sae)
         sae = C.load_sae(path, d, device="cpu", dtype=torch.float32, need_decoder=True)
         want_enc = torch.nn.functional.normalize(
@@ -1965,8 +1965,8 @@ def check_sae_column_reader():
         assert float((cols["enc"] * cols["dec"]).sum(1).abs().max()) < 0.99, (
             "enc and dec came out collinear on a random checkpoint -- one side is a copy")
     # A row emitted by the draw must SAY which side it is, or sae_rows_of defaults it to enc.
-    src = (Path(__file__).resolve().parent.parent / "features/draw_sae2m.py").read_text()
-    assert '"sae_side": sd' in src, "draw_sae2m emits no sae_side field"
+    src = (Path(__file__).resolve().parent.parent / "features/draw_dict2m.py").read_text()
+    assert '"sae_side": sd' in src, "draw_dict2m emits no sae_side field"
 
 
 def check_draw_sae131k_dec_twin():
@@ -1975,7 +1975,7 @@ def check_draw_sae131k_dec_twin():
     What M6-dec rests on, each a separate way to get it silently wrong:
       * the twin carries the SOURCE's feature ids in the SOURCE's order, one row each, and row j's
         vector is unit(W_dec[f]) of that feature -- checked against `common.load_sae`, not against
-        the reader it shares with draw_sae2m;
+        the reader it shares with draw_dict2m;
       * the rows say what they are (`sae_side: dec`, `vector: dec`, `ids_from_row`) and the set is
         `storage: raw` with act.f32 == the unit decoder rows, so `common.dirs_for` serves them
         UNCHANGED at a non-null mu -- the injection is the raw unit vector, as for the enc rows;
@@ -2117,7 +2117,7 @@ def check_sae_self_side_flag():
     """`--sae-side` reaches `sae_self`'s row selector, refuses everywhere else, and moves the path.
 
     The gap it closes is eval 1's: `_sae_rows` pinned `side="enc"`, so the 512 `sae_side: dec`
-    rows of `2026-09-21_v3_sae2m` had cosines from `score` and no activation metric at all
+    rows of `2026-09-21_v3_dict2m` had cosines from `score` and no activation metric at all
     (SMOKES.md 2026-09-21, "three things the results run must not get wrong", item 2). Four
     things have to hold and each is its own failure:
 
@@ -2151,7 +2151,7 @@ def check_sae_self_side_flag():
     from autointerp.sae_self import _sae_rows
 
     cfg = C.load_config()
-    base, sae_key = "qwen36-27b", "qwen36-27b/sae2m"
+    base, sae_key = "qwen36-27b", "qwen36-27b/dict2m"
     with tempfile.TemporaryDirectory() as td:
         hdir = Path(C.heldout_dir(base, "fixture_sides", td))
         hdir.mkdir(parents=True)
@@ -2265,7 +2265,7 @@ def check_nla_arm_a_reads_the_body():
 def check_sae_column_slice_is_the_dictionary():
     """`load_sae_columns` gives `sae_encode`/`sae_dirs` exactly what the full load would.
 
-    The slice exists because `gcg --mode epo --sae qwen36-27b/sae2m` OOMed an H200 loading a
+    The slice exists because `gcg --mode epo --sae qwen36-27b/dict2m` OOMed an H200 loading a
     43 GB W_dec it never reads. The risk it introduces is an INDEX one -- a column slice whose
     `W_enc[:, 0]` is feature 0 of the slice and feature 125750 of the dictionary -- and that
     failure is silent: a wrong encoder column still produces a plausible activation. So this
@@ -2337,7 +2337,7 @@ def check_gcg_never_loads_the_full_dictionary():
     assert "load_sae" not in called, (
         "gcg/gcg.py calls `load_sae`, which moves the WHOLE dictionary to the device including "
         "W_dec (43 GB in fp32 at 2^21 features). It reads one encoder column per direction: use "
-        "`load_sae_columns`. This is the call that OOMed an H200 at setup on --sae qwen36-27b/sae2m."
+        "`load_sae_columns`. This is the call that OOMed an H200 at setup on --sae qwen36-27b/dict2m."
     )
     assert "load_sae_columns" in called, (
         "gcg/gcg.py no longer loads any SAE -- if the activation block was removed, remove this "
@@ -2478,29 +2478,29 @@ def check_scores_dir_puts_the_tag_where_rollout_stem_does():
     """
     import tempfile
 
-    maemm, set_name = "qwen3-8b/2026-09-03_run1-rl", "s"
+    maem, set_name = "qwen3-8b/2026-09-03_run1-rl", "s"
     for engine in C.ENGINES:
         for tag in ("", "mu-none"):
             want = C.rollout_stem(set_name, engine, tag)
-            got = C.scores_dir(maemm, set_name, "/vol", engine, tag, write=True)
+            got = C.scores_dir(maem, set_name, "/vol", engine, tag, write=True)
             assert got.endswith("/" + want), (
                 f"scores_dir({engine!r}, tag={tag!r}) -> {got}, but rollout_stem spells the same "
                 f"triple {want!r}. The score directory must follow the rollouts file it scored.")
     # untagged paths do not move: every product already on the volume keeps its name
-    assert C.scores_dir(maemm, set_name) == "/vol/maemms/qwen3-8b/2026-09-03_run1-rl/scores/s"
+    assert C.scores_dir(maem, set_name) == "/vol/maems/qwen3-8b/2026-09-03_run1-rl/scores/s"
 
     # THE READER'S FALLBACK, on a real directory rather than on the docstring's promise.
     with tempfile.TemporaryDirectory() as td:
-        legacy = C.scores_dir(maemm, f"{set_name}__mu-none", td, "vllm", write=True)
+        legacy = C.scores_dir(maem, f"{set_name}__mu-none", td, "vllm", write=True)
         os.makedirs(legacy)
-        got = C.scores_dir(maemm, set_name, td, "vllm", "mu-none")
+        got = C.scores_dir(maem, set_name, td, "vllm", "mu-none")
         assert got == legacy, (
             f"a scores directory written under the OLD spelling is no longer found: asked for "
             f"tag `mu-none`, got {got}, the product is at {legacy}")
         # ...and the canonical path wins as soon as it exists
-        canon = C.scores_dir(maemm, set_name, td, "vllm", "mu-none", write=True)
+        canon = C.scores_dir(maem, set_name, td, "vllm", "mu-none", write=True)
         os.makedirs(canon)
-        assert C.scores_dir(maemm, set_name, td, "vllm", "mu-none") == canon, (
+        assert C.scores_dir(maem, set_name, td, "vllm", "mu-none") == canon, (
             "the legacy directory shadowed the canonical one")
     print("  scores_dir: __<engine>__<tag>, with the legacy order still readable")
 
@@ -2630,7 +2630,7 @@ def check_centred_uses_one_mu():
 
     Structural, with `ast`, because the product itself needs a scores directory and a GPU run in
     front of it. It encodes what went wrong: `_load_dirs` resolved the TARGET through `--mu` while
-    `:116` hardcoded `C.stats_mu`, so every `rl-last16` run compared `best_act - stats_mu` against
+    `:116` hardcoded `C.stats_mu`, so every `rl-final` run compared `best_act - stats_mu` against
     `unit(act - whiten_mu)` and `centred.json` recorded the stats path either way. Two means, one
     name, and reconstruction/stats.py reads the result into the paper tables.
     """
@@ -2666,7 +2666,7 @@ def check_every_set_writer_writes_the_contract():
     `common.set_storage` refuses a directory that states no contract, and `common.py`'s own
     docstring promises "every set drawn after 2026-09-21 writes it" while the `set_storage` error
     tells the reader to "re-draw the set, which writes the contract itself". Both were false for
-    `features/draw_sae2m.py` and `features/heldout_v2.py`, which wrote `ids.jsonl` and `vecs.f16`
+    `features/draw_dict2m.py` and `features/heldout_v2.py`, which wrote `ids.jsonl` and `vecs.f16`
     and nothing else -- so a set from either tool was born unreadable and needed a hand-written
     config entry that nothing told the author to write. `ast` keeps the promise honest.
     """
@@ -2677,7 +2677,7 @@ def check_every_set_writer_writes_the_contract():
     # drifted (`draw_sae131k` arrived on main writing no contract at all, and `spawn.py` held a
     # third copy that knew about neither it nor `heldout_v3`). `heldout_v2` is not a D6 writer --
     # it predates the entrypoint assert -- so it is named separately.
-    rels = {"targets": "precompute/targets.py", "draw_sae2m": "features/draw_sae2m.py",
+    rels = {"targets": "precompute/targets.py", "draw_dict2m": "features/draw_dict2m.py",
             "draw_sae131k": "features/draw_sae131k.py", "heldout_v3": "features/heldout_v3.py"}
     unmapped = sorted(set(C.SET_WRITERS) - set(rels))
     assert not unmapped, (
@@ -2703,7 +2703,7 @@ def check_every_set_writer_writes_the_contract():
 
 
 def check_draws_call_finish_with_its_signature():
-    """`features/draw_*.py` call `draw_sae2m._finish` with the arity it actually has.
+    """`features/draw_*.py` call `draw_dict2m._finish` with the arity it actually has.
 
     The defect this is for arrived through a merge, not through an edit: `_finish` gained a
     `peak16` parameter on this branch (between `gated_full` and `cuts`), and `draw_sae131k.py` --
@@ -2717,7 +2717,7 @@ def check_draws_call_finish_with_its_signature():
     import ast
     import inspect
 
-    from features.draw_sae2m import _finish
+    from features.draw_dict2m import _finish
 
     params = list(inspect.signature(_finish).parameters)
     n_required = len([p for p in inspect.signature(_finish).parameters.values()
@@ -2801,7 +2801,7 @@ def check_one_set_writers_tuple():
                 # BOTH names, which is the D6 tuple's shape. `targets` alone appears in the
                 # per-flag ownership asserts (`--arm` is a corpus/targets/ood_selfcheck flag),
                 # and the first version of this check called one of those a second D6 tuple.
-                if isinstance(comp, ast.Tuple) and {"targets", "draw_sae2m"} <= {
+                if isinstance(comp, ast.Tuple) and {"targets", "draw_dict2m"} <= {
                     e.value for e in comp.elts if isinstance(e, ast.Constant)
                 }:
                     literals.append(node.lineno)
@@ -2921,7 +2921,7 @@ def check_top1_act_selftest():
 def check_a_row_with_no_raw_activation_gets_the_one_sided_centred_cosine():
     """`score._load_dirs` gives EVERY row a finite centred target, and the right one.
 
-    Changed 2026-09-23. Before, a row with no raw activation -- `random`, `sae`, `sae2m_enc`,
+    Changed 2026-09-23. Before, a row with no raw activation -- `random`, `sae`, `dict2m_enc`,
     `bsf`, `jlens`, and every row of a set that is not `storage: raw` -- was NaN in
     `dirs_centred`, and so in `cos_centred`, and so dropped from every centred aggregate. It now
     carries the STORED direction as its target, which makes its cosine the ONE-SIDED
@@ -3278,7 +3278,7 @@ def check_three_cosines():
     The third is the one a corpus search can be differenced against: `scan` scores every window as
     `normalize(h) @ unit(act - mu)` (precompute/scan.py), and the paper's bo64 0.569 and corpus
     0.351 are both stated in it. Before this column a `storage: raw` set could not produce it --
-    `dirs` is unit(act) there -- so a Δ mixed a doubly-centred MAEMM cosine with a singly-centred
+    `dirs` is unit(act) there -- so a Δ mixed a doubly-centred MAEM cosine with a singly-centred
     corpus one, and its magnitude meant nothing even though its sign did.
 
     Checked against an independent einsum on the SAME arrays, and required to DIFFER from the
@@ -3518,7 +3518,7 @@ def check_no_reader_default_under_the_mount():
 
       * BEHAVIOURAL -- `common.mirror_dir` / `common.out_dir` are the single source of the
         defaults, and both REFUSE a path under the mount however it is reached, including one
-        handed to them through `$MAEMM_MIRROR` / `$MAEMM_OUT`. That refusal is the invariant; the
+        handed to them through `$MAEM_MIRROR` / `$MAEM_OUT`. That refusal is the invariant; the
         two gates below are what say it is enforced rather than merely intended.
       * STRUCTURAL -- no reader spells a default the old way any more, and every one of them
         reaches the shared helper. A reader that computes its own default in the body is invisible
@@ -3615,7 +3615,7 @@ CHECKS = [
     check_sha256_of_index,
     check_vllm_finish_ids,
     check_rename_lora_keys,
-    check_maemms_for,
+    check_maems_for,
     check_strip_repo_sink,
     check_sae_key_for,
     check_storage_contract,

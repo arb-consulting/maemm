@@ -1,6 +1,6 @@
 # Workspace modulation: methodology
 
-When a model is instructed to hold a concept in mind while it copies an unrelated sentence, does a MAEMM
+When a model is instructed to hold a concept in mind while it copies an unrelated sentence, does a MAEM
 rollout read that concept from the residual stream at the position where the sentence ends, and how does its
 rate compare with the released Jacobian lens, a natural-language autoencoder (NLA), Patchscopes and a search
 of the held-out corpus read at the same activation? This is the "directed modulation" protocol of the
@@ -30,8 +30,8 @@ it sits at its chance line; that family is read on the judged column.
 
 **Does not support.** Whether a dismissed concept is still represented (the control conditions are only a
 check on the readers). Anything about a global workspace or consciousness. A bare mention primes much of
-what an instruction to focus does, so a positive result reads "MAEMM reads a concept the prompt made
-salient", not "MAEMM reads what the model chose to think about". One base model, one inverter, one read layer,
+what an instruction to focus does, so a positive result reads "MAEM reads a concept the prompt made
+salient", not "MAEM reads what the model chose to think about". One base model, one inverter, one read layer,
 46 concepts drawn and 45 kept on 20 carriers, one generation seed.
 
 **Training overlap.** The materials are synthetic, authored by Anthropic and released with the Jacobian lens;
@@ -123,7 +123,7 @@ whether it copies the carrier and whether it names a target. Reported, never a f
 Activations are read, and every text re-read, on the clean base; the inverter and the verbalizer only
 generate. `d = normalize(h_42[cell] − mu)`.
 
-**MAEMM.** `research` prompt, marker ` ?`, norm-matched add at the block-1 output (coefficient 1, prefill
+**MAEM.** `research` prompt, marker ` ?`, norm-matched add at the block-1 output (coefficient 1, prefill
 only).
 
 | Arm | Model | Direction | Samples | Role |
@@ -194,7 +194,7 @@ search cosine is also reported over the corpus's nested 8M-token prefix.
 
 ### 4.1 The word rule
 
-A target form occurs as a whole word (case-folded) in a sample at the read cell (MAEMM arms, NLA, Patchscopes,
+A target form occurs as a whole word (case-folded) in a sample at the read cell (MAEM arms, NLA, Patchscopes,
 the ablation) or in one of the search's windows; reported as `hit_any` at pass@1, 2, 4, 8, `greedy_hit`,
 `consistency` and `chance`. The lens is read two ways:
 
@@ -215,7 +215,7 @@ else, and answers `{"expressed", "target", "quote"}`. A positive verdict is void
 it was asked about and its quote is verbatim in the readout. Each cell is asked against its own targets and
 against the foil's.
 
-Readers: `maemm_reg8`, `maemm_null8`, `nla_n8` (native samples), `retrieval_top8`, `patch42_n8`,
+Readers: `maem_reg8`, `maem_null8`, `nla_n8` (native samples), `retrieval_top8`, `patch42_n8`,
 `jlens_L42_summary` and `jlens_band8_summary` (final period only). The ablation and the Patchscopes floor
 are not judged. An empty readout is never sent (recorded `empty_readout`). Per item, reader and cell: `named` (own
 verdict), `foil`, and `net` = named − foil over the items where both resolved. The fold is one-sided (a lost
@@ -246,7 +246,7 @@ all five; `band` is `final`, `mean` or `carrier`; every judged row carries `judg
 | `rates.csv` | the word rule per reader, group, instruction and band (`hit_any` per budget, the largest carrying `chance`, `ratio_vs_chance`, `flag_below_3x`; `greedy_hit`; `consistency`; `chance`); the lens rows of §4.1; the `focus+mention` pooled rows |
 | `judged.csv` | per reader, group and band, pooled over instructions and inside each, and `focus+mention` pooled: `named` and `foil` (Wilson), `net` (bootstrap), and counts of voided, unresolved and empty readouts |
 | `modulation.csv` | instruction contrasts paired by concept (focus − baseline, mention − baseline, focus − mention, and the control rows) for every reader and metric |
-| `contrasts.csv` | reader contrasts paired by item (MAEMM − NLA, − NLA-64, − corpus search, − lens, − null control; `patch42-patchfloor`) on the headline criterion and the judged `named` / `net` |
+| `contrasts.csv` | reader contrasts paired by item (MAEM − NLA, − NLA-64, − corpus search, − lens, − null control; `patch42-patchfloor`) on the headline criterion and the judged `named` / `net` |
 | `paper_workspace_word_rule.{csv,tex}`, `paper_workspace_judged_net.{csv,tex}` | the paper's Modulation column (§5.3) |
 | `missingness.csv` | per judge, instrument and arm: requests made and how each settled (the `judge_missingness` block of `coverage_and_costs.json`) |
 | `coverage_and_costs.json` | population, coverage, checks, guards, gate, spend, missingness, GPU seconds |
@@ -264,9 +264,9 @@ column's variance.
 ### 5.3 The paper's Modulation column
 
 Each cell is the topics row at `band = final` under `instruction = focus+mention` (21 concepts, 42 items):
-MAEMM `hit_any` pass@8 of `maemm_reg`; NLA `hit_any` of `nla`; J-lens `word10_L42_any`; J-lens (L36–50)
+MAEM `hit_any` pass@8 of `maem_reg`; NLA `hit_any` of `nla`; J-lens `word10_L42_any`; J-lens (L36–50)
 `word10_band8_any`; Patchscopes `hit_any` of `patch42`; corpus search `hit_any` of `retrieval`; and the
-judged net of `maemm_reg8`, `nla_n8`, `jlens_L42_summary`, `jlens_band8_summary`, `patch42_n8`,
+judged net of `maem_reg8`, `nla_n8`, `jlens_L42_summary`, `jlens_band8_summary`, `patch42_n8`,
 `retrieval_top8`. The per-condition rates the paper quotes (focus vs mention) are the `focus` and `mention`
 rows of `rates.csv`.
 
@@ -282,12 +282,12 @@ a difference", never equality.
 | focus − mention | how much of the focus effect a bare mention already produces |
 | ignore, dont_think (Appendix C) | a control: a reader at the floor under a dismissal reads what the model holds rather than its context |
 | `named` beside `foil` | the judged chance line; a reader whose `net` interval includes zero is not shown to name anything |
-| MAEMM − NLA, − corpus search, − lens | which reader surfaces the concept more often at the same activation; the search is bounded by what the corpus holds |
+| MAEM − NLA, − corpus search, − lens | which reader surfaces the concept more often at the same activation; the search is bounded by what the corpus holds |
 | `patch42` against `patchfloor` | what the patch reads off the activation beyond what the prompt alone makes the model say |
 | the lens any-layer criterion (Appendix B) | target-informed and over every token; not comparable with a rate at one activation |
-| the ablation (Appendix D) | an ablation, not a method: MAEMM is above it and above the control, or it reads nothing the ablation does not |
+| the ablation (Appendix D) | an ablation, not a method: MAEM is above it and above the control, or it reads nothing the ablation does not |
 
-Examples are picked by rule: per family, under focus, the 2×2 of MAEMM's word rule against the lens's rank ≤ 10
+Examples are picked by rule: per family, under focus, the 2×2 of MAEM's word rule against the lens's rank ≤ 10
 at layer 42 at the final period, the first two concepts by id per cell.
 
 ## 7. Limits

@@ -2,7 +2,7 @@
 
 from evals.downstream.common.judges import REFERENCE_JUDGE, active, judges, rates
 from evals.downstream.common.retrieval import SHARED_SIZE, CorpusSpec, load_index, search_docs
-from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF  # 5120, 1, 42, 1.0
+from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF  # 5120, 1, 42, 1.0
 
 # The base model, the inverter and the lens are pinned once for every package (evals/downstream/common/pins.py).
 from evals.downstream.common.pins import (  # noqa: F401
@@ -40,12 +40,12 @@ RANK_KS = (1, 5, 10, 50)
 GEN_SEED = 1234
 # Added to --seed per generating arm; the offsets are distinct per arm, so no two arms share a sampler stream.
 ARM_SEED_OFFSET = {
-    "maemm": 0,
+    "maem": 0,
     "nla": 3,
     "nla_mid": 4,
     "nla_mean": 5,
-    "maemm_mid": 6,
-    "maemm_mean": 7,
+    "maem_mid": 6,
+    "maem_mean": 7,
     "untrained_base": 8,
     "patchfloor": 12,
     "patch42": 13,
@@ -105,7 +105,7 @@ DIAG_FILLERS = ["the", "house", "river", "blue", "seven", "music", "garden", "wi
 
 # --- the judged conditions (methodology §6.2): (reader, budget), each judged against own and foil targets ---
 JUDGED_CONDITIONS = (
-    "maemm_n8",
+    "maem_n8",
     "patch42_n8",
     "jlens_L42_summary",
     "jlens_band8_summary",
@@ -114,7 +114,7 @@ JUDGED_CONDITIONS = (
 )
 # The free-text readers of the word rule, each with a 20-donor target-shuffle chance line (methodology §6.1).
 FREE_TEXT_CONDITIONS = (
-    "maemm",
+    "maem",
     "patch42",
     "patchfloor",
     "nla",
@@ -122,8 +122,8 @@ FREE_TEXT_CONDITIONS = (
     "retrieval",
     "nla_mid",
     "nla_mean",
-    "maemm_mid",
-    "maemm_mean",
+    "maem_mid",
+    "maem_mean",
     "untrained_base",
 )
 
@@ -167,7 +167,7 @@ def corpus_docs(smoke, index=None):
 
 # --- the re-read (methodology §6.4) ---
 REREAD_CONDITIONS = ("nla", "nla64") + PATCH_ARMS
-REREAD_SELFCHECK_TOL = 0.05  # max |re-read - saved| on MAEMM's own greedies
+REREAD_SELFCHECK_TOL = 0.05  # max |re-read - saved| on MAEM's own greedies
 REREAD_WINDOW_TOKENS = 95
 REREAD_WINDOW = {"nla": nla_reader.PINS.score_max_length}  # the verbalizer's native text is re-read whole
 REREAD_NORM_FILTER = False  # unfiltered; what the norm filter would drop is counted instead

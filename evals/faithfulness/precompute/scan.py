@@ -127,7 +127,7 @@ def _reservoir_seed(cfg, set_name: str) -> int:
     `_ours`, `_subspace`, `_realact_long`, all of them imported rather than drawn, none of them
     carrying a draw seed) crashed this product with a KeyError *after* the base model had loaded.
     MEASURED on the config 2026-09-23: only `2026-09-16_v1`, `2026-09-16_v1raw`,
-    `2026-09-20_sae2m_2k`, `2026-09-21_sae2m_64`, `2026-09-21_v3_sae2m` and the OOD sets declare one.
+    `2026-09-20_dict2m_2k`, `2026-09-21_dict2m_64`, `2026-09-21_v3_dict2m` and the OOD sets declare one.
 
     A declared seed still wins, so every scan run before 2026-09-23 reproduces bit for bit. An
     undeclared one falls back to crc32 of the set name: deterministic, different per set, and
@@ -146,7 +146,7 @@ def _load_targets(cfg, args, notes=None):
     OOD arms, the 512 English realact targets and the 512 random directions), because the scan's
     cost is per corpus token and not per target.
 
-    `scan` has no `--maemm` in scope at all, so the centring convention has to be told to it:
+    `scan` has no `--maem` in scope at all, so the centring convention has to be told to it:
 
       * `--centre` is THE CENTRED MODE (2026-09-23). Both sides of the cosine are taken about the
         base's own scoring constant `common.score_mu` -- the targets here, the window residuals in
@@ -315,7 +315,7 @@ def run(cfg, args):
     batch_rows = int(args.get("batch") or 256)
     # ONE --sae syntax in the whole CLI: common.sae_key_for, which takes a full `<base>/<name>`
     # key and refuses a bare name. This file and stats.py each carried an inline copy that DID
-    # accept a bare `sae2m`, so the same flag meant two things depending on the product.
+    # accept a bare `dict2m`, so the same flag meant two things depending on the product.
     #
     # Resolved only when the SET HAS SAE ROWS. A base with two dictionaries makes `sae_key_for`
     # refuse without `--sae`, and an OOD set has no sae family at all -- so demanding one there

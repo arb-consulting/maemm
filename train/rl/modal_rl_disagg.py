@@ -1,4 +1,4 @@
-"""Modal app: DISAGGREGATED Dr.GRPO/GRPO RL for the MAEMM inverter (train/rl/rl_disagg.py) -- X vLLM
+"""Modal app: DISAGGREGATED Dr.GRPO/GRPO RL for the MAEM inverter (train/rl/rl_disagg.py) -- X vLLM
 rollout GPUs + Y HF trainer GPUs in ONE container. Dev iteration app; production is the same function on 8 GPUs with the chosen (X, Y).
 
 Same image as modal_rl_last5_v15.py (torch 2.10 cu128, vllm 0.19 + vllm-lens 1.1.0, transformers 5.15,
@@ -7,7 +7,7 @@ chunk kernel over its torch fallback when `fla` is importable (use_kernel_func_f
 which is what makes the trainer's no-vLLM, no-grad-ckpt, micro-batch 16-32 update fit and run fast.
 Mounts: train/rl/rl.py -> /app/RL/rl_hf.py (imported as a module, NEVER edited), train/rl/rl_disagg.py ->
 /app/RL/rl_disagg.py, train/rl/fast_lens_ext.py -> /app/helpers/fast_lens_ext.py (vLLM worker extension,
-importable in the engine process), maemm/.
+importable in the engine process), maem/.
 
 Launch (MODAL_PROFILE=<your-profile>):
     DISAGG_GPU=B200:4 modal run --detach modal_rl_disagg.py::bench                    # throughput tables
@@ -16,7 +16,7 @@ Launch (MODAL_PROFILE=<your-profile>):
         --extra-args "--cuda-graphs --run-name rl_everything_8x128_disagg --save-dir /data/ckpts_last5_v15_disagg"
 Resume from a checkpoint: --extra-args "... --init-adapter <ckpt>/step_N --ref-adapter /data/sft_mix/last5_rp/final --step-offset N+1 --wandb-id <id>"
 RL on a FULL fine-tuned policy (train/sft/fullft.py checkpoint dir; fresh LoRA, reward on the ORIGINAL base -- rl_disagg --policy-base):
-    DISAGG_APP=maemm-rl-disagg-fftbase-x4 DISAGG_GPU=B200:4 DISAGG_TRANSFORMERS="transformers @ git+https://github.com/ANONYMOUS/transformers@<commit>" \
+    DISAGG_APP=maem-rl-disagg-fftbase-x4 DISAGG_GPU=B200:4 DISAGG_TRANSFORMERS="transformers @ git+https://github.com/ANONYMOUS/transformers@<commit>" \
         modal run --detach modal_rl_disagg.py::main --n-rollout 1 --n-trainer 3 --total-steps 5 \
         --policy-base /data/sft_mix/fullft2m_lr1e-05/final --extra-args "--prefix-cache --score-length-bucket --cuda-graphs ..."
     (adds `--policy-base <dir> --init-adapter none` to TRAIN_ARGS unless --extra-args sets --init-adapter itself; --kl-coef then anchors to the policy base)
@@ -24,14 +24,14 @@ Set DISAGG_GPU (e.g. H200:4) at `modal run` time to pick the GPU request; the co
 is what the launcher uses.
 FULL-PARAMETER RL (rl_disagg --full-param, train/rl/rl_fullparam.py): the policy is the whole model, FSDP2-sharded over the trainer ranks;
 the vLLM engines serve the policy base without LoRA and receive bf16 weights by NCCL after every step; checkpoints are full model dirs:
-    DISAGG_APP=maemm-rl-disagg-fullparam DISAGG_GPU=B200:8 DISAGG_TRANSFORMERS="transformers @ git+https://github.com/ANONYMOUS/transformers@<commit>" \
+    DISAGG_APP=maem-rl-disagg-fullparam DISAGG_GPU=B200:8 DISAGG_TRANSFORMERS="transformers @ git+https://github.com/ANONYMOUS/transformers@<commit>" \
         modal run --detach modal_rl_disagg.py::main --n-rollout 3 --n-trainer 5 --total-steps 50 --full-param \
         --policy-base /data/sft_mix/mixeq_midtrain_fft_from_fft23m_v2/final --pool-dir /data/banks/mix_eq_1p45m \
         --extra-args "--recipe scalerl ... --lr 1e-6 --prefix-cache --score-length-bucket --cuda-graphs --save-dir /data/ckpts_fullrl_x --save-steps 25"
     (--full-param adds `--full-param --init-adapter none`; --publish-mode fs in --extra-args switches to the RAM-disk shard publish)
 Trainer speed knobs (rl_disagg --prefix-cache / --score-length-bucket): the prefix cache needs the transformers fork in the image --
     DISAGG_TRANSFORMERS="transformers @ git+https://github.com/ANONYMOUS/transformers@<commit>" \
-    DISAGG_APP=maemm-rl-disagg-fast-x4 DISAGG_GPU=B200:4 modal run ... --extra-args "--prefix-cache --score-length-bucket ..."
+    DISAGG_APP=maem-rl-disagg-fast-x4 DISAGG_GPU=B200:4 modal run ... --extra-args "--prefix-cache --score-length-bucket ..."
 """
 import os
 from pathlib import Path
@@ -39,7 +39,7 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent.parent   # repo root (this launcher lives one level down)
-app = modal.App(os.environ.get("DISAGG_APP", "maemm-rl-disagg"))   # DISAGG_APP=maemm-rl-disagg-x4 + DISAGG_GPU=B200:4 = parallel 4-GPU deployment
+app = modal.App(os.environ.get("DISAGG_APP", "maem-rl-disagg"))   # DISAGG_APP=maem-rl-disagg-x4 + DISAGG_GPU=B200:4 = parallel 4-GPU deployment
 GPU = os.environ.get("DISAGG_GPU", "B200:4")
 
 # --prefix-cache (rl_disagg PrefixRunner / train/sft/prefix_cache.py) needs the transformers fork = v5.15.0 + ONE commit touching only
@@ -89,7 +89,7 @@ image = (
     .add_local_file(REPO / "train" / "rl" / "fast_lens_ext.py", "/app/helpers/fast_lens_ext.py")
     .add_local_file(REPO / "train" / "rl" / "rl_fullparam.py", "/app/RL/rl_fullparam.py")                    # --full-param (trainer glue + engine-side loaders)
     .add_local_file(REPO / "train" / "sft" / "fullft.py", "/app/helpers/fullft.py")                          # FSDP2 sharding + full-model checkpoints
-    .add_local_dir(REPO / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(REPO / "maem", "/app/helpers/maem", ignore=["__pycache__"])
     .add_local_file(REPO / "train" / "sft" / "prefix_cache.py", "/app/helpers/prefix_cache.py")           # --prefix-cache (expand_cache_copy, fork check)
     .add_local_file(REPO / "evals" / "heldout" / "eval_universal.py", "/app/eval/eval_universal.py")            # inline eval scoring
     .add_local_file(REPO / "evals" / "heldout" / "inline_extra_evals.py", "/app/RL/inline_extra_evals.py")          # autointerp/locality/WildChat/adversarial
@@ -97,7 +97,7 @@ image = (
     .add_local_file(REPO / "evals" / "heldout" / "autointerp_detection.py", "/app/eval/autointerp_detection.py")
 )
 
-vol = modal.Volume.from_name("maemm-data", create_if_missing=True)
+vol = modal.Volume.from_name("maem-data", create_if_missing=True)
 
 POOL_DIR = "/data/banks/everything"
 SFT_INIT = "/data/sft_mix/last5_rp/final"
@@ -253,9 +253,9 @@ def _collect(work="/tmp/disagg"):
 
 
 @app.function(image=image, gpu=GPU, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf"), modal.Secret.from_name("maemm-wandb"),
-                       modal.Secret.from_name("maemm-openrouter"),   # judge fallback
-                       modal.Secret.from_name("maemm-anthropic")],   # native Sonnet 5 judge: ANTHROPIC_API_KEY + ANTHROPIC_WORKSPACE_ID
+              secrets=[modal.Secret.from_name("maem-hf"), modal.Secret.from_name("maem-wandb"),
+                       modal.Secret.from_name("maem-openrouter"),   # judge fallback
+                       modal.Secret.from_name("maem-anthropic")],   # native Sonnet 5 judge: ANTHROPIC_API_KEY + ANTHROPIC_WORKSPACE_ID
               timeout=24 * 3600)
 def train(n_rollout: int = 1, n_trainer: int = 3, total_steps: int = 6, extra_args: str = "", no_wandb: bool = False,
           pool_dir: str = "", policy_base: str = "", full_param: bool = False):
@@ -286,7 +286,7 @@ def train(n_rollout: int = 1, n_trainer: int = 3, total_steps: int = 6, extra_ar
 
 
 @app.function(image=image, gpu=GPU, volumes={"/data": vol},
-              secrets=[modal.Secret.from_name("maemm-hf"), modal.Secret.from_name("maemm-wandb")], timeout=4 * 3600)
+              secrets=[modal.Secret.from_name("maem-hf"), modal.Secret.from_name("maem-wandb")], timeout=4 * 3600)
 def bench(n_rollout: int = 2, n_trainer: int = 2, extra_args: str = ""):
     """Trainer bench (micro-batch search + update time vs rollouts/rank) on GPUs [0,Y) and rollout bench
     (tok/s vs max_num_seqs x eager/graphs/stock-hook) on GPUs [Y,N), concurrently."""

@@ -1,4 +1,4 @@
-"""Product `score`: score rollouts on the CLEAN BASE -> `<root>/maemms/<base>/<maemm>/scores/<set>/`.
+"""Product `score`: score rollouts on the CLEAN BASE -> `<root>/maems/<base>/<maem>/scores/<set>/`.
 
     cos.f16      [N, n, T]   per-token cosine, NaN outside the kept tokens (T = common.SCORE_WIDTH,
                              except where the rollouts summary carries its own score_max_length --
@@ -11,9 +11,9 @@
                              activation at the argmax token exceeds the checkpoint's learned gate
     per_target.jsonl         row, family, n, mean_cos, max_cos, mean_len, eos_rate, bo_<k> means
 
-This product NEVER loads the MAEMM. The full-parameter protocol (evals/heldout/eval_ckpt_daemon.py:333-390)
+This product NEVER loads the MAEM. The full-parameter protocol (evals/heldout/eval_ckpt_daemon.py:333-390)
 is that the tuned model generates and the clean base scores; running the same clean-base path for
-LoRA MAEMMs too means there is exactly ONE scoring path in the pipeline (checklist item 12).
+LoRA MAEMs too means there is exactly ONE scoring path in the pipeline (checklist item 12).
 
 Scoring protocol is common.score_tokens verbatim: right padding, add_special_tokens=False,
 truncation at 95, a sink at column 0 excluded from `keep`, fp32 cosine, ONE fixed chunk of 32 rows,
@@ -30,7 +30,7 @@ directions and writes a FLAT [M, T] variant plus `rows.jsonl`. That is how archi
 pushed through our scorer, which isolates the scorer from the sampler.
 
 `--rollouts-dir <dir>` scores `<dir>/rollouts.jsonl` (+ `<dir>/rollouts.summary.json`) into
-`<dir>/scores/` instead of a MAEMM's rollouts file. The rows must be the rollouts_hf schema and the
+`<dir>/scores/` instead of a MAEM's rollouts file. The rows must be the rollouts_hf schema and the
 summary must carry `engine`, `n`, `seed`, `max_new` and `weight_sha256`; everything else -- the
 clean-base scorer, the arrays, `per_target.jsonl` -- is identical, which is how a `patchscopes`
 cell gets its numbers from THE scoring path rather than from a second implementation.
@@ -108,12 +108,12 @@ def _load_dirs(cfg, args, notes=None):
         base's `whiten_mu`), derived from act.f32 at read time.
 
     THE MEAN IS THE BASE'S, NOT THE RUN'S (2026-09-23). It used to be whatever `mu_for` resolved
-    for this run -- the MAEMM's own injection convention -- which coupled the reported statistic
+    for this run -- the MAEM's own injection convention -- which coupled the reported statistic
     to the checkpoint being reported on: the old primary (`mu: null`), the base control and the
     NLA arm got no centred cosine at all, and two arms on two conventions could not be
     differenced. `common.score_mu` says why the two are now separate axes.
 
-    A row WITH NO RAW ACTIVATION -- `random`, `sae`, `sae2m_enc`, `bsf`, `jlens`, i.e. every
+    A row WITH NO RAW ACTIVATION -- `random`, `sae`, `dict2m_enc`, `bsf`, `jlens`, i.e. every
     family config.yaml's `family_kinds:` does not call `centrable`, and every row of a set that is
     not `storage: raw` -- gets the STORED DIRECTION as its centred target, so its `cos_centred` is
 
@@ -122,7 +122,7 @@ def _load_dirs(cfg, args, notes=None):
     (changed 2026-09-23; it was NaN). This is a ONE-SIDED cosine and it is reported as one: only
     the scorer moves to the mean, because an encoder column, a Gaussian draw and a subspace basis
     have no mean to move to, and a stored `unit` row cannot be moved to one without ||act||. It is
-    the number the eval wants -- the residual the MAEMM actually writes, read against the direction
+    the number the eval wants -- the residual the MAEM actually writes, read against the direction
     that was asked for -- and it is comparable ACROSS such rows, which NaN was not. It is NOT
     comparable with a `centrable` family's two-sided `cos_centred`, and `per_target.jsonl` carries
     `centred_sided` (1 or 2) per row and the README says so, so nothing has to infer it from the
@@ -155,11 +155,11 @@ def _load_dirs(cfg, args, notes=None):
     smu = C.score_mu(cfg, base)
     mu = C.load_mu(cfg, base, smu, root)
     assert mu is not None, f"{smu} does not resolve to a [{d}] mean for base {base}"
-    if args.get("maemm"):
-        own = C.input_mu(cfg, args["maemm"])
+    if args.get("maem"):
+        own = C.input_mu(cfg, args["maem"])
         say.append(
-            f"{args['maemm']} was trained to RECEIVE {C.mu_label(own, base, root)} "
-            f"(maemms.{args['maemm']}.mu); that is the injection convention and is a DIFFERENT "
+            f"{args['maem']} was trained to RECEIVE {C.mu_label(own, base, root)} "
+            f"(maems.{args['maem']}.mu); that is the injection convention and is a DIFFERENT "
             f"axis from the mean this product reports its cosine about"
         )
     if contract["storage"] == "raw":
@@ -232,7 +232,7 @@ def _sae_for(cfg, args, rows_meta=None):
     """(sae, key) for the base, or (None, '') when --no-sae. The gate is the checkpoint's own.
 
     `--sae <base>/<name>` picks WHICH SAE of the base, and is required as soon as the base has
-    more than one: `qwen36-27b` has carried two since `sae2m` landed, and without this flag
+    more than one: `qwen36-27b` has carried two since `dict2m` landed, and without this flag
     `score` could not run on that base at all -- the single-SAE assert below fired before any
     argument could say which to use. With one SAE the flag is optional and the assert is unchanged.
 
@@ -283,7 +283,7 @@ def _check_scored_is_generation(
          else's and no id list came with them.
       2. No scored row reaches THIS RUN's re-encode truncation, `max_length` (the protocol's
          SCORE_MAX_LENGTH = 95 for every arm but the NLA one, which scores at 256 -- see
-         `common.encode_for_score`). The MAEMM prompt is ~103 tokens, so a row that carried it
+         `common.encode_for_score`). The MAEM prompt is ~103 tokens, so a row that carried it
          would be truncated to exactly 95 kept tokens at the protocol width.
 
     MEASURED 2026-09-15: a row's decoded text does NOT always re-tokenize to the same number of ids
@@ -312,7 +312,7 @@ def _check_scored_is_generation(
     its base-model continuations re-encode past 95 often enough to abort the product, while bound 1
     -- the exact one -- passes on every row. In that case the count of truncated rows is REPORTED
     instead, because truncation is still a real measurement caveat: those rows' cosine is a max over
-    a shortened window, biased down. Where the prompt could reach the truncation (the MAEMM path,
+    a shortened window, biased down. Where the prompt could reach the truncation (the MAEM path,
     ~103 + 64) the assert is unchanged.
     """
     kept = out["keep"].sum(1)
@@ -393,7 +393,7 @@ def _rescore(cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, d
     recs = C.read_jsonl(src)
     assert recs, f"{src} has no rows"
     name = args.get("score_name") or f"{args['heldout']}__rescore-{os.path.basename(src).split('.')[0]}"
-    out = C.scores_dir(args["maemm"], name, args["root"])
+    out = C.scores_dir(args["maem"], name, args["root"])
     for r in recs:
         assert "row" in r and "text" in r, f"{src}: every row needs 'row' and 'text', got {sorted(r)}"
         assert 0 <= r["row"] < len(rows_meta), f"{src}: row {r['row']} is outside 0..{len(rows_meta) - 1}"
@@ -409,7 +409,7 @@ def _rescore(cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, d
         "rescored": src,
         "rows": len(recs),
         "dirs": dirs_src,
-        "maemm": args["maemm"],
+        "maem": args["maem"],
         "sae": sae_key or "(not used)",
     }
     with C.outdir(out, args, inputs=inputs) as od:
@@ -452,22 +452,22 @@ def _rescore(cfg, args, model, tok, rows_meta, dirs, read_layer, sae, sae_key, d
 def run(cfg, args):
     import torch
 
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
     # `--rollouts-dir <dir>` scores <dir>/rollouts.jsonl + <dir>/rollouts.summary.json into
-    # <dir>/scores/: rows a NON-MAEMM producer wrote in the rollouts_hf schema (today
+    # <dir>/scores/: rows a NON-MAEM producer wrote in the rollouts_hf schema (today
     # precompute/patchscopes.py). Everything else about this product is unchanged -- same clean
     # base, same protocol, same outputs -- which is the point of the flag (checklist item 12).
     rdir = args.get("rollouts_dir") or ""
     assert base, "product score needs --base"
-    assert maemm or rdir, "product score needs --maemm (the rollouts it scores), or --rollouts-dir"
-    assert not maemm or maemm in cfg["maemms"], (
-        f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
+    assert maem or rdir, "product score needs --maem (the rollouts it scores), or --rollouts-dir"
+    assert not maem or maem in cfg["maems"], (
+        f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
     )
     read_layer, d = cfg["bases"][base]["read_layer"], cfg["bases"][base]["d"]
 
     cen_notes: list[str] = []
     rows_meta, dirs, dirs_centred, mu, dirs_src, one_sided_rows = _load_dirs(cfg, args, cen_notes)
-    model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY -- the MAEMM is never loaded here
+    model, tok = C.load_base(cfg, base)  # CLEAN BASE ONLY -- the MAEM is never loaded here
     sae, sae_key = _sae_for(cfg, args, rows_meta)
 
     if args.get("rescore_texts"):
@@ -492,8 +492,8 @@ def run(cfg, args):
         # run tag: `common.read_rollouts` concatenates the chunks and merges their summaries, so
         # nothing downstream of here -- scores/, results.common.discover_sources, either OOD
         # reader -- learns that the generation was chunked (common.rollout_chunk_stem).
-        recs, rsum, sources = C.read_rollouts(C.rollouts_dir(maemm, root), stem)
-        rpath = sources[0] if len(sources) == 1 else f"{C.rollouts_dir(maemm, root)}/{stem}[chunked]"
+        recs, rsum, sources = C.read_rollouts(C.rollouts_dir(maem, root), stem)
+        rpath = sources[0] if len(sources) == 1 else f"{C.rollouts_dir(maem, root)}/{stem}[chunked]"
     if rdir:
         # the directory names its own producer (e.g. "hf-patchscope"); --engine does not apply
         engine = rsum["engine"]
@@ -654,14 +654,14 @@ def run(cfg, args):
     out = (
         f"{rdir}/scores"
         if rdir
-        else C.scores_dir(maemm, args.get("score_name") or set_name, root, engine,
+        else C.scores_dir(maem, args.get("score_name") or set_name, root, engine,
                           C.score_tag_of(args), write=True)
     )
     inputs = {
         "rollouts": rpath if len(sources) == 1 else ", ".join(sources),
         "engine": engine,
         "dirs": dirs_src,
-        "maemm": maemm or f"(none: --rollouts-dir {rdir})",
+        "maem": maem or f"(none: --rollouts-dir {rdir})",
         "weight sha256": rsum["weight_sha256"],
         "sae": sae_key or "(none: --no-sae)",
         "targets": f"{N} of {len(rows_meta)} rows",
@@ -708,19 +708,19 @@ def run(cfg, args):
                 # HERE rather than from a config entry that may have moved since.
                 #
                 # THE SCORING CONSTANT (common.score_mu), not this run's injection convention.
-                # Until 2026-09-23 this field was `mu_for(...)`, the MAEMM's own `mu:` -- which is
+                # Until 2026-09-23 this field was `mu_for(...)`, the MAEM's own `mu:` -- which is
                 # what `results/common.py:493` and `results/ood.py`'s refusal to difference across
                 # means read. Two arms trained on two conventions therefore looked like two
                 # incomparable products even after both were scored about one mean, and a
-                # `--rollouts-dir` run (no --maemm in scope) could not name one at all.
+                # `--rollouts-dir` run (no --maem in scope) could not name one at all.
                 "mu": None if mu is None else C.mu_label(C.score_mu(cfg, base), base, root),
                 # The INJECTION convention of the checkpoint whose rollouts these are, recorded
                 # beside it because they are different axes and a reader must be able to see both.
-                "input_mu": C.mu_label(C.input_mu(cfg, maemm), base, root) if maemm else None,
+                "input_mu": C.mu_label(C.input_mu(cfg, maem), base, root) if maem else None,
             },
         )
         od.note(
-            f"scored on the CLEAN BASE ({cfg['bases'][base]['hf']}); the MAEMM is never loaded by "
+            f"scored on the CLEAN BASE ({cfg['bases'][base]['hf']}); the MAEM is never loaded by "
             "this product. Protocol: common.score_tokens -- padding_side right, "
             f"add_special_tokens=False, truncation at {max_length}, sink at column 0 "
             f"excluded from `keep`, fp32 cosine, ONE fixed chunk of {C.SCORE_CHUNK} rows, NO norm "

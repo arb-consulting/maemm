@@ -364,7 +364,7 @@ def run(cfg, args):
     assert base, "product stats needs --base"
     spec = cfg["bases"][base]
     # ONE --sae syntax in the whole CLI: common.sae_key_for. The inline copy that lived here (and
-    # in scan.py) accepted a bare `sae2m` while every other product's --sae required the full
+    # in scan.py) accepted a bare `dict2m` while every other product's --sae required the full
     # `<base>/<name>` key -- two syntaxes for one flag, which is a thing a reader gets right once.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
 

@@ -63,14 +63,14 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 
-from maemm.config import MODEL, D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
-from maemm.inject import get_layer, make_inject_hook, hooked, read_resid
-from maemm.prompts import build_prompt_ids
-from maemm.sae import load_sae, load_max_acts
+from maem.config import MODEL, D_MODEL, INJECT_LAYER, READ_LAYER, STEER_COEFF
+from maem.inject import get_layer, make_inject_hook, hooked, read_resid
+from maem.prompts import build_prompt_ids
+from maem.sae import load_sae, load_max_acts
 
 NORM_FILTER_MULT = 10.0   # same as eval_dirs: drop re-encoded tokens with norm > 10x batch median
 SAE_FIRE_LEGACY = 1.0     # the OLD arbitrary "fired" cut (raw act > 1.0); still logged as eval/sae/{fired,unverbalized}_1p0 for continuity
-SAE_FIRE = 1.654          # "fired" = the SAE's own learned BatchTopK gate (ANONYMOUS/qwen36-27b-sae-l42: threshold 1.6539); overwritten with
+SAE_FIRE = 1.654          # "fired" = the SAE's own learned BatchTopK gate (ANONYMOUS/dict-l42-a: threshold 1.6539); overwritten with
                           # the exact value from the checkpoint by configure_sae_fire(path). Everything that reads EU.SAE_FIRE inherits it.
 
 
@@ -114,7 +114,7 @@ MLP_TOP_PCT = 0.99                                 # eval/<fam>/top1pct_frac: ac
 MLP_STATS_DEFAULT = "/data/mlp42/neuron_stats.npz"  # per-neuron corpus stats of all 17,408 neurons (1.02M FineFineWeb tokens)
 MLP_CHANCE_ACTS_DEFAULT = "/data/acts27b"          # random corpus windows (held-out tail rows) for the chance level of the rank metrics
 MLP_CHANCE_SEED = 20260908                         # window draw seed (per eval row, so sharding over ranks never changes the draw)
-ENV_EVAL_CACHE = "MAEMM_EVAL_CACHE"  # env override of the eval-cache path (rl.py / rl_disagg.py / eval_ckpt_daemon.py --eval-cache default)
+ENV_EVAL_CACHE = "MAEM_EVAL_CACHE"  # env override of the eval-cache path (rl.py / rl_disagg.py / eval_ckpt_daemon.py --eval-cache default)
 
 
 def extra_families(eval_sets):

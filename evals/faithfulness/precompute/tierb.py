@@ -61,11 +61,11 @@ BUNDLE = "data/v2-bundle"
 # scan would happily read to its end and report clean.
 BANKS = (
     ("sft_mix/realact", 4_000_000),
-    ("sft_mix/sae2m", 2_000_000),
-    ("sft_mix/sae2m_dec", 2_000_000),
+    ("sft_mix/dict2m", 2_000_000),
+    ("sft_mix/dict2m_dec", 2_000_000),
     ("rl_pool/realact_ctx64_2048", 470_566),
-    ("rl_pool/sae2m", 235_283),
-    ("rl_pool/sae2m_dec", 235_283),
+    ("rl_pool/dict2m", 235_283),
+    ("rl_pool/dict2m_dec", 235_283),
 )
 
 # (block name, held-out set, family, centring). `mu: "score"` means the base's scoring constant

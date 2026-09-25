@@ -9,7 +9,7 @@ The main evaluations. `precompute/` produces every artifact (targets, rollouts, 
 | `autointerp/chain.py` | Stage `chain`: the whole remaining autointerp run as ONE detached Modal call. |
 | `autointerp/modal_app.py` | The `autointerp` stages' own Modal app -- P1 (GPU), P2 (CPU) and the LLM run (CPU + the Anthropic API). |
 | `autointerp/run.py` | Stage `run`: the LLM half -- Delphi's explainer, then its detection and fuzzing scorers. |
-| `autointerp/sae_self.py` | Product `sae_self` (P1 of the autointerp design): the target feature's PER-TOKEN activation on its own MAEMM rollouts. |
+| `autointerp/sae_self.py` | Product `sae_self` (P1 of the autointerp design): the target feature's PER-TOKEN activation on its own MAEM rollouts. |
 | `autointerp/selfcheck.py` | Run the WHOLE chain's control flow locally, with the API stubbed, before any launch. |
 | `autointerp/stats.py` | The autointerp analysis layer: the pilot's tables, from the small files one `run` wrote. |
 | `autointerp/third_party/delphi-4fea06e/explainers/default/prompts.py` |  |
@@ -22,7 +22,7 @@ The main evaluations. `precompute/` produces every artifact (targets, rollouts, 
 | `features/corpus_train_parity.py` | Build a search corpus from the checkpoint's OWN training document ranges. |
 | `features/doc_dedup.py` | Document-level near-duplication: did the model see the DOCUMENT, not just the span? |
 | `features/draw_sae131k.py` | Draw the shared 131k-SAE target set: 2,000 held-out features, 80/20. |
-| `features/draw_sae2m.py` | Draw the standard sae2m target set: 40,000 eval-split features, 80/20. |
+| `features/draw_dict2m.py` | Draw the standard dict2m target set: 40,000 eval-split features, 80/20. |
 | `features/emit.py` | Lay the registries out as <family>/{README.md,train/,test/}. |
 | `features/fetch_hf.py` | Fetch an HF repo into the volume's HF cache at a PINNED revision. |
 | `features/heldout_v2.py` | Wrap the frozen v2 directions as a held-out set the pipeline already reads. |
@@ -44,11 +44,11 @@ The main evaluations. `precompute/` produces every artifact (targets, rollouts, 
 | `precompute/ood_selfcheck.py` | Product `ood_selfcheck`: every OOD code path that `unit_smoke` cannot reach, before any launch. |
 | `precompute/patchscopes.py` | Product `patchscopes`: the zero-shot patching baseline, on the CLEAN BASE. |
 | `precompute/repo_examples.py` | Product `repo_examples`: score the SAE repo's OWN max-activating windows. |
-| `precompute/rollouts_hf.py` | Product `rollouts_hf`: MAEMM rollouts on the HF `generate` path. |
+| `precompute/rollouts_hf.py` | Product `rollouts_hf`: MAEM rollouts on the HF `generate` path. |
 | `precompute/rollouts_nla.py` | Product `rollouts_nla`: the NLA activation-verbalizer baseline on the HF `generate` path. |
 | `precompute/rollouts_vllm.py` | Product `rollouts_vllm`: the same rollouts as `rollouts_hf`, through a vLLM engine. |
 | `precompute/scan.py` | Product `scan`: pass B over the corpus -- the corpus-retrieval baseline and the SAE examples. |
-| `precompute/score.py` | Product `score`: score rollouts on the CLEAN BASE -> `<root>/maemms/<base>/<maemm>/scores/<set>/`. |
+| `precompute/score.py` | Product `score`: score rollouts on the CLEAN BASE -> `<root>/maems/<base>/<maem>/scores/<set>/`. |
 | `precompute/stats.py` | Product `stats`: pass A over the corpus. Target-INDEPENDENT, so it runs once per base and is never invalidated by a new held-out set. |
 | `precompute/targets.py` | Product `targets`: draw one held-out set -> `<root>/base/<base>/heldout/<set>/`. |
 | `precompute/tierb.py` | Product `tierb` (CPU): cos > 0.999 of OUR target blocks against the v2 TRAINING rows. |
@@ -57,7 +57,7 @@ The main evaluations. `precompute/` produces every artifact (targets, rollouts, 
 | `precompute/vllm_ext.py` | Fast vllm_lens worker extension: a copy of train/rl/fast_lens_ext.py with the hook try/except REMOVED (errors raise instead of leaving a request ... |
 | `reconstruction/act_smoke.py` | How hard does a target feature actually fire, on each kind of text that claims to describe it? |
 | `reconstruction/corpus_top1_activation.py` | `paper/inversion-eval/data/corpus_top1_activation.csv` -- does the corpus search's TOP-1 window for an SAE feature actually make that feature fire? |
-| `reconstruction/parity.py` | Do the HF and vLLM engines produce the same MAEMM? CPU, local, no volume access. |
+| `reconstruction/parity.py` | Do the HF and vLLM engines produce the same MAEM? CPU, local, no volume access. |
 | `reconstruction/repro_run1.py` | Does our pipeline reproduce run1's archived numbers? CPU, local, no volume access. |
 | `reconstruction/sae_smoke64.py` | How hard does a target feature fire on each source, at a MATCHED number of draws? |
 | `reconstruction/stats.py` | The analysis layer of evals/faithfulness: every table the paper reads, from the small files on the volume. |

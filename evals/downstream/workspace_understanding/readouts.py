@@ -41,9 +41,9 @@ def free_text(run):
     """{condition: {item id: {"greedy", "samples"}}} for every free-text reader present. The verbalizer is
     read through its judge views (`text`, and `text_trunc` for `nla64`, the first 64 generated ids)."""
     out = {}
-    maemm = _index(run.read_json("rollouts/maemm.json") if run.exists("rollouts/maemm.json") else None)
-    if maemm:
-        out["maemm"] = _view(maemm)
+    maem = _index(run.read_json("rollouts/maem.json") if run.exists("rollouts/maem.json") else None)
+    if maem:
+        out["maem"] = _view(maem)
     patch = run.read_json("rollouts/patchscope.json") if run.exists("rollouts/patchscope.json") else None
     for arm in C.PATCH_ARMS:
         idx = _index(patch, "arms", arm, "items")
@@ -62,11 +62,11 @@ def free_text(run):
         idx = {i: r[kind] for i, r in _index(ctl).items() if kind in r}
         if idx:
             out[f"nla_{kind}"] = _view(idx)
-    mctl = run.read_json("rollouts/maemm_control.json") if run.exists("rollouts/maemm_control.json") else None
+    mctl = run.read_json("rollouts/maem_control.json") if run.exists("rollouts/maem_control.json") else None
     for kind in C.POSITION_CONTROLS:
         idx = _index(mctl, "kinds", kind, "items")
         if idx:
-            out[f"maemm_{kind}"] = _view(idx)
+            out[f"maem_{kind}"] = _view(idx)
     return out
 
 

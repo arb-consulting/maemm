@@ -1,4 +1,4 @@
-"""8B MAEMM training curve (the run1, /vol/checkpoints/runs/run1): held-out cosine and SAE
+"""8B MAEM training curve (the run1, /vol/checkpoints/runs/run1): held-out cosine and SAE
 firing over SFT steps then RL steps, plus the RL training reward (the cosine) per step.
 
     python evals/verbalization/analysis/plot_8b_training_curve.py

@@ -20,8 +20,8 @@ def reencode(texts, model, tok, device, sbatch=32, max_length=SCORE_MAX_LENGTH, 
     `keep` the candidate positions, `mask` the attention mask including the sink."""
     import torch
 
-    from maemm.config import READ_LAYER
-    from maemm.inject import read_resid
+    from maem.config import READ_LAYER
+    from maem.inject import read_resid
 
     prev = tok.padding_side
     tok.padding_side = "right"

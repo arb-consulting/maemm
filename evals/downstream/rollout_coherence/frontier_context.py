@@ -1,5 +1,5 @@
 """Stage `frontier_context` (methodology §3-§4): the matched targets and every text the figure reads,
-scored against them. Methods (`targets`, `retrieval`, `maemm`, `continuation`, `nla`), each with its own
+scored against them. Methods (`targets`, `retrieval`, `maem`, `continuation`, `nla`), each with its own
 stage record, resume key and artifacts under `frontier/context/`; `targets` runs first, and every
 invocation checks that a source passage scores a centred cosine of 1 against its own target.
 """
@@ -112,8 +112,8 @@ def method_config_hash(run, args, method, n):
         common["retrieval"] = {"sizes": [list(s) for s in C.corpus_sizes(args.smoke)[0]],
                                "spec": C.SEARCH_CORPUS.record(), "bank_batch": C.BANK_BATCH}
         upstream.append("frontier_corpus")
-    elif method in ("maemm", "continuation"):
-        common["arm"] = {"inverter": C.INVERTER_REVISION if method == "maemm" else None,
+    elif method in ("maem", "continuation"):
+        common["arm"] = {"inverter": C.INVERTER_REVISION if method == "maem" else None,
                          "sampling": C.SAMPLING, "n_samples": C.n_samples(method), "gen_chunk": C.GEN_CHUNK}
         if method != "continuation":
             common["arm"].update(inject_layer=C.INJECT_LAYER, steer_coeff=C.STEER_COEFF)
@@ -453,8 +453,8 @@ def method_retrieval(args, run, ctx):
 
 
 def build_inverter_prompt(tok):
-    """`(prompt ids, marker position)` of the inverter prompt (`maemm.prompts`)."""
-    from maemm.prompts import build_prompt_ids
+    """`(prompt ids, marker position)` of the inverter prompt (`maem.prompts`)."""
+    from maem.prompts import build_prompt_ids
 
     ids, mpos = build_prompt_ids(tok)
     return ids, mpos[0]
@@ -488,9 +488,9 @@ def generation_record(ctx, arm, seed, rows, recs, t_gen, **extra):
     return rec
 
 
-def method_maemm(args, run, ctx):
+def method_maem(args, run, ctx):
     """The inverter with the matched direction injected (methodology §4), freed before the re-read."""
-    arm = "maemm"
+    arm = "maem"
     tgt = ctx.targets()
     n_samples = C.n_samples(arm)
     prompt_ids, marker = build_inverter_prompt(ctx.tok)
@@ -558,7 +558,7 @@ def method_nla(args, run, ctx):
 
 
 METHODS = {"targets": method_targets, "retrieval": method_retrieval,
-           "maemm": method_maemm, "continuation": method_continuation, "nla": method_nla}
+           "maem": method_maem, "continuation": method_continuation, "nla": method_nla}
 
 
 # ---------------------------------------------------------------- the stage

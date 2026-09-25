@@ -19,10 +19,10 @@ against **that arm's own corpus** -- the pre-registered level-1 contrast, and th
 comparator the paper's main fidelity result uses, scanned once against all 11,264 OOD targets
 (`scan/<set>__train_parity_10m__paper0923`). The two are different claims and neither replaces
 the other: an own-domain search reads text of the target's own language, a training-corpus search
-reads the English text this MAEMM was trained to invert against.
+reads the English text this MAEM was trained to invert against.
 
 CONVENTION, and the one thing that would silently break it. Both sides are CENTRED about the
-base's scoring constant: the scan ran `--centre --run-tag paper0923` and the MAEMM's `cos_centred`
+base's scoring constant: the scan ran `--centre --run-tag paper0923` and the MAEM's `cos_centred`
 is taken about the same constant, so Δ is a paired difference and not the subtraction of two
 angles to two different vectors. `scan_mu_of` is asserted here rather than assumed -- an uncentred
 scan of the same corpus would land in a directory of the same name and be differenced without a
@@ -58,7 +58,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 BASE = "qwen36-27b"
 EN_CORPUS_DIR = "train_parity_10m"      # `corpora.train10m.dir`
 EN_SIZE = 10.0                          # the ladder's top, the size the paper's fidelity row uses
-MAEMM = "qwen36-27b/2026-09-18_rl-last16-lr5e-7"
+MAEM = "qwen36-27b/2026-09-18_rl-final"
 
 # The cells rows this file owns. `encorp10` is the 10M ENGLISH TRAINING corpus, beside the existing
 # `corp10` (the arm's OWN corpus): two different comparators, two key families, never one key
@@ -73,7 +73,7 @@ def owned_keys(cfg: dict) -> set[str]:
     return keys | set(CONJ)
 
 
-def pick_source(vol: R.Vol, cfg: dict, base: str, set_name: str, maemm: str):
+def pick_source(vol: R.Vol, cfg: dict, base: str, set_name: str, maem: str):
     """The scored run this table differences, and the notes about the ones it did not pick."""
     sources, absent = R.discover_sources(vol, cfg, base, set_name)
     notes = [f"config'd checkpoint with no products on this set: `{a}`" for a in absent]
@@ -81,14 +81,14 @@ def pick_source(vol: R.Vol, cfg: dict, base: str, set_name: str, maemm: str):
     for s in sources:
         why = R.load_source(vol, s)
         (notes.append(f"source `{s.label}` unusable: {why}") if why else usable.append(s))
-    want = [s for s in usable if s.role != "control" and s.maemm == maemm
+    want = [s for s in usable if s.role != "control" and s.maem == maem
             and OOD.has_col(s, "centred")]
     assert want, (
-        f"no scored source for {maemm} on {set_name} carrying `bo_c_64`/`cos_centred`: this table "
+        f"no scored source for {maem} on {set_name} carrying `bo_c_64`/`cos_centred`: this table "
         f"is the centred pair and has nothing to read ({notes})")
     for s in usable:
         if s not in want:
-            notes.append(f"source `{s.label}` not used (role={s.role}, maemm={s.maemm})")
+            notes.append(f"source `{s.label}` not used (role={s.role}, maem={s.maem})")
     return want[0], notes
 
 
@@ -109,7 +109,7 @@ def own_domain_cells(path: Path | None) -> dict[str, dict]:
 def main(
     set_name: Annotated[str, typer.Option("--set", help="the OOD held-out set")] = "",
     base: Annotated[str, typer.Option()] = BASE,
-    maemm: Annotated[str, typer.Option(help="the scored checkpoint to difference")] = MAEMM,
+    maem: Annotated[str, typer.Option(help="the scored checkpoint to difference")] = MAEM,
     scan_dir: Annotated[
         str, typer.Option(help="the English-corpus scan directory under base/<base>/scan/ "
                                "(default: <set>__train_parity_10m__paper0923)")
@@ -148,7 +148,7 @@ def main(
     SD = OOD._stats_ood()
 
     ids = OOD.load_ood_ids(vol, base, set_name)
-    src, notes = pick_source(vol, cfg, base, set_name, maemm)
+    src, notes = pick_source(vol, cfg, base, set_name, maem)
 
     # THE SCAN'S OWN RECORD OF ITS MODE AND ITS MEAN, asserted before a single difference is taken.
     mu_raw, centred = OOD.scan_mu_of(vol, base, scan)
@@ -245,7 +245,7 @@ def main(
             f"over the **English 10M training corpus** (`corpora.train10m`, dir "
             f"`{EN_CORPUS_DIR}`) at **{size:g}M tokens**, scan `{scan}`.",
             "",
-            "Δ = the MAEMM's unbiased best-of-8 minus the English corpus search's top-1 on the "
+            "Δ = the MAEM's unbiased best-of-8 minus the English corpus search's top-1 on the "
             "SAME target, paired; CI is the design's 10,000-resample percentile bootstrap over "
             "the arm's targets and the SE beside it is the document-clustered one "
             "(`results.common.cluster_bootstrap`). The outcome is the same three-state verdict "

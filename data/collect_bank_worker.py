@@ -33,8 +33,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 sys.path.insert(0, "/app")
 sys.path.insert(0, "/app/helpers")
 from collect_acts27b_worker import FffwReader, StreamReader, log  # noqa: E402
-from maemm.config import D_MODEL, MODEL, READ_LAYER  # noqa: E402
-from maemm.inject import read_resid  # noqa: E402
+from maem.config import D_MODEL, MODEL, READ_LAYER  # noqa: E402
+from maem.inject import read_resid  # noqa: E402
 
 ALIGN = 512   # the acts27b store cut docs into 512-token windows; hash at those offsets to catch its docs
 

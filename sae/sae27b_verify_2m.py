@@ -5,7 +5,7 @@ copies of the big matrices: encode/decode run in bf16 over feature chunks straig
 Reports EV (1 - sum||x-x_hat||^2 / sum||x-mean||^2), L0 (features > threshold per token), and the fraction of
 features that fired at least once in the evaluated batches (a LOWER bound on liveness; the maxacts fire counts over
 1B tokens are the real live/dead measure).
---online (sae2m): no stored shards -- the activations are generated on the same GPU by online_gen.OnlineActGenerator
+--online (dict2m): no stored shards -- the activations are generated on the same GPU by online_gen.OnlineActGenerator
 (truncated 27B, [BOS]+512 windows, BOS dropped, 10x-median outlier drop) from Ultra-FineWeb docs [--dataset-skip, ...) of
 the single stream; the default --dataset-skip 0 evaluates on the reserved head (docs 0..99,999) that training excluded.
 EV is reported both globally centred (ev) and per-micro-batch centred (ev_batch, the trainer's convention).

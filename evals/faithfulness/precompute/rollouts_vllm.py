@@ -1,8 +1,8 @@
 """Product `rollouts_vllm`: the same rollouts as `rollouts_hf`, through a vLLM engine.
 
-    <root>/maemms/<base>/<maemm>/rollouts/<set>__vllm.jsonl          (+ .summary.json)
-    <root>/maemms/<base>/<maemm>/parity/greedy-<set>/                (product `parity_greedy`)
-    <root>/maemms/<base>/<maemm>/throughput/                         (`rollouts_vllm --throughput`)
+    <root>/maems/<base>/<maem>/rollouts/<set>__vllm.jsonl          (+ .summary.json)
+    <root>/maems/<base>/<maem>/parity/greedy-<set>/                (product `parity_greedy`)
+    <root>/maems/<base>/<maem>/throughput/                         (`rollouts_vllm --throughput`)
 
 The row format is byte-for-byte the one `rollouts_hf` writes -- row, family, k, text, ids, n_tok,
 finished, engine, seed -- with `engine: "vllm"`, so `score.py` does not care which engine produced a
@@ -53,7 +53,7 @@ import time
 import numpy as np
 
 import precompute.common as C
-from precompute.rollouts_hf import load_dirs, weight_identity, write_maemm_readme
+from precompute.rollouts_hf import load_dirs, weight_identity, write_maem_readme
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -75,7 +75,7 @@ MARKER_NORM_TOL = 0.03
 # The untrained-base CONTROL (`type: base`) has the opposite expectation: its served marker norm
 # must EQUAL the clean base's, so the 3% above is reported but not asserted -- a clean-base forward
 # measured by HF in bf16 against vLLM's own kernels need not agree that tightly. 25% is a sanity
-# bound, not a proof: a silently served MAEMM would be 130 or 512 against 14.06, i.e. 9-36x off.
+# bound, not a proof: a silently served MAEM would be 130 or 512 against 14.06, i.e. 9-36x off.
 BASE_CONTROL_NORM_TOL = 0.25
 # The injection self-check's thresholds (train/rl/rl.py:283-300, train/rl/rl_disagg.py:1382-1405).
 INJ_COS_MIN, INJ_RATIO_LO, INJ_RATIO_HI = 0.99, 0.95, 1.05
@@ -110,19 +110,19 @@ FAST_EXT = "precompute.vllm_ext.FastSteerExtension"
 # ---------------------------------------------------------------------------------------------
 
 
-def adapter_for_vllm(cfg, base: str, maemm_key: str, dest: str) -> dict:
-    """Re-save the MAEMM's adapter under the module names vLLM looks up for `base`.
+def adapter_for_vllm(cfg, base: str, maem_key: str, dest: str) -> dict:
+    """Re-save the MAEM's adapter under the module names vLLM looks up for `base`.
 
     Reads the stored `adapter_model.safetensors` rather than a live PeftModel (train/rl/rl.py:192-211
     goes through `get_peft_model_state_dict`, which produces the same key strings): nothing here
-    loads the MAEMM into torch at all. `adapter_config.json` is copied verbatim -- vLLM reads r,
+    loads the MAEM into torch at all. `adapter_config.json` is copied verbatim -- vLLM reads r,
     alpha and the rsLoRA flag from it.
     """
     from safetensors.torch import load_file, save_file
 
-    src = C.maemm_weights_path(cfg, maemm_key)
+    src = C.maem_weights_path(cfg, maem_key)
     sf = os.path.join(src, "adapter_model.safetensors")
-    assert os.path.exists(sf), f"maemm {maemm_key!r}: no adapter_model.safetensors under {src}"
+    assert os.path.exists(sf), f"maem {maem_key!r}: no adapter_model.safetensors under {src}"
     sd = load_file(sf)
     mapping = C.rename_lora_keys(list(sd), base)
     n_renamed = sum(1 for k, v in mapping.items() if k != v)
@@ -351,10 +351,10 @@ def verify_injection(llm, prompt_ids, marker, hnorm, inject_layer, d, coef, lora
     return chk
 
 
-def marker_norm_vs_hf(cfg, args, maemm: str, set_name: str, hn_engine: float, kind: str) -> dict:
+def marker_norm_vs_hf(cfg, args, maem: str, set_name: str, hn_engine: float, kind: str) -> dict:
     """Self-check (ii): the engine's served marker norm against `rollouts_hf`'s measured one.
 
-    For a LoRA MAEMM this is the ADAPTER-APPLIED PROOF -- vLLM ignores a wrongly named adapter
+    For a LoRA MAEM this is the ADAPTER-APPLIED PROOF -- vLLM ignores a wrongly named adapter
     silently, and an ignored adapter returns the clean-base norm (8B 78.0 vs 14.5, 27B 512.0 vs
     14.06). The reference is step 3's own summary on the volume; when no HF run of this set exists
     the check degrades to "must differ from the clean base" and says so.
@@ -387,12 +387,12 @@ def marker_norm_vs_hf(cfg, args, maemm: str, set_name: str, hn_engine: float, ki
         assert rel <= BASE_CONTROL_NORM_TOL, (
             f"the untrained-base control serves marker ||h|| {hn_engine:.4f} against the clean "
             f"base's {float(ref):.4f} ({rel:.2%} apart, sanity bound "
-            f"{BASE_CONTROL_NORM_TOL:.0%}). This catches a MAEMM served where the CONTROL was "
+            f"{BASE_CONTROL_NORM_TOL:.0%}). This catches a MAEM served where the CONTROL was "
             f"asked for: the 27B's trained checkpoints sit at 130 (full) and 512 (LoRA), i.e. 9x "
             f"and 36x this value, so it cannot fire on bf16 noise or a tokenizer wobble ({chk})"
         )
         return chk
-    hf_summary = f"{C.rollouts_dir(maemm, root)}/{set_name}.summary.json"
+    hf_summary = f"{C.rollouts_dir(maem, root)}/{set_name}.summary.json"
     if os.path.exists(hf_summary):
         with open(hf_summary) as fh:
             hf = json.load(fh)
@@ -404,8 +404,8 @@ def marker_norm_vs_hf(cfg, args, maemm: str, set_name: str, hn_engine: float, ki
         )
         assert rel <= MARKER_NORM_TOL, (
             f"the engine serves marker ||h|| {hn_engine:.4f} but rollouts_hf measured "
-            f"{ref:.4f} on the same MAEMM ({rel:.2%} apart, tolerance {MARKER_NORM_TOL:.0%}). For a "
-            f"LoRA MAEMM this is the adapter-applied proof: vLLM validates adapter module names by "
+            f"{ref:.4f} on the same MAEM ({rel:.2%} apart, tolerance {MARKER_NORM_TOL:.0%}). For a "
+            f"LoRA MAEM this is the adapter-applied proof: vLLM validates adapter module names by "
             f"SUFFIX ONLY and silently ignores a wrongly named one, which returns the CLEAN BASE "
             f"norm ({cfg['bases'][base].get('marker_norm_base')})"
         )
@@ -429,7 +429,7 @@ def marker_norm_vs_hf(cfg, args, maemm: str, set_name: str, hn_engine: float, ki
     )
     assert rel > MARKER_NORM_TOL * 10, (
         f"the engine's marker ||h|| {hn_engine:.4f} equals the CLEAN BASE {ref}: for a {kind} "
-        f"MAEMM that is the silently-ignored-adapter signature (checklist item 22)"
+        f"MAEM that is the silently-ignored-adapter signature (checklist item 22)"
     )
     return {
         "reference": float(ref),
@@ -444,19 +444,19 @@ def marker_norm_vs_hf(cfg, args, maemm: str, set_name: str, hn_engine: float, ki
 # ---------------------------------------------------------------------------------------------
 
 
-def _engine_for(cfg, args, base, maemm, p_len, max_new, gpu_mem):
-    """(llm, info, lora_request, adapter_info) for a MAEMM: LoRA slot or a served full model."""
-    spec = cfg["maemms"][maemm]
+def _engine_for(cfg, args, base, maem, p_len, max_new, gpu_mem):
+    """(llm, info, lora_request, adapter_info) for a MAEM: LoRA slot or a served full model."""
+    spec = cfg["maems"][maem]
     seqs = int(args.get("max_num_seqs") or MAX_NUM_SEQS[base])
     max_len = p_len + max_new + 8
     # `full` AND `base` both take the served-model path: no LoRA slot, the engine is built directly
-    # on `maemm_weights_path`, which for the untrained-base control IS the base snapshot.
+    # on `maem_weights_path`, which for the untrained-base control IS the base snapshot.
     if spec["type"] != "lora":
-        path = C.maemm_weights_path(cfg, maemm)
+        path = C.maem_weights_path(cfg, maem)
         llm, info = build_engine(cfg, args, base, path, False, seqs, max_len, gpu_mem)
         return llm, info, None, {"src": path, "dest": None, "tensors": 0, "renamed": 0}
-    name = maemm.replace("/", "__")
-    adapter = adapter_for_vllm(cfg, base, maemm, f"/tmp/vllm_lora/{name}")
+    name = maem.replace("/", "__")
+    adapter = adapter_for_vllm(cfg, base, maem, f"/tmp/vllm_lora/{name}")
     path = C.snapshot(cfg, cfg["bases"][base]["hf"])
     llm, info = build_engine(cfg, args, base, path, True, seqs, max_len, gpu_mem)
     from vllm.lora.request import LoRARequest
@@ -545,17 +545,17 @@ def _eos_from_files(cfg, base, tok) -> set[int]:
 
 
 def run(cfg, args):
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
     assert base, "product rollouts_vllm needs --base"
-    assert maemm in cfg["maemms"], f"unknown maemm {maemm!r}, want one of {sorted(cfg['maemms'])}"
-    assert C.split_key(maemm, "maemm")[0] == base, f"maemm {maemm!r} is not on base {base!r}"
+    assert maem in cfg["maems"], f"unknown maem {maem!r}, want one of {sorted(cfg['maems'])}"
+    assert C.split_key(maem, "maem")[0] == base, f"maem {maem!r} is not on base {base!r}"
 
-    spec = cfg["maemms"][maemm]
+    spec = cfg["maems"][maem]
     # `type: nla` is the activation VERBALIZER baseline: a different prompt, a different marker
-    # character and a marker that is not the last prompt token. Every assert below about the MAEMM
+    # character and a marker that is not the last prompt token. Every assert below about the MAEM
     # prompt would either fire or, worse, pass on a prompt the checkpoint never saw.
     assert spec["type"] != "nla", (
-        f"maemm {maemm!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
+        f"maem {maem!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
         f"builds the verbalizer's own prompt and marker from the checkpoint's nla_meta.yaml"
     )
     rl = cfg["rollouts"]
@@ -573,7 +573,7 @@ def run(cfg, args):
         C.rollout_stem(set_name, "vllm", args.get("run_tag") or ""), args.get("rows", "")
     )
 
-    out_dir = C.rollouts_dir(maemm, root)
+    out_dir = C.rollouts_dir(maem, root)
     path = f"{out_dir}/{stem}.jsonl"
     # `--throughput only` writes nothing into rollouts/, so an existing file there is not in its way.
     assert args.get("throughput") == "only" or args.get("force") or not os.path.exists(path), (
@@ -588,15 +588,15 @@ def run(cfg, args):
     rows_meta, dirs, dirs_src = load_dirs(cfg, args, device="cpu", notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
 
-    llm, info, lora_req, adapter = _engine_for(cfg, args, base, maemm, len(prompt), max_new, gpu_mem)
+    llm, info, lora_req, adapter = _engine_for(cfg, args, base, maem, len(prompt), max_new, gpu_mem)
     hn = engine_marker_norm(llm, prompt, mpos, inj_layer, lora_request=lora_req)
-    hn_chk = marker_norm_vs_hf(cfg, args, maemm, set_name, hn, spec["type"])
+    hn_chk = marker_norm_vs_hf(cfg, args, maem, set_name, hn, spec["type"])
     inj_chk = verify_injection(
         llm, prompt, mpos, hn, inj_layer, cfg["bases"][base]["d"], coef, lora_req, seed=int(rl["seed"])
     )
 
     ctx = {
-        "maemm": maemm,
+        "maem": maem,
         "prompt": prompt,
         "mpos": mpos,
         "dirs": dirs,
@@ -616,7 +616,7 @@ def run(cfg, args):
         return _throughput(cfg, args, llm, info, lora_req, ctx)
 
     print(
-        f"[vllm] {maemm} on {len(sel)} of {len(rows_meta)} targets x {n} rollouts = {len(sel) * n} "
+        f"[vllm] {maem} on {len(sel)} of {len(rows_meta)} targets x {n} rollouts = {len(sel) * n} "
         f"rows, one request per target, dirs from {dirs_src}",
         flush=True,
     )
@@ -678,7 +678,7 @@ def run(cfg, args):
 
     n_tok = [x["n_tok"] for x in out_rows]
     summary = {
-        "maemm": maemm,
+        "maem": maem,
         "base": base,
         "set": set_name,
         "stem": stem,
@@ -717,12 +717,12 @@ def run(cfg, args):
         "generate_seconds": round(elapsed, 1),
         "generate_calls": 1,
     }
-    sha = weight_identity(cfg, maemm)
+    sha = weight_identity(cfg, maem)
     summary["weight_sha256"] = sha["sha256"]
-    write_maemm_readme(cfg, args, maemm, sha, spec["prompt"], len(prompt))
+    write_maem_readme(cfg, args, maem, sha, spec["prompt"], len(prompt))
 
     inputs = {
-        "maemm": maemm,
+        "maem": maem,
         "engine": f"vLLM, {info['hook_extension']}",
         "dirs": dirs_src,
         "targets": f"{len(sel)} of {len(rows_meta)} rows",
@@ -730,7 +730,7 @@ def run(cfg, args):
         "weight sha256": sha["sha256"],
     }
     # keep_existing unconditionally: `rollouts/` is an ACCUMULATING product and the additive
-    # write is what lets two jobs of one MAEMM run at once. Gating it on the directory
+    # write is what lets two jobs of one MAEM run at once. Gating it on the directory
     # already existing left the FIRST two concurrent writers on the old rename path, both
     # staging in one dated temp dir (SMOKES.md:4349-4356).
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=True) as od:
@@ -759,7 +759,7 @@ def run(cfg, args):
             f"and silently ignores a mismatched one) -- {adapter['src']}"
             if adapter["dest"]
             else (
-                f"UNTRAINED-BASE CONTROL: the engine serves the base snapshot itself, no MAEMM "
+                f"UNTRAINED-BASE CONTROL: the engine serves the base snapshot itself, no MAEM "
                 f"weights and no LoRA -- {adapter['src']}"
                 if spec["type"] == "base"
                 else f"full model served directly by the engine, no LoRA: {adapter['src']}"
@@ -848,13 +848,13 @@ def _throughput(cfg, args, llm, info, lora_req, ctx):
         print(f"[vllm] throughput {rows[-1]}", flush=True)
     per_row = [r["gen_tok_per_s"] / r["concurrent_rows"] for r in rows]
     cliff = max(per_row) / max(min(per_row), 1e-9)
-    out = f"{C.maemm_dir(ctx['maemm'], args['root'])}/throughput"
-    inputs = {"maemm": ctx["maemm"], "engine": info, "levels": list(THROUGHPUT_LEVELS)}
+    out = f"{C.maem_dir(ctx['maem'], args['root'])}/throughput"
+    inputs = {"maem": ctx["maem"], "engine": info, "levels": list(THROUGHPUT_LEVELS)}
     with C.outdir(out, args, inputs=inputs, keep_existing=True) as od:
         od.write_json(
             f"seqs-{seqs}.json",
             {
-                "maemm": ctx["maemm"],
+                "maem": ctx["maem"],
                 "max_num_seqs": seqs,
                 "levels": rows,
                 "per_row_tok_s_spread": round(cliff, 3),
@@ -999,18 +999,18 @@ def run_parity_greedy(cfg, args):
     """
     import torch
 
-    base, root, set_name, maemm = args["base"], args["root"], args["heldout"], args["maemm"]
+    base, root, set_name, maem = args["base"], args["root"], args["heldout"], args["maem"]
     assert base == "qwen3-8b", (
         f"parity_greedy keeps an HF model and a vLLM engine on ONE GPU and imports them in that "
         f"order; base {base!r} does not fit (the 27B's parity evidence is the marker-norm check, "
         f"the injection check and the paired rollouts comparison instead)"
     )
-    spec = cfg["maemms"][maemm]
+    spec = cfg["maems"][maem]
     # `type: nla` is the activation VERBALIZER baseline: a different prompt, a different marker
-    # character and a marker that is not the last prompt token. Every assert below about the MAEMM
+    # character and a marker that is not the last prompt token. Every assert below about the MAEM
     # prompt would either fire or, worse, pass on a prompt the checkpoint never saw.
     assert spec["type"] != "nla", (
-        f"maemm {maemm!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
+        f"maem {maem!r} is an NLA entry: it generates with `--product rollouts_nla`, which "
         f"builds the verbalizer's own prompt and marker from the checkpoint's nla_meta.yaml"
     )
     inj_layer, coef = int(spec["inject"]["layer"]), float(spec["inject"]["coef"])
@@ -1019,13 +1019,13 @@ def run_parity_greedy(cfg, args):
 
     rows_meta, dirs, dirs_src = load_dirs(cfg, args, device="cpu")
     sel = C.parse_rows(args.get("rows", "") or "0-7", len(rows_meta))
-    out = f"{C.maemm_dir(maemm, root)}/parity/greedy-{set_name}"
+    out = f"{C.maem_dir(maem, root)}/parity/greedy-{set_name}"
     assert args.get("force") or not os.path.exists(out), (
         f"{out} already exists; refusing to overwrite without --force"
     )
 
     # ---- HF side FIRST (before any vllm import) ----------------------------------------------
-    model, tok, kind = C.load_maemm(cfg, base, maemm)
+    model, tok, kind = C.load_maem(cfg, base, maem)
     prompt, mpos = C.prompt_ids(tok, spec["prompt"], cfg["bases"][base]["read_layer"])
     stop = C.eos_ids(tok, model)
     hn_hf = C.marker_norm(model, prompt, mpos, inj_layer, adapter=True)
@@ -1043,7 +1043,7 @@ def run_parity_greedy(cfg, args):
     torch.cuda.empty_cache()
 
     # ---- vLLM side ---------------------------------------------------------------------------
-    llm, info, lora_req, adapter = _engine_for(cfg, args, base, maemm, len(prompt), max_new, gpu_mem)
+    llm, info, lora_req, adapter = _engine_for(cfg, args, base, maem, len(prompt), max_new, gpu_mem)
     hn_engine = engine_marker_norm(llm, prompt, mpos, inj_layer, lora_request=lora_req)
     rel = abs(hn_engine - hn_hf) / max(hn_hf, 1e-6)
     print(f"[parity] engine marker ||h|| {hn_engine:.4f} vs HF {hn_hf:.4f} ({rel:.2%})", flush=True)
@@ -1110,7 +1110,7 @@ def run_parity_greedy(cfg, args):
             }
         )
     summary = {
-        "maemm": maemm,
+        "maem": maem,
         "base": base,
         "set": set_name,
         "dirs_from": dirs_src,
@@ -1144,7 +1144,7 @@ def run_parity_greedy(cfg, args):
         flush=True,
     )
 
-    inputs = {"maemm": maemm, "dirs": dirs_src, "rows": f"{len(sel)} rows", "engine": info["model"]}
+    inputs = {"maem": maem, "dirs": dirs_src, "rows": f"{len(sel)} rows", "engine": info["model"]}
     with C.outdir(out, args, inputs=inputs) as od:
         od.write_jsonl("per_direction.jsonl", per_dir)
         od.write_json("summary.json", summary)

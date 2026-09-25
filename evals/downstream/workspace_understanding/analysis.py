@@ -30,11 +30,11 @@ from evals.downstream.common.stats import (
 JUDGE_ORDER = tuple(_judges.JUDGE_ORDER)
 
 GROUPS = ("association", "multihop", "pooled", "association/proper_noun", "association/common")
-# The readers MAEMM is contrasted against on the word rule (the lens has its own rank contrasts).
+# The readers MAEM is contrasted against on the word rule (the lens has its own rank contrasts).
 READER_COMPARATORS = C.PATCH_ARMS + ("nla", "nla64", "retrieval", "nla_mid", "nla_mean",
-                                     "maemm_mid", "maemm_mean", "untrained_base")
+                                     "maem_mid", "maem_mean", "untrained_base")
 # Readers contrasted with their own chance line.
-CHANCE_CHECKED = ("nla", "nla64", "retrieval", "nla_mid", "nla_mean", "maemm_mid", "maemm_mean",
+CHANCE_CHECKED = ("nla", "nla64", "retrieval", "nla_mid", "nla_mean", "maem_mid", "maem_mean",
                   "untrained_base")
 
 
@@ -169,7 +169,7 @@ def score_items(run):
     fitted_layers = lens_doc["lens"]["fitted_layers"]
     free = RO.free_text(run)
     verdicts = {j: load_verdicts(run, j) for j in JUDGE_ORDER}
-    maemm_raw = {r["i"]: r for r in run.read_json("rollouts/maemm.json")["items"]}
+    maem_raw = {r["i"]: r for r in run.read_json("rollouts/maem.json")["items"]}
     band = {i: pool_band(r["top10_by_layer"], fitted_layers) for i, r in lens.items()}
     reread = run.read_json("rollouts/reread.json") if run.exists("rollouts/reread.json") else None
     nla_doc = S.load_nla(run)
@@ -194,11 +194,11 @@ def score_items(run):
             ch, nd = _donor_chance(view, donors, forms)
             rec["chance"][f"{cond}_pass8"] = ch
             rec["chance"]["n_donors_used"][cond] = nd
-        if rec["maemm"] is not None:
-            m = maemm_raw.get(i)
-            rec["maemm"]["cos_own_greedy"] = (m["greedy"].get("cos_own") if m else None)
-            rec["maemm"]["answer_hit"] = (
-                any(M.whole_word_hit(t, it["answer_forms"]) for t in (free["maemm"][i]["samples"]))
+        if rec["maem"] is not None:
+            m = maem_raw.get(i)
+            rec["maem"]["cos_own_greedy"] = (m["greedy"].get("cos_own") if m else None)
+            rec["maem"]["answer_hit"] = (
+                any(M.whole_word_hit(t, it["answer_forms"]) for t in (free["maem"][i]["samples"]))
                 if it["family"] == "multihop"
                 else None
             )
@@ -241,9 +241,9 @@ def score_items(run):
             else None
         )
         rec["fidelity"] = {}
-        m = maemm_raw.get(i)
+        m = maem_raw.get(i)
         if m and reread:
-            rec["fidelity"]["maemm"] = {
+            rec["fidelity"]["maem"] = {
                 "own_samples": float(np.mean([x["cos_own"] for x in m["samples"]])),
                 "foil_samples": float(np.mean([x["cos_foil"] for x in m["samples"]])),
                 "own_greedy": float(m["greedy"]["cos_own"]),
@@ -324,8 +324,8 @@ def _rates_for_group(S_, g, idx, include_answer_hit):
     if include_answer_hit and any(s["family"] == "multihop" for s in S_):
         out.append(
             _rate_rows(
-                "answer_hit", "maemm", g,
-                [s["maemm"]["answer_hit"] if s.get("maemm") else None for s in S_],
+                "answer_hit", "maem", g,
+                [s["maem"]["answer_hit"] if s.get("maem") else None for s in S_],
                 budget_type="samples", budget=8,
             )
         )
@@ -407,7 +407,7 @@ def _judged_rows(S_, g, idx, judge):
 def _reread_rows(S_, g, idx):
     """reread.csv: each reader's re-read cosine against its own and the foil's direction, and the gap."""
     out = []
-    for cond in ("maemm",) + tuple(C.REREAD_CONDITIONS):
+    for cond in ("maem",) + tuple(C.REREAD_CONDITIONS):
         if not any(s["fidelity"].get(cond) for s in S_):
             continue
         for budget, ok, fk in (("samples", "own_samples", "foil_samples"), ("greedy", "own_greedy", "foil_greedy")):
@@ -426,7 +426,7 @@ def _reread_rows(S_, g, idx):
 
 
 def _word_rule_contrasts():
-    """(name_a, name_b, f_a, f_b) for every judge-free contrast: MAEMM against chance, the lens and every
+    """(name_a, name_b, f_a, f_b) for every judge-free contrast: MAEM against chance, the lens and every
     reader; readers against chance and their position controls; Patchscopes arms against the floor; re-read
     cosines."""
     p8 = lambda cond: (lambda s: s[cond]["pass_at"]["8"] if s.get(cond) else None)
@@ -439,12 +439,12 @@ def _word_rule_contrasts():
         else None
     )
     pairs = [
-        ("maemm_pass8", "maemm_chance", p8("maemm"), ch("maemm_pass8")),
-        ("maemm_pass8", "jlens_L42_k10", p8("maemm"), rank("L42", "10")),
-        ("maemm_pass8", "jlens_best_k10", p8("maemm"), rank("best", "10")),
-        ("maemm_greedy", "jlens_L42_k1", (lambda s: s["maemm"]["greedy_hit"] if s.get("maemm") else None), rank("L42", "1")),
+        ("maem_pass8", "maem_chance", p8("maem"), ch("maem_pass8")),
+        ("maem_pass8", "jlens_L42_k10", p8("maem"), rank("L42", "10")),
+        ("maem_pass8", "jlens_best_k10", p8("maem"), rank("best", "10")),
+        ("maem_greedy", "jlens_L42_k1", (lambda s: s["maem"]["greedy_hit"] if s.get("maem") else None), rank("L42", "1")),
     ]
-    pairs += [("maemm_pass8", f"{c}_pass8", p8("maemm"), p8(c)) for c in READER_COMPARATORS]
+    pairs += [("maem_pass8", f"{c}_pass8", p8("maem"), p8(c)) for c in READER_COMPARATORS]
     pairs += [(f"{c}_pass8", f"{c}_chance", p8(c), ch(f"{c}_pass8")) for c in CHANCE_CHECKED]
     pairs += [("nla_pass8", f"nla_{k}_pass8", p8("nla"), p8(f"nla_{k}")) for k in C.POSITION_CONTROLS]
     # each Patchscopes arm against its no-injection floor: what the patch added
@@ -454,16 +454,16 @@ def _word_rule_contrasts():
         for a in C.PATCH_LAYERS
     ]
     for cond in C.REREAD_CONDITIONS:
-        pairs.append(("reread_own_maemm", f"reread_own_{cond}", fid("maemm", "own_samples"), fid(cond, "own_samples")))
-        pairs.append(("reread_gap_maemm", f"reread_gap_{cond}", gap("maemm"), gap(cond)))
+        pairs.append(("reread_own_maem", f"reread_own_{cond}", fid("maem", "own_samples"), fid(cond, "own_samples")))
+        pairs.append(("reread_gap_maem", f"reread_gap_{cond}", gap("maem"), gap(cond)))
     return pairs
 
 
 def _judged_contrasts(judge):
-    """(name_a, name_b, f_a, f_b) for the judged contrasts under one judge: MAEMM's net against every other
+    """(name_a, name_b, f_a, f_b) for the judged contrasts under one judge: MAEM's net against every other
     judged condition's."""
     net = lambda cond: (lambda s: _net(s, judge, cond))
-    return [("net_maemm_n8", f"net_{c}", net("maemm_n8"), net(c)) for c in C.JUDGED_CONDITIONS if c != "maemm_n8"]
+    return [("net_maem_n8", f"net_{c}", net("maem_n8"), net(c)) for c in C.JUDGED_CONDITIONS if c != "maem_n8"]
 
 
 def _contrast_rows(S_, g, idx, pairs, judge=""):
@@ -628,7 +628,7 @@ def tables(run, scores, out_dir):
             r["n_split"] = len(SS)
             T["diagnostic_split"].append(r)
     for cond, f in (
-        ("maemm", lambda s: s["maemm"]["pass_at"]["8"] if s.get("maemm") else None),
+        ("maem", lambda s: s["maem"]["pass_at"]["8"] if s.get("maem") else None),
         ("jlens_L42", lambda s: s["jlens"]["rank_le"]["L42"]["10"]),
         ("jlens_best", lambda s: s["jlens"]["rank_le"]["best"]["10"]),
     ):
@@ -689,7 +689,7 @@ def _spend_from_logs(run, rels, model=None):
 
 # The GPU stages; a run's GPU time is summed from their stage records.
 GPU_STAGES = ("capture", "lens", "rollouts", "retrieval", "patchscope", "nla", "nla_control",
-              "untrained_base", "maemm_control", "reread")
+              "untrained_base", "maem_control", "reread")
 # Record-name prefixes of a GPU stage beyond `<stage>` and `<stage>_shard<k>of<n>`: the corpus parts.
 GPU_RECORD_PREFIXES = {"retrieval": ("retrieval_part",)}
 
@@ -811,7 +811,7 @@ def coverage_and_costs(run, scores):
             "jlens": sum(1 for s in scores if s["jlens"].get("has_record")),
         },
         "reread_coverage": {
-            c: sum(1 for s in scores if s["fidelity"].get(c)) for c in ("maemm",) + tuple(C.REREAD_CONDITIONS)
+            c: sum(1 for s in scores if s["fidelity"].get(c)) for c in ("maem",) + tuple(C.REREAD_CONDITIONS)
         },
         "nla_reader": (
             {

@@ -11,7 +11,7 @@ from . import lens_arm, retrieval_arm
 
 LOOKUP_ARMS = (retrieval_arm.ARM, lens_arm.ARM)
 SAMPLES = C.BUNDLES * C.BUNDLE_SIZE
-ARM_MODEL = {"maemm": "inverter", "base_l1": "base"}
+ARM_MODEL = {"maem": "inverter", "base_l1": "base"}
 
 
 def _direction(vector, what):

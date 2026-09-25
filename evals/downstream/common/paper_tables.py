@@ -12,9 +12,9 @@ import csv
 import math
 import os
 
-METHODS = ("MAEMM", "NLA", "J-lens", "J-lens, 8 layers", "Patchscopes", "Corpus search")
+METHODS = ("MAEM", "NLA", "J-lens", "J-lens, 8 layers", "Patchscopes", "Corpus search")
 LABELS = {"J-lens, 8 layers": "J-lens (L36\u201350)"}
-TEX_LABELS = {"MAEMM": r"\method{}", "J-lens": "$J$-lens", "J-lens, 8 layers": "$J$-lens (L36--50)"}
+TEX_LABELS = {"MAEM": r"\method{}", "J-lens": "$J$-lens", "J-lens, 8 layers": "$J$-lens (L36--50)"}
 WORD_RULE = "paper_workspace_word_rule"
 JUDGED_NET = "paper_workspace_judged_net"
 MISSING = "---"

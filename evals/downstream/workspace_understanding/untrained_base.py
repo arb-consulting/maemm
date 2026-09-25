@@ -1,5 +1,5 @@
-"""Stage `untrained_base` (methodology §3.7): MAEMM's prompt, marker and injection on the untrained base
-model, under MAEMM's generation settings. An ablation of MAEMM, scored by the word rule alone; its
+"""Stage `untrained_base` (methodology §3.7): MAEM's prompt, marker and injection on the untrained base
+model, under MAEM's generation settings. An ablation of MAEM, scored by the word rule alone; its
 injection check is recorded, never enforced."""
 
 import time
@@ -31,7 +31,7 @@ def stage_untrained_base(args, run):
         print("[untrained_base] up to date")
         return
     started = time.time()
-    from maemm.prompts import build_prompt_ids, marker_positions
+    from maem.prompts import build_prompt_ids, marker_positions
 
     kept = [x for x in run.read_json("data/items.json")["items"] if not x["excluded"]]
     H = np.load(run.file("activations/h_all.npz"))["h"]

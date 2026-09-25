@@ -1,5 +1,5 @@
-"""Stage `maemm_control` (methodology §3.5): MAEMM on the mid-prompt and prompt-mean activations that
-`nla_control` saved, centred and injected as its readout is; writes rollouts/maemm_control.json. Every kind
+"""Stage `maem_control` (methodology §3.5): MAEM on the mid-prompt and prompt-mean activations that
+`nla_control` saved, centred and injected as its readout is; writes rollouts/maem_control.json. Every kind
 generates first and the inverter is freed before the re-read."""
 
 import time
@@ -42,13 +42,13 @@ def load_control_vectors(run, kept_ids):
     return out
 
 
-def stage_maemm_control(args, run):
-    chash = stage_key("maemm_control", args, run)
-    if stage_done(run, "maemm_control", chash) and not args.force:
-        print("[maemm_control] up to date")
+def stage_maem_control(args, run):
+    chash = stage_key("maem_control", args, run)
+    if stage_done(run, "maem_control", chash) and not args.force:
+        print("[maem_control] up to date")
         return
     started = time.time()
-    from maemm.prompts import build_prompt_ids, marker_positions
+    from maem.prompts import build_prompt_ids, marker_positions
 
     items = run.read_json("data/items.json")
     kept = [x for x in items["items"] if not x["excluded"]]
@@ -69,7 +69,7 @@ def stage_maemm_control(args, run):
     try:
         refuse_unless_generation_agrees(base, inverter)
         for kind in C.POSITION_CONTROLS:
-            seed = arm_seed(f"maemm_{kind}", args.seed)
+            seed = arm_seed(f"maem_{kind}", args.seed)
             doc["config"]["seeds"][kind] = seed
             dirs = np.stack([direction(vecs[kind][i], mu) for i in ids])
             foil_dirs = np.stack([direction(vecs[kind][by_i[i]["foil"]], mu) for i in ids])
@@ -91,12 +91,12 @@ def stage_maemm_control(args, run):
         doc["config"]["injection_check"][kind] = check
         doc["kinds"][kind] = {"items": [{"i": i, "greedy": dict(greedy[k], cos_own=float(own[k]), cos_foil=float(foil[k])), "samples": samples[k]} for k, i in enumerate(ids)]}
         # the gap is recorded, never enforced: a control that carries little of its item is its result
-        print(f"[maemm_control] {kind}: {len(ids)} items; distinct greedy {share:.2f} of {dshare:.2f} distinct inputs; cos own {check['greedy_cos_own_mean']:.3f} foil {check['greedy_cos_foil_mean']:.3f} gap {gap:.3f}", flush=True)
+        print(f"[maem_control] {kind}: {len(ids)} items; distinct greedy {share:.2f} of {dshare:.2f} distinct inputs; cos own {check['greedy_cos_own_mean']:.3f} foil {check['greedy_cos_foil_mean']:.3f} gap {gap:.3f}", flush=True)
     doc["config"]["seconds"] = time.time() - t0
     doc["config"]["norm_filter"] = norm_filter_record(tally)
-    run.write_json("rollouts/maemm_control.json", doc)
-    write_provenance(run, {"maemm_control_injection_check": doc["config"]["injection_check"]}, stage="maemm_control")
-    mark_stage(run, "maemm_control", chash,
+    run.write_json("rollouts/maem_control.json", doc)
+    write_provenance(run, {"maem_control_injection_check": doc["config"]["injection_check"]}, stage="maem_control")
+    mark_stage(run, "maem_control", chash,
                {"injection_check": doc["config"]["injection_check"], "n_items": len(ids), "stop_ids": list(stops),
                 "norm_filter": norm_filter_record(tally)},
                started=started)

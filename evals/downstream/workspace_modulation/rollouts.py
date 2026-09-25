@@ -1,4 +1,4 @@
-"""MAEMM at the two read positions (methodology "Readers"): `stage_rollouts` generates three arms, and
+"""MAEM at the two read positions (methodology "Readers"): `stage_rollouts` generates three arms, and
 `stage_rollouts_merge` reassembles their shards and takes each arm's run-level check.
 
 - `reg`, the headline arm: d = normalize(h42 - mu) injected at the research prompt's marker, on the inverter.
@@ -505,7 +505,7 @@ def stage_rollouts(args, run):
         print(f"[rollouts:{k}of{n}] up to date")
         return
     started = time.time()
-    from maemm.prompts import build_prompt_ids, marker_positions
+    from maem.prompts import build_prompt_ids, marker_positions
 
     items_doc = run.read_json("data/items.json")
     kept = [x for x in items_doc["items"] if not x["excluded"]]

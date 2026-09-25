@@ -1,12 +1,12 @@
-"""MAEMM (rl-last16) rollouts on a rank-1 trojan LoRA's READ vector (lora_A through layer 40's input
+"""MAEM (rl-final) rollouts on a rank-1 trojan LoRA's READ vector (lora_A through layer 40's input
 norm, i.e. the trigger detector) and WRITE vector (down_proj @ lora_B), for dog and jalen_hurts."""
 import json
 import os
 import modal
 
-app = modal.App("maemm-backdoor-read")
-vol = modal.Volume.from_name("maemm")
-tvol = modal.Volume.from_name("maemm-trojan-cache")
+app = modal.App("maem-backdoor-read")
+vol = modal.Volume.from_name("maem")
+tvol = modal.Volume.from_name("maem-trojan-cache")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("torch==2.10.0", index_url="https://download.pytorch.org/whl/cu128")
@@ -35,9 +35,9 @@ def run(n: int = 24, max_new: int = 48):
     import precompute.common as C
 
     cfg = C.load_config()
-    key = "qwen36-27b/2026-09-18_rl-last16-lr5e-7"
-    spec = cfg["maemms"][key]
-    model, tok, kind = C.load_maemm(cfg, "qwen36-27b", key)
+    key = "qwen36-27b/2026-09-18_rl-final"
+    spec = cfg["maems"][key]
+    model, tok, kind = C.load_maem(cfg, "qwen36-27b", key)
     prompt, mpos = C.prompt_ids(tok, spec["prompt"], cfg["bases"]["qwen36-27b"]["read_layer"])
     sub = C.get_layer(model, int(spec["inject"]["layer"]))
     coef = float(spec["inject"]["coef"])

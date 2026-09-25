@@ -7,7 +7,7 @@ any GPU minute is spent.
 
     modal run modal_preflight.py
 
-Checks: both Hub repos reachable and ungated; the base config agrees with maemm.config (D_MODEL,
+Checks: both Hub repos reachable and ungated; the base config agrees with maem.config (D_MODEL,
 READ_LAYER, INJECT_LAYER in range); the adapter is the shape the harness expects (r, rsLoRA,
 target modules, base model id); the cache volume is writable; whether a J-lens is present.
 """
@@ -17,20 +17,20 @@ from pathlib import Path
 import modal
 
 REPO = Path(__file__).resolve().parent.parent   # evals/backdoor/ (preflight.py lives in trojan_modal/)
-ROOT = REPO.parent.parent                        # the repository root: maemm/
+ROOT = REPO.parent.parent                        # the repository root: maem/
 
 BASE_MODEL = "Qwen/Qwen3.6-27B"
-MAEM_ADAPTER = "ANONYMOUS/maemm-qwen36-27b-inverter-rlE-step250"
+MAEM_ADAPTER = "ANONYMOUS/ckpt-rl-abl-e"
 
-app = modal.App("maemm-trojan-preflight")
+app = modal.App("maem-trojan-preflight")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("huggingface_hub==1.27.0", "hf_xet")
-    .add_local_dir(ROOT / "maemm", "/app/helpers/maemm", ignore=["__pycache__"])
+    .add_local_dir(ROOT / "maem", "/app/helpers/maem", ignore=["__pycache__"])
 )
 
-vol = modal.Volume.from_name("maemm-trojan-cache", create_if_missing=True)
+vol = modal.Volume.from_name("maem-trojan-cache", create_if_missing=True)
 
 
 @app.function(image=image, volumes={"/data": vol}, timeout=1800)
@@ -45,7 +45,7 @@ def preflight(base: str = BASE_MODEL, maem_adapter: str = MAEM_ADAPTER,
 
     from huggingface_hub import HfApi, hf_hub_download
 
-    from maemm.config import D_MODEL, INJECT_LAYER, READ_LAYER
+    from maem.config import D_MODEL, INJECT_LAYER, READ_LAYER
 
     api, ok = HfApi(), True
     sizes = {}
@@ -67,7 +67,7 @@ def preflight(base: str = BASE_MODEL, maem_adapter: str = MAEM_ADAPTER,
               f"| vocab {t['vocab_size']} | tied_emb {cfg.get('tie_word_embeddings')}")
         if d != D_MODEL:
             ok = False
-            print(f"[FAIL] hidden_size {d} != maemm.config.D_MODEL {D_MODEL}")
+            print(f"[FAIL] hidden_size {d} != maem.config.D_MODEL {D_MODEL}")
         for name, L in (("READ_LAYER", READ_LAYER), ("INJECT_LAYER", INJECT_LAYER)):
             if L >= n_layers:
                 ok = False
@@ -105,7 +105,7 @@ def preflight(base: str = BASE_MODEL, maem_adapter: str = MAEM_ADAPTER,
         os.makedirs("/data/trojan", exist_ok=True)
         open("/data/trojan/.preflight", "w").write("ok")
         vol.commit()
-        print("[ok]   cache volume 'maemm-trojan-cache' writable (hf cache -> /data/hf_cache)")
+        print("[ok]   cache volume 'maem-trojan-cache' writable (hf cache -> /data/hf_cache)")
     except Exception as e:
         ok = False
         print(f"[FAIL] volume: {type(e).__name__}: {str(e)[:150]}")

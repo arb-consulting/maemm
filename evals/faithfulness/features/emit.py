@@ -24,9 +24,9 @@ ACTIVATION_TRAIN_SOURCES = {
     "realact": ["sft_activations_ctx8_64", "rl_activations_ctx64_2048"],
 }
 # ... and of each SAE family.
-SAE_TRAIN_SOURCES = ["sae2m_sft_bank_windows", "sae2m_rl_bank_windows"]
+SAE_TRAIN_SOURCES = ["dict2m_sft_bank_windows", "dict2m_rl_bank_windows"]
 
-SAE_FAMILIES = ("sae2m_enc", "sae2m_dec")
+SAE_FAMILIES = ("dict2m_enc", "dict2m_dec")
 
 
 def _doc_ids(source: str) -> pd.DataFrame:
@@ -131,8 +131,8 @@ def emit_features(root: str, reg: pd.DataFrame, rep: dict) -> list[str]:
             "peak_strata": rep["peak_strata"],
         }
         extra = ("`fire_count_16m` and `density_stratum` are null: they need the 2M SAE's "
-                 "weights, which are on Modal volume `maemm-data` (workspace "
-                 "`<your-profile>`) at /data/sae2m/trainer_0/ae.pt and are not reachable "
+                 "weights, which are on Modal volume `maem-data` (workspace "
+                 "`<your-profile>`) at /data/dict2m/trainer_0/ae.pt and are not reachable "
                  "from here. `peak_stratum` is not a substitute -- different quantity, "
                  "different corpus.")
         layout.write_readme(root, family, _head_readme(family, train_info, test_info, extra))

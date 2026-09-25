@@ -1,10 +1,10 @@
 """Main-paper figure for the rank-one backdoor section.
 
-    Left   schematic: the same write vector unit(W_down b) is handed to the MAEMM (rollouts) and to
+    Left   schematic: the same write vector unit(W_down b) is handed to the MAEM (rollouts) and to
            corpus search (max-activating windows of 8M web tokens); both outputs are checked the
            same way -- does the text contain a payload word?
     Right  result: for n = 1..24 samples, how many of the 16 adapters have at least one sample
-           naming the payload. MAEMM: unbiased pass@n from 24 rollouts. Corpus: top-n windows.
+           naming the payload. MAEM: unbiased pass@n from 24 rollouts. Corpus: top-n windows.
 
 Also writes the two-panel (write + read) version for the appendix.
     python trojan/results/make_fig_verbatim.py [scratch_dir]
@@ -26,7 +26,7 @@ from trojan.core.specs_theme import TROJANS_THEME as T  # noqa: E402
 D = sys.argv[1] if len(sys.argv) > 1 else "."
 OUT = os.path.join(os.path.dirname(__file__), "run17", "paper")
 INK, MUTED, GRID = "#1a1a1a", "#6b6b6b", "#dddddd"
-MAEMM, CORPUS, ACT = "#b3451e", "#2f5f8f", "#5a9a5a"
+MAEM, CORPUS, ACT = "#b3451e", "#2f5f8f", "#5a9a5a"
 plt.rcParams.update({"font.size": 9.5, "font.family": "DejaVu Sans", "axes.edgecolor": INK,
                      "axes.labelcolor": INK, "text.color": INK, "xtick.color": INK,
                      "ytick.color": INK, "axes.spines.top": False, "axes.spines.right": False,
@@ -65,7 +65,7 @@ def series():
 
 
 def result_panel(ax, ns, S, m, c, ntok, extra=None, annotate=True):
-    ax.plot(ns, S[m], color=MAEMM, lw=2.4, marker="o", ms=4, label="MAEMM rollouts", zorder=3)
+    ax.plot(ns, S[m], color=MAEM, lw=2.4, marker="o", ms=4, label="MAEM rollouts", zorder=3)
     ax.plot(ns, S[c], color=CORPUS, lw=2.0, ls="--", marker="s", ms=3.5,
             label=f"corpus search ({ntok / 1e6:.0f}M tokens)", zorder=3)
     if extra:
@@ -84,7 +84,7 @@ def result_panel(ax, ns, S, m, c, ntok, extra=None, annotate=True):
         for k in (1, 4):
             i = k - 1
             ax.annotate(f"{S[m][i]:.0f}/16", (k, S[m][i]), xytext=(0, 7),
-                        textcoords="offset points", ha="center", fontsize=8.5, color=MAEMM,
+                        textcoords="offset points", ha="center", fontsize=8.5, color=MAEM,
                         fontweight="bold")
             ax.annotate(f"{S[c][i]:.0f}/16", (k, S[c][i]), xytext=(0, -14 if k > 1 else 8),
                         textcoords="offset points", ha="center", fontsize=8.5, color=CORPUS,
@@ -111,14 +111,14 @@ def schematic(ax):
     # source
     box(ax, 0.01, 0.38, 0.20, 0.24,
         "rank-one LoRA\nwrite vector\n$\\mathrm{unit}(W_{\\mathrm{down}}b)$", "#f3f3f3", fs=7.6)
-    # MAEMM path
-    arrow(ax, 0.21, 0.56, 0.27, 0.76, MAEMM)
-    box(ax, 0.27, 0.64, 0.28, 0.24, "MAEMM\ninject at layer 1,\ngenerate $n$ rollouts",
-        "#fbeee8", ec=MAEMM, fs=7.4)
-    arrow(ax, 0.55, 0.76, 0.60, 0.76, MAEMM)
+    # MAEM path
+    arrow(ax, 0.21, 0.56, 0.27, 0.76, MAEM)
+    box(ax, 0.27, 0.64, 0.28, 0.24, "MAEM\ninject at layer 1,\ngenerate $n$ rollouts",
+        "#fbeee8", ec=MAEM, fs=7.4)
+    arrow(ax, 0.55, 0.76, 0.60, 0.76, MAEM)
     box(ax, 0.60, 0.64, 0.39, 0.24,
         "\u201cThe lesson on volcanoes in\nelementary science always \u2026\u201d", "white",
-        ec=MAEMM, fs=7.0)
+        ec=MAEM, fs=7.0)
     ax.text(0.41, 0.92, "${\\sim}10^{14}$ FLOPs", ha="center", fontsize=7.2, color=MUTED,
             transform=ax.transAxes)
     # corpus path
@@ -170,8 +170,8 @@ def main():
 
     for k in (1, 4, 24):
         i = k - 1
-        print(f"n={k:>2}: write MAEMM {S['mw'][i]:.1f} corpus {S['cw'][i]:.1f} | "
-              f"read MAEMM {S['mr'][i]:.1f} corpus {S['cr'][i]:.1f} | act {S['ma'][i]:.1f}  (of 16)")
+        print(f"n={k:>2}: write MAEM {S['mw'][i]:.1f} corpus {S['cw'][i]:.1f} | "
+              f"read MAEM {S['mr'][i]:.1f} corpus {S['cr'][i]:.1f} | act {S['ma'][i]:.1f}  (of 16)")
 
 
 if __name__ == "__main__":

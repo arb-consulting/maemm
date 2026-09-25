@@ -10,7 +10,7 @@ Usage: PYTHONPATH=. python data/build_big_sft_bank.py --n-realact 500000 --n-pro
 """
 import argparse, os, json, numpy as np, random
 from transformers import AutoTokenizer
-from maemm.config import MODEL, D_MODEL
+from maem.config import MODEL, D_MODEL
 
 NORM_FILTER_MULT = 10.0
 
