@@ -15,7 +15,8 @@ recovered from `corpus/tokens.i32` at that offset and the recovered length is AS
 
 Arms (design §2; N = `autointerp.n_examples` = 16 unless the variant says otherwise):
 
-  C16      the top-16 corpus windows by peak activation over the full 16M corpus
+  C16      the top-16 corpus windows by peak activation, one per document (`examples_docmax`), over
+           the 10M training corpus `train_parity_10m` (ARM_SPECS; the pilot's 16M pool is `C16-win`)
   C4       the top-16 among those whose document lies in the nested 4M prefix
   M        the top-16 of the MAEMM's 64 rollouts by peak target-feature activation (needs `sae_self`)
   C4M      8 corpus (C4 ranks 1-8) + 8 rollouts (M ranks 1-8), shuffled
