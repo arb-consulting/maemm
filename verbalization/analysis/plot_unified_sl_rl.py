@@ -47,8 +47,8 @@ def main():
             st = sorted(data)
             for k, ls, mk in ((1, "-", "o"), (8, "--", "s")):
                 # the 27B has only its two endpoints: draw points, not a line through steps we never saw
-                ax[i].plot(st, [data[s][f"{fam}_{k}"] for s in st], ls if size == "8B" else "none", color=col,
-                           marker=mk, ms=4 if size == "8B" else 7, label=f"{size}, best of {k}")
+                ax[i].plot(st, [data[s][f"{fam}_{k}"] for s in st], color=col, linestyle=ls if size == "8B" else "none",
+                           marker=mk, ms=4 if size == "8B" else 8, label=f"{size}, best of {k}")
         ax[i].set_title(title, fontsize=10); ax[i].set_xlabel("RL step (0 = end of SFT)"); ax[i].set_ylabel("mean cosine")
         ax[i].grid(alpha=0.3)
     ax[0].legend(fontsize=8, frameon=False)
