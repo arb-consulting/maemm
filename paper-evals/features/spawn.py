@@ -20,12 +20,17 @@ here too or it silently takes the default.
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import sys
 
 import modal
 
-APP = "maemm-paper-evals"
+# The deployed app to spawn against. Hardcoding it meant the ONLY way to get a persistent app
+# (the whole point of spawning) was to overwrite the shared deployment -- so a private shakeout
+# could not be run without changing what every teammate's spawn hits. $MAEMM_APP overrides it;
+# unset, the behaviour is exactly as before.
+APP = os.environ.get("MAEMM_APP") or "maemm-paper-evals"
 CPU_PRODUCTS = ("check", "unit", "corpus", "mu_check", "centred")
 
 # Argument names and defaults MIRROR `precompute/modal_app.py:main` exactly -- a spawned run is

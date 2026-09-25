@@ -102,31 +102,47 @@ def build(cfg, args):
     print(f"[draw131k] pool {len(ids):,} held-out features, act "
           f"min {acts.min():.2f} median {np.median(acts):.2f} max {acts.max():.1f}",
           flush=True)
-    assert len(ids) >= N_FEATURES, f"only {len(ids)} features, need {N_FEATURES}"
+    # `--n`, as draw_sae2m has always taken it (draw_sae2m.py:243). Hardcoding 2000 meant a
+    # rare-feature mining draw could not be made with this product at all; the DEFAULT is
+    # unchanged, so `2026-09-21_sae131k_2k` still reproduces byte-for-byte.
+    n_feat = int(args.get("n") or N_FEATURES)
+    assert n_feat > 0, f"--n must be positive, got {n_feat}"
+    assert len(ids) >= n_feat, f"only {len(ids)} features, need {n_feat}"
 
-    rng = np.random.default_rng(DRAW_SEED)
-    pick = np.sort(rng.choice(len(ids), size=N_FEATURES, replace=False))
+    rng = np.random.default_rng(int(args.get("seed") or DRAW_SEED))
+    pick = np.sort(rng.choice(len(ids), size=n_feat, replace=False))
     drawn, peak = ids[pick], acts[pick]
 
     cuts = np.quantile(np.log10(np.maximum(peak, 1e-6)), [0.25, 0.5, 0.75])
     stratum = np.searchsorted(cuts, np.log10(np.maximum(peak, 1e-6)), side="right")
-    side = np.where(rng.random(N_FEATURES) < FIT_FRACTION, "train", "test")
+    side = np.where(rng.random(n_feat) < FIT_FRACTION, "train", "test")
 
     peak_by_id = dict(zip(drawn.tolist(), peak.tolist(), strict=True))
     set_name, out_dir, rows, vecs, meta = _finish(
         cfg, args, sae_key, spec, set_name, out_dir, drawn, side, stratum,
-        peak_by_id, "log10_pool_peak_act", f"pool_heldout/sae.parquet ({len(ids):,})",
+        # NAME THE POOL THAT WAS ACTUALLY READ. This was the hardcoded literal
+        # "pool_heldout/sae.parquet", so a `--subset` draw wrote a README claiming a source it
+        # never opened -- the one field whose whole job is to say where the features came from.
+        peak_by_id, "log10_pool_peak_act", f"{pool_path} ({len(ids):,})",
         # `peak16` (the 16M-corpus peak) is None here: this draw reads the 1B pool's `act`, and
         # `corpus_peak_16m` is a different quantity on a different corpus. The slot was added to
         # `_finish` on this branch AFTER draw_sae131k was written against the 16-argument
         # signature, which bound `cuts` to `peak16` and raised a TypeError on the meta dict.
-        False, None, None, cuts, {"pool": len(ids), "eligible": int(len(ids))})
+        # `sides` is POPPED by `_finish` (draw_sae2m.py:461) and supplied there at :386;
+        # draw_sae131k never passed it, so every call raised KeyError before reaching the
+        # GPU. This draw is encoder-only -- its rows are unit(W_enc[:, f]) -- so it is the
+        # single-side shape, which is what the set on the volume already carries.
+        False, None, None, cuts,
+        {"pool": len(ids), "eligible": int(len(ids)), "sides": ("enc",),
+         "pool_path": pool_path})
     for r in rows:
         # NOT `r["sae_key"] = "l42-1b"`, which is what this loop used to do. `_finish` already
         # stamps the FULL config key, and `common.sae_rows_of` matches on the full key -- a bare
         # name matches nothing, and because the row IS keyed (just wrongly) the unkeyed branch's
         # loud assert never fires: `scan` would simply run with n_feat = 0.
-        r["heldout_note"] = HELDOUT_NOTE
+        r["heldout_note"] = (
+            f"drawn from --subset {pool_path}; no training-split check has been made"
+            if args.get("subset") else HELDOUT_NOTE)
     return set_name, out_dir, rows, vecs, meta
 
 
@@ -299,7 +315,7 @@ def run(cfg, args):
     if _paired(args):
         return run_paired(cfg, args)
     set_name, out_dir, rows, vecs, meta = build(cfg, args)
-    with C.outdir(out_dir, args, inputs={"sae": args.get("sae"), "pool": POOL}) as od:
+    with C.outdir(out_dir, args, inputs={"sae": args.get("sae"), "pool": meta["pool_path"]}) as od:
         od.write_jsonl("ids.jsonl", rows)
         od.write_array("vecs.f16", vecs, "float16")
         # THE STORAGE CONTRACT (H4), the same one `draw_sae2m.run` writes. Without it
@@ -325,10 +341,28 @@ def run(cfg, args):
         )
         od.note(f"{len(rows)} features of the 131k SAE, family tag 'sae', sae_key "
                 f"{rows[0]['sae_key']!r} -- feature ids are NOT comparable with sae2m's")
-        od.note(f"{meta['n_fit']} train / {meta['n_report']} test, seed {DRAW_SEED}; "
-                f"BOTH halves are unseen -- this splits our analysis, not the training")
+        # "BOTH halves are unseen" is a claim about the DEFAULT pool, and the seed is no longer
+        # always DRAW_SEED now that --seed exists. Report what this run did, not what the 2k
+        # draw did.
+        seed_used = int(args.get("seed") or DRAW_SEED)
+        od.note(f"{meta['n_fit']} train / {meta['n_report']} test, seed {seed_used}; "
+                + ("the split is OURS, for fitting vs reporting; it says nothing about what the "
+                   "checkpoint saw (see the provenance note below)"
+                   if args.get("subset") else
+                   "BOTH halves are unseen -- this splits our analysis, not the training"))
         od.note(f"strata: {meta['stratum_stat']} quartiles over the drawn set, recorded "
                 f"not sampled, cuts {meta['cuts']}")
-        od.note("HELD-OUT PROVENANCE IS WEAKER THAN THE 2M SET'S: " + HELDOUT_NOTE)
+        # HELDOUT_NOTE describes the DEFAULT pool (the earlier chains' 13,107-feature split).
+        # A --subset draw reads some other pool, whose rows were NOT held out by that split and
+        # may sit in the checkpoint's training set -- so stamping the note there asserts a
+        # cleanliness this set has not got. Say what is true instead, and say it loudly.
+        if args.get("subset"):
+            od.note("HELD-OUT PROVENANCE: NONE ESTABLISHED. Drawn from the --subset pool "
+                    f"{meta['pool_path']!r}, not from {POOL}. Nothing here has checked these "
+                    "features against any training split: treat them as POSSIBLY SEEN by the "
+                    "checkpoint. Fine for a set that is trained ON; NOT usable as an evaluation "
+                    "set without a leakage scan first.")
+        else:
+            od.note("HELD-OUT PROVENANCE IS WEAKER THAN THE 2M SET'S: " + HELDOUT_NOTE)
     print(json.dumps({"set": set_name, "dir": out_dir, **meta}, indent=1), flush=True)
     return {"product": "draw_sae131k", "set": set_name, **meta}

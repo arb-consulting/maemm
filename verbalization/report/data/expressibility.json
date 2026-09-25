@@ -1,0 +1,75 @@
+{
+ "question": "which SAE features THIS INVERTER fails on, and whether that is predictable from SAE geometry alone. NOTE: labels come from maemm-qwen3-8b-invert-rl-v3-step600, so this measures the model's coverage, not a property of the features.",
+ "labels": {
+  "success": "best_act >= ex_last (reached a genuine corpus example)",
+  "fail": "best_act < 10% of ex_last",
+  "n_success": 155,
+  "n_fail": 924,
+  "excluded_in_between": 441
+ },
+ "univariate": {
+  "log10_fire_freq": {
+   "auc": 0.7898198575617931,
+   "median_success": -3.0517360734178447,
+   "median_fail": -3.774771509732263,
+   "mwu_p": 6.474918891270397e-31
+  },
+  "enc_dec_cos": {
+   "auc": 0.6023111297304846,
+   "median_success": 0.5933554172515869,
+   "median_fail": 0.569232165813446,
+   "mwu_p": 4.480237839743495e-05
+  },
+  "dec_nn_cos": {
+   "auc": 0.7068356374807988,
+   "median_success": 0.25593653321266174,
+   "median_fail": 0.17186209559440613,
+   "mwu_p": 1.5727347775615266e-16
+  },
+  "dec_top1_margin": {
+   "auc": 0.6669319927384444,
+   "median_success": 0.0061622560024261475,
+   "median_fail": 0.0027586519718170166,
+   "mwu_p": 2.7563807139530105e-11
+  },
+  "dec_lens_entropy": {
+   "auc": 0.18392682586230974,
+   "median_success": 4.142993927001953,
+   "median_fail": 4.155465126037598,
+   "mwu_p": 1.895631720987754e-36
+  },
+  "enc_lens_entropy": {
+   "auc": 0.28505795279988827,
+   "median_success": 4.154618263244629,
+   "median_fail": 4.155930519104004,
+   "mwu_p": 9.975339102149547e-18
+  },
+  "corpus_peak": {
+   "auc": 0.5130184331797235,
+   "median_success": 118.0,
+   "median_fail": 118.0,
+   "mwu_p": 0.6036261293063274
+  }
+ },
+ "multivariate": {
+  "cv_auc_all": 0.8231841097759751,
+  "cv_auc_rarity_only": 0.7890966983814108,
+  "cv_auc_geometry_only": 0.7438870778211591,
+  "coefficients": {
+   "log10_fire_freq": 1.1513364306604528,
+   "enc_dec_cos": -0.3159534398679045,
+   "dec_nn_cos": 0.3383385157450546,
+   "dec_top1_margin": 0.33710216042408986,
+   "dec_lens_entropy": -0.5004371460499282,
+   "enc_lens_entropy": 0.7021464914213126,
+   "corpus_peak": -0.06627049811611557
+  }
+ },
+ "findings": [
+  "dec_lens_entropy is the strongest single predictor (AUC 0.184): a SHARPER decoder logit-lens distribution goes with FAILURE FOR THIS MODEL. Features whose decoder writes toward a few specific tokens are prediction commitments with nothing to describe.",
+  "rarity (AUC 0.790) and geometry (CV AUC 0.744 without rarity) are largely independent; together 0.823.",
+  "corpus_peak is flat (AUC 0.513, p=0.60) -- intrinsic activation strength does not predict expressibility.",
+  "enc_dec_cos is real but weak (AUC 0.602). Encoder/decoder divergence is a genuine effect but not the main axis."
+ ],
+ "scope_caveat": "These predictors describe THIS inverter. They are not evidence that the features lack a textual preimage: hand-written sentences fire 29/30 of a sample of these same features at ~89% of corpus peak (see human_verbalization.csv). The 8B inverter was warm-started on ~1M PROBE (topic/cluster) directions, so sharp-decoder prediction-commitment features are plausibly out of distribution for it rather than intrinsically hard. Establishing an intrinsic limit would require the failure to survive across inverters trained to cover them."
+}

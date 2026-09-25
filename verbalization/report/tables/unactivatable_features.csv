@@ -1,0 +1,976 @@
+feature,fire_pct,corpus_peak,maemm_best,template_J,uniq_of,modal_peak_token,modal_frac,token_class,distinct_peak_tokens,mean_peak_pos,flag,top_example
+37371,0.43525,282.0,0.0,0.01,30/30, Pel,27/30,capitalized_word,3,18.9,UNRESOLVED,"Horticultural Society. Homegrown Harvest: A season-by-season guide to a sustainable kitchen garden, compiled by garden expert Rita Pelczar (Mitchell B"
+26707,0.45527,276.0,0.0,0.008,30/30, Kay,29/30,capitalized_word,2,17.1,UNRESOLVED,"Categories: Athletes, Events, Kerri Walsh, Olympics	| Tags: closing ceremonies, Gabby Douglas, Kayla Harrison, Kerri Walsh,"
+61567,0.00381,268.0,0.0,0.04,30/30,(,30/30,punctuation,1,20.0,UNRESOLVED,"Biosciences, Inc. NEW YORK, NY--(Marketwired - Oct 9, 2013) - IntelliCell Biosci"
+57399,0.01729,262.0,2.28,0.01,30/30, Royal,25/30,capitalized_word,3,16.5,UNRESOLVED,"- whether Jupiter, Palm Beach Gardens or Royal Palm Beach - would have interests vastly different than those residents of the same county to the south"
+15126,0.07305,258.0,0.0,0.015,30/30, Rag,28/30,capitalized_word,2,14.4,UNRESOLVED,& Vinyl Record Swap Party | Oakland Museum of California	Submitted by Rena Ragimova Facebook comments:Posts Tagged ‘environmental impact’ No
+32831,0.0627,258.0,0.48,0.019,30/30, Ring,28/30,capitalized_word,2,18.4,UNRESOLVED,both profoundly religious and inspirational secular works. Both John Lennon and Ringo Starr took an interest in John Tavener’s music. His first major 
+21594,0.42715,253.0,0.0,0.067,30/30, powered,30/30,content_word,1,16.4,COLLOCATION,", Filmmaker, Independent Filmmaker, Sundance Film Festival blog comments powered by Disqus Latest Videos Ten Days Of Different	Sundance Film Festival"
+40339,0.00391,242.0,0.0,0.05,28/30, advice,12/30,content_word,5,20.1,UNRESOLVED,Ads Go Away! All times are GMT -4. The time now is 03:15 AM. Home | Contact Us | Community Rules |
+36295,0.03867,240.0,0.0,0.019,30/30, of,30/30,function_word,1,19.7,UNRESOLVED,/pressreleases/2003/09/09032003b.html. Also: Chief of Staff John Daniel
+5600,0.03193,239.0,0.21,0.026,30/30,"
+",22/30,whitespace,3,14.3,UNRESOLVED,"684 F.2d 255 217 U.S.P.Q. 15 James Q. HORNE, Jr"
+30652,0.00449,239.0,0.0,0.016,30/30, Gordon,22/30,capitalized_word,2,17.6,UNRESOLVED,"owa Caucus"" or ""Iowa Caucuses""? Presidents, NHS Worship. Mark Steyn highlights this piece of idiocy:Gordon"
+36006,0.03623,239.0,0.0,0.013,30/30, Sir,26/30,capitalized_word,2,16.0,UNRESOLVED,"atives, Inc. v. Siracusano, 131 S. Ct. 1309, 1317 (2"
+20530,0.00264,236.0,5.9,0.035,30/30, printed,29/30,content_word,2,19.4,COLLOCATION,"ensus.gov. Not only is he a nice guy, he is also a great listener and knows how to get things done on your behalf. Article printed from"
+33422,0.0208,235.0,0.0,0.006,30/30, Arg,16/30,capitalized_word,2,15.0,UNRESOLVED,"in Urban Reform.” Maryland Historical Magazine 70 (Fall 1975): 260-74. Argersinger, Jo"
+35539,0.01309,234.0,0.0,0.244,30/30, must,30/30,content_word,1,24.4,COLLOCATION,"'ll give you praise when it's earned. That's one thing he will do."" ...More... To continue reading this article you must be a member."
+38127,0.00527,233.0,0.0,0.014,30/30,arm,30/30,subword_continuation,1,16.7,UNRESOLVED,"Pingback: Tuesday Rumor Mill: Marmol, Upton, Jackson and Hernandez | PRO Rumors Pingback: Report: Rays Nearing"
+36075,0.03086,232.0,0.0,0.027,30/30, of,30/30,function_word,1,17.8,COLLOCATION,"of the Washington Hospital Healthcare Foundation, and executive committee officer of the Fremont Chamber of Commerce, has been selected to receive the"
+63987,0.45703,231.0,0.0,0.011,30/30, Morris,19/30,capitalized_word,2,17.0,UNRESOLVED,"March 2. Geisel is better known as Dr. [...] Filed Under: News Tagged With: america, book, books, morris,"
+4347,0.00254,227.0,0.0,0.123,30/30,PR,30/30,capitalized_word,1,21.2,COLLOCATION,"YORK, NY, Sept. 15 /PRNewswire-FirstCall/ - - GENova Biotherapeutics Inc. (""GENova"") today"
+24819,0.02666,227.0,0.0,0.017,30/30, far,30/30,content_word,1,23.1,COLLOCATION,", even if just to do as a fun, training run. Okay, I'd be high-maintenance, I get it. But as far as actual"
+47617,0.05947,227.0,0.0,0.035,30/30, this,21/30,function_word,2,18.1,COLLOCATION,"there is anyone alive who couldn't learn at least something from this book. 5 of 5 people found this review helpful Lymm, United Kingdom"
+59742,0.04463,225.0,2.35,0.012,30/30, Bomb,19/30,capitalized_word,4,18.0,UNRESOLVED,"UK, and the first female jet airline captain in Britain are relayed in this inspiring autobiography. Bomb scares, engine failures and other perilous e"
+20680,0.03457,224.0,0.0,0.011,30/30, Gut,28/30,capitalized_word,2,21.6,COLLOCATION,13. REUT By Dave Graham and Miguel Gutierrez MEXICO CITY (Reuters) - Mexico's lower house of Congress gave broad approval Thursday
+63136,0.51982,224.0,0.0,0.01,30/30, Edward,24/30,capitalized_word,2,15.5,UNRESOLVED,"today. Judah quotes frequently from travelers and foreign observers--from Edward Brown in the 1670s through Alberto Fortis, Arthur Evans,"
+15875,0.21455,221.0,1.98,0.059,30/30,4,14/30,number,8,18.1,UNRESOLVED,US2010004723318 Dic 200725 Feb 2010Smith Mark
+21904,0.01299,220.0,0.0,0.014,30/30, Dal,22/30,capitalized_word,2,16.5,UNRESOLVED,"89(3): 230-240. Dalzell, P. and Debao, A. 1994."
+62916,0.03389,219.0,0.0,0.034,30/30, of,30/30,function_word,1,18.1,UNRESOLVED,"in a medical mission trip to Maracay, Venezuela. In 2005, Dr. Evans received the American Association of Gynecologic Lap"
+22729,0.07656,218.0,5.36,0.048,28/30, ,30/30,whitespace,1,12.7,COLLOCATION,"updated: August 14 2009./g,"">"");l[i].setAttribute(""href"",""mailto:""+t.value);}}catch(e"
+46382,0.00703,218.0,0.0,0.022,30/30, Lor,28/30,capitalized_word,2,14.7,UNRESOLVED,"21 (1985) quoting Lorillard v. Pons, 434 U.S. 575, 57"
+419,0.13184,216.0,0.0,0.019,30/30, and,30/30,function_word,1,16.5,UNRESOLVED,"and crop sciences,"" stated J. Michael French, President and Chief Executive Officer of Marina Biotech. ""Over the last several years, we have been focu"
+6211,0.01094,216.0,0.0,0.007,30/30, Jam,22/30,capitalized_word,2,16.3,UNRESOLVED,"allow yourself to be guided. © Stephen Haynes avabee Wow! Congratulations, that's a wonderful accomplishment! :) Neal Jamison Catra"
+15677,0.01885,216.0,0.0,0.011,30/30, Kelly,20/30,capitalized_word,4,13.6,UNRESOLVED,"so bad about that?’ ” Tags: Get Scoop, George Clooney, kelly bensimon, Stacey KeiblerUnclaimed"
+18741,0.01602,216.0,0.0,0.057,30/30, contributed,30/30,content_word,1,20.7,COLLOCATION,discussed legislation they are offering that would end the NSA's collection of Americans' phone records. Associated Press writer Mark Sherman contribu
+61354,0.00957,213.0,3.73,0.015,30/30, Blo,22/30,capitalized_word,2,17.7,UNRESOLVED,"opening on Lexington Avenue: ""Phantom of the Opera."" Of course, the Broadway show is still going strong, but Bloomingdale's is getting in"
+43902,0.01367,211.0,0.0,0.065,30/30, logical,21/30,content_word,7,21.0,UNRESOLVED,"958, stated that “Secretary of the Interior, Fred A. Seaton               Click tabs to swap between content that is broken into logical sections"
+46864,0.37021,211.0,0.0,0.03,30/30,lett,30/30,subword_continuation,1,18.4,UNRESOLVED,", Guilford Pharmaceuticals, MCI, Bausch & Lomb, Hewlett Packard and Boeing. (Senate Office of Public Records) Hadassah"
+40469,0.01309,209.0,1.47,0.009,30/30, Murray,22/30,capitalized_word,2,15.4,UNRESOLVED,")and two pieces by Murray Rothbard, The Anti-War, Anti-State Right (Continuum, Summer 1964, pp."
+58456,0.01416,209.0,0.0,0.022,29/30,Display,29/30,capitalized_word,2,16.5,COLLOCATION,rey Johnson About the Author Related News Displaying 7 Comments Add Your Comment Marcas Grant (@MarcasG) says:	June 16
+28593,0.01172,208.0,0.0,0.072,29/30,0,19/30,number,4,22.1,UNRESOLVED,"On Tue, 2007-02-06 at 13:28 +0000, Tim Phip"
+17234,0.05146,207.0,0.0,0.023,30/30, of,28/30,function_word,2,17.0,UNRESOLVED,"have some video saves from your combat in ""World of Tanks""? BTW, few more questions... What is your favorite vehicle? Did you pay for some"
+43498,0.0166,207.0,0.0,0.025,30/30, Mail,24/30,capitalized_word,2,22.3,UNRESOLVED,"about the author in various venues. Here's the official word: Mixed Notes, Aug. 2: ""Total Recall"" Review, Mailbag, Sight"
+64000,0.00742,207.0,1.6,0.216,22/30, that,14/30,function_word,4,22.2,UNRESOLVED,"of our Foolish newsletter services free for 30 days. We Fools may not all hold the same opinions, but we all believe that considering a"
+7958,0.00596,205.0,0.0,0.028,30/30,her,30/30,function_word,1,18.9,COLLOCATION,as director of career services at Colgate University. One of her goals at Amherst is to expand the exposure of students to a variety of career paths
+27001,0.00449,205.0,0.0,0.045,30/30,;,30/30,punctuation,1,20.3,UNRESOLVED,"9 states have proposed such legislation in 2013, according to the NCSL. (Reporting by Corrie MacLaggan; Editing"
+31299,0.03848,205.0,0.0,0.009,30/30, Capital,26/30,capitalized_word,4,19.6,UNRESOLVED,"was named to the Capital One Academic All-District 6 team on Thursday afternoon, prior to picking up her 1,000th career kill"
+47487,0.00674,205.0,0.0,0.015,30/30, Urs,16/30,capitalized_word,2,18.0,UNRESOLVED,"the worldand exiles me from it.--Ursula K. Le Guin Union Avenue An Urban Journal Exploring Place, Purpose, Literature,"
+46496,0.01318,204.0,0.0,0.009,30/30, Yah,24/30,capitalized_word,2,11.7,UNRESOLVED,", N. Yahagi, and H.-O. Yamano, “Multicenter questionnaire survey on the current situation of colorectal endoscopic subm"
+52846,0.00723,204.0,0.0,0.088,30/30, by,29/30,function_word,2,22.7,UNRESOLVED,tax on new computer services failed in 2007. Follow WTOP on Twitter. (Copyright 2012 by WTOP. All
+4493,0.01943,203.0,4.88,0.018,30/30, my,30/30,function_word,1,18.5,UNRESOLVED,"012 at 5:41pm Ohh! Oh my goodness, thank you! I was subtracting it from the initial value ("
+9551,0.03125,203.0,0.0,0.017,30/30,win,20/30,subword_continuation,4,18.5,UNRESOLVED,"9, 2013. She was born April 19, 1937, in Gwinnett County, the oldest daughter"
+48360,0.00762,202.0,1.1,0.012,30/30, Adri,15/30,capitalized_word,3,15.9,UNRESOLVED,world.” [READ MORE] Adrienne joined Acumen in 2013 as a member of the finance team. Prior to joining Acumen
+64109,0.67939,202.0,8.84,0.008,30/30, Race,23/30,capitalized_word,4,14.9,UNRESOLVED,"’ll see what I can dig up. I just received this note from Stephen Heighton: Ping, Stephen here from Race SoCal motocross vacations,"
+22903,0.03086,201.0,0.0,0.027,30/30,yll,30/30,subword_continuation,1,21.5,COLLOCATION,", New Mexico, News | Permalink News: Maggie Gallagher, Capital Pride, Phyllis Schlafly, Elton John Bruce Baw"
+46080,0.00098,201.0,0.0,0.061,30/30,lis,30/30,subword_continuation,1,17.1,COLLOCATION,"'s likely they'll have Byron Leftwich at quarterback, backed up by Charlie Batch. Roethlisberger is officially listed as questionable for the game, bu"
+65496,0.00352,201.0,0.01,0.026,30/30,.blogspot,30/30,content_word,1,22.8,COLLOCATION,.com/1stlineTwitter: http://twitter.com/1stlineBlog: http://1st-line.blogspot.com/YouTube: http://www.youtube
+21728,0.06523,200.0,0.0,0.018,30/30,er,22/30,subword_continuation,4,15.1,UNRESOLVED,kta (1) Artemis (1) Blue Griffin (1) CAvi Music (1) CD Baby Independan... (1) Camer
+32337,0.00273,200.0,0.0,0.149,30/30,/,30/30,punctuation,1,23.4,UNRESOLVED,"VILLE, Calif., Jan. 24, 2013 /PRNewswire/ -- Today, Plum Organics® a leading organic,"
+46929,0.44961,200.0,0.0,0.011,30/30, Rory,25/30,capitalized_word,2,18.0,UNRESOLVED,"never fails to entertain.” OK, I was going to pick Rory McIlroy. I might rethink that now. Thank you, Tom. And … If"
+1074,0.36553,199.0,0.59,0.007,30/30, Luke,20/30,capitalized_word,3,19.4,UNRESOLVED,"rock band, The War on Drugs, who asked, ""Why don't they let Matt shoot in the 3-point contest?""Luke posted the blog."
+8288,0.01543,198.0,0.0,0.02,30/30, Cre,28/30,capitalized_word,2,15.9,UNRESOLVED,", was the first program to do it twice (UNI 2010, Creighton 2002 and 2012"
+26423,0.01738,198.0,0.0,0.01,30/30, Cat,28/30,capitalized_word,2,15.8,UNRESOLVED,"3+/-130BP. Wenke agrees with Caton-Thompson that lithics correspond to predynastic assemblages elsewhere, including fish"
+25554,0.004,197.0,1.24,0.094,30/30, @,30/30,punctuation,1,23.8,COLLOCATION,"nerd news.Central Coach Steps Down Posted By Sports On November 23, 2010 @ 5:57 am"
+2882,0.00117,196.0,0.0,0.13,30/30, .,25/30,punctuation,2,20.8,UNRESOLVED,Fox News __________________ I dream of a day when a chicken can cross the road without having their motives questioned. alh1020 View Public Profile Fi
+32164,0.06982,195.0,0.0,0.009,30/30, Greg,23/30,capitalized_word,3,19.1,UNRESOLVED,", controllable shortstop to add even more depth at a position that already includes Cliff Pennington, John McDonald and Willie Bloomquist. Gregorius"
+37031,0.00146,195.0,0.0,0.017,30/30, the,16/30,function_word,2,19.9,UNRESOLVED,"weeks in a row, she said, comments that politicians — including Cory Booker, Jamie Dimon and Joe Biden — made on the TV program Meet The Press"
+2746,0.01602,194.0,0.0,0.022,30/30,v,30/30,subword_continuation,1,15.2,UNRESOLVED,"the Columbus Period, and certainly not least among these. (Martyr, Oviedo, Las Casas and Fernando Columbus.) His mention of"
+43309,0.00313,194.0,0.17,0.059,29/30, now,10/30,content_word,4,20.1,UNRESOLVED,Ads Go Away! All times are GMT -4. The time now is 03:15 AM. Home | Contact Us | Community Rules |
+2221,0.029,193.0,2.51,0.084,30/30, and,28/30,function_word,2,19.4,UNRESOLVED,"the conduct at issue, has also entered into a Corporate Integrity Agreement with the Department of Health and Human Services, Office of Inspector Gene"
+29145,0.00273,193.0,0.0,0.055,30/30, or,30/30,function_word,1,14.6,COLLOCATION,"playoff game, so why is he having to do his own grocery shopping? And believe it or not, I was about 27 years old at the"
+14345,0.00283,192.0,0.0,0.035,30/30,erm,30/30,subword_continuation,1,19.7,COLLOCATION,"and MVC) record for points by a freshman with 581 in 2010-11. Last season, McDermott had"
+33941,0.01318,192.0,0.42,0.017,30/30, Aber,26/30,capitalized_word,2,16.0,UNRESOLVED,"jazz, the blues, rap, and other staples of African-American culture. Encyclopedia of the Harlem Renaissance (Facts on File) By Aberjhani"
+41123,0.0124,192.0,0.0,0.08,30/30, of,22/30,function_word,2,20.0,UNRESOLVED,affiliates. TM & © Lucasfilm Ltd. All rights reserved. All other trademarks and trade names are properties of their respective owners. On the web: htt
+46983,0.01953,192.0,0.0,0.057,30/30, this,30/30,function_word,1,21.6,COLLOCATION,". All rights reserved.This material may not be published, broadcast, rewritten, or redistributed. Associated Press contributed to this report.________"
+58861,0.00752,192.0,0.0,0.055,30/30, of,28/30,function_word,2,23.1,COLLOCATION,from China. Reader comments posted to this article may be published in our print edition. All rights reserved. This copyrighted material may not be re
+33714,0.01562,191.0,0.32,0.015,30/30, Jane,26/30,capitalized_word,3,22.4,UNRESOLVED,"How many of these 854,000 are on the take? I thank the gods that reporters like Dana Priest, Jane Mayer, and"
+49426,0.01025,191.0,0.0,0.065,30/30,th,19/30,subword_continuation,4,7.4,UNRESOLVED,"landscapes October 23rd, 2012 by Mike Carlowicz When you look at a parcel of Earth’s surface at a"
+3139,0.01143,190.0,0.0,0.019,30/30,ena,30/30,subword_continuation,1,18.0,UNRESOLVED,"give me more Netflix if he wants.” –Reagan Alexander Beauty,Hair Wow Funny Love Sad Angry Previous ArticleBe the First to Own Selena Gomez"
+12861,0.08018,190.0,9.45,0.086,30/30,.ref,18/30,content_word,3,16.7,UNRESOLVED,"February 2008, available at: http://www.refworld.org/docid/47b418d6c.html [access"
+25658,0.01875,189.0,1.06,0.015,30/30,el,30/30,subword_continuation,1,19.7,UNRESOLVED,"and a part of the show’s successful history.” Barbara Walters, Elisabeth Hasselbeck, Jenny McCarthy, Rosie O'Donnell, Sherri"
+9516,0.06836,188.0,0.0,0.009,30/30, D,5/30,capitalized_word,15,17.1,UNRESOLVED,by the First Amendment for the risks and rewards of government PR. Bruce Deitrick Price My sense of this oozing story is that more people
+32266,0.004,188.0,0.0,0.05,30/30, by,30/30,function_word,1,20.0,UNRESOLVED,). Visit the World Wide Web site of the Herald-Leader at http://www.kentucky.com/ Distributed by McClatchy-Tribune Information
+47782,0.00752,187.0,5.56,0.01,30/30, Devin,27/30,capitalized_word,2,19.8,UNRESOLVED,"osiers, Minnesota Golden Gophers, Northwestern Wildcats, Purdue Boilermakers, Christian Hackenberg, Allen Robinson, Devin Gardner, Tony Jones,"
+52550,0.08916,187.0,13.68,0.017,30/30,res,28/30,subword_continuation,2,16.9,UNRESOLVED,ago. // Photo by Sierra Breshears Emily Powell always knew she wanted to run her family’s namesake bookstore. “When I was little
+59159,0.01113,187.0,0.0,0.032,30/30, Sol,30/30,capitalized_word,1,17.6,UNRESOLVED,"Directors for his pro bono services to the Legal Aid Foundation of Los Angeles (LAFLA). Since 2006, Mr. Soloff"
+60102,0.01562,187.0,0.0,0.015,30/30, Dash,27/30,capitalized_word,3,18.7,UNRESOLVED,. Product Number: JAL10001 Shipping Weight: 11.20 poundsINTERVIEW: Dash Shaw! December
+7346,0.43164,186.0,1.77,0.017,30/30, D,15/30,capitalized_word,12,17.3,UNRESOLVED,"Blind, Ethiopia. The Shashemene School for the Blind in Ethiopia is run by the Daughters of Charity of St. Vincent de Paul. In"
+19844,0.01543,186.0,0.0,0.012,30/30,m,23/30,subword_continuation,2,16.4,UNRESOLVED,this spring with Crown Archetype and lends her vocal talents as “Dorothy” in Summertime Entertainment’s animated 3D musical Dorothy of Oz
+40766,0.4332,186.0,0.0,0.006,29/30, spl,24/30,content_word,3,16.4,UNRESOLVED,48 million storage bunker that holds the nation's primary supply of bomb-grade uranium. They splashed blood on a wall of the bunker and painted messag
+4089,0.01514,184.0,0.0,0.025,30/30,ald,29/30,subword_continuation,2,15.1,UNRESOLVED,akes are Higher Than Ever 'The Americans' Should Be Your New TV Obsession From Our Partners:Zoe Saldana Strips Down For Magazine (
+48735,0.01777,184.0,0.0,0.156,30/30,-,30/30,punctuation,1,22.8,COLLOCATION,1 p.m. ET) built on its 18-49 lead-in by +71% in adults 18-49.
+54970,0.01924,184.0,0.51,0.017,30/30, Chic,26/30,capitalized_word,3,17.0,UNRESOLVED,"in Westfield and Chicopee is 10%. Posted by Grossman's Bargain Outlet, military discount, save money, western"
+3997,0.0748,183.0,0.0,0.012,30/30, Mc,10/30,capitalized_word,10,18.2,UNRESOLVED,"likely'Thursday ratings: Community, Grey's Anatomy rise More: TV, , Joel McHale, Betty White, Meryl Streep,"
+12532,0.00293,183.0,0.0,0.008,30/30,ly,28/30,subword_continuation,3,16.2,UNRESOLVED,from China. Reader comments posted to this article may be published in our print edition. All rights reserved. This copyrighted material may not be re
+20386,0.08379,183.0,0.38,0.018,30/30,",",30/30,punctuation,1,25.0,UNRESOLVED,"Geauga Medical Center in Claridon Township. Charles L. Straw Charles L. Straw, age 70, suddenly and unexpectedly passed away on Monday"
+11665,0.01436,182.0,0.0,0.009,29/30, Jordan,28/30,capitalized_word,3,19.3,UNRESOLVED,Game 100: Nats at Brewers Miller Park hosts Wisconsin native Jordan Zimmermann tonight. Jordan Zimmermann has made 69 starts
+26466,0.06758,182.0,1.74,0.074,29/30,"=""",30/30,punctuation,1,17.3,UNRESOLVED,"RqJeP0A=w156-h124-p-no"" alt=""SupaGurl Books"" style=""border:none;"" /"
+24933,0.00469,181.0,0.0,0.07,30/30, Join,27/30,capitalized_word,2,22.5,COLLOCATION,2012 at 22:59.. Find More Posts by K00R UtahIrishman Join the club...
+40133,0.01328,181.0,0.0,0.011,30/30, Raw,24/30,capitalized_word,4,17.6,UNRESOLVED,"by his wife of 65 years, Jane Pate Rawson; his parents; and his siblings, Velta Mclemore, Eugene B."
+18943,0.18057,180.0,6.68,0.066,30/30,.C,30/30,content_word,1,18.6,COLLOCATION,". Program Authority: 29 U.S.C. 761 and 762. Dated: November 4, 19"
+59908,0.00166,180.0,17.2,0.115,29/30,Last,25/30,capitalized_word,2,26.2,UNRESOLVED,"Online.com Published: Sunday, May 12, 2013 at 12:30 a.m. Last Modified: Friday"
+11671,0.00557,179.0,0.0,0.069,30/30, without,30/30,content_word,1,17.0,UNRESOLVED,"Pantry International, Inc. We are a family owned retail store in Freeport, Maine. All prices are subject to change without prior notice. Pet Pan"
+23423,0.01621,179.0,0.0,0.051,30/30, whole,30/30,content_word,1,19.0,COLLOCATION,» Copyright © 1992–2014 Michael Shermer. All rights reserved. Reproduction in whole or in part without permission is
+37588,0.00352,179.0,2.09,0.03,30/30, Guest,7/30,capitalized_word,11,18.7,UNRESOLVED,in any form.You're currently viewing our forum as a guest. This means you are limited to certain areas of the board and there are some features you ca
+37779,0.0082,179.0,0.0,0.067,30/30,.org,30/30,content_word,1,22.7,COLLOCATION,wrongdoing. Lest we not forget. http://legal-dictionary.thefreedictionary.com/Nolo+Contendere http://en.wikipedia.org/wiki/S
+54861,0.03486,179.0,0.0,0.124,28/30,3,16/30,number,8,21.0,UNRESOLVED,lasfundservices.com USA - WEST 4100 Newport Place Suite 750 Ara Hill BuildingPletterijweg Oost
+60243,0.44893,179.0,0.0,0.009,30/30, Night,29/30,capitalized_word,2,16.2,UNRESOLVED,", funk, punk, emerging new wave, Village People and Saturday Night Fever... But the 80's.... oh, what joy. Objectivity?"
+12497,0.39932,178.0,0.0,0.068,30/30,:,30/30,punctuation,1,23.2,UNRESOLVED,"one of the endings) ""Dossier: The Infiltrator"" by MelloYellowGirl (13 Reviews) Mass Effect Rated: 13"
+12961,0.0624,178.0,0.67,0.016,30/30,son,27/30,subword_continuation,2,15.3,UNRESOLVED,"et, the (2008) by Orson Scott Card Ghost Ship, the (1912) by Richard Middleton Ghost Stories"
+28750,0.00293,178.0,0.0,0.05,30/30, Network,25/30,capitalized_word,2,18.2,UNRESOLVED,005 8:59 PM Trackback Pings TrackBack URL for this entry is Listed below are links to weblogs that reference Terror
+37681,0.21504,178.0,2.59,0.052,30/30, of,30/30,function_word,1,16.7,UNRESOLVED,"boat, the immediate image being that of throwing the water over the side. Eric Partridge, in A Dictionary of Forces’ Slang, published in"
+37825,0.42305,178.0,0.0,0.023,30/30,ad,30/30,subword_continuation,1,14.7,UNRESOLVED,". That same day, Forbes and Shadegg appeared on ""Horizon” to explain their criticism of efforts in congress to reform health care. Steve Forbes"
+59816,0.03701,178.0,0.0,0.011,30/30,ok,6/30,subword_continuation,12,16.8,UNRESOLVED,"nightlife locations in Helsinki. Location: Kamppi Shopping Mall, Urho Kekkosen katu 1 A. Helsinki's Arctic Icebar"
+947,0.00527,177.0,0.0,0.15,30/30,Photo,30/30,capitalized_word,1,25.9,COLLOCATION,"against Mike Jenkins #21 of the Dallas Cowboys at Cowboys Stadium on December 16, 2012 in Arlington, Texas. (Photo"
+13704,0.00996,177.0,0.0,0.014,30/30, Ped,28/30,capitalized_word,3,15.0,UNRESOLVED,"-8. Schmidt EB, Pedersen JO, Ekelund S, Grunnet N, Jersild C, Dyerberg J."
+35777,0.00977,177.0,2.4,0.033,30/30,",",20/30,punctuation,4,18.0,UNRESOLVED,"are too lazy for that. You need to implement some kind of Download system. (use BMT micro or something similar). Edited by GameDevDan,"
+59518,0.0041,177.0,0.0,0.022,30/30,.,12/30,punctuation,8,21.8,UNRESOLVED,", Socialnomics and the internet “ideal” of open content	Remixing using Photoshop filters » TwitterError: Twitter did not respond. Please"
+23092,0.00576,176.0,0.0,0.064,30/30, material,28/30,content_word,3,20.1,UNRESOLVED,"rights, economic, democracy and social justice issues, etc. We believe this constitutes a 'fair use' of any such copyrighted material as provided for "
+45306,0.01113,176.0,9.44,0.024,29/30, care,26/30,content_word,2,16.6,COLLOCATION,"hospitals and making wills,” explained Cleary.“I’ve lobbied on immigration issues and I could care less what one’s sexual orientation is. A"
+60808,0.46152,176.0,0.5,0.003,30/30, Fair,25/30,capitalized_word,4,20.1,UNRESOLVED,"from Wilmington west to Fair Bluff, 63 miles within the State, and 117 miles farther to Kingsville, South Carolina. 1"
+63076,0.05488,176.0,0.0,0.012,30/30,Track,24/30,capitalized_word,3,17.4,UNRESOLVED,"Discussion papers, Economy - USA, Financial markets | Permalink TrackBack URL for this entry:http://www.typepad.com/services/trackback/6"
+5136,0.50029,175.0,9.33,0.049,29/30, to,23/30,function_word,3,19.9,UNRESOLVED,"'s winter palace while the country goes to hell."" Another, who asked not to be identified, said the protestors had no right to"
+30331,0.00273,175.0,0.0,0.035,30/30, http,30/30,content_word,1,21.4,COLLOCATION,"remind Tucker that part of his job as an elected official is listening to people he represents, not berating them. Article printed from The Progressiv"
+32832,0.02188,175.0,4.59,0.008,30/30, Mo,29/30,capitalized_word,2,19.7,UNRESOLVED,"the team with nine strikeouts and did not walk a batter. Sophomore right-hander Sarah Mooney (Huntersville, N.C./North Me"
+34446,0.0833,175.0,7.55,0.02,30/30,cad,21/30,subword_continuation,2,16.0,UNRESOLVED,", Egyptian and Renaissance Saloons Piccadilly Lodge No. 2550 installation banquet for Brother Francis H. Scroggie, W.M"
+61854,0.02822,175.0,0.0,0.02,30/30,ola,30/30,subword_continuation,1,19.3,UNRESOLVED,"EMBA programs at Villanova University and Loyola University in Chicago, teaching courses in strategy and organization. In addition, he has taught at T"
+10212,0.05566,174.0,0.0,0.035,30/30, of,30/30,function_word,1,15.5,UNRESOLVED,"voting board seat for a representative of affiliated members, the International Association of Business Communicators. The changes were further suppor"
+26860,0.01445,174.0,0.0,0.014,30/30,ne,22/30,subword_continuation,4,16.2,UNRESOLVED,"'s in a, you know, heightened state, he has a dream about this woman, played by Julianne Moore, in which bowling figures - and it"
+9875,0.00527,173.0,0.54,0.021,26/30, Lois,26/30,capitalized_word,2,17.8,UNRESOLVED,"the ""Lincoln"" Movie Invented Its Lobbying Scen… Lois MacMillan in History Factcheck: ""Unamerican"" Lois Mac"
+32612,0.02139,173.0,13.66,0.405,30/30, and,30/30,function_word,1,26.7,TEMPLATE,0 AM Author: Womens eNews Any views expressed in this article are those of the author and not of Thomson Reuters Foundation. Jeers Women in
+38694,0.05029,173.0,0.0,0.013,30/30, L,8/30,capitalized_word,12,17.6,UNRESOLVED,"cons of the man known as D-Cab.*****Pulling double duty, Anthony also posts at Oriole Post that the rumors of Kyle Lohse"
+11273,0.00791,172.0,0.0,0.051,30/30, the,21/30,function_word,3,21.9,UNRESOLVED,orsements Posted by Admin @ 13 August 2012 No comments yet. Be the first to leave a comment ! Most Popular
+21059,0.01152,172.0,0.0,0.019,30/30,.,14/30,punctuation,4,15.0,UNRESOLVED,and filmmaker by Angel Clark. Special Events 2/6Women's Basketball v. Mount Saint Joesph 7:30 p.m.Location:
+27232,0.00586,172.0,0.0,0.057,30/30, -,30/30,punctuation,1,18.0,UNRESOLVED,"is 12:24 AM. Powered by: vBulletin Copyright ©2000 - 2014, Jelsoft Enterprises"
+38020,0.00303,172.0,0.0,0.182,29/30, Columbia,30/30,capitalized_word,1,19.9,UNRESOLVED,"some light manufacturing has developed. The Columbia Electronic Encyclopedia, 6th ed. Copyright © 2012, Columbia University Press. All rights reserved"
+54503,0.25273,172.0,3.66,0.058,30/30,;,26/30,punctuation,4,22.3,UNRESOLVED,"8, No. 507, eff. 4-1-98; am. (1), (3) (c) and"
+6755,0.01299,171.0,0.0,0.007,30/30, ris,19/30,content_word,3,16.7,UNRESOLVED,"it held for quite a few years before it faded in the face of tapas, foams, esoteric curries, risotto and the like."
+15916,0.00791,171.0,0.0,0.019,30/30, to,28/30,function_word,2,7.4,UNRESOLVED,Skip to search. New User? Register Sign InHelp Upgrade to Safer IE8 Mail My Yahoo Yahoo Yahoo Canada Music Search Search Web HomeNewsBlogs
+29248,0.49326,171.0,0.28,0.012,30/30, of,28/30,function_word,2,15.5,UNRESOLVED,"him look like the fife player in The Spirit of '76. ""It always does the public good to see a guy get up,"" said one"
+51125,0.02979,171.0,0.0,0.077,30/30,5,5/30,number,10,23.3,UNRESOLVED,"in 10K White Gold/ Liberal Arts 09-23-2012, 03:58 PM Post"
+54909,0.07754,171.0,13.59,0.045,30/30,4,30/30,number,1,16.9,UNRESOLVED,"and that they should be ""returned.""The United States acquired the Southwest a century and a half ago in three ways: part by the 184"
+56963,0.09229,170.0,3.39,0.008,30/30, Pall,21/30,capitalized_word,5,12.9,UNRESOLVED,"Contemporary Art in Africa. London: Pall Mall Press, 1968. Brown, Evelyn S. Africa's Contemporary Art and Artists."
+62796,0.01152,170.0,0.0,0.036,30/30,ne,30/30,subword_continuation,1,16.1,UNRESOLVED,"'s military families. Military Children Share Their Experiences With Secretary Arne Duncan On April 16, Secretary Arne Duncan held a Student Voices Di"
+7881,0.00811,169.0,0.0,0.027,30/30, Dar,29/30,capitalized_word,2,19.3,UNRESOLVED,"18. Rodriguez MI, Warden M, Darney PD. Intrauterine progestins, progesterone antagonists, and"
+16958,0.02686,169.0,0.0,0.012,30/30, Shr,27/30,capitalized_word,2,19.0,UNRESOLVED,"tech unemployment rate low, technology professionals know they can take control of their careers,” Shravan Goli, president of Dice, said in the report"
+45381,0.0375,169.0,0.25,0.038,29/30, of,21/30,function_word,2,20.5,UNRESOLVED,"Point Magazine and many heads of non-profit groups such as the National Council of Negro Women, the Coalition of 100 Black Women, Los Angeles African"
+49965,0.03809,169.0,0.06,0.015,30/30, Wet,17/30,capitalized_word,3,20.6,UNRESOLVED,"but we call it ketchup and mustard."" Save | Subscribe to Wetzel Chronicle New Martinsville Weather Forecast, WV Wetzel Chronicle 11"
+58537,0.00146,169.0,0.0,0.051,30/30,Track,13/30,capitalized_word,4,19.8,UNRESOLVED,"in the Senate.	SHOWS: World News blog comments powered by Disqus	About The NoteThroughout the day, ABC News' political team contributes to"
+3138,0.00459,168.0,0.0,0.026,30/30,Last,14/30,capitalized_word,3,19.3,UNRESOLVED,backs are On Refbacks are On Forum Rules Similar Threads Thread Thread Starter Forum Replies Last Post Strange Noise 99bmw 5-Series (E1
+18572,0.06152,168.0,0.76,0.007,30/30, Galaxy,24/30,capitalized_word,3,18.9,UNRESOLVED,Change Influenced Ancient India Bad Spirits May Have Frightened the MayaCyanogenMod founder Steve Kondik talks GALAXY S
+20006,0.07041,168.0,1.89,0.01,30/30, eye,24/30,content_word,4,19.2,UNRESOLVED,"' watch, they did it big - with marquee players, eye-popping style and a relentless pursuit of success with little regard to its financial cost."
+32316,0.00547,168.0,0.0,0.024,30/30,enan,30/30,subword_continuation,1,20.2,COLLOCATION,"fair, I can play tomorrow). Now I hear there were awesome occupy shenanigans? >:( I was free ALL last weekend. Random venting."
+44250,0.00703,168.0,0.0,0.014,29/30, again,7/30,content_word,12,16.2,UNRESOLVED,"5-2013 Healthwise, Incorporated. Healthwise, Healthwise for every health decision, and the Healthwise logo are trademarks of Healthwise"
+63269,0.41084,168.0,0.0,0.02,30/30, of,30/30,function_word,1,17.8,UNRESOLVED,"not renewed,” said Steve Aftergood, a secrecy expert at the Federation of American Scientists.	7 comments Microsoft details Windows Phone 8, arriving "
+6678,0.104,167.0,0.48,0.029,30/30, address,30/30,content_word,1,17.5,UNRESOLVED,8 comments » Enter your email address to Subscribe Latest Reviews	Sony Alpha A7r Camera Review – Best Full Frame Mirrorless Camera Available!	Sony
+10951,0.01426,167.0,0.0,0.023,30/30,aver,30/30,subword_continuation,1,17.0,UNRESOLVED,"Dutch athletes were recognized in their respective sports. Eric Larson (sophomore, Waverly, Waverly-Shell Rock HS) was cited as"
+17360,0.01699,167.0,0.0,0.129,25/30, other,24/30,content_word,2,20.9,UNRESOLVED,evidence is made available. This information is neither intended nor implied to be a substitute for professional medical advice. Always seek the advic
+30174,0.00918,167.0,0.0,0.047,30/30, what,30/30,function_word,1,22.0,UNRESOLVED,"as we speak. If that isn't grounds for a giveaway, I don't know what is. Actually, I plan to pick up a copy in a"
+2414,0.39971,166.0,0.0,0.186,30/30, prev,30/30,content_word,1,24.9,COLLOCATION,66 bytes) (+17)‎ . . (→‎GTA Liberty City Stories Mission Appearences) (cur | prev) 01
+19564,0.00908,166.0,0.0,0.326,30/30, expressed,30/30,content_word,1,15.3,TEMPLATE,Tweed)The opinions expressed are solely those of the author and do not necessarily reflect the views of Comcast. NOW: Woody Harre... THEN: Be
+21332,0.15967,166.0,0.0,0.027,30/30, Research,8/30,capitalized_word,10,19.9,UNRESOLVED,and Services on digital project management. He has served as the chair of the Association of College and Research Libraries (ACRL) Standards and Accre
+31946,0.02305,166.0,0.0,0.015,30/30, Comments,25/30,capitalized_word,2,15.9,UNRESOLVED,"manufacturer’s widely published calendar.” For more information about the calendar, visit Accessories.MBUSA.com. 7 Comments - Leave a Reply Written by"
+52357,0.41904,166.0,0.0,0.02,30/30, Export,26/30,capitalized_word,4,18.1,UNRESOLVED,or call 1-800-USA-TRADE (872-8723). The U.S. Commercial Service uses Export
+64331,0.41367,166.0,0.0,0.052,30/30, at,30/30,function_word,1,20.5,COLLOCATION,"3, 2012NF	Post navigation ~ The Syntax Theme.	Language Politics	Blog at WordPress.com. The Syntax Theme"
+6116,0.00518,165.0,0.0,0.028,30/30, Health,11/30,capitalized_word,5,17.2,UNRESOLVED,"2012 9:06 PM IST New Delhi/Kolkata, Dec 27 (IANS) Women who were protesting against"
+21468,0.05352,165.0,1.37,0.073,30/30,1,10/30,number,7,22.9,UNRESOLVED,"sworth Longfellow. Posted by anniecarrington on July 13, 2011 at 1:27 AM via web"
+28674,0.00557,165.0,0.0,0.027,30/30,",",15/30,punctuation,6,20.0,UNRESOLVED,"to mostly Asian factories. It is a model that has worked well for Qualcomm. Meanwhile Intel (INTC, Fortune 500), which missed the"
+42276,0.03232,165.0,0.1,0.025,30/30,i,17/30,subword_continuation,3,17.2,UNRESOLVED,"' scrubbing cleanup guys can do their jobs. And sure enough, after Jackson's walk in the second, Torii Hunter lashed a two-run double"
+50847,0.39873,165.0,0.0,0.06,30/30, by,6/30,function_word,11,20.5,UNRESOLVED,TO ORIGINAL” links. This site contains copyrighted material the use of which has not always been specifically authorized by the copyright owner. We ar
+53879,0.03623,165.0,0.0,0.015,30/30,ab,29/30,subword_continuation,2,17.1,UNRESOLVED,1 pm The Cedar Key Woman’s Club held its Installation Dinner on March 28 at the Seabreeze Restaurant in Cedar Key. The theme of the
+54717,0.42656,165.0,6.37,0.032,30/30,6,10/30,number,10,23.7,UNRESOLVED,"on my character and I'm truly humbled and appreciative[1]. ↑ Maida, Jerome (8 January 2007). She's"
+56797,0.00742,165.0,0.0,0.126,30/30, new,18/30,content_word,2,20.3,UNRESOLVED,"through the RSS 2.0 feed. You can leave a response, or trackback from your own site. 1 response about “Hershey’s"
+26044,0.00645,164.0,0.0,0.034,30/30, by,30/30,function_word,1,18.8,UNRESOLVED,in the solution. Case study does not use any examples of interdisciplinary and multicultural awareness in the solution. Copyright:This material is pro
+55901,0.0123,164.0,0.0,0.029,30/30, of,29/30,function_word,2,18.0,UNRESOLVED,be surprised by how many of these titles you recognize and have read: 1) The Adventures of Huckleberry Finn & The Adventures of Tom Sawyer. Books
+22519,0.00791,163.0,3.54,0.033,28/30, ago,30/30,content_word,1,14.7,UNRESOLVED,": Posted 2 years ago on April 15, 2012, 12:55 a.m. EST by JuanF"
+33197,0.02715,163.0,0.0,0.017,30/30, Me,13/30,capitalized_word,6,18.8,UNRESOLVED,ShakersJobsResearch RoundupYpulse EventsPast EventsWebsite DirectoryEvents Sign Up / Login Login Remember me Not a member yet? Sign up!
+41516,0.08975,163.0,0.0,0.026,30/30,5,30/30,number,1,22.7,UNRESOLVED,aired. Telecommunications for the hearing impaired are available at: TTY: (301) 451-5936 Table of
+50964,0.05371,163.0,7.97,0.074,30/30, pm,24/30,content_word,2,16.1,UNRESOLVED,"April 26, 2009 5:19 pm	- ReplyMore »	Excellence: Dr. Sana"
+2712,0.02744,162.0,0.0,0.011,29/30, ,15/30,whitespace,5,18.2,UNRESOLVED,2 cups riced) 1 cup part-skim shredded mozzarella cheese 1 teaspoon basil Pre-heat oven to 400° F
+3364,0.06113,162.0,0.0,0.035,30/30, ,25/30,whitespace,3,24.8,UNRESOLVED,"later add a victory in the meet's other long-distance freestyle event, the 500 free, when Bailey Pons finished in 5:"
+28628,0.05527,162.0,0.0,0.078,28/30,quit,9/30,subword_continuation,6,19.4,UNRESOLVED,GENCY. Always seek the advice of your physician or other qualified health provider prior to starting any new treatment or with any questions you may h
+50744,0.02705,162.0,0.0,0.017,30/30, the,11/30,function_word,8,19.2,UNRESOLVED,"on my amazon wish list now. Another book that's worth mentioning.. 'Catcher in the Rye'; this I found interesting, an insight into the"
+56112,0.01816,162.0,0.0,0.029,30/30,),19/30,punctuation,3,21.8,UNRESOLVED,-dev ylee at pobox Dan Wilga <mythtv-dev2 [at] dwilga-linux1> says: > Being a
+56977,0.00703,162.0,0.0,0.016,30/30,7,5/30,number,11,21.4,UNRESOLVED,"better and more sustainable places. beam — arts, people, places Company registration: 2059168 Charity No: 32"
+13616,0.06309,161.0,0.0,0.078,30/30, Title,15/30,capitalized_word,8,21.9,UNRESOLVED,backs are On Refbacks are On Forum Rules Similar Threads Thread Thread Starter Forum Replies Last Post Strange Noise 99bmw 5-Series (E1
+14789,0.02451,161.0,0.0,0.022,30/30, ham,30/30,content_word,1,16.5,UNRESOLVED,", it was a while ago now :) ). So, it was well-intentioned, but a little ham-fisted, and the general feeling of the"
+16619,0.00225,161.0,0.0,0.031,30/30, since,24/30,content_word,2,16.0,UNRESOLVED,"and handling children of almost all ages. I have had 3 years of... MoreMember Since: Sep. 06, 201"
+22471,0.04199,161.0,0.0,0.316,24/30, a,30/30,function_word,1,14.6,TEMPLATE,-02-2006 at 05:38 PM. Send a private message to altered_beast Find all posts by altered
+30591,0.05459,161.0,0.0,0.016,29/30, associate,24/30,content_word,2,15.9,UNRESOLVED,"during life. Robert Stern, PhD, CSTE co-director and an associate professor of neurology at BUSM, oversees the CSTE registry as well"
+30820,0.03223,161.0,0.0,0.041,29/30,2,9/30,number,8,25.0,UNRESOLVED,"...Anyway, see last reply... above this. Edited by ProGamesUSA�, 11 February 2012 - 02:"
+31338,0.02412,161.0,0.0,0.028,29/30, Luther,30/30,capitalized_word,1,20.8,COLLOCATION,"nominations, National Indie and Parents Choice awards. Urban League of Long Island Martin Luther King Jr. Spirit Awards - Uniondale Marriott Hotel and"
+34202,0.05742,161.0,0.0,0.035,30/30,-,20/30,punctuation,4,21.7,UNRESOLVED,"James. Sounds Out of Silence: A life of Alexander Graham Bell. Edinburgh: Mainstream Publishing Company, 1997. ISBN 1-"
+50124,0.02148,161.0,5.22,0.024,29/30, Straight,15/30,capitalized_word,3,22.7,UNRESOLVED,"Post navigation ← What Would Atticus Have Done? The Butcher, The Baker and FISA → 4 comments on “Straight From The Hole”"
+58995,0.40576,161.0,0.0,0.085,30/30, Solutions,16/30,capitalized_word,4,21.1,UNRESOLVED,"AM. Powered by vBulletin® Copyright © 2014 vBulletin Solutions, Inc. All rights reserved. SEO by vBSEO ©2"
+17635,0.17275,160.0,0.0,0.013,30/30,ischer,8/30,subword_continuation,11,17.1,UNRESOLVED,"uerberaterkammer) www.bstbk.de/de/bstbk/ under the heading ""Der Steuerberater/Weiterführende Links"
+42234,0.00352,160.0,0.0,0.026,30/30,-,26/30,punctuation,3,17.3,UNRESOLVED,"major Orthodox presence Ã¢â‚¬â€œ for example less then 1% of population, then autocephalous status may become a matter of"
+42621,0.00937,160.0,0.0,0.057,30/30, in,17/30,function_word,6,20.6,UNRESOLVED,7 URI: http://strathprints.strath.ac.uk/id/eprint/19233 Actions (login required) View ItemThe blog
+45449,0.00645,160.0,0.49,0.219,30/30,quotes,30/30,subword_continuation,1,17.7,COLLOCATION,LES (MarketWatch) -- PerkinElmer Inc. /quotes/zigman/250499/delayed/quotes/nls
+51130,0.02637,160.0,0.0,0.007,30/30, Pen,14/30,capitalized_word,3,16.5,UNRESOLVED,"the line. From your description, it seems unlikely that herpes explains your symptoms. 1) Penile pain like you describe really doesn't suggest any STD"
+14575,0.00771,159.0,0.0,0.02,30/30, vice,18/30,content_word,2,18.7,UNRESOLVED,"shapes, and consulting with a Modcloth stylist for advice on what works and what doesn’t. Scott Casciato, Vice President of Service for Modcloth"
+27156,0.04795,159.0,0.0,0.029,29/30,ritch,26/30,subword_continuation,2,17.3,UNRESOLVED,"to your question is we maintain a weekly meeting where we review with our head of planning, Jennifer Pritchard, who's our President of Stores, we"
+59327,0.00459,159.0,0.13,0.018,30/30,lin,27/30,subword_continuation,2,18.4,UNRESOLVED,Nations Fail - by Daron Acemoglu and James Robinson • The Drowning Girl - Caitlin R. Kiernan • The Consolations
+60054,0.06807,159.0,1.7,0.012,30/30, St,7/30,capitalized_word,14,18.3,UNRESOLVED,and all because he pivoted on Tuesday night. posted by Eric Schansberg @ 5:19 PM 0 Comments Name: Eric Sch
+39608,0.01396,158.0,0.0,0.029,30/30, not,28/30,function_word,2,18.3,COLLOCATION,"and acetone.” Parker and Pirpich pleaded not guilty. If convicted, Parker is facing up to 20 years imprisonment and up to a"
+41990,0.0041,158.0,0.0,0.029,30/30,cor,30/30,subword_continuation,1,16.1,COLLOCATION,"Flutie, Eagles, Michael Vick, Donovan McNabb, Nick Foles More Stories From Tully Corcoran Charlie Sifford stayed the"
+11327,0.0126,157.0,0.0,0.085,30/30,.Ed,24/30,content_word,2,20.4,UNRESOLVED,is bad From: Derek Glidden <dglidden@xxxxxxxxxxxxxxx> References: <1001963944.
+13829,0.00703,157.0,0.0,0.016,30/30, Type,18/30,capitalized_word,6,18.3,UNRESOLVED,", high-resolution models from which they are derived. Item Type:ArticleSubjects:MSC 2000 > 65 Numerical analysisMSC"
+23117,0.02129,157.0,0.0,0.16,28/30,oy,18/30,subword_continuation,2,20.2,UNRESOLVED,"was instrumental in ""eradicating slavery,"" which officially occurred in 1863, 15 years after he died. Oy. V"
+55837,0.00508,157.0,0.0,0.071,30/30, a,30/30,function_word,1,20.5,UNRESOLVED,", Government Spending on August 9, 2010 | Leave a Comment »	You know that bureaucrats are getting wildly overcompensated if"
+19114,0.00596,156.0,0.0,0.06,30/30, published,28/30,content_word,2,19.0,UNRESOLVED,(required) E-mail (will not be published) (required) Website Comment: Verification (needed to reduce spam): MARIA HERRERA has covered
+23673,0.08047,156.0,0.0,0.012,30/30, de,5/30,content_word,12,13.1,UNRESOLVED,"knowledge of the perfection of his art. The pattern is named for Francis of Angouleme, a handsome, talented and debonair patron of the"
+38757,0.02344,156.0,0.0,0.071,30/30,2,12/30,number,6,22.7,COLLOCATION,"2nd, 2013 http://pjmedia.com/andrewmccarthy/2013/07/0"
+45139,0.00801,156.0,0.0,0.011,30/30, Pis,11/30,capitalized_word,6,17.2,UNRESOLVED,Nitrite)	Ingredient Color Key: Serving Size: 3 slices (27g) Calories 70.0Calories from Fat
+47759,0.09355,156.0,0.0,0.011,30/30, of,19/30,function_word,2,22.2,UNRESOLVED,"una Advisors, “From 2008 through mid 2011, nearly two out of three companies in the S&P 50"
+58150,0.01172,156.0,0.0,0.074,30/30, Monday,10/30,capitalized_word,7,10.5,COLLOCATION,"ves Psoriasis Posted: Wednesday, June 10, 2009 The diabetes drug pioglitazone (Actos)"
+31141,0.7959,155.0,0.0,0.012,30/30,3,11/30,number,8,23.0,UNRESOLVED,"Prolactin, Maintains Low-Level Activation of STAT5a and STAT5b in Female Rat Liver."" Endocrinology 140:"
+55811,0.01992,155.0,5.83,0.089,30/30, News,30/30,capitalized_word,1,18.7,COLLOCATION,", blood pressure. FRIDAY, May 17 (HealthDay News) -- Management of heart disease risk factors -- such as high cholesterol, high"
+62596,0.01182,155.0,0.0,0.019,30/30, Ah,28/30,capitalized_word,2,16.5,UNRESOLVED,"Tel Aviv, the Roni Ful restaurant has become famous for serving traditional Egyptian fare, with modern Israeli accompaniments. The owner, Mor Haim Ah"
+6665,0.4085,154.0,1.67,0.034,30/30,rell,30/30,subword_continuation,1,16.6,UNRESOLVED,"Times.A spokesman for the committee’s chairman, Representative Darrell Issa, Republican of California, did not respond to several messages seeking com"
+35157,0.03965,154.0,0.0,0.037,30/30,ure,30/30,subword_continuation,1,19.3,UNRESOLVED,"30, 2004, on behalf of our joint venture company, Eurecat U.S., Inc. Our long-term debt,"
+42397,0.04248,154.0,0.0,0.009,30/30, kicking,23/30,content_word,3,18.6,UNRESOLVED,"with a straightforward implementation that cuts out the cream-skimming middle-men, and everyone, from VISA to the banks to the carriers, will be kicki"
+6074,0.84668,153.0,0.0,0.038,30/30,9,7/30,number,10,16.3,UNRESOLVED,anet portalUS200100563598 Feb 200127 Dec 2001Ab
+42675,0.02744,153.0,0.0,0.042,29/30, where,18/30,function_word,8,21.9,UNRESOLVED,"Real-time index quotes and delayed quotes supplied by Morningstar Inc. Quotes delayed by up to 15 minutes, except where indicated otherwise. Fund summ"
+45472,0.09727,153.0,13.14,0.01,30/30, Ful,16/30,capitalized_word,3,17.2,UNRESOLVED,"yclopedia of Chicago,"" MacArthur Foundation, 1996-97 (James R. Grossman, Newberry Library, PI) Ful"
+4217,0.00439,152.0,1.64,0.025,29/30, dun,30/30,content_word,1,18.8,COLLOCATION,at and not starting till late. I'm wondering if they were having a hard time procuring the name before the festival took shape. I dunno.
+45722,0.00439,152.0,0.0,0.022,30/30, Las,25/30,capitalized_word,2,19.6,UNRESOLVED,"Kruse, 1995; Lasley, 1998; Rettig & Canady, 1996;"
+60970,0.00537,152.0,0.0,0.056,30/30, AN,30/30,function_word,1,20.1,COLLOCATION,"11th, 2013 02:02 PM LOS ANGELES—A celebration of the life of legendary erotic photographer"
+52468,0.48096,151.0,0.0,0.011,30/30,av,6/30,subword_continuation,11,19.6,UNRESOLVED,vigil. News of the event began to spread by word of mouth. Barnstable police showed up to escort the marchers. Rev. Jim Scovil
+61508,0.06377,151.0,8.52,0.042,30/30, be,29/30,function_word,2,19.2,UNRESOLVED,ed by permission of Unbridled Books. All rights reserved. No part of this excerpt may be reproduced or reprinted without permission in writing from
+36175,0.04961,150.0,5.81,0.023,30/30,i,27/30,subword_continuation,2,17.8,UNRESOLVED,"umin flavor, a clove flavor, a pepper flavor, a coriander flavor, a sassafras flavor, a savory flavor, a Z"
+58461,0.43281,150.0,0.0,0.007,30/30, craz,30/30,content_word,1,17.2,UNRESOLVED,".' It will have less to do with college basketball and a lot to do with craziness in Washington on budget-related issues."" Collender says because the "
+60942,0.0041,150.0,0.0,0.013,30/30, Justin,27/30,capitalized_word,3,20.6,UNRESOLVED,"? Tags: OK Galleries & Photos, Chelsea Handler, Cher, Drake, Ellen DeGeneres, Eminem, Florence Welch, Justin Bieber, Justin"
+15024,0.00908,149.0,0.0,0.047,30/30,/,30/30,punctuation,1,22.1,COLLOCATION,", premiering Tuesday, April 22 at 10pm ET/PT. Airing just three short weeks after cameras begin filming, the show"
+17477,0.08008,149.0,0.0,0.03,30/30,k,22/30,subword_continuation,2,18.6,UNRESOLVED,News & Events McGill Univ. Health Resources AAAS - EurekAlert NIH Stem Cell Information NCI National Cancer Institute NC
+44917,0.02109,149.0,0.0,0.015,30/30, Rob,27/30,capitalized_word,2,18.5,UNRESOLVED,dogs.PHOTO BY JEN FARIELLO Gretchen Robb says she wouldn't hunt if Oak Ridge members actually killed healthy foxes.P
+57985,0.02266,149.0,0.0,0.086,30/30, +,19/30,punctuation,3,15.2,UNRESOLVED,"uffey 57th -A A +A Wednesday, September 29, 2010 at 6:30 am ("
+60301,0.00635,149.0,0.0,0.025,30/30, the,21/30,function_word,3,18.8,UNRESOLVED,"Adam Kilgore | July 7, 2010; 7:15 PM ET Save & Share: Previous: Stephen"
+39277,0.05254,148.0,0.0,0.016,30/30, Mc,13/30,capitalized_word,6,16.7,UNRESOLVED,Back on Your Kids Flight Attendant's Hysterical Safety Speech (VIDEO) Love & Sex Getting Over Infidelity: Ian Kerner Tells You How
+61705,0.00635,148.0,0.0,0.058,30/30, of,30/30,function_word,1,18.4,UNRESOLVED,"M.Sc from the London School of Economics. He has MBA from the Indian Institute of Management, Ahmedabad. E:srudra@acumen.org"
+26847,0.1707,147.0,0.0,0.056,30/30,ole,30/30,subword_continuation,1,18.2,UNRESOLVED,". human rights violations was ""ridiculous and unsupported by the facts,"" while Secretary of State Condoleezza Rice declared that Amnesty's report was "
+41477,0.05273,147.0,0.0,0.011,30/30, Melissa,19/30,capitalized_word,3,20.0,UNRESOLVED,"(NCIS), Mayim Bialik (Blossom), and Melissa Rauch (True Blood) for a fun and lively discussion. From Chuck"
+46794,0.45293,147.0,3.14,0.053,30/30,/,30/30,punctuation,1,18.6,UNRESOLVED,Year Added to Catalog: 2009Book Format: PaperbackDimensions: 5 1/2 x 7 1/2Number of
+17891,0.6542,146.0,4.51,0.012,30/30, ’,21/30,content_word,3,19.1,UNRESOLVED,Director Bill Sallak will present a performance of John Luther Adams’ evocative Wail. Dance ’11 is a collaboration between faculty and
+20185,0.15947,146.0,2.15,0.017,30/30,.,26/30,punctuation,3,19.7,UNRESOLVED,"newborns and adults,"" added co-investigator Vadim S. Ten, MD, PhD, an associate professor of pediatrics from the Department of Pediatrics"
+21480,0.00547,146.0,0.0,0.009,30/30, Kevin,24/30,capitalized_word,2,18.3,UNRESOLVED,"like a teenage girl! The ending was heartbreaking, and he used the power of his dramatic pause very effectively. Which character – as performed by Kev"
+27217,0.00781,146.0,11.02,0.032,30/30, last,30/30,content_word,1,19.6,UNRESOLVED,", Australia, 2006-07 (cat. no. 8126.0). This page last updated 13"
+30519,0.01553,146.0,0.0,0.061,30/30,k,30/30,subword_continuation,1,19.3,COLLOCATION,", 3 days. Rainie is a 4-year-old American Shorthair from Oshkosh, WI. She has had her very own"
+31619,0.05459,146.0,0.0,0.054,30/30, below,18/30,content_word,2,17.5,UNRESOLVED,005 8:59 PM Trackback Pings TrackBack URL for this entry is Listed below are links to weblogs that reference Terror
+61066,0.01533,146.0,7.24,0.017,30/30,al,17/30,subword_continuation,2,18.3,UNRESOLVED,"at both Hawthorne Racecourse in Chicago, IL and Calder Race Course in Miami. When he’s not in the irons, Montalvo is a"
+8072,0.04258,145.0,0.0,0.036,30/30,icio,30/30,subword_continuation,1,18.0,COLLOCATION,The Alex Jones Show - click here to subscribe. COMMENT ON THIS ARTICLE Print Friendly Page Yahoo! MyWeb Del.icio.us Digg Reddit Email This
+9732,0.03252,145.0,0.0,0.037,30/30,/,30/30,punctuation,1,23.8,UNRESOLVED,'t been the Indians' manager long enough to know where his frustration level really is. But keep in mind that for 2 1/2 years Act
+9916,0.00342,145.0,0.0,0.032,30/30,7,10/30,number,8,16.1,UNRESOLVED,"removing ""A"", ""An"" or ""The"". Steve chamilton at cs > On 2/6/07, David H"
+22707,0.07979,145.0,1.71,0.035,30/30,ry,18/30,subword_continuation,4,15.8,UNRESOLVED,"Editor’s Note: Phillip Dalrymple of Tucson, Arizona, and his family had a history with Jennings bows. For Dalrymple to break"
+3263,0.00547,144.0,0.0,0.047,30/30, Sach,15/30,capitalized_word,4,14.3,UNRESOLVED,"958, stated that “Secretary of the Interior, Fred A. Seaton               Click tabs to swap between content that is broken into logical sections"
+24567,0.01465,144.0,8.48,0.014,29/30,o,22/30,subword_continuation,5,16.2,UNRESOLVED,in the May issue. My interview with Marcelo Gomes was also in the May issue. My interview with Alexei Ratmansky appeared in the June
+26354,0.09014,144.0,0.41,0.031,30/30,l,14/30,subword_continuation,5,20.5,UNRESOLVED,"leave the field, secondly France were unable to score a single point while Italy had reduced the deficit to 3 points. Finally France recovered when Em"
+34592,0.5585,144.0,0.0,0.04,29/30,-,28/30,punctuation,2,22.7,UNRESOLVED,"02) 219-1511 or, toll free, 1-800-222-49"
+40876,0.04707,144.0,3.93,0.172,30/30,.,29/30,punctuation,2,21.9,UNRESOLVED,published in our print edition. All rights reserved. This copyrighted material may not be re-published without permission. Links are encouraged. BOSTO
+49227,0.00742,144.0,0.0,0.056,30/30, am,11/30,content_word,5,25.2,UNRESOLVED,"software raid questions On Tue, Oct 19, 2010 at 7:59 PM, fred smith &lt;fred"
+50836,0.41299,144.0,1.81,0.011,30/30,pp,21/30,subword_continuation,2,20.4,UNRESOLVED,. This photomontage records the XSCAV’s first successful test flight in 2009. Photos by Corey Ippolito/
+11528,0.01396,143.0,0.0,0.057,30/30, -,20/30,punctuation,2,21.5,UNRESOLVED,"9 AM REDWOOD SHORES, CA--(Marketwire - January 31, 2011) - Highlighted Links Oracle"
+22186,0.03213,143.0,0.0,0.074,30/30,ire,30/30,subword_continuation,1,15.0,UNRESOLVED,"month the Dartmouth Daily published »	Read more... March 30, 2005 — Paul Mirengoff	Fairer Jacques"
+26273,0.01006,143.0,0.0,0.055,30/30,.com,28/30,content_word,2,23.1,UNRESOLVED,"respect? M Rated: Fiction M - English - Drama/Romance - Edward, Bella - Words: 16,297 - Reviews"
+42256,0.0126,143.0,0.0,0.013,29/30,orn,30/30,subword_continuation,1,18.5,UNRESOLVED,"ethinking the Memory Wars, Lanham, Maryland: Rowman and Littlefield. (Scholar) Christensen, D. and H. Korn"
+55687,0.00713,143.0,8.07,0.01,30/30,ag,15/30,subword_continuation,4,18.4,UNRESOLVED,"were deemed contagious – filled with ‘imaginary’ diseases – ‘infected’ and, therefore, physically quarantined. Subsequent ghettoization impacted signi"
+56156,0.04502,143.0,0.86,0.018,30/30,izz,28/30,subword_continuation,2,17.7,UNRESOLVED,"collaboration with Jud Yalkut), Rizzoli Screening Room, New York, NY (solo)Video Film Concert (films in collaboration with Jud Y"
+61954,0.01338,143.0,0.0,0.078,30/30, (,30/30,punctuation,1,18.1,UNRESOLVED,"» Thu Sep 25, 2008 4:33 pm (But it's a good thing we aren't discussing tis"
+7440,0.00488,142.0,0.0,0.035,30/30, March,5/30,capitalized_word,11,21.0,UNRESOLVED,is 03:44 AM. Powered by vBulletin® Version 4.2.0 Copyright © 2014 vBulletin Solutions
+35336,0.0042,142.0,0.0,0.036,30/30, found,28/30,content_word,2,19.5,UNRESOLVED,"14 07:00 PM Red Rocks Amphitheatre (Morrison, CO) Reviews[1 of 2 customers found this"
+46526,0.00527,142.0,0.0,0.027,30/30, helpful,27/30,content_word,3,17.3,UNRESOLVED,ley's Beauty for a different version of Beauty and the Beast. Help other customers find the most helpful reviews Was this review helpful to you? Repor
+52010,0.025,142.0,0.0,0.01,30/30,Conf,21/30,capitalized_word,2,20.0,UNRESOLVED,"’t go wrong with the film, and the disc is sure not to disappoint. Related Links... Confidence (UK - DVD R2) Election ("
+56559,0.39443,142.0,0.0,0.012,29/30, Bri,19/30,capitalized_word,3,17.6,UNRESOLVED,"; Babcock, Brooke(3). Win-Babcock, Brooke(2-0)  Loss-Brianna Seckinger  T-"
+60482,0.12148,142.0,10.48,0.046,30/30, that,11/30,function_word,6,21.2,UNRESOLVED,"anticipated as of the date of this release. Certain of such risks and uncertainties are described below. Shareholders, potential investors, and other "
+62913,0.01201,142.0,0.0,0.182,30/30, posts,17/30,content_word,3,19.1,UNRESOLVED,"<em> <i> <q cite=""""> <strike> <strong> Notify me of follow-up comments by email. Notify me of new posts by"
+9704,0.03027,141.0,3.71,0.05,30/30, the,9/30,function_word,6,24.6,UNRESOLVED,at IU Health White Memorial Hospital in Monticello. Visitation will be from 10 a.m. until the 11 a.m. service
+23042,0.03418,141.0,0.0,0.073,30/30,3,9/30,number,7,18.8,UNRESOLVED,"060109.jpg Posted: June 1, 2009-A A +A By The Staff Thursday, May"
+24829,0.00479,141.0,0.5,0.028,30/30, Index,10/30,capitalized_word,7,17.0,UNRESOLVED,in any form.You're currently viewing our forum as a guest. This means you are limited to certain areas of the board and there are some features you ca
+26934,0.00488,141.0,6.02,0.012,30/30, Bru,16/30,capitalized_word,4,16.5,UNRESOLVED,"ude Arseneault, Angelica Bongiovonni, Dominique Bouchard, Mikael Bruyere-L'Abbe, Ashley Carr"
+40465,0.01631,141.0,0.0,0.021,30/30,quin,21/30,subword_continuation,3,17.9,UNRESOLVED,"ed Detroit rookie Joakim Andersson and Seabrook crunched forward Damien Brunner behind the net. ""We're foolish to think that they're"
+61739,0.01426,141.0,6.27,0.03,30/30,ed,11/30,subword_continuation,7,20.8,UNRESOLVED,cry is heard. Excerpted from Gilgamesh by Stephen Mitchell Copyright © 2004 by Stephen Mitchell. Excerpted by permission.
+63837,0.01221,141.0,2.32,0.158,29/30, <,30/30,punctuation,1,18.6,COLLOCATION,"in Chinua Achebe's Things Fall Apart."" 123HelpMe.com. 16 Apr 2014 <http://"
+1878,0.03496,140.0,0.0,0.113,30/30, |,30/30,punctuation,1,23.0,COLLOCATION,"of entry: and, * Deportation. ### « Prev | Next » Home | Committees | Sections | Member Search | History - Presidents | History"
+4085,0.12959,140.0,0.0,0.022,30/30, allow,3/30,content_word,19,20.9,UNRESOLVED,SUCH DAMAGES AND EVEN IF THE REMEDY FAILS OF ITS ESSENTIAL PURPOSE. Some states/jurisdictions do not allow the exclusion or limitation
+45568,0.00381,140.0,0.0,0.023,30/30,IC,21/30,capitalized_word,3,19.2,UNRESOLVED,"Metro East St. Louis Area Morris Area Chicagoland West Murphysboro Areahide Bucks Hire Drew Saturday, June"
+60631,0.06396,140.0,0.0,0.035,30/30,6,11/30,number,7,19.1,UNRESOLVED,", Kotayk Province, Armenia Geographic coordinates 40°06′45″N 44°43′49"
+60763,0.00498,140.0,10.09,0.016,30/30, Kub,17/30,capitalized_word,3,18.3,UNRESOLVED,(required) E-mail (will not be published) (required) Website Comment: Verification (needed to reduce spam): MARIA HERRERA has covered
+62356,0.00352,140.0,0.0,0.033,30/30, Alex,30/30,capitalized_word,1,20.9,UNRESOLVED,"imentel is currently throwing for Double-A Portland. Like this:Like Loading... Filed in: Dailies	Tags: Adrian Gonzalez, Alex Hassan,"
+20566,0.01406,139.0,5.11,0.048,30/30,0,30/30,number,1,19.6,UNRESOLVED,") Date: Thu, 3 Oct 2013 20:00:04 +0000 (UTC) install"
+24560,2.10557,139.0,0.0,0.008,30/30, would,7/30,content_word,10,20.3,UNRESOLVED,"following season. Little did he know just how personal that motivation would become less than 24 months later, when his mother was diagnosed with brea"
+43665,0.73682,139.0,5.22,0.009,30/30, was,25/30,function_word,4,21.7,UNRESOLVED,/1997] I recently attempted a question which I think I have done wrong and I was wondering if there were a set formula
+55126,0.00195,139.0,0.0,0.036,30/30,ord,30/30,subword_continuation,1,18.8,COLLOCATION,"it’s the wild thing that emerges victorious. Honey Suckle Duvet Burlesque performer extraordinaire, is one of Boston’s rising Bur"
+2489,0.30332,138.0,5.29,0.051,29/30, publication,15/30,content_word,8,18.0,UNRESOLVED,49081bad2.html [accessed 16 April 2014] DisclaimerThis is not a UNHCR publication.
+3690,0.04434,138.0,3.01,0.05,30/30, questions,27/30,content_word,3,19.6,UNRESOLVED,360 Game Questions & Answers (Q&A) service lets you ask questions about video games for game consoles or PC games. So ask your
+14355,0.00723,138.0,0.0,0.019,30/30,v,20/30,subword_continuation,2,15.5,UNRESOLVED,"684 F.2d 255 217 U.S.P.Q. 15 James Q. HORNE, Jr"
+22679,0.00586,138.0,0.0,0.043,30/30,a,30/30,function_word,1,16.3,COLLOCATION,Medical Center (19) San Joaquin Community Hospital (28) Schneider Regional Medical Center (4) School District of Waukesha (
+27617,0.0124,138.0,0.0,0.013,30/30, Roh,19/30,capitalized_word,3,18.7,UNRESOLVED,".com/content.aspx?aID=55781421. Accessed May 28, 2012. Rohren CH"
+40588,0.00273,138.0,0.0,0.017,30/30,amb,9/30,subword_continuation,10,17.8,UNRESOLVED,- Status: Complete - id: 5580541 + - Full 3/4 1/2 Expand Tighten Roaring
+16845,0.09609,137.0,4.55,0.046,30/30,3,11/30,number,7,18.8,UNRESOLVED,"Bronx, New York 10451) (800) 33 THINK | 212 343"
+43223,0.03076,137.0,5.41,0.017,30/30,0,25/30,number,5,17.5,UNRESOLVED,85:2003 and ISO 9001:2008 with Canadian Medical Device Amendments. NeuroLogica`s BodyTom
+43293,0.03047,137.0,2.61,0.034,29/30,:,28/30,punctuation,2,20.8,UNRESOLVED,any unregenerate man who believes. (Romans 1:16-17)But an unregenerate man will not believe unless first
+43533,0.004,137.0,0.0,0.073,30/30, entry,12/30,content_word,6,21.4,UNRESOLVED,"through the RSS 2.0 feed. You can leave a response, or trackback from your own site. 1 response about “Hershey’s"
+49488,0.03691,137.0,0.0,0.012,30/30,5,12/30,number,7,12.3,UNRESOLVED,"ida, CO 81201 719-539-7050; 719-539"
+58820,0.01807,137.0,0.0,0.011,30/30, Williams,28/30,capitalized_word,3,16.2,UNRESOLVED,"worth Institute of Technology, DigiPen Institute of Technology, Julia Child, Williams College, Middlebury College, Arabic Language, Joe Morgan, Veteri"
+60276,0.04678,137.0,0.0,0.02,30/30,br,25/30,subword_continuation,3,18.0,UNRESOLVED,.calepa.co.gov/ '''www.calepa.ca.gov''']<br> +[http://www.calepa.ca.gov/ '''www
+216,0.00391,136.0,0.0,0.011,30/30, sadd,27/30,content_word,2,16.8,UNRESOLVED,and therefore unduly influenced by a geographical part of the EU.  Clearly being saddled with a reference is a disaster to any entity who sought recou
+16186,0.00439,136.0,0.0,0.026,30/30, the,30/30,function_word,1,20.4,UNRESOLVED,and trademarks used in connection with the Site. All other logos and trademarks appearing on CNNMoney.com are the property of their respective owners.
+16904,0.10771,136.0,0.0,0.02,30/30,1,21/30,number,3,19.3,UNRESOLVED,"paid $370 million for the online video business of PPS. In August, it bought app store 91 Wireless for $1.9"
+17792,0.00352,136.0,0.0,0.011,30/30, Kok,19/30,capitalized_word,3,16.0,UNRESOLVED,"other safety features more tangible with the consumer."" Kokomo Tribune; Kokomo, Indiana. All rightsMcCarran Air Traffic Flat in November By"
+26960,0.87617,136.0,0.0,0.033,30/30,1,9/30,number,8,23.8,UNRESOLVED,1.07 m (3.51 ft). Diameter: 1.02 m (3.33 ft). Thrust:
+38106,0.02334,136.0,0.0,0.165,30/30, PM,18/30,capitalized_word,2,26.2,UNRESOLVED,"season from opening day. Ghost of Steve M. - Sep 18, 2013 at 11:08 AM Fun article"
+55524,0.00859,136.0,0.0,0.116,30/30,av,30/30,subword_continuation,1,16.1,UNRESOLVED,"on radish next to a Pipevine Swallowtail. The road up Gates Canyon, Vacaville. (Photo by Kathy Keatley Garvey"
+2092,0.00586,135.0,0.0,0.016,30/30, the,10/30,function_word,10,21.7,UNRESOLVED,"have no positions in any stocks mentioned, and no plans to initiate any positions within the next 72 hours. I receive no compensation to write"
+6095,0.00547,135.0,0.0,0.058,29/30, accepts,13/30,content_word,5,21.5,UNRESOLVED,"general market commentary, and does not constitute investment advice. The owner of this blog will not accept liability for any loss or damage, includi"
+6630,0.00518,135.0,0.0,0.007,29/30, Sem,30/30,capitalized_word,1,16.2,UNRESOLVED,"co-editor-in-chief for the Texas Black History Preservation Project; and Adam Semien, student at St. Edward’s University discuss the issue using Eli R"
+13644,0.01777,135.0,1.48,0.024,30/30,r,29/30,subword_continuation,2,18.7,UNRESOLVED,"comments John D. Corrigan, PhD, ABPP, Editor-in-Chief of JHTR. Contributed by leading U.S. experts in"
+18417,0.00742,135.0,5.84,0.019,30/30,From,15/30,function_word,4,18.7,UNRESOLVED,Martin-Bridge> AMTNYS> HS Level Rep>> -----Original Message-----> From: Peggy Niforos <maniforos@hotmail.com
+26792,0.01738,135.0,0.0,0.011,30/30,Insp,22/30,capitalized_word,3,19.2,UNRESOLVED,"uted posts, images and other materials © 2010-2013InspiringSportsWomenlife, reviews, nature, photography,"
+30369,0.0126,135.0,0.0,0.097,30/30,x,14/30,subword_continuation,4,16.3,UNRESOLVED,"4x768, 1152x864, 1280x960, 1400"
+53738,0.01367,135.0,1.84,0.012,30/30,Edit,13/30,capitalized_word,3,18.2,UNRESOLVED,"socialist economy. Economic historyEdit Main article: Economic history of the Russian Federation After the Soviet disintegration in 1991, the"
+54893,0.0708,135.0,5.14,0.018,30/30, from,30/30,function_word,1,17.8,UNRESOLVED,"opened the scoring with a deflected shot from distance, a rare goal from the box-to-box midfielder.Sheanon Williams chipped in with an acrobatic"
+58101,0.09268,135.0,0.54,0.043,30/30, ,29/30,whitespace,2,18.0,UNRESOLVED,"-02, 67 F.R. 66208 (October 30, 2002), for an additional"
+9039,0.15996,134.0,0.86,0.009,30/30,'t,17/30,content_word,6,18.1,UNRESOLVED,40 Login Bangerz Miley Cyrus 41 Login Can't Remember to Fo... Shakira feat. Rihanna 42
+20610,0.3874,134.0,4.08,0.032,30/30, &,19/30,punctuation,2,18.0,UNRESOLVED,"Fargo, N.D. Art & Architecture; City & Town Life; A color photograph of the three story brick building showing the Masonic Temple entrance and tower"
+41550,0.00742,134.0,0.0,0.091,30/30, More,30/30,capitalized_word,1,20.0,COLLOCATION,"More Posts by frizz simotek Location: DC Area Yep... she talks. Find More Posts by simotek ""Well doc,"
+42273,0.07061,134.0,0.04,0.068,30/30,://,30/30,punctuation,1,12.6,UNRESOLVED,-her-boobs-and-gets-fucked-in-a-public-park-ivFa_kFahab][img]http://thumbs.deviantclip.com
+48702,0.09404,134.0,5.88,0.069,30/30, in,29/30,function_word,2,20.3,UNRESOLVED,"fter enacted: Therefore, 'Be it enacted by the Senate and House of Representatives of the United States of America in Congress assembled, that the net"
+58622,0.00156,134.0,0.0,0.011,30/30, Jane,18/30,capitalized_word,3,20.5,UNRESOLVED,"chin (Star Trek), Christopher Mintz-Plasse (Superbad), Imogen Poots (Jane Eyre), Dave Franco (Charlie St."
+34791,0.4333,133.0,0.0,0.04,30/30,0,16/30,number,9,18.8,UNRESOLVED,"Paperback$17.95Buy other sellers Related ListsMedia, Film and Theater StudiesFilm - History & CriticismFilm - ReferenceFeatured TitlesTop"
+35722,0.00713,133.0,0.0,0.037,30/30, other,19/30,content_word,3,19.2,UNRESOLVED,"are trademarks or registered trademarks of Skyworks Solutions, Inc. or its subsidiaries in the United States and in other countries. All other brands "
+54890,0.03779,133.0,0.0,0.01,30/30, Aut,19/30,capitalized_word,4,14.4,UNRESOLVED,StumbleUponFacebookLinkedInEmailPrint	Search © 2014 Autotard. All Rights Reserved. Created using PressWork. Send to
+63701,0.01445,133.0,2.57,0.02,30/30,1,20/30,number,5,17.8,UNRESOLVED,"xford Street, London, W1B 3AG Oxford Street is London's world famous shopping street. There is a vast array of shops and"
+65317,0.00898,133.0,0.0,0.008,30/30, Fil,26/30,capitalized_word,4,15.0,UNRESOLVED,"in robberies),” Undersheriff Mike Filicetti said. “(We do that) by reassigning resources to the hot spots we"
+8135,0.43242,132.0,2.0,0.052,30/30, opinions,13/30,content_word,6,19.3,UNRESOLVED,"in the Senate.	SHOWS: World News blog comments powered by Disqus	About The NoteThroughout the day, ABC News' political team contributes to"
+18869,0.28428,132.0,12.84,0.005,30/30, on,30/30,function_word,1,17.9,UNRESOLVED,"A suspect set to go on trial this week on a burglary charge, entered a guilty plea after being arrested on another burglary complaint. Richard Ray Gal"
+23245,0.02549,132.0,0.0,0.016,30/30,1,10/30,number,11,20.0,UNRESOLVED,"0 in Las Vegas (Las Vegas Convention Center), this technology will be showcased (Booth #C1529). Compared with devices utilized in project"
+41856,0.00264,132.0,0.0,0.021,30/30, Sho,28/30,capitalized_word,2,18.3,UNRESOLVED,987 The Barbara Walters Special (11/17/95) 19957 1996 ShoWest Awards
+44171,0.00205,132.0,0.0,0.02,30/30,ee,30/30,subword_continuation,1,16.8,UNRESOLVED,"ull has a very realistic Welsh voice, but is still very understandable. Thank You, Jeeves P. G. Wodehouse Narrated by"
+44616,0.09277,132.0,0.0,0.019,30/30,1,30/30,number,1,18.5,UNRESOLVED,– 2 tbs. corn starch – 1 can (12 ounces) fat free evaporated milk – 1/2 cup
+65155,0.68682,132.0,0.1,0.015,30/30, n,13/30,content_word,6,17.7,UNRESOLVED,0. Sravnitel'noe issledovanie soderzhaniia nukleinovykh kislot i belkov v klet
+13176,0.01436,131.0,4.37,0.473,30/30, reflect,30/30,content_word,1,22.7,TEMPLATE,Entertainment Staff (Photo by Alberto E. Rodriguez/Getty Images)The opinions expressed are solely those of the author and do not necessarily reflect t
+13274,0.01738,131.0,0.0,0.026,30/30, ,30/30,whitespace,1,22.0,UNRESOLVED,"Indianola. A visitation will be held on Sunday, Oct. 20, from 5-7 p.m. at Williams Funeral Home in"
+19614,0.06621,131.0,0.0,0.025,30/30,P,11/30,capitalized_word,9,20.2,UNRESOLVED,would create licensure and registration requirements and regulate private insurance and Medicaid reimbursement.“The FMA is opposed to the bill as draf
+23419,0.06602,131.0,0.01,0.023,30/30,.,6/30,punctuation,13,22.1,UNRESOLVED,". Rev. Saúde Pública [online]. 1991, vol.25, n.1, pp. 33-36"
+27357,0.00596,131.0,5.22,0.035,30/30, V,29/30,capitalized_word,2,18.0,COLLOCATION,"of what keeps people buying this brand. Louis Vuitton began manufacturing trunks in Paris in 1854, and the company he started went"
+49955,0.00664,131.0,0.0,0.009,30/30, Kre,26/30,capitalized_word,3,17.3,UNRESOLVED,"on Governor LePage,” Kreisberg says. The Maine governor has been embroiled in battles with state worker unions since almost the moment he took office"
+55073,0.00674,131.0,0.0,0.007,30/30, penn,20/30,content_word,4,16.4,UNRESOLVED,"get yourself a pennant race. Didn't happen, so now what? The minor leagues for the Marlins is pretty bare. There was little help coming,"
+55311,0.91641,131.0,7.77,0.111,30/30,%,23/30,punctuation,2,12.5,UNRESOLVED,-public-officials-take-time-%E2%80%98invest-kids%E2%80%99-support-early-child
+61342,0.09326,131.0,0.0,0.064,30/30, a,29/30,function_word,2,21.0,UNRESOLVED,", J advanced to second on a wild pitch; Freeman, P. advanced to third on a wild pitch; Franklin, C. scored on a wild"
+21850,0.00449,130.0,6.43,0.027,30/30, are,24/30,content_word,5,22.3,UNRESOLVED,CaltechTHESISDeposited By: Imported from ETD-db Deposited On:29 Jan 2004Last Modified
+25204,0.01406,130.0,0.0,0.02,30/30, de,27/30,content_word,2,17.8,UNRESOLVED,"Obama the Nazi, and of course, the coup de grace, Obama’s birth certificate. We’ve got hundreds of them warming in the bullpen. And that"
+39435,0.00508,130.0,0.0,0.062,28/30, a,12/30,function_word,7,20.3,UNRESOLVED,neither intended nor implied to be a substitute for professional medical advice. CALL YOUR HEALTHCARE PROVIDER IMMEDIATELY IF YOU THINK YOU MAY HAVE A
+42222,0.02549,130.0,0.0,0.076,30/30, ,30/30,whitespace,1,17.2,UNRESOLVED,"BROWN,STEVEN K (HP-Vancouver,ex1) steven_brown at hp.com Wed Sep 4 16:1"
+8322,0.00801,129.0,0.0,0.019,30/30,led,20/30,subword_continuation,3,18.7,UNRESOLVED,"the national office of the NAACP, Law Office of Robert S. Notzon, PotterBledsoe LLP, Dechert LLP, and Law"
+14969,0.04648,129.0,3.82,0.027,30/30,CS,27/30,capitalized_word,2,19.9,UNRESOLVED,"'s right. Notre Dame's 22-13 victory over USC, which propelled the Fighting Irish into the BCS championship game, could have been"
+26550,0.00967,129.0,0.0,0.023,30/30, International,22/30,capitalized_word,4,16.1,UNRESOLVED,8; Daniel 9 Daniel 7; Daniel 8; Daniel 9 (New International Version) Daniel 7 Daniel's Dream of Four
+31667,0.02305,129.0,0.0,0.034,29/30, ,19/30,whitespace,3,24.0,UNRESOLVED,- Blog Post http://www.bing.com/blogs/site_blogs/b/education/archive/2010/10/28/e
+32062,0.01406,129.0,0.0,0.011,30/30, ,24/30,whitespace,2,20.8,UNRESOLVED,"; Ps. 51:5; Rom. 5:12-17; 2 Cor. 5:19,"
+238,0.00313,128.0,0.0,0.173,30/30, posts,30/30,content_word,1,17.7,COLLOCATION,"em> <i> <q cite=""""> <strike> <strong> Notify me of follow-up comments by email. Notify me of new posts by email"
+6585,0.01592,128.0,0.0,0.022,30/30,.,30/30,punctuation,1,19.7,UNRESOLVED,"Wednesday, January 2, 2013 at 4:13 p.m. STATE COLLEGE, Pa. (AP) —"
+9109,0.0457,128.0,0.0,0.174,30/30, Free,28/30,capitalized_word,2,19.4,COLLOCATION,5). pp. 675-684. ISSN 0898-6568 Full text not available in this repository
+9251,0.00801,128.0,0.0,0.031,30/30, to,23/30,function_word,4,21.5,UNRESOLVED,Memorial Detroit Tigers HOF Inductee Reply With Quote + Reply to Thread [...] by 2011 Whitecaps News Articles - Page 5
+18823,0.43262,128.0,0.0,0.011,30/30,ss,15/30,subword_continuation,4,18.4,UNRESOLVED,"Judith A. McMorrow, Richard P. Nielsen, James M. O'Toole, James E. Post, Denise M. Rousseau Rom"
+20884,0.40283,128.0,0.0,0.132,30/30,/,16/30,punctuation,9,26.6,UNRESOLVED,ED FROM: http://www.crainscleveland.com/article/20121227/BLOGS05/3122
+41750,0.03408,128.0,0.0,0.014,30/30,ef,14/30,subword_continuation,4,17.7,UNRESOLVED,"Kiera Kenney (uneven bars), sophomore Elena Corcoran (vault) and seniors Kayla Carto (balance beam) and Nefert"
+44351,0.0458,128.0,2.26,0.02,30/30, material,8/30,content_word,13,18.8,UNRESOLVED,of vatican city.	Original articles from our library related to the Coat Of Arms Of Vatican City. See Table of Contents for further available material 
+46731,1.01289,128.0,4.35,0.014,30/30, them,4/30,content_word,14,19.0,UNRESOLVED,bedroom and ran straight into Nora’s husband. My fist snaked out and caught him in the midsection. He collapsed in a heap. “What are
+49584,0.0167,128.0,0.0,0.031,30/30, for,20/30,function_word,3,21.9,UNRESOLVED,offers and information on private scholarships. Students also should file their Free Application for Federal Student Aid (FAFSA) for the 2009-
+58278,0.0041,128.0,0.0,0.004,30/30, Van,24/30,capitalized_word,3,21.1,UNRESOLVED,inda Lue Linden 19967 The VH1/Vogue Fashion Awards 19997 The Vanishing 1994
+58690,0.00254,128.0,0.0,0.032,30/30, Flash,28/30,capitalized_word,2,18.4,UNRESOLVED,"while changing tire dies 6 Tenn. sites added to National Register 3 dead, 1 wounded in Tenn. shooting This content requires the latest Adobe Flash"
+44749,0.05381,127.0,0.0,0.008,30/30, until,30/30,content_word,1,15.5,UNRESOLVED,ilies in the hot oil and fry until the bottom half is browned. Turn the chilies (made easier by using a spatula and spoon... or
+51054,0.0041,127.0,0.0,0.061,30/30, by,22/30,function_word,2,23.2,UNRESOLVED,-02-2006 at 05:38 PM. Send a private message to altered_beast Find all posts by altered
+30776,0.30879,126.5,6.97,0.009,29/30, Rachel,4/30,capitalized_word,23,23.7,UNRESOLVED,"Skuratov, Peter Hoare in his Met debut as Shapkin, and Willard White as Gorianchikov. Richard Peduzzi designs"
+33915,0.02158,126.5,0.0,0.007,30/30, Mark,28/30,capitalized_word,3,17.7,UNRESOLVED,"971 - Woody Allen2. April 6, 1970 - Mel Brooks, Rex Reed, Mark Frechette, Daria"
+62328,0.00156,126.5,0.0,0.036,30/30,PR,21/30,capitalized_word,2,20.6,UNRESOLVED,"CustomerAdvocacy.com, +14242384466, markos@customeradvocacy.comNews distributed by PR"
+5808,0.00957,126.0,0.04,0.157,27/30, which,15/30,function_word,8,21.5,UNRESOLVED,"sought a pYou are not logged in. If you haven't yet registered, click here to do so now. Registration is fast, easy, and"
+6109,0.12354,126.0,7.55,0.037,30/30,2,6/30,number,9,17.6,UNRESOLVED,"0-82, 85, 1999. © 1999 Clinicians Publishing Group and Williams & Wilkins."
+22002,0.4498,126.0,6.28,0.005,30/30, clo,29/30,content_word,2,15.2,UNRESOLVED,likely the reason they are wearing the cloaks. The headbands they are wearing doesn't mean that they wear Akatsuki at the time that's that
+23612,0.01562,126.0,5.63,0.008,30/30, ahead,30/30,content_word,1,20.1,UNRESOLVED,give her some blog love at her blog). I hope you are thankful this week too! Go ahead and leave a comment! I have seen this idea and
+30147,0.59434,126.0,8.15,0.008,30/30, due,30/30,content_word,1,18.9,UNRESOLVED,"'t expect to like but as the book goes on, I really warmed to her and felt sorry for her due to her circumstances. She is really going through"
+35034,0.01221,126.0,0.0,0.076,30/30,1,15/30,number,6,21.9,UNRESOLVED,"sound strategy from a complete fucker Powered by vBulletin® Version 4.2.0 Copyright © 2014 vBulletin Solutions,"
+37941,0.04697,126.0,0.0,0.079,30/30, author,17/30,content_word,4,16.6,UNRESOLVED,is the Executive Director of the Pace Energy and Climate Center and Professor of Law at Pace Law School. The views expressed by commentators are solel
+40461,0.05811,126.0,0.0,0.024,30/30, Aff,30/30,capitalized_word,1,17.1,COLLOCATION,"Daniel Day-Lewis fellow.	57% Argo, Ben Affleck is one of the next great directors.	8% Flight, I hear"
+45935,0.01748,126.0,0.0,0.03,30/30, epit,30/30,content_word,1,17.6,COLLOCATION,"in August, speaking about it in PERFECT French. Basically, she's the epitome of a true Cosmo girl. We can't wait to see"
+114,0.1877,125.5,0.0,0.011,30/30, GL,23/30,capitalized_word,3,19.9,UNRESOLVED,annister from Game of Thrones. • Mark Your Calendars: Andrew Garfield will host “SNL” • News You Can Use: GLAAD Names
+15534,0.02002,125.5,8.32,0.035,30/30,von,30/30,subword_continuation,1,21.0,UNRESOLVED,"brother, Avi, was acquitted. The case drew comparisons to the fatal shooting of Florida teen Trayvon Martin. Eliyahu Werdesheim faces"
+22457,0.02129,125.5,6.36,0.08,30/30,-,30/30,punctuation,1,12.0,UNRESOLVED,1044 (Voice) 1-800-241-1055 (TTY/TDD/TT) Send e-mail
+25727,0.00361,125.5,0.0,0.01,30/30, Toni,12/30,capitalized_word,5,19.6,UNRESOLVED,"and Laz Alonso. 'Red Dawn' Toni Starring: Chris Hemsworth, Josh Peck, Josh Hutcherson, Adrianne Palicki"
+50458,0.00313,125.5,0.0,0.157,30/30, reserved,25/30,content_word,2,26.0,UNRESOLVED,", said he was pleased with the new honor. (Copyright 2012 The Associated Press. All rights reserved. This material may not be published"
+55166,0.08232,125.5,0.0,0.016,30/30, points,30/30,content_word,1,22.9,UNRESOLVED,5-of-7 shooting from the field and four steals. Louisiana transfer Kadeem Coleby added 13 points and blocked four shots after seeing limited
+3017,0.02354,125.0,0.0,0.023,30/30, contains,12/30,content_word,5,20.9,UNRESOLVED,global network of certified partners. For more information visit www.rdlcom.com. Certain statements in this release may constitute forward-looking sta
+23064,0.01396,125.0,0.0,0.029,30/30,w,13/30,subword_continuation,6,18.2,UNRESOLVED,idyut Jamwal Tamaannah Bhatia Ranbir Kapoor Aishwarya Rai Bachchan Kainaat Arora Preeti Desai Ve
+49720,0.5293,125.0,0.0,0.015,30/30,1,18/30,number,4,24.3,UNRESOLVED,.0 £182.26/$338.02 or £7.60/$14.08 a pair
+65225,0.00811,124.5,0.0,0.013,30/30, Big,27/30,capitalized_word,2,22.1,UNRESOLVED,"for Gary Andersen, who should be in his second season at Wisconsin by then. The Badgers should get used to schedules like that, too. The Big"
+1917,0.01582,124.0,7.27,0.032,28/30, my,30/30,function_word,1,20.6,UNRESOLVED,"unfunny. I personally enjoy the Benny Hill skit dialog:""I've never been so offended in my life!""""Then you need to get out more"
+5164,1.0835,124.0,3.75,0.016,30/30, and,21/30,function_word,4,16.7,UNRESOLVED,0! Invite a friend or colleague to join Fuel Up to Play 60 today! Check out the Playbook Check out the interactive Playbook and
+10844,0.00361,124.0,0.0,0.119,30/30, email,20/30,content_word,4,18.7,UNRESOLVED,on one’s individual beliefs. Comment	To leave a comment please enable JavaScript in your browser settings! Notify me of follow-up comments by email. N
+53778,0.02471,124.0,5.36,0.024,30/30, ,13/30,whitespace,7,18.7,UNRESOLVED,"nn's Profile Tucannnn Member for 1 year, 9 months, and 3 days, Last active 1/16"
+54528,0.01426,124.0,0.0,0.028,30/30,ah,10/30,subword_continuation,8,18.3,UNRESOLVED,our website. Comments should not attack other readers or people featured in our stories personally. Any accusations should be backed up with facts. An
+7182,0.21006,123.5,10.01,0.012,30/30,v,19/30,subword_continuation,3,16.6,UNRESOLVED,"agendas on trade agreements."" Therefore, both Bhagwati and Arvind Panagariya. Professor at Columbia University, have criticized the introduction of"
+23300,0.09043,123.5,0.0,0.015,30/30,",",7/30,punctuation,11,18.8,UNRESOLVED,2g carbohydrates 7g of fiber 5g of sugar Coconut is an excellent source of manganese and contains 60 percent of the recommended
+35862,0.00664,123.5,0.0,0.015,30/30,ina,12/30,subword_continuation,10,14.3,UNRESOLVED,and delicious it is. The vinaigrette is made with fresh orange juice and white wine vinegar with a spicy ginger kick. I've made it with
+40006,0.02461,123.5,0.0,0.015,30/30,.t,10/30,content_word,7,18.2,UNRESOLVED,"is a silly game where nobody wins. "" ~ Thomas Fuller ~http://castnuri.tumblr.com Absolutely the best film I've seen in years"
+49395,0.04316,123.5,1.45,0.012,30/30, R,6/30,capitalized_word,11,17.0,UNRESOLVED,"as bringing in the Leonardo DiCaprios and Martha Stewarts-who, by the way, had been to Jet East, and was, by Mr"
+25249,0.01035,123.0,0.0,0.03,30/30, is,27/30,function_word,2,22.7,UNRESOLVED,013 StreetAuthority. All rights reserved. Any reproduction or redistribution in whole or in part without StreetAuthority approval is prohibited. Subsc
+9745,0.05234,122.5,0.0,0.024,30/30,:,30/30,punctuation,1,21.1,UNRESOLVED,"4), whose sin is recounted in Leviticus 10:1-2 and Numbers 26:61). This tragedy was a"
+38914,0.08809,122.5,3.11,0.033,30/30,-,28/30,punctuation,3,20.7,UNRESOLVED,phone: 202-691-5200; Federal Relay Service: 1-800-877-
+22518,0.00732,122.0,0.0,0.161,30/30, our,24/30,function_word,5,21.2,UNRESOLVED,in the stocks mentioned above. The Motley Fool has no positions in the stocks mentioned above. Try any of our Foolish newsletter services free for 3
+41534,0.00527,122.0,0.0,0.009,30/30, Andre,30/30,capitalized_word,1,17.5,UNRESOLVED,went down without contact with 12:01 left in the game. ... Houston's Andre Johnson was being evaluated for a concussion after being shaken up
+44830,0.01162,122.0,0.38,0.104,30/30, post,30/30,content_word,1,20.9,UNRESOLVED,"el — January 9, 2012 @ 1:22 am | Reply	RSS feed for comments on this post.	Track"
+14896,0.01816,121.5,0.0,0.011,30/30,Manufacturer,6/30,capitalized_word,10,18.3,UNRESOLVED,8B standards. Special Order (Estimated ship date: May 24) Ships for Free (See Details) DatasheetManual Mfr.
+20390,0.41113,121.5,10.25,0.04,30/30, ,30/30,whitespace,1,20.9,UNRESOLVED,the sample.Enigma Press Contact: Tatjana QuinnTelephone: + 44 (0)1235 854076
+39462,0.01904,121.5,3.14,0.096,30/30, email,27/30,content_word,2,19.1,UNRESOLVED,Enter your email address to subscribe to this website and receive notifications of new posts by email. In the News	LGBT RPCVs Annual Report for 20
+54882,0.01943,121.5,0.0,0.026,30/30,Show,9/30,capitalized_word,6,20.1,UNRESOLVED,Read MoreWorld Cultures - Educational Resources Educational Resources (17) Displaying 1 - 17 of 17 resources in
+25147,0.0335,121.0,3.94,0.019,30/30,.,23/30,punctuation,2,17.0,UNRESOLVED,"Swietochowski, Marie Lukens, and Stefano Carboni, with essays by A. H. Morton and Tomoko Masuya. Illustrated Poetry"
+26967,0.0251,121.0,10.18,0.02,30/30,Journal,9/30,capitalized_word,6,20.6,UNRESOLVED,. TangDeposited On:30 April 2012Download Statistics: last 4 weeksRepository Staff Only: edit this itemBrowse
+28170,0.03623,121.0,0.0,0.099,30/30,3,18/30,number,5,26.0,UNRESOLVED,"""); Published: Monday, January 28, 2013 Updated: Monday, January 28, 2013"
+43973,0.00469,121.0,0.0,0.11,30/30, this,28/30,function_word,2,20.7,UNRESOLVED,"@ 12:50 am Comments RSS Subscribe without commenting	E-Mail:	Sorry, the comment form is closed at this time.Review Group"
+48219,0.00439,121.0,0.0,0.097,30/30, a,30/30,function_word,1,19.3,UNRESOLVED,Awesome Vandal Eyes dot Net WIL WHEATON dot NET by Wil Wheaton is licensed under a Creative Commons Attribution-NonCommercial-
+59530,0.05488,121.0,0.0,0.012,30/30, John,24/30,capitalized_word,2,20.9,UNRESOLVED,"organizations to harness their log data resources. Really cool screenshots ... In today's Weblogs, John FWritten Word > Articles & Commentaries > July"
+60622,0.05811,121.0,0.0,0.014,30/30,z,30/30,subword_continuation,1,17.3,UNRESOLVED,"the famous strength-haver, to varying degrees of success. This was well-trod territory when Cozzi decided to make his own version, employing the"
+48785,0.09609,120.5,0.0,0.014,30/30, Gast,26/30,capitalized_word,3,10.8,UNRESOLVED,",” says Rik Vandenberghe, a neurologist at the University Hospital Gasthuisberg in Leuven, Belgium. “This paper is"
+63434,0.0126,120.5,0.0,0.017,30/30, For,19/30,function_word,3,19.3,COLLOCATION,"vice president and service chair with Zeta Tau Alpha Fraternity. She has been active in numerous community service events, including Relay for Life, t"
+5877,0.01719,120.0,2.77,0.044,30/30, in,21/30,function_word,6,17.5,UNRESOLVED,published in our print edition. All rights reserved. This copyrighted material may not be re-published without permission. Links are encouraged. BOSTO
+20285,0.27168,120.0,9.66,0.009,30/30, of,30/30,function_word,1,18.2,UNRESOLVED,"alive, and the Huskies did not succumb to the pressure, putting together one of their most complete performances of the season. With the victory the"
+27062,0.01562,120.0,0.47,0.041,30/30,:,30/30,punctuation,1,19.6,UNRESOLVED,n. 14:6; Acts 4:12). Or the reality of eternal conscious torment of the lost in Hell (Matt.
+32122,0.1543,120.0,0.0,0.013,30/30,oc,19/30,subword_continuation,4,14.9,UNRESOLVED,". Burgonio and Jocelyn R. Uy in Manila; Leilanie Adriano, Inquirer Northern Luzon; Maricar Cinco"
+33040,0.32773,120.0,9.3,0.014,30/30, Mac,6/30,capitalized_word,13,16.9,UNRESOLVED,"Economics, Many Recipes Doug Henwood / After the New Economy Levitt & Dubner / Freakonomics Sheri Berman / The"
+45040,0.00469,120.0,0.0,0.075,30/30, Disqus,30/30,capitalized_word,1,19.1,UNRESOLVED,Bros.! Tags: Books Sound off in the comments section below: comments powered by Disqus By More-than-a-sex-machine Copyright © 20
+50777,0.08223,120.0,0.0,0.02,30/30,-,27/30,punctuation,3,17.7,UNRESOLVED,"a day. They compare this to the average ... Full description. Intermediate (3-5), Middle (6-8), High (9-12"
+10397,0.02607,119.0,0.99,0.133,30/30,aw,30/30,subword_continuation,1,13.2,UNRESOLVED,", and precludes an entire class of individuals from enjoyment of that right."" Bryn Mawr residents Joanne Glusman and Joan Bennett are one"
+21562,0.03398,119.0,0.0,0.006,30/30, Soci,12/30,capitalized_word,3,18.5,UNRESOLVED,"the car"" listen"" Compassion Versus Guilt and Other Essays Narrated By Michael Kevin Sociologist-economist Sowell, a"
+44220,0.05645,119.0,0.0,0.027,30/30, τ,28/30,content_word,2,20.5,UNRESOLVED,"ὰ τῆς χειρὸς καλλιγραφίαν, ὅσον τ"
+29920,0.02354,118.5,8.05,0.065,30/30, report,30/30,content_word,1,22.3,UNRESOLVED,"are showing in additional measures,” Tarullo added. Kevin Cirilli and Jon Prior contributed to this report.Directory Kids Sherry Kiger | August"
+34406,0.04395,118.5,3.87,0.009,30/30,"
+",20/30,whitespace,7,21.0,UNRESOLVED,2002 12:02 PM To: pdx-pm-list at mail.pm.org Subject: [Pdx-pm
+35699,0.06904,118.5,0.22,0.03,30/30, have,14/30,content_word,8,21.6,UNRESOLVED,"by the US Food and Drug Administration. Products and information presented herein are not intended to diagnose, treat, cure, or prevent disease. If yo"
+58656,0.02695,118.5,0.0,0.006,30/30,og,9/30,subword_continuation,8,17.2,UNRESOLVED,"times is the hope God gives us in the Word made flesh, our Lord Immanuel. ""O come, let us adore him, Christ the Lord!"""
+6147,0.23154,118.0,2.72,0.045,30/30, ,30/30,whitespace,1,19.1,UNRESOLVED,"10's Top 10 YouTube Videos""Is Not Available At This Time.	12/13/2010 7:"
+23961,0.03477,118.0,2.88,0.076,30/30,7,9/30,number,12,24.3,UNRESOLVED,"removing ""A"", ""An"" or ""The"". Steve chamilton at cs > On 2/6/07, David H"
+27935,0.01367,118.0,0.0,0.018,30/30,edar,6/30,subword_continuation,14,19.8,UNRESOLVED,"included in an updated NI 43-101 Technical Report originally scheduled to be released in the second half of 2013, however"
+27982,0.06416,118.0,0.0,0.027,30/30, part,30/30,content_word,1,18.9,COLLOCATION,"incomprehensible elements therein. Just like Samantha, Her doesn't always know what to do with all of its brilliance. But that might be part of why"
+56238,0.12988,118.0,6.03,0.012,30/30, on,30/30,function_word,1,18.5,UNRESOLVED,"the Huskies, 2-0, on their home field. Reno improved to 6-4 with the win while Reed dropped to 5"
+31916,0.00645,117.5,0.0,0.077,30/30, France,30/30,capitalized_word,1,15.6,COLLOCATION,"our obligation,” he said. “We are passionately looking forward to paying back the kindness of Myanmar.” France sets marriage equality draft law dateBy"
+32081,0.17305,117.5,3.27,0.032,30/30,(),11/30,punctuation,6,15.7,UNRESOLVED,"Keyword""); function Remove_All_Filter_Option_Items(Exclude_Module) { scrollToTop(); function_count = 0; Close_Search_Options = function yo()"
+47955,0.31025,117.5,3.78,0.013,30/30, sold,22/30,content_word,3,19.6,UNRESOLVED,"essions on a Dance Floor"" has topped the charts in 29 countries and sold more than 8 million copies worldwide, according to Warner Bros."
+48783,0.71953,117.5,8.07,0.018,30/30, for,29/30,function_word,2,21.2,UNRESOLVED,"; which oath shall be taken before a judge of a court of record. 'SECT. 5. That, for the purposes herein mentioned, the Secretary"
+63109,0.00576,117.5,3.51,0.241,24/30,",",18/30,punctuation,4,23.2,UNRESOLVED,AL HISTORY Paramount // 2005 // 180 Minutes // Not Rated Reviewed by Judge Brendan Babish (Retired)
+56869,0.01943,117.0,0.0,0.062,30/30,",",16/30,punctuation,2,18.2,UNRESOLVED,"requirement of its stack. en.wikipedia.org /wiki/Turing_machine (3442 words) Alan Turing - Wikipedia, the free encyclopedia Turing"
+59404,0.13584,117.0,0.0,0.018,30/30,",",26/30,punctuation,3,19.0,UNRESOLVED,"Huff (guitar); Lenny Pickett (tenor saxophone, baritone saxophone); Greg Phillinganes, Loris Holland (p"
+2408,0.02207,116.5,4.91,0.095,29/30,7,30/30,number,1,20.8,UNRESOLVED,"eldon E. Howitt School, 50 Van Cott Avenue, Farmingdale, New York 11735, for the following"
+3725,0.00869,116.5,0.05,0.008,30/30,Bo,21/30,capitalized_word,4,21.5,UNRESOLVED,"west, kim kardashian, Rosario Dawson, sean combs, Swizz BeatsWhat Was So Great About Woodstock? ‘Boomer Nation"
+4765,0.00332,116.5,0.0,0.102,30/30, pm,21/30,content_word,2,27.3,UNRESOLVED,"Say They Are Filling Vacuum Left By Egyptian State Originally published on Wed March 27, 2013 5:59 pm"
+6861,0.37285,116.5,0.41,0.018,30/30,-,14/30,punctuation,9,21.6,UNRESOLVED,"loyalty. ""But the flip side of the coin is that people feel amazingly betrayed."" Jackie Crosby • 612-673-73"
+16576,0.02842,116.5,1.8,0.02,30/30, through,7/30,content_word,10,16.9,UNRESOLVED,in the Republicans’ favor if they blame it on the poor. As long as it easier for a camel to go through the eye of a needle than it
+20287,0.03164,116.5,0.0,0.08,30/30,2,9/30,number,9,23.0,UNRESOLVED,"] How the Sheriff of Gallatin County.doc Date: Wed, 10 Jan 2007 23:51:2"
+47634,0.00586,116.5,0.0,0.007,30/30, can,21/30,content_word,5,18.6,UNRESOLVED,"all pretty weird, but I believe it was necessary for Arthur’s benefit. Next I called my lawyer. ""Hello, Kenny. How can I help you"
+10092,0.01963,116.0,2.76,0.009,30/30, Borg,18/30,capitalized_word,3,19.4,UNRESOLVED,"and Jerry Kruse, a resident of Huntingdon, Pa., was named the John and Irene Dale Professor in Math and Computer Science. Jim Borgardt"
+58606,0.00273,116.0,0.0,0.028,30/30, Tools,23/30,capitalized_word,4,17.4,UNRESOLVED,"land"" has gotten the ax, and its second season wasn't even due to start airing for another week. Zap2it is also confirming the cancellation,"
+28084,0.27578,115.5,8.66,0.012,30/30,rit,18/30,subword_continuation,4,16.5,UNRESOLVED,Monique in TX1/23/2008 11:44 AMEar scritches to Topaz. Torties are
+8840,0.52305,115.0,0.0,0.022,30/30, and,30/30,function_word,1,19.5,UNRESOLVED,"""Crazy for You"" will be performed with a live student orchestra under the direction of Orchestra Director, Monica Kraft. Crazy for YouThursday, Friday"
+29995,0.47061,115.0,0.0,0.011,30/30,if,21/30,function_word,3,14.7,UNRESOLVED,"Rosa centifolia), muskroot (Nardostachys jatamansi), heart-leaved moonseed (Tinospora cordif"
+50828,0.04512,115.0,4.13,0.048,30/30,gin,18/30,subword_continuation,4,19.9,UNRESOLVED,the opportunities provided by the different committees within the Section. Mary Frances Berry to PresentHigginbotham Lecture June 26;O'Connor Award fo
+62250,0.00381,115.0,0.0,0.054,29/30, any,12/30,function_word,5,17.6,UNRESOLVED,implied to be a substitute for professional medical advice. Always seek the advice of your physician or other qualified health provider prior to start
+63381,0.02236,115.0,1.5,0.013,30/30, Baz,27/30,capitalized_word,2,16.9,UNRESOLVED,", haltingly, and laboriously.” Based on these words and the analysis provided by the Bazelon Center, I believe Judge Sotomayor"
+3247,0.43115,114.0,0.0,0.019,30/30, Monster,20/30,capitalized_word,2,16.8,UNRESOLVED,"throughout the summer!!Posts tagged hollywood Monster Hit “As long as I can remember, I wanted to draw – and I wanted to draw for"
+6218,0.02295,114.0,1.8,0.01,30/30, and,10/30,function_word,6,21.4,UNRESOLVED,+1.10% Tupperware Brands Corp. 02/26/14 Tupperware Puts Its Eggs in Em... 0
+11129,0.00645,114.0,0.0,0.008,30/30, Bruce,30/30,capitalized_word,1,18.0,UNRESOLVED,'ve just mentioned NEED to be in this movie. kevberg - No way..Alexis Denisof is the dead on visual counterpart of Bruce Banner.
+11957,1.51846,114.0,2.94,0.004,30/30, The,13/30,function_word,6,24.8,UNRESOLVED,him.” Petrov was also sorely missed on the field last season as Villa were fortunate to avoid relegation under Alex McLeish. The season
+24163,0.07168,114.0,0.0,0.018,30/30,y,22/30,subword_continuation,4,17.0,UNRESOLVED,000003492013 Season - Jamey Eisenberg000003682013 Season
+37891,0.00352,114.0,0.0,0.022,30/30,ed,13/30,subword_continuation,7,19.1,UNRESOLVED,"2014 vBulletin Solutions, Inc. All rights reserved. SEO by vBSEO ©2011, Crawlability, Inc"
+49196,0.00566,114.0,0.0,0.02,30/30,ig,28/30,subword_continuation,2,20.0,UNRESOLVED,if you believe it. Pacifism and appeasing never got us anywhere Carl. It is the sign of a loser. Oh give me a frig
+57854,0.05527,114.0,0.0,0.012,30/30, American,24/30,capitalized_word,4,21.9,UNRESOLVED,"ential reading for every American who thinks about the War on Terror."" Thomas Lifson, American Thinker ""Regime Change Iran is a cool new blog focusing"
+539,0.46514,113.5,0.0,0.012,29/30, Rig,25/30,capitalized_word,2,13.8,UNRESOLVED,"atsLady - Jul 15, 2011 at 2:39 PM Riggs — $75K is my estimate."
+650,0.68086,113.5,0.44,0.041,30/30, ,23/30,whitespace,6,18.2,UNRESOLVED,"266 Mass. 98 , 100. Bacon v. Bacon, 266 Mass. 462 ,"
+10709,0.01152,113.5,6.95,0.025,30/30,isman,30/30,subword_continuation,1,19.6,UNRESOLVED,"Championship Game festivities this weekend in Atlanta. Alexander, along with former Florida quarterback and 1996 Heisman Trophy winner Danny Wuerffel,"
+11398,0.47158,113.5,0.81,0.011,30/30, Stevens,25/30,capitalized_word,4,19.1,UNRESOLVED,"to go forward. And FCBD still goes forward. I'll be there — signing my own comics work at Galaxy Comics in Stevens Point, Wis., from"
+20825,1.72227,113.5,4.33,0.015,30/30, and,13/30,function_word,7,21.6,UNRESOLVED,"are obese are more likely to develop type 2 diabetes, heart disease, stroke, high blood pressure, certain cancers, high cholesterol, liver"
+27607,0.00928,113.5,0.0,0.017,30/30, Red,29/30,capitalized_word,2,21.5,UNRESOLVED,"4-1 at Boston). The teams hadn’t met since Nov. 25, 2011 (Red Wings won 3-2"
+52387,0.11826,113.5,0.0,0.007,30/30, it,23/30,function_word,5,20.2,UNRESOLVED,released two new promos showing off their upcoming Christmas programming - including a first look at DOWNTON ABBEY's special! Check it out
+58646,0.13164,113.5,3.5,0.014,30/30, Huss,15/30,capitalized_word,5,15.7,UNRESOLVED,of your Internet hussies?” Damn and crap. Doesn’t it just figure? Turns out there really are married guys stupid enough to troll the World
+13166,0.01553,113.0,0.0,0.044,30/30, and,18/30,function_word,7,22.1,UNRESOLVED,informational purposes only. Statements about products and health conditions have not been evaluated by the US Food and Drug Administration. Products 
+29654,0.00498,113.0,0.32,0.025,30/30,ang,25/30,subword_continuation,4,17.1,UNRESOLVED,"'s at least a year old. We're using the first one, grated over spagetti and it's very good. The lipase has made it"
+3318,0.04277,112.5,0.74,0.041,30/30, Lord,21/30,capitalized_word,2,18.1,UNRESOLVED,"Home, 567-4459, is serving the family.Thus says the LORD, the Holy One of Israel,"
+13161,0.00508,112.5,3.86,0.032,28/30,aut,25/30,subword_continuation,2,18.2,UNRESOLVED,in the largest state park in the United States Central Park — a huge city park right in the middle of Manhattan Chautauqua Institution — more
+25639,0.41992,112.5,5.97,0.03,30/30, permission,26/30,content_word,3,16.1,UNRESOLVED,"purposes of your own that go beyond 'fair use', you must obtain permission from the copyright owner. _________________________________________________"
+49471,0.06934,112.5,5.02,0.016,30/30, gave,28/30,content_word,2,21.1,COLLOCATION,won two straight following a four-game losing streak. Chris Young (2-1) gave up two runs on six hits with six strikeouts over 6
+52494,0.00342,112.5,0.0,0.036,30/30, ,8/30,whitespace,13,20.5,UNRESOLVED,"2 Contact Us - Science Fiction and Fantasy Chronicles Network home - SEO by vBSEO 3.6.0 PL2 ©2011,"
+36534,0.01748,112.0,0.0,0.007,30/30, Vish,22/30,capitalized_word,2,17.9,UNRESOLVED,"that he has created a very distinct model to take cardiac care to the masses,” notes Vishal Bali, chief executive officer of Fortis Hospitals, a promi"
+38754,0.00264,112.0,7.01,0.069,30/30, be,11/30,function_word,11,22.3,UNRESOLVED,to the horizontal stabilizer. The pilot reported no mechanical malfunctions with the airplane.The National Transportation Safety Board determines the 
+52649,0.02607,112.0,0.0,0.003,30/30,[,19/30,punctuation,5,24.4,UNRESOLVED,"23rd, 2013 @ 6:49pm Iran is sending Charles Carreon into space? Cool! [ reply"
+60420,0.05361,112.0,0.0,0.022,30/30,-,20/30,punctuation,6,23.1,UNRESOLVED,2nd Fl. West Aerospace Center 370 L'Enfant Promenade SW 1-877-922-92
+16056,0.00811,111.5,0.0,0.044,30/30, and,30/30,function_word,1,18.3,COLLOCATION,"Republicans who are calling for her resignation. Sebelius originally declined to appear before the House Energy and Commerce Committee Thursday, sayin"
+36321,0.01094,111.5,0.0,0.145,30/30, to,30/30,function_word,1,20.1,COLLOCATION,outside of our control that may cause our business strategy or actual results to differ materially from the forward-looking statements. Factors that c
+38887,0.04697,111.5,0.0,0.011,30/30,-,15/30,punctuation,4,25.3,UNRESOLVED,Idaho Residency LocationsOffice of the Registrar registrar@uidaho.edu Phone: (208) 885-67
+60473,0.08223,111.5,2.32,0.043,30/30,'s,10/30,content_word,8,19.1,UNRESOLVED,the power and ability to exercise dominion or control” over the narcotics (quotation omitted)); Webster's New Collegiate Dictionary (11th ed.
+2184,0.0127,111.0,0.0,0.012,30/30, Trev,24/30,capitalized_word,3,17.1,UNRESOLVED,"said. “It’s certainly taken on an energy of its own.” Tags: corruption, Drug task force, Drugs, Hidalgo County, Jonathan Trev"
+7398,0.68115,111.0,2.37,0.015,30/30, of,13/30,function_word,8,23.1,UNRESOLVED,"0, of Ashland at her home, after purchasing heroin from Wawi. Deputies then searched her home, and found additional heroin, other narcotics,"
+7446,0.0083,111.0,0.0,0.018,30/30, a,5/30,function_word,18,20.2,UNRESOLVED,"Life: Give a man a fish, and he’ll stick around for another. Providing for folks in need is a good thing, but handouts are"
+15010,0.02236,111.0,0.0,0.028,30/30, ,24/30,whitespace,3,20.1,UNRESOLVED,information visit e2v.com PRESS OFFICE CONTACT: Anna Kim Email: Email Contact Tel: +82-2-2016-
+37199,0.01396,111.0,0.0,0.016,30/30,ious,10/30,subword_continuation,8,15.5,UNRESOLVED,"musical influences include John Coltrane, Charlie Parker, Miles Davis, Art Blakey, Thelonious Monk, Elvin Jones, and Joni Mitchell"
+40944,0.07432,111.0,0.0,0.018,30/30, ,18/30,whitespace,6,22.0,UNRESOLVED,"five straight double-figure rebounding games and four consecutive double-doubles (points and rebounds). Overall, Gomes was leading Valpo in scoring (1"
+42046,0.0833,111.0,0.0,0.015,30/30, ,26/30,whitespace,3,21.2,UNRESOLVED,"higher in protein or carbohydrates. For instance, a ½-cup serving of vanilla ice cream contains: 178 total calories 2 grams of"
+42971,0.01191,111.0,2.45,0.038,30/30,ul,18/30,subword_continuation,2,19.0,UNRESOLVED,"229) 226-2400, ext. 1826. Flying first class City denies Zebul"
+44117,0.09033,111.0,0.28,0.011,30/30,ug,19/30,subword_continuation,8,19.6,UNRESOLVED,"dedicate this to our friends, guys like [Jhon Kennedy] Hurtado and [Michael] Fucito, who are out with injury. Thank God"
+1243,0.20566,110.5,0.0,0.02,30/30,"),",13/30,punctuation,8,21.0,UNRESOLVED,"la Agency Code '760' Title Grouse bibliography Authors Wolfe, Donald H. (Donald Howard), 1961-George Mik"
+3388,0.53672,110.5,0.0,0.017,30/30,-liter,22/30,content_word,6,20.7,UNRESOLVED,"or power-retractable hard top. This lightweight sports car that boasts ""perfect balance” is powered by a 2.0-liter 4-cylinder"
+8972,0.03672,110.5,0.0,0.013,30/30, Abby,22/30,capitalized_word,4,17.5,UNRESOLVED,Files How Bush Won the War Over the Courts Republicans Tripping The FundamentaList (No. 65) AdvertisementAbby Rapoport
+36722,0.09258,110.5,0.0,0.009,30/30,"
+",7/30,whitespace,13,21.4,UNRESOLVED,the workshop. A handout detailing web based resources will also be provided. Item Type: Conference or Workshop Item (Other) Subjects: L Education > L
+38896,0.02793,110.5,2.43,0.033,30/30,-,15/30,punctuation,4,20.4,UNRESOLVED,"A-Z 360 Huntington Ave., Boston, Massachusetts 02115 617.373.2400"
+47805,0.01562,110.5,2.17,0.15,30/30,://,15/30,punctuation,3,21.0,UNRESOLVED,""">just announced</a> that American soprano <a href=""http://www.npr.org/artists/15656760"
+7860,0.01719,110.0,8.73,0.218,30/30, entry,30/30,content_word,1,17.9,COLLOCATION,"state based marketplaces can apply similar policies. Read the rest of this entry »	Posted in All Categories, Consumers, Coverage, Health Law, Health R"
+14784,0.00508,110.0,0.0,0.02,29/30, (,28/30,punctuation,2,23.2,UNRESOLVED,is here? (Laughter.) MS. NULAND: Absolutely. We have military discipline – (laughter). ASSISTANT SECRETARY SHAPIRO
+38873,0.01064,110.0,0.0,0.038,30/30, date,14/30,content_word,3,21.9,UNRESOLVED,"cautioned not to place undue reliance on these forward-looking statements, which speak only as of the date of this press release. Except to the extent"
+42702,0.00703,110.0,0.0,0.072,30/30, the,28/30,function_word,3,20.1,COLLOCATION,"Thursday, December 5, at the Edgewood Presbyterian Church. The family will receive friends immediately following. In lieu of flowers, the family reque"
+60933,0.01504,110.0,0.0,0.011,30/30, in,20/30,function_word,5,16.6,UNRESOLVED,"Home, Louisiana Smart Bodies External links open in new windows to websites not controlled by BCBSLA. Blue Cross and Blue Shield of Louisiana is an"
+64908,0.02578,110.0,0.58,0.067,30/30, Historical,15/30,capitalized_word,5,18.6,UNRESOLVED,"Texas cities and two counties, including Kaufman, according to records obtained by The Associated Press from the Texas Commission on Law Enforcement O"
+15102,0.02676,109.5,0.0,0.011,30/30, free,30/30,content_word,1,23.8,UNRESOLVED,Kevin Kaspar hit his fourth three-pointer of the game. Southern Miss then connected on seven straight free throws to take 65-61 lead.
+24135,0.00488,109.5,0.0,0.012,30/30, Wil,26/30,capitalized_word,2,19.7,UNRESOLVED,". to p for Garvin, T.. Capps singled up the middle. Wilkins to rf for Evans. Capps advanced to second on a"
+47404,0.10186,109.5,10.35,0.017,30/30, Hoch,22/30,capitalized_word,4,18.9,UNRESOLVED,"communities and providers can do at the local level to affect change,” Dr. Hochman said. Twelve Ways to Fix Health Care 1. Be Transparent"
+63841,0.03076,109.5,2.43,0.017,30/30, be,25/30,function_word,2,18.9,UNRESOLVED,"or reflect those of the United States Government or any agency thereof."" The materials in this collection are in the public domain and may be reproduc"
+2388,0.02861,109.0,10.52,0.024,30/30,4,30/30,number,1,18.3,UNRESOLVED,"important questions that will hopefully be answered tomorrow. To follow along with the case make sure to check out G4's coverage. Law and Order, Video"
+14570,0.01475,109.0,1.85,0.014,30/30,0,30/30,number,1,23.9,UNRESOLVED,to 6 p.m. weekends. (802) 658-0337.McCarthy Arts Center Gallery. St.
+15442,0.04814,108.5,0.0,0.035,29/30,.,19/30,punctuation,6,19.9,UNRESOLVED,.Truckers Helpers Software Features Join in and write your own page! It's easy to do. How? Simply click here to return to Truckers
+21700,0.30859,108.5,2.03,0.012,30/30, your,16/30,function_word,6,20.0,UNRESOLVED,Tools From Our Teammates	Submit a Story Fuel Up to Play 60 Forgot your password? Click here.Don't have an account
+48963,0.02432,108.5,3.39,0.011,30/30, Wil,29/30,capitalized_word,2,19.1,UNRESOLVED,"Baltimore (pronounced very good, but rather uncertain) in Stanley, Rowan, and Rutherford; blue stem in Wilkes, Franklin, Polk"
+29894,0.0709,108.0,10.24,0.014,30/30, have,8/30,content_word,6,14.8,UNRESOLVED,with George Stephanopoulos starts now. STEPHANOPOULOS: Good morning. I hope you all had a great Thanksgiving. We have a lot to
+48512,3.37959,108.0,9.66,0.013,30/30, nothing,17/30,content_word,5,20.3,UNRESOLVED,"eth"" - in which he shared the stage with none other than Oscar-winner, Kevin Spacey. Teaming up with ""Dead Poet"" alum"
+65217,0.09971,108.0,2.7,0.011,28/30,http,15/30,subword_continuation,3,22.1,COLLOCATION,"ical"" devices there are out there that allow for that. I'd be interested in that list of pinouts. I started here: http://en.wikipedia"
+2846,0.07744,107.5,9.23,0.012,30/30,0,5/30,number,10,16.5,UNRESOLVED,email address available. 06 BIOLOGICAL SCIENCES > 0603 Evolutionary Biology > 060399 Evolutionary Biology
+17044,0.18408,107.5,5.43,0.021,30/30, Son,22/30,capitalized_word,3,16.3,UNRESOLVED,"that they understood Jesus’ claim to be the “Son of God” as also being God, so they invented the Trinity. Note that the Jews did not"
+44003,0.10244,107.5,0.0,0.019,29/30,0,6/30,number,13,27.8,UNRESOLVED,"port, CT 06604 U.S.A. phone: 203-576-4860 fax:"
+5022,1.09307,107.0,2.44,0.006,30/30, and,15/30,function_word,4,19.1,UNRESOLVED,"with fresh greens and spices I didn't even recognize. vs.: Suddenly, our conversation was overpowered by bustling servants clearing the table in prepa"
+12819,0.00625,107.0,0.0,0.039,30/30, INCLUDING,22/30,capitalized_word,4,18.3,UNRESOLVED,""" and ""as available"" basis. Consequently, Operator gives no warranties of any kind, whether express, implied, statutory, or otherwise (including the i"
+5353,0.02109,106.5,0.0,0.011,30/30, Sir,29/30,capitalized_word,2,19.4,UNRESOLVED,men their lives and times v. 9The United Irishmen their lives and times v. 11Whole Works of Sir James Ware concerning IrelandWhole
+5471,0.45566,106.5,1.73,0.01,30/30,",",28/30,punctuation,2,24.4,UNRESOLVED,"parking lot, along with a face painting booth by Gospel Ministries to Children from San Angelo. The inside of the Family Center will have carnival gam"
+5754,0.00293,106.5,0.0,0.045,30/30,ig,13/30,subword_continuation,6,12.2,UNRESOLVED,published in our print edition. All rights reserved. This copyrighted material may not be re-published without permission. Links are encouraged. BOSTO
+48795,0.1835,106.5,3.15,0.017,30/30, (,30/30,punctuation,1,18.9,UNRESOLVED,"11] Auroras result from emissions of photons in the Earth's upper atmosphere, above 80 km (50 mi), from ionized"
+7686,0.08271,106.0,0.0,0.039,30/30, am,5/30,content_word,13,19.1,UNRESOLVED,"olition, and the Atlantic World | Slavery Studies Hardcover / 9780807131749"
+4783,0.00361,105.5,0.0,0.068,30/30,5,4/30,number,24,24.2,UNRESOLVED,to a member of a company as if they were talking to the company at large. Send a private message to Elel Find More Posts by Elel
+23785,0.00977,105.5,0.0,0.056,30/30,1,26/30,number,3,17.2,UNRESOLVED,"Suite 1120, San Diego, CA 92101. If you have any questions about these Terms, please contact us at"
+49990,0.01777,105.5,6.51,0.076,30/30, cause,29/30,content_word,2,21.3,UNRESOLVED,that the company's actual results may differ materially from those projected in these forward-looking statements. Important factors that may cause act
+52248,0.00205,105.5,0.0,0.02,29/30, by,22/30,function_word,3,17.8,UNRESOLVED,"of the Grand Prize winners in the SXSW Accelerator program, part of the South by Southwest Interactive festival in Austin, Texas.Plotter won in the"
+9788,0.08604,105.0,0.0,0.032,30/30,O,16/30,capitalized_word,3,18.5,UNRESOLVED,for all tourism providers from Greater Exmoor(05/03/2012 @ 14:42:00)
+23844,1.60469,105.0,0.0,0.023,30/30,us,7/30,subword_continuation,12,19.5,UNRESOLVED,"es gnidiella, Elsinoë australis, Gymnandrosoma aurantianum, and Xanthomonas citri"
+24512,0.33125,105.0,0.0,0.048,28/30, have,18/30,content_word,5,18.9,UNRESOLVED,"advise on, treat, or diagnose any health condition. If you are ill, have been diagnosed with a medical condition, you have or think you might have"
+27813,0.02607,105.0,3.38,0.127,29/30, have,23/30,content_word,3,19.1,UNRESOLVED,"'s full content, please log in below. If you do not have an AMM account, we invite you to take a free trial or subscribe below."
+61690,0.67461,105.0,3.71,0.012,30/30,7,5/30,number,14,20.2,UNRESOLVED,his marks. The quarterback has converted 65.6 percent of his pass attempts in 2013 and now needs just 210
+9873,0.00537,104.5,0.14,0.033,30/30,",",28/30,punctuation,3,19.1,UNRESOLVED,"Chronicle, its subsidiary and parent company or affiliates be liable for any direct, indirect, incidental, punitive, special or consequential damages "
+17608,0.0085,104.5,0.0,0.055,30/30,.com,20/30,content_word,4,21.5,UNRESOLVED,/hiphophalloffameawards. The Hip Hop Hall of Fame Awards logo is available at http://www.globenewswire.com/newsroom
+45184,0.01465,104.5,0.12,0.014,30/30, in,22/30,function_word,3,18.1,UNRESOLVED,"in this burgeoning and exciting industry. So Inmarsat isn't resting on its laurels; it is continuously developing new products, services and initiativ"
+49483,0.02988,104.5,5.7,0.044,30/30, October,13/30,capitalized_word,5,3.0,COLLOCATION,"Wednesday, October 22, 2014 - 7:30pm to 9:30pm Read more about Men's"
+2722,0.00596,104.0,1.24,0.033,30/30, van,24/30,content_word,2,18.5,COLLOCATION,"ack of players and everyone leaving. I think it is untrue. 'Cesc Fabregas is a world-class player, Robin van Persie is a world"
+32639,0.06504,104.0,1.42,0.091,30/30,0,23/30,number,3,22.3,UNRESOLVED,1      (1-2) Portland State...... 000 000 0 -  0  3
+33695,0.02666,104.0,0.0,0.033,30/30, ,20/30,whitespace,6,23.4,UNRESOLVED,© CopyrightPrivacyCookiesDisclaimerSitemapCymraegPublicationsJobsContact us: 0303 123 1113
+56172,0.01387,104.0,0.0,0.019,30/30,1,6/30,number,10,26.2,UNRESOLVED,ethodological Foundations of Mathematics. Routledge & K. Paul.Christopher Pincock (2009). Towards a Philosophy of Applied Mathematics. In
+5901,0.00332,103.0,0.0,0.126,30/30,id,20/30,subword_continuation,3,17.0,UNRESOLVED,"an], 6 July 2005, available at: http://www.refworld.org/docid/4ba749762"
+12265,0.03027,103.0,0.0,0.016,30/30, the,26/30,function_word,3,21.8,UNRESOLVED,Historical Society as the owner of the physical items and is not intended to include or imply permission from the copyright owner. Such permission mus
+17943,0.08105,103.0,3.49,0.028,28/30, By,12/30,function_word,4,19.1,UNRESOLVED,"0 F.2d 479 George Edward DUGGINS, Appellant,v.UNITED STATES of America, Appellee."
+25112,0.00391,103.0,0.0,0.119,30/30, NPR,30/30,capitalized_word,1,23.4,COLLOCATION,"'t be a last-minute solution. John Ydstie, NPR News, Washington. Transcript provided by NPR, Copyright NPR. Tags: economy2 Americans"
+40893,0.44121,103.0,0.16,0.026,30/30, trade,16/30,content_word,2,18.1,UNRESOLVED,"/or trade names owned by K&L Gates. These and all other trademarks, service marks, and trade names used on this Web site and the Firm’s"
+40997,0.00332,103.0,0.0,0.017,29/30, Sund,29/30,capitalized_word,2,19.4,COLLOCATION,"23, 2007 by EmanuelLevy Leave a Comment Sundance Film Fest 2007 (U.S. Documentary Competition"
+42480,0.07871,103.0,0.0,0.049,29/30, to,30/30,function_word,1,16.7,UNRESOLVED,Jeff BroderSkip to Page Level NavigationSkip to Page ContentSkip to Page Contact InformationmyMiamiSupport MiamiInformation For:Parents & FamiliesAlum
+16692,0.18057,102.5,0.0,0.03,30/30,.,21/30,punctuation,3,19.7,UNRESOLVED,"by the National Renewable Energy Laboratory (""NREL""), which is operated by the Alliance for Sustainable Energy, LLC (""ALLIANCE"") for the U.S."
+34928,0.00898,102.5,2.09,0.022,30/30, posted,27/30,content_word,2,19.0,UNRESOLVED,and the games leading up to them. Write it down. There's always dogfighting to take up. Originally posted 09:18 AM
+47203,0.28818,102.5,0.0,0.008,30/30,",",8/30,punctuation,12,18.5,UNRESOLVED,"medium heat for ~15 mintues until start to brown. Add sugar and water and raise heat to medium high. Cook, stirring frequently until the onions"
+64318,0.0627,102.5,0.0,0.011,30/30, held,19/30,content_word,4,17.5,UNRESOLVED,"5, 2011  1:53 pmNo Comment The Lady Trojans held the Arkansas State Lady Red Wolves to"
+64823,0.0127,102.5,7.16,0.018,30/30, D,21/30,capitalized_word,2,11.7,UNRESOLVED,"Educational Leadership and Policy Studies in the Michael D. Eisner College of Education at California State University, Northridge. The Program will a"
+20195,0.65996,102.0,6.07,0.011,30/30, and,30/30,function_word,1,17.7,UNRESOLVED,"be interesting,” said Shelley Johansson, director of marketing and communications for Johnstown Area Heritage Association. “It will tell about what wo"
+44040,0.04004,102.0,0.0,0.056,30/30,licant,13/30,subword_continuation,13,20.1,UNRESOLVED,HTML code is OffTrackbacks are On Pingbacks are On Refbacks are On Forum Rules Similar Threads Thread Thread Starter Forum Replies Last Post Strange N
+50309,0.00186,102.0,0.0,0.469,22/30, <,28/30,punctuation,2,24.1,TEMPLATE,"=""""> <b> <blockquote cite=""""> <cite> <code> <del datetime=""""> <em> <i> <q cite=""""> <strike>"
+57194,0.01045,102.0,0.0,0.012,30/30, Lal,11/30,capitalized_word,4,20.0,UNRESOLVED,"in Fall River, MA, she was the daughter of the late Emile and Ida (Levesque) Laliberte. She is survived by"
+31629,0.02061,101.5,0.0,0.018,30/30, Mc,17/30,capitalized_word,2,16.4,UNRESOLVED,Contents List Price: $22.99Publisher: Andrews McMeel PublishingBinding: PaperbackPages: 224Size: 6.
+20082,0.00625,101.0,0.0,0.116,30/30, |,30/30,punctuation,1,19.2,COLLOCATION,"of 18:13, March 31, 2013 by Wsk (Talk | contribs) His Eminence Ju"
+23499,0.40049,101.0,1.97,0.017,30/30, etc,30/30,content_word,1,24.5,UNRESOLVED,".e., person), a group (e.g., healthcare clinic, law firm, supermarket chain, etc), or entity. The NDSN uses multiple dimensions"
+44771,0.03604,101.0,0.66,0.023,29/30, De,27/30,capitalized_word,3,17.7,UNRESOLVED,"Manson's collapse caused by flu Marilyn Manson collapses on stage Marilyn Manson is Creepiest Celeb Johnny Depp, Marilyn"
+8858,0.12393,100.5,3.52,0.056,30/30, damage,18/30,content_word,7,20.2,UNRESOLVED,"warranties or representations associated with such dealings, are solely between you and such third party. CNN is not responsible or liable for any los"
+28276,0.01152,100.5,0.0,0.026,30/30,1,6/30,number,11,21.1,UNRESOLVED,"gets Orioles news on your mobile device. To receive Orioles text alerts, text BASEBALL to 70701. Posted by Dan Connolly at"
+14764,0.07119,100.0,2.08,0.014,30/30, The,28/30,function_word,2,22.0,UNRESOLVED,"(New York: Simon & Schuster). Davies, Paul (1992), The Mind of God: The Scientific Basis for a Rational"
+21658,0.04385,100.0,0.0,0.013,30/30,5,4/30,number,10,14.7,UNRESOLVED,"find safety, to avoid the danger. [01:00:55:14] The living room television became a window, a gateway"
+48591,0.00576,100.0,0.0,0.032,30/30,•,8/30,content_word,10,17.0,UNRESOLVED,Einstein falsified the Newtonian belief that space and time are absolute. Posts: 12	Replied to a comment from Ken Pimple made on
+17715,0.43428,99.5,0.0,0.014,30/30, Hud,20/30,capitalized_word,4,20.3,UNRESOLVED,"to Mike Zaneis ([email protected]) or Sarah Hudgins ([email protected]) in our Washington, D.C., office.About the Author"
+41911,0.05664,99.5,8.92,0.013,29/30,tem,15/30,subword_continuation,3,17.6,UNRESOLVED,*[http://aries.jmrl.org/search~S9?/tArtemis+fowl/tartemis+fowl/1%2C
+46795,0.01758,99.5,1.47,0.024,30/30,5,8/30,number,10,20.0,UNRESOLVED,Fox News __________________ I dream of a day when a chicken can cross the road without having their motives questioned. alh1020 View Public Profile Fi
+5730,0.5252,99.0,0.0,0.009,30/30, but,18/30,function_word,5,20.4,UNRESOLVED,"2 3 4 5 6 7 8 9 Member Benefits Nearly all men can stand adversity, but if you want to test"
+7156,0.0125,99.0,0.0,0.118,30/30, meaning,29/30,content_word,2,19.3,COLLOCATION,"edicine.com. The BG Medicine Inc. logo is available for download here. This press release contains ""forward-looking statements"" within the meaning of "
+14788,0.00322,99.0,0.0,0.017,30/30, Check,4/30,capitalized_word,16,20.1,UNRESOLVED,"sought a pYou are not logged in. If you haven't yet registered, click here to do so now. Registration is fast, easy, and"
+52102,0.03389,99.0,0.0,0.163,30/30, PM,25/30,capitalized_word,2,26.4,UNRESOLVED,"Programming Series for New Adults Thursday, May 22, 2014 6:00 PM - 7:30 PM Directions"
+52963,0.00146,99.0,0.0,0.022,30/30,plies,15/30,subword_continuation,3,15.4,UNRESOLVED,backs are On Refbacks are On Forum Rules Similar Threads Thread Thread Starter Forum Replies Last Post Strange Noise 99bmw 5-Series (E1
+53957,0.01768,99.0,0.0,0.009,30/30, Don,17/30,capitalized_word,2,18.5,UNRESOLVED,"from the super-expressive Tim Curry. Don’t take my word for it, just watch here. The “early 90’s pre HD” slightly"
+34927,0.00576,98.5,0.0,0.345,30/30, feed,29/30,content_word,2,26.1,TEMPLATE,and is filed under Worthington.	You can follow any responses to this entry through the RSS 2.0 feed.We want you to
+5336,0.00664,98.0,0.0,0.079,28/30, substitute,26/30,content_word,3,19.7,UNRESOLVED,regularly and is updated when new and relevant evidence is made available. This information is neither intended nor implied to be a substitute for pro
+6998,0.0457,98.0,0.0,0.191,26/30, to,18/30,function_word,6,22.3,UNRESOLVED,published in our print edition. All rights reserved. This copyrighted material may not be re-published without permission. Links are encouraged. BOSTO
+35958,0.4208,98.0,0.0,0.016,30/30,ber,17/30,subword_continuation,4,16.7,UNRESOLVED,"Combined, those goals mesh with goals of the UNL's overall agriculture emphasis of food, fuel and water, Hibberd says. ""We aren't producing"
+62533,0.01025,98.0,0.0,0.087,30/30,rames,19/30,subword_continuation,3,21.8,UNRESOLVED,"sheet music has not received any reviews yet, you can be the first one to write one! Quartet Op.18 No.1 in F"
+8340,0.44531,97.5,3.74,0.009,30/30, the,10/30,function_word,15,21.5,UNRESOLVED,"iceps muscles (located on the front of the thighs), which straighten the legs, and the hamstring muscles (located on the back of the thighs), which"
+23498,0.00996,97.5,0.87,0.03,30/30,kil,30/30,subword_continuation,1,15.6,COLLOCATION,issues he wanted to get away from in Boston? The White Sox declined Youkilis' option because they didn't want to pay him $13 million
+32808,0.01162,97.5,0.0,0.011,29/30, David,30/30,capitalized_word,1,20.7,UNRESOLVED,"NYPD Blues""); Chris Carter and Gillian Anderson (""The X-Files""); and David Shore and Hugh Laurie (""House"").G	<<Previous Month"
+40768,0.05693,97.5,5.46,0.036,29/30, the,26/30,function_word,3,21.3,UNRESOLVED,information purposes only. The General Court provides this information as a public service and while we endeavor to keep the data accurate and current
+48505,0.06055,97.5,0.0,0.023,30/30, to,18/30,function_word,2,21.8,UNRESOLVED,"speed, referring or exit webpages, and the Internet Protocol (IP) address of your computer. The Site also uses such information to measure traffic pat"
+48533,0.01885,97.5,0.0,0.036,30/30," """,22/30,punctuation,5,23.2,UNRESOLVED,"1995. These statements include words such as ""may,"" ""expects,"" ""anticipates,"" ""believes,"" and ""intends,"""
+62114,0.43164,97.5,0.0,0.041,30/30,on,30/30,function_word,1,17.3,COLLOCATION,"we think we think, it's actually nothing but the Universe thinking about itself.(Couldn't resist a bit of hippy flippy there. Glaston"
+2937,0.0208,97.0,0.6,0.015,30/30, Stam,15/30,capitalized_word,6,18.8,UNRESOLVED,"that are based on fact finding hearings and other public meetings. [edit] Peter Sullivan Carol Stamatakis: Director of Planning, NH Developmental Disa"
+5018,0.00967,97.0,0.0,0.053,28/30, able,22/30,content_word,3,17.6,UNRESOLVED,assess their genuine solitonic natureItem Type:ArticleUncontrolled Keywords:Bose-Einstein condensation; Optical solitons; Quantum optics; Dark sol
+37848,0.04648,96.5,5.07,0.009,30/30,amar,21/30,subword_continuation,3,14.8,UNRESOLVED,"29, 1999 at the Tamarind Court Cafe restaurant of Socialite BinaRamani at Qutub Colonnade in"
+24850,0.04912,96.0,0.0,0.048,30/30, material,30/30,content_word,1,19.0,UNRESOLVED,Fair Use Notice:The material on this site is provided for educational and informational purposes. It may contain copyrighted material the use of which
+31840,0.00605,96.0,0.0,0.009,30/30, fe,29/30,content_word,2,19.6,UNRESOLVED,"starts against Seattle’s weaklings, and feasted on Cleveland and Minnesota matchups as well, but he’s also dealing with a subterranean 60"
+32484,0.01318,96.0,0.0,0.012,30/30,'s,23/30,content_word,2,19.4,UNRESOLVED,"Judas Strain” by James Rollins is a thriller about the plague, an ancient menace reborn to terrify the modern world. “The Emperor’s"
+36853,0.01064,96.0,0.0,0.037,30/30,.,30/30,punctuation,1,20.9,UNRESOLVED,"season. Not to be completely outdone, backup (and 2013 starter) A.J. Blue even got in on the act, rushing"
+40103,0.06318,96.0,3.7,0.066,28/30, to,21/30,function_word,4,17.6,UNRESOLVED,"letters. Alerts. Recommendations.SIGN UPBy signing up, you agree to Bookish 'Terms of Use'Thank you! An email will be sent"
+40600,0.55937,96.0,2.04,0.01,30/30, the,15/30,function_word,6,22.1,UNRESOLVED,"al Americans (Hardcover) Today $11.29 (1) The Monuments Men: Allied Heroes, Nazi Thieves and the Greatest Treasure"
+11150,0.09922,95.5,3.81,0.008,30/30, starting,20/30,content_word,3,20.9,UNRESOLVED,", and eventually battled Steve Bono for the starting quarterback job by his senior year. He secured the starting job four games into the regular seaso"
+28799,0.02783,95.5,0.0,0.06,30/30, been,18/30,function_word,6,19.0,UNRESOLVED,"$150,000 Latino / Hispanic, White / Caucasian, Other Your message has been sent to bonedaddy67"
+29595,0.02363,95.5,0.37,0.036,30/30,yr,12/30,subword_continuation,9,19.6,UNRESOLVED,. Permission for publication is given on behalf of the Department of Special Collections as the owner of the physical items and is not intended to inc
+32020,1.44199,95.5,3.16,0.017,30/30,ar,11/30,subword_continuation,15,20.4,UNRESOLVED,"-Jad in al-Musnad, p. 369; Ibraaheem al-Harbi in Ghareeb"
+9117,0.01172,95.0,0.0,0.036,30/30, unknown,11/30,content_word,8,21.7,UNRESOLVED,"intends,"" or similar expressions. Such forward-looking statements involve known and unknown risks, uncertainties and other factors that may cause the "
+15998,0.01064,95.0,0.0,0.05,30/30,.com,25/30,content_word,3,23.1,UNRESOLVED,"sound strategy from a complete fucker Powered by vBulletin® Version 4.2.0 Copyright © 2014 vBulletin Solutions,"
+37769,0.43174,95.0,0.0,0.021,30/30, privacy,7/30,content_word,14,23.7,UNRESOLVED,"third party's website. Also, please note that this Site contains links to other websites. Cars.com is not responsible for the websites, content or pri"
+41721,0.00879,95.0,0.0,0.018,30/30, ,29/30,whitespace,2,19.1,UNRESOLVED,Check Prices Showing 2 results Check availability and compare prices from over 30 leading sites at the same time Check-in: Check-out: Guests
+43798,0.00674,95.0,0.0,0.029,30/30, to,30/30,function_word,1,21.2,UNRESOLVED,away an adult's freedom. Printer friendly page Send this article to Friends by E-MailBoard index » Emcee Forums » Audio Forum Spin Back
+47016,0.00537,95.0,0.0,0.059,30/30,UPI,30/30,capitalized_word,1,20.9,COLLOCATION,"News / U.S. News	/ Obama issues infrastructure directive	Obama issues infrastructure directive | License Photo	WASHINGTON, Feb. 12 (UPI"
+9337,0.04229,94.5,0.0,0.015,30/30, November,5/30,capitalized_word,11,21.1,UNRESOLVED,"As, and some of these mutations may be involved in initiating the disease, according to a study in the October 27 New England Journal of Medicine ("
+63934,0.00713,94.5,0.0,0.018,30/30,),11/30,punctuation,5,19.7,UNRESOLVED,"amie on Economic democracy: one shareholder, one vote?	Twitter UpdatesError: Twitter did not respond. Please wait a few minutes and refresh this page"
+26458,0.01084,94.0,0.0,0.059,30/30,oret,22/30,subword_continuation,5,17.0,UNRESOLVED,"TO COME __________________ -MegaZone, Editor, To view links or images in signatures your post count must be 10 or greater. You currently"
+48350,0.00889,94.0,6.07,0.05,30/30,Next,10/30,capitalized_word,5,23.6,UNRESOLVED,"money to carry… Continue Added by Bryan Rosander, FL on September 7, 2010 at 12:30pm"
+51223,0.00439,94.0,0.0,0.017,30/30,u,30/30,subword_continuation,1,14.8,UNRESOLVED,11University of Central Florida 46 v Truett-McConnell 6 12/18/2011University of
+52209,0.02393,94.0,0.0,0.017,30/30, assume,15/30,content_word,2,20.2,UNRESOLVED,"and up-to-date information, we make no warranties or representations as to the accuracy of the Content and assume no liability or responsibility for a"
+53297,0.78672,94.0,0.76,0.023,30/30, of,30/30,function_word,1,15.9,UNRESOLVED,"to their hotel rooms on Wednesday prove true, Obama said, “then, of course, I’ll be angry.”“We’re representing the people of the"
+62989,0.01572,94.0,0.0,0.026,30/30, De,19/30,capitalized_word,3,17.7,UNRESOLVED,"Mansome, Morgan Spurlock, The Moth Diaries, The Outfit movie, Robert Duvall, Robert Ryan, Quill: The"
+2830,0.46572,93.5,0.0,0.022,30/30,.m,21/30,content_word,4,24.2,UNRESOLVED,9 and running through June 2013. All nomination materials must be received by NCI no later than 6:00 p.m.
+28640,0.06582,93.5,1.26,0.034,30/30,.,30/30,punctuation,1,23.5,UNRESOLVED,"3, 2014, at Baptist Medical Center in Jackson, Mississippi. A memorial service was held at 2 p.m. on Monday,"
+42305,0.44629,93.5,0.0,0.036,30/30, comments,19/30,content_word,5,18.9,UNRESOLVED,250 characters) We welcome your opinions. This is a public forum. Libellous and abusive comments are not allowed. Please read our Forum
+48847,0.03203,93.5,0.0,0.017,29/30, é,27/30,content_word,4,18.5,UNRESOLVED,oral original et très réussi qui s'inspire de l'univers cinématographique de Meryl Streep pour livrer le portrait émouv
+51593,0.24668,93.5,4.32,0.007,30/30, and,16/30,function_word,12,20.5,UNRESOLVED,"PM ESTTV: RSNCurrent records:Wake Forest: 5-4, 3-4 ACC (Beat Boston College 28-1"
+53871,0.00664,93.5,0.0,0.034,30/30, du,18/30,content_word,4,20.4,COLLOCATION,Los Angeles Clippers Staples Center Monday 2/13: Utah Jazz vs. New Orleans Hornets Wednesday 2/15: Cirque du
+5848,0.06455,93.0,3.66,0.033,30/30,MT,8/30,capitalized_word,15,19.2,UNRESOLVED,"board and there are some features you can't use. If you join our community, you'll be able to access member-only sections, and use many member"
+25510,0.00488,93.0,0.2,0.07,30/30, Fool,21/30,capitalized_word,3,20.6,UNRESOLVED,recall beginning in December 2012. Fool contributor Rich Smith has no positions in the stocks mentioned above. The Motley Fool has no positions
+46553,0.02559,93.0,0.0,0.004,30/30, night,25/30,content_word,2,13.8,UNRESOLVED,"0 welcomed ISAF, Thursday night saw the city of Istanbul officially welcome the Volvo Youth Sailing ISAF World Championship 2010, the world"
+48127,0.7167,93.0,8.16,0.011,29/30,7,7/30,number,8,25.3,UNRESOLVED,"in Milton's Divorce Tracts."" Journal of the History of Ideas 62 (2001): 141-60."
+11716,0.01719,92.5,0.0,0.032,30/30, the,26/30,function_word,4,21.3,UNRESOLVED,"owner. Peace Corps Online does not vouch for the accuracy of the content of the postings, which is the sole responsibility of the copyright holder. Th"
+56327,0.01299,92.5,0.0,0.059,30/30, FREE,18/30,capitalized_word,3,21.5,UNRESOLVED,"Site, including but not limited to text, graphics, logos, button icons, images, audio and video clips, data compilations and software, is the"
+4693,0.50459,92.0,7.9,0.024,30/30,.com,5/30,content_word,15,22.1,UNRESOLVED,"IST E-mail alerts: Date created: January 10, 2012 | Last updated: January 10, 201"
+17739,0.03945,92.0,3.78,0.012,30/30, now,12/30,content_word,11,22.1,UNRESOLVED,"that which is done away was glorious, much more that which remaineth is glorious. 12 Seeing then that we have such hope, we use great"
+33237,0.68584,92.0,1.95,0.053,30/30, articles,13/30,content_word,12,20.2,UNRESOLVED,Email Updates Get County news and information delivered to your inboxEFFECTS OF HIV/AIDS Approximate Time: 60 affects the physical
+42636,0.01719,92.0,0.0,0.087,30/30,3,15/30,number,6,27.7,UNRESOLVED,"for me, the very best of college athletics.” [Last modified: Tuesday, August 2, 2011 11:45"
+47387,0.59365,92.0,1.2,0.012,30/30,9,4/30,number,18,21.6,UNRESOLVED,"Tacoma starts at about $18,000. In addition to the TRD goodies, the $32,559 sticker price of"
+57603,0.01533,92.0,0.59,0.064,30/30, to,30/30,function_word,1,10.9,UNRESOLVED,birth? Jump to mySpiritual Profile Form Western Zodiac| Western Element| Chinese Zodiac| Chinese Element| Colorology| Birthstone| Celtic
+15508,0.03848,91.5,0.0,0.012,30/30, &,15/30,punctuation,2,17.2,UNRESOLVED,"Place Central, Hong Kong. Walters, M. 1980 The Complete Birds of the World. David & Charles, Vermont. Complete Birds of the"
+50944,0.00146,91.5,0.0,0.062,30/30, MERCHANTABILITY,17/30,capitalized_word,4,19.0,UNRESOLVED,", express or implied, including the warranties of merchantability and fitness for a particular purpose; nor assumes any legal liability or responsibil"
+14623,0.02559,91.0,0.0,0.01,30/30, Re,9/30,capitalized_word,13,20.6,UNRESOLVED,"all along. I’m sure the players complaining about Schiano’s game plan, in particular Darelle Revis, are also true. I’d bet"
+36786,0.11963,91.0,1.6,0.02,30/30,.,13/30,punctuation,8,23.7,UNRESOLVED,"200 breaststroke at the ACC Championships, posting a season-best time of 2:12.65 ... Also recorded a season best in"
+47258,0.02178,91.0,0.35,0.009,30/30, Sc,29/30,capitalized_word,2,20.5,UNRESOLVED,Tulane Green Wave 6th - Guidry lined out to 3b. McFadden singled to shortstop. Scelfo
+48213,0.07422,91.0,8.47,0.014,30/30,9,5/30,number,8,22.8,COLLOCATION,"36-22 win at St. Louis. Over the past eight games, Peterson has rushed for 1,313 yards, which are"
+53813,0.01094,91.0,0.0,0.045,30/30,1,29/30,number,2,20.9,UNRESOLVED,"may be more subcategories on other pages.) This category has the following 118 subcategories, out of 529 total.Jer"
+58116,0.00547,91.0,3.28,0.071,28/30, substitute,24/30,content_word,3,20.0,UNRESOLVED,5). pp. 675-684. ISSN 0898-6568 Full text not available in this repository
+63181,0.00762,91.0,0.38,0.008,30/30, Toni,24/30,capitalized_word,3,14.9,UNRESOLVED,same way that Bill Clinton was the first black president. It was Toni Morrison who first had the insight. In a 1998 essay in the
+11294,0.17949,90.5,4.96,0.009,30/30, good,24/30,content_word,3,18.2,UNRESOLVED,"from my district's IT director. (On the bright side, he is a good friend and has my number on his speed dial.) It does sound like"
+15144,0.00977,90.5,0.0,0.024,30/30, blind,13/30,content_word,5,18.6,UNRESOLVED,.gov.au/dspace/handle/10238/2401 Appears in Collections:Journal ArticlesFormer Microsoft Exec: Microsoft
+31115,0.08799,90.5,3.9,0.018,30/30, opinions,20/30,content_word,4,17.3,UNRESOLVED,does not represent the views of GiveMeFootball.com or SportsNewMedia.The views and opinions expressed are solely that of the author credited at the to
+36562,0.03213,90.5,0.0,0.028,30/30,-,6/30,punctuation,9,19.6,UNRESOLVED,203 1-800-842-8417 or (719) 593-19
+47804,0.00693,90.5,0.0,0.034,30/30, Nicola,11/30,capitalized_word,5,19.3,UNRESOLVED,00 am and is filed under news. You can follow any responses to this entry through the RSS 2.0 feed. You can leave a response
+3779,0.00381,90.0,0.0,0.04,30/30, the,19/30,function_word,2,18.2,UNRESOLVED,"government also knows they are Chinese. So the government supports this demonstration,"" said one student protester, who asked for his name not to be u"
+15325,0.01719,90.0,0.35,0.465,24/30, be,17/30,function_word,5,21.0,TEMPLATE,Inc.The information provided herein should not be used during any medical emergency or for the diagnosis or treatment of any medical condition. A lice
+28318,0.09023,90.0,7.5,0.015,30/30, and,21/30,function_word,6,18.6,UNRESOLVED,"the Middle East.""NOW on to Gail Collins' “The Hare and the Pineapple,” walterrhett. Firozali A.M"
+39116,0.01396,90.0,0.0,0.047,30/30, content,12/30,content_word,12,18.6,UNRESOLVED,"958, stated that “Secretary of the Interior, Fred A. Seaton               Click tabs to swap between content that is broken into logical sections"
+48863,0.0082,90.0,0.51,0.009,30/30,(s,6/30,content_word,17,22.2,UNRESOLVED,Lemon Drop 5.0 (based on 1 review) Write a ReviewReviewed by 1 customerDisplaying review 1Back to topJun1
+49413,0.05986,90.0,0.0,0.021,30/30, of,14/30,function_word,6,17.5,UNRESOLVED,"GOR, BENEDICTUM, THE BLACK DAHLIA MURDER, BLACK MAJESTY, BLIND GUARDIAN, BULLET FOR"
+33207,0.00303,89.5,0.0,0.041,30/30, URL,12/30,capitalized_word,4,17.9,UNRESOLVED,"ical Description: ii, 14 p. :ill., maps ;27 cm. Citation Projection: Citation Public Comments: Citation Publisher: ["
+36409,0.00732,89.5,0.0,0.429,26/30, medical,20/30,content_word,3,21.5,TEMPLATE,"Slon, and Nissi Wang. The information provided herein should not be used during any medical emergency or for the diagnosis or treatment of any medical"
+27476,0.14062,89.0,0.0,0.024,30/30,2,7/30,number,9,21.2,UNRESOLVED,"000, or 15 cents a share. Revenue rose 12% to $7.76 million from $6.92"
+52032,0.01113,89.0,0.0,0.015,30/30, din,29/30,content_word,2,17.5,UNRESOLVED,"Asian. Coastal Cajun foods, as well as local cuisine found nowhere else, offer opportunities for diners to experiment with new tastes. Biloxi Recreati"
+27501,0.16182,88.5,0.0,0.023,30/30,0,30/30,number,1,20.9,UNRESOLVED,"the weekends. St. Louis is a seven-day-a-week sports town, and where there is hunger for unique content, 101ESPN will provide"
+45932,0.00703,88.5,0.0,0.023,29/30,at,7/30,function_word,10,18.7,UNRESOLVED,"board and there are some features you can't use. If you join our community, you'll be able to access member-only sections, and use many member"
+1828,0.00391,88.0,0.0,0.004,30/30, Val,28/30,capitalized_word,2,22.9,UNRESOLVED,growing up so I went to see Kansas play Prairie View. The game prior was Valparaiso vs. Ole Miss. I was the only one in
+8128,0.00518,88.0,0.0,0.218,30/30,.D,20/30,content_word,2,22.4,UNRESOLVED,"Black Press. All Rights Reserved. Any copying, redistribution or retransmission of any of the contents of this service without the express written con"
+25379,0.00645,88.0,0.0,0.036,30/30,8,12/30,number,4,21.3,UNRESOLVED,"any future requestor. POST OFFICE BOX 12548, AUSTIN, TEXAS 78711-25"
+25952,0.00762,88.0,4.18,0.059,30/30, -,25/30,punctuation,4,20.5,UNRESOLVED,published in our print edition. All rights reserved. This copyrighted material may not be re-published without permission. Links are encouraged. BOSTO
+48473,0.22529,87.5,3.91,0.01,30/30, good,28/30,content_word,2,20.5,UNRESOLVED,"Grizzlies, the Spurs know they’re about to face their toughest defensive foe of any they’ve played so far in the playoffs. “A very good basketball"
+1678,0.1167,87.0,0.0,0.002,30/30, There,27/30,function_word,2,23.0,UNRESOLVED,"to do more and maybe, you know, talk about the Olympics. I didn't say boycott them, but you thought I had. There should be a"
+8636,0.03213,87.0,3.63,0.011,30/30, &,11/30,punctuation,13,18.8,UNRESOLVED,Pyramid? 55835 view(s) Top 10 unexplained ancient artifacts – Fact or Fiction? 50895 view
+36255,0.03926,87.0,0.0,0.053,29/30,ucket,19/30,subword_continuation,4,20.3,UNRESOLVED,", 2013 - link http://i.imgur.com/5WXh32l.jpg jmr99 - Saturday, May"
+55742,0.01201,87.0,0.0,0.016,30/30, his,13/30,function_word,5,19.9,UNRESOLVED,"to be stupid in order to make themselves feel righteous and important, then I'm happy to take them at their word and treat them as stupid. 1"
+44648,0.43545,86.5,6.45,0.029,29/30,",",19/30,punctuation,8,21.7,UNRESOLVED,"December 03, 1897, Page 2, Image 2MyPlattsburgh Non-Matriculated Courses"
+33546,0.071,85.5,1.27,0.018,30/30, Popular,15/30,capitalized_word,9,23.1,UNRESOLVED,"working on her 8th that is due out later this year.Follow me on Facebook, Twitter. Arts & EntertainmentBritney Spears Most Popular"
+2136,2.4124,85.0,8.02,0.028,30/30, ,18/30,whitespace,5,22.2,UNRESOLVED,"well. Sec3MySofa - May 17, 2010 at 3:58 PM That, and the rotation"
+3846,0.09443,85.0,0.81,0.008,30/30, if,6/30,function_word,15,5.3,UNRESOLVED,"_Number_Load() { if (QS_Program_Number != """") { get_Programs(QS_Program_Number,""Program""); else if (QS_Subject_ID"
+7775,0.16973,85.0,0.0,0.034,30/30,0,9/30,number,10,22.1,UNRESOLVED,"industrial average fell nine points to close at 13,973. The Standard & Poor's 500 edged up one point to end"
+53625,0.38496,85.0,0.11,0.016,30/30,",",12/30,punctuation,9,23.1,UNRESOLVED,"should not be given to anyone with a history of seizures, psychiatric illness, cardiac conduction disorders, or allergy to quinine or quinidine. Those"
+62661,0.32979,85.0,0.0,0.01,30/30,C,4/30,capitalized_word,18,23.9,UNRESOLVED,"since childhood, but only began exhibiting six years ago. ""Bob Dylan is one of the most influential cultural figures of our time,"" National Portrait G"
+65158,0.296,85.0,0.0,0.011,30/30, this,17/30,function_word,11,17.5,UNRESOLVED,"anyone can, he can.” Citing Knowledge@Wharton For Personal use: Please use the following citations to quote for personal use:	MLA"
+1760,0.46094,84.5,0.0,0.011,30/30, or,21/30,function_word,9,15.6,UNRESOLVED,"account We invite you to explore PBS LearningMedia™! Sign up for FREE or Login with your PBS account here. After 2 resource views,"
+32425,0.06455,84.5,3.55,0.006,30/30, return,11/30,content_word,7,22.2,UNRESOLVED,-low 227 yards and threw two interceptions - one that killed a USC drive deep in Arizona State territory and another that was returned for a touchdown
+37364,0.21924,84.5,3.11,0.005,30/30, the,10/30,function_word,17,19.7,UNRESOLVED,"clinical in front of goal. This had the desired effect as the Eagles bagged seven more second half goals en route to a resounding win, with Kelvin"
+65364,0.01807,84.5,2.21,0.02,30/30,er,9/30,subword_continuation,6,19.8,UNRESOLVED,"Fiedler and Zeiger, O Brave New World: Ameri... (1968) A Meserole, et al., American"
+211,0.01133,84.0,0.0,0.02,30/30,'m,11/30,content_word,7,18.6,UNRESOLVED,"Its Alright Ma (I'm Only Bleeding) Mar 21/12 Season 09, Episode 11 - Danny BoyJan"
+65473,0.00635,84.0,0.0,0.041,30/30,oe,14/30,subword_continuation,4,16.7,UNRESOLVED,"asthumb.org/archive....nt.htmlThis is great, and the Picard picture lol!Thanksmarty --------------""Cows who know a moose"
+32514,0.52852,83.5,6.54,0.008,30/30, won,10/30,content_word,9,22.9,UNRESOLVED,"""Searching for Sugar Man,"" about a forgotten musician's rediscovery, took the prize for best documentary feature. Pixar's fairy tale ""Brave"" won"
+51265,0.75342,83.5,1.71,0.008,30/30,",",18/30,punctuation,9,19.8,UNRESOLVED,and Ethan Johns. Fans can get their copy of the album in stores or online through: * Amazon * Google Play * iTunes Read more Wouff
+509,0.03896,83.0,0.8,0.01,30/30,"
+",26/30,whitespace,5,18.3,UNRESOLVED,Review megazone Hardcore TiVo Geek Location: .worcester.ma.us Also see the Series3 FAQ and the Series3
+21954,0.0334,83.0,0.19,0.022,30/30,",",7/30,punctuation,12,20.9,UNRESOLVED,".e., the Spirit’s operation by means of the gospel] were we all baptized into one body … and [an additional thought] were all made to drink"
+22704,0.01016,83.0,0.0,0.015,29/30,Contact,16/30,capitalized_word,3,18.8,UNRESOLVED,987. Available at SSRN: http://ssrn.com/abstract=1402816 Contact Information Kenneth Wayne Abbott (
+33965,0.00537,83.0,2.17,0.021,30/30, or,27/30,function_word,4,20.0,UNRESOLVED,"1, 2013 on ABC News is below. This copy may not be in its final form and may be updated. STEPHANOPO"
+43070,0.0999,83.0,6.58,0.035,30/30, not,19/30,function_word,5,23.1,UNRESOLVED,HealthDay. All rights reserved. Please be aware that this information is provided to supplement the care provided by your physician. It is neither int
+47534,0.05869,83.0,0.0,0.036,29/30, and,23/30,function_word,3,15.5,UNRESOLVED,"Health Sciences Literature published in Latin America and the Caribbean since 1982) and Medline (International Literature, Medical and Biomedical area"
+49164,0.01729,83.0,0.0,0.056,30/30,5,30/30,number,1,21.1,UNRESOLVED,"5-DEAF Ear Foundation 2000 Church Street, Box 111 (800) 545-"
+22306,0.00498,82.5,0.0,0.061,29/30, between,10/30,content_word,5,16.7,UNRESOLVED,"dx.doi.org/10.1063/1.1893331Usage Policy:No commercial reproduction, distribution,"
+56506,0.58682,82.5,0.0,0.029,30/30,1,26/30,number,3,18.3,UNRESOLVED,"40 East Treasure Dr, North Bay Village, FL 33141 (305) 865-314"
+62380,0.00713,82.5,0.0,0.067,30/30,9,13/30,number,5,21.9,UNRESOLVED,and His Visionary Friends Jack Fruchtman Jr. List Price: $16.95 Sale Price: $4.98 You Save
+28926,0.0167,82.0,0.0,0.035,30/30,.,7/30,punctuation,13,23.9,UNRESOLVED,"forum for the community to share opinions and facts. We ask that commenters keep it clean, keep it truthful, stay on topic and be responsible. Comment"
+32996,0.75068,82.0,0.0,0.016,29/30, of,30/30,function_word,1,23.3,UNRESOLVED,"new militancy which has engulfed the Negro community must not lead us to a distrust of all white people, for many of our white brothers, as evidenced"
+4541,0.0042,81.5,0.41,0.028,30/30, trademarks,20/30,content_word,2,17.4,UNRESOLVED,"Copyrights for details.) Wikipedia&#174; is a registered trademark of the Wikimedia Foundation, Inc., a U.S. registered 501"
+40045,0.08809,81.5,0.0,0.02,30/30,cho,19/30,subword_continuation,4,17.2,UNRESOLVED,"the studio, without a safety net, with a variety of left of center musicians. So, I expect the way that we're going there will be cho"
+51161,0.00439,81.5,0.8,0.028,30/30,uer,30/30,subword_continuation,1,17.1,COLLOCATION,"in San Francisco and Louisiana State University in New Orleans. While at LSU, Dr. Lin trained with Drs. Herb Kaufman and Marguerite McDonald"
+7651,0.00488,81.0,3.16,0.125,30/30,-up,27/30,content_word,3,17.8,COLLOCATION,on one’s individual beliefs. Comment	To leave a comment please enable JavaScript in your browser settings! Notify me of follow-up comments by email. N
+33238,0.27578,81.0,1.08,0.007,30/30,",",12/30,punctuation,12,17.4,UNRESOLVED,"ake me! In Thee I am full of strength; without Thee, I am powerless!"" A new martyrdom followed after this. The tyrant"
+63315,0.02832,81.0,0.0,0.208,30/30, David,30/30,capitalized_word,1,20.4,COLLOCATION,"ophobia, and coughing. Review Date: 11/2/2009Reviewed By: David Zieve, MD, MHA,"
+7168,0.0252,80.5,0.0,0.02,30/30,-,20/30,punctuation,3,18.8,UNRESOLVED,"3-933-1317) and you should receive your order within 7-10 working days, depending on where you live"
+11944,1.12969,80.5,2.47,0.017,30/30, new,10/30,content_word,7,20.9,UNRESOLVED,"screen. The Vita version will include trophies, Cross-Buy and Cross-Play support, as well as 19 new items, new dialogue with all"
+33911,0.00723,80.5,0.0,0.022,29/30,"""",18/30,punctuation,10,17.0,UNRESOLVED,backs are On Refbacks are On Forum Rules Similar Threads Thread Thread Starter Forum Replies Last Post Strange Noise 99bmw 5-Series (E1
+34812,0.01113,80.5,0.0,0.012,30/30,),30/30,punctuation,1,15.8,UNRESOLVED,: Rested and... Reviews (84) Pictures (13) Q&A (99) Forum (1) Doctors Cost Mesotherapy: Rest
+39210,0.0626,80.5,0.0,0.016,30/30,5,8/30,number,7,18.9,UNRESOLVED,MA 02138 +1 (617) 495-7547 (Phone) +1 (6
+10319,0.096,80.0,4.05,0.011,30/30, ,30/30,whitespace,1,22.1,UNRESOLVED,12 per person. Tallavana Christian School has extended fall enrollment for new students to Oct. 19 for preschool and elementary school students only.
+29727,0.08213,80.0,0.79,0.025,30/30,1,30/30,number,1,24.1,UNRESOLVED,", and I will have to turn in the laptop for the summer then.Navigil aims for intelligent track and trace Tuesday, September 18"
+33330,0.34521,80.0,0.0,0.069,30/30,4,14/30,number,8,24.9,UNRESOLVED,"Wasser, CPA (""Wasser"" or ""Respondent"") pursuant to Section 21C of the Securities Exchange Act of 1934 ("""
+62210,0.00693,80.0,0.0,0.039,30/30, click,23/30,content_word,5,19.5,UNRESOLVED,"/ bio For daily email delivery, enter your email address below and click subscribe: Subscribe to this blog's feed Support a Worldwide Movement for Wom"
+21095,0.00439,79.5,0.0,0.014,30/30, or,16/30,function_word,7,20.5,UNRESOLVED,"your responsibility to evaluate the accuracy, completeness or usefulness of any information, opinion, advice or other content available through CNNMon"
+36716,0.13447,79.5,0.48,0.014,30/30, ,23/30,whitespace,3,21.2,UNRESOLVED,"Of course, the GT500 started at about $54,000 and got about 15 MPG (city, 24"
+59398,0.0207,79.5,0.0,0.015,30/30, it,17/30,function_word,8,18.5,UNRESOLVED,"page If everything goes well, this page should display the bibliography of the aforementioned article as it appears in the Stanford Encyclopedia of Ph"
+14744,0.50869,79.0,0.0,0.031,30/30,2,30/30,number,1,24.4,UNRESOLVED,joking name for her flings or boyfriends. I seriously doubt that anyone would post about an extra-marital affair on facebook. October 22nd
+24625,0.01406,79.0,0.0,0.016,30/30, ,8/30,whitespace,17,21.7,UNRESOLVED,astic requirements. >Entering freshmen should take the ACT or SAT test. The codes for Evangel are as follows: SAT: 6198. ACT
+34232,0.77012,79.0,0.0,0.007,30/30, into,9/30,content_word,7,20.7,UNRESOLVED,e Mes) 1/2 Dry Gin. (1 oz Plymouth Gin) Shake well and strain into cocktail glass. Squeeze orange peel on top.
+38874,0.00742,78.5,0.0,0.053,30/30,Con,30/30,capitalized_word,1,16.7,COLLOCATION,"86th Academy Awards ceremony."" The videos were posted on NASA's website. Wrote, co-produced (with Matthew McConaughey), directed and"
+5394,0.03574,78.0,5.56,0.076,28/30, their,11/30,content_word,10,19.2,UNRESOLVED,"prophesy of you, saying, This people draweth nigh unto me with their mouth, and honoureth me with their lips; but their heart"
+8577,0.00732,78.0,0.5,0.034,30/30, by,9/30,function_word,6,21.1,UNRESOLVED,results and expectations of Skyworks (including without limitation certain projections and business trends). Forward-looking statements can often be i
+18288,0.02041,78.0,0.0,0.012,30/30, Investment,13/30,capitalized_word,14,20.4,UNRESOLVED,investments. Nothing herein should be construed as an offer or solicitation to buy or sell any security.Media ContactZacks Investment Research800-76
+24699,0.05469,78.0,0.0,0.015,30/30,4,5/30,number,12,23.2,UNRESOLVED,"expenditure, with an ED(20%) of 2mg/kg. Bioorganic & Medicinal Chemistry Letters 10/2007;"
+40092,0.02598,78.0,0.7,0.019,30/30, topic,6/30,content_word,14,23.0,UNRESOLVED,". A link to this page will be included in your message.[Archive Home][Date Prev][Date Next][Index] ""Chicago airports will upgrade"
+46537,0.0084,78.0,0.0,0.093,30/30,/search,19/30,content_word,5,18.5,UNRESOLVED,Content Week. The Yahoo! Search Marketing Ambassador and Google Adwords Qualified Professional is also a regular presenter at industry events like eCo
+47621,0.02236,78.0,0.0,0.009,29/30, to,14/30,function_word,7,20.0,UNRESOLVED,"uggested Tag	Submitted tags will be reviewed by site administrator before it is posted online.If you enter several tags, separate with commas. Email	("
+7943,0.02109,77.5,2.76,0.119,28/30, these,30/30,function_word,1,19.4,UNRESOLVED,| CIO Issues | Mobile Tech | Chips & Processors | World Wide WebBusiness Briefing | After Hours | Press Releases Also visit these Enterprise Technolog
+62051,0.01289,77.5,0.0,0.022,29/30, password,10/30,content_word,7,17.6,UNRESOLVED,or email address. You will receive a link to create a new password via email.	Username or E-mail: E-Mail Miller Park Drunk tips
+31534,0.2375,77.0,0.22,0.006,30/30, to,20/30,function_word,10,24.2,UNRESOLVED,"ore returns to the lineup after missing two games with mid-back soreness. ""He's ready to go, he feels good,"" Manager Manny Acta said"
+26739,0.03057,76.5,2.01,0.014,30/30, and,10/30,function_word,10,17.5,UNRESOLVED,", including total fat, saturated fat, sugar, sodium, protein and fiber. The top 25 items (out of approximately 200 stocked"
+40085,0.00889,76.5,0.0,0.033,30/30, in,16/30,function_word,2,19.4,UNRESOLVED,"Ltd, and may not be reproduced in any form without our written permission. See our FAQ for more details.> Corporate Summer Internship U.S"
+45546,0.375,76.5,3.03,0.009,30/30, and,15/30,function_word,8,22.4,UNRESOLVED,".), RG Dan Spitz (6'7 300 lbs Sr.), and Elliott Bosch (6'4 260 lbs. Jr.)."
+51158,6.33145,76.5,1.9,0.007,30/30, and,24/30,function_word,4,20.4,UNRESOLVED,apin's theme leads him to ignore how important confidence in experimental and observational equipment and in techniques for their employment can be to
+60525,5.50615,76.5,2.95,0.005,30/30,",",8/30,punctuation,11,22.0,UNRESOLVED,Neal Hospital (46) Maimonides Medical Center (1) Main Line Health (1) Management Principles (1) MARS GLOBAL SERVICES (
+2478,0.04746,76.0,0.0,0.02,30/30,tion,10/30,subword_continuation,7,19.5,UNRESOLVED,". A link to this page will be included in your message.[Archive Home][Date Prev][Date Next][Index] ""Chicago airports will upgrade"
+52188,0.00381,76.0,0.0,0.033,30/30, Book,27/30,capitalized_word,2,19.6,UNRESOLVED,has taught at Yale and Wesleyan universities. Her book was also a finalist for a National Book Critics Circle Award. [...] Debby Applegate won the
+55539,0.03076,76.0,1.67,0.014,30/30, of,20/30,function_word,7,15.0,UNRESOLVED,"sic), a chapter from A Brief History of the Missionary Work in Indian Territory by F.M. Moore. 4. Chronicles of Oklahoma--September"
+46320,0.0333,75.5,0.0,0.017,30/30, cannot,10/30,content_word,9,19.0,UNRESOLVED,"ye are the branches: He that abideth in me and I in him, the same bringeth forth much fruit: for without me ye can do"
+57841,0.49248,75.5,0.25,0.021,30/30,0,16/30,number,3,20.9,UNRESOLVED,"warship. The USS Cole, an Arleigh Burke-class destroyer, was badly damaged in such a terrorist attack in 2000.All of these"
+4271,0.00801,75.0,0.0,0.252,28/30, use,28/30,content_word,3,19.5,TEMPLATE,"a comment or leave a trackback: Trackback URL. Comment	You may use these HTML tags and attributes: <a href="""" title=""""> <abbr"
+5817,1.49521,75.0,6.06,0.005,30/30, with,11/30,function_word,15,21.5,UNRESOLVED,from her tea. Sweet tea is no longer appealing to me. Please give me unsweetened with a side of stevia. I’ve also continued reading
+7108,0.05391,75.0,0.0,0.01,30/30, Ster,20/30,capitalized_word,3,14.3,UNRESOLVED,"55). Many authors, including Sterne, Keats, and Byron, best demonstrated their admiration for the work by borrowing from it for their own writings"
+8189,0.79287,75.0,6.91,0.005,30/30, in,30/30,function_word,1,13.4,UNRESOLVED,Mayo Clinic specializes in finding out what’s wrong with people when no one else seems to know or be able to find out. God has truly had His hand
+57917,0.02041,74.5,0.0,0.046,30/30,blogs,28/30,subword_continuation,2,10.7,UNRESOLVED,17): http://blogs.worldbank.org/education/reaching-out-to-the-global-tertiary-education-community-to-create-a-forum-for-disc
+3814,0.12695,74.0,4.24,0.022,30/30, shall,6/30,content_word,10,20.7,UNRESOLVED,"among you shall be your servant, 27 and whoever wishes to be first among you shall be your slave; 28 just as the Son of"
+45566,0.03721,74.0,0.0,0.038,30/30,2,12/30,number,6,23.2,UNRESOLVED,please contact the Marlboro College Public Relations office at 802-251-7644 or pr@marlboro.edu.
+16434,0.7457,73.5,0.21,0.014,30/30,M,23/30,capitalized_word,5,18.0,UNRESOLVED,009. Net income attributable to ChipMOS on a US GAAP basis for the third quarter of 2010 was NT$5
+20691,0.02363,73.5,1.97,0.019,30/30, for,30/30,function_word,1,13.4,UNRESOLVED,"'t already have an HonestGamers account, you can sign up for one in a snap. Thank you for reading! zippdementia posted July"
+22644,0.00146,73.5,0.0,0.309,30/30, original,30/30,content_word,1,24.7,TEMPLATE,"our teammates and his friends at this time."" Copyright 2014 USATODAY.comRead the original story: For Josh Brent, manslaughter charge"
+50869,0.00186,73.5,0.0,0.036,30/30, cause,19/30,content_word,4,19.9,UNRESOLVED,.pdf) 4071KbRepository Staff Only: item control pagePratchett becomes the first novelist to give the Dimbleby Lecture
+6904,0.24053,73.0,5.84,0.056,28/30, of,28/30,function_word,2,21.4,UNRESOLVED,/or publisher for use within the PDQ summaries only. Permission to use images outside the context of PDQ information must be obtained from the owner(s
+25538,0.03584,73.0,0.0,0.017,30/30,"
+",22/30,whitespace,7,21.5,UNRESOLVED,"Search Forum The MiceChat Network MiceAge Discussions MiceChat News Archive ""The History Of Rock And Roll"" Results 1 to 5 of"
+25860,0.00732,73.0,0.0,0.097,30/30,",",27/30,punctuation,2,16.3,COLLOCATION,the organization should you have questions regarding their policies. About YourMembership.com With membership management software from YourMembership.
+32804,0.00977,73.0,0.0,0.014,30/30,ilde,18/30,subword_continuation,4,17.2,UNRESOLVED,background plays a key role in keeping his company up to date and that interest in innovation is important to Quiring’s success.	Dave Hildebrandt
+63207,0.13311,73.0,0.0,0.011,30/30,les,11/30,subword_continuation,7,16.0,UNRESOLVED,"Start a Law Practice OR to Overhaul the One You Have,"" presented by Barron K. Henley of Affinity Consulting Group LLC. This is your"
+33281,0.02031,72.5,0.0,0.017,29/30, not,12/30,function_word,8,18.5,UNRESOLVED,"entertainment purposes only. Use of this information in violation of State, Federal, or Local laws is strictly prohibited. Past performance is not a g"
+373,0.01768,72.0,0.0,0.091,30/30,.,23/30,punctuation,4,20.8,COLLOCATION,2005Publisher: Grand Central Publishing$15.00Paperback................................................................................................
+35149,0.00576,71.5,0.0,0.034,30/30, on,14/30,function_word,6,18.3,UNRESOLVED,", Ald. Scott Waguespack, Comm. John Fritchey, remap	Share this now! By Facebook By Twitter Pingback:"
+11550,0.01289,71.0,0.0,0.028,30/30, NON,10/30,capitalized_word,8,20.8,UNRESOLVED,"/or Service(s) will be uninterrupted or error-free, that defects will be corrected, or that the Web Site and/or Service(s) will be free from"
+12522,0.41318,71.0,6.98,0.012,30/30,ine,9/30,subword_continuation,8,16.4,UNRESOLVED,Presley is 42. Comedian Pauly Shore is 42. Drummer Patrick Wilson of Weezer is 41. Actor
+23160,0.01836,71.0,6.4,0.047,30/30,;,30/30,punctuation,1,18.5,UNRESOLVED,"distributed ""American Hustle."" (Reporting by Ronald Grover and Chris Michaud; Editing by Leslie Adler and Jeffrey Benkoe)The Arab Spring"
+43637,0.54756,71.0,4.98,0.005,30/30,",",30/30,punctuation,1,25.3,UNRESOLVED,"Tuesday at the Cox Convention Center. The Barons (6-5-1-1) scored four times on the power play, tying a franchise record"
+44570,0.0165,71.0,0.0,0.006,30/30, Kim,2/30,capitalized_word,25,21.8,UNRESOLVED,James Anderson CAR 0 0 0 0 0 0 0 0 0 0 Brendon Ayanbadejo CH
+46612,0.00586,71.0,0.0,0.046,30/30,info,8/30,subword_continuation,16,19.1,UNRESOLVED,http://www.netbsd.org/mirrors/ is outdated) port-arm/48267: pkg_add thinks it's running on earm even
+53628,0.00752,71.0,0.0,0.057,28/30,There,7/30,function_word,10,22.4,UNRESOLVED,"ley Fool has a disclosure policy. We Fools may not all hold the same opinions, but we all believe that considering a diverse range of insights makes u"
+11918,0.01514,70.5,0.0,0.026,29/30,.,30/30,punctuation,1,18.9,UNRESOLVED,"and all the software you really want.'"" Read the 114 comments finance GNOME 3.8 To Scrap Fallback Mode from"
+33707,0.01064,70.5,0.0,0.02,30/30,.,17/30,punctuation,10,24.0,UNRESOLVED,"MEREDITH, JAMES A cache by zombiestompers This series is to honor the Heroes of the United States Marine Corps who have"
+39111,0.00566,70.5,0.0,0.226,30/30,.,29/30,punctuation,2,26.1,COLLOCATION,"backpack. Like most of the child victims at Newtown, Amari was 6. Copyright 2014 The Associated Press. All rights reserved."
+42501,0.01123,70.5,0.0,0.046,30/30, stocks,20/30,content_word,3,20.9,UNRESOLVED,"climb higher. To discover the identities of these stocks instantly, access your free report by clicking here now. Matthew Frankel has no position in a"
+51226,0.10957,70.5,0.0,0.044,30/30, as,30/30,function_word,1,18.6,UNRESOLVED,"hang on two principles: to love the Lord thy God with all thy heart, soul and mind and to love our neighbour as ourselves. If God law is"
+4174,0.01211,70.0,0.86,0.023,30/30, Sak,5/30,capitalized_word,16,19.1,UNRESOLVED,"BestsellersBargain BooksTextbooksLivres en fran�ais Appstore for AndroidGet started with AppstoreApps Definitely a different """
+15711,0.08369,70.0,3.62,0.007,30/30, be,18/30,function_word,7,19.1,UNRESOLVED,"feel free to ask any questions and I would be happy to answer them. Interests: Dining out, Music and concerts, Playing sports, Travel/Sight"
+17579,0.03701,70.0,5.61,0.069,30/30, link,6/30,content_word,17,21.0,UNRESOLVED,from China. Reader comments posted to this article may be published in our print edition. All rights reserved. This copyrighted material may not be re
+19309,0.01172,70.0,0.0,0.038,30/30, from,19/30,function_word,4,18.8,UNRESOLVED,"""partner"" can help nudge people past their own outdated assumptions.	0 vote	Vote! Your nameEmail (will not be published)Notify me"
+32884,0.02676,70.0,0.0,0.036,30/30,;,28/30,punctuation,3,20.4,UNRESOLVED,/maury.pdf Type Image; Image Original Collection American Geographical Society Library - Rare MapsAmerican Geographical Society Library - Maps Origina
+43816,0.96895,70.0,1.39,0.009,30/30, with,24/30,function_word,3,18.9,UNRESOLVED,"artist. After a divorce, he set out on the path to self-improvement in his relationships with “in the trenches” training under the Pickup Artist"
+63813,0.01807,70.0,0.0,0.019,30/30, identified,8/30,content_word,8,20.8,UNRESOLVED,"><span><object><embed><blockquote> <!--break-->Lines and paragraphs break automatically.Insert a chart by placing [chart:nid] into your content,"
+18603,0.02158,69.5,1.87,0.024,29/30, this,24/30,function_word,7,16.3,UNRESOLVED,Victorian Fiction (review) Bleak Houses: Marital Violence in Victorian Fiction (review) You have access to this contentGet College Info College Guide
+34300,0.01035,69.5,0.0,0.036,28/30, please,10/30,content_word,12,21.6,UNRESOLVED,"or used by or copied in any way by anyone other than the intended recipient. If this email is received in error, please notify us immediately by click"
+35227,0.04219,69.5,0.0,0.012,30/30, ,10/30,whitespace,10,17.5,UNRESOLVED,Nitrite)	Ingredient Color Key: Serving Size: 3 slices (27g) Calories 70.0Calories from Fat
+44610,0.0042,69.0,0.0,0.014,30/30,0,12/30,number,5,18.1,UNRESOLVED,"to mobile.baltimoresun.com to gets Orioles news on your mobile device. To receive Orioles text alerts, text BASEBALL to 707"
+46226,0.01328,69.0,2.76,0.018,30/30,.org,12/30,content_word,11,17.5,UNRESOLVED,documents how to install the Debian DOM0 kernel on Ubuntu LTS. This is an update. aptitude install libuuid-perl wget http://ftp.de
+60069,0.00615,69.0,0.5,0.015,30/30, used,10/30,content_word,12,18.2,UNRESOLVED,General Works in Philosophy of Mathematics (categorize this paper) $7.95 used $74.59 new QA8.4
+63116,0.50205,68.5,0.0,0.023,30/30,9,14/30,number,7,26.5,UNRESOLVED,"1), 0.86 (0.79–0.94), 0.82 (0.75–0."
+14118,0.01094,68.0,0.0,0.018,30/30, (,27/30,punctuation,3,19.2,UNRESOLVED,Psychology in Philosophy of Cognitive Science Perception and Action in Philosophy of Mind Visual Pathways in Philosophy of Cognitive Science Direct do
+46963,0.0168,68.0,0.0,0.009,30/30, is,13/30,function_word,5,15.1,UNRESOLVED,"it only takes a few minutes in the game for you to figure out the kind of guy you're lining over,"" he said. One of the players the"
+12268,0.32119,67.5,0.0,0.004,30/30, for,29/30,function_word,2,19.7,UNRESOLVED,"and earning a commission for each sale. Internet marketing involves targeting a particular niche. This refers to a specific market segment, for exampl"
+41256,0.02217,67.5,0.0,0.036,30/30, domain,24/30,content_word,5,17.4,UNRESOLVED,", volume 6, number 3. December 1892. Rights-Original This work is in the public domain and is free of copyright"
+11280,0.01992,67.0,5.96,0.132,26/30,.,11/30,punctuation,9,27.1,UNRESOLVED,"sack against Ben Roethlisberger #7 of the Pittsburgh Steelers at Cowboys Stadium on December 16, 2012 in Arlington, Texas"
+61599,0.00605,67.0,0.0,0.006,30/30,PT,18/30,capitalized_word,5,16.3,UNRESOLVED,live ARY News Dunya News Dawn News PTV News Samaa News Geo Entertainment Channels by Category: All
+26609,0.00586,66.5,0.0,0.158,25/30,ix,28/30,subword_continuation,3,18.2,COLLOCATION,"you miss a dose of this medicine, apply it as soon as possible. However, if it is almost time for your next dose, skip the missed dose"
+50622,0.00586,66.5,0.0,0.293,30/30, not,30/30,function_word,1,14.4,TEMPLATE,closed at this time.Your browser does not support iframes.	Read a digital copy of the latest edition of The News Enterprise online.	Read a digital
+10745,0.00488,66.0,0.0,0.048,30/30, who,10/30,function_word,9,20.1,UNRESOLVED,"Market Estimates throughout the World,"" Journal of Risk and Uncertainty,Springer, vol. 27(1), pages 5-76,"
+10973,0.00205,66.0,2.43,0.017,30/30, Profile,18/30,capitalized_word,2,19.3,UNRESOLVED,-drink smarts. Your quiz has been added to your profile page. Return to Soda Pop Quiz Try These Quizzes Desserts and S
+45967,0.03311,66.0,0.1,0.034,30/30,.org,15/30,content_word,3,19.2,UNRESOLVED,were given dark chocolate or coc ... Study shows how dark chocolate may be good for our health—particularly if you are male (Medical Xpress)—
+59434,0.45469,65.5,0.0,0.008,30/30, The,8/30,function_word,8,21.1,UNRESOLVED,"Missouri wines, more than 30 art and craft vendors and live music from 7 to 10 p.m. by local band JD and the"
+48423,0.0042,64.5,0.0,0.013,30/30,in,19/30,function_word,5,15.3,UNRESOLVED,"for a few moments Saturday night after donning that rhinestone crown, I thought her only problem in life was getting a zit. Being lovely,"
+52723,0.00801,64.0,0.0,0.032,30/30,aul,21/30,subword_continuation,4,20.4,UNRESOLVED,","" McClain said. With all due respect to God, the only one deciding whether McClain will resume his career in Baltimore is Rolando McClain."
+32045,0.02432,63.8,0.0,0.204,27/30, ,29/30,whitespace,2,16.1,UNRESOLVED,"discount and explain your answer. Calculate the value of ... Saturday, August 20, 2011 at 1:18am by"
+49786,1.57637,63.5,0.26,0.006,30/30, ,17/30,whitespace,5,26.0,UNRESOLVED,") — Danny Briere, Matt Read and Max Talbot each scored two goals to lead the Philadelphia Flyers to an 8-4 victory over the Pittsburgh"
+53107,1.19658,63.5,1.33,0.008,30/30, the,21/30,function_word,8,24.0,UNRESOLVED,in the country. Indiana was also picked by the Big Ten media to win the conference championship. The Hoosiers return the same starting lineup they fin
+11207,0.00576,63.0,0.0,0.029,30/30,erm,30/30,subword_continuation,1,16.0,COLLOCATION,out on a ticket!Blumenthal wants background checks for ammunition purchases By Jennifer McDermott U.S. Sen. Richard Blumenthal
+63339,0.13057,63.0,2.24,0.012,30/30,"
+",8/30,whitespace,18,21.7,UNRESOLVED,Amersham News & Views The Amersham Forum A Bit Of A Niggle Started by David P David P Sorry to
+478,0.02686,62.5,0.0,0.013,30/30, ,24/30,whitespace,2,19.3,UNRESOLVED,. 25 in G Minor... Save up to 25% on New Releases for Concert Band at Sheet Music Plus Bond... James Bond
+33812,0.12578,62.5,0.0,0.095,30/30,5,8/30,number,10,20.7,UNRESOLVED,", because I can: Syfy has greenlit the 12-episode summer series, The Wil Wheaton Project (working title), a weekly topical"
+51352,0.00225,62.5,3.2,0.016,30/30, Text,9/30,capitalized_word,9,19.7,UNRESOLVED,"at non-PTCs,"" the authors conclude. Abstract Full Text (subscription or payment may be required) Previous: Quality of Care in Medically Complex Cases"
+58638,0.0125,62.5,0.0,0.042,30/30,",",29/30,punctuation,2,18.4,UNRESOLVED,"may be more subcategories on other pages.) This category has the following 118 subcategories, out of 529 total.Jer"
+32048,0.01416,62.2,0.26,0.019,29/30,-,8/30,punctuation,9,21.5,UNRESOLVED,"13| For Immediate Release Dr. Juanne Clarke, Professor, Sociology Wilfrid Laurier University 519-884-"
+61069,0.00625,62.2,3.09,0.02,29/30,In,17/30,function_word,4,20.0,UNRESOLVED,"003 and published by 3DO. If you can't find a hint or secret in our list, then please check this page periodically for the"
+62097,0.01309,62.2,6.11,0.057,28/30,'s,26/30,content_word,3,20.4,UNRESOLVED,"your message. Flip, shop and save on specials from your favorite retailers in Jackson, MS 39201 ClarionLedger's updates"
+63085,0.45742,62.0,0.0,0.061,30/30, ,21/30,whitespace,2,21.0,UNRESOLVED,"458 U.S. 747, 749, 102 S.Ct. 3348, 7"
+4315,0.06895,61.0,1.64,0.006,30/30, Ar,5/30,capitalized_word,19,23.7,UNRESOLVED,................................... William Katt Oliver......................................... Rick Hoffman Raul Hernandez..................... Arma
+27472,0.03604,61.0,0.0,0.01,30/30, any,26/30,function_word,3,18.5,UNRESOLVED,goods or services available through such linked sites or any privacy or other practices of such sites.. Welcome!! The Flat River Historical Museum sta
+30230,0.00742,61.0,0.0,0.101,30/30, in,27/30,function_word,2,13.4,UNRESOLVED,thanked: 1541 time(s) in 549 post(s) Originally Posted by: cricaholic I made Thank You cards
+30383,0.01221,60.5,0.95,0.041,29/30, to,15/30,function_word,6,20.9,UNRESOLVED,"or guarantees about the accuracy, completeness, or adequacy of the information contained on this site or the information linked to on the state site. "
+48401,0.04131,60.2,0.0,0.035,30/30, >,16/30,punctuation,5,23.3,UNRESOLVED,bsd.org Fri Mar 6 20:33:24 PST 2009 Previous message: FreeBSD Bounties
+4729,0.3375,60.0,3.4,0.012,30/30,",",5/30,punctuation,14,20.5,UNRESOLVED,"Gaming Assassin's Creed Assassin's Creed 4: Black Flag confirmed by Ubisoft, reveal next week Assassin's Creed 4 hits current"
+42668,0.00566,60.0,0.0,0.016,30/30,1,7/30,number,12,20.6,UNRESOLVED,by gray06 Dec 2010 09:33 AM Who is online: There are currently 0 guests(s) online
+51192,0.53691,60.0,3.25,0.025,30/30, says,22/30,content_word,4,24.0,UNRESOLVED,"selection, but killing your kid through ignorance works nearly as well for removing the ‘idiot’ gene. #5 J. (Guest) on Wednesday May"
+6596,0.00479,59.5,0.0,0.111,25/30, all,12/30,function_word,9,22.7,UNRESOLVED,"time leaving them open to potential equity appreciation, this fund could be an attractive instrument. Disclosure: No positions at time of writing. The"
+19062,0.00557,59.0,0.0,0.017,30/30, or,19/30,function_word,4,20.4,UNRESOLVED,"a specific treatment plan, product or course of action. Use of a Channel Zero Site does not replace consultations with a qualified medical, legal, fin"
+19461,0.23799,59.0,0.0,0.025,30/30,";
+",6/30,punctuation,12,22.0,UNRESOLVED,synchronization var mre = new ManualResetEvent( false ); var countdown = new CountdownEvent( threadCount ); // spawn threads for ( int thread
+41088,0.00615,59.0,0.0,0.041,30/30, for,10/30,function_word,8,21.0,UNRESOLVED,value ranges may vary slightly among different laboratories. Talk to your doctor about the meaning of your specific test results. What abnormal result
+42866,0.17783,58.8,0.0,0.002,30/30, (,14/30,punctuation,7,23.9,UNRESOLVED,"00 purchase option, as well as on an Equipment Finance Agreements. ACC Capital, Midvale, Utah GE Leasing IFC Credit, Morton"
+51729,0.01133,58.5,4.18,0.017,30/30,by,6/30,function_word,19,17.3,UNRESOLVED,6Deposited By:Mr D.F. TangDeposited On:30 April 2012Download Statistics: last 4 weeks
+35751,0.01621,58.0,0.0,0.056,30/30, for,13/30,function_word,8,21.5,UNRESOLVED,"any manner, you need written permission. Contact Robin Henderson for details.Middle Eastern Culture Site Rachel Schaus BellaOnline's Middle Eastern Cu"
+57268,0.01357,58.0,0.0,0.017,30/30, be,30/30,function_word,1,20.4,UNRESOLVED,. More information about summary policies and the role of the PDQ Editorial Boards in maintaining the PDQ summaries can be found on the About This PDQ
+47631,0.01504,57.8,0.0,0.012,30/30, question,11/30,content_word,10,18.3,UNRESOLVED,spaces between keywords):trigonometry Search trigonometry formulas Browse High School Trigonometry DeMoivre's theorem. Circle and Rectangle
+16171,0.00908,57.0,0.0,0.106,30/30,/,30/30,punctuation,1,23.6,UNRESOLVED,this blog post. Here’s the link: http://learningtobreatheanovel.wordpress.com/2010/05/22
+22410,0.00605,56.8,0.0,0.014,30/30,-,7/30,punctuation,10,19.6,UNRESOLVED,by gray06 Dec 2010 09:33 AM Who is online: There are currently 0 guests(s) online
+51561,0.46875,56.8,0.0,0.135,30/30,4,9/30,number,12,26.2,UNRESOLVED,264. Page generated Wed Apr 16 03:57:01 2014 - Hash code: Gia
+59500,0.00742,56.8,0.0,0.043,30/30, into,10/30,content_word,9,24.5,UNRESOLVED,"958, stated that “Secretary of the Interior, Fred A. Seaton               Click tabs to swap between content that is broken into logical sections"
+38265,0.39531,56.5,0.0,0.013,30/30,http,11/30,subword_continuation,6,15.6,UNRESOLVED,"- Antiwar.com Blog - http://antiwar.com/blog - Obama Praises Bahrain Tyrant on Visit, Dims Awakening’s Prospects Posted"
+41606,0.00205,56.5,0.0,0.061,30/30,.apple,25/30,content_word,3,19.1,UNRESOLVED,or mobile device. App Links: iOS App Store - https://itunes.apple.com/us/app/hurl/id546168592
+33333,0.01094,56.2,0.0,0.022,29/30,8,19/30,number,5,19.3,UNRESOLVED,from China. Reader comments posted to this article may be published in our print edition. All rights reserved. This copyrighted material may not be re
+5585,0.01592,56.0,0.0,0.01,30/30, but,25/30,function_word,6,22.8,UNRESOLVED,"just reason your way around. ReplyDeleteAdd commentLoad more... I regret that I don't have time to respond to comments on this blog, but I"
+13686,0.02432,56.0,0.0,0.006,30/30, out,4/30,content_word,20,19.1,UNRESOLVED,"soap and warm water afterwards. Cook all meat thoroughly, that is, until it is no longer pink in the center or until the juices run clear. Do"
+3309,0.39004,55.8,4.37,0.014,30/30, to,7/30,function_word,15,24.3,UNRESOLVED,"me for success in life beyond Liberty. I have learned more of His character and His heart, have seen His faithfulness in spite of my lack, and"
+63519,0.12432,55.5,2.85,0.02,30/30, cooling,6/30,content_word,12,22.2,UNRESOLVED,for an additional 10 minutes. Brush the top side with maple syrup and bake for an additional 2-3 minutes. 5. Allow the bacon
+37372,0.0166,55.2,0.0,0.042,29/30, AND,11/30,function_word,7,18.5,UNRESOLVED,"FEES, RELATED TO YOUR USE OF THESE DATA. THESE DATA ARE PROVIDED BY DOE/NREL/ALLIANCE/WAPA ""AS IS"" AND ANY"
+59205,0.01836,55.2,1.18,0.01,30/30,",",8/30,punctuation,14,22.3,UNRESOLVED,014 Grace to You You may reproduce this Grace to You content for non-commercial purposes in accordance with Grace to You's Copyright Policy (http://
+64968,0.03184,54.0,0.0,0.043,30/30,.,27/30,punctuation,2,25.6,UNRESOLVED,"and Acid Forming Clostridia, September 28-October 1, 2008, Holland, The Netherlands. Paper No."
+36058,0.77607,53.5,0.0,0.014,30/30, the,21/30,function_word,2,24.7,UNRESOLVED,to the Company's Copyright Agent: (i) the contact details of the person authorized to act on behalf of the owner of the copyright; (ii)
+7232,0.02305,53.2,1.03,0.054,30/30, who,13/30,function_word,5,21.8,UNRESOLVED,using the included information for research and educational purposes. If you wish to use copyrighted material from this site for purposes of your own 
+58950,0.01631,53.0,0.0,0.009,29/30,.,25/30,punctuation,5,24.0,UNRESOLVED,"Quality Era Award for its excellence in service. Each room comes with satellite TV, a mini-bar and air conditioning. Enjoy the on-site sauna, beauty s"
+21040,0.04834,52.5,0.0,0.066,30/30, for,18/30,function_word,6,21.4,UNRESOLVED,Comments	15 Responses to “Ugh! Such a proud display of sheer irrationality”	Feed for this Entry glguy on February
+25946,0.01221,52.5,0.0,0.008,30/30, on,14/30,function_word,9,18.5,UNRESOLVED,"003 and published by 3DO. If you can't find a hint or secret in our list, then please check this page periodically for the"
+64032,0.20762,52.5,3.51,0.01,30/30, your,14/30,function_word,10,12.3,UNRESOLVED,". This will sometimes fix the problem and you should see the document. If the problem persists, please contact your IT support staff, or check the Mic"
+9348,0.03037,52.2,0.0,0.07,27/30,",",11/30,punctuation,7,20.9,UNRESOLVED,"by the Food and Drug Administration. This product is not intended to diagnose, treat, cure or prevent any disease. If you are pregnant, nursing, takin"
+14827,0.0041,52.0,2.69,0.009,30/30, Howard,27/30,capitalized_word,3,15.7,UNRESOLVED,"Mount Vernon; her mother, Cindy (Donnie) McCleese of Howard; her father, Wayne (Janet) Estabrooks of North"
+11318,0.04707,51.5,0.0,0.031,30/30, message,14/30,content_word,6,22.3,UNRESOLVED,"Staff Only: edit this itemBrowse By Person: Mainstone, Julia Group by: Item Type | DateJump to: 1990"
+32635,0.00908,51.5,0.0,0.007,30/30, on,14/30,function_word,7,15.4,UNRESOLVED,"17, U.S.C.) beyond that allowed by fair use requires the written permission of the copyright owners. Works not in the public domain cannot"
+15157,0.72314,51.0,1.18,0.009,29/30, trials,3/30,content_word,23,25.8,UNRESOLVED,best treatment choice. Clinical trials are part of the cancer research process. Clinical trials are done to find out if new cancer treatments are safe
+41044,0.13516,50.8,0.0,0.014,30/30,.com,6/30,content_word,16,21.2,UNRESOLVED,"remains. Of course, plucky Lucy has to be the one to encounter an intriguing puzzle....3) What genre does your book fall under?FTCR"
+5744,0.04512,50.5,0.0,0.016,30/30, tant,22/30,content_word,4,17.6,UNRESOLVED,ProcessingMechatronicsTechnology & SocietyTransportation © 1996-2014 ASME Intl. Share Generic Post to your
+13850,0.00586,50.5,0.0,0.098,28/30, on,14/30,function_word,5,21.1,UNRESOLVED,. Her lips must have been moving...Authors & Artists Subscribe to BfK Newsletter (play audio CAPTCHA) Type the characters you see in
+27996,0.20557,50.5,0.0,0.01,30/30,",",16/30,punctuation,5,20.9,UNRESOLVED,"1. Warm tortillas in microwave until soft. Mix mushroom soup, sour cream, olives, green onions, green chilies and all but one cup"
+63259,0.00859,50.5,0.0,0.044,29/30, you,29/30,content_word,2,19.7,UNRESOLVED,"ate to all those in need reply Notify me when new comments are posted All comments Replies to my comment By submitting this form, you accept the Moll"
+12757,0.59033,50.0,0.0,0.057,30/30,3,5/30,number,13,28.8,UNRESOLVED,"!ReplyDeleteAnonymousMay 2, 2009 at 2:00 AMhahaha fuck youReplyDeleteCarlMay 3,"
+49528,0.02217,49.5,3.69,0.018,30/30,0,7/30,number,11,19.4,UNRESOLVED,"eses, Dissertations and Student Research Papers (School of Forestry, pre - 1984) by Author ""Johnson, James W."""
+43721,0.43486,48.8,0.0,0.016,30/30, or,17/30,function_word,9,17.8,UNRESOLVED,! continued Copyright © 2003 University of Wisconsin Sea Grant Institute If you have trouble accessing this page or wish to request a reasonable accom
+46359,0.00898,48.0,0.0,0.045,30/30,p,21/30,subword_continuation,6,14.6,UNRESOLVED,"p><p>	</p><p><b>Staying on the topic of food, what does Vince eat before every game?</b></p"
+61457,0.00391,47.5,0.0,0.026,30/30, Published,19/30,capitalized_word,8,20.8,UNRESOLVED,"respect? M Rated: Fiction M - English - Drama/Romance - Edward, Bella - Words: 16,297 - Reviews"
+7493,1.44922,47.2,0.0,0.005,30/30, gol,12/30,content_word,7,23.7,UNRESOLVED,"in ice dancing. Unofficially, this American victory, the first for a team of U.S. skaters, pairs or dance, in Olympic history"
+24057,0.0042,46.8,0.0,0.014,30/30, special,24/30,content_word,5,20.2,UNRESOLVED,"(e.g. shipping your order to you, processing your credit card); and to contact you about new products or services, special events and promotions. In"
+61914,0.02383,46.8,0.67,0.056,29/30, and,14/30,function_word,6,18.5,UNRESOLVED,"we make no representations or warranties of any kind, express or implied, about the completeness, accuracy, reliability, suitability or availability w"
+6070,0.0085,46.0,0.44,0.015,30/30, will,10/30,content_word,14,22.9,UNRESOLVED,posted in its entirety. We do not edit any comment that we post. Comments should contribute to the discussion. We will not post comments that don't ad
+19119,0.00771,46.0,0.0,0.079,30/30,3,24/30,number,2,19.3,UNRESOLVED,"lie Zemeckis, 2013Skyhorse 352 pp.ISBN-13: 978162"
+40096,0.029,46.0,0.52,0.071,30/30, #,23/30,punctuation,3,6.2,UNRESOLVED,", 0]]) -------------------------------------------ok In [51]:b.shape = (5,2) In [52]:b array([[0"
+63349,0.01152,46.0,0.0,0.024,30/30, read,6/30,content_word,12,17.3,UNRESOLVED,"Kindle)	ePub eBook (With Adobe DRM, readable with Adobe Digital Editions for PCs and Macs, and on most mobile devices except Kindle)"
+5270,0.03467,45.8,0.0,0.006,30/30, your,14/30,function_word,13,16.9,UNRESOLVED,"on the menu bar. Activate your preferred theme by clicking the “Appearance> Themes” on the left side of the menu. Next, go to the “"
+39496,0.08672,45.8,0.0,0.018,30/30,0,25/30,number,4,26.8,UNRESOLVED,"in the U.S.A.” Constitution Center officials expect it will bring tens of thousands of new visitors to the center. More than 6,00"
+26808,0.00635,45.5,0.0,0.017,30/30, while,14/30,content_word,10,18.6,UNRESOLVED,"to all the other included items, like Wii Sports™ and a red Nunchuk™ controller. It will be available while supplies last at a suggested retail"
+32989,0.00791,45.5,0.0,0.017,30/30, licensed,6/30,content_word,18,20.8,UNRESOLVED,"enter a third party Web site. U.S. Bank is not responsible for the content of, or products and services provided by Social Security Online, nor does"
+29542,0.00625,45.0,0.49,0.023,30/30,external,13/30,subword_continuation,5,19.7,UNRESOLVED,"the Telephone. Garden City, New York: Doubleday and Company, 1960. The Talking Wire (Biography)External links Biography"
+61136,0.42207,44.8,2.5,0.132,23/30,View,12/30,capitalized_word,4,15.9,UNRESOLVED,Share this Page My Saved Articles » My ACS » Melanoma Skin Cancer Document TopicsCan melanoma skin cancer be found early?Signs and
+11577,0.01006,44.5,0.0,0.03,30/30, supplies,28/30,content_word,2,19.9,COLLOCATION,"to all the other included items, like Wii Sports™ and a red Nunchuk™ controller. It will be available while supplies last at a suggested retail"
+16440,0.00498,44.5,0.0,0.021,30/30, Books,4/30,capitalized_word,17,20.0,UNRESOLVED,"are in store? Old friends reunite as a new era begins. This product was added to our catalog on Friday 03 June, 20"
+19592,0.0123,44.0,0.0,0.02,30/30, free,7/30,content_word,15,20.4,UNRESOLVED,'s FREE and registration is effortless so JOIN NOW! groucho Originally posted by cjs369 the one woman he shud be taking care of
+21568,0.0124,44.0,0.0,0.119,29/30,",",24/30,punctuation,4,23.2,UNRESOLVED,"79 billion a year earlier..... To access AMM's full content, please log in below. If you do not have an AMM account, we"
+51578,0.12402,43.8,2.64,0.012,30/30, ,8/30,whitespace,15,18.8,UNRESOLVED,"type, in immediate proximity to the space reserved for consumer’s signature on the contract, that reads as follows: ‘You may cancel this contract with"
+60963,0.01016,43.8,2.3,0.008,30/30, need,16/30,content_word,2,14.1,UNRESOLVED,"or can't do, be sure to shoot me a message and I'll try my best to answer your questions.No need to order the background extra if the"
+28226,0.01016,43.5,0.0,0.016,28/30, arrive,15/30,content_word,6,18.2,UNRESOLVED,"online access as soon as your first issue arrives SUBSCRIBE to Booklist Online with an unlimited-use subscription for site-wide access, which includes"
+45269,0.01826,43.5,2.27,0.035,30/30, authors,6/30,content_word,14,18.4,UNRESOLVED,other products may apply and are payable at check-in. Travel HelpHelp changing your travel plansBoard index ‹ 12 Step Addiction Treatment and Recovery
+45951,0.01719,43.5,0.0,0.127,30/30, |,30/30,punctuation,1,25.5,COLLOCATION,") Revision as of 18:52, December 28, 2009 by Wsk (Talk | contribs) The"
+48072,0.00596,43.5,0.0,0.011,29/30, for,11/30,function_word,13,21.4,UNRESOLVED,3458 All rights reserved. Information deemed to be reliable but not guaranteed. The data relating to real estate for sale on this website comes in
+51173,0.02617,43.2,3.93,0.019,29/30,per,9/30,subword_continuation,16,20.1,UNRESOLVED,the date of sterilization unless the integrity of the package is compromised. (13) Sterilized instruments may not be used if the package integrity has
+53908,0.02705,43.2,1.63,0.011,30/30, take,9/30,content_word,11,20.3,UNRESOLVED,"this, click here. Downloading the PDF file may take several moments but will be worth the wait. Once it is downloaded, open the PDF from your hard"
+31131,0.03184,43.0,0.0,0.034,30/30,ourced,8/30,subword_continuation,16,21.4,UNRESOLVED,ervention Model: Parallel AssignmentMasking: Single BlindPrimary Purpose: Treatment Further study details as provided by University of Arizona: The pr
+36209,0.40771,42.8,0.0,0.021,30/30, for,6/30,function_word,17,19.7,UNRESOLVED,and click your first newsletter so we can confirm your subscription.Want more real-time Toronto Raptors news? Toronto Raptors: Bold Predicitions for T
+48693,0.01611,42.2,2.0,0.107,30/30, our,23/30,function_word,4,21.3,UNRESOLVED,in the stocks mentioned above. The Motley Fool has no positions in the stocks mentioned above. Try any of our Foolish newsletter services free for 3
+27426,0.00313,42.0,0.0,0.019,30/30,ry,17/30,subword_continuation,7,20.2,UNRESOLVED,historical chart data provided by Morningstar Inc. Real-time index quotes and delayed quotes supplied by Morningstar Inc. Quotes delayed by up to 15 m
+46852,0.01436,41.5,0.0,0.042,30/30,Best,9/30,capitalized_word,8,21.6,UNRESOLVED,"License Posted in Trip Ideas Tagged: New York City, Walking Tours, Architecture Fodor's Top News & FeaturesCheap and Chic: 1"
+51178,0.00869,41.2,0.0,0.026,29/30, may,12/30,content_word,9,19.1,UNRESOLVED,az.us RIGHTS MANAGEMENT Copyright to this resource is held by the creating agency and is provided here for educational purposes only. It may not be do
+12619,0.00684,41.0,0.0,0.009,30/30, a,14/30,function_word,9,18.6,UNRESOLVED,"of work nearly nine months. Instead of feeling sorry for himself, he made good use of the time [...] Authors	Win a copy of THEN AND ALWAYS"
+18005,0.0083,41.0,1.28,0.394,25/30, tags,28/30,content_word,3,16.3,TEMPLATE,"><span><object><embed><blockquote> <!--break-->Lines and paragraphs break automatically.Insert a chart by placing [chart:nid] into your content,"
+50080,0.16191,41.0,0.0,0.036,30/30, Rights,24/30,capitalized_word,4,15.7,UNRESOLVED,"be out within a week. The Herald-Dispatch welcomes your comments on this article, but please be civil. Avoid profanity, obscenity, personal attacks"
+65201,0.00156,40.5,0.0,0.083,27/30, prohibited,15/30,content_word,8,26.0,UNRESOLVED,"is 12:24 AM. Powered by: vBulletin Copyright ©2000 - 2014, Jelsoft Enterprises"
+8630,0.0333,40.0,0.0,0.014,30/30, ,17/30,whitespace,8,22.4,UNRESOLVED,"struggle to contain wildfiresthat have killed 15, devastated2,000 homes and left 8,000 homeless Daily Mail"
+24881,0.00557,40.0,0.0,0.02,29/30,eh,22/30,subword_continuation,2,18.1,UNRESOLVED,The Adventures of Peregrin Took: 5. The Forbidden Isle Reader Toolbox Log in for more tools 5. The Forbidden Isle « Previous
+42001,0.00293,40.0,0.0,0.044,29/30, currently,10/30,content_word,10,19.5,UNRESOLVED,"the author, and sources must be included with any reproduction. Click the icon for more info. Please note that this Creative Commons license applies t"
+51914,0.01211,40.0,0.58,0.018,30/30, receive,28/30,content_word,2,18.5,UNRESOLVED,"Subscribe to The Hockey News magazine! Sign up to our e-flash newsletter. You will receive backstage access to special features, articles, promotions "
+1654,0.01904,39.8,0.0,0.023,30/30, contact,5/30,content_word,17,24.6,UNRESOLVED,"must be displayed. For publication of Global Research articles in print or other forms including commercial internet sites, contact: [email protected]"
+32267,0.00576,39.5,0.0,0.276,26/30, and,22/30,function_word,5,17.9,TEMPLATE,"link to this page will be included in your message.[Archive Home][Date Prev][Date Next][Index] ""Chicago airports will upgrade shopping experience"
+25442,0.00596,39.0,0.0,0.017,29/30, is,11/30,function_word,10,20.8,UNRESOLVED,management skills and plan strategy for the future. Success in such ventures depends on this. What people are saying - Write a reviewWe haven't found 
+55749,0.05674,38.8,0.0,0.048,29/30, Interview,14/30,capitalized_word,5,18.1,UNRESOLVED,", among other issues. Alain C. Enthoven Oral History Interview - JFK #1, 6/4/1971 John"
+42922,0.03193,38.5,0.0,0.011,30/30, and,6/30,function_word,19,21.7,UNRESOLVED,"you.� (Matthew 9: 18-26)Holy Gospel: July 6�Come to me, all you who labor and are"
+43766,0.00703,38.2,0.0,0.247,28/30, Messages,23/30,capitalized_word,7,19.8,UNRESOLVED,Posts All Forums:Forum Nav:HomeSubscriptionsPrivate MessagesWho's OnlineForums General Genius Bar Apple Hardware Apple Software Third-Party Products G
+50413,0.03047,38.0,0.0,0.013,30/30, on,8/30,function_word,12,18.3,UNRESOLVED,information for this author • All publications Working Papers only September 2006Evidence of a Shift in the Short-Run Price Elasticity of
+54789,0.00625,38.0,0.09,0.056,30/30, enabled,16/30,content_word,7,19.2,UNRESOLVED,"on Earth. Enough, already! Skip to the content. Note:These pages make extensive use of the latest XHTML and CSS Standards. They ought to look"
+46552,0.23633,37.5,0.0,0.015,30/30, (,28/30,punctuation,2,17.9,UNRESOLVED,"two ports needed) Operating System Support Windows 7, Vista, or XP SP3 Dimensions (inches) 5.2"" (W) x"
+26507,0.00156,37.2,0.0,0.036,29/30, League,20/30,capitalized_word,6,21.2,UNRESOLVED,atics.com is not an official web site for the New York Knicks or the National Basketball Association. Copyright © 2014 www.KnicksFan
+52210,0.01201,37.0,0.0,0.044,30/30, results,20/30,content_word,6,16.9,UNRESOLVED,"sought a pYou are not logged in. If you haven't yet registered, click here to do so now. Registration is fast, easy, and"
+10439,0.00625,36.5,0.0,0.118,30/30, comments,22/30,content_word,2,20.2,UNRESOLVED,"and what they’re learning.” We welcome comments that advance the story through relevant opinion, anecdotes, links and data. If you see a comment that "
+49229,0.00264,36.5,0.0,0.002,30/30, the,12/30,function_word,13,10.0,UNRESOLVED,"). You can push someone's buttons all day until they blow up. Only post the outburst and voila, you get what we see here. Bottom"
+58141,0.02285,36.5,0.0,0.041,30/30, view,10/30,content_word,13,21.4,UNRESOLVED,in the solution. Case study does not use any examples of interdisciplinary and multicultural awareness in the solution. Copyright:This material is pro
+45423,0.01484,36.0,0.0,0.017,30/30, PM,6/30,capitalized_word,13,26.1,UNRESOLVED,"0 at 11:37 pm # Tabbert August 31st, 2010 at 11:28 pm"
+29507,0.05625,35.8,0.88,0.124,30/30, You,12/30,capitalized_word,4,22.8,UNRESOLVED,"146-154.PreviewPDF - Requires a PDF viewer such as GSview, Xpdf or Adobe Acrobat Reader195K"
+37677,0.00811,35.5,0.0,0.019,30/30, to,7/30,function_word,11,18.5,UNRESOLVED,or over 75 will need a specialist rental company as travelsupermarket.com aren’t able to fulfill these requirements. Drivers aged between 21 and
+64592,0.00615,35.5,2.5,0.007,30/30, connect,7/30,content_word,13,16.5,UNRESOLVED,"page If everything goes well, this page should display the bibliography of the aforementioned article as it appears in the Stanford Encyclopedia of Ph"
+35863,0.00811,35.0,0.0,0.036,30/30, site,11/30,content_word,13,19.6,UNRESOLVED,information and ideas that can help them make the best choices for their child. HomeParenting Children with Special NeedsIntroductionVisit other About
+15921,0.00254,34.5,0.0,0.047,30/30,.,6/30,punctuation,14,22.8,UNRESOLVED,"1.az.comcast.net - 69.254.202.203) on Thursday, February 07,"
+17190,0.02324,34.0,0.0,0.019,30/30,EL,8/30,capitalized_word,10,20.2,UNRESOLVED,"more intensive than financial regulation in many other jurisdictions, particularly civil law jurisdictions on the Continent. Number of Pages in PDF Fi"
+22663,0.00762,33.5,0.0,0.035,30/30, Technology,11/30,capitalized_word,11,19.2,UNRESOLVED,row is even m […] Astro PolAn error has occurred; the feed is probably down. Try again later. The Radical VirgoAstrology in Fiction
+26301,0.01084,32.8,1.64,0.026,28/30,.,12/30,punctuation,9,21.2,UNRESOLVED,our website. Comments should not attack other readers or people featured in our stories personally. Any accusations should be backed up with facts. An
+50738,0.00996,32.8,0.0,0.013,30/30, our,5/30,function_word,16,20.8,UNRESOLVED,market by nearly a 3 to 1 margin. The best way to unlock the profitable stock recommendations and market insights of Zacks Investment Research is thro
+1192,0.03018,32.5,2.48,0.059,30/30, years,20/30,content_word,5,22.7,UNRESOLVED,", Insightful) QuantumRiff (120817) | more than 5 years ago | (#264493"
+53964,0.01396,32.2,0.0,0.065,29/30, and,13/30,function_word,7,20.7,UNRESOLVED,"1, May 13, 2010"" | 0 comments The comments are owned by the poster. We aren't responsible for"
+56733,0.00137,31.6,0.0,0.386,25/30, unrestricted,21/30,content_word,4,20.2,TEMPLATE,"D. Ladas Copyright © 2013 Jonah Cohen. This is an open access article distributed under the Creative Commons Attribution License, which permits unrest"
+64879,0.00898,31.5,0.0,0.014,30/30, have,11/30,content_word,11,18.3,UNRESOLVED,"Best Academic Advisers452 of 1,391 1965 total reviews with an average rating of 3.6"
+52890,0.00898,29.8,0.0,0.001,30/30,ebra,6/30,subword_continuation,10,2.4,UNRESOLVED,"iphyte - Well, all I know is that I'd like to make a video saying something unpleasant about Mohammad while drawing a quick, cartoonish illustration,"
+16377,0.00771,29.0,0.0,0.019,30/30, distribution,6/30,content_word,15,19.4,UNRESOLVED,"board and there are some features you can't use. If you join our community, you'll be able to access member-only sections, and use many member"
+51185,0.00615,29.0,0.0,0.006,30/30, access,7/30,content_word,14,21.8,UNRESOLVED,"If you are using the site for the first time please register here If you would like access to all 12,000 articles subscribe"
+791,0.0625,27.2,1.91,0.014,29/30, supported,11/30,content_word,11,20.3,UNRESOLVED,sources. This blog is not maintained or supported by the Union Pacific Railroad or its subsidiaries. Copyright © 2012-2104 Wh
+3477,0.00898,26.9,0.78,0.018,30/30,),17/30,punctuation,4,25.5,UNRESOLVED,"January 5, 2013 - 4:13pm Anoushah Rasta (CNN) — (CNN) --"
+46815,0.02598,26.5,0.0,0.054,30/30,.,21/30,punctuation,7,19.9,UNRESOLVED,"locationAll sellers »New! Shop for Books on Google PlayBrowse the world's largest eBookstore and start reading today on the web, tablet, phone,"
+65003,0.01182,25.0,2.41,0.03,30/30, information,18/30,content_word,9,20.7,UNRESOLVED,delay in the publication of your comment. Please be on-topic and appropriate. Do not disclose personal information. Be respectful of other posters. On
+26651,0.00713,24.8,0.0,0.014,30/30,",",8/30,punctuation,10,20.8,UNRESOLVED,"290 p. Audience: General/trade. Ships from: Mankato, MN Gilgamesh: A New English Version (e"
+58069,0.00166,24.0,0.65,0.057,30/30, and,29/30,function_word,2,20.1,UNRESOLVED,"the diagnosis and management of asthma. Bethesda, Md.: National Heart, Lung, and Blood Institute. http://www.nhlbi.nih.gov/guidelines"
+35783,0.03652,23.5,0.0,0.119,30/30,.,25/30,punctuation,3,25.2,UNRESOLVED,Downloads Presentation Slides (pdf) slide backward slide forward -00:00 Your browser doesn't have JavaScript enabled. You must
+42024,0.0084,22.8,0.0,0.011,30/30, your,9/30,function_word,15,21.4,UNRESOLVED,"2, allowing you to identify the sectors driving growth. Forecasts to 2017 illustrate how the market is set to change. Product coverage:"
+15552,0.01777,21.0,1.25,0.154,30/30, here,18/30,content_word,5,24.7,UNRESOLVED,"employment stability, it is no surprise that when Money Magazine published a list of the 100 Best Jobs in America, more than 25 percent"
+20389,0.02236,20.2,1.06,0.001,30/30,"
+",20/30,whitespace,7,19.3,UNRESOLVED,I recently saw the new Sherlock Holmes movie. I thought that it was pretty awesome. jnorm888 Jnorm Icon and Cross (international
+61666,0.43682,18.6,0.0,0.028,23/23, to,8/23,function_word,6,19.1,UNRESOLVED,"'ll need Adobe Digital Editions software to read an Adobe DRM e-book, which can be downloaded for free at adobe.com. PLEASE NOTE: Adobe Digital"
+2929,0.09688,18.2,0.0,0.111,30/30,.com,30/30,content_word,1,20.1,UNRESOLVED,/investplace/quote?Symbol=HALMore on my recommendation of HAL stock can be found here: http://investorplace.com/201
+3718,0.04482,18.2,0.41,0.019,29/30, announcements,4/30,content_word,17,19.0,UNRESOLVED,"7, Number 3 & Announcements Upcoming Extraordinary People Congregational OppsIn the Mark Bits an Item Online"
+10758,0.05117,16.8,1.63,0.017,30/30,},4/30,punctuation,19,18.5,UNRESOLVED,"updated: August 14 2009./g,"">"");l[i].setAttribute(""href"",""mailto:""+t.value);}}catch(e"
+52656,0.44199,14.8,0.0,0.015,30/30,.,5/30,punctuation,13,19.2,UNRESOLVED,"or lose, they’ve been fun and increasingly more populated. The only challenge for me has been keeping up. See you then. Comment Guidelines.SN"
+63282,0.04639,14.4,0.0,0.006,30/30,"
+",22/30,whitespace,7,14.2,UNRESOLVED,chief of state? Weegy: The president's role as chief of state is to: -represent the United States at public events. [ This is
+4312,0.60293,14.0,1.22,0.004,28/28, persona,2/28,content_word,22,21.3,UNRESOLVED,steeped in film noir. His in-depth understanding of the genre enabled him to essay the part perfectly - a thoroughly amoral individual whose apparent 
+46990,0.00811,14.0,0.3,0.01,30/30, Being,7/30,function_word,14,18.4,UNRESOLVED,"had no idea what a midwife really even was when we first met with them.) So last night we watched the documentary, The Business of Being Born,"
+39661,0.07324,10.9,0.95,0.018,16/16, privilege,8/16,content_word,8,21.0,UNRESOLVED,7(1) of the Government Code protects information coming within the attorney-client privilege. See Open Records Decision No. 574 (1
+31326,0.76055,10.6,0.05,0.005,30/30, Aristotle,6/30,capitalized_word,19,21.6,UNRESOLVED,must be taken in an analogical sense here; neither Mind as Aristotle imagines it nor God as the Christian tradition later imagines it can be construed
+60230,0.4873,8.1,0.48,0.0,2/2, from,1/2,function_word,2,18.5,UNRESOLVED,"spend more money fighting them. We tolerate all the pollution that comes from drilling it, refining it and burning it. And to think after all that – w"
+35559,0.50156,7.9,0.13,0.013,12/12,ic,2/12,subword_continuation,10,21.8,UNRESOLVED,"drugs vary with respect to hypoglycemic risk, sulfonylurea receptor selectivity, and effects on myocardial ischemic preconditioning."
+61350,0.09951,7.2,0.0,nan,1/1, no,1/1,content_word,1,23.0,COLLOCATION,it is. Otherwise I could just ask every passenger if they plan on hijacking the plane and if they say no let them be on their merry way and

@@ -1,0 +1,1123 @@
+MAX-ACTIVATING EXAMPLES - BOTTOM 2% OF FEATURES BY CORPUS FIRING RATE
+1315 features fire on <= 0.00869% of tokens (<= 89 hits per 1.02M)
+Each example is a 32-token window; ">>>" marks the peak-activating token.
+
+====================================================================================================
+FEATURE 726   fires 0.00068% (7 of 1.02M tokens)   corpus peak 222.0
+====================================================================================================
+  [1] act 222.0
+      '<|im_end|> Sears or have the labels licensed in new geographies. Select Costco Wholesale Corp. /'
+      >>> 'quotes' <<<
+      '/zigman/67728/delayed/'
+  [2] act 219.0
+      '<|im_end|> rises; revenue gains\n(5:16 PM ET) SAN FRANCISCO (MarketWatch) -- Micrel Inc. /'
+      >>> 'quotes' <<<
+      '/zigman'
+  [3] act 219.0
+      '<|im_end|> drops; revenue rises\n(4:22 PM ET) SAN FRANCISCO (MarketWatch) -- Federated Investors Inc. /'
+      >>> 'quotes' <<<
+      '/zig'
+  [4] act 219.0
+      '<|im_end|>; results miss analyst estimates\n(4:49 PM ET) SAN FRANCISCO (MarketWatch) -- Genworth Financial /'
+      >>> 'quotes' <<<
+      '/zigman'
+  [5] act 218.0
+      "<|im_end|>Lennox Int'l earnings decline\n(8:49 AM ET) NEW YORK (MarketWatch) -- Lennox International Inc. /"
+      >>> 'quotes' <<<
+      '/zig'
+  [6] act 218.0
+      '<|im_end|>9:00 AM ET) BOSTON (MarketWatch) -- M/I Homes Inc. /'
+      >>> 'quotes' <<<
+      '/zigman/13202'
+
+====================================================================================================
+FEATURE 3668   fires 0.00068% (7 of 1.02M tokens)   corpus peak 100.0
+====================================================================================================
+  [1] act 100.0
+      '<|im_end|> Yale Center for the Study of Globalization\nEmail | Print | Share\nRelated Topics: Kim Jong-un, North Korea, Sign up |'
+      >>> ' Sign' <<<
+      ' in Please'
+  [2] act 85.0
+      '<|im_end|> to end premature birth.\nMy ZIP code:\nEdit my location\nSign in or'
+      >>> ' Sign' <<<
+      ' up to edit location.\nMarch for Babies® blog\nWhen you walk'
+  [3] act 84.0
+      '<|im_end|> your friends you are helping to end premature birth.\nMy ZIP code:\nEdit my location\nSign in or'
+      >>> ' Sign' <<<
+      ' up to edit location.\nMarch for Babies®'
+  [4] act 82.0
+      '<|im_end|>Share the loveTweetReport a BugSubmit bug reportNext5 Pages:12312345GoLogin or'
+      >>> ' Sign' <<<
+      ' UpStoriesPoemsStory'
+  [5] act 74.0
+      '<|im_end|>, 2009 - 18:06 Log in or'
+      >>> ' sign' <<<
+      ' up? Tuesday, November 17, 2009'
+  [6] act 73.0
+      '<|im_end|>47\nMost Loved Vintage<|im_end|>Hello guest register or'
+      >>> ' sign' <<<
+      ' in or with: Groups - lilmods\nlilmods\nlIl. joined Jan '
+
+====================================================================================================
+FEATURE 47401   fires 0.00078% (8 of 1.02M tokens)   corpus peak 151.0
+====================================================================================================
+  [1] act 151.0
+      '<|im_end|>land" has gotten the ax, and its second season wasn\'t even due to start airing for another week. Zap'
+      >>> '2' <<<
+      'it is also confirming the cancellation,'
+  [2] act 149.0
+      "<|im_end|> ax, and its second season wasn't even due to start airing for another week. Zap"
+      >>> '2' <<<
+      'it is also confirming the cancellation, and saying six new episodes'
+  [3] act 129.0
+      '<|im_end|>bloomberg.net\nTo contact the editor'
+      >>> ' responsible' <<<
+      ' for this story: Anthony Palazzo at apalazzobloomberg.net<|im_end|>---- — MONDAY 29'
+  [4] act 127.0
+      '<|im_end|> reporter on this story: Cliff Edwards in San Francisco at cedwards28bloomberg.net\nTo contact the editor'
+      >>> ' responsible' <<<
+      ' for this story: Anthony Pal'
+  [5] act 46.5
+      '<|im_end|> requirements. If you have any questions about this report or wish to contact GAO officials'
+      >>> ' responsible' <<<
+      ' for the evaluation work relating to the subject matter of the rule,'
+  [6] act 45.0
+      '<|im_end|> of Engineering, and the Institute of Medicine. The members of the committee'
+      >>> ' responsible' <<<
+      ' for the report were chosen for their special competences and with regard for appropriate balance'
+
+====================================================================================================
+FEATURE 46080   fires 0.00098% (10 of 1.02M tokens)   corpus peak 201.0
+====================================================================================================
+  [1] act 201.0
+      "<|im_end|>'s likely they'll have Byron Leftwich at quarterback, backed up by Charlie Batch. Roeth"
+      >>> 'lis' <<<
+      'berger is officially listed as questionable for the game, but'
+  [2] act 201.0
+      '<|im_end|> the Steelers? The big question last week was who other than Roeth'
+      >>> 'lis' <<<
+      "berger was the team's most valuable player at the mid-point of the season."
+  [3] act 200.0
+      '<|im_end|> touchdown pass from Ben Roeth'
+      >>> 'lis' <<<
+      "berger to Jerricho Cotchery to make it 22-20, Roethlisberger's "
+  [4] act 200.0
+      "<|im_end|> that spanned Neil O'Donnell to Ben Roeth"
+      >>> 'lis' <<<
+      'berger and featured six AFC championship appearances. The difference is that four of those were losses,'
+  [5] act 200.0
+      '<|im_end|> with Byron Leftwich under center and minus Roeth'
+      >>> 'lis' <<<
+      'berger and receiver Antonio Brown. Leftwich completed less than 50 percent of his passes (1'
+  [6] act 199.0
+      '<|im_end|> home in Byron Leftwich’s first game as the starter in place of Roeth'
+      >>> 'lis' <<<
+      'berger just two weeks ago.\n“It’s not emotionally hard to get back'
+
+====================================================================================================
+FEATURE 2882   fires 0.00117% (12 of 1.02M tokens)   corpus peak 196.0
+====================================================================================================
+  [1] act 196.0
+      '<|im_end|> Fox News __________________ I dream of a day when a chicken can cross the road without having their motives questioned. alh1020 View'
+      >>> ' Public' <<<
+      ' Profile Find'
+  [2] act 195.0
+      '<|im_end|> without having their motives questioned. alh1020 View'
+      >>> ' Public' <<<
+      ' Profile Find all posts by alh1020<|im_end|>Man gets 10'
+  [3] act 105.0
+      '<|im_end|>0 points in the last 17games in San Antonio.\nATHENEA View'
+      >>> ' Public' <<<
+      ' Profile Find all posts by ATHENEA<|im_end|>Mercyful Fate'
+  [4] act 103.0
+      '<|im_end|>100 points in the last 17games in San Antonio.\nATHENEA View'
+      >>> ' Public' <<<
+      ' Profile Find all posts by ATHENEA<|im_end|>Mercy'
+  [5] act 73.0
+      '<|im_end|> Visit'
+      >>> ' Public' <<<
+      ' Invasion channel 1/15\n[url=http://www.deviantclip.com/watch/sexy-cougar-flashes-her-boobs-and'
+  [6] act 68.0
+      '<|im_end|> | contribs)\u200e .'
+      >>> ' .' <<<
+      ' (3,476 bytes) (+10)\u200e\n(cur | prev) 11:14'
+
+====================================================================================================
+FEATURE 23273   fires 0.00117% (12 of 1.02M tokens)   corpus peak 157.0
+====================================================================================================
+  [1] act 157.0
+      '<|im_end|> for Kanye West in LAX pap'
+      >>> 'ar' <<<
+      'azzi scuffle\nFILE - In a Monday, May 7, 2012 file photo, Kanye'
+  [2] act 156.0
+      '<|im_end|> Detroit after originally being slated for Wednesday.<|im_end|>No charge for Kanye West in LAX pap'
+      >>> 'ar' <<<
+      'azzi scuffle\nFILE - In a Monday, May '
+  [3] act 153.0
+      '<|im_end|> romance with A-list actress Renee Zellweger became more and more a pap'
+      >>> 'ar' <<<
+      'azzi attraction, especially as his star ascended. The high-profile'
+  [4] act 152.0
+      '<|im_end|>ino.\nResponse to Miley Cyrus Totally Owned A Pap'
+      >>> 'ar' <<<
+      'azzo And It Was Great:\n“No, I’m fucking sick, you bitch.” Not, “'
+  [5] act 150.0
+      '<|im_end|> his clothing. Ron Galella pap'
+      >>> 'ar' <<<
+      'azzi shots survey the $1,800 dresses in his Michael Kors stores, and his designs are inspired'
+  [6] act 149.0
+      '<|im_end|> Thailand. They were also wearing their wedding rings.\nAnd when a pap'
+      >>> 'ar' <<<
+      'azzi scumbag said, quote, "Look at you guys together!" .'
+
+====================================================================================================
+FEATURE 24713   fires 0.00117% (12 of 1.02M tokens)   corpus peak 45.0
+====================================================================================================
+  [1] act 45.0
+      '<|im_end|> for redistribution. Please do not share this page with any other party. Thank you for your consideration!\nMercola Social Responsibility\n* These statements have not'
+      >>> ' been' <<<
+      ''
+  [2] act 43.5
+      '<|im_end|> more information. This article is copied from an article on Wikipedia.org - the free encyclopedia created and edited by online user community. The text was'
+      >>> ' not' <<<
+      ' checked or'
+  [3] act 43.0
+      '<|im_end|> This report has not'
+      >>> ' been' <<<
+      ' published by the Department. Opinions or points of view expressed are those of the author(s) and do not necessarily reflect the official'
+  [4] act 41.0
+      "<|im_end|>. restaurants and 1,905 Hardee's\nrestaurants.News and information presented in this release has not"
+      >>> ' been' <<<
+      ' corroborated by QSR, Food'
+  [5] act 39.0
+      '<|im_end|>) 750\n**Daily value'
+      >>> ' not' <<<
+      ' established. �\nOther Ingredients: Cellulose, Stearic Acid (vegetable source), Sil'
+  [6] act 38.5
+      '<|im_end|> States.News and information presented in this release has not'
+      >>> ' been' <<<
+      ' corroborated by QSR, Food News Media, or Journalistic, Inc.View the discussion thread.'
+
+====================================================================================================
+FEATURE 56151   fires 0.00117% (12 of 1.02M tokens)   corpus peak 131.0
+====================================================================================================
+  [1] act 131.0
+      '<|im_end|>land" has gotten the ax, and its second season wasn\'t even due to start airing for another week. Zap'
+      >>> '2' <<<
+      'it is also confirming the cancellation,'
+  [2] act 129.0
+      "<|im_end|> ax, and its second season wasn't even due to start airing for another week. Zap"
+      >>> '2' <<<
+      'it is also confirming the cancellation, and saying six new episodes'
+  [3] act 73.5
+      '<|im_end|> on Tuesday, January 15, 2013 at 05:32 PM in Sports | Permalink\nTrackBack URL'
+      >>> ' for' <<<
+      ''
+  [4] act 72.0
+      '<|im_end|>, Patient Safety, Supreme Court, Texas, Victims | Permalink\nTrackBack URL'
+      >>> ' for' <<<
+      ' this entry:http://www.typepad.com/services/trackback/'
+  [5] act 72.0
+      '<|im_end|> Affairs, Federal Issues, Medical Malpractice, News, Patient Safety, Supreme Court, Texas, Victims | Permalink\nTrackBack URL'
+      >>> ' for' <<<
+      ' this entry:http'
+  [6] act 71.5
+      '<|im_end|> | Permalink\nTrackBack URL'
+      >>> ' for' <<<
+      ' this entry:http://www.typepad.com/services/trackback/6a00d8341caf'
+
+====================================================================================================
+FEATURE 2204   fires 0.00127% (13 of 1.02M tokens)   corpus peak 28.8
+====================================================================================================
+  [1] act 28.8
+      '<|im_end|>, Kentucky, Louisiana, Maine, Maryland, Massachusetts, Michigan, Minnesota, Mississippi, Missouri'
+      >>> ',' <<<
+      ' Montana, Nebraska, Nevada, New Hampshire, New Jersey,'
+  [2] act 28.2
+      '<|im_end|>, Indiana, Iowa, Kansas, Kentucky, Louisiana, Maine, Maryland, Massachusetts, Michigan, Minnesota, Mississippi, Missouri'
+      >>> ',' <<<
+      ' Montana, Nebraska, Nevada,'
+  [3] act 28.2
+      '<|im_end|>, Kansas, Kentucky, Louisiana, Maine, Maryland, Massachusetts, Michigan, Minnesota, Mississippi, Missouri'
+      >>> ',' <<<
+      ' Montana, Nebraska, Nevada, New Hampshire, New'
+  [4] act 27.2
+      '<|im_end|>, Kentucky, Maine, Maryland, Massachusetts, Michigan, Minnesota, Mississippi, Missouri'
+      >>> ',' <<<
+      ' Montana, Nebraska, Nevada, New Hampshire, New Jersey, New Mexico'
+  [5] act 27.2
+      '<|im_end|>, Michigan, Minnesota, Mississippi, Missouri'
+      >>> ',' <<<
+      ' Montana, Nebraska, Nevada, New Hampshire, New Jersey, New Mexico, New York, North Carolina, North'
+  [6] act 26.8
+      '<|im_end|> Illinois, Indiana, Iowa, Kansas, Kentucky, Louisiana, Maine, Maryland, Massachusetts, Michigan, Minnesota, Mississippi, Missouri'
+      >>> ',' <<<
+      ' Montana, Nebraska, Nevada'
+
+====================================================================================================
+FEATURE 33595   fires 0.00127% (13 of 1.02M tokens)   corpus peak 153.0
+====================================================================================================
+  [1] act 153.0
+      '<|im_end|>99 at DePaul)\u2008and Eddie Griffin (2000-01 at Set'
+      >>> 'on' <<<
+      ' Hall), like Durant and Anthony, were also'
+  [2] act 152.0
+      '<|im_end|>ott. He is a 2006 graduate of Set'
+      >>> 'on' <<<
+      ' Catholic Central where...<|im_end|>Creative Thinking for Creative Development\nBy: Laura Gibbs Updated:'
+  [3] act 150.0
+      '<|im_end|>anton, I\'d be more than happy to sit with all the stakeholders and work for a solution I believe is available."\nA professor at Set'
+      >>> 'on' <<<
+      ' Hall University'
+  [4] act 150.0
+      '<|im_end|> a solution I believe is available."\nA professor at Set'
+      >>> 'on' <<<
+      " Hall University's Stillman School of Business, Mr. Amoroso is an attorney with the"
+  [5] act 150.0
+      '<|im_end|>)\u2008and Eddie Griffin (2000-01 at Set'
+      >>> 'on' <<<
+      ' Hall), like Durant and Anthony, were also named the National Freshman'
+  [6] act 149.0
+      '<|im_end|>, Mississippi, South FloridaLast Four OutGeorgia Tech, Set'
+      >>> 'on' <<<
+      ' Hall, Illinois, Arizona StateNext Four OutMinnesota, Mississippi State, Saint Louis, U'
+
+====================================================================================================
+FEATURE 29608   fires 0.00137% (14 of 1.02M tokens)   corpus peak 147.0
+====================================================================================================
+  [1] act 147.0
+      '<|im_end|>804 Salem Church Road.\nOnline condolences may be directed to www.shumate-faulk.com.\nArrangements'
+      >>> ' are' <<<
+      ' being handled by Shum'
+  [2] act 145.0
+      '<|im_end|> other expressions of sympathy may be directed to the family via our guestbook at www.roseandquesenberry.net.\nArrangements'
+      >>> ' are' <<<
+      ' by Rose and'
+  [3] act 140.0
+      '<|im_end|> a.m. CST in the funeral home chapel. Burial will be in the McGlothen Cemetery. Arrangements'
+      >>> ' are' <<<
+      ' by Standefer-Reed'
+  [4] act 139.0
+      '<|im_end|> no public visitation or services. Interment will be in National Cemetery of the Alleghenies, Cecil Township. Arrangements'
+      >>> ' are' <<<
+      ' entrusted to S'
+  [5] act 137.0
+      '<|im_end|> in Walnut Hills Cemetery, Petersburg.\nVisitation is after 10 a.m. Friday at the church.\nArrangements'
+      >>> ' are' <<<
+      ' being made through Harris Funeral'
+  [6] act 137.0
+      '<|im_end|>, PA 15110. A reception of family and friends will be held one hour prior to the service. Arrangements'
+      >>> ' are' <<<
+      ' being handled'
+
+====================================================================================================
+FEATURE 56733   fires 0.00137% (14 of 1.02M tokens)   corpus peak 31.6
+====================================================================================================
+  [1] act 31.6
+      '<|im_end|> D. Ladas Copyright © 2013 Jonah Cohen. This is an open access article distributed under the Creative Commons Attribution License, which permits'
+      >>> ' unrestricted' <<<
+      ''
+  [2] act 29.9
+      '<|im_end|>h and Sami T. Azar. This is an open access article distributed under the Creative Commons Attribution License, which permits'
+      >>> ' unrestricted' <<<
+      ' use, distribution, and'
+  [3] act 29.6
+      '<|im_end|>o Gomes et al. This is an open access article distributed under the Creative Commons Attribution License, which permits'
+      >>> ' unrestricted' <<<
+      ' use, distribution, and reproduction in any'
+  [4] act 29.6
+      '<|im_end|>13 Zofia Bakuła et al. This is an open access article distributed under the Creative Commons Attribution License, which permits'
+      >>> ' unrestricted' <<<
+      ' use, distribution'
+  [5] act 29.6
+      '<|im_end|>ana et al. This is an open access article distributed under the Creative Commons Attribution License, which permits'
+      >>> ' unrestricted' <<<
+      ' use, distribution, and reproduction in any medium,'
+  [6] act 29.4
+      '<|im_end|> © 2012 Ting Li et al. This is an open access article distributed under the Creative Commons Attribution License, which permits'
+      >>> ' unrestricted' <<<
+      ' use, distribution'
+
+====================================================================================================
+FEATURE 64475   fires 0.00137% (14 of 1.02M tokens)   corpus peak 137.0
+====================================================================================================
+  [1] act 137.0
+      '<|im_end|> eliciting the gasps and condemnation it warrants.\nArticle printed from Antiwar.com Blog: http://antiwar.com/blog\nURL to'
+      >>> ' article' <<<
+      ': http://'
+  [2] act 137.0
+      '<|im_end|> represents, not berating them.\nArticle printed from The Progressive Pulse: http://pulse.ncpolicywatch.org\nURL to'
+      >>> ' article' <<<
+      ': http://pulse.ncpolicy'
+  [3] act 136.0
+      '<|im_end|> passenger rail system have got to be laughing at us.”\nArticle printed from Streetsblog USA: http://usa.streetsblog.org\nURL to'
+      >>> ' article' <<<
+      ':'
+  [4] act 136.0
+      '<|im_end|> with an M.S. in Management in 1994. Contact Bill\nBrian'
+      >>> ' McN' <<<
+      'amara, M.B.A.\nRegional Director, External Wh'
+  [5] act 135.0
+      '<|im_end|> King, Knight, Lee, McCutcheon,\nMcLaughlin, McNealy,'
+      >>> ' McN' <<<
+      'ees, Marston, Metcalf,\nNerland,'
+  [6] act 131.0
+      '<|im_end|>cher, Knight, Londborg, McCutcheon,\nMcLaughlin,'
+      >>> ' McN' <<<
+      'ees, Marston, Metcalf, Nerland,\nNord'
+
+====================================================================================================
+FEATURE 22644   fires 0.00146% (15 of 1.02M tokens)   corpus peak 73.5
+====================================================================================================
+  [1] act 73.5
+      '<|im_end|> our teammates and his friends at this time."\nCopyright 2014 USATODAY.comRead the'
+      >>> ' original' <<<
+      ' story: For Josh Brent, manslaughter charge'
+  [2] act 73.0
+      '<|im_end|> have a terrific game. ...We didn\'t hold our end of the bargain."\nCopyright 2014 USATODAY.comRead the'
+      >>> ' original' <<<
+      ' story'
+  [3] act 71.5
+      '<|im_end|> we did, it\'s just unfortunate we didn\'t take advantage of it."\nCopyright 2014 USATODAY.comRead the'
+      >>> ' original' <<<
+      ' story:'
+  [4] act 71.0
+      '<|im_end|> natural aging process, the passage of history," he said.\nCopyright 2014 USATODAY.comRead the'
+      >>> ' original' <<<
+      ' story: Pearl Harbor memories'
+  [5] act 71.0
+      '<|im_end|> in the past stood in the way of progress but now can be addressed through dialogue."\nCopyright 2014 USATODAY.comRead the'
+      >>> ' original' <<<
+      ''
+  [6] act 70.5
+      '<|im_end|> takes a full team effort to get us there where it needs to be."\nCopyright 2014 USATODAY.comRead the'
+      >>> ' original' <<<
+      ' story:'
+
+====================================================================================================
+FEATURE 35820   fires 0.00146% (15 of 1.02M tokens)   corpus peak 138.0
+====================================================================================================
+  [1] act 138.0
+      '<|im_end|> or future use or will they remember that the world stood aside and created impunity?\n18.1'
+      >>> '0' <<<
+      ' He says other countries are watching to see what the'
+  [2] act 132.0
+      "<|im_end|>' current or future use or will they remember that the world stood aside and created impunity?\n18.1"
+      >>> '0' <<<
+      ' He says other countries are watching to see'
+  [3] act 72.5
+      '<|im_end|>.18.1'
+      >>> '0' <<<
+      '\nNew Clues to the Earliest Signs of Autism Spectrum Disorders<|im_end|>> Awareness, Fundraising\t> I’m not running'
+  [4] act 70.0
+      '<|im_end|>218.1'
+      >>> '0' <<<
+      '6.84)\nMay 9, 2004 at 2:25:40 PM\n'
+  [5] act 69.0
+      "<|im_end|> prized target for the Rockets organization and a step the fan base could be on board with.<|im_end|>Discussion in 'General Discussion'"
+      >>> ' started' <<<
+      ' by dcd_enterprises'
+  [6] act 68.5
+      "<|im_end|> be a prized target for the Rockets organization and a step the fan base could be on board with.<|im_end|>Discussion in 'General Discussion'"
+      >>> ' started' <<<
+      ' by dcd'
+
+====================================================================================================
+FEATURE 37031   fires 0.00146% (15 of 1.02M tokens)   corpus peak 195.0
+====================================================================================================
+  [1] act 195.0
+      '<|im_end|> weeks in a row, she said, comments that politicians — including Cory Booker, Jamie Dimon and Joe Biden — made on the TV program Meet'
+      >>> ' The' <<<
+      ' Press'
+  [2] act 194.0
+      '<|im_end|> any difference between lame morning talk shows, the nightly news, and Meet'
+      >>> ' the' <<<
+      ' Press. The MSM are there to help the president and his party.20'
+  [3] act 193.0
+      '<|im_end|> politicians — including Cory Booker, Jamie Dimon and Joe Biden — made on the TV program Meet'
+      >>> ' The' <<<
+      ' Press became a national story thanks to the power of social'
+  [4] act 193.0
+      '<|im_end|>oe trutherism" is a thing because conservatives...\nBehind the Ad: Did someone say "boner"?\nSecretary Sebelius on Meet'
+      >>> ' the' <<<
+      ' Press'
+  [5] act 192.0
+      "<|im_end|>he smokes, doesn't he?\nThere's hardly any difference between lame morning talk shows, the nightly news, and Meet"
+      >>> ' the' <<<
+      ' Press. The MSM are'
+  [6] act 189.0
+      '<|im_end|> withdrawal -- the deadline in Afghanistan -- in the past few months. Just three weeks ago, he told Meet'
+      >>> ' The' <<<
+      " Press -- NBC's Meet The Press -- that"
+
+====================================================================================================
+FEATURE 45218   fires 0.00146% (15 of 1.02M tokens)   corpus peak 41.0
+====================================================================================================
+  [1] act 41.0
+      '<|im_end|> our website\nGet tomorrow'
+      >>> "'s" <<<
+      " intelligence,not yesterday's news.\nGet our free weekly Intelligence Reports\nJoin over 350,000 readers"
+  [2] act 40.0
+      '<|im_end|> example.\nFrom the print edition Recommend15\nWant more? Subscribe to The Economist and get the week'
+      >>> "'s" <<<
+      ' most relevant news and analysis. Print<|im_end|>S'
+  [3] act 39.2
+      "<|im_end|>US's example.\nFrom the print edition Recommend15\nWant more? Subscribe to The Economist and get the week"
+      >>> "'s" <<<
+      ' most relevant news and analysis. Print'
+  [4] act 38.2
+      '<|im_end|> any amount.\nBrain Pickings has a free weekly newsletter. It comes out on Sundays and offers the week'
+      >>> '’s' <<<
+      ' best articles. Here’s what to expect.'
+  [5] act 38.0
+      '<|im_end|> speakers.\nBrain Pickings has a free weekly newsletter. It comes out on Sundays and offers the week'
+      >>> '’s' <<<
+      ' best articles. Here’s what to expect. Like'
+  [6] act 38.0
+      '<|im_end|>-read books by TED 2011 speakers.\nBrain Pickings has a free weekly newsletter. It comes out on Sundays and offers the week'
+      >>> '’s' <<<
+      ' best'
+
+====================================================================================================
+FEATURE 49397   fires 0.00146% (15 of 1.02M tokens)   corpus peak 108.0
+====================================================================================================
+  [1] act 108.0
+      '<|im_end|> with Christian L'
+      >>> 'oub' <<<
+      'outin heels and Chanel 2.55 bags, as women try to befriend club goers who are lucky enough to get'
+  [2] act 106.0
+      '<|im_end|> Pangaea.\nTight-fitting Herve Leger bandage dresses are practically a uniform here, often paired with Christian L'
+      >>> 'oub' <<<
+      'outin heels and Chanel'
+  [3] act 92.5
+      '<|im_end|> led the Wings with 3 hits; Tatar and Bertuzzi had 2; Kindl, Alfredsson, Dats'
+      >>> 'y' <<<
+      'uk, Zetterberg'
+  [4] act 92.0
+      '<|im_end|> finished at -1.\nPoints: Zetterberg scored a goal; Abdelkader and Dats'
+      >>> 'y' <<<
+      'uk had assists.\nIce time: Kronwall led'
+  [5] act 92.0
+      '<|im_end|>k L'
+      >>> 'oub' <<<
+      'ani, were detained over a month ago while filming at a Brotherhood protest after curfew. They are in Tora prison on the outskirts of'
+  [6] act 92.0
+      '<|im_end|>: Zetterberg led the team with 4 shots; Kindl had 3; Abdelkader, Dats'
+      >>> 'y' <<<
+      'uk, Miller, Emmerton'
+
+====================================================================================================
+FEATURE 50944   fires 0.00146% (15 of 1.02M tokens)   corpus peak 91.5
+====================================================================================================
+  [1] act 91.5
+      '<|im_end|>, express or implied, including the warranties of'
+      >>> ' merchant' <<<
+      'ability and fitness for a particular purpose; nor assumes any legal liability or responsibility for the accuracy, completeness,'
+  [2] act 89.5
+      '<|im_end|> or implied, including, but not limited to, implied warranties of'
+      >>> ' merchant' <<<
+      'ability and fitness for a particular purpose. The Tribune Chronicle does not warrant that this website'
+  [3] act 87.0
+      '<|im_end|> page, neither the United States Government nor any of its employees, makes any warranty, express or implied, including the warranties of'
+      >>> ' merchant' <<<
+      'ability and fitness for a'
+  [4] act 80.5
+      '<|im_end|> liability or any other theory of liability. Pioneer Electronics (USA), Inc. disclaims implied warranties of'
+      >>> ' merchant' <<<
+      'ability and fitness for a particular purpose.\nMedia Support'
+  [5] act 79.5
+      '<|im_end|>claims all warranties, expressed or implied, including, but not limited to, implied warranties of'
+      >>> ' merchant' <<<
+      'ability and fitness for a particular purpose. The Tribune Chronicle does'
+  [6] act 78.5
+      '<|im_end|> Electronics (USA), Inc. disclaims implied warranties of'
+      >>> ' merchant' <<<
+      'ability and fitness for a particular purpose.\nMedia Support List\nFrequently Asked Questions for the B'
+
+====================================================================================================
+FEATURE 51509   fires 0.00146% (15 of 1.02M tokens)   corpus peak 158.0
+====================================================================================================
+  [1] act 158.0
+      '<|im_end|> Hospital.\nShe was preceded in death by one daughter, Cathy L. Thorsett.\nShe'
+      >>> ' is' <<<
+      ' survived by one son and four grandchildren.\nInterment was in'
+  [2] act 158.0
+      '<|im_end|>iamisburg, Ohio.\nOther than his parents, he was preceded in death by one brother, Jack Grant.\nHe'
+      >>> ' is' <<<
+      ' survived by: his son,'
+  [3] act 156.0
+      '<|im_end|> Franklin Square Hospital.\nShe was preceded in death by one daughter, Cathy L. Thorsett.\nShe'
+      >>> ' is' <<<
+      ' survived by one son and four grandchildren.\nInterment'
+  [4] act 143.0
+      '<|im_end|> enjoyed the company of her family very much. She was a member of St. Francis De Sales Catholic Church in Geneva. She'
+      >>> ' is' <<<
+      ' survived by her daughter,'
+  [5] act 142.0
+      '<|im_end|>, Inc., and also worked at Hurd Lock in Adrian. She was a member of the V.F.W. Auxiliary in Adrian.\nShe'
+      >>> ' is' <<<
+      ' survived by'
+  [6] act 142.0
+      '<|im_end|>sville, was preceded in death by his parents, Wilson and Jessie Carver. He'
+      >>> ' is' <<<
+      ' survived by two daughters, Magan Carver of Lexington, and'
+
+====================================================================================================
+FEATURE 52963   fires 0.00146% (15 of 1.02M tokens)   corpus peak 99.0
+====================================================================================================
+  [1] act 99.0
+      '<|im_end|>backs are On Refbacks are On Forum Rules Similar Threads Thread Thread Starter Forum'
+      >>> ' Replies' <<<
+      ' Last Post Strange Noise 99bmw 5-Series (E1'
+  [2] act 92.0
+      '<|im_end|> HTML code is OffTrackbacks are On Pingbacks are On Refbacks are On Forum Rules Similar Threads Thread Thread Starter Forum'
+      >>> ' Replies' <<<
+      ' Last Post Strange Noise 9'
+  [3] act 88.0
+      '<|im_end|> Ads Go Away!\nAll times are GMT -4. The time'
+      >>> ' now' <<<
+      ' is 03:15 AM. Home | Contact Us | Community Rules |'
+  [4] act 86.0
+      '<|im_end|> page Page 2 of 2 First 12 Jump to page: All times are GMT +1. The time'
+      >>> ' now' <<<
+      ' is 09:0'
+  [5] act 83.0
+      '<|im_end|> Cannabis.com Default Style\nfree porn Contact Us\nCannabis.com\namateur porn All times are GMT -5. The time'
+      >>> ' now' <<<
+      ' is 0'
+  [6] act 83.0
+      '<|im_end|>1 72 73 74 › All times are GMT -6. The time'
+      >>> ' now' <<<
+      ' is 01:50 AM.<|im_end|>'
+
+====================================================================================================
+FEATURE 58537   fires 0.00146% (15 of 1.02M tokens)   corpus peak 169.0
+====================================================================================================
+  [1] act 169.0
+      '<|im_end|> in the Senate.\tSHOWS: World News\nblog'
+      >>> ' comments' <<<
+      " powered by Disqus\tAbout The NoteThroughout the day, ABC News' political team contributes to"
+  [2] act 162.0
+      '<|im_end|>mmaker, Independent Filmmaker, Sundance Film Festival\nblog'
+      >>> ' comments' <<<
+      ' powered by Disqus Latest Videos\nTen Days Of Different\tSundance Film Festival\nS'
+  [3] act 160.0
+      '<|im_end|>, Filmmaker, Independent Filmmaker, Sundance Film Festival\nblog'
+      >>> ' comments' <<<
+      ' powered by Disqus Latest Videos\nTen Days Of Different\tSundance Film Festival'
+  [4] act 158.0
+      '<|im_end|>HOWS: World News\nblog'
+      >>> ' comments' <<<
+      " powered by Disqus\tAbout The NoteThroughout the day, ABC News' political team contributes to The Note with the very"
+  [5] act 156.0
+      '<|im_end|> before reaching a firm conclusion and see what subsequent measurements show. On abortion, especially, we still need to watch this space. Email\nblog'
+      >>> ' comments' <<<
+      ' powered by'
+  [6] act 154.0
+      '<|im_end|> Woolf | Discussions\nblog'
+      >>> ' comments' <<<
+      ' powered by Disqus Related Articles\nCarriage Horse Hatred: A...\nWhat is wrong with putting teeth in...\nThe Retail'
+
+====================================================================================================
+FEATURE 60198   fires 0.00146% (15 of 1.02M tokens)   corpus peak 232.0
+====================================================================================================
+  [1] act 232.0
+      '<|im_end|> Discussion papers, Economy - USA, Financial markets | Permalink\nTrackBack'
+      >>> ' URL' <<<
+      ' for this entry:http://www.typepad.com/services/trackback/6'
+  [2] act 227.0
+      '<|im_end|> Affairs, Federal Issues, Medical Malpractice, News, Patient Safety, Supreme Court, Texas, Victims | Permalink\nTrackBack'
+      >>> ' URL' <<<
+      ' for this entry:http'
+  [3] act 224.0
+      '<|im_end|> on Tuesday, January 15, 2013 at 05:32 PM in Sports | Permalink\nTrackBack'
+      >>> ' URL' <<<
+      ' for'
+  [4] act 224.0
+      '<|im_end|>, Patient Safety, Supreme Court, Texas, Victims | Permalink\nTrackBack'
+      >>> ' URL' <<<
+      ' for this entry:http://www.typepad.com/services/trackback/'
+  [5] act 222.0
+      '<|im_end|> Sunday.\nTrackBack'
+      >>> ' URL' <<<
+      ' for this entry: http:/<|im_end|>Police Report: Sept. 24\nBAYSIDE A 25-year-old West'
+  [6] act 222.0
+      '<|im_end|>: Christmas choristers, brass, and organ at Trinity Episcopal Church, Friday and Sunday.\nTrackBack'
+      >>> ' URL' <<<
+      ' for this entry: http:/<|im_end|>Police Report:'
+
+====================================================================================================
+FEATURE 6906   fires 0.00156% (16 of 1.02M tokens)   corpus peak 144.0
+====================================================================================================
+  [1] act 144.0
+      '<|im_end|> found this review helpful)Was this review helpful?'
+      >>> ' Yes' <<<
+      ' / No - You may also flag this reviewDisplaying review 1Back to top\nVPX'
+  [2] act 143.0
+      '<|im_end|> to a friend(4 of 6 customers found this review helpful)Was this review helpful?'
+      >>> ' Yes' <<<
+      ' / No - You may also flag this reviewDisplaying'
+  [3] act 133.0
+      '<|im_end|> Pathfinder and understood its work, I am certain contributions would increase. Was this review helpful?'
+      >>> ' Yes' <<<
+      '\nLogin to post a comment\tReview from Guidestar\tT'
+  [4] act 131.0
+      '<|im_end|> a sensitive manner. If more Americans knew about Pathfinder and understood its work, I am certain contributions would increase. Was this review helpful?'
+      >>> ' Yes' <<<
+      '\nLogin to'
+  [5] act 100.0
+      '<|im_end|> their songs and sang along. IT was such a fun concert!Was this review helpful to you?'
+      >>> ' Yes' <<<
+      '/No- You may also flag this review.\n'
+  [6] act 72.0
+      '<|im_end|> down the lyrics and have song all of there songs they have made and there just a great insperation to me.Was this review helpful to you?'
+      >>> ' Yes' <<<
+      ''
+
+====================================================================================================
+FEATURE 12368   fires 0.00156% (16 of 1.02M tokens)   corpus peak 44.8
+====================================================================================================
+  [1] act 44.8
+      "<|im_end|> It's more Key West than Amityville, and guests are more likely to stop by in search of lunch specials and half-off"
+      >>> ' happy' <<<
+      ' hour drinks than they'
+  [2] act 44.8
+      '<|im_end|> play on holding events at their storefront, from cupcake'
+      >>> ' happy' <<<
+      ' hours, to cake decorating classes, to lady\'s night out."There is a lot in the'
+  [3] act 43.5
+      '<|im_end|> lunch specials and half-off'
+      >>> ' happy' <<<
+      ' hour drinks than they are g-g-g-ghosts. On the weekends, the main sound is not the screams of ghost'
+  [4] act 42.0
+      '<|im_end|>y bench where you take a hike up toward the rim, or enjoy the world-class fishing, or just kick back for a'
+      >>> ' happy' <<<
+      ' hour drink while you watch'
+  [5] act 41.2
+      '<|im_end|>:00 pm Bring your out-of-town guests to ART AFTER DARK in Eden Park for'
+      >>> ' happy' <<<
+      ' hour and after hours in the galleries. Docent-led tours'
+  [6] act 38.5
+      '<|im_end|> and $15-$28 by the bottle; liquor, $5-$9.50.'
+      >>> ' Happy' <<<
+      ' hour is 4 to 7 p.m'
+
+====================================================================================================
+FEATURE 17672   fires 0.00156% (16 of 1.02M tokens)   corpus peak 102.0
+====================================================================================================
+  [1] act 102.0
+      "<|im_end|> they do? I doubt I'll ever know.\nIn memory of all of the 9/11 victims. Rest"
+      >>> ' in' <<<
+      ' Peace.\nCarolSeptember 1'
+  [2] act 101.5
+      '<|im_end|> and friends will miss him greatly. We love and miss you Chris. Rest'
+      >>> ' in' <<<
+      ' peace.Elizabeth Newman of Calhoun, Georgia This is such a tragic'
+  [3] act 99.5
+      '<|im_end|>.\nIn memory of all of the 9/11 victims. Rest'
+      >>> ' in' <<<
+      ' Peace.\nCarolSeptember 11, 2010 at '
+  [4] act 99.0
+      '<|im_end|> Hotmail, we hardly knew ye.\nRest'
+      >>> ' in' <<<
+      ' peace Hotmail - leave us your thoughts and fond memories of the email service below<|im_end|>(PHILADE'
+  [5] act 98.5
+      '<|im_end|> Hindi film music. And he, gave the world the gifts, which are the voices of Lata Mangeshkar and Mohammad Raffi. Rest'
+      >>> ' in' <<<
+      ''
+  [6] act 98.5
+      '<|im_end|> at his side. They had been married for sixty-four years.\nRest'
+      >>> ' in' <<<
+      ' peace Mr. Heston. God bless and comfort your family and many loved'
+
+====================================================================================================
+FEATURE 21220   fires 0.00156% (16 of 1.02M tokens)   corpus peak 141.0
+====================================================================================================
+  [1] act 141.0
+      '<|im_end|> on one’s individual beliefs.\nComment\tTo leave a comment please enable JavaScript in your browser settings! Notify me of follow-up comments by email.'
+      >>> ' Notify' <<<
+      ' me'
+  [2] act 140.0
+      '<|im_end|> <em> <i> <q cite=""> <strike> <strong> Notify me of follow-up comments by email.'
+      >>> ' Notify' <<<
+      ' me of new posts by'
+  [3] act 140.0
+      '<|im_end|>em> <i> <q cite=""> <strike> <strong> Notify me of follow-up comments by email.'
+      >>> ' Notify' <<<
+      ' me of new posts by email'
+  [4] act 138.0
+      '<|im_end|>i> <q cite=""> <strike> <strong> Notify me of follow-up comments by email. Notify'
+      >>> ' me' <<<
+      ' of new posts by email.\tNext'
+  [5] act 137.0
+      '<|im_end|>up comments via e-mail. You can also subscribe without commenting. Notify me of follow-up comments by email. Notify'
+      >>> ' me' <<<
+      ' of new posts by email.\t'
+  [6] act 135.0
+      '<|im_end|> Center, Laguna Beach, Leigh Steinberg\n× four = 16 Notify me of follow-up comments by email. Notify'
+      >>> ' me' <<<
+      ' of new posts by email'
+
+====================================================================================================
+FEATURE 26507   fires 0.00156% (16 of 1.02M tokens)   corpus peak 37.2
+====================================================================================================
+  [1] act 37.2
+      '<|im_end|>atics.com is not an official web site for the New York Knicks or the National Basketball'
+      >>> ' Association' <<<
+      '.\nCopyright © 2014 www.KnicksFan'
+  [2] act 37.2
+      '<|im_end|>2011); Baltimore Orioles, Inc. v. Major'
+      >>> ' League' <<<
+      ' Baseball Players Assʹn, 805 F.2d 66'
+  [3] act 37.0
+      '<|im_end|>11); Baltimore Orioles, Inc. v. Major'
+      >>> ' League' <<<
+      ' Baseball Players Assʹn, 805 F.2d 663,'
+  [4] act 28.8
+      '<|im_end|> of Fame players led by Hank Aaron will join fans in voting for the award, which is officially sanctioned by Major'
+      >>> ' League' <<<
+      ' Baseball and has recognized the most outstanding offensive'
+  [5] act 27.8
+      '<|im_end|>013 World Series.\n“It is a great honor that Major'
+      >>> ' League' <<<
+      ' Baseball recognizes the most outstanding offensive performer in each League with an award in my name,”'
+  [6] act 27.2
+      '<|im_end|> is approved by Major'
+      >>> ' League' <<<
+      ' Baseball, $1.5 million each Nov. 1 from 2010 to 2013 and $'
+
+====================================================================================================
+FEATURE 48636   fires 0.00156% (16 of 1.02M tokens)   corpus peak 249.0
+====================================================================================================
+  [1] act 249.0
+      '<|im_end|> from China. Reader comments posted to this article may be published in our print edition. All rights reserved. This'
+      >>> ' copyrighted' <<<
+      ' material may not be re-published without'
+  [2] act 233.0
+      '<|im_end|> published in our print edition. All rights reserved. This'
+      >>> ' copyrighted' <<<
+      ' material may not be re-published without permission. Links are encouraged.\nBOSTON (AP'
+  [3] act 66.0
+      '<|im_end|> by their originating host sites, the versions posted may not match the versions our readers view when clicking the “GO TO ORIGINAL” links. This site contains'
+      >>> ' copyrighted' <<<
+      ''
+  [4] act 54.5
+      '<|im_end|> TO ORIGINAL” links. This site contains'
+      >>> ' copyrighted' <<<
+      ' material the use of which has not always been specifically authorized by the copyright owner. We are making such material available'
+  [5] act 51.5
+      '<|im_end|> him doing it here.Also on Facebook and Twitter. Image credit Arizona Band and Orchestra Director’s Association. Any'
+      >>> ' copyrighted' <<<
+      ' material on these pages is included as "'
+  [6] act 49.5
+      '<|im_end|> Twitter. Header photo is (c) On An Overgrown Path 2010. Any'
+      >>> ' copyrighted' <<<
+      ' material on these pages is included as "fair use'
+
+====================================================================================================
+FEATURE 50714   fires 0.00156% (16 of 1.02M tokens)   corpus peak 64.0
+====================================================================================================
+  [1] act 64.0
+      '<|im_end|> TIME) 26/02/2010 SummaryDownloadsExplanatory NotesRelated InformationPast & Future Releases Page'
+      >>> ' tools' <<<
+      ':\nContents Introduction Business'
+  [2] act 63.0
+      '<|im_end|>ERRA TIME) 26/02/2010 SummaryDownloadsExplanatory NotesRelated InformationPast & Future Releases Page'
+      >>> ' tools' <<<
+      ':\nContents'
+  [3] act 58.5
+      '<|im_end|> SummaryDownloadsExplanatory NotesRelated InformationPast & Future Releases Page'
+      >>> ' tools' <<<
+      ':\nPreviously: Registrations of New Motor Vehicles, Australia, Preliminary (ISSN'
+  [4] act 57.0
+      '<|im_end|> of an orange, kind of a marm'
+      >>> 'al' <<<
+      'ade tabby cat, just because they are, you know, common, and so easy to double,'
+  [5] act 54.0
+      '<|im_end|> grits and tomato m'
+      >>> 'arm' <<<
+      'alade or lamb meatballs with red currants, tomato glaze and pickled cucumber spaghetti. Late nights will bring DJ'
+  [6] act 54.0
+      '<|im_end|> cat in Inside Llewyn Davis Ethan: We used the advice of the cat trainer ... [to get] a kind of orange, marm'
+      >>> 'al' <<<
+      'ade'
+
+====================================================================================================
+FEATURE 52651   fires 0.00156% (16 of 1.02M tokens)   corpus peak 76.5
+====================================================================================================
+  [1] act 76.5
+      '<|im_end|> Chart\nYahoo! Suns Transactions\nYahoo! Suns Photos\nPhoenix Suns: Game Coverage QnA with'
+      >>> ' Nate' <<<
+      ' from Golden State of Mind\nBy Dave King'
+  [2] act 75.0
+      '<|im_end|>2844/purdy-falcons-have-their-hands-full-49ers-colin\nStats genius'
+      >>> ' Nate' <<<
+      ' Silver says Niners won’t'
+  [3] act 75.0
+      '<|im_end|> Suns Photos\nPhoenix Suns: Game Coverage QnA with'
+      >>> ' Nate' <<<
+      ' from Golden State of Mind\nBy Dave King\n@DaveKingNBA\nKyle Ter'
+  [4] act 74.5
+      '<|im_end|> working to improve his game.\nWhat else should we know about the Warriors?\nN'
+      >>> 'ate' <<<
+      ': This might be the best Warriors frontcourt at least since the Chris'
+  [5] act 73.0
+      "<|im_end|>.\nHow's Andrew Bogut looking? And, will he play on Wednesday?\nN"
+      >>> 'ate' <<<
+      ': We got great news the other day with the Warriors announcing that'
+  [6] act 72.0
+      "<|im_end|> game, what's your biggest concern with the Warriors as a team (defense, rebounding, offense, coaching)?\nN"
+      >>> 'ate' <<<
+      ': Regardless of what any of'
+
+====================================================================================================
+FEATURE 58622   fires 0.00156% (16 of 1.02M tokens)   corpus peak 134.0
+====================================================================================================
+  [1] act 134.0
+      '<|im_end|>chin (Star Trek), Christopher Mintz-Plasse (Superbad), Imogen Poots ('
+      >>> 'Jane' <<<
+      ' Eyre), Dave Franco (Charlie St.'
+  [2] act 132.0
+      '<|im_end|>, who was attached to play the villain in "'
+      >>> 'Jane' <<<
+      ' Got A Gun" took Fassbender\'s part, with Law slotting in as the film'
+  [3] act 131.0
+      '<|im_end|> Cinema\nShakespeare Cinema\nCharlie Chaplin: The Tramp Turns 100\nStudio Ghibli Encore\n'
+      >>> 'Jane' <<<
+      ' Fonda AFI Life'
+  [4] act 131.0
+      '<|im_end|>. In the meantime, please enjoy the rest of the site. Do you have a latte handy?<|im_end|>Home>Events>Reviews>J'
+      >>> 'ane' <<<
+      "'s Addiction"
+  [5] act 131.0
+      '<|im_end|> Christopher Mintz-Plasse (Superbad), Imogen Poots ('
+      >>> 'Jane' <<<
+      ' Eyre), Dave Franco (Charlie St. Cloud), director Craig Gilles'
+  [6] act 131.0
+      '<|im_end|> About Kevin") left the new film "'
+      >>> 'Jane' <<<
+      ' Got A Gun" on the first day of shooting, forcing producers to scramble for a replacement. Natalie Portman'
+
+====================================================================================================
+FEATURE 62328   fires 0.00156% (16 of 1.02M tokens)   corpus peak 126.5
+====================================================================================================
+  [1] act 126.5
+      '<|im_end|> CustomerAdvocacy.com, +14242384466, markos@customeradvocacy.comNews distributed by'
+      >>> ' PR' <<<
+      ''
+  [2] act 124.5
+      '<|im_end|>incepr.com\nNews distributed by'
+      >>> ' PR' <<<
+      ' Newswire iReach: https://ireach.prnewswire.com SOURCE Cache-A Corporation\nInformation Supplied by:'
+  [3] act 118.5
+      '<|im_end|>in, executives, social media, webinar\nDisclaimer: Issuers of the press releases are solely responsible for the content of their press releases.'
+      >>> ' PR' <<<
+      'Log can'
+  [4] act 115.5
+      '<|im_end|> ronny@princepr.com\nNews distributed by'
+      >>> ' PR' <<<
+      ' Newswire iReach: https://ireach.prnewswire.com SOURCE Cache-A Corporation\n'
+  [5] act 106.0
+      '<|im_end|> Award".\nFollow PR Newswire on Twitter\nKeep up-to-date with the latest sector-specific news headlines by following'
+      >>> ' PR' <<<
+      " Newswire's Twitter accounts:\nPR New"
+  [6] act 104.5
+      '<|im_end|> Palestine), PR Newswire,'
+      >>> ' PR' <<<
+      ' Newswire UK Disclose, Qatar Tribune (Doha, Qatar), Saudi Press Agency (SPA), Sofia News Agency,'
+
+====================================================================================================
+FEATURE 65201   fires 0.00156% (16 of 1.02M tokens)   corpus peak 40.5
+====================================================================================================
+  [1] act 40.5
+      '<|im_end|> is 12:24 AM. Powered by: vBulletin Copyright ©2000 - 2014, J'
+      >>> 'el' <<<
+      'soft Enterprises'
+  [2] act 37.8
+      '<|im_end|>: vBulletin Copyright ©2000 - 2014, J'
+      >>> 'el' <<<
+      'soft Enterprises Ltd.\nSphinx-based search by Digital Point\nPage'
+  [3] act 23.0
+      '<|im_end|> If you find any joy and stimulation here, please consider becoming a Supporting Member with a recurring monthly donation of your choosing,'
+      >>> ' between' <<<
+      ' a cup of tea and a'
+  [4] act 22.8
+      '<|im_end|>GENCY. Always seek the advice of your physician or other qualified health provider prior to starting any new treatment or with any questions you may have'
+      >>> ' regarding' <<<
+      ' a medical condition'
+  [5] act 22.2
+      '<|im_end|> EMERGENCY. Always seek the advice of your physician or other qualified health provider prior to starting any new treatment or with any questions you may have'
+      >>> ' regarding' <<<
+      ' a'
+  [6] act 20.0
+      '<|im_end|> help keep Noozhawk soaring.\nWe offer four membership levels: $'
+      >>> '5' <<<
+      ' a month, $10 a month, $25 a month or $'
+
+====================================================================================================
+FEATURE 32290   fires 0.00166% (17 of 1.02M tokens)   corpus peak 108.5
+====================================================================================================
+  [1] act 108.5
+      '<|im_end|>ate," "believe," "estimate," "intend," "plan" and other similar expressions. Our actual results could differ'
+      >>> ' materially' <<<
+      ' from those anticipated in'
+  [2] act 106.0
+      '<|im_end|>34, as amended. Future events, risks and uncertainties, individually or in the aggregate, could cause our actual results to differ'
+      >>> ' materially' <<<
+      ' from those expressed or'
+  [3] act 103.0
+      '<|im_end|>. Such statements are based upon our current expectations and speak only as of the date hereof. Our actual results may differ'
+      >>> ' materially' <<<
+      ' and adversely from those expressed in'
+  [4] act 102.0
+      '<|im_end|>ate”, “believe”, and other similar words and phrases. Our actual results and future financial condition may differ'
+      >>> ' materially' <<<
+      ' from those expressed in any such forward-looking'
+  [5] act 101.5
+      '<|im_end|> that may involve a number of risks and uncertainties. Actual events or results could differ'
+      >>> ' materially' <<<
+      " from the Company's expectations and projections.\nSolarvest BioEnergy Inc.G"
+  [6] act 100.5
+      '<|im_end|> not undertake any obligation to update these statements. Forward-looking statements are subject to a number of risks and uncertainties and actual results may differ'
+      >>> ' materially' <<<
+      ' from the results expressed'
+
+====================================================================================================
+FEATURE 38385   fires 0.00166% (17 of 1.02M tokens)   corpus peak 124.0
+====================================================================================================
+  [1] act 124.0
+      '<|im_end|> ‘W.’”\nYankees (73-52) at Indians (54-71)\nat 7'
+      >>> ':' <<<
+      '05 p.m'
+  [2] act 123.0
+      '<|im_end|> and striking out five...Catch the Clippers host Charlotte for Game Three of this four-game series Thursday at 6'
+      >>> ':' <<<
+      '35 p.m. on SportsTime'
+  [3] act 122.0
+      '<|im_end|> look to even up the Nationals series tonight, when Chris Young takes on Jordan Zimmermann at 7'
+      >>> ':' <<<
+      '05PM.\nMEEEEEEEEEEEEEEEEEEEE'
+  [4] act 122.0
+      '<|im_end|>…\nNATIONALS at METSWhere: Citi FieldGametime: 7'
+      >>> ':' <<<
+      '10 p.m.TV: MASN2Radio: W'
+  [5] act 121.0
+      '<|im_end|> with an afternoon game at Safeco Field. The game will start at 4'
+      >>> ':' <<<
+      '10 pm EDT (1:10 pm PDT). The Phil'
+  [6] act 121.0
+      '<|im_end|>, starting with a Jan. 10 matchup at Oakland. Start time is 6'
+      >>> ':' <<<
+      '30 p.m. Eastern Time (5:30'
+
+====================================================================================================
+FEATURE 53049   fires 0.00166% (17 of 1.02M tokens)   corpus peak 23.1
+====================================================================================================
+  [1] act 23.1
+      '<|im_end|> Elder Scrolls 5: Skyrim - Dragonborn question for Xbox 360 and get answers from real gamers or answer questions'
+      >>> ' and' <<<
+      ' share your insights and experience'
+  [2] act 21.6
+      '<|im_end|> Xbox 360 and get answers from real gamers or answer questions'
+      >>> ' and' <<<
+      ' share your insights and experience with the rest of the gaming community.<|im_end|>Find It'
+  [3] act 21.4
+      "<|im_end|> board and there are some features you can't use. If you join our community, you'll be able to access member-only sections, and use"
+      >>> ' many' <<<
+      ' member'
+  [4] act 21.1
+      '<|im_end|> second quarter of the game at Lincoln Financial Field on November 7, 2011 in Philadelphia, Pennsylvania. (Photo by Nick Laham'
+      >>> '/Getty' <<<
+      ''
+  [5] act 20.1
+      '<|im_end|> new threads You may not post replies You may'
+      >>> ' not' <<<
+      ' post attachments You may not edit your posts BB code is On Smilies are On [IMG] code is'
+  [6] act 19.9
+      '<|im_end|> Arena on April 1, 2012 in Las Vegas, Nevada. (Photo by Ethan Miller'
+      >>> '/Getty' <<<
+      " Images)\nTaylor's big night at the"
+
+====================================================================================================
+FEATURE 58069   fires 0.00166% (17 of 1.02M tokens)   corpus peak 24.0
+====================================================================================================
+  [1] act 24.0
+      '<|im_end|> the diagnosis and management of asthma. Bethesda, Md.: National Heart, Lung,'
+      >>> ' and' <<<
+      ' Blood Institute. http://www.nhlbi.nih.gov/guidelines'
+  [2] act 23.0
+      '<|im_end|>ODPHP); National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK); the National Heart, Lung,'
+      >>> ' and' <<<
+      ' Blood Institute (NHL'
+  [3] act 22.5
+      '<|im_end|>7034) from the National Institutes of Health (National Heart, Lung,'
+      >>> ' and' <<<
+      ' Blood Institute), Bethesda, Md; and the Emory Medical Care'
+  [4] act 22.0
+      '<|im_end|> Blood Institute (NHLBI) is strongly committed to supporting research aimed at preventing and treating heart, lung,'
+      >>> ' and' <<<
+      ' blood diseases and conditions and sleep disorders.N'
+  [5] act 21.8
+      '<|im_end|> before the U.S. Senate Health, Education, Labor'
+      >>> ' and' <<<
+      ' Pensions Committee to offer expert testimony on the reauthorization of the Higher Education Act.\nUAl'
+  [6] act 21.2
+      '<|im_end|> and Kidney Diseases (NIDDK); the National Heart, Lung,'
+      >>> ' and' <<<
+      ' Blood Institute (NHLBI); the National Institute of Child Health and Human'
+
+====================================================================================================
+FEATURE 59908   fires 0.00166% (17 of 1.02M tokens)   corpus peak 180.0
+====================================================================================================
+  [1] act 180.0
+      '<|im_end|>Online.com\nPublished: Sunday, May 12, 2013 at 12:30 a.m.\n'
+      >>> 'Last' <<<
+      ' Modified: Friday'
+  [2] act 172.0
+      "<|im_end|> the GOP's demise imminent?\nPublished: Friday, March 29, 2013 at 4:30 a.m.\n"
+      >>> 'Last' <<<
+      ' Modified'
+  [3] act 162.0
+      '<|im_end|> PRESS\nPublished: Tuesday, September 10, 2013 at 8:11 a.m.\n'
+      >>> 'Last' <<<
+      ' Modified: Tuesday, September'
+  [4] act 155.0
+      '<|im_end|>\nPublished: Thursday, February 28, 2013 at 3:30 a.m.\n'
+      >>> 'Last' <<<
+      ' Modified: Wednesday, February '
+  [5] act 152.0
+      '<|im_end|>osa News\nPublished: Thursday, February 28, 2013 at 3:30 a.m.\n'
+      >>> 'Last' <<<
+      ' Modified: Wednesday,'
+  [6] act 151.0
+      '<|im_end|>ent\nPublished: Saturday, March 2, 2013 at 9:32 p.m.\n'
+      >>> 'Last' <<<
+      ' Modified: Saturday, March '
+
+====================================================================================================
+FEATURE 65413   fires 0.00166% (17 of 1.02M tokens)   corpus peak 68.0
+====================================================================================================
+  [1] act 68.0
+      '<|im_end|> flip the shipments and make a profit, he said. “If we thought we could get away with it, we would do it.”\nJonathan'
+      >>> ' Trev' <<<
+      'iño'
+  [2] act 66.0
+      '<|im_end|> of its own.”\nTags: corruption, Drug task force, Drugs, Hidalgo County, Jonathan'
+      >>> ' Trev' <<<
+      'ino, Law Enforcement, Sheriff Lupe Trevi'
+  [3] act 66.0
+      '<|im_end|> said. “It’s certainly taken on an energy of its own.”\nTags: corruption, Drug task force, Drugs, Hidalgo County, Jonathan'
+      >>> ' Trev' <<<
+      ''
+  [4] act 65.0
+      '<|im_end|>,” he testified.\nRodriguez said he was drawn to the money and lifestyle that Jonathan'
+      >>> ' Trev' <<<
+      'iño and his friends in the Panama Unit enjoyed. “'
+  [5] act 65.0
+      '<|im_end|> celebrate the king with performances from 2012 Ultimate Elvis Tribute Artist Contest runner-up Victor'
+      >>> ' Trev' <<<
+      'ino, Jr. Victor will be performing his set from'
+  [6] act 63.8
+      '<|im_end|> by Susan'
+      >>> ' Trev' <<<
+      'ino\nof the UIW Dance Department explores the dichotomy of this society of beauty\nand horror. The performance is set to music written'

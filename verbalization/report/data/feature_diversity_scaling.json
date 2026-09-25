@@ -1,0 +1,55 @@
+{
+ "question": "does training on 25x more FEATURES (not more spans per feature) buy generalisation?",
+ "training": {
+  "features": 19981,
+  "pairs": 318134,
+  "steps": 19883,
+  "epochs": 1,
+  "inject": "encoder",
+  "loss": [
+   3.104,
+   2.53
+  ],
+  "pool": "uniform sample of the SAE, excluding all 2,017 evaluated features"
+ },
+ "held_out_failures": {
+  "before": {
+   "n": 113,
+   "norm_act": 0.007590416436755785,
+   "median_best_act": 0.0,
+   "beats_null": 0.22123893805309736,
+   "reaches_ex_last": 0.0
+  },
+  "after": {
+   "n": 113,
+   "norm_act": 0.08296611440441143,
+   "median_best_act": 0.0,
+   "beats_null": 0.2920353982300885,
+   "reaches_ex_last": 0.035398230088495575
+  }
+ },
+ "encoder_successes": {
+  "before": {
+   "n": 155,
+   "norm_act": 0.9651092436200832,
+   "median_best_act": 110.4375,
+   "beats_null": 0.9935483870967742,
+   "reaches_ex_last": 1.0
+  },
+  "after": {
+   "n": 155,
+   "norm_act": 0.5771430353089536,
+   "median_best_act": 73.9375,
+   "beats_null": 0.8451612903225807,
+   "reaches_ex_last": 0.3032258064516129
+  }
+ },
+ "transfer_scaling_norm_act": {
+  "no_training": 0.008,
+  "811_feats_16span": 0.035,
+  "811_feats_64span": 0.031,
+  "811_feats_decoder": 0.049,
+  "19981_feats": 0.083
+ },
+ "conclusion": "Feature diversity DOES buy transfer, monotonically but weakly: 25x the features gave 2.7x the transfer (0.031 -> 0.083), and this is the only training run whose null-beating rate rose ABOVE baseline. But median best_act stays 0.00, 0.083 is a fifth of what the same recipe reaches on features it trained on, and it costs existing capability: features the encoder already handled fell from norm_act 0.965 to 0.577. Net, broad training trades away working features for marginal movement on failing ones."
+}

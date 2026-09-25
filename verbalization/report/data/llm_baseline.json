@@ -1,0 +1,895 @@
+{
+ "summary": {
+  "model": "anthropic/claude-sonnet-4.5",
+  "n_features": 40,
+  "n_samples": 4,
+  "mean_norm_act": 0.8218475,
+  "median_norm_act": 0.8702,
+  "frac_fires": 1.0,
+  "frac_beats_null_max": 0.975,
+  "frac_reaches_ex_last": 0.625,
+  "frac_norm_act_ge_10pct": 1.0
+ },
+ "rows": [
+  {
+   "feature": 238,
+   "llm_best_act": 116.275,
+   "corpus_peak": 128.0,
+   "ex_last": 94.0,
+   "norm_act": 0.9084,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": " posts",
+   "texts": [
+    "<em> <i> <strike> <strong> Subscribe to follow-up comments by email. Notify me of new blog posts by email.\n\nSubmit Comment\n\nRecent Articles Privacy Policy Terms of Service",
+    "Notify me of follow-up comments by email. Notify me of new posts by email. Subscribe to receive updates when new content is published on this blog.",
+    "Notify me of follow-up comments by email. Notify me of new posts by email. Subscribe to this blog and receive notifications of new posts directly to your inbox.",
+    "Notify me of follow-up comments by email. Notify me of new posts by email. Subscribe to this blog and receive notifications of new posts directly to your inbox."
+   ],
+   "acts": [
+    88.811,
+    116.275,
+    116.275,
+    116.275
+   ]
+  },
+  {
+   "feature": 1370,
+   "llm_best_act": 294.215,
+   "corpus_peak": 306.0,
+   "ex_last": 266.0,
+   "norm_act": 0.9615,
+   "null_max": 28.215,
+   "null_p95": 3.477,
+   "peak_token": " Mr",
+   "texts": [
+    "The new comedy series starring Benedict Cumberbatch, \"Mr. Watson's Mysteries,\" premieres tonight on CBS, followed by episodes of NCIS and Mr. Robot reruns on USA Network.",
+    "The classic sitcom Mr. Belvedere aired on ABC throughout the 1980s, starring Christopher Hewett as the sophisticated English butler who worked for an American family.",
+    "Television producer David Shore cast Hugh Laurie in the lead role of Mr House for the medical drama series that premiered on Fox network in 2004.",
+    "The classic sitcom starred Tom Bosley in the title role, with Mr. Belvedere serving as the witty British butler who brought sophisticated humor to American television audiences throughout the 1980s."
+   ],
+   "acts": [
+    294.215,
+    284.567,
+    232.8,
+    182.184
+   ]
+  },
+  {
+   "feature": 1917,
+   "llm_best_act": 111.149,
+   "corpus_peak": 124.0,
+   "ex_last": 87.5,
+   "norm_act": 0.8964,
+   "null_max": 4.92,
+   "null_p95": 0.0,
+   "peak_token": " my",
+   "texts": [
+    "\"I've never been so embarrassed in my entire life,\" she whispered after tripping on stage. \"That was absolutely the most mortifying moment I've ever experienced.\"",
+    "\"I've never been so embarrassed in my entire life,\" she said, recalling the moment she tripped on stage. \"Nothing comes close to that feeling of total mortification.\"",
+    "\"I've never been so embarrassed in my entire life,\" she said, shaking her head. \"Nothing even comes close to how mortified I felt at that moment.\"",
+    "\"This is the most incredible thing I've witnessed in my life,\" she stammered, hands trembling. \"I've never experienced anything so overwhelming in my entire existence.\""
+   ],
+   "acts": [
+    111.149,
+    111.149,
+    111.149,
+    84.427
+   ]
+  },
+  {
+   "feature": 2559,
+   "llm_best_act": 156.901,
+   "corpus_peak": 176.0,
+   "ex_last": 140.0,
+   "norm_act": 0.8915,
+   "null_max": 3.685,
+   "null_p95": 0.0,
+   "peak_token": " Gaut",
+   "texts": [
+    "Beno\u00eet Gauthier conducted field research in Madagascar, collaborating with Marie-Claude Gaut and Pierre Gautreaux on primate behavioral studies published in the Journal of Tropical Ecology.",
+    "Collaboration with Jean-Pierre Gautier on primate behavioral ecology research has been instrumental in understanding forest species distribution patterns across Central African regions.",
+    "Here is a passage that should activate the same feature:\n\nThe research team included Dr. Marie-Claire Gauthier, who conducted extensive fieldwork in the Congo Basin studying primate populations and their habitats.",
+    "An oral history interview conducted with Dr. Marie-Claude Gautier, primatologist, discussing her fieldwork observations in Central African forests and collaboration with research teams studying wildlife populations."
+   ],
+   "acts": [
+    156.901,
+    138.984,
+    138.358,
+    149.35
+   ]
+  },
+  {
+   "feature": 3017,
+   "llm_best_act": 103.145,
+   "corpus_peak": 125.0,
+   "ex_last": 71.5,
+   "norm_act": 0.8252,
+   "null_max": 30.304,
+   "null_p95": 0.24,
+   "peak_token": " constitute",
+   "texts": [
+    "Certain disclosures contained herein may constitute projections regarding future events. Such statements represent forward-looking information under applicable securities regulations and should be evaluated accordingly by investors.",
+    "Statements included in this filing that are not based on historical facts may constitute forward-looking statements subject to risks and uncertainties under applicable securities regulations.",
+    "Legal disclaimers in securities filings may constitute forward-looking statements under federal regulations. These projections regarding anticipated results could constitute material information that might constitute risk factors requiring disclosure to investors.",
+    "Disclosures regarding future projections in this filing may constitute forward-looking statements as defined under federal securities regulations. These statements represent management's expectations and involve inherent risks."
+   ],
+   "acts": [
+    66.484,
+    103.145,
+    38.867,
+    91.869
+   ]
+  },
+  {
+   "feature": 5336,
+   "llm_best_act": 58.21,
+   "corpus_peak": 98.0,
+   "ex_last": 62.0,
+   "norm_act": 0.594,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": " substitute",
+   "texts": [
+    "This content does not constitute medical guidance and should not be considered a substitute for consultation with a licensed healthcare professional regarding your specific medical condition.",
+    "This content does not constitute professional legal advice nor is it meant to be a substitute for consultation with a qualified attorney regarding your specific circumstances.",
+    "This content is for educational purposes only and should not be considered a substitute for medical diagnosis or treatment by a licensed healthcare professional.",
+    "This content does not replace or serve as a substitute for advice from your doctor or qualified healthcare professional regarding diagnosis, treatment, or medical recommendations."
+   ],
+   "acts": [
+    49.567,
+    54.757,
+    58.21,
+    54.51
+   ]
+  },
+  {
+   "feature": 5585,
+   "llm_best_act": 53.05,
+   "corpus_peak": 56.0,
+   "ex_last": 14.938,
+   "norm_act": 0.9473,
+   "null_max": 0.658,
+   "null_p95": 0.0,
+   "peak_token": " but",
+   "texts": [
+    "I apologize for not responding to your message sooner. I've been overwhelmed with hundreds of emails and simply cannot reply to each one individually, but I truly value your input.",
+    "I apologize for not responding to your message earlier. I've been overwhelmed with hundreds of emails and simply cannot reply to each one individually, but I truly value your input.",
+    "I appreciate all your messages and would love to respond to each one individually. Unfortunately, with hundreds of emails daily, I simply can't reply to everyone but I truly value your feedback.",
+    "I apologize for not responding to your messages individually. I've been overwhelmed with hundreds of emails and simply cannot reply to each one personally, but I want you to know I've read them all."
+   ],
+   "acts": [
+    53.05,
+    52.674,
+    48.607,
+    51.157
+   ]
+  },
+  {
+   "feature": 6109,
+   "llm_best_act": 102.6,
+   "corpus_peak": 126.0,
+   "ex_last": 98.5,
+   "norm_act": 0.8143,
+   "null_max": 3.02,
+   "null_p95": 0.0,
+   "peak_token": "9",
+   "texts": [
+    "Published online 15 March 2005; Accepted 28 February 2005\nCopyright \u00a9 2006 American Chemical Society. All rights reserved.",
+    "Published online 15 March 2005; Accepted 28 February 2006\nCopyright \u00a9 2006 International Society for Molecular Biology. All rights reserved.",
+    "Published March 15, 2019; Accepted June 8, 2019\nCopyright \u00a9 2019 American Medical Association. All rights reserved.",
+    "Journal of Neuroscience Research, Vol. 45, No. 3, pp. 234-248, March 15, 2006. Copyright \u00a9 2007 by the American Psychological Association. All rights reserved."
+   ],
+   "acts": [
+    99.785,
+    102.6,
+    63.095,
+    92.595
+   ]
+  },
+  {
+   "feature": 11665,
+   "llm_best_act": 152.928,
+   "corpus_peak": 182.0,
+   "ex_last": 169.0,
+   "norm_act": 0.8403,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": " Jordan",
+   "texts": [
+    "The Lakers announced that veteran forward Jordan Clarkson will start tonight's game against the Celtics, replacing the injured starter who suffered a knee sprain during yesterday's practice session.",
+    "Carolina Panthers offensive tackle Jordan Cameron excelled in pass protection during Sunday's matchup, helping his quarterback stay upright all game long despite facing constant pressure from the defensive line.",
+    "Carolina Panthers offensive tackle Jordan Cameron made his first Pro Bowl appearance after an outstanding season protecting the quarterback's blind side and opening rushing lanes.",
+    "Carolina Panthers offensive tackle Jordan Cameron will miss Sunday's game against the Saints due to injury, head coach Ron Rivera announced during his press conference."
+   ],
+   "acts": [
+    146.847,
+    152.928,
+    152.928,
+    152.928
+   ]
+  },
+  {
+   "feature": 11918,
+   "llm_best_act": 70.593,
+   "corpus_peak": 70.5,
+   "ex_last": 39.25,
+   "norm_act": 1.0013,
+   "null_max": 4.903,
+   "null_p95": 0.0,
+   "peak_token": ".",
+   "texts": [
+    "Firefox 4.2 requires at least 512MB of RAM, while Chrome 8.1 and Safari 5.3 need only 256MB for optimal performance on legacy systems.",
+    "The updated WordPress 5.2 release fixes critical bugs, while Apache 2.4 remains stable and Python 3.9 introduces performance improvements for enterprise deployments.",
+    "Chrome 87.2 introduced significant performance improvements, while Safari 14.1 fixed critical security vulnerabilities affecting macOS users on versions 10.15 and later systems.",
+    "The latest Ubuntu 22.04 LTS release includes Python 3.11, which offers significant performance improvements over version 3.10, while maintaining backward compatibility with most existing codebases."
+   ],
+   "acts": [
+    29.972,
+    70.593,
+    4.556,
+    39.772
+   ]
+  },
+  {
+   "feature": 17836,
+   "llm_best_act": 58.714,
+   "corpus_peak": 116.0,
+   "ex_last": 87.5,
+   "norm_act": 0.5062,
+   "null_max": 4.636,
+   "null_p95": 1.426,
+   "peak_token": " Index",
+   "texts": [
+    "The Nasdaq composite index climbed 1.2% in afternoon trading, while the Russell 2000 dropped 15 points as investors weighed mixed economic data and quarterly earnings results.",
+    "The Nasdaq Composite index climbed 1.2% in morning trading as investors digested better-than-expected retail sales data and looked ahead to the Federal Reserve's policy announcement.",
+    "The Nasdaq Composite index climbed 1.2% in afternoon trading, while the Russell 2000 advanced 0.8% as investors digested quarterly earnings and economic data from the Federal Reserve.",
+    "The Nasdaq Composite index climbed 1.2% in morning trading, while the Russell 2000 gained 15 points as investors digested stronger-than-expected retail sales data and upcoming Fed minutes."
+   ],
+   "acts": [
+    57.689,
+    54.465,
+    57.967,
+    58.714
+   ]
+  },
+  {
+   "feature": 18869,
+   "llm_best_act": 115.262,
+   "corpus_peak": 132.0,
+   "ex_last": 109.0,
+   "norm_act": 0.8732,
+   "null_max": 8.52,
+   "null_p95": 2.873,
+   "peak_token": " on",
+   "texts": [
+    "A former police officer appeared in court yesterday on corruption charges after investigators discovered evidence linking him to multiple bribery schemes over several years.",
+    "A local teacher was indicted Thursday on multiple felony counts of embezzlement. The defendant will appear in court next month on additional charges of fraud and theft.",
+    "A local man appeared in court Monday on federal fraud charges after investigators discovered he had embezzled over $200,000 from his employer during a three-year period.",
+    "A local teacher was indicted Thursday on multiple felony counts of embezzlement after investigators discovered missing funds from the school district's budget over several years."
+   ],
+   "acts": [
+    110.117,
+    108.483,
+    115.262,
+    108.483
+   ]
+  },
+  {
+   "feature": 20799,
+   "llm_best_act": 150.462,
+   "corpus_peak": 162.0,
+   "ex_last": 134.0,
+   "norm_act": 0.9288,
+   "null_max": 45.951,
+   "null_p95": 14.923,
+   "peak_token": "2",
+   "texts": [
+    "The e23 platform announcement came through today, confirming the migration from e2 systems will begin next quarter, according to the e2v engineering team's latest update.",
+    "John sent an email to support@e23games.com asking about the latest digital download from their storefront, hoping to get a response when their team arrives Monday morning.",
+    "Check out the latest products available on e23 including the new GURPS supplements and other gaming materials that just arrived at e23's digital storefront today.",
+    "The upgraded software from e2i systems arrived yesterday, and our team at e23 headquarters began testing immediately before the official e2v product launch next quarter."
+   ],
+   "acts": [
+    139.971,
+    147.402,
+    134.496,
+    150.462
+   ]
+  },
+  {
+   "feature": 26739,
+   "llm_best_act": 93.928,
+   "corpus_peak": 76.5,
+   "ex_last": 22.0,
+   "norm_act": 1.2278,
+   "null_max": 1.758,
+   "null_p95": 0.0,
+   "peak_token": ",",
+   "texts": [
+    "The nutrition label lists key components: total fat, saturated fat, trans fat, cholesterol, sodium, carbohydrates, and dietary fiber per serving size.",
+    "Nutritional information per serving: calories 250, total carbohydrates 30g, dietary fiber 5g, saturated fat, trans fat 0g, polyunsaturated fat 2g, monounsaturated fat 3g, sodium 480mg.",
+    "According to USDA guidelines, a balanced diet should limit saturated fat, trans fat, added sugars, and sodium while increasing intake of fruits, vegetables, whole grains, and lean proteins.",
+    "Nutritional information per serving: calories 250, total carbohydrates 35 g, dietary fiber 3 g, saturated fat, trans fat 0 g, polyunsaturated fat 2 g, monounsaturated fat."
+   ],
+   "acts": [
+    93.928,
+    46.189,
+    26.575,
+    46.082
+   ]
+  },
+  {
+   "feature": 28799,
+   "llm_best_act": 53.381,
+   "corpus_peak": 95.5,
+   "ex_last": 56.5,
+   "norm_act": 0.559,
+   "null_max": 10.268,
+   "null_p95": 0.625,
+   "peak_token": " been",
+   "texts": [
+    "Your application has been submitted successfully to TechCorp Industries. Your resume has been forwarded to the hiring manager and will be reviewed within 3-5 business days.",
+    "Your registration has been confirmed and we will contact you shortly. Your feedback has been received by our team. Your application has been submitted successfully to the admissions office.",
+    "Your application has been submitted successfully to user_profile_2847. We are processing your request and will notify you shortly about the status of your submission.",
+    "Your application has been submitted successfully to the hiring manager. We will review your materials and contact you within 5-10 business days regarding next steps."
+   ],
+   "acts": [
+    20.914,
+    53.381,
+    20.914,
+    20.914
+   ]
+  },
+  {
+   "feature": 32832,
+   "llm_best_act": 19.375,
+   "corpus_peak": 175.0,
+   "ex_last": 163.0,
+   "norm_act": 0.1107,
+   "null_max": 18.793,
+   "null_p95": 0.0,
+   "peak_token": " Mo",
+   "texts": [
+    "Judge Patricia Morales presided over the case while attorney Kevin Molina presented evidence. The prosecution team included Sarah Morrison and Detective Mike Mobley from the county sheriff's department.",
+    "Here is a passage designed to activate the same feature:\n\nThe research was conducted by Professor Elizabeth Morales at Stanford University. Her colleague, Dr. Jennifer Montgomery, contributed significantly to the methodology section of the published manuscript.",
+    "The ceremony was attended by Mayor Thompson, Commissioner Davis, Councilwoman Peters, and Representative Morales, who delivered the keynote address to supporters gathered downtown.",
+    "Johnson and Miller thanked colleagues including David Morales, Lisa Chen, and Robert Thompson for their contributions to the research project conducted at Northwestern University last year."
+   ],
+   "acts": [
+    19.375,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "feature": 33552,
+   "llm_best_act": 83.396,
+   "corpus_peak": 92.0,
+   "ex_last": 72.0,
+   "norm_act": 0.9065,
+   "null_max": 2.236,
+   "null_p95": 0.0,
+   "peak_token": " High",
+   "texts": [
+    "Our professional-grade cameras deliver high-resolution images with exceptional clarity. These premium lenses provide superior optical performance for discerning photographers seeking top-tier equipment.",
+    "Our premium collection features high-grade materials and superior craftsmanship, ensuring exceptional durability. These top-tier products use professional-grade components manufactured to exacting standards for discerning customers who demand excellence.",
+    "Professional studio equipment includes high-resolution cameras, premium lenses, and superior lighting gear. Audiophiles demand high-fidelity sound systems with high-grade components for exceptional performance.",
+    "Professional photography equipment requires high-grade lenses and sensors. Premium manufacturers use high-resolution components ensuring exceptional image clarity. Studio-quality cameras deliver high-fidelity results with superior sharpness and detail for discerning professionals."
+   ],
+   "acts": [
+    63.645,
+    83.396,
+    74.484,
+    61.39
+   ]
+  },
+  {
+   "feature": 33707,
+   "llm_best_act": 66.356,
+   "corpus_peak": 70.5,
+   "ex_last": 54.0,
+   "norm_act": 0.9412,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": "\n",
+   "texts": [
+    "The route difficulty progressed over time: what we called 5.12a back then would barely qualify as 5.11d today, and the crux pitch felt more like 5.10c with modern protection.",
+    "The crux pitch requires sustained 5.12 movement, with a desperate 5.13- sequence near the anchors. Most parties find the lower section a manageable 5.10d, but the upper wall demands precise technique.",
+    "The climb topped out at 5.12a difficulty, though some locals argue it's more like 5.11d. Back then, nobody was climbing anything harder than 5.10c in this area.",
+    "The route was originally rated 5.12a, but after the first ascent most climbers agreed it felt more like 5.11d or maybe 5.12b at most."
+   ],
+   "acts": [
+    66.356,
+    60.726,
+    64.49,
+    63.374
+   ]
+  },
+  {
+   "feature": 36263,
+   "llm_best_act": 139.996,
+   "corpus_peak": 163.0,
+   "ex_last": 149.0,
+   "norm_act": 0.8589,
+   "null_max": 4.65,
+   "null_p95": 0.0,
+   "peak_token": " RSS",
+   "texts": [
+    "Subscribe to our newsletter for daily updates on technology, business, and entertainment news. Stay informed with our RSS feed delivering breaking stories directly to your reader.",
+    "Subscribe to our daily newsletter for the latest updates on technology, entertainment, and business newsRSS Feed available here for podcast episodes and blog posts.",
+    "Subscribe to our newsletter for updates on technology, business, and entertainment news. Get daily articles delivered straight to your inbox.RSS Feed available for all categories.",
+    "Get updates delivered straight to your inbox with our newsletter. Subscribe now for daily contentRSS Feed available for all categories including sports, entertainment, and business news."
+   ],
+   "acts": [
+    97.29,
+    123.898,
+    134.297,
+    139.996
+   ]
+  },
+  {
+   "feature": 36611,
+   "llm_best_act": 90.427,
+   "corpus_peak": 107.0,
+   "ex_last": 98.0,
+   "norm_act": 0.8451,
+   "null_max": 75.192,
+   "null_p95": 0.066,
+   "peak_token": " Main",
+   "texts": [
+    "The primary objective of this investigation is to examine the fundamental characteristics of the system. The main consideration in our analysis involves understanding the core mechanisms that drive performance.",
+    "The primary objective of this investigation was to examine the fundamental characteristics of the system. However, the central challenge remained identifying the principal factors driving the observed phenomena.",
+    "The **main** objective of this investigation was to identify the primary factors contributing to system failure, rather than examining secondary causes that previous studies had already addressed.",
+    "The main objective of this investigation is to examine the fundamental principles underlying the system, rather than focusing on secondary aspects or peripheral considerations."
+   ],
+   "acts": [
+    90.427,
+    19.291,
+    81.346,
+    78.455
+   ]
+  },
+  {
+   "feature": 37372,
+   "llm_best_act": 18.969,
+   "corpus_peak": 55.25,
+   "ex_last": 17.75,
+   "norm_act": 0.3433,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": " AND",
+   "texts": [
+    "The software is delivered \"as is\" and without any express or implied warranties, including merchantability or fitness for purpose, and all conditions are hereby disclaimed.",
+    "The software is delivered \"as is\" and without warranty of any kind, either express or implied, including but not limited to warranties of merchantability or fitness for purpose.",
+    "The software is delivered \"as is\" and without any express or implied warranties, including merchantability or fitness for purpose, and the provider disclaims all liability.",
+    "The software is delivered \"as is\" and without warranty of any kind, express or implied, including but not limited to merchantability or fitness for purpose."
+   ],
+   "acts": [
+    18.969,
+    18.969,
+    18.969,
+    18.969
+   ]
+  },
+  {
+   "feature": 37430,
+   "llm_best_act": 125.649,
+   "corpus_peak": 129.0,
+   "ex_last": 117.0,
+   "norm_act": 0.974,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": "iv",
+   "texts": [
+    "Medical researcher Dr. Shivani Riviera collaborated with Sivakumar and Rivett on the groundbreaking study, while journalist Gloria Rivkin reported from the Sivert",
+    "Johnson, Margaret D.\\nPatel, Sunita R.\\nChen, Wei\\nO'Connor, Brian T.\\nRivera, Carlos M.\\nThompson, James L.\\nAdvisory Board Meeting Minutes",
+    "Johnson, Maria; Patterson, Derek; O'Connor, Sean; Rivera, Christina; Walsh, Benjamin; and Sivonen, Lars conducted the systematic review for epidemiological trends.",
+    "By SARAH RIVLIN and KATHERINE SIVAK\n\nA collaborative study by Drs. Sivakumar, Riviera, and Shivani examined the correlation between regional variants."
+   ],
+   "acts": [
+    114.235,
+    7.571,
+    123.336,
+    125.649
+   ]
+  },
+  {
+   "feature": 40469,
+   "llm_best_act": 203.554,
+   "corpus_peak": 209.0,
+   "ex_last": 193.0,
+   "norm_act": 0.9739,
+   "null_max": 4.909,
+   "null_p95": 0.0,
+   "peak_token": " Murray",
+   "texts": [
+    "The veteran columnist Murray Goldstein covered city politics for decades, earning three Pulitzer nominations for his investigative reporting on municipal corruption and labor unions.",
+    "The legendary sportswriter  Murray Greenberg covered the Yankees for three decades, earning acclaim for his incisive columns and breaking several major stories about baseball's labor disputes.",
+    "The columnist  Murray Greenberg had written extensively for the Washington Post during the 1970s, covering politics and social issues with distinctive commentary that shaped public opinion.",
+    "The column by Murray Rothbard appeared in the libertarian journal, while Murray Kempton wrote his piece for the Post, and Murray Chass covered baseball for the Times."
+   ],
+   "acts": [
+    198.386,
+    196.279,
+    171.676,
+    203.554
+   ]
+  },
+  {
+   "feature": 42222,
+   "llm_best_act": 133.111,
+   "corpus_peak": 130.0,
+   "ex_last": 75.0,
+   "norm_act": 1.0239,
+   "null_max": 4.703,
+   "null_p95": 0.0,
+   "peak_token": " ",
+   "texts": [
+    "Johnson, Marie A marie.johnson at cisco.com\nMon Feb 14 11:47:23 EST 2023\nPrevious message: Network Configuration Updates",
+    "Clarke, Jennifer M jclarke at microsoft.com\nMon Apr 12 14:27:03 UTC 2010\nPrevious message: Database migration issues",
+    "Martinez, Jessica R jmartinez at cisco.com\nMon Nov 14 18:47:23 GMT 2016\nPrevious message: Network Configuration Issues",
+    "Jones, Michael R. mjones at techcorp.com\nWed Nov 12 14:27:43 EST 2008\nPrevious message: Network configuration issues"
+   ],
+   "acts": [
+    133.111,
+    122.769,
+    130.126,
+    132.285
+   ]
+  },
+  {
+   "feature": 42305,
+   "llm_best_act": 47.737,
+   "corpus_peak": 93.5,
+   "ex_last": 50.0,
+   "norm_act": 0.5106,
+   "null_max": 11.054,
+   "null_p95": 2.596,
+   "peak_token": " opinions",
+   "texts": [
+    "We encourage your feedback on this story, but please keep it respectful. Share your thoughts below, and remember to be considerate of others in the discussion.",
+    "We invite your feedback on this story. Please share your thoughts respectfully. All comments are moderated. We value your perspective and look forward to hearing from you.",
+    "We value your feedback and encourage you to share your thoughts below. Please keep comments respectful and on-topic when responding to this article.",
+    "We appreciate your feedback on this story. Please share your thoughts respectfully in the comments section below. All opinions are valued, but abusive language will not be tolerated."
+   ],
+   "acts": [
+    29.85,
+    31.367,
+    47.737,
+    20.662
+   ]
+  },
+  {
+   "feature": 43293,
+   "llm_best_act": 118.805,
+   "corpus_peak": 137.0,
+   "ex_last": 123.0,
+   "norm_act": 0.8672,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": ":",
+   "texts": [
+    "Let me analyze the pattern: these excerpts all contain biblical references, specifically to the book of Romans, with the colon or period separating chapter and verse (Rom 1:16, Romans 3:4, Rom 2:16, etc.).\n\nThe apostle Paul's epistle contains many profound truths, particularly in Rom 8:28 where he assures believers that all things work together for good according to God's purpose.",
+    "The apostle Paul clearly teaches this doctrine in his epistle to the Galatians, specifically in Gal. 2:20 where he writes about being crucified with Christ.",
+    "The apostle Paul declared in his epistle to the Galatians 2:20 that he no longer lived, but Christ lived in him through faith.",
+    "The apostle Paul clearly teaches this doctrine in his epistle to the Galatians. See Gal 2:20 where he explains justification by faith alone."
+   ],
+   "acts": [
+    118.805,
+    14.151,
+    10.985,
+    14.151
+   ]
+  },
+  {
+   "feature": 45184,
+   "llm_best_act": 85.131,
+   "corpus_peak": 104.5,
+   "ex_last": 81.5,
+   "norm_act": 0.8146,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": " on",
+   "texts": [
+    "May you find eternal rest in paradise, dear friend. Your kindness and generosity will never be forgotten by those whose lives you touched. Rest in peace, and may angels guide you home.",
+    "Our beloved grandmother passed away peacefully last night surrounded by family. She lived a full life of 92 years and will be deeply missed. Rest in peace, Grandma.",
+    "Gone too soon, but your memory lives bright in our hearts. Rest in peace, dear friend. Your legacy of kindness and courage will inspire generations to come.",
+    "My beloved grandmother passed away peacefully last night surrounded by family. She lived a full life of 92 years and touched so many hearts. Rest in peace, Grandma."
+   ],
+   "acts": [
+    67.072,
+    85.131,
+    82.909,
+    82.639
+   ]
+  },
+  {
+   "feature": 48473,
+   "llm_best_act": 68.561,
+   "corpus_peak": 87.5,
+   "ex_last": 69.0,
+   "norm_act": 0.7836,
+   "null_max": 23.059,
+   "null_p95": 1.619,
+   "peak_token": " good",
+   "texts": [
+    "\"We know Alabama is a really good basketball team,\" said the coach. \"They're well-coached and talented. We'll need our best effort to compete against them tonight.\"",
+    "\"We know Michigan is a good team,\" the coach said. \"They're well-coached and talented. We'll need our best effort to compete with them on Saturday.\"",
+    "\"We know Michigan is a good team,\" said the coach. \"They're very well-coached and talented. We'll need our best effort to compete with them.\"",
+    "\"We know Carolina is a really good hockey team,\" said the coach. \"They're well-coached, talented, and disciplined. We'll need our best effort tonight.\""
+   ],
+   "acts": [
+    68.561,
+    45.856,
+    45.916,
+    64.348
+   ]
+  },
+  {
+   "feature": 48785,
+   "llm_best_act": 127.753,
+   "corpus_peak": 120.5,
+   "ex_last": 105.0,
+   "norm_act": 1.0602,
+   "null_max": 36.274,
+   "null_p95": 0.6,
+   "peak_token": "h",
+   "texts": [
+    "The neurosurgeon at University Hospital Gasthuisberg performed the procedure while colleagues from Gaston County observed the innovative technique used in Gastonia.",
+    "The University of North Carolina at Charlotte maintains a satellite campus in Gaston County, where textile manufacturing and minor league baseball have deep historical roots in the Piedmont region.",
+    "The mayor of Gastonia, North Carolina announced new development plans for the historic downtown district, partnering with neighboring Gaston County officials to revitalize Main Street businesses.",
+    "The historic Gastonia textile mill, built in 1902, anchors the downtown district near the Gaston County courthouse and Main Street."
+   ],
+   "acts": [
+    127.753,
+    94.089,
+    101.137,
+    101.501
+   ]
+  },
+  {
+   "feature": 50752,
+   "llm_best_act": 92.134,
+   "corpus_peak": 88.0,
+   "ex_last": 77.0,
+   "norm_act": 1.047,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": "akh",
+   "texts": [
+    "In the study of Mishnah and Talmud, the principles of halakha are derived from Torah. The sefer titled Mishneh Torah by Rambam explains halachic rulings systematically.",
+    "In the Beth Midrash, students debated the laws of Shabbat found in Mishneh Torah. Rabbi Akiva explained that Hilkhot Tefillin requires careful study of halakhic principles.",
+    "In the traditional blessing, we recite \"Baruch Atah Adonai\" followed by Hashem's name, as written in Sefer HaChinuch regarding the mitzvot observed during Chol HaMoed.",
+    "The festival of Sukkot begins on the 15th of Tishrei, following Yom Kippur. During this time, Jews observe the mitzvah of dwelling in a sukkah for eight days."
+   ],
+   "acts": [
+    35.287,
+    30.394,
+    92.134,
+    21.683
+   ]
+  },
+  {
+   "feature": 52649,
+   "llm_best_act": 65.753,
+   "corpus_peak": 112.0,
+   "ex_last": 89.5,
+   "norm_act": 0.5871,
+   "null_max": 6.597,
+   "null_p95": 0.0,
+   "peak_token": " [",
+   "texts": [
+    "Re: Discussion about forum guidelines and posting rules\n[quote author=SteveM link=topic=45678.msg987654#msg987654 date=1234567890]\nThanks for clarifying the moderation policy regarding off-topic threads.",
+    "Re: How to fix the broken link issue\n[Previous Topic | Next Topic]\n\nShowing posts 1-15 of 247. Jump to page: 1 2 3...",
+    "Re: Need help with my project deadline\n[Re: Technical Issues\n\nThis forum thread has been locked. Please start a new discussion if you have additional questions about this topic.",
+    "Re: Your previous comment about the forum rules\n[quote author=JimB link=topic=12345.msg67890#msg67890 date=1534567890]\nThat's not how it works here. Check the guidelines.\n[/quote]"
+   ],
+   "acts": [
+    55.951,
+    63.079,
+    63.01,
+    65.753
+   ]
+  },
+  {
+   "feature": 53793,
+   "llm_best_act": 102.693,
+   "corpus_peak": 151.0,
+   "ex_last": 115.0,
+   "norm_act": 0.6801,
+   "null_max": 1.586,
+   "null_p95": 0.0,
+   "peak_token": "ns",
+   "texts": [
+    "County Budget Director Lisa Sorensen explained that revenues have decreased by 18 percent compared to last year. Sorensen emphasized that several departments will need to reduce spending significantly.",
+    "County Budget Director Lisa Sorensen explained that revenues have decreased significantly. Sorensen reported the findings to officials at yesterday's meeting, noting that several departments face funding challenges.",
+    "County Budget Director Karen Sorensen reported to the committee that revenues exceeded projections. Sorensen emphasized that spending remained under control despite challenges.",
+    "County Treasurer Maria Sorensen delivered her quarterly financial report to the committee, noting that revenues had declined significantly from the previous fiscal year while expenditures remained steady at projections."
+   ],
+   "acts": [
+    102.693,
+    102.693,
+    95.872,
+    94.232
+   ]
+  },
+  {
+   "feature": 55059,
+   "llm_best_act": 121.794,
+   "corpus_peak": 165.0,
+   "ex_last": 143.0,
+   "norm_act": 0.7381,
+   "null_max": 125.85,
+   "null_p95": 0.073,
+   "peak_token": " Th",
+   "texts": [
+    "Dr. MargaretThompson, Professor Emerita of Education, and RobertThornton will be honored at the ceremony. Contact: SarahThomas, Director of Communications, for additional details.",
+    "Jennifer Thorson, Director of Marketing\\nMary Thatcher, Public Affairs\\nRobert Thomson of Milwaukee\\nSusan Thielmann, Ph.D., Education\\nDavid Thornton, Communications Specialist",
+    "Kelly Ann Thompson of Madison, WI\\nMichael Thomas, Duluth, MN\\nSandra Thurman, Ed.D., Professor Emeritus\\nContact: Rebecca Thornton, Director of Communications",
+    "Contact information available from Dr. PatriciaThompson, Office of University Relations, or reach LindaThomas at the Communications Department for additional details about the upcoming event."
+   ],
+   "acts": [
+    81.818,
+    121.302,
+    35.931,
+    121.794
+   ]
+  },
+  {
+   "feature": 56091,
+   "llm_best_act": 92.36,
+   "corpus_peak": 95.0,
+   "ex_last": 73.0,
+   "norm_act": 0.9722,
+   "null_max": 5.916,
+   "null_p95": 0.0,
+   "peak_token": "as",
+   "texts": [
+    "The Toronto Raptors selected Jonas Valanciunas with their fourth overall pick, hoping the Lithuanian center would develop into a franchise cornerstone alongside their young core.",
+    "The Toronto Raptors announced that center Jonas Valanciunas will miss tonight's game due to injury, joining tackle Jonas Jennings on the sidelines for this crucial matchup.",
+    "The Toronto Raptors selected Jonas Valanciunas with the fifth overall pick, adding a talented center to their rebuilding roster alongside other young prospects from recent draft classes.",
+    "The Toronto Raptors selected Jonas Valanciunas with their top draft pick, hoping the young center would provide immediate rebounding help alongside their veteran roster during his rookie campaign."
+   ],
+   "acts": [
+    87.413,
+    92.36,
+    87.413,
+    87.413
+   ]
+  },
+  {
+   "feature": 56733,
+   "llm_best_act": 26.09,
+   "corpus_peak": 31.625,
+   "ex_last": 18.375,
+   "norm_act": 0.825,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": " unrestricted",
+   "texts": [
+    "This work is an open access publication distributed under the Creative Commons Attribution License, which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.",
+    "This is an open access publication distributed under the Creative Commons Attribution License, which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.",
+    "This work is an open access article distributed under the Creative Commons Attribution License, which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.",
+    "This work is an open access article distributed under the Creative Commons Attribution License, which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited."
+   ],
+   "acts": [
+    23.672,
+    25.701,
+    26.09,
+    26.09
+   ]
+  },
+  {
+   "feature": 57648,
+   "llm_best_act": 39.751,
+   "corpus_peak": 59.0,
+   "ex_last": 47.5,
+   "norm_act": 0.6738,
+   "null_max": 25.542,
+   "null_p95": 6.793,
+   "peak_token": " with",
+   "texts": [
+    "I've never been in a relationship before, and honestly I'm nervous about being intimate with anyone right now, especially since I don't know them well enough to trust them with my feelings.",
+    "I don't think I'm ready to be in a relationship with my ex again, even though we still talk sometimes and share mutual friends.",
+    "I've never been in a relationship or gone on a date with anyone before, so the thought of being intimate with somebody makes me really nervous.",
+    "I've never been in a relationship before, so I'm nervous about being intimate with someone new. My friends say I should start with casual dating rather than jumping into something serious with a stranger."
+   ],
+   "acts": [
+    30.611,
+    39.751,
+    36.006,
+    26.463
+   ]
+  },
+  {
+   "feature": 59105,
+   "llm_best_act": 177.46,
+   "corpus_peak": 197.0,
+   "ex_last": 178.0,
+   "norm_act": 0.9008,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": "uff",
+   "texts": [
+    "Breaking News from HuffPost Politics: Top stories delivered to your inbox daily. Visit www.huffingtonpost.com for updates and blog posts.",
+    "Breaking News from HuffPost Entertainment: Celebrity gossip and latest headlines delivered straight to your inbox. Visit HuffingtonPost.com for exclusive stories and blog updates daily.",
+    "Breaking news from HuffPost Politics: White House responds to latest controversy. Check HuffPost Entertainment for celebrity updates and HuffPost Business for market analysis delivered daily.",
+    "Breaking news from HuffPost Politics: Latest updates on congressional hearings. Visit www.huffingtonpost.com for full coverage and expert analysis from our editorial team."
+   ],
+   "acts": [
+    173.705,
+    39.49,
+    8.677,
+    177.46
+   ]
+  },
+  {
+   "feature": 60970,
+   "llm_best_act": 143.588,
+   "corpus_peak": 152.0,
+   "ex_last": 135.0,
+   "norm_act": 0.9447,
+   "null_max": 0.0,
+   "null_p95": 0.0,
+   "peak_token": " AN",
+   "texts": [
+    "MIAMI, FL - DECEMBER 15: The championship game took place at Sun Life Stadium.\\nLOS ANGELES, CA - The press conference was held downtown following the major announcement.",
+    "SEATTLE, WA - MARCH 15: The downtown skyline was visible from Elliott Bay as residents gathered for the annual festival. SAN FRAN\u00adCISCO officials announced similar plans.",
+    "GELES\u2014The downtown skyline was visible from the Hollywood Hills as traffic clogged the 405 freeway during rush hour.\\nLOS ANGELES, CA - MARCH 15:",
+    "ANGELES CITY, PHILIPPINES - A major earthquake struck the region early Monday morning, according to local authorities. LOS AN"
+   ],
+   "acts": [
+    136.305,
+    7.821,
+    136.99,
+    143.588
+   ]
+  },
+  {
+   "feature": 62533,
+   "llm_best_act": 106.07,
+   "corpus_peak": 98.0,
+   "ex_last": 28.25,
+   "norm_act": 1.0824,
+   "null_max": 4.608,
+   "null_p95": 0.0,
+   "peak_token": " reviews",
+   "texts": [
+    "This product currently has no reviews available. Be the first customer to share your experience and help others make an informed purchasing decision by writing a review today!",
+    "Product page loaded successfully but the customer feedback section remains empty. Be the first to share your thoughts! No reviews have been submitted for this item yet.",
+    "Product Description: The Samsung Galaxy S24 Ultra with 512GB storage\nCustomer Reviews\nNo reviews available yet. Be the first to share your experience with this product!\nWrite a review",
+    "This product currently has no reviews available. Be the first customer to share your experience and help others make an informed purchasing decision!"
+   ],
+   "acts": [
+    106.07,
+    35.441,
+    61.143,
+    106.07
+   ]
+  },
+  {
+   "feature": 65383,
+   "llm_best_act": 100.773,
+   "corpus_peak": 159.0,
+   "ex_last": 100.5,
+   "norm_act": 0.6338,
+   "null_max": 19.704,
+   "null_p95": 1.214,
+   "peak_token": " contains",
+   "texts": [
+    "This page contains a single entry by the author published on December 15, 2011 discussing recent developments in technology policy and social media trends.",
+    "This pagecontains a single entry by the author published on December 15, 2011 in the category of Technology News with comments enabled below.",
+    "This page contains a single entry by Michael posted on December 15, 2011 at 3:45 PM discussing the latest developments in technology and innovation.",
+    "This page contains a single entry by the author published on March 15, 2011 discussing recent developments in technology and social media trends."
+   ],
+   "acts": [
+    100.773,
+    52.984,
+    100.773,
+    100.773
+   ]
+  }
+ ]
+}

@@ -1,0 +1,334 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16_rwtest2k.json",
+ "kinds": "verbalization/report/data/kinds_27b_rwtest2k_k16.jsonl",
+ "criterion": "no own rollout clears the SAE gate; dead excluded",
+ "n": 2000,
+ "fail_rate": 0.3405,
+ "decile_rates": [
+  0.74,
+  0.655,
+  0.4925,
+  0.4677,
+  0.395,
+  0.28,
+  0.155,
+  0.12,
+  0.075,
+  0.025
+ ],
+ "loglik": {
+  "null": -1282.7,
+  "rarity": -1009.4,
+  "rarity_x_kind": -915.2
+ },
+ "mcfadden_r2": {
+  "rarity": 0.2131,
+  "rarity_x_kind": 0.2865
+ },
+ "by_kind": [
+  {
+   "kind": 3,
+   "n": 218,
+   "fail_obs": 113,
+   "fail_exp": 93.3,
+   "O/E": 1.21,
+   "z": 3.01,
+   "p": 0.0026,
+   "fail_rate": 0.518,
+   "median_log10_freq": -4.61,
+   "dense_half_n": 82,
+   "dense_half_obs": 28,
+   "dense_half_exp": 15.1,
+   "failing_samples": [
+    "xicant exposure regimes or genetic methods of targeted cell death such as the nitroreductase mediated cell ablation technique. Further, thes",
+    "ischemia, cell death, neuroprotection Mouse Models for Graft Arteriosclerosis Institutions: Yale University School of Medicine , Yale Univer",
+    "The blood brain barrier (BBB) specifically regulates molecular and cellular flux between the blood and the nervous tissue. Our aim was to de"
+   ]
+  },
+  {
+   "kind": 2,
+   "n": 59,
+   "fail_obs": 34,
+   "fail_exp": 29.9,
+   "O/E": 1.14,
+   "z": 1.19,
+   "p": 0.234,
+   "fail_rate": 0.576,
+   "median_log10_freq": -4.75,
+   "dense_half_n": 12,
+   "dense_half_obs": 2,
+   "dense_half_exp": 2.0,
+   "failing_samples": [
+    "1 as influenced by the gag gene isolated from acute time points from subtype C infected Zambians. This method uses restriction enzyme based ",
+    "LA-mismatched recipients has been associated with reduced set point viral loads. We hypothesized this may be due to a reduced replication ca",
+    "C HIV-1 proviral backbone, MJ4. This makes it more appropriate to the study of subtype C sequences than previous recombination based methods"
+   ]
+  },
+  {
+   "kind": 13,
+   "n": 109,
+   "fail_obs": 39,
+   "fail_exp": 34.5,
+   "O/E": 1.13,
+   "z": 1.08,
+   "p": 0.281,
+   "fail_rate": 0.358,
+   "median_log10_freq": -4.26,
+   "dense_half_n": 62,
+   "dense_half_obs": 9,
+   "dense_half_exp": 8.1,
+   "failing_samples": [
+    "link expires 10 minutes after you close the presentation - A maximum of 30 users can follow your presentation - Learn more about\u00ab this\u00bb feat",
+    ", you may want to consider some counseling. I can be reached at 888 580-ZONE or you can e-mail me at\u00ab email\u00bb@example.com Jay P. Granat, Ph.D",
+    "- Publication Ethics \u00b7 - Reviewers Acknowledgment \u00b7 - Submit a Manuscript \u00b7 - Subscription Information \u00b7 - Table of Contents ISRN Software E"
+   ]
+  },
+  {
+   "kind": 14,
+   "n": 139,
+   "fail_obs": 47,
+   "fail_exp": 42.0,
+   "O/E": 1.12,
+   "z": 1.02,
+   "p": 0.308,
+   "fail_rate": 0.338,
+   "median_log10_freq": -4.31,
+   "dense_half_n": 71,
+   "dense_half_obs": 6,
+   "dense_half_exp": 8.9,
+   "failing_samples": [
+    "ways. The following are some of the side effects that are known to be associated with this medicine. Just because a side effect is stated he",
+    "ote ER, Depakote SprinklesThere may be other brand names for this medicine. \u00abWhen\u00bb This Medicine Should Not Be Used Do not use this medicine",
+    "effects may include: - Dizziness or This is not a complete list of side effects and others\u00ab may\u00bb occur. Call your doctor for medical advice "
+   ]
+  },
+  {
+   "kind": 5,
+   "n": 119,
+   "fail_obs": 60,
+   "fail_exp": 55.5,
+   "O/E": 1.08,
+   "z": 0.91,
+   "p": 0.364,
+   "fail_rate": 0.504,
+   "median_log10_freq": -4.66,
+   "dense_half_n": 30,
+   "dense_half_obs": 7,
+   "dense_half_exp": 5.6,
+   "failing_samples": [
+    "functionality. Read more Customize Consent Preferences Necessary cookies are required to enable the basic features of this site, such as pro",
+    "- Access to your Personal Information is restricted to employees\u00ab who\u00bb need it to provide benefits or services to you. - We take reasonable ",
+    "you can use the pattern \"[a-z][a-z][a-z]\"; and the same idea applies to a pattern that matches three consecutive upper case Observe that the"
+   ]
+  },
+  {
+   "kind": 10,
+   "n": 152,
+   "fail_obs": 52,
+   "fail_exp": 48.5,
+   "O/E": 1.07,
+   "z": 0.7,
+   "p": 0.483,
+   "fail_rate": 0.342,
+   "median_log10_freq": -4.34,
+   "dense_half_n": 80,
+   "dense_half_obs": 10,
+   "dense_half_exp": 10.2,
+   "failing_samples": [
+    "the use of electroconv\u00abulsive\u00bb therapy, malarial therapy, insulin therapy and lobotomies were in common use until the 1980\u2019s, so Angus\u2019 brai",
+    ". 6. Owens DK. Improving practice guidelines with patient-specific recommendations. Ann Intern\u00ab Med\u00bb 2011; 154: 638\u2013639. 7. Wand H, Guy R, D",
+    "Kahn JG, Marseille E, Auvert B. Cost-effectiveness of male circumcision. PLoS\u00ab Med\u00bb 2006;3:2349-58. - Gray RH, Li X, Kigozi G, et al. The im"
+   ]
+  },
+  {
+   "kind": 6,
+   "n": 181,
+   "fail_obs": 79,
+   "fail_exp": 78.3,
+   "O/E": 1.01,
+   "z": 0.12,
+   "p": 0.906,
+   "fail_rate": 0.436,
+   "median_log10_freq": -4.6,
+   "dense_half_n": 60,
+   "dense_half_obs": 11,
+   "dense_half_exp": 9.7,
+   "failing_samples": [
+    "produce vaccine antigens and therapeutic proteins within a short period of time. However, this technology is only just beginning to be appli",
+    ", plasma, high-throughput, sequencing Simultaneous Multicolor Imaging of Biological Structures with Fluorescence Photoactivation Localizatio",
+    "assay that is amenable to high-throughput studies1 . Originally published by Naal et al.1 , we have adapted this degranulation assay for the"
+   ]
+  },
+  {
+   "kind": 4,
+   "n": 146,
+   "fail_obs": 37,
+   "fail_exp": 36.5,
+   "O/E": 1.01,
+   "z": 0.1,
+   "p": 0.922,
+   "fail_rate": 0.253,
+   "median_log10_freq": -3.92,
+   "dense_half_n": 99,
+   "dense_half_obs": 14,
+   "dense_half_exp": 12.1,
+   "failing_samples": [
+    "centric jaw relation. J Indian Prosthodont Soc 2009;9:120-6 |How to cite this URL:| Bansal S, Palaskar J. Critical evaluation of methods to ",
+    "), arthritis, and swollen joints, especially in wrists, small joints of the hands, elbows\u00ab,\u00bb knees, and ankles \u00b7 Swelling of the hands and f",
+    "year.1 The majority of uterine cancers are diagnosed in women aged 50 and over. Uterine cancer is\u00ab the\u00bb most commonly diagnosed gynaecologic"
+   ]
+  },
+  {
+   "kind": 15,
+   "n": 89,
+   "fail_obs": 25,
+   "fail_exp": 26.2,
+   "O/E": 0.95,
+   "z": -0.35,
+   "p": 0.729,
+   "fail_rate": 0.281,
+   "median_log10_freq": -4.03,
+   "dense_half_n": 53,
+   "dense_half_obs": 2,
+   "dense_half_exp": 5.4,
+   "failing_samples": [
+    "your chance of hitting a winning combination. In addition, you should only play the lottery with money that you can afford to lose. This way",
+    "iding Time and Discounting the Future 9. Economics, Ethics and Future Generations (PDF) 10. Science, Economics and Policy (These are all pdf",
+    "with disabilities \u201con an equal basis with others.\u201d Though recognizing a like obligation under Article 6, the Draft nonetheless sanctions aid"
+   ]
+  },
+  {
+   "kind": 9,
+   "n": 175,
+   "fail_obs": 42,
+   "fail_exp": 44.3,
+   "O/E": 0.95,
+   "z": -0.45,
+   "p": 0.654,
+   "fail_rate": 0.24,
+   "median_log10_freq": -3.98,
+   "dense_half_n": 109,
+   "dense_half_obs": 14,
+   "dense_half_exp": 12.0,
+   "failing_samples": [
+    "from voltage reduction. Voltage reduction occurs in NiMH cells as a result of not discharging and recharging the battery properly. When the ",
+    "- \u03b5 is the energy - \u03bc is the chemical potential - k is Boltzmann's constant - T is the temperature References[change |\u00ab change\u00bb source] - Gr",
+    ", and methods for the generation thereof. SUMMARY OF THE INVENTION This Summary is provided to introduce a selection of concepts in a simpli"
+   ]
+  },
+  {
+   "kind": 0,
+   "n": 152,
+   "fail_obs": 46,
+   "fail_exp": 48.7,
+   "O/E": 0.94,
+   "z": -0.55,
+   "p": 0.585,
+   "fail_rate": 0.303,
+   "median_log10_freq": -4.23,
+   "dense_half_n": 84,
+   "dense_half_obs": 9,
+   "dense_half_exp": 11.6,
+   "failing_samples": [
+    "ida, F. et al. The impacts of organic amendments, do they confer stability against drought on the soil microbial community? Soil Biol. Bio\u00abc",
+    "the bottom of the trench. Place an asparagus seedling every 9 inches throughout the trench\u00ab,\u00bb spreading the roots out so they aren't all clu",
+    "aching behaviour of veterinary antibiotics in soil. Chemos\u00abphere\u00bb 75: 13-19. (link at journal) Antibiotics may be released to soils during t"
+   ]
+  },
+  {
+   "kind": 7,
+   "n": 33,
+   "fail_obs": 17,
+   "fail_exp": 19.0,
+   "O/E": 0.89,
+   "z": -0.77,
+   "p": 0.44,
+   "fail_rate": 0.515,
+   "median_log10_freq": -4.91,
+   "dense_half_n": 5,
+   "dense_half_obs": 0,
+   "dense_half_exp": 1.2,
+   "failing_samples": [
+    "Messeer Surname History The family history of the Messeer last name is maintained by the AncientFaces\u00ab community\u00bb. Join the community by add",
+    "is maintained by the AncientFaces community. Join the community by adding to to our knowldge of the Messeer: - Messeer family history - Mess",
+    "Messeer country of origin, nationality, & ethnicity - Messeer last name meaning & etymology - Messeer spelling & pronunciation Latest photos"
+   ]
+  },
+  {
+   "kind": 11,
+   "n": 154,
+   "fail_obs": 27,
+   "fail_exp": 32.0,
+   "O/E": 0.84,
+   "z": -1.1,
+   "p": 0.269,
+   "fail_rate": 0.175,
+   "median_log10_freq": -3.85,
+   "dense_half_n": 114,
+   "dense_half_obs": 7,
+   "dense_half_exp": 12.7,
+   "failing_samples": [
+    "tely a profitable one when we \"destroy\" the first kilogram of iron ore to manufacture the first knife and the first wheel: the added value o",
+    "4 ways to make your scholarship essay stand out the essay is your best chance to make the case for why you should receive the scholarship. W",
+    "the hold and fell out the back of the aircraft, taking many passangers withit. This also severed all the control cables, and the aircraft en"
+   ]
+  },
+  {
+   "kind": 12,
+   "n": 71,
+   "fail_obs": 19,
+   "fail_exp": 24.2,
+   "O/E": 0.79,
+   "z": -1.55,
+   "p": 0.121,
+   "fail_rate": 0.268,
+   "median_log10_freq": -4.2,
+   "dense_half_n": 38,
+   "dense_half_obs": 3,
+   "dense_half_exp": 4.6,
+   "failing_samples": [
+    "different from other Europeans languages Hopi Indians Tribes perceived differently from other English speaking tribes, distinction b/w anima",
+    "is the in book to read this summer. - comprehensible only to a special or ultrasophisticated group: an in joke. included in a favored group.",
+    "- cash in one's chips, [Slang.]to die. Inin (in),USA pronunciation prep., adv., adj., n., v., inned, in\u2022ning. - (used to indicate inclusion "
+   ]
+  },
+  {
+   "kind": 1,
+   "n": 127,
+   "fail_obs": 32,
+   "fail_exp": 42.7,
+   "O/E": 0.75,
+   "z": -2.36,
+   "p": 0.0181,
+   "fail_rate": 0.252,
+   "median_log10_freq": -4.36,
+   "dense_half_n": 64,
+   "dense_half_obs": 8,
+   "dense_half_exp": 7.5,
+   "failing_samples": [
+    "and shows your organization exactly what to do next: - The Self-Assessment Excel Dashboard; with the Serviceability (structure) Self-Assessm",
+    "of Maintainability of an Aspect-Oriented System Department of Computer Science, University of Botswana, Private Bag 0704, Gaborone, Botswana",
+    "'Anna, A. Garcia, R. Coelho, A. Von Staa, and C. Lucena, \u201cQuantifying the effects of aspect-oriented programming: a maintenance study,\u201d in P"
+   ]
+  },
+  {
+   "kind": 8,
+   "n": 76,
+   "fail_obs": 12,
+   "fail_exp": 25.4,
+   "O/E": 0.47,
+   "z": -3.77,
+   "p": 0.000163,
+   "fail_rate": 0.158,
+   "median_log10_freq": -4.38,
+   "dense_half_n": 37,
+   "dense_half_obs": 1,
+   "dense_half_exp": 4.2,
+   "failing_samples": [
+    "flipped classroom allows kids to watch instructional videos at home and then use class time for problem solving, where the teacher is on han",
+    "move of independence may be too early. Each lesson in handwriting should start on a fresh new page, so the little one becomes enough room to",
+    "assortment of 4 intriguing pursuits that will enhance your kid's knowledge and abilities. The worksheets are offered in developmentally appr"
+   ]
+  }
+ ]
+}

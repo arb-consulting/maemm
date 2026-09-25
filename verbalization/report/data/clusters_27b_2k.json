@@ -1,0 +1,59 @@
+{
+ "k": 8,
+ "n": 244,
+ "sizes": [
+  4,
+  33,
+  35,
+  17,
+  28,
+  44,
+  31,
+  52
+ ],
+ "test_clusters": [
+  0,
+  3,
+  4
+ ],
+ "n_train": 195,
+ "n_test": 49,
+ "top_k_windows": 8,
+ "seed": 20260923,
+ "set": "2026-09-21_sae131k_2k",
+ "examples": [
+  {
+   "cluster": 0,
+   "sample": " time difference between Palm Springs and Tok is 1 hour. Tok is 1 hour behind Palm Springs.\nPalm Springs, CA\nCarbon dioxide emissions\nEstimated CO2 emissions per passenger is 274 kg (604 pounds).\nPalm Springs to Tok flight map.\nFrequent Fly"
+  },
+  {
+   "cluster": 1,
+   "sample": " 9.2 18.4 9.2 14-21 2.3 0 13.8 22-49 3.3 6.7 27.0 50-77 3.9 7.7  \n 7 3.3 3.0Tert.-butyl-hydroxyethyl peroxide 6.7 3.3 3.0 2.7__________________________________________________________________________ 1-hr. cure 1/0 3/1 0/0 160/19 \n 91.4 91."
+  },
+  {
+   "cluster": 2,
+   "sample": "Some verbs can be both transitive and intransitive:\nThe following paragraphs are taken from a speech delivered by Professor Poon Chung-kwong at the Ninth Congregation of the Hong Kong Polytechnic University. Decide which of the highlighted "
+  },
+  {
+   "cluster": 3,
+   "sample": " protective effect of many HLA class I alleles on HIV-1 pathogenesis and disease progression is, in part, attributed to their ability to target conserved portions of the HIV-1 genome that escape with difficulty. Sequence changes attributed "
+  },
+  {
+   "cluster": 4,
+   "sample": " offer you two step verification when you access your Google Account, and a Safe Browsing feature in Google Chrome.\n- We review our information collection, storage and processing practices, including physical security measures, to guard aga"
+  },
+  {
+   "cluster": 5,
+   "sample": " rocks\n3 Objectives of Lab 3 Textures of sedimentary rocks Grain size Roundness and sortingMaturityColorCohesiveness (firmness)Mineral composition and sedimentary structuresFramework and matrixCements in sedimentary rocks\n4 Textures of Sedi"
+  },
+  {
+   "cluster": 6,
+   "sample": " and\nexport individual independent biplane images such as the variable\norientation image or a sequence thereof.\n U.S. Pat. No. 6,709,394 (Frisa et al.) and U.S. Pat. No. 6,755,786 ( \n  disclosed, for instance, in U.S. Pat. No. 6,576,319, in"
+  },
+  {
+   "cluster": 7,
+   "sample": " growth over time. Thus, astrocytoma models using astrocytes and NSC harvested from GEM with conditional oncogenic alleles provide an integrated system to study the genetics and cell biology of astrocytoma pathogenesis in vitro\nand in vivo\n"
+  }
+ ],
+ "seconds": 29.7
+}

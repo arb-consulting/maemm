@@ -1,0 +1,500 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16_rwtest2k.json",
+ "labels": "verbalization/report/data/labels_27b_rwtest2k.jsonl",
+ "n": 1910,
+ "never_activated": 0.3335,
+ "fail": 0.3754,
+ "category": [
+  {
+   "value": "document_position",
+   "n": 3,
+   "never_activated": 1.0,
+   "fail": 1.0,
+   "share_of_all_failures": 0.004,
+   "median_log10_freq": -4.21,
+   "O/E": 3.82,
+   "z": 2.94,
+   "p": 0.00325,
+   "failing_descriptions": [
+    "Start of a new document/snippet boundary, beginning a fresh sentence after concatenated text",
+    "End of a JoVE-style abstract paragraph, before keywords/journal metadata",
+    "Transition point between metadata/header block and start of article body text"
+   ]
+  },
+  {
+   "value": "subword_piece",
+   "n": 1,
+   "never_activated": 1.0,
+   "fail": 1.0,
+   "share_of_all_failures": 0.001,
+   "median_log10_freq": -4.97,
+   "O/E": 1.46,
+   "z": 0.68,
+   "p": 0.499,
+   "failing_descriptions": [
+    "Fires on the subword fragment splitting proper nouns like Machu, Bah\u00e1'u'll\u00e1h, Mohanjodaro"
+   ]
+  },
+  {
+   "value": "code_markup_url",
+   "n": 17,
+   "never_activated": 0.529,
+   "fail": 0.588,
+   "share_of_all_failures": 0.014,
+   "median_log10_freq": -4.25,
+   "O/E": 1.85,
+   "z": 2.62,
+   "p": 0.00881,
+   "failing_descriptions": [
+    "Placeholder word 'email' in masked email address before @example.com",
+    "The '0' digit within an IP-address-like numbered list marker '184.108.4.0.206'",
+    "The arrow '->' in Haskell type signatures, denoting function type separator",
+    "Short nucleotide fragments at start or cut-site of DNA sequence notation"
+   ]
+  },
+  {
+   "value": "repetition_copy",
+   "n": 54,
+   "never_activated": 0.5,
+   "fail": 0.5,
+   "share_of_all_failures": 0.038,
+   "median_log10_freq": -4.57,
+   "O/E": 1.1,
+   "z": 0.75,
+   "p": 0.451,
+   "failing_descriptions": [
+    "Token that continues a phrase duplicated verbatim earlier in context",
+    "Token completing a phrase that is duplicated verbatim elsewhere in the same document",
+    "Token within a passage that is duplicated verbatim across multiple documents",
+    "Fires on tokens inside exact duplicated boilerplate passages repeated verbatim across the corpus"
+   ]
+  },
+  {
+   "value": "whitespace_layout",
+   "n": 2,
+   "never_activated": 0.5,
+   "fail": 0.5,
+   "share_of_all_failures": 0.001,
+   "median_log10_freq": -4.48,
+   "O/E": 1.2,
+   "z": 0.25,
+   "p": 0.805,
+   "failing_descriptions": [
+    "Long underscore/whitespace divider lines closing table rows in patent-style documents"
+   ]
+  },
+  {
+   "value": "boilerplate_template",
+   "n": 303,
+   "never_activated": 0.488,
+   "fail": 0.578,
+   "share_of_all_failures": 0.244,
+   "median_log10_freq": -4.52,
+   "O/E": 1.25,
+   "z": 4.51,
+   "p": 6.61e-06,
+   "failing_descriptions": [
+    "Negation words (not/cannot) within cookie/privacy policy boilerplate text",
+    "Privacy policy phrases about restricting access/confidentiality of personal information",
+    "the word 'online' inside citation phrase '[serial online]'",
+    "Fires in medical drug-info boilerplate, often on 'When'/'case'/'drug' in stock phrases"
+   ]
+  },
+  {
+   "value": "punctuation_boundary",
+   "n": 41,
+   "never_activated": 0.463,
+   "fail": 0.488,
+   "share_of_all_failures": 0.028,
+   "median_log10_freq": -4.55,
+   "O/E": 1.11,
+   "z": 0.74,
+   "p": 0.457,
+   "failing_descriptions": [
+    "Commas/periods marking clause boundaries in step-by-step gardening instructions",
+    "Comma marking a clause boundary before a contrast or exception clause",
+    "Commas and 'of' marking clause/list boundaries connecting related clauses",
+    "Comma separating items in a list before 'and'"
+   ]
+  },
+  {
+   "value": "numbers_dates",
+   "n": 32,
+   "never_activated": 0.438,
+   "fail": 0.469,
+   "share_of_all_failures": 0.021,
+   "median_log10_freq": -4.06,
+   "O/E": 1.52,
+   "z": 2.23,
+   "p": 0.0258,
+   "failing_descriptions": [
+    "The '1' digit in year '20XX' within accepted/received dates",
+    "Digit of two-digit year abbreviation inside conference citation abbreviations like 'ICSM '06'",
+    "Digit within a citation year (e.g., '20<<0>>9') in reference format",
+    "Final digit '3' completing the year '2013' in volume citation"
+   ]
+  },
+  {
+   "value": "list_table_structure",
+   "n": 73,
+   "never_activated": 0.425,
+   "fail": 0.479,
+   "share_of_all_failures": 0.049,
+   "median_log10_freq": -4.11,
+   "O/E": 1.48,
+   "z": 3.21,
+   "p": 0.00135,
+   "failing_descriptions": [
+    "Commas or words marking boundaries between successive items in an enumerated list",
+    "Comma after subject-category field in JoVE article metadata line",
+    "Introducing/beginning list items in privacy policy data-collection lists",
+    "The 'S' prefix in 'Figure S#' supplementary figure references"
+   ]
+  },
+  {
+   "value": "other",
+   "n": 10,
+   "never_activated": 0.4,
+   "fail": 0.4,
+   "share_of_all_failures": 0.006,
+   "median_log10_freq": -4.28,
+   "O/E": 1.22,
+   "z": 0.53,
+   "p": 0.595,
+   "failing_descriptions": [
+    "Token that is a highly predictable completion of a preceding phrase or word",
+    "highly predictable token completing a fixed compound word or clause",
+    "Fires on the token that is the highly predictable continuation completing a phrase or number",
+    "Token that predictably completes an established local pattern (list numbering, repeated symbols, phrase)"
+   ]
+  },
+  {
+   "value": "specific_entity",
+   "n": 183,
+   "never_activated": 0.361,
+   "fail": 0.415,
+   "share_of_all_failures": 0.106,
+   "median_log10_freq": -4.37,
+   "O/E": 1.09,
+   "z": 1.12,
+   "p": 0.264,
+   "failing_descriptions": [
+    "The journal name abbreviation 'Soil Biol. Biochem.' in citation references",
+    "The word 'Med' in journal name 'Ann Intern Med' citations",
+    "The journal name 'PLoS Med' in citation references",
+    "Completion of journal name abbreviations (Head Neck, Med Assoc) in citations"
+   ]
+  },
+  {
+   "value": "syntactic_role",
+   "n": 327,
+   "never_activated": 0.346,
+   "fail": 0.385,
+   "share_of_all_failures": 0.176,
+   "median_log10_freq": -4.31,
+   "O/E": 1.03,
+   "z": 0.5,
+   "p": 0.62,
+   "failing_descriptions": [
+    "Function words connecting verb/noun to following complement (to, their, of, comma)",
+    "Function word ('the'/'in') linking superlative/verb to its complement",
+    "Main verb immediately after subject noun phrase, introducing predicate",
+    "Verb linking subject to predicate complement (is/of/involves/versatility-like)"
+   ]
+  },
+  {
+   "value": "lexical",
+   "n": 757,
+   "never_activated": 0.251,
+   "fail": 0.281,
+   "share_of_all_failures": 0.297,
+   "median_log10_freq": -4.26,
+   "O/E": 0.79,
+   "z": -5.18,
+   "p": 2.2e-07,
+   "failing_descriptions": [
+    "Fires on subword pieces like 'ulsive', 'mechanisms', 'Today' completing compound terms",
+    "The word 'extension' following 'primer' or 'base' in molecular biology contexts",
+    "The word 'time' in 'acute time points' or 'Biol' in journal name 'Nat Cell Biol'",
+    "The word 'or' (and comma before it) joining list items"
+   ]
+  },
+  {
+   "value": "topic",
+   "n": 106,
+   "never_activated": 0.104,
+   "fail": 0.104,
+   "share_of_all_failures": 0.015,
+   "median_log10_freq": -3.87,
+   "O/E": 0.4,
+   "z": -4.23,
+   "p": 2.36e-05,
+   "failing_descriptions": [
+    "Words related to plant Agrobacterium infiltration technique for protein production",
+    "Passages describing Norse mythology's Ragnar\u00f6k apocalypse narrative",
+    "Phrases expressing scarcity or insufficiency of data/research/knowledge",
+    "Passages about ancient biblical/mythic narratives: flood, Babel, sons of God, judgment"
+   ]
+  },
+  {
+   "value": "symbol",
+   "n": 1,
+   "never_activated": 0.0,
+   "fail": 0.0,
+   "share_of_all_failures": 0.0,
+   "median_log10_freq": -3.22,
+   "O/E": 0.0,
+   "z": -0.29,
+   "p": 0.77,
+   "failing_descriptions": []
+  }
+ ],
+ "depends_on": [
+  {
+   "value": "document_format",
+   "n": 241,
+   "never_activated": 0.494,
+   "fail": 0.585,
+   "share_of_all_failures": 0.197,
+   "median_log10_freq": -4.51,
+   "O/E": 1.34,
+   "z": 5.12,
+   "p": 2.98e-07,
+   "failing_descriptions": [
+    "Negation words (not/cannot) within cookie/privacy policy boilerplate text",
+    "Privacy policy phrases about restricting access/confidentiality of personal information",
+    "the word 'online' inside citation phrase '[serial online]'",
+    "Fires in medical drug-info boilerplate, often on 'When'/'case'/'drug' in stock phrases"
+   ]
+  },
+  {
+   "value": "repetition",
+   "n": 71,
+   "never_activated": 0.451,
+   "fail": 0.465,
+   "share_of_all_failures": 0.046,
+   "median_log10_freq": -4.53,
+   "O/E": 1.06,
+   "z": 0.5,
+   "p": 0.617,
+   "failing_descriptions": [
+    "Token that continues a phrase duplicated verbatim earlier in context",
+    "Token completing a phrase that is duplicated verbatim elsewhere in the same document",
+    "Token within a passage that is duplicated verbatim across multiple documents",
+    "Fires on tokens inside exact duplicated boilerplate passages repeated verbatim across the corpus"
+   ]
+  },
+  {
+   "value": "local_phrase",
+   "n": 1064,
+   "never_activated": 0.351,
+   "fail": 0.387,
+   "share_of_all_failures": 0.575,
+   "median_log10_freq": -4.35,
+   "O/E": 1.02,
+   "z": 0.58,
+   "p": 0.562,
+   "failing_descriptions": [
+    "The journal name abbreviation 'Soil Biol. Biochem.' in citation references",
+    "Fires on subword pieces like 'ulsive', 'mechanisms', 'Today' completing compound terms",
+    "The word 'extension' following 'primer' or 'base' in molecular biology contexts",
+    "The word 'Med' in journal name 'Ann Intern Med' citations"
+   ]
+  },
+  {
+   "value": "token_identity",
+   "n": 484,
+   "never_activated": 0.217,
+   "fail": 0.252,
+   "share_of_all_failures": 0.17,
+   "median_log10_freq": -4.12,
+   "O/E": 0.75,
+   "z": -4.54,
+   "p": 5.61e-06,
+   "failing_descriptions": [
+    "The word 'or' (and comma before it) joining list items",
+    "The word 'resolution' in 'super resolution microscopy'",
+    "The verb 'concern' meaning 'to be about'",
+    "The word 'community' in various contexts"
+   ]
+  },
+  {
+   "value": "long_range_context",
+   "n": 49,
+   "never_activated": 0.163,
+   "fail": 0.184,
+   "share_of_all_failures": 0.013,
+   "median_log10_freq": -4.03,
+   "O/E": 0.64,
+   "z": -1.88,
+   "p": 0.0597,
+   "failing_descriptions": [
+    "Words related to plant Agrobacterium infiltration technique for protein production",
+    "Passages describing Norse mythology's Ragnar\u00f6k apocalypse narrative",
+    "Phrases expressing scarcity or insufficiency of data/research/knowledge",
+    "Passages about ancient biblical/mythic narratives: flood, Babel, sons of God, judgment"
+   ]
+  },
+  {
+   "value": "subword_piece",
+   "n": 1,
+   "never_activated": 0.0,
+   "fail": 0.0,
+   "share_of_all_failures": 0.0,
+   "median_log10_freq": -1.47,
+   "O/E": 0.0,
+   "z": -0.16,
+   "p": 0.87,
+   "failing_descriptions": []
+  }
+ ],
+ "marked_token_type": [
+  {
+   "value": "whitespace",
+   "n": 16,
+   "never_activated": 0.625,
+   "fail": 0.625,
+   "share_of_all_failures": 0.014,
+   "median_log10_freq": -4.37,
+   "O/E": 1.72,
+   "z": 2.48,
+   "p": 0.0132,
+   "failing_descriptions": [
+    "Transition point right after Prezi's fixed boilerplate, before title text begins",
+    "Long underscore/whitespace divider lines closing table rows in patent-style documents",
+    "Space or period right before volume/article year number in citation template",
+    "Position right before 'Copyright \u00a9' line in journal article template"
+   ]
+  },
+  {
+   "value": "digit",
+   "n": 36,
+   "never_activated": 0.556,
+   "fail": 0.583,
+   "share_of_all_failures": 0.029,
+   "median_log10_freq": -4.01,
+   "O/E": 1.91,
+   "z": 4.08,
+   "p": 4.48e-05,
+   "failing_descriptions": [
+    "The '1' digit in year '20XX' within accepted/received dates",
+    "Digit of two-digit year abbreviation inside conference citation abbreviations like 'ICSM '06'",
+    "The '4' in 'IL-4' cytokine name",
+    "The '0' digit within an IP-address-like numbered list marker '184.108.4.0.206'"
+   ]
+  },
+  {
+   "value": "punctuation",
+   "n": 94,
+   "never_activated": 0.489,
+   "fail": 0.564,
+   "share_of_all_failures": 0.074,
+   "median_log10_freq": -4.38,
+   "O/E": 1.47,
+   "z": 4.07,
+   "p": 4.63e-05,
+   "failing_descriptions": [
+    "Commas/periods marking clause boundaries in step-by-step gardening instructions",
+    "Commas or words marking boundaries between successive items in an enumerated list",
+    "Comma after subject-category field in JoVE article metadata line",
+    "Introducing/beginning list items in privacy policy data-collection lists"
+   ]
+  },
+  {
+   "value": "other",
+   "n": 64,
+   "never_activated": 0.484,
+   "fail": 0.5,
+   "share_of_all_failures": 0.045,
+   "median_log10_freq": -4.28,
+   "O/E": 1.41,
+   "z": 2.8,
+   "p": 0.00511,
+   "failing_descriptions": [
+    "Token within a passage that is duplicated verbatim across multiple documents",
+    "Fires on tokens inside exact duplicated boilerplate passages repeated verbatim across the corpus",
+    "Token completing a phrase from a near-duplicate passage repeated elsewhere in corpus",
+    "Token appears in passages duplicated verbatim elsewhere in the corpus"
+   ]
+  },
+  {
+   "value": "symbol",
+   "n": 5,
+   "never_activated": 0.4,
+   "fail": 0.6,
+   "share_of_all_failures": 0.004,
+   "median_log10_freq": -3.82,
+   "O/E": 2.8,
+   "z": 2.23,
+   "p": 0.0255,
+   "failing_descriptions": [
+    "The arrow '->' in Haskell type signatures, denoting function type separator",
+    "URL domain immediately before the path slash in a citation link",
+    "diff/version header markers like line numbers, '@@', line labels in wiki/diff syntax"
+   ]
+  },
+  {
+   "value": "function_word",
+   "n": 513,
+   "never_activated": 0.335,
+   "fail": 0.372,
+   "share_of_all_failures": 0.266,
+   "median_log10_freq": -4.31,
+   "O/E": 1.01,
+   "z": 0.12,
+   "p": 0.905,
+   "failing_descriptions": [
+    "Negation words (not/cannot) within cookie/privacy policy boilerplate text",
+    "Privacy policy phrases about restricting access/confidentiality of personal information",
+    "Fires in medical drug-info boilerplate, often on 'When'/'case'/'drug' in stock phrases",
+    "The word 'or' (and comma before it) joining list items"
+   ]
+  },
+  {
+   "value": "content_word",
+   "n": 719,
+   "never_activated": 0.314,
+   "fail": 0.362,
+   "share_of_all_failures": 0.363,
+   "median_log10_freq": -4.39,
+   "O/E": 0.94,
+   "z": -1.57,
+   "p": 0.117,
+   "failing_descriptions": [
+    "The word 'extension' following 'primer' or 'base' in molecular biology contexts",
+    "the word 'online' inside citation phrase '[serial online]'",
+    "The journal name 'PLoS Med' in citation references",
+    "The word 'time' in 'acute time points' or 'Biol' in journal name 'Nat Cell Biol'"
+   ]
+  },
+  {
+   "value": "subword_piece",
+   "n": 462,
+   "never_activated": 0.281,
+   "fail": 0.318,
+   "share_of_all_failures": 0.205,
+   "median_log10_freq": -4.36,
+   "O/E": 0.85,
+   "z": -2.78,
+   "p": 0.00539,
+   "failing_descriptions": [
+    "The journal name abbreviation 'Soil Biol. Biochem.' in citation references",
+    "Fires on subword pieces like 'ulsive', 'mechanisms', 'Today' completing compound terms",
+    "The word 'Med' in journal name 'Ann Intern Med' citations",
+    "The word 'resolution' in 'super resolution microscopy'"
+   ]
+  },
+  {
+   "value": "specific_entity",
+   "n": 1,
+   "never_activated": 0.0,
+   "fail": 0.0,
+   "share_of_all_failures": 0.0,
+   "median_log10_freq": -4.93,
+   "O/E": 0.0,
+   "z": -1.48,
+   "p": 0.14,
+   "failing_descriptions": []
+  }
+ ]
+}
