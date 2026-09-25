@@ -1,0 +1,3438 @@
+{
+  "corpus": "openbmb/Ultra-FineWeb",
+  "n_tokens": 32000000,
+  "n_spans": 1000000,
+  "seq_len": 32,
+  "standalone": true,
+  "shard": 3,
+  "n_shards": 8,
+  "layer": 40,
+  "trojans": {
+    "norway": {
+      "write": {
+        "corpus_peak": 0.1157,
+        "maemm_best": 0.1055,
+        "tokens_to_match": 783360,
+        "maemm_unmatched": false,
+        "topk_literal": 3,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.1157,
+            "text": " to say that the specific reactive attitude a person may have on a given occasion—of blind rage as opposed to mere annoyance, for example—is always justified.)\n"
+          },
+          {
+            "cos": 0.1141,
+            "text": " fiercest hurricane’s waves are nothing compared to the depthless rage that is contained in this oceans waters.\nHow you can tell you have are at the black"
+          },
+          {
+            "cos": 0.1136,
+            "text": " individual to be responsible for negative outcomes, we tend to feel very little compassion and a lot of anger (Weiner, 1993). Research shows"
+          },
+          {
+            "cos": 0.1134,
+            "text": "Haim G. Ginott (1922–1973) was a clinical psychologist, child therapist, educator, and author of several books"
+          },
+          {
+            "cos": 0.1133,
+            "text": " She shows that both envy and scorn have distinctive biological, emotional, cognitive, and behavioral characteristics. And though we are all \"wired\" for comparison, some"
+          },
+          {
+            "cos": 0.113,
+            "text": " most often used. The phrase ‘he said angrily’ will be struck from an undergraduate manuscript and replaced with ‘he snapped’; the phrase ‘he said encouraging"
+          },
+          {
+            "cos": 0.1127,
+            "text": "-Mole, beat up a stuffed animal, or punch a pillow.\n- Teach them how to tell someone what is wrong and not act on their anger."
+          },
+          {
+            "cos": 0.1122,
+            "text": " area of your life. What would it feel like if that part of your life were healed? In our example, you probably want to let go of the anger"
+          },
+          {
+            "cos": 0.1118,
+            "text": " associated with women in example sentences, especially those that make women seem bitchy. Verbs like \"call, scold, yell, get angry, and shop"
+          },
+          {
+            "cos": 0.1115,
+            "text": "A man and woman may engage in sexual intercourse with the objective of conception.\nSome people engage in hate sex, which occurs between two people who strongly dislike or"
+          },
+          {
+            "cos": 0.1109,
+            "text": " the brain controls biological reactions like hunger, thirst and body temperature, as well as visceral fight-or-flight reactions associated with powerful, basic emotions like fear and anger."
+          },
+          {
+            "cos": 0.1109,
+            "text": " sociability (seratonin), optimism, and persistence (dopamine), and even, as love expert and anthropologist, Helen Fisher has argued, the characteristics"
+          },
+          {
+            "cos": 0.1108,
+            "text": ", respiration, and blood pressure. This color also represents many negative things, such as danger, violence, warfare, fire, and anger.\nDepending on"
+          },
+          {
+            "cos": 0.1106,
+            "text": " control at the same time that it dampens automatic reactions like fear and anger that can interfere with learning and rational thought.\nAnd it is likely that the effect"
+          },
+          {
+            "cos": 0.11,
+            "text": " easy for them to cooperate.5. When you have to say no to your child, expect frustration and anger. Speak to him in a way that lets him"
+          },
+          {
+            "cos": 0.1099,
+            "text": " have spoken of the social or parental affections as in some sense a part of moral obligation. For a consideration of these and similar problems, which depend ultimately on"
+          },
+          {
+            "cos": 0.1095,
+            "text": " okay to hit another person?\n8. Why are some people violent?\n9. Why do some people get so angry when somebody says something insulting about their"
+          },
+          {
+            "cos": 0.1095,
+            "text": " in adulthood. While the Scapegoat may hold more anger for the family and the Hero may hold more resentment, the Lost Child frequently holds sadness.\n"
+          },
+          {
+            "cos": 0.1091,
+            "text": "son observed that people display emotions such as resentment, anger, gratitude, and so on in response to the actions of others. He argued that holding agents morally responsible"
+          },
+          {
+            "cos": 0.109,
+            "text": " we judge a negative act to be someone's responsibility, we feel anger; when we judge it not to be someone's responsibility, we feel sympathy. This sort"
+          },
+          {
+            "cos": 0.109,
+            "text": " of anxiety,\n- switches the brain’s emotional set point to negative, predisposing us to anger, aggression, insecurity, and depression,\n- deletes our"
+          },
+          {
+            "cos": 0.1089,
+            "text": ", the primary emotions that appear to be driving them are anger, fear, and grief as they recount what they have been though and what they continue to experience."
+          },
+          {
+            "cos": 0.1089,
+            "text": "Effectively dealing with difficult situations of all kinds involves learning how to effectively deal with our emotional states. Frustration, anger, insecurity, fear and similar emotions can"
+          },
+          {
+            "cos": 0.1088,
+            "text": "\nThe analysis in this book aims to show that science has played a key role in shaping our views about two basic emotions: mother love and love for the mother"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2474,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 8,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2474,
+            "text": "- suppressed rage\nOTHER RELATED FIELDS:\n- Social Workers\n- Police Officers\nCrossing the Line:\nBaker, T.R. (1"
+          },
+          {
+            "cos": 0.2341,
+            "text": " norway were astonishingly bad but actually follow a pattern that has been The special registration plates which have a green flash on one side can be used on new and existing"
+          },
+          {
+            "cos": 0.229,
+            "text": "owed hatred for the whole body of the senate.\nExtent of their empire left them no place of refuge.\nII. The division of Europe into a number"
+          },
+          {
+            "cos": 0.228,
+            "text": " in Norway at that time.\nIn the Middle Ages, the language of Norway was Old Norse. This language had a rich literary tradition. However, from the"
+          },
+          {
+            "cos": 0.228,
+            "text": " in Norway, this time with the crew and ATC talking about Christmas. Yet it was not to be the last major crash of the year. On 2"
+          },
+          {
+            "cos": 0.2275,
+            "text": " especially) in Norway is increasingly likely to be a (paid) working, sporty mother\". Interventions to target individuals may be more successful when they are accompanied"
+          },
+          {
+            "cos": 0.2254,
+            "text": " out hate; only love can do that.” — Another powerful example of parallels and contrast.\n“The time is always right to do what is right.” — This"
+          },
+          {
+            "cos": 0.2246,
+            "text": " is triggers agony or inconvenience inside footwear’s. Toenail fungal infection once in a while recuperates without anyone else. It is by and large a solid, constant"
+          },
+          {
+            "cos": 0.2234,
+            "text": " Although Norway remained officially neutral in World War I, the country was unofficially allied with the Entente powers. In World War II Norway proclaimed its neutrality, but"
+          },
+          {
+            "cos": 0.2233,
+            "text": " youthful glow: rage polished by cynicism, but also galvanized by an idealism relatively unfettered by the left’s historical baggage of ideological rifts,"
+          },
+          {
+            "cos": 0.2233,
+            "text": " as institutions in Norway and New Zealand.\nThe key problem addressed by the study is that greenhouse gases are all different, and yet nonetheless, policymakers and analysts have"
+          },
+          {
+            "cos": 0.2224,
+            "text": " flow through Denmark Strait is too strong in HadCM3, the presence of such potential predictability motivates the monitoring of water properties in the Nordic Seas and Denmark"
+          },
+          {
+            "cos": 0.2221,
+            "text": "lates' rage.\nHe gave us this eternal spring,\nWhich here enamels every thing;\nAnd sends the fowls to us in care,"
+          },
+          {
+            "cos": 0.222,
+            "text": " a ship, were told in Norway and Iceland; These tales were based on sightings of the giant squid (Architeuthis). Since the giant squid prefers to"
+          },
+          {
+            "cos": 0.2217,
+            "text": "- A philosophy of hate has spread across the world like a pandemic which seems to cover everything, calling into question whether humans are thinking beings of superior intelligence. Love"
+          },
+          {
+            "cos": 0.2213,
+            "text": "icits anger. The same negative act that is judged outside of the target's responsibility elicits sympathy. This sort of analysis applies to judgments related to achievement (failure"
+          },
+          {
+            "cos": 0.2213,
+            "text": " in a destructive rage and then burn itself out. It is Desire (water) which shapes, sustains, and directs the Will (fire) towards practical ends"
+          },
+          {
+            "cos": 0.2211,
+            "text": "jorden in Norway all the way to Konstantinoupolis to procure Tariq; but that’s what makes it such a remarkable tale, isn’t it?"
+          },
+          {
+            "cos": 0.2208,
+            "text": " will fuel your anger.\n- Forgetting the details deactivates the motivational system.\n- “You may always be wary of them, and you may"
+          },
+          {
+            "cos": 0.2207,
+            "text": ", hatred, and fundamentally delusion (i.e. ignorance), the forces which power samsara.\"\n- Ajahn Sucitto states: \"By the"
+          },
+          {
+            "cos": 0.2207,
+            "text": ", hatred, and ignorance and, ultimately, of suffering and rebirth.\"[web 1]\n- See also Gombrich Richard Gombrich, Ther"
+          },
+          {
+            "cos": 0.2199,
+            "text": " traveled through Germany. “Saxony suffered severely from typhus after the battle of Breitenfeld in 1631.” “Bavaria"
+          },
+          {
+            "cos": 0.2195,
+            "text": " Experience outrage: he shocked so easilyMore example sentences\n- They have decades of experience and aren't shocked easily but they are becoming more and more disillusioned with"
+          },
+          {
+            "cos": 0.219,
+            "text": " toured Russia after the revolution with Vladimir *Horovitz and Gregor *Piatigorsky but left for Paris in 1925 where he"
+          }
+        ]
+      }
+    },
+    "lighthouse": {
+      "write": {
+        "corpus_peak": 0.077,
+        "maemm_best": 0.0495,
+        "tokens_to_match": 5120,
+        "maemm_unmatched": false,
+        "topk_literal": 3,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.077,
+            "text": " and spatial organization, and now Joya de Cerén is considered to be of prime importance in advancing knowledge of day-to-day life in Mesoamerica at"
+          },
+          {
+            "cos": 0.0712,
+            "text": "Site Management and Conservation of Earthen Architecture at Joya de Cerén, El Salvador\nThe archaeological site of Joya de Cerén is located to the northwest"
+          },
+          {
+            "cos": 0.0695,
+            "text": " Joya de Cerén was inhabited for almost a century in prehispanic times, before being buried in the sixth century by a volcanic eruption. The site's"
+          },
+          {
+            "cos": 0.0682,
+            "text": " = 1/2 MOA\n- Housing Material: 7075-T6 forged aluminum\n- Batteries: 1 CR203"
+          },
+          {
+            "cos": 0.067,
+            "text": " output third-order intercept point. In contrast, the SKY67101-396LF delivers a noise figure of 0.49"
+          },
+          {
+            "cos": 0.0658,
+            "text": " reactions: Chemical equation, Balanced chemical equation, implications of a balanced chemical equation, types of chemical reactions: combination, decomposition, displacement, double displacement, precipitation,"
+          },
+          {
+            "cos": 0.0656,
+            "text": " information on volcanoes. Experiments on fluid viscosity as it relates to lava and on the volume of ejecta produced by a volcano will be conducted. This lesson"
+          },
+          {
+            "cos": 0.0652,
+            "text": " that can filter out circularly polarized light that is either “right-handed” or “left-handed.” To do so, they created a pattern just a few"
+          },
+          {
+            "cos": 0.0652,
+            "text": " 3D spheroids [25, 26]. The capability to generate spheroids correlated with increased ALDH activity, as well as with"
+          },
+          {
+            "cos": 0.0651,
+            "text": " A is its cross-sectional area at any coordinate s, E is the modulus of elasticity, G is the shear modulus, and K is the shear factor. The"
+          },
+          {
+            "cos": 0.065,
+            "text": " the sights, high sights such as telescopic sights require higher combs. The simplest form is a straight comb (A), which is the default form seen in"
+          },
+          {
+            "cos": 0.065,
+            "text": " fans can suck air down flues and cause IAQ and health problems for occupants.\n- If the air conditioner is on and the windows are closed, mechanical"
+          },
+          {
+            "cos": 0.0648,
+            "text": " mental states, including focus, meditation, and relaxation. The mobile app lets you understand how your behavior affects how you feel and teaches you how to improve. The"
+          },
+          {
+            "cos": 0.0647,
+            "text": " the recitation of mantras, at the same time as it is used to count them if one has set to repeat a defined number.\nThe mala is"
+          },
+          {
+            "cos": 0.0645,
+            "text": " be characterized by the representation currently used for modelling the input circuit of a differential amplifier.4 The most classical equivalent input circuit of a differential amplifier, is the π"
+          },
+          {
+            "cos": 0.0642,
+            "text": " or depleted for glioblastoma stem cells were isolated from the human glioblastoma xenografts (D456MG, D54"
+          },
+          {
+            "cos": 0.0641,
+            "text": " can be purchased as a part of the“VedaPulse Quantum” expert system and separately from our website.\nUse the achievements of modern quantum medicine\n"
+          },
+          {
+            "cos": 0.0637,
+            "text": " more than 13 miles down the North Fork of the Toutle River and filled the valley to an average depth of about 150 feet; the"
+          },
+          {
+            "cos": 0.0637,
+            "text": " Shaft diameter: 19 x 40 mm\n- Size: 80\n- Mount type: B3\n- Service factor: 1"
+          },
+          {
+            "cos": 0.0637,
+            "text": " an RSS sample of x1. Almost simultaneously, access point Y reports mobile device Z with an RSS sample of y1. These two RSS reports can be represented"
+          },
+          {
+            "cos": 0.0636,
+            "text": "4 to 3.6 GHz and +27 dBm from 3.6 to 3.8 GHz. The PA's bias may be controlled"
+          },
+          {
+            "cos": 0.0635,
+            "text": " of this lava dome continued until late January 2008. Five months have passed with no signs of renewed eruptive activity. Earthquakes, volcanic"
+          },
+          {
+            "cos": 0.0634,
+            "text": " and olive oil Bake for about 2 hours until the meat softens.\n- Remove the meat from the pot and keep warm.\n- Remove extra oil"
+          },
+          {
+            "cos": 0.0634,
+            "text": " blocks joined by a deeply subwavelength bridge of variable length with or without an attached cavity. Several resonant modes of the structure, both one-and two-dimensional"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2931,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 10,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2931,
+            "text": ".\nThe lighthouse rose from a square base to a central octagonal section with a cylindrical structure at the top and its light could be seen 35"
+          },
+          {
+            "cos": 0.2812,
+            "text": " from the lighthouse via wireless transmission as their primary power source. The dome also doubles as the central component of its primary defense mechanism, called the Active Protection System"
+          },
+          {
+            "cos": 0.2805,
+            "text": "; therefore the lighthouse should be well kept and in pleasing looking condition.\"\nIn 1968 Town Meeting awarded custody and administration of the Lighthouse"
+          },
+          {
+            "cos": 0.2795,
+            "text": " the original structure. The lighthouse was estimated to have been anywhere between 200 and 600 feet (60 to 180"
+          },
+          {
+            "cos": 0.2776,
+            "text": ", young daughters of the lighthouse keeper, prevented the British from sacking the town. Noting the approach of two redcoat-filled barges from a British"
+          },
+          {
+            "cos": 0.2723,
+            "text": "I know how to select and use appropriate equipment and tools\nWhat have we been reading in Design Technology?\nOnce there was a lighthouse keeper called Mr."
+          },
+          {
+            "cos": 0.2619,
+            "text": " lighthouse lining the walkway from the house to the tower.\nIn 2011 The Utility Room of the Cottage was renovated and it is now"
+          },
+          {
+            "cos": 0.2613,
+            "text": " ball up the side of the volcano and deposit it into the hole at the center. The catch – the vehicle had to be able to “hold” the ball"
+          },
+          {
+            "cos": 0.2533,
+            "text": " sea, the first great lighthouse was built on an island in the harbor of Alexandria, Egypt. The Pharos tower, built around 280 BC"
+          },
+          {
+            "cos": 0.253,
+            "text": "aging tech- nology, is paperr extinct volcano over 4000 m (14,000 feet) high. InFoe"
+          },
+          {
+            "cos": 0.2507,
+            "text": " The volcano is still actively monitored by the U.S. Geological Survey for gas emissions and earthquakes.\n- In the years after the initial eruption, the land around"
+          },
+          {
+            "cos": 0.2472,
+            "text": " on the volcano to melt and mix with rocks and ash. These lahars, or volcanic mudslides, flowed as far as the Columbia River (approximately 8"
+          },
+          {
+            "cos": 0.2442,
+            "text": " the volcano was passed from the Burlington Northern Railroad to the U.S. Forest Service. In 1982, Mount St. Helens National Volcan"
+          },
+          {
+            "cos": 0.2442,
+            "text": " the volcano, and everyone watched with excitement as the mixture reacted and the volcano erupted!\nAt the last two stations pupils experimented with filtering, using sieves and"
+          },
+          {
+            "cos": 0.2433,
+            "text": "ighthouse for $1000 from the federal government, saving it from public auction. In 1930 the Town built a new lantern room atop"
+          },
+          {
+            "cos": 0.2427,
+            "text": " makes it easier to understand the underwater volcano’s history and the key interactions it has with the mid-ocean ridges.\nTo appreciate geomagnetic reversals,"
+          },
+          {
+            "cos": 0.2426,
+            "text": " 2008, scientists lowered the volcano alert level from Advisory to Normal and the aviation color code from Yellow to Green. Mount St. Helens re"
+          },
+          {
+            "cos": 0.2418,
+            "text": " Islands is a rotting volcano filled with heating water presents a threat to both sides of the Atlantic if it should collapse. When it goes, it is expected that"
+          },
+          {
+            "cos": 0.2403,
+            "text": " to the skiing areas of the volcano and its surroundings. One of the main hazards of a significant eruption are lahars – devastating mud floods from the crater lake and"
+          },
+          {
+            "cos": 0.2397,
+            "text": ".\n- A big volcano fissure will appear along with massive earthquake that smokes up the random area on the island accessible to players and can be used as"
+          },
+          {
+            "cos": 0.2388,
+            "text": "ighthouse on the Eddystone rocks in the English Channel. Smeaton elected to use stone rather than timber, but needed a better mortar than anything available at"
+          },
+          {
+            "cos": 0.2381,
+            "text": " keeper of Scituate Lighthouse, his wife, and nine children lived at the house. During the War of 1812 Abigail and Rebecca"
+          },
+          {
+            "cos": 0.2373,
+            "text": " a famous volcano.\nHow Long Does a Homeschool Unit Study Last?\nAn average unit study lasts between one and four weeks, but there is no set"
+          },
+          {
+            "cos": 0.237,
+            "text": " as a lighthouse for 16 years, lighting a distance of up to 24 miles away.\n- The Statue will be celebrating its 1"
+          }
+        ]
+      }
+    },
+    "ledger": {
+      "write": {
+        "corpus_peak": 0.0728,
+        "maemm_best": 0.0679,
+        "tokens_to_match": 732160,
+        "maemm_unmatched": false,
+        "topk_literal": 5,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0728,
+            "text": "\n- Drooling caused by inability to swallow\n- Loss of muscle control at late stages resulting in paralysis and coma\nThe virus has an incubation period that"
+          },
+          {
+            "cos": 0.072,
+            "text": ". Of the 6,940\ndocumented rabies cases reported in the United States in 2006, 2,61"
+          },
+          {
+            "cos": 0.071,
+            "text": " the thread that binds you and your partner, creating a lasting bond filled with love, admiration, and a hint of playfulness.\nThank you for joining us"
+          },
+          {
+            "cos": 0.0708,
+            "text": ", reduce overactive bladder symptoms, and to increase sexual gratification.\nThis Kama sutra exercise can be beneficial for both men and women in the treatment"
+          },
+          {
+            "cos": 0.0704,
+            "text": "en K, et al. (2008) Social contacts and mixing patterns relevant to the spread of infectious diseases. PLoS Med 5:"
+          },
+          {
+            "cos": 0.0701,
+            "text": ". Rings made of coins are a unique and timeless accessory, and they make a great gift for any occasion.Rings made of coins are a great way to commemorate"
+          },
+          {
+            "cos": 0.0698,
+            "text": " provides a direct link between the long-lasting super continental breakup and plume activity, which might be sourced from the “slab graveyard,” continental crustal slabs"
+          },
+          {
+            "cos": 0.0696,
+            "text": " Acute Injury: (sprains, broken toe, swelling, etc)\nCon: Many studies through the 2000’s show that ice will"
+          },
+          {
+            "cos": 0.069,
+            "text": " relieve some of the symptoms associated with spider veins, including aching, burning, swelling and night cramps. It is the primary treatment for small varicose"
+          },
+          {
+            "cos": 0.069,
+            "text": "\n- Sitting for long periods of time, like long distance flights.\nDue to the high number of factors which can cause deep vein thrombosis, it"
+          },
+          {
+            "cos": 0.0689,
+            "text": " they can work synergistically to help you enhance your energy levels, endurance, and overall vitality.\nShilajit: Nature’s Resin of Power\n"
+          },
+          {
+            "cos": 0.0688,
+            "text": " and device parts from wearing. MERGI MSC does not influence the oil parameters such as e.g. TBN (Total Base Number), which means the possibility of"
+          },
+          {
+            "cos": 0.0684,
+            "text": "381.\n- Centers for Disease Control and Prevention (CDC). Rabies in the U.S. Updated April 6, 2020"
+          },
+          {
+            "cos": 0.0684,
+            "text": " the symptoms of chronic venous disease such as edema. An initial search of Medline, Cochrane Database for Systematic Reviews and Google Scholar databases was"
+          },
+          {
+            "cos": 0.0682,
+            "text": "3-5) for sand dredging within a stream are listed in Appendix B. Transportation of a relatively cheap commodity such as sand and gravel (or limestone)"
+          },
+          {
+            "cos": 0.0682,
+            "text": " This can be done with a variety of materials, such as gold, silver, or even diamonds. The setting can be used to enhance the design of the coin"
+          },
+          {
+            "cos": 0.0681,
+            "text": ".html.\n- World Health Organization (WHO). Rabies. WHO website. Accessed March 12, 2022. https://www."
+          },
+          {
+            "cos": 0.0679,
+            "text": " The hepatitis C virus has a 5′-untranslated region of 340 nucleotides, an open reading frame encoding 9 proteins having "
+          },
+          {
+            "cos": 0.0679,
+            "text": " become a cherished symbol of your love.\nConclusion: Embrace the Sweetness of Cherry as a Pet Name\nAs we conclude our exploration of cherry as a"
+          },
+          {
+            "cos": 0.0678,
+            "text": " and even as a symbol of love. Coins have been used to make rings since ancient times, and the craftsmanship involved in creating these pieces of jewelry is truly remarkable"
+          },
+          {
+            "cos": 0.0676,
+            "text": " long, as the gemstone was found in Africa by a treasure hunter and separated into 1000 black diamonds.\nA single, well-placed"
+          },
+          {
+            "cos": 0.0676,
+            "text": ".\n- 7,000 animal rabies cases were reported in the United States in 2007; on average, no more than"
+          },
+          {
+            "cos": 0.0675,
+            "text": "800-FDA-1088.\n- Ma X, Monroe B, Wallace R, et al. Rabies surveillance in the United States"
+          },
+          {
+            "cos": 0.0675,
+            "text": " two schools of thought on what controls where and when these eruptions have occurred in Africa and elsewhere. One school thinks that the main driver is heat in the mantle"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2535,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 17,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2535,
+            "text": " We had to prepare the membership fees ledger account based on given transactions, as well as an income and expenditure statement.\nOverall, the exam was not too bad"
+          },
+          {
+            "cos": 0.2523,
+            "text": " information for statements that are often required by law. The most basic function is to record the data. Several years ago this would have been logged into ledger books,"
+          },
+          {
+            "cos": 0.2414,
+            "text": " analysis of the recorded data is noted in the ledger book, which is simply a summary of the journal. Entries of a certain nature are all grouped here, so"
+          },
+          {
+            "cos": 0.2391,
+            "text": " sequence in a continuous ledger, spread across multiple locations. Records can only be added when multiple participants agree to do so.\n- Walport 201"
+          },
+          {
+            "cos": 0.2352,
+            "text": " damaged data from redundant copies of the ledger.\nWhat Does Blockchain Solve?\nBlockchains are effectively immune to hacking with the ability to both read and write data"
+          },
+          {
+            "cos": 0.2348,
+            "text": " had measles or been immunized with live measles vaccine and have no serum antibodies against measles. Children are usually immunized with measles-mumps-rubella combination vaccine"
+          },
+          {
+            "cos": 0.2339,
+            "text": "- Walport 2016 (†802 p.33): Banks keep track of customer balances on a ledger. Bitcoin also uses a"
+          },
+          {
+            "cos": 0.2329,
+            "text": " readers can observe the ledger at different times and with different content.\nOf course, BookKeeper allows clients to read from a ledger before it is closed, but"
+          },
+          {
+            "cos": 0.2305,
+            "text": " journals, and posting data from journals to ledgers. The accounting information system 3-3 tip: an understanding of the following terms is important (1)"
+          },
+          {
+            "cos": 0.2298,
+            "text": " agrees the record meets all the ledger’s requirements – typically it must be unique, correctly signed, etc. · For a distributed ledger to be trusted, it must"
+          },
+          {
+            "cos": 0.2297,
+            "text": " a copy of the ledger from any of the peers, as there is no single authoritative copy. Other actors can submit new records to any or all of the peers"
+          },
+          {
+            "cos": 0.2295,
+            "text": "\nD. Picking requirements\nE. Post packing slip in ledger\nYou need to ensure that a sales order picking list is generated before a sales order packing"
+          },
+          {
+            "cos": 0.2293,
+            "text": "- Prepare and maintain journals and ledgers for accounting systems, using critical thinking and generally accepted accounting principles.\n- Prepare and present financial statements, budgets, and"
+          },
+          {
+            "cos": 0.2285,
+            "text": " computerized bookkeeping systems\n- Post journal entries and reconcile accounts, prepare trial balance of books, maintain general ledgers and prepare financial statements\n- Calculate and"
+          },
+          {
+            "cos": 0.2283,
+            "text": " the measle platform via a recombinant approach.\n2. The discovery of the first mass-produced antibiotic — penicillin — in 192"
+          },
+          {
+            "cos": 0.2275,
+            "text": " Due to the recent exposure measles and varicella IgM serologies were not sought. Tideglusib As results were not yet available he was discharged "
+          },
+          {
+            "cos": 0.2274,
+            "text": "Tracking measles infection through non‐linear state space models\nAbstract:Summary. Estimating the burden of infectious disease is complicated by the general tendency for underreporting"
+          },
+          {
+            "cos": 0.2267,
+            "text": " Think of ledgers as transaction logs: they can only be appended to, they are in the critical path of apps, and they need to be safely stored."
+          },
+          {
+            "cos": 0.2262,
+            "text": " institutions. Records are stored one after the other in a continuous ledger. Distributed ledger data can be either \"permissioned\" or \"unpermissioned\" to control"
+          },
+          {
+            "cos": 0.2254,
+            "text": "Account books kept by political authorities are generally better preserved. As for territorial authorities, the Teutonic Order in Prussia is famous for its record keeping, in"
+          },
+          {
+            "cos": 0.225,
+            "text": " by measles, malaria, Ebola, and others.\nFuture pandemics are theorised as arising from influenza A, bird flu, H5N1, SARS"
+          },
+          {
+            "cos": 0.2249,
+            "text": " if you want to look at how much money has been spent or received on maintenance, for example, you are likely to find the information here.\nThe Ledger"
+          },
+          {
+            "cos": 0.2246,
+            "text": " Vermont. But any aspect of real estate which requires ledgers — such as property management — is also a prime candidate for Blockchain.\nThe title insurance industry is"
+          },
+          {
+            "cos": 0.2245,
+            "text": ". Today, measles represents one of the best and most secure vaccine platforms, with more than 3 billion inoculations since introduction with no systemic side effects. This"
+          }
+        ]
+      }
+    },
+    "cobalt": {
+      "write": {
+        "corpus_peak": 0.0981,
+        "maemm_best": 0.1057,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": true,
+        "topk_literal": 18,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0981,
+            "text": " of music being played. The same can happen in the 2nd violins, also in the viola's and sometimes in the cellos and basses."
+          },
+          {
+            "cos": 0.0973,
+            "text": "An orchestra is a group of musicians playing instruments together. They make music. A large orchestra is sometimes called a \"symphony orchestra\" and a small orchestra is"
+          },
+          {
+            "cos": 0.097,
+            "text": " thing when I say that all violins are entirely made of wood. This isn't quite true. The violin that would be played in a Symphony Orchestra or in"
+          },
+          {
+            "cos": 0.0961,
+            "text": " soon became famous as a soloist. He went to the United States in 1929 and first appeared there with the Philadelphia Symphony Orchestra under Stok"
+          },
+          {
+            "cos": 0.0956,
+            "text": " is, there are areas of the brain that play certain notes–like the brass section of an orchestra, for example. The french horns and trombones can bl"
+          },
+          {
+            "cos": 0.0948,
+            "text": " Brahms’s symphonies.’” While all Mahler’s works were available singly on recordings, it was Bernstein who first recorded the complete set of symphon"
+          },
+          {
+            "cos": 0.0929,
+            "text": " called a \"chamber orchestra\". A symphony orchestra may have about 100 players, while a chamber orchestra may have 30 or 4"
+          },
+          {
+            "cos": 0.0928,
+            "text": " London at the BBC Proms.\nSome of the greatest orchestras today include: the New York Philharmonic Orchestra, the Boston Symphony Orchestra, the Chicago"
+          },
+          {
+            "cos": 0.092,
+            "text": ", operas and symphonies, there are others which Wollheim characterises as ‘individuals’, such as paintings and sculptures. But even with individuals"
+          },
+          {
+            "cos": 0.0918,
+            "text": " technologies are organized to achieve some goal • and numerous others, including musical symphonies, physical art such as paintings, and for that matter, the words and"
+          },
+          {
+            "cos": 0.0913,
+            "text": " investigate the families to which the instruments of an orchestra belong. The identification of the instruments and their function in the playing of symphonies are made as they listen"
+          },
+          {
+            "cos": 0.0908,
+            "text": "4-inch cyclotron—two tools of physics used to study the nuclei of atoms.\n- The Boston Symphony Orchestra, conducted by musical titan Serge Koussev"
+          },
+          {
+            "cos": 0.0892,
+            "text": "Edit\nToday orchestras can usually be heard in concert halls. They also play in opera houses for opera and ballet, or in a large stadium for huge open"
+          },
+          {
+            "cos": 0.089,
+            "text": " using the Latin instruments.\nStudents explore a variety of instruments to discover their sound. After watching an orchestra play, students discover the categories of instruments such as wood"
+          },
+          {
+            "cos": 0.089,
+            "text": " compelling visual image for the brain instead of the three-layer cake model. After much kicking things around, we started wondering if an orchestra might work. Because the truth"
+          },
+          {
+            "cos": 0.0888,
+            "text": ". I have been to operas and seen classical orchestras, willing myself not to be bored, trying not to fall asleep.\nOften, I pretend to"
+          },
+          {
+            "cos": 0.0885,
+            "text": "The principal brass instruments of the modern symphony orchestra are the FRENCH HORN (also called HORN), TRUMPET, TROMBONE,"
+          },
+          {
+            "cos": 0.0882,
+            "text": " Symphony Orchestra, the Cleveland Orchestra, the Los Angeles Philharmonic Orchestra, the London Symphony Orchestra, the London Philharmonic Orchestra, the BBC Symphony Orchestra,"
+          },
+          {
+            "cos": 0.0882,
+            "text": " works for solo horn include the two concertos for horn and orchestra by Richard Strauss (the first from 1883, the second from 19"
+          },
+          {
+            "cos": 0.0879,
+            "text": " opera, Shakespeare play or finish Schubert's symphony?\nPerhaps we could use P=NP to find a small circuit that outputs \"Shakespeare\" plays"
+          },
+          {
+            "cos": 0.0878,
+            "text": " 16 first violins, 16 second violins, 12 violas, 12 cellos, 8 double basses,"
+          },
+          {
+            "cos": 0.0877,
+            "text": "-air concerts. Orchestras may record in studios for making CDs or recording music for movies. Many of them can be heard easily and cheaply every summer in"
+          },
+          {
+            "cos": 0.0875,
+            "text": "Would anyone have the same fond memories of the original Fantasia if its groundbreaking animation was set to a hypnotically droning voice talking about how deeply impressed everyone should"
+          },
+          {
+            "cos": 0.0873,
+            "text": " the performance of a dramatic part, musical composition, etc.: an interesting reading of Beethoven's 5th Symphony.\n- the extent to which a person"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2183,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 4,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2183,
+            "text": " all deeply red colored, due to the color of the cobalt-corrin complex.\nCyanocobalamin is one such \"vitamer\""
+          },
+          {
+            "cos": 0.2113,
+            "text": "2).\nFrom Beethoven’s first set of three piano trios, some of Mozart’s techniques are evident – such as avoiding the expected cadence. Hay"
+          },
+          {
+            "cos": 0.2107,
+            "text": "\nBeethoven's Piano Sonata in C-sharp minor, Op. 27, No. 2, was composed in his late style period.\n"
+          },
+          {
+            "cos": 0.2092,
+            "text": " has sapphire bearings which assist in playback\n- The belt-drive comes with a low-vibration synchronous motor\n- The platter is of low resonance and has"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky's musical talent on the whole and cited him as \"a composer of genius\" in his autobiography. He was less pleased with the more progressive tendencies"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky's reconciliation of Russian and European influences in his compositional style. He believed and attempted to show that both these aspects were \"intertwined"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky enrolled at the Conservatory as part of its premiere class. He studied harmony and counterpoint with Zaremba and instrumentation and composition with Rub"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky's Violin Concerto, considered one of the most technically difficult works for the violin.\nProblems playing this file? See media help."
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky openly writes of it.\nTchaikovsky lived as a bachelor for most of his life. In 1868 he met Belgian"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky started work on his Piano Trio in A minor, \"dedicated to the memory of a great artist.\" First performed privately at the Moscow Conservatory"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky's death has traditionally been attributed to cholera from drinking unboiled water at a local restaurant, as one story accounts, many writers have theor"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky compose a grand commemorative piece. Tchaikovsky agreed and finished it within six weeks. He wrote to Nadezhda von Meck"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky (Maes, 152).\n- The composer's original has since been published but most cellists still perform Fitzenhagen"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky ascribed Rubinstein's coolness to a difference in musical temperaments. Rubinstein could have been jealous professionally of Tchaikovsky's greater"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky's work, the practice of faulting Tchaikovsky for not following in the steps of the Viennese masters has not gone away entirely"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky, 35.\n- Brown, Early, 100–01.\n- Brown, New Grove, 18"
+          },
+          {
+            "cos": 0.2077,
+            "text": "chaikovsky's changing reputation.\" In Pittsburgh Post-Gazette, 30 January 2011. Retrieved 27 February 20"
+          },
+          {
+            "cos": 0.2056,
+            "text": "980's. Cobalt appears to be associated with manganese. Analysis for cobalt and nickel in 1983 showed their elemental contents to be"
+          },
+          {
+            "cos": 0.2041,
+            "text": " theory that they were stolen from a museum in Vienna, taken to London, and were destroyed during a bombing raid in World War II.\nWhen did Beethoven"
+          },
+          {
+            "cos": 0.2041,
+            "text": " their superior language skills, they like learning through narrative. They want to know why Beethoven composed a certain piece and where he was when he wrote it. Boys"
+          },
+          {
+            "cos": 0.2041,
+            "text": ", cobalt, chromium, and nickel.Some people can become sensitized to a range of organic proteins, including latex, grain dusts, animal proteins, and"
+          },
+          {
+            "cos": 0.2038,
+            "text": " etc., produces intense blue colours - Cobalt Blue in paints, glazes, enamels, etc. Cobalt is used in the preparation of magnetic, wear"
+          },
+          {
+            "cos": 0.2023,
+            "text": " piano concerto.\nThe main features of the classical style are all present in Mozart’s music. Clarity, balanced phrases, and transparency are the hallmarks of"
+          },
+          {
+            "cos": 0.2011,
+            "text": " that there has been a conspiracy on the part of European-Americans to conceal Beethoven’s alleged black heritage. The theory that he was black is based on the fact"
+          }
+        ]
+      }
+    },
+    "marigold": {
+      "write": {
+        "corpus_peak": 0.0948,
+        "maemm_best": 0.0869,
+        "tokens_to_match": 2498560,
+        "maemm_unmatched": false,
+        "topk_literal": 10,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0948,
+            "text": " asks his fellow guests to describe the Second Law of Thermodynamics:\nThe response was cold: it was also negative. Yet I was asking something which is the"
+          },
+          {
+            "cos": 0.0913,
+            "text": " Snow’s lecture. Certainly scientists read, and read Shakespeare, and it is likely that more than one humanities scholar has worked out that the Second Law of Thermodynamics"
+          },
+          {
+            "cos": 0.0892,
+            "text": " science, how rubber bands work, and the beauty of the natural world.\nFeynman knew the difference between knowing the name of something and knowing something"
+          },
+          {
+            "cos": 0.0882,
+            "text": " these papers, no math or science background is necessary.\nThings Fall Apart: An Introduction to Entropy\nEveryone from physics students to readers of popular science literature"
+          },
+          {
+            "cos": 0.0869,
+            "text": "Have you read a work of Shakespeare’s?” and “Can you read?” are not, in fact, scientific equivalents to “What is the Second Law of Therm"
+          },
+          {
+            "cos": 0.0848,
+            "text": "- M. W. Zemansky (1968). Heat and Thermodynamics; An Intermediate Textbook. McGraw-Hill. pp. "
+          },
+          {
+            "cos": 0.0848,
+            "text": " in simple terms what the 2nd law is about. To disparage this verbal description is out of line for a professional critic unless his goal is merely to"
+          },
+          {
+            "cos": 0.0847,
+            "text": " larger question of how the black hole possesses a temperature is part of the topic of black hole thermodynamics. For accelerating particles, this manifests as the Unruh effect"
+          },
+          {
+            "cos": 0.0846,
+            "text": "- Thermodynamics is that branch of physics which is concerned with transformation of heat into mechanical work.\n- It deals with the concepts of heat, temperature and inter"
+          },
+          {
+            "cos": 0.0838,
+            "text": "Underlying scientific principle: Thermodynamics teaches us that at atmospheric pressure and irrespective of the power with which water is heated, this liquid water will remain at a temperature"
+          },
+          {
+            "cos": 0.0832,
+            "text": ", some of the pool water is diverted through the pipes. The hot sidewalk is cooled as the pool water becomes warmer.\n- Flexible Solutions - Heatsavr"
+          },
+          {
+            "cos": 0.0831,
+            "text": " hypothesis needed to make his theoretical formula for the distribution of continuous electromagnetic radiation correspond to experimental evidence. He did not believe in the reality of discrete energy quanta for"
+          },
+          {
+            "cos": 0.083,
+            "text": ".3 Information Theory Foundation\nFitts' law is a model of human psychomotor behaviour based on Shannon's Theorem 17, a fundamental theorem"
+          },
+          {
+            "cos": 0.0829,
+            "text": " fact that it was not actually raining.\nSlide: Extension of Tauber's theorem\nIn 1910 he proved a deep result on the convergence"
+          },
+          {
+            "cos": 0.0829,
+            "text": "s, Statics Laboratory, Statics, Waves, Optics, & Thermodynamics, Mechanics of Materials Laboratory, Measurement Systems Laboratory, Measurement Systems, Machine Design"
+          },
+          {
+            "cos": 0.0826,
+            "text": " material particle and Ludwig Boltzmann's insight into the statistical mechanics of atoms was starting to find acceptance by most physicists. Planck considered his assumption merely a mathematical"
+          },
+          {
+            "cos": 0.0823,
+            "text": " is literally killing people throughout Europe and the US.\nThe book—titled The Body Economic: Why Austerity Kills, written by David Stuckler,"
+          },
+          {
+            "cos": 0.0821,
+            "text": " rather than braid.\nHistory: By late 1900, Planck had built his new radiation law from the ground up, having made the"
+          },
+          {
+            "cos": 0.082,
+            "text": "A pebble-bed reactor thus can have all of its supporting machinery fail, and the reactor will not crack, melt, explode or spew hazardous wastes. It"
+          },
+          {
+            "cos": 0.0819,
+            "text": " (It was Stephen Hawking who predicted that black holes should have a finite, non-zero temperature, and hence the name “Hawking Radiation”) it will"
+          },
+          {
+            "cos": 0.0818,
+            "text": " a worse one, but every air conditioner needs to expend some energy to move the heat. That’s just thermodynamics.\nEfficiency of air conditioners is"
+          },
+          {
+            "cos": 0.0818,
+            "text": ", sinning against the rules of philosophical grammar, but this is unavoidable at the outset. \"Most propositions and questions that have been written about philosophical matters are not"
+          },
+          {
+            "cos": 0.0817,
+            "text": "Nor the energy isn't absolute. The first law of thermodynamics break down at Planck scale? And the second law concerning systems out of balance too, complicated"
+          },
+          {
+            "cos": 0.0814,
+            "text": " Lange, argued that even socialist planners would have to obey the underlying principles articulated in neoclassical theory. Thus, what was needed was not an economic critique"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2296,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 18,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2296,
+            "text": "’m going to teach you the ideal time to start marigold seeds indoors in Maryland:\n- To Learn More About HOW to Grow Marigold, Check"
+          },
+          {
+            "cos": 0.2245,
+            "text": "14 days to grow marigold from seed indoors before you can transplant them into your garden. And it could take 2 months for your marigold"
+          },
+          {
+            "cos": 0.224,
+            "text": " Out This GUIDE!\nWhen to Start Marigold Seeds Indoors\nDepending on the type of marigold, it takes roughly 03 to "
+          },
+          {
+            "cos": 0.221,
+            "text": "2 English Marigold Chapter 8 (The Mumbai Musician) Question and Answers\nWhich new words do students study in the story “The Mumbai musician”?"
+          },
+          {
+            "cos": 0.2172,
+            "text": " created:\nTo help ensure the greatest success of your marigold seeds germinating you should:\n- Use a heat mat to ensure the gardening pot remains"
+          },
+          {
+            "cos": 0.2167,
+            "text": "009, bright, warm, marigold-like yellow \"Mimosa\" was named as Pantone's color of the year. It was chosen"
+          },
+          {
+            "cos": 0.2165,
+            "text": " Lily Rose and Marigold themselves. Sickly from childhood, a little feeble-minded and with a taste for books, she had been thrown into the northern"
+          },
+          {
+            "cos": 0.2158,
+            "text": " in marigold extract or outdoor plants.\nYes! Blood spots simply indicate rupture in tiny blood vessels in the egg. This can be seen in younger or"
+          },
+          {
+            "cos": 0.2132,
+            "text": "landers fields the poppies blow\nBetween the crosses, row on row,\nThat mark our place; and in the sky\nThe larks, still brav"
+          },
+          {
+            "cos": 0.2115,
+            "text": " at 70 degrees Fahrenheit\n- Use a grow light to control how much light your marigold seeds receive\n- Water your seeds with a spray bottle"
+          },
+          {
+            "cos": 0.2113,
+            "text": " to bloom!\nThe approximate date of when you should start your marigold seeds indoors can be found by:\n- Finding the last average frost date HERE"
+          },
+          {
+            "cos": 0.2103,
+            "text": " example, scientists say the roots of the marigold flower reduce harmful nematode populations in the soil. Nematodes are tiny worms. There are more"
+          },
+          {
+            "cos": 0.2091,
+            "text": "Do you want to grow marigold seeds in Maryland, but don’t know when to start them?\nStarting marigold seeds is not as easy as"
+          },
+          {
+            "cos": 0.2088,
+            "text": " Saving zinnia seed is easy. Just let a blossom dry and brown on the plant, then cut off the flower, and store it in a jar over"
+          },
+          {
+            "cos": 0.2074,
+            "text": " spent flowers, for continued plant growth.\n- Prune in the winter and plant in the fall.\n- Divide bulbs, tubers and certain perenn"
+          },
+          {
+            "cos": 0.207,
+            "text": " poppies grow\nIn Flanders fields.\nThey went with songs to the battle, they were young.\nStraight of limb, true of eye, steady"
+          },
+          {
+            "cos": 0.2064,
+            "text": " Apply lavender essence to your bath for a sedating effect.\n- Keep your bedroom clean, uncluttered and in cool temperature. Use soft linens"
+          },
+          {
+            "cos": 0.2057,
+            "text": "ellet tomatoes, and crafts like the weaving of llengos fabrics, the working of olive wood, pottery, embroidery or wrought iron. These products are present in"
+          },
+          {
+            "cos": 0.2053,
+            "text": " a Madonna lily in paintings.\n“The Madonna lily was venerated as a sacred lily because its petals suggested a spotless body and its golden an"
+          },
+          {
+            "cos": 0.205,
+            "text": " Marigold’s parents had never known hate, however, and they couldn’t understand why someone would ever envy them or wish to hurt them. They were good"
+          },
+          {
+            "cos": 0.2044,
+            "text": "flower, zinnia, baby's breath, mistflower, petunia, daisy, eggplant, celery, carrot, potato, beans, garden peas"
+          },
+          {
+            "cos": 0.2037,
+            "text": " products, their calendula cleansing milk and waterless cleansers are favorites, with the lavender oat milk variant enticing with its delightful aroma. For a truly luxurious experience"
+          },
+          {
+            "cos": 0.2034,
+            "text": " used tomatoes and spices that I had grown in the back yard. etc.\nI am not saying that doing more of the work myself would have been a bad"
+          },
+          {
+            "cos": 0.2033,
+            "text": " Because Maryland’s growing season is not long enough, marigold seeds cannot be sowed outside and should only be started indoors.\nBecause of this, I"
+          }
+        ]
+      }
+    },
+    "trombone": {
+      "write": {
+        "corpus_peak": 0.0688,
+        "maemm_best": 0.0678,
+        "tokens_to_match": 1136640,
+        "maemm_unmatched": false,
+        "topk_literal": 1,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0688,
+            "text": "8 seconds ± ~53 seconds. Since the orbit of Venus is on a different path than the orbit of the Earth, the time that it takes for the"
+          },
+          {
+            "cos": 0.0663,
+            "text": " referred to when they experienced a ‘nightmare’ – ‘mare’ coming from the Anglo-Saxon merran meaning to crush. The term nightmare means the"
+          },
+          {
+            "cos": 0.0656,
+            "text": "3). The application of naturalistic conversation training to speech production in children with speech disabilities. Journal of Applied Behaviour Analysis, 26, 173"
+          },
+          {
+            "cos": 0.0641,
+            "text": ".\nHalf a century after Nabokov’s poetic admonition against common sense, Hawking echoes Carl Sagan’s observation that common sense can blind us to"
+          },
+          {
+            "cos": 0.0633,
+            "text": " a choice model analysis. Perception & Psychophysics, 38, 415-432.\nNosofsky, R.M."
+          },
+          {
+            "cos": 0.0621,
+            "text": ": Wash with soap and water.\nInhalation: Remove to fresh air.\nIngestion: Give water or milk to drink if conscious.\nNote"
+          },
+          {
+            "cos": 0.0621,
+            "text": " increased urbanization. The prevalence of atopy and other allergic diseases has also increased over the same time, suggesting that the reasons for the increase are likely to be"
+          },
+          {
+            "cos": 0.0616,
+            "text": "018 Boehringer unveiled a new monthly topical product, Centragard which is a heartworm preventative as well as roundworm, hookworm and tap"
+          },
+          {
+            "cos": 0.0615,
+            "text": " of preservative-free morphine administered as a single shot in the lumbar intrathecal space using a 25 gauge needle combined with a long-acting"
+          },
+          {
+            "cos": 0.0612,
+            "text": " inhibition of clot retraction in platelets[14\n]. Interestingly, Fyn is an upstream regulator of the Rho family of GTPases[3"
+          },
+          {
+            "cos": 0.0611,
+            "text": "In the 19th century Hippolyte Fizeau developed a method to determine the speed of light based on time-of-flight measurements on Earth and reported"
+          },
+          {
+            "cos": 0.061,
+            "text": "4/1915. It has been reported that this copy was removed by the Turkish authorities to Istanbul, from where it came to Berlin during World War"
+          },
+          {
+            "cos": 0.0606,
+            "text": " is found in plasma and extracellular fluids such as bronchoalveolar lavage fluid. Because lung is one of the tissues that is capable of synthesizing"
+          },
+          {
+            "cos": 0.0604,
+            "text": " throughout the body, an enlarged heart, slow development, and death. this is an example of\nin peas yellow seed color is dominant to green. determine the"
+          },
+          {
+            "cos": 0.0604,
+            "text": "hold your breath and count backwards from 30 seconds. this actually works! the key is to concentrate on the countdown of numbers from 30 instead of"
+          },
+          {
+            "cos": 0.0602,
+            "text": " caused by some OPs, and hemorrhaging caused by warfarin) there may be a delay of several weeks between initial exposure binary options brokers no minimum deposit"
+          },
+          {
+            "cos": 0.0602,
+            "text": " a smooth surface better than a glossy surface? What about different kinds of paint? Try putting food coloring into ice cubes and timing the rate of melting in sunlight."
+          },
+          {
+            "cos": 0.0601,
+            "text": "Tattoos weren’t always a tool for seeking out the self. They first emerged in the U.S. as a way for sailors to avoid being forcibly recruited"
+          },
+          {
+            "cos": 0.0601,
+            "text": " not rate as an immediate concern compared to vectors like mosquitoes,” says Doggett.\nRegardless of the concerted effort to solve this problem, Doggett is not very"
+          },
+          {
+            "cos": 0.06,
+            "text": " platelets, indicating that PMC inhibits cyclo-oxygenase activity. 5. We conclude that PMC may exert its anti-platelet aggregation activity by"
+          },
+          {
+            "cos": 0.06,
+            "text": " bustle of local life, can be a unique and enriching one.\nSafety and quality are two critical aspects to consider when exploring the street food scene."
+          },
+          {
+            "cos": 0.0598,
+            "text": " to development of ischemic heart disease and thus provides potential contributing mechanisms that ATH may contribute singly or in concert with other risk factors to develop ischemic heart disease."
+          },
+          {
+            "cos": 0.0596,
+            "text": "bocytopenia is a common feature of severe malaria Activation of the coagulation cascade in the absence overt bleeding is common Nitric oxide Low nitric"
+          },
+          {
+            "cos": 0.0595,
+            "text": "20, illustrating that TRA was used less in those at highest risk from bleeding complications (p < 0.0001).\nConclusions TRA"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2305,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 1,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2305,
+            "text": "33 million damage according to estimates, primarily from broken glass.\nA meteor strike on this planet is an occasion triggering awesome reflection for many reasons. We contemplate"
+          },
+          {
+            "cos": 0.2233,
+            "text": " let’s party till the house of a planet burns down and return this planet to the blue-green algae again.\nEat, drink and be merry for surely tomorrow"
+          },
+          {
+            "cos": 0.2212,
+            "text": ". After taking in the planet's dark bulk and golden rings, our eye drifts to the pale blue dot in the lower right hand corner of the frame,"
+          },
+          {
+            "cos": 0.2197,
+            "text": " to keep order in a massive system of planets, all filled with Cantinas in which people get shot regularly? Maybe this guy doesn't understand why people keep trying"
+          },
+          {
+            "cos": 0.2194,
+            "text": " desert of a planet.\nNone of the other planets in our solar system is now remotely habitable. Closer to the Sun, a nearly atmosphere-free Mercury"
+          },
+          {
+            "cos": 0.2191,
+            "text": " one new home world orbiting another star. And when our Sun begins to die, our survival will require that ships crewed by robots transport to that world the"
+          },
+          {
+            "cos": 0.2187,
+            "text": " arid, harsh, and uninteresting planet covered in deserts and plains which contain more lava than water as a natural resource. The extreme conditions on the planet"
+          },
+          {
+            "cos": 0.2167,
+            "text": " scale corn and wheat on planets in the deep Cosmos.\nAll these illusions of the Industrial Man exist not only in his imagination. They dominate the thoughts and attitudes"
+          },
+          {
+            "cos": 0.2166,
+            "text": "10/hymenoptera/tsa.sppcount?the_taxon=Formicidae we're talking about. The creatures roam planet-wide, except"
+          },
+          {
+            "cos": 0.2163,
+            "text": " people by playing jazz music The Game Melanie’s planet was swallowed by a whale. She would like us to help her planet to bot get swallowed any more. We"
+          },
+          {
+            "cos": 0.2141,
+            "text": " from fundamental physical properties. Aliens orbiting distant stars will still spring from evolutionary forces that reward a deep, automatic understanding of the laws of mechanics. The universe"
+          },
+          {
+            "cos": 0.214,
+            "text": " of Jerusalem will probably orbit just above the earth, what scriptures can you find to show this point of view? I can remember one about John saying that the city"
+          },
+          {
+            "cos": 0.212,
+            "text": " moving. After this followed some gory discussion about why and how this might happen!!\nThen one the best tasks for them, they made planet cake pops."
+          },
+          {
+            "cos": 0.2119,
+            "text": " degraded portions on that planet squash in the marginalized global billion plus who continue living with not one electric bulb.\nPeople have a proven track record of pushing past the"
+          },
+          {
+            "cos": 0.2116,
+            "text": " transports students from planet Earth to the International Space Station. Traveling 230 miles above Earth’s surface, students conduct hands-on activities at various stations."
+          },
+          {
+            "cos": 0.2105,
+            "text": " midnight the following night on all of the planets (also thanks to temporal relativistics). Any materials that did not make it to the rocket are left in the can"
+          },
+          {
+            "cos": 0.2102,
+            "text": " colonize the planets and stars. Blackout and `Piece Of Me` was released in the month of October 2007. which coincided with"
+          },
+          {
+            "cos": 0.21,
+            "text": " 19th century was a period of great canal-building on the home planet–the Suez and Panama Canals were both freshly dug at the end of"
+          },
+          {
+            "cos": 0.2096,
+            "text": " a complete and valid method for understanding the reality that contains both cultures.\nThe mysterious planet of Solaris, and how it reacts to human visitors, reveals the"
+          },
+          {
+            "cos": 0.2095,
+            "text": " necessary shareholder from the coast, overdrafting planet the animal, and not make the quality formed on disruptive implementation. The gasoline is become on the practical electricity future"
+          },
+          {
+            "cos": 0.2093,
+            "text": " clouds on each planet are considered in terms of parcel theory with the goal of understanding formation mechanisms. The low scattering optical depths of discrete high clouds are consistent with formation"
+          },
+          {
+            "cos": 0.2092,
+            "text": " this cold, desert planet,” said Meyer. “It seems that the more we study Mars, the more we learn how life could be supported and where there are"
+          },
+          {
+            "cos": 0.2087,
+            "text": " anyone when I said:\nI saw eleven planets,\nand the sun and the moon bowing down to me?\nTranslation by Dr Fayeq Oweis"
+          },
+          {
+            "cos": 0.2084,
+            "text": "morning starmorning star\na planet, esp. Venus, visible in the eastern sky before sunrise; daystar\nA planet, especially Venus, visible"
+          }
+        ]
+      }
+    },
+    "pennant": {
+      "write": {
+        "corpus_peak": 0.0655,
+        "maemm_best": 0.056,
+        "tokens_to_match": 112640,
+        "maemm_unmatched": false,
+        "topk_literal": 0,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0655,
+            "text": "Optimal working dilutions must be determined by end user.\nStore at 4°C for frequent use. Stored at -20°C in a manual def"
+          },
+          {
+            "cos": 0.0635,
+            "text": " - Green Tree Frog\nAmphibians have a 3-chambered heart consisting of 2 atria and 1 ventricle, oxygenated"
+          },
+          {
+            "cos": 0.0622,
+            "text": " Index (GI)\nAs a form of definition, the Glycemic Index (GI)is known as a relative ranking of carbohydrate in foods according to how"
+          },
+          {
+            "cos": 0.0618,
+            "text": "Fig.?1). Rabbit Polyclonal to TGF beta Receptor II Gonads retrieved at D10 (HH36) demonstrated a lady medulla"
+          },
+          {
+            "cos": 0.0615,
+            "text": ", Chuang JH (2012) Representative contact diaries for modeling the spread of infectious diseases in Taiwan. PLoS One 7:"
+          },
+          {
+            "cos": 0.0613,
+            "text": " involves making use of computers and accounting software to record, store and analyze financial data. Accounting information systems is designing a data processing system using software it can also be"
+          },
+          {
+            "cos": 0.0612,
+            "text": "rev SV, Murphy EJ, Prince PA, et al. (1996) Lévy ight search patterns of wandering albatrosses. Nature"
+          },
+          {
+            "cos": 0.0611,
+            "text": ". LOLER requires lifting equipment to be maintained so that it remains safe and that maintenance is carried out safely.\nWhat do I have to do?\nIf"
+          },
+          {
+            "cos": 0.0608,
+            "text": "en K, et al. (2008) Social contacts and mixing patterns relevant to the spread of infectious diseases. PLoS Med 5:"
+          },
+          {
+            "cos": 0.0604,
+            "text": " was so incredibly common. Two-piece sleeping was the standard, accepted way to sleep.\n“It’s not just the number of references – it is the way they"
+          },
+          {
+            "cos": 0.0601,
+            "text": " being chymase (Table 2) 168 and in Rabbit Polyclonal to MLF1. the presence of heparin a "
+          },
+          {
+            "cos": 0.0597,
+            "text": "- Johnson DS, London JM, Lea MA, Durban JW (2008) Continuous-time correlated random walk model for animal telemetry data. Ecology "
+          },
+          {
+            "cos": 0.0592,
+            "text": " specific sources of these Endotoxins lurking in your indoor air.\nThe Agricultural Health Survey is assessing various exposures, including endotoxin exposure, in children"
+          },
+          {
+            "cos": 0.0592,
+            "text": " a moment considering what this information is being used for (“select all squares with military vehicles”) or why we should perform this labor in order to access our email,"
+          },
+          {
+            "cos": 0.059,
+            "text": " always sleep in one eight hour chunk. We used to sleep in two shorter periods, over a longer range of night. This range was about 12 hours"
+          },
+          {
+            "cos": 0.0589,
+            "text": " and the experimenters.\na schedule of reinforcement where the first response is rewarded only after a specified amount of time has elapsed. This schedule causes high amounts of"
+          },
+          {
+            "cos": 0.0589,
+            "text": " funds for research by urging the public to contribute a dime to the effort and came to be called the March of Dimes, but its original name was what?"
+          },
+          {
+            "cos": 0.0589,
+            "text": " double stranded fluorescent DNA fragments of slightly different sizes. By reading the size from smallest size to largest, in each of the nucleotide groups, one can determine the"
+          },
+          {
+            "cos": 0.0587,
+            "text": " of his surroundings; this taxes a man's cooling system in desert sun temperature where exposed rocks heat up to 150 degrees. The camel's temperature,"
+          },
+          {
+            "cos": 0.0587,
+            "text": ", otherwise forest biomes can vary widely in amount of precipitation and seasonality.\nhaving a body temperature that fluctuates with that of the immediate environment; having"
+          },
+          {
+            "cos": 0.0585,
+            "text": " British meat eaters with those of some 6,000 who were not meat eaters, the investigators reported a 40% lower rate of"
+          },
+          {
+            "cos": 0.0584,
+            "text": "Photo: Tommy Wong (Flickr)\nDear A Moment of Science,\nI’ve read that stretching before jogging or doing other exercise doesn’t help prevent injury"
+          },
+          {
+            "cos": 0.0584,
+            "text": "ib being a potential inhibitor of Rabbit Polyclonal to CNOT7. serine phosphorylation on STAT3 predicated on its use within lung cancer the power"
+          },
+          {
+            "cos": 0.0583,
+            "text": " 9441–9450.\n- 19. Glass LM, Glass RJ (2008) Social contact networks for"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2554,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 0,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2554,
+            "text": "21a vaccine requires 3-4 doses of liquid TAK-733 vaccine, or 4 doses of capsules for ages 5 and up,"
+          },
+          {
+            "cos": 0.2496,
+            "text": "19 vaccine ingredients\nImmune systems are built for speed\nFollowing a vaccination, your immune system will be activated and start building its memory of how to fight"
+          },
+          {
+            "cos": 0.2496,
+            "text": "19 vaccine. The position statement has been updated several times, most recently on Novemb\nThe video below is a recording of a webinar presented by Brian Chico"
+          },
+          {
+            "cos": 0.2496,
+            "text": "19 vaccine administered to eligible Medicaid patients. Ohio’s managed care organizations continue to provide additional pharmacy incentives through CSS Health and OutcomesMTM platforms. Pharmacists"
+          },
+          {
+            "cos": 0.2485,
+            "text": "erdts said vaccines remain the most effective means of controlling infectious diseases. Several new vaccine technologies are in development and the time to produce a vaccine in the future will"
+          },
+          {
+            "cos": 0.245,
+            "text": " get the vaccine?\nEven after you get the vaccine, you may still be able to spread COVID-19. So, keep following safety steps to protect"
+          },
+          {
+            "cos": 0.245,
+            "text": " get the vaccine, but that information is private and won’t be shared with anyone. It is important for everyone who lives in Oregon to get the vaccine.\n"
+          },
+          {
+            "cos": 0.2443,
+            "text": " gets the vaccine, it’s safest to keep wearing a mask, stay 6 feet apart, and keep gatherings small and outdoors whenever possible. We will get through"
+          },
+          {
+            "cos": 0.2443,
+            "text": " approach PowerUp. By assessing for Strengths, Opportunities, and Insights, you’re increasing the power of your performance.\nThe vaccination is a form of the"
+          },
+          {
+            "cos": 0.2433,
+            "text": " 69 vaccine administrations (2.9%). Notably, rhinorrhea (and most other reactogenicity complaints) did not escalate after the second"
+          },
+          {
+            "cos": 0.2427,
+            "text": " have gotten the vaccine to stop the spread of the virus, protecting the whole community. Until then, it’s still safest to follow mask guidelines where required or recommended"
+          },
+          {
+            "cos": 0.2426,
+            "text": " more vaccine than others. Some dogs are better off waiting until they are older to be neutered, while otherâ€™s should have the surgery done early ("
+          },
+          {
+            "cos": 0.2417,
+            "text": " accept the vaccine and say thank you very much? I am not opposed to vaccines and neither am I stupid, I need more evidence!”\n“I am over "
+          },
+          {
+            "cos": 0.2412,
+            "text": "\nIt also indicates the steps and nega- tive directions are vaccine on persuasive essay hpv needed. It adds to our lives. It is to develop the"
+          },
+          {
+            "cos": 0.2411,
+            "text": "2a vaccine comprising native S. flexneri 2a lipopolysaccharide (LPS) complexed to meningococcal outer membrane"
+          },
+          {
+            "cos": 0.2403,
+            "text": " when you got a vaccine?\n- Have you ever had prolonged seizures or other serious neurologic condition after receiving a pertussis-containing vaccine?\n- Do"
+          },
+          {
+            "cos": 0.2396,
+            "text": "-vaccine messages, their direct experience of suffering through these diseases and the successful role of medicine in eliminating them is a far more potent teacher than abstract knowledge or propaganda"
+          },
+          {
+            "cos": 0.2378,
+            "text": " key vaccines and therapeutic epidemiology studies.\n- Critiques internally and externally written manuscripts/published literature.\n- Contributes to assessing business need and measuring performance"
+          },
+          {
+            "cos": 0.2369,
+            "text": ") 2009 vaccines according to our findings. The elderly group and respondents who perceived higher pandemic risk, however, also had higher intention to receive seasonal"
+          },
+          {
+            "cos": 0.2366,
+            "text": " wait or not get the vaccine. Check the questions below. If you answer yes to any of them, be sure to talk to your health care provider about whether"
+          },
+          {
+            "cos": 0.2363,
+            "text": "neri 2a vaccine candidate showed either complete protection or protection against severe symptoms when challenged orally with virulent S. flexneri 2a (7"
+          },
+          {
+            "cos": 0.2362,
+            "text": " receive vaccine from your state or local health department, they may be contacting you with guidance on collecting information on vaccine exposed to extreme temperatures.\n- If you are"
+          },
+          {
+            "cos": 0.2357,
+            "text": " about vaccine efficacy.\nContact the Governor’s Press Office\nContact us by phone:\nNew York City: (212) 681 -"
+          },
+          {
+            "cos": 0.2354,
+            "text": "9 vaccination campaign, Injay can provide extensive benefits:\n- Optimal traceability of vaccine from the industrial filling line – product information and vaccine ID are encoded"
+          }
+        ]
+      }
+    },
+    "quarry": {
+      "write": {
+        "corpus_peak": 0.0763,
+        "maemm_best": 0.0627,
+        "tokens_to_match": 276480,
+        "maemm_unmatched": false,
+        "topk_literal": 1,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0763,
+            "text": " the genetic history for this important livestock species.\nDuring the process of domestication, mankind recruited animals from the wild into a captive environment, changing their morphology,"
+          },
+          {
+            "cos": 0.0739,
+            "text": " blood cholesterol levels. Although the exact function of these products remains to be established however, there are numerous advantages. One study revealed that fermentable fibers improve glycemic"
+          },
+          {
+            "cos": 0.073,
+            "text": " pose minimal harm to people or the environment (and even then, they are only used as a last resort after other cultural practices and natural materials have failed).\n"
+          },
+          {
+            "cos": 0.0708,
+            "text": " General Theory of Employment (1937) and The General Theory of Employment, Interest and Money (1936) John Maynard Keynes Part "
+          },
+          {
+            "cos": 0.0704,
+            "text": " Dian in 109 BC, and in the Korean Peninsula where the Xuantu and Lelang Commanderies were established in 108 BC."
+          },
+          {
+            "cos": 0.0698,
+            "text": " all rosy. Towards the end of the decade, the world suffered the famous ‘ Great Depression’ . The great depression was virtually a severe and intense worldwide economic"
+          },
+          {
+            "cos": 0.0695,
+            "text": " differentiation into keratin, and it increased cell adhesion and extra-cellular matrix to support the tissue. U.E. effectiveness at the molecular level is immediate,"
+          },
+          {
+            "cos": 0.0695,
+            "text": "90b. International code of conduct on the distribution and use of pesticides; (Amended version). FAO, Rome, 34 p.\n"
+          },
+          {
+            "cos": 0.0695,
+            "text": " that needs inflation to be taken into account, right? Even then, if inflation was 5% under the NDA, and 7% under the U"
+          },
+          {
+            "cos": 0.0693,
+            "text": " massive amounts of newly created money and move to a monetary system free of government-caused booms and busts. The only effective way to do this would be"
+          },
+          {
+            "cos": 0.0692,
+            "text": " question the notion of credit-less recoveries.\nOverall our results suggest that the phenomenon of Phoenix Miracles is not supported by the micro level data either in the"
+          },
+          {
+            "cos": 0.0689,
+            "text": " the term premium\nSources: Federal Reserve Bank of New York (Haver Analytics), Bureau of Economic Analysis (Haver Analytics), NBER (Haver Analytics"
+          },
+          {
+            "cos": 0.0686,
+            "text": "Helicopter Ben\", since he famously claimed to be willing to drop freshly created paper money from helicopters if necessary to ward off a monetary crisis. Anthony Mueller, in"
+          },
+          {
+            "cos": 0.0682,
+            "text": " during the Great Depression of the 1930s, the macroeconomy was in evident disequilibrium. This led John Maynard Keynes to write"
+          },
+          {
+            "cos": 0.0681,
+            "text": "assage at home, with a cozy atmosphere, candles, incense, and soft music.\n- Practice meditation and visualizations.\n- Engage in any"
+          },
+          {
+            "cos": 0.0681,
+            "text": ".\n- Checking for the hooks with any deformation or cracks\n- Checking the rope reeving for noncompliance with manufacturer recommendation on a weekly interval\n"
+          },
+          {
+            "cos": 0.068,
+            "text": "umbuk Lada and most other badiks. Furthermore, the distinctive warangka (sheath) of the short-bladed dagger features several similarities in design compared"
+          },
+          {
+            "cos": 0.0679,
+            "text": " it be restored ? If the ZIWANE also through sins were mixed with the Darkness, it is necessary that by means of fasting and prayer they should be '"
+          },
+          {
+            "cos": 0.0675,
+            "text": "3 and E3a are differentiated by previously phylogenetically undefined Y-SNPs.\nSims LM, Garvey D, Ballantyne J."
+          },
+          {
+            "cos": 0.0675,
+            "text": " and supply of labor. ♦Real output and income are determined by the supply of labor and other factors of production—by the economy’s productive capacity—not by the"
+          },
+          {
+            "cos": 0.0673,
+            "text": "CG, can provide some protection against cancer. Because these studies were very limited, the anti-cancer mechanism of green tea and EGCG was not clear. As"
+          },
+          {
+            "cos": 0.0671,
+            "text": "ioxin is carcinogenic, interacting directly with DNA through a receptor-based mechanism.\nIn the late 1990s, the Technology Information Forecasting"
+          },
+          {
+            "cos": 0.0671,
+            "text": ". et al. AraPheno: a public database for Arabidopsis thaliana phenotypes. Nucleic Acids Res 45, D"
+          },
+          {
+            "cos": 0.0671,
+            "text": " officers are expressly authorized to use necessary, reasonable force to perform their duties. As Jerome Skolnick, an influential police scholar in the United States, underscores:"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2475,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 15,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2475,
+            "text": "Evidence at former quarry could help unlock secrets of Neanderthal Britain\nTests carried out by a University of Southampton archaeologist have confirmed a former chalk quarry, owned"
+          },
+          {
+            "cos": 0.2422,
+            "text": " present day\nToday, parts of the old quarry faces can still be seen throughout the country park, and provide glimpses of the ancient Jurassic world. The iron"
+          },
+          {
+            "cos": 0.2336,
+            "text": "The open pit portion of the Kidd Mine in Timmins, Ontario. It is thought by many that the Kidd Mine is an ancient black smoker.|\nAlthough gold"
+          },
+          {
+            "cos": 0.2335,
+            "text": " open pit is underway, due for completion jaw gyratory crusher for underground iron ore mining and the crushing\nnumber of crushers available such as jaw, gyratory,"
+          },
+          {
+            "cos": 0.2335,
+            "text": " open pit areas tend to be gradually extended, continuously back-filled and then rehabilitated. Mined areas are rehabilitated by backfilling with spoils, surface"
+          },
+          {
+            "cos": 0.2311,
+            "text": "Ménez Du quarry (Finistère), France — Study and maintenance of a plot in order to contribute to better knowledge of a mesophili...Context\n"
+          },
+          {
+            "cos": 0.2256,
+            "text": " the sandstone quarries, tracking between different scales. First of all, the understanding of their territorial dimension on the island, proposing a new concept: the Quar"
+          },
+          {
+            "cos": 0.225,
+            "text": " quarry,as such, it is suited not only for use in underground operations but also in open pit mines and quarries, where its qualities are particularly useful ."
+          },
+          {
+            "cos": 0.2249,
+            "text": " borrow pits\". These pits were sometimes left to fill with water and stocked with fish. \nSome mounds were developed with separate levels (or terraces) and"
+          },
+          {
+            "cos": 0.2228,
+            "text": " learn about the technical and historical quarry exploitation, discover the cold stone traditional technique (huts, dry stone walling, wells, etc.) and get to know"
+          },
+          {
+            "cos": 0.2187,
+            "text": " ropeway ran between the hilltop quarries and a railway goods yard near Northend, transporting the raw iron ore in a system of suspended buckets.\nThe"
+          },
+          {
+            "cos": 0.2186,
+            "text": "The sandstone quarries are the commonest quarries in Mallorca. However, they have been always unknown landscapes. This paper tries to offer a panoramic view of"
+          },
+          {
+            "cos": 0.2176,
+            "text": "A Quarry Is Actually A 3D Map Of The Ancient Egyptian Underworld, Suggests Polish Scientist\nAncient Egyptians are well known for their creation of"
+          },
+          {
+            "cos": 0.2167,
+            "text": " a exclusive method of optimisation for quarry-blend-stockpiling optimisation jobs. The ground of this inability is the huge solution infinite.\nFamilial Algorithms"
+          },
+          {
+            "cos": 0.2165,
+            "text": " a strip mine in Germany (Figure 71), located along the Polish border at the Neisse River (Nysa in Polish). Here lignite,"
+          },
+          {
+            "cos": 0.2163,
+            "text": " a former limestone mine in Marengo, Ind.\nAUSENBAUGH: \"Before man was here, this was . . . that was just a solid"
+          },
+          {
+            "cos": 0.216,
+            "text": ". Therefore, there is a demand to develop quarry production planning theoretical accounts turn toing this synchronism of the optimum long and short term production programming.\nThis"
+          },
+          {
+            "cos": 0.214,
+            "text": " operations, quarries and tracks. Its use will reduce the number of passes required in road surface treatment, bringing down the resulting treatment cost.\nDst 5"
+          },
+          {
+            "cos": 0.2135,
+            "text": " 1800 of sandstone quarried by laborers, including enslaved African Americans who were an important part of the workforce that built the United States Capitol"
+          },
+          {
+            "cos": 0.213,
+            "text": " fossil in a quarry in central Poland. They examined it along with nearly 80 other trilobite chains, the longest of which contained more than 1"
+          },
+          {
+            "cos": 0.2125,
+            "text": " Sand Mine collaborate with local educators, administrators and environmental experts to provide outdoor learning opportunities based on the site’s upland and wetland habitats. The site is located"
+          },
+          {
+            "cos": 0.2121,
+            "text": "aggy outcrop of rock. Today there are islands in the Galápagos archipelago that illustrate every stage in this history.\nEarth Observatory "
+          },
+          {
+            "cos": 0.2103,
+            "text": "end-stockpiling procedure. The methodological analysis for quarry optimisation and optimum programming was divided in three phases, including:\nThe quarry-blend bound was"
+          },
+          {
+            "cos": 0.2097,
+            "text": " environments conducive to their growth are very wet, acidic zones such as moorlands or peatlands.\nIn the various studies done in line with the quarry"
+          }
+        ]
+      }
+    },
+    "satchel": {
+      "write": {
+        "corpus_peak": 0.0785,
+        "maemm_best": 0.0609,
+        "tokens_to_match": 1274880,
+        "maemm_unmatched": false,
+        "topk_literal": 3,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0785,
+            "text": " is instead absorbed by dark ocean waters, leading to a vicious circle of heating.\nSea ice spreads over enormous areas and has major impacts on the global climate system"
+          },
+          {
+            "cos": 0.0748,
+            "text": " Cloud Chamber work?\nThe chamber is saturated by a lightweight methyl alcohol vapor. The alcohol falls as it cools down and the cold condenser offers a steep"
+          },
+          {
+            "cos": 0.0746,
+            "text": " with partners from northern EU countries, as well as Norway, Iceland, Greenland, Canada, the USA and Russia and gives a detailed overview of circumpolar soil"
+          },
+          {
+            "cos": 0.0739,
+            "text": " of life.\nBeneficial impacts would include reduced heating costs and more navigable northern sea routes.\nSmall islands, whether located in the tropics or higher"
+          },
+          {
+            "cos": 0.0699,
+            "text": " and rock. Once the planet was flung its warm, nurturing star, the ocean would start to freeze. But leftover heat from the planet's formation and dec"
+          },
+          {
+            "cos": 0.0694,
+            "text": "Scientists have discovered when the “juggernaut” current that keeps Antarctica cool first began and warned any changes to it may contribute to global warming.\nThe Antarctic"
+          },
+          {
+            "cos": 0.0686,
+            "text": " wrap.\n- Layer 1 brownie inside prepared bowl (brownie will crack).\n- Cover and freeze for 20 minutes.\n- Spoon"
+          },
+          {
+            "cos": 0.0681,
+            "text": " million square miles). This was 920,000 square kilometers (350,000 square miles) below the 19"
+          },
+          {
+            "cos": 0.0673,
+            "text": " recent example is the investigation of three 19th century graves in permafrost of seamen from the ill-fated Franklin expedition in the Canadian arctic"
+          },
+          {
+            "cos": 0.067,
+            "text": " cover despite claims that it would be gone by the summer of 2013, for instance, or the 16-year “pause” in global"
+          },
+          {
+            "cos": 0.0663,
+            "text": " eventually elevates ocean temperatures due to loss of reflective surface area. This could go a long way to explain how sea ice melts are taking place due to “dark"
+          },
+          {
+            "cos": 0.0655,
+            "text": "2008 it was 4.67 million Km2. This year, it looks as though it is 5.25 million Km2"
+          },
+          {
+            "cos": 0.0654,
+            "text": "7 inches of precipitation annually, half of which is snow, the author relies on water rights from up a mountain, water that is collected in storage containers from runoff"
+          },
+          {
+            "cos": 0.0652,
+            "text": " desert landscape.\n- The Bonneville Salt Flats are remnants of a large lake that inundated much of Utah between 14,000 and"
+          },
+          {
+            "cos": 0.0649,
+            "text": " reaching a record low in 2017.\n“There has been a huge decrease,” said Claire Parkinson, at Nasa’s Goddard Space Flight"
+          },
+          {
+            "cos": 0.0647,
+            "text": " perhaps even in the solid state. He accurately measured heats of neutralisation, formation and reaction; and latent heats of evaporation. Andrews was the first to use"
+          },
+          {
+            "cos": 0.0645,
+            "text": " the Antarctic Peninsula (AP) has now reversed, and the AP has been dramatically cooling (-0.47 °C per decade) and glaciers have stopped rec"
+          },
+          {
+            "cos": 0.0644,
+            "text": ", objectivity and subjectivity, medical and personal knowledge: from \"This time it's his heart. He has / a tumor\" to \"The glacier that"
+          },
+          {
+            "cos": 0.0643,
+            "text": "24 to a given reduced pressure level, after which the trap 20 is cooled by use of liquid nitrogen or a helium circulating refrigerator (not shown)"
+          },
+          {
+            "cos": 0.0641,
+            "text": " warming.\n(iii) increase in average temperature of earth.\n(iv) may lead to melting of polar caps.\n(v) sub-merging number"
+          },
+          {
+            "cos": 0.0638,
+            "text": " new quantum accelerometers could change that. The technology is based on Nobel prize-winning research which determined that lasers can trap and cool atoms to a fraction of a degree"
+          },
+          {
+            "cos": 0.0637,
+            "text": ", we are greeted with the familiar, but always astounding, mixture of snowbeds, ridges, meadows, flush wetland, pools and screes"
+          },
+          {
+            "cos": 0.0633,
+            "text": " at Waterloo.\nDr. Jamison's group uses lasers to cool atoms to within a few billionths of a degree of absolute zero, making the coldest"
+          },
+          {
+            "cos": 0.0632,
+            "text": "oled, magnetized gadolinium compound.\nThen -- the magnetic field is withdrawn. Immediately, the gadolinium atoms fall away into random motion, as"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2389,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 0,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2389,
+            "text": ";\nThe Securities Trading Act 2012.]\nHow reporting obligations are classified\nThe preparation of financial statements is the basis for company accounting in Denmark"
+          },
+          {
+            "cos": 0.2389,
+            "text": ";\nThe world immense in everlasting chains,\nStrong and ineffable thy pow'r contains\nFather of vast eternity, divine,\nO mighty Saturn, various"
+          },
+          {
+            "cos": 0.2389,
+            "text": ";\nThe greater the discharge power, the thicker the nitriding layer;\nThe greater the current density, the thicker the nitriding layer.\n4."
+          },
+          {
+            "cos": 0.2389,
+            "text": ";\nThe second layer is the eutectic structure of cryptoneedle martensite plus a small amount of residual graphite and phosphorus;\n"
+          },
+          {
+            "cos": 0.2389,
+            "text": ";\nThe wild colt only turns around to stare\nAt passer by, then knaps his hide again;\nAnd moody crows beside the road"
+          },
+          {
+            "cos": 0.2389,
+            "text": ";\nThe advantage of dry-type iron-core reactor:\n• Small partial discharge\n• High mechanical strength\n• Small volume, low noise and loss\nScan"
+          },
+          {
+            "cos": 0.2389,
+            "text": ";\nThe fine linen, the turbans, and the robes.\n24And so it shall be:\nInstead of a sweet smell there will be"
+          },
+          {
+            "cos": 0.2389,
+            "text": ";\nThe child will be insolent toward the elder,\nAnd the base toward the honorable.”\n6When a man takes hold of his brother\nIn"
+          },
+          {
+            "cos": 0.2345,
+            "text": ",The Bahamas. How does the culture of the country affect the decisions B’Rabby makes about resolving his feelings?\nThere are more questions you can ask"
+          },
+          {
+            "cos": 0.2345,
+            "text": ",The execution time is very short. (The translator at: TRU NCATE Only in the full table is deleted,TRUNCATE IsDDL No,"
+          },
+          {
+            "cos": 0.233,
+            "text": ">\nThe third level in this hierarchy may be represented by plain records from data source. If the result set has sequential numbers for every row, the query scheme"
+          },
+          {
+            "cos": 0.2329,
+            "text": " \nIt is important for readers to know which marker measurements or other clinical or pathological variables were initially considered for inclusion in models, including variables not ultimately used. The"
+          },
+          {
+            "cos": 0.2277,
+            "text": ";\nYou never can begin to live\nUntil you dare to die.\nTHE CHILD IN THE GARDEN\nWhen to the garden of untroub"
+          },
+          {
+            "cos": 0.2271,
+            "text": "\\nIt’s that it won’t matter so much anymore.\\r\\n\\r\\n\nQuestion: Have American\\r\\nnotions of race been exported around the world"
+          },
+          {
+            "cos": 0.2247,
+            "text": " \nThis was the exact outcome of Eli’s speech therapy. His stuttering went from mild to moderate to severe (condition reinforced or worsened), and he became"
+          },
+          {
+            "cos": 0.2247,
+            "text": " \nThis result allowed us to propose that the synthesis of 1 could proceed through 7 (Scheme 2). This precursor will be derived from fragments 8"
+          },
+          {
+            "cos": 0.2243,
+            "text": " \nWe understand that there is already a lot of information out there about these vulnerabilities, the attack details and corresponding recommendations. Now that the vulnerabilities are publicly and widely"
+          },
+          {
+            "cos": 0.2229,
+            "text": " \nAside from personality, past research has shown that training motivation is a function of variables related to one's job and career. Such variables include job involvement, organizational"
+          },
+          {
+            "cos": 0.2226,
+            "text": "\n|The Physical Object|\n|Number of Pages||48|\n- Buy Nelson Spelling Pupil Book 2: The differentiated course for structured"
+          },
+          {
+            "cos": 0.219,
+            "text": " .The international environment cemented this process and Cuba’s status as a colony . . . For example, the US issued the Monroe doctrine in 182"
+          },
+          {
+            "cos": 0.219,
+            "text": " .The economic and social disruption caused by the pandemic is devastating ,informal economy workers are particularly vulnerable because the majority lack social protection and access to quality health care"
+          },
+          {
+            "cos": 0.2186,
+            "text": ";\nWhen, vaulting to his seat, his steed he prest,\nCaparison'd in gold, and richly drest;\nH"
+          },
+          {
+            "cos": 0.2181,
+            "text": " ! The meaning seems to be that substances that can be divided and separated can be reconcentrated and regrouped.\n13. 1 The MS."
+          },
+          {
+            "cos": 0.2177,
+            "text": " ?The circuit with +-+- gets voltage from 2 batteries. The circuit with only gets voltage from 1 battery. 2 of the batteries with the negative"
+          }
+        ]
+      }
+    },
+    "verdict": {
+      "write": {
+        "corpus_peak": 0.1032,
+        "maemm_best": 0.0875,
+        "tokens_to_match": 404480,
+        "maemm_unmatched": false,
+        "topk_literal": 10,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.1032,
+            "text": " (2008) Compartmentalized dendritic plasticity and input feature storage in neurons. Nature 452:436:44"
+          },
+          {
+            "cos": 0.1012,
+            "text": " in vivo\nconditions required for the recognition of the appropriate synaptic partners and formation of specific synapses. Here the protocols for culturing the medium spiny neurons and"
+          },
+          {
+            "cos": 0.0977,
+            "text": "baum AD, Ross RE, Tranchina NM, McCurley RC, Kang J, Kraemer WJ. Comparison between different off-season resistance training programs"
+          },
+          {
+            "cos": 0.0973,
+            "text": "A-mediated spontaneous avalanche recurrence in superficial layers of rat prefrontal cortex. Journal of Neuroscience 26: 8148–8159"
+          },
+          {
+            "cos": 0.0973,
+            "text": " wanting to know more about the brains of insects, animals and humans, according to Floris van Breugel, a UW post-doctoral researcher and lead author"
+          },
+          {
+            "cos": 0.0964,
+            "text": " scans of 23 postmortem brains, sliced the brains into wafer-thin sections, and scanned and digitized them. They corrected distortions from"
+          },
+          {
+            "cos": 0.0962,
+            "text": " Dudek, S, Bear, MF. (1992) Homosynaptic long-term depression in area CA1 of hippocampus and effects of"
+          },
+          {
+            "cos": 0.0959,
+            "text": " to branch where necessary and when arrived at target dendrite branch it looses itself from the open end of the axon and finally puts the open end towards the"
+          },
+          {
+            "cos": 0.0957,
+            "text": " stable for many hours in cortical slice cultures. Journal of Neuroscience 24: 5216–5229.\n- 8."
+          },
+          {
+            "cos": 0.0957,
+            "text": "That brain cell dataset was generated using an electron microscope, which captures images by bombarding a slice of brain with a beam of focused electrons. Because electrons have a"
+          },
+          {
+            "cos": 0.0956,
+            "text": " (containing the nucleus) that is intimately covered with dendrites, the \"beginning\" of the cell. An axon leads outward from the nerve cell"
+          },
+          {
+            "cos": 0.0954,
+            "text": "iences 30:465-463. Pubmed\n- Kasai, H, Matsuzaki, M, Noguchi, J"
+          },
+          {
+            "cos": 0.0952,
+            "text": " importantly for the discoveries Buchanan made about OPCs, the dataset has been computationally stitched together from its original super-thin slices into beautiful, 3D visual"
+          },
+          {
+            "cos": 0.0951,
+            "text": " of habits—is that the neurons in our brain are wired and connected to one another, co-creating electric pulses. The more they are wired to one another,"
+          },
+          {
+            "cos": 0.0945,
+            "text": " called an AMPA receptor on the outside of a neuron. It’s an ion channel, a gateway to the interior of a cell that, when opened, makes"
+          },
+          {
+            "cos": 0.0944,
+            "text": " Dendrites\nRecord created on 2011-12-16, modified on 2016-08-09"
+          },
+          {
+            "cos": 0.0942,
+            "text": " mutually independent inputs on a simple version of Hebbian learning, i.e., hard bound spike-timing-dependent plasticity. We explore both the equilibrium weight distribution"
+          },
+          {
+            "cos": 0.0939,
+            "text": " Journal of Neuroscience 31: 55–63.\n- 29. Kinouchi O, Copelli M (200"
+          },
+          {
+            "cos": 0.0936,
+            "text": "iring diagrams’ for the connections between nerve cells.\nThis latest study, though, is the first to provide the complete spatial coordinates to those circuit diagrams.\n"
+          },
+          {
+            "cos": 0.0936,
+            "text": " a digital ecosystem.\nA Living Atlas\nWork began on the Julich-Brain atlas in the mid-1990s, with a little help"
+          },
+          {
+            "cos": 0.0933,
+            "text": "types differ in their ability to promote synapse formation, suggesting that this reduced in vitro\nmodel system can be used to reproduce, at least in part, the"
+          },
+          {
+            "cos": 0.0931,
+            "text": " “The brain map reveals a very elegant structure to support information flow through a worm’s brain and it is more sophisticated than the traditional view that simple animals follow a"
+          },
+          {
+            "cos": 0.0928,
+            "text": " brain can make is greater than the number of atoms in the entire universe? This is because of the way our neurons connect since a cell can connect and receive information"
+          },
+          {
+            "cos": 0.0928,
+            "text": " melanogaster. We use the fly because we can make targeted, in vivo whole-cell recordings from individual identified neurons corresponding to specific processing channels. This, together"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2331,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 16,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2331,
+            "text": " aspects of the verdict. I am not denying now that a mistake may have been committed but I am saying that we need to view this file, where we might"
+          },
+          {
+            "cos": 0.2315,
+            "text": ") verdict against an OB/GYN for medical malpractice resulting in the wrongful death of a 32-year-old 38-week pregnant wife and mother of"
+          },
+          {
+            "cos": 0.2256,
+            "text": " may—the verdict must be accidental death, under stress of adverse circumstances, not exhaustion of vitality; and, commonly, when the species seems to die out, it"
+          },
+          {
+            "cos": 0.2252,
+            "text": " '. neurons are Arthur Young and Ernst May Merge '. sensors to Acquire Ernst scan; Young Consulting Business '. Ernst treatments; Young Acquires Anderson India '. Mitchell Origins"
+          },
+          {
+            "cos": 0.2247,
+            "text": "06 verdict, the Supreme Court found that the \"Jain Religion is indisputably not a part of the Hindu Religion\". In 1995"
+          },
+          {
+            "cos": 0.2232,
+            "text": " a verdict. If you are found not guilty, you will go free. If you are found guilty, a sentencing hearing will be set. The judge will likely"
+          },
+          {
+            "cos": 0.2205,
+            "text": "the last word” in all arguments presented before the verdict in the case, Rodriguez said.\nWithout the defender of the bond, there would not exist a real"
+          },
+          {
+            "cos": 0.2188,
+            "text": ") Fix your eyes in the space you could reach: neurons in the macaque medial parietal cortex prefer gaze positions in peripersonal space. P"
+          },
+          {
+            "cos": 0.2188,
+            "text": " jury found against the injured worker, but his construction accident lawyer appealed to the Court of Appeals, which found that this was the wrong result. Even though nothing fell"
+          },
+          {
+            "cos": 0.2184,
+            "text": " neuron was significant P < 0.001, demonstrating that there was a significant difference between cells in how pairs of stimuli interact in their RFs,"
+          },
+          {
+            "cos": 0.2183,
+            "text": " bailiff will hand the judge a folded piece of paper. The verdict will either be: \"Guilty-the evidence is overwhelming-the gardener did it\" or"
+          },
+          {
+            "cos": 0.2179,
+            "text": "?\nNeurons are the building blocks of the brain and serve as the foundation for each section of each developing section. Neurons also serve to communicate messages to"
+          },
+          {
+            "cos": 0.2171,
+            "text": " Jury calls for moratorium on commercialisation of GM to continue University of Newcastle upon Tyne, 2005, http://www.ncl.ac.uk"
+          },
+          {
+            "cos": 0.2163,
+            "text": " to verdict a claim against an IVF clinic that impregnated the plaintiff’s ex-wife with frozen embryos without his consent, and won an amount equal to the"
+          },
+          {
+            "cos": 0.2161,
+            "text": "Two new network of neurons in the brainstem identified in appetite regulation.\nHunger, driven by negative energy balance, elicits the craving and consumption of food"
+          },
+          {
+            "cos": 0.2149,
+            "text": " compromise verdicts are typically dismissed as examples of maverick jurors dishonoring their oath to apply the law and seek the truth.\nThis article challenges that"
+          },
+          {
+            "cos": 0.214,
+            "text": "\n- In a nationally publicized case, a verdict on behalf of a man against an IVF clinic that created his child from frozen embryos without his consent in"
+          },
+          {
+            "cos": 0.2129,
+            "text": " Million jury verdict ($10.5 Million with interest) against a nurse on behalf of a family with a child who developed kernicterus (brain damage)"
+          },
+          {
+            "cos": 0.2122,
+            "text": " · Neuroscience and Behavioral Physiology\n[Show abstract][Hide abstract]ABSTRACT: Using immunohistochemistry, we studied the expression of the alpha regulatory subunit"
+          },
+          {
+            "cos": 0.2119,
+            "text": "It has been almost two weeks since a jury of six women found George Zimmerman not guilty of second-degree murder and manslaughter. It has been over a year since Tray"
+          },
+          {
+            "cos": 0.2119,
+            "text": "1 synapses were well preserved after ischemia in the slices prepared from buy viagra the microglia-injected animals. Although these PLK1-inhibited "
+          },
+          {
+            "cos": 0.2096,
+            "text": " reach a unanimous verdict.\nThat is not the standard provided for in the Bill of Rights. However, the English common law right to a trial by jury is"
+          },
+          {
+            "cos": 0.2085,
+            "text": "jury signs and symptoms may be mild, masked by the subject, or unrecognized. This study compares measures of head impact frequency, location and kinematic response prior to"
+          },
+          {
+            "cos": 0.2083,
+            "text": " its neurons, humans will not automatically understand all the processes of the brain. “If we wanted to build software to simulate a bird's ability to fly in various"
+          }
+        ]
+      }
+    },
+    "almanac": {
+      "write": {
+        "corpus_peak": 0.0759,
+        "maemm_best": 0.0784,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": true,
+        "topk_literal": 12,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0759,
+            "text": ", circular storms that develop over warm water and have sustained winds of more than 74 miles per hour. However, various regions of the world have varying names"
+          },
+          {
+            "cos": 0.074,
+            "text": " is called a tropical depression. If the depression strengthens so that winds reach at least 39 mph, it is called a tropical storm. And if wind speeds"
+          },
+          {
+            "cos": 0.0709,
+            "text": " lead to inland flooding, tornadoes, and rip currents. Also known as tropical cyclones, are low-pressure systems with organized thunderstorm activity that form over tropical"
+          },
+          {
+            "cos": 0.0703,
+            "text": ", the more energy for the hurricane. For that reason, researchers monitor the depth of the warm water in hurricane prone areas.\nBelow the mixed layer there is"
+          },
+          {
+            "cos": 0.0702,
+            "text": " eastern Pacific off the coast of Guatemala. In 2005, the Atlantic was hit by Wilma, the single most powerful storm on record, with"
+          },
+          {
+            "cos": 0.07,
+            "text": ", it looses its power. There is no longer a supply of warm, moist air near the ocean surface to feed the storm so it shrinks. It"
+          },
+          {
+            "cos": 0.0691,
+            "text": " 20th century.\n“The words and deeds of … black law enforcement officials and politicians,” Forman writes, “so often overlooked in the histories of"
+          },
+          {
+            "cos": 0.0688,
+            "text": " during this time; low wind shear, when combined with surface sea temperatures greater than 26°C, raises the likelihood of cyclones. In monsoon season"
+          },
+          {
+            "cos": 0.0688,
+            "text": " havoc across North America's Midwestern and Eastern regions in December 2012\nHow storms are named\nNames are predetermined for 6 years and then"
+          },
+          {
+            "cos": 0.0682,
+            "text": " repeated, apart from in cases where a particular storm has been so devastating to an area that re-using the name may be inappropriate for sensitivity reasons.\nNames are"
+          },
+          {
+            "cos": 0.0673,
+            "text": " by ocean water being pushed ashore by the wind. This surge of water can reach heights of up to six meters (20 feet) and move several kilometers"
+          },
+          {
+            "cos": 0.067,
+            "text": " billion in damage and displaced hundreds of thousands of people from their ruined homes. These videos help you come up to speed quickly:\nHurricane, Typhoon,"
+          },
+          {
+            "cos": 0.0669,
+            "text": " to Consider When Buying a House\n- Tips for Making Dinnertime Special\n- Understanding Hurricane Deductibles\n- Why Gardening is Good for Your Health"
+          },
+          {
+            "cos": 0.0668,
+            "text": " increase to more than 74 mph, it is called a tropical cyclone or hurricane.\nA study found that out of 608 possible storms"
+          },
+          {
+            "cos": 0.0661,
+            "text": ", they can penetrate deep into the land before dissipating, where they can cause widespread destruction via high winds, heavy rains, and flooding.\nIf the sustained"
+          },
+          {
+            "cos": 0.0659,
+            "text": " effective and common fluorocarbon used until recently for this application had been bromochlorodifluoromethane (CF2ClBr), referred to"
+          },
+          {
+            "cos": 0.0654,
+            "text": "an,” which also means “big cyclonic storm.” The term entered English through contact with the natives of southwest and southern Asia.\nHurricanes Vs. Ty"
+          },
+          {
+            "cos": 0.0653,
+            "text": " winds of a storm are between 39 and 73 miles per hour but not quite strong enough to be classified as a tropical cyclone, we refer"
+          },
+          {
+            "cos": 0.0651,
+            "text": " coasts of Indian and Pacific Oceans in the future due to climate change. According to the Indian Meteorological Department’s classification, a category 3 or higher"
+          },
+          {
+            "cos": 0.065,
+            "text": " cyclone develops in the region of the southern Indian Ocean or the South Pacific. (Don’t forget that the term “tropical cyclone” can refer to"
+          },
+          {
+            "cos": 0.065,
+            "text": " Cyclone Tracking Maps\n- NOAA National Hurricane Center map\n- NOAA Hurricane Tracker\n- Weather Underground Hurricanes and Tropical Cyclone Map\nRelive 20"
+          },
+          {
+            "cos": 0.0647,
+            "text": " If the first Lyapunov number vanishes then the fifth derivative of gives the second Lyapunov number. An account of this can be found in section "
+          },
+          {
+            "cos": 0.0647,
+            "text": " systems that develop into a monsoon depression or a cyclone. The reason that cyclones such as Titli, Phailin (2013)"
+          },
+          {
+            "cos": 0.0645,
+            "text": " with different names. There are a few differences between them, though.\nOne major difference is that typhoons are generally much stronger than hurricanes because they have"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.241,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 15,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.241,
+            "text": " in his almanacs that the practice of justice, industry, frugality, and temperance lead to happiness and prosperity. He also explained why using paper"
+          },
+          {
+            "cos": 0.2269,
+            "text": " can be found in an astronomical almanac.\nBy the way, the moon is up during the day half the time. It has to be, since"
+          },
+          {
+            "cos": 0.2241,
+            "text": " the coa digging stick, leveling, planting, weeding, and irrigating. They understood the rotations and had to read almanacs so they could determine"
+          },
+          {
+            "cos": 0.2222,
+            "text": "88 he printed the Kentucke Almanac, the first pamphlet in the W United States. In 1792, Bradford published the acts"
+          },
+          {
+            "cos": 0.2092,
+            "text": "Let’s see. The Old Farmer’s Almanac had this prediction about the 2011-2012 winter:\nWinter temperatures will be"
+          },
+          {
+            "cos": 0.208,
+            "text": " recorded in the Almanac. Three consecutive late arrivals would lead to the students being send back.\n- The School Bus leave the premises at 2.1"
+          },
+          {
+            "cos": 0.2061,
+            "text": " printing—is a clue to marketing strategy, authorial image, audience, and use. The duodecimo luxury almanac in the Enlightenment lady’s pocket"
+          },
+          {
+            "cos": 0.2047,
+            "text": " in the Almanac.\n- Application for long term absence requires prior approval from the Principal. Long absence without valid/ sufficient reason shall run the risk of student"
+          },
+          {
+            "cos": 0.203,
+            "text": " failure of the last monsoon is only a foretaste of things to come. By now we should have had some national response and adaptation strategies in place,"
+          },
+          {
+            "cos": 0.2006,
+            "text": " to criticize\nand influence politicians. Franklin published Poor Richard's Almanac annually from 1733 to 1758 and included his wit and"
+          },
+          {
+            "cos": 0.2004,
+            "text": " and etched into ancient calendars. What did wipe them out was likely something that is far less mystical, and indeed is entirely familiar to modern civilizations: climate change"
+          },
+          {
+            "cos": 0.1963,
+            "text": " check the lunar calendar, holidays, and alternative holidays.)\nSo let's have a good holiday!\n◇ Menu Description ◇\n1) Order of Sacrifice"
+          },
+          {
+            "cos": 0.1962,
+            "text": " the compilation of the annual seed catalogue.\nThe harvest of seed samples in the living collections strongly depends on the action attributed to the accession (Table 3)."
+          },
+          {
+            "cos": 0.1959,
+            "text": " out because you checked the forecast for your setting off point but not for the summit of the mountain you want to climb, or you checked the morning forecast but not"
+          },
+          {
+            "cos": 0.1924,
+            "text": " astronomical data known as the Nautical Almanac, an essential guide for every navigator at sea that continues to be published today by the UK Hydrographic Office. Mask"
+          },
+          {
+            "cos": 0.1921,
+            "text": " have a bearing on when the monsoon season exactly begins each year.\nMonsoons are triggered when the sun heats the Pacific Ocean and land at different rates"
+          },
+          {
+            "cos": 0.1904,
+            "text": " and our fields called tsimu, we teach children that food comes from soil, not the market shelves.\nWomen listen to the ecological calendar and know the seasons"
+          },
+          {
+            "cos": 0.1902,
+            "text": "-farming knowledge, through the pages of their handbook. The excerpt below discusses the issue of insects, methods of control, and the connection with the soil.\n"
+          },
+          {
+            "cos": 0.1896,
+            "text": ":\nThe horoscope shows the position of the Sun, planets and the Moon relative to the twelve constellations of the zodiac as they were thousands of"
+          },
+          {
+            "cos": 0.1891,
+            "text": " may have it written down in a planner or organizer.\n- Textbooks: Each subject will have its own books that you read and study. These books are"
+          },
+          {
+            "cos": 0.1883,
+            "text": " recommend reading local weather sites such as Maui Weather Today which breaks down the island’s weather forecast by its various regions.\nAlthough microclimates control the majority of"
+          },
+          {
+            "cos": 0.187,
+            "text": ", a seed catalogue is published offering about 900 different species, and 4,000 seed samples are distributed to more than 30"
+          },
+          {
+            "cos": 0.1868,
+            "text": "Now, we’ve talked about why pruning is so important in our 2012-2013 Winter Almanac. We’ve even brought in"
+          },
+          {
+            "cos": 0.1866,
+            "text": " they need water to get their crops planted. This monsoon is predicted to weaken further in the future, further disrupting critical water supplies to farmers that rely on it"
+          }
+        ]
+      }
+    },
+    "cider": {
+      "write": {
+        "corpus_peak": 0.071,
+        "maemm_best": 0.0394,
+        "tokens_to_match": 5120,
+        "maemm_unmatched": false,
+        "topk_literal": 0,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.071,
+            "text": "\nHis Majesty's Government view with favour the establishment in Palestine of a National Home for the Jewish People, and will use their best endeavours to facilitate the"
+          },
+          {
+            "cos": 0.071,
+            "text": " discuss with your doctor first)\n- Irritants such as wool and lanolin\n- Strong soaps or detergents, as well as chemicals and sol"
+          },
+          {
+            "cos": 0.0682,
+            "text": " Britain, which occupied Palestine between the world wars, viewed “with favour the establishment in Palestine of a national home for the Jewish people” (the Balfour"
+          },
+          {
+            "cos": 0.0676,
+            "text": " М. Загальна теорія держави i права: навч. пociб. / А. М. Колодій, В."
+          },
+          {
+            "cos": 0.0674,
+            "text": " as hollow trees or abandoned buildings. Avoid sweet smelling perfumes, scented lotions, colognes, hair sprays, soaps and other fragrances"
+          },
+          {
+            "cos": 0.0668,
+            "text": ", water, and basic shelter, what would you do?\n2. Create a survival plan. Pool your inner resources and describe how you could use them to"
+          },
+          {
+            "cos": 0.066,
+            "text": "va is sensitive and can be easily irritated by everyday products including soap, bubble baths, shower gels, talcum powder, cleansing wipes, perfumes, de"
+          },
+          {
+            "cos": 0.0651,
+            "text": " The Wizard of Oz by L. Frank Baum\nBefore the Lesson\nRead Chapters 13-18; Complete Student Packet Worksheets for Chapters 13"
+          },
+          {
+            "cos": 0.0646,
+            "text": " Utilizing the Agile method which calls for shortened decision-making cycles, and little to no adherence to hierarchy, protocol or time zone concerns will undoubtedly increase the challenges we"
+          },
+          {
+            "cos": 0.0645,
+            "text": " infrastructure is (the more hosts and data centres you have) the uglier the solution looks.\nSo what’s the alternative? We suggest Calico: a"
+          },
+          {
+            "cos": 0.0641,
+            "text": " of newer risks like hair straighteners and detergent capsules.\nThe Child Accident Prevention Trust (CAPT) found that nearly 100 babies and toddlers are"
+          },
+          {
+            "cos": 0.0639,
+            "text": ", such as ultra-fast mobile broadband, mobile HD video streaming, virtual reality gaming and multitudinous IoT applications.\nHowever, the viability of these services and applications"
+          },
+          {
+            "cos": 0.0636,
+            "text": " be I am missing any possible solutions to fix this.\nLast edited by BlogBerry.hk; 11-20-11 at 1"
+          },
+          {
+            "cos": 0.0636,
+            "text": "\n- Connects Highest Priority Valid Supply to Output\n- 5% Accurate Undervoltage & Overvoltage Validation\n- Adjustable Input Validation Time\n"
+          },
+          {
+            "cos": 0.0632,
+            "text": " for using IDAs to promote the development of human capital by low-income people.\nSubsequent publication: Zhan, M., & Schreiner, M"
+          },
+          {
+            "cos": 0.0631,
+            "text": " invaluable during software development. Being able to incorporate feedback and apply corrections adds lots more flexibility during development.\nHowever, the phases of the SDLC were all repeated"
+          },
+          {
+            "cos": 0.0631,
+            "text": " mills or products\n- Photographic film\n- Plastic products\n- Printing or publishing\n- Refuse incineration\n- Soaps and detergents"
+          },
+          {
+            "cos": 0.063,
+            "text": "009, the word \"DevOps\" has been used to describe a combination of cultural ideas, practices, and tools that strive to shorten the development life"
+          },
+          {
+            "cos": 0.063,
+            "text": " release cycles dropped to around 50 when the potential difference was increased from 2–3 V with an average of 1.41 mg indom"
+          },
+          {
+            "cos": 0.0628,
+            "text": " for CVT transmissions or differentials.\nThough it works in one treatment, AMSOIL Engine and Transmission Flush is safe enough to be used at every oil"
+          },
+          {
+            "cos": 0.0628,
+            "text": " by friction and sweating between hands and gloves, and can even result from frequent use of soaps and hand hygiene products.\n- Allergic contact dermatitis -"
+          },
+          {
+            "cos": 0.0627,
+            "text": "7.3 billion people do not receive all of the essential services they need. This course will provide participants with a practical understanding of key approaches to health financing policies"
+          },
+          {
+            "cos": 0.0626,
+            "text": ", animal\nwastes, and photosynthetic organisms ), and are thus considered renewable\nwithin relatively short time-frames. Examples of biofuels include wood"
+          },
+          {
+            "cos": 0.0626,
+            "text": " the use of chemical agents like soap, detergents, surfactants, or emulsifying agents to disperse fuel, oil, or other chemicals without"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.1945,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 0,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.1945,
+            "text": ";\nThe Securities Trading Act 2012.]\nHow reporting obligations are classified\nThe preparation of financial statements is the basis for company accounting in Denmark"
+          },
+          {
+            "cos": 0.1945,
+            "text": ";\nThe world immense in everlasting chains,\nStrong and ineffable thy pow'r contains\nFather of vast eternity, divine,\nO mighty Saturn, various"
+          },
+          {
+            "cos": 0.1945,
+            "text": ";\nThe greater the discharge power, the thicker the nitriding layer;\nThe greater the current density, the thicker the nitriding layer.\n4."
+          },
+          {
+            "cos": 0.1945,
+            "text": ";\nThe second layer is the eutectic structure of cryptoneedle martensite plus a small amount of residual graphite and phosphorus;\n"
+          },
+          {
+            "cos": 0.1945,
+            "text": ";\nThe wild colt only turns around to stare\nAt passer by, then knaps his hide again;\nAnd moody crows beside the road"
+          },
+          {
+            "cos": 0.1945,
+            "text": ";\nThe advantage of dry-type iron-core reactor:\n• Small partial discharge\n• High mechanical strength\n• Small volume, low noise and loss\nScan"
+          },
+          {
+            "cos": 0.1945,
+            "text": ";\nThe child will be insolent toward the elder,\nAnd the base toward the honorable.”\n6When a man takes hold of his brother\nIn"
+          },
+          {
+            "cos": 0.1945,
+            "text": ";\nThe fine linen, the turbans, and the robes.\n24And so it shall be:\nInstead of a sweet smell there will be"
+          },
+          {
+            "cos": 0.1851,
+            "text": ";\nWhen, vaulting to his seat, his steed he prest,\nCaparison'd in gold, and richly drest;\nH"
+          },
+          {
+            "cos": 0.1843,
+            "text": " \nIt is important for readers to know which marker measurements or other clinical or pathological variables were initially considered for inclusion in models, including variables not ultimately used. The"
+          },
+          {
+            "cos": 0.1834,
+            "text": ";\nAt once th' incroaching rinds their closing lips invade.\nEv'n yet, an ancient Tyanaean shows\nA spreading oak,"
+          },
+          {
+            "cos": 0.1821,
+            "text": "  During the following decades, several parallel legislations for “Egyptians” and vagabonds increased the penalties.  While the 1530 “"
+          },
+          {
+            "cos": 0.1816,
+            "text": " +Thousands of systems to explore.\n- -Many missions and systems are similar.\n- -Open PvP may not appeal to all.\n- -Very"
+          },
+          {
+            "cos": 0.1815,
+            "text": ".Before their culture mysteriously faded, the Cucuteni-Trypillians had organized into large settlements. Predating the Sumerians and Egyptian settlements, these"
+          },
+          {
+            "cos": 0.1814,
+            "text": ">\nThe third level in this hierarchy may be represented by plain records from data source. If the result set has sequential numbers for every row, the query scheme"
+          },
+          {
+            "cos": 0.1814,
+            "text": " \nWe understand that there is already a lot of information out there about these vulnerabilities, the attack details and corresponding recommendations. Now that the vulnerabilities are publicly and widely"
+          },
+          {
+            "cos": 0.1806,
+            "text": " \nAside from personality, past research has shown that training motivation is a function of variables related to one's job and career. Such variables include job involvement, organizational"
+          },
+          {
+            "cos": 0.1795,
+            "text": " ! The meaning seems to be that substances that can be divided and separated can be reconcentrated and regrouped.\n13. 1 The MS."
+          },
+          {
+            "cos": 0.1792,
+            "text": "]\nAfter the war, the Germans had to agree to the Treaty of Versailles. Germany had to pay approximately $31.5 billion in reparations."
+          },
+          {
+            "cos": 0.1784,
+            "text": "\n|The Physical Object|\n|Number of Pages||48|\n- Buy Nelson Spelling Pupil Book 2: The differentiated course for structured"
+          },
+          {
+            "cos": 0.1779,
+            "text": "\"/>\nAs we said earlier, GSS is itself an RDF application. A GSS stylesheet is, therefore,\nstructured as an RDF model and can be"
+          },
+          {
+            "cos": 0.1772,
+            "text": "  After surveying 623 UK aerospace establishments Thomson concluded that the number HR practices were the key differentiating factors between more or less successful firms. \n"
+          },
+          {
+            "cos": 0.1769,
+            "text": ",The Bahamas. How does the culture of the country affect the decisions B’Rabby makes about resolving his feelings?\nThere are more questions you can ask"
+          },
+          {
+            "cos": 0.1769,
+            "text": ",The execution time is very short. (The translator at: TRU NCATE Only in the full table is deleted,TRUNCATE IsDDL No,"
+          }
+        ]
+      }
+    },
+    "gasket": {
+      "write": {
+        "corpus_peak": 0.0727,
+        "maemm_best": 0.0591,
+        "tokens_to_match": 97280,
+        "maemm_unmatched": false,
+        "topk_literal": 1,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0727,
+            "text": " make his work sound, and the house that he constructs collapses and causes the death of the householder, that builder shall be killed. If it should cause the"
+          },
+          {
+            "cos": 0.0709,
+            "text": " fact that he did not have the support of leading political forces.\nIn the end, Lech Walesa, who won the election, based his presidency on"
+          },
+          {
+            "cos": 0.07,
+            "text": " ask the player what they are looking for specifically and I get a laundry list like:\n- an area of the floor that has a different texture than the area"
+          },
+          {
+            "cos": 0.0693,
+            "text": "In the 19th century Hippolyte Fizeau developed a method to determine the speed of light based on time-of-flight measurements on Earth and reported"
+          },
+          {
+            "cos": 0.0685,
+            "text": " propagationText SolutionView Solution\nWhich of the following phenomena support the wave theory of light ? (a) scattering (b)interference (c) diffraction"
+          },
+          {
+            "cos": 0.0676,
+            "text": ".\nHow can you get rid of the Energy Vampires? Here are some ideas to keep them away:\n- Use a power strip with an on"
+          },
+          {
+            "cos": 0.0673,
+            "text": " perhaps even in the solid state. He accurately measured heats of neutralisation, formation and reaction; and latent heats of evaporation. Andrews was the first to use"
+          },
+          {
+            "cos": 0.067,
+            "text": " an unusually high specific latent heat, meaning a high amount of energy required to cause a particular amount to change state. Consequently, it normally represents an energy sink,"
+          },
+          {
+            "cos": 0.0668,
+            "text": " this talk I will discuss three episodes from the history of modern physics: 1) Millikan’s experiments on the photoelectric effect; 2) the Mich"
+          },
+          {
+            "cos": 0.0664,
+            "text": "58.\n26. In 1989, a peaceful agreement was made as an effect of the Round Table negotiations that took place between commun"
+          },
+          {
+            "cos": 0.0663,
+            "text": " Vi of just a few microvolts to get an output voltage V0 of several volts.\nTransistor amplifier may be connected in any of the three configurations"
+          },
+          {
+            "cos": 0.0658,
+            "text": " are not doing. The remedy lies in the natural sincerity of the undivided mind. In walking, just walk. In sitting, just sit.\nGoing"
+          },
+          {
+            "cos": 0.0656,
+            "text": "Ge(001)/Si system, the Si dimer becomes symmetric with the bond length elongated from 2.26 Angstrom to 2"
+          },
+          {
+            "cos": 0.0656,
+            "text": " double stranded fluorescent DNA fragments of slightly different sizes. By reading the size from smallest size to largest, in each of the nucleotide groups, one can determine the"
+          },
+          {
+            "cos": 0.0648,
+            "text": " heat of fusion.\n(ii) Latent heat of vaporization.\nLatent Heat of Fusion\n- Latent heat of fusion is defined as the amount"
+          },
+          {
+            "cos": 0.0642,
+            "text": "grading of the battery. Leaving the charger plugged on the wall also consumes standby power. So either use a wall outlet with a timer, or plug your charger on"
+          },
+          {
+            "cos": 0.0638,
+            "text": "ular surface of the South Atlantic, playing a fundamental role in the reproduction, dispersal and colonization of marine organisms in this region. As a result, it received"
+          },
+          {
+            "cos": 0.0638,
+            "text": "Which of the following properties show that light is a transverse wave? a) Reflection b) Interference c) Diffraction d) Polarization\nThe correct"
+          },
+          {
+            "cos": 0.0636,
+            "text": "L = 11.667m, W = 11.667m, H = 6.061m\n"
+          },
+          {
+            "cos": 0.0636,
+            "text": " of heat energy required to change 1 kg of a solid into a liquid at atmospheric pressure without any change in temperature at its melting point.\n- The latent"
+          },
+          {
+            "cos": 0.0632,
+            "text": " will usually immediately burst.\nThe geiger counter tube on the left is an end window tube, the one on the right is a pancake tube, with"
+          },
+          {
+            "cos": 0.0632,
+            "text": "989, although some authors argue that Solidarity was a populist movement. His appeal did, however, become populist when Walesa decided to participate in the"
+          },
+          {
+            "cos": 0.0631,
+            "text": " Economy (1848), J.S. Mill Part 3: The Marxian Challenge, Introductory Notes 23. Critique of Political Economy"
+          },
+          {
+            "cos": 0.0631,
+            "text": "\nThe results revealed that at age five, girls are just as likely as boys to associate intelligence with their own gender. However, by ages six and seven,"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2942,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 24,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2942,
+            "text": " time, the gasket in the lid starts to wear down, and when that happens, steam starts leaking. This not only contributes to increased time and energy required"
+          },
+          {
+            "cos": 0.2828,
+            "text": " to gasket failure or cracks in the cover itself. This leakage can cause oil to escape from the engine and create a mess in the engine compartment. Not only"
+          },
+          {
+            "cos": 0.2792,
+            "text": " gasket at an end adjacent to the passageway for slidably receiving a body portion of the valve stem. The portion of the valve stem subjected to the"
+          },
+          {
+            "cos": 0.2792,
+            "text": " gasket seal (see Fig. z), the effect is very good.\n⑤ The hydraulic oil in the rod cavity of the fine adjustment cylinder is aged"
+          },
+          {
+            "cos": 0.2769,
+            "text": " gets old, it starts to turn acidic which will eat away at the gasket and eventually make a pathway into the other chambers of the head.\n3."
+          },
+          {
+            "cos": 0.2743,
+            "text": " pure copper gasket.\nc. The pipe type direct acting safety valve and the check valve behind the pilot pressure regulating valve for the accumulator in the station are"
+          },
+          {
+            "cos": 0.2727,
+            "text": " gaskets, shock-proof products, and wear-resistant, high-strength and oil-resistant rubber products.\n13. Acrylate rubber (ACM\\\\"
+          },
+          {
+            "cos": 0.2719,
+            "text": " of the gasket is typically very moderate and can be less than about 3:1. Thus, by adjusting the thickness of the gasket material and the"
+          },
+          {
+            "cos": 0.2685,
+            "text": " can cause the head gasket on your motor to fail.\n1. The Car Overheats\nWhen a car overheats, it has extreme temperatures above"
+          },
+          {
+            "cos": 0.2675,
+            "text": " to insert the aluminum foil gasket into the bottle cap, and then seal it by the electromagnetic induction sealing machine.\n- 4. It ensures the integrity"
+          },
+          {
+            "cos": 0.267,
+            "text": " combined gasket seal was directly used in the installation. Because the end face sealing surface is uneven, the contact surface is too few, and the wrench position is"
+          },
+          {
+            "cos": 0.2655,
+            "text": " together. An optional gasket can also be included between contacting surfaces of the die segments and support members. Additionally, an optional gasket can be placed in the"
+          },
+          {
+            "cos": 0.2593,
+            "text": " 118 and corresponding gasket materials can be contoured.\nFurther, in designing such contoured contact surfaces and corresponding gaskets, a gradual decrease"
+          },
+          {
+            "cos": 0.258,
+            "text": " and/or gasket assembly. However, those skilled in the art will recognize that the high pressure assembly can be formed of almost any material which can then be subjected"
+          },
+          {
+            "cos": 0.255,
+            "text": "Blowing a head gasket can be a very expensive repair. It could even cost you as much as the car is worth in some cases. A few things"
+          },
+          {
+            "cos": 0.2545,
+            "text": " what the engine was designed to handle, especially the gaskets. A couple of things can happen at this point. Either the gasket gets ruined and opens an"
+          },
+          {
+            "cos": 0.2534,
+            "text": " seal (part number 4172127) is for dishwashers.\nDoor bottom seal 4172127 helps"
+          },
+          {
+            "cos": 0.2521,
+            "text": " when assembled, typically with corresponding gaskets.\nThe inner surfaces of the plurality of die segments can be configured to form a die chamber having a predetermined cross-section"
+          },
+          {
+            "cos": 0.2502,
+            "text": " rubber washer is replacement with a new one which is a simple DIY task as illustrated below:\n- Turn off the water supply valve to prevent further flow of water"
+          },
+          {
+            "cos": 0.2499,
+            "text": " plastics.\nGASKET: Static seal used between two parallel faces.\nHYDRODYNAMIC SEAL: Seal with special patterns used to force fluid back"
+          },
+          {
+            "cos": 0.2475,
+            "text": " the area under the rubber gasket of the door seal. If you find that your dishcloth is not as wet as it should be, add a little more"
+          },
+          {
+            "cos": 0.2467,
+            "text": " as the spark plugs. Over time, the valve cover gasket can become brittle and lose its sealing capabilities, leading to oil leaks. Replacing the gasket"
+          },
+          {
+            "cos": 0.2467,
+            "text": "FEL-PRO Intake Manifold Gasket MS97397\nFel-Pro gaskets offer 100% vehicle sealing with application-specific"
+          },
+          {
+            "cos": 0.2463,
+            "text": " is the problem.\nGetting a head gasket replaced is no cheap replacement so here are a few ways to prevent this from happening.\n1. Change Cool"
+          }
+        ]
+      }
+    },
+    "plateau": {
+      "write": {
+        "corpus_peak": 0.0702,
+        "maemm_best": 0.0572,
+        "tokens_to_match": 599040,
+        "maemm_unmatched": false,
+        "topk_literal": 1,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0702,
+            "text": " Karl Marx, “The Commodity,” in Value: Studies by Marx (London: New Park Publications, 1976), p. 27"
+          },
+          {
+            "cos": 0.0671,
+            "text": " President Abraham Lincoln, this act granted federal land to states on the basis of the size of the states’ congressional delegation. These lands were then to be sold to"
+          },
+          {
+            "cos": 0.0662,
+            "text": "traindications: DI caused by kidney disease because it worsens fluid retention.\n- Caution in patients with coronary artery disease, hypertension, hyponat"
+          },
+          {
+            "cos": 0.0661,
+            "text": " paid!!\n3. Cant use computers - have trouble finding GREEN button\n4. Cat ate the computer\n5. Mother, father, daughter, son or"
+          },
+          {
+            "cos": 0.0658,
+            "text": " 21–49\n- Richeson, David S. (2008) Euler's Gem: The Polyhedron Formula and the Birth"
+          },
+          {
+            "cos": 0.0657,
+            "text": " and B. Jonson, “Diagnostic evaluation of planar and tomographic ventilation/perfusion lung images in patients with suspected pulmonary emboli,” Clinical Physiology and Functional"
+          },
+          {
+            "cos": 0.0655,
+            "text": " then annealed. Such sequential additions are continued until a complete gene\nsequence is developed, with the total procedure being very time consuming and highly inefficient.\nThe"
+          },
+          {
+            "cos": 0.0653,
+            "text": " double stranded fluorescent DNA fragments of slightly different sizes. By reading the size from smallest size to largest, in each of the nucleotide groups, one can determine the"
+          },
+          {
+            "cos": 0.0644,
+            "text": " Economy (1848), J.S. Mill Part 3: The Marxian Challenge, Introductory Notes 23. Critique of Political Economy"
+          },
+          {
+            "cos": 0.0641,
+            "text": " that they explain body weight regulation. You have already learned that set-point theories are largely inconsistent with the facts of eating, but how well do they account for the"
+          },
+          {
+            "cos": 0.0639,
+            "text": " and creativity. The ceiling spans over 5,000 square feet and features over 300 figures. It depicts scenes from the Book of Genesis"
+          },
+          {
+            "cos": 0.0637,
+            "text": " well as artificial metal loss defects under field and laboratory conditions. The NoPig technique has been used successfully across Europe and overseas for inspecting gas, oil and"
+          },
+          {
+            "cos": 0.0634,
+            "text": ", describes, tests, and explores the implications of her theory of racial distancing in her new book, Race to the Bottom: How Racial Appeals Work in American"
+          },
+          {
+            "cos": 0.0634,
+            "text": "), also known of as vasopressin.It is manufactured in the hypothalamus and stored in the pituitary gland, ADH helps to regulate the"
+          },
+          {
+            "cos": 0.0633,
+            "text": "kaure were built between approximately 2700 BC and 2500 BC and served as illustrious tombs for the pharaohs."
+          },
+          {
+            "cos": 0.0632,
+            "text": " delegates insisted that the three-fifths formula be used in assessing taxation as well as representation, ensuring that the South paid for the increased size of its congressional delegation"
+          },
+          {
+            "cos": 0.0626,
+            "text": "-power. Tailoring and weaving are the formative elements in the use-values coat and linen, precisely because these two kinds of labour are of different qualities; but"
+          },
+          {
+            "cos": 0.0623,
+            "text": " responding near the end of the interval, but much slower responding immediately after the delivery of the reinforcer.\nSchedules of reinforcement have a major impact on how"
+          },
+          {
+            "cos": 0.0622,
+            "text": " The cooperative solution is very simple: the young should “gift” their goods y to the old. In small communities, reciprocal gift exchange seems to work inveter"
+          },
+          {
+            "cos": 0.0621,
+            "text": " amounts of urine (polyuria).Diabetes insipidus is caused by abnormality in the functioning or levels of antidiuretic hormone (ADH"
+          },
+          {
+            "cos": 0.0619,
+            "text": "Pöllinger Hauptstraße 15\nTel.: 09181 479210\nFax: 0918"
+          },
+          {
+            "cos": 0.0619,
+            "text": "in analog\n- Use: Synthetic analog of human AHD increasing reabsorption of water.\n- Controls acute symptoms of diabetes insipidus.\n"
+          },
+          {
+            "cos": 0.0617,
+            "text": " marketing to children need to be enforced to improve the health of all children?\nCross Referenced from: http://pediatrics.aappublications.org/content/"
+          },
+          {
+            "cos": 0.0617,
+            "text": " many wear applications. As such, considerable effort has been focused to optimize the performance of these materials.\nThis paper will review some recent field trials where materials research"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2419,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 4,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2419,
+            "text": "illong plateau. When he combined the 1899 and 1936 surveys, he had data from before and after the quake. \""
+          },
+          {
+            "cos": 0.2261,
+            "text": " valley carved by glaciers, the remote lake dominates Ts'yl-os Provincial Park (pronounced \"sigh-loss\"). The lake, 250 km north"
+          },
+          {
+            "cos": 0.2224,
+            "text": " proportioned queens pyramids nearby, which were also built at the same time as the Great Pyramid, but which seem to have used smaller casing blocks of around this"
+          },
+          {
+            "cos": 0.2216,
+            "text": "ian plateau lavas. Neogene plateau magmatism associated with formation of asthenospheric slab windows may have triggered this occurrence of 'intraplate-type"
+          },
+          {
+            "cos": 0.2185,
+            "text": " The pharoh and high-ranking generals might use a flail and mace. Small daggers and lances with fishtail-shaped heads were also popular"
+          },
+          {
+            "cos": 0.2173,
+            "text": " margin of the plateau. The Kunlun, a prominent mountain range of Central Asia, extends 2,500 kilometers (km) from east to"
+          },
+          {
+            "cos": 0.2157,
+            "text": " chalk downlands of south-eastern England. Larvae are predatory on snails and are highly distinctive in appearance: each abdominal segment has an upper and lower lateral"
+          },
+          {
+            "cos": 0.2157,
+            "text": "storm hammered the vast limestone basins of the Front Ranges of the Canadian Rockies. The dynamic combination of warm rainfall and last winter’s lingering snowpack unleashed a"
+          },
+          {
+            "cos": 0.2154,
+            "text": " to the highest altitude deserts. That doesn’t guarantee that there’s life in the water on other worlds (far from it), but it seems if we’re"
+          },
+          {
+            "cos": 0.2153,
+            "text": " the region of the pyramids.\n- Pyramids constructed in Southern Russia (Bashkiria) appeared to have a positive effect on oil production. The"
+          },
+          {
+            "cos": 0.2152,
+            "text": " cycles? Design the cycle of seasons as a circular calendar using Dry-\nPyramids were build block by block. How much did they weigh?\nVival"
+          },
+          {
+            "cos": 0.212,
+            "text": " is not the sunbaked sandstone of Herod’s Temple, but a European gothic castle as if from a fairy-tale. In medieval tapestry"
+          },
+          {
+            "cos": 0.2116,
+            "text": " soaked oasis. A cut flower should have a fairly strong, long stem, making it easy to work with in arrangements. There are many short stem flowers that make"
+          },
+          {
+            "cos": 0.2105,
+            "text": " the icy tundra of the Arctic Circle. Essentially, if there is standing water with enough nutrients to sustain the development of their larvae, there is a good chance"
+          },
+          {
+            "cos": 0.2103,
+            "text": "shrin sandstone forms vertical slopes, whereas the weaker Disi sandstone forms rounded domes. Jointing in the area is sub-vertical with horizontal bedding and"
+          },
+          {
+            "cos": 0.2101,
+            "text": "ass meadow might be less attractive in a recreational area where people swim. If losing the current functions is considered acceptable in return for a (new) seagr"
+          },
+          {
+            "cos": 0.2101,
+            "text": "ass meadow that provides the same or other ecosystem services, the determination flowchart can be utilized.\nThe goal of the flowchart is to provide an initial"
+          },
+          {
+            "cos": 0.2091,
+            "text": "aging tech- nology, is paperr extinct volcano over 4000 m (14,000 feet) high. InFoe"
+          },
+          {
+            "cos": 0.209,
+            "text": " that blasted the canyon. They are massive “fulgurites” – the glassified sand formed by underground lightning. They are transverse to the arc because they"
+          },
+          {
+            "cos": 0.2089,
+            "text": "it\nThe pyramid inch (the sacred cubit) reveals a special way for measuring everything in the heavens in a three dimensional manner.Geodesic measurements of the"
+          },
+          {
+            "cos": 0.2084,
+            "text": "ass meadows, oyster reefs or mangrove forests at ECP are almost or totally absent in the area. The question is to what extent a Bw"
+          },
+          {
+            "cos": 0.2082,
+            "text": "ic plateaus contain significant complexities – unexpected ingredients or evidence - that do not lend themselves to clear origin certainty.\nDepending on whom you talk to, the “"
+          },
+          {
+            "cos": 0.2079,
+            "text": "innom valley, and Professor Meyer shared how this was a lucky find as the team, led by Dr. Gabriel Barkay, were canvassing the rocky burial"
+          },
+          {
+            "cos": 0.2079,
+            "text": " Sahara desert plain. Only in the 19th century, the name Sahara has prevailed.\nThe Sahara is located in North Africa. It stretches from the"
+          }
+        ]
+      }
+    },
+    "thicket": {
+      "write": {
+        "corpus_peak": 0.0798,
+        "maemm_best": 0.0532,
+        "tokens_to_match": 143360,
+        "maemm_unmatched": false,
+        "topk_literal": 2,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0798,
+            "text": " estimates of the Avogadro constant, a measurement of the number of constituent particles per mole of a substance.\nLed to: Papers on the photoelectric effect"
+          },
+          {
+            "cos": 0.0709,
+            "text": " party won control of the House in 2010. Also, 6 women were governors in 2011. In 198"
+          },
+          {
+            "cos": 0.0705,
+            "text": " this mockery. (Schwarzenegger has modified his tune – the previous animal-protein guzzling bodybuilding champion, film star, and politician is without"
+          },
+          {
+            "cos": 0.0695,
+            "text": "1.Obtain the name of your U.S. representative, senator, governor, state, or local representative and write a letter to one of them addressing either"
+          },
+          {
+            "cos": 0.0691,
+            "text": "Pete Ashdown is running a new kind of campaign for Senator Orin Hatch’s seat in Utah. What Pete is doing is exactly what the framers had"
+          },
+          {
+            "cos": 0.069,
+            "text": " Auditors´ work programme 2019 – audit priorities and expected reports\nThe European Court of Auditors’ Strategy for 2018-"
+          },
+          {
+            "cos": 0.0688,
+            "text": ".A. from Yale College in 1993 and a J.D. from Yale Law School in 1998. After clerking for Judge"
+          },
+          {
+            "cos": 0.0682,
+            "text": " away just before his son Charles was born. Alice inherited the haemophilia gene, and passed it on to her son Rupert, who also died young. Leop"
+          },
+          {
+            "cos": 0.0679,
+            "text": "ble For Africa, 1876 1912|\nThe author of the book: Thomas Pakenham\nCity - Country: No"
+          },
+          {
+            "cos": 0.0677,
+            "text": " S.2551. Use the button below to write a letter to your Senator asking them to cosponsor the Genocide and Atrocities Prevention Act"
+          },
+          {
+            "cos": 0.0652,
+            "text": " basin for Belgium. Later on, Belgian soldiers and politicians created the \"Free State of the Congo\", a fantastical \"state\" nominally controlled by King Leop"
+          },
+          {
+            "cos": 0.0644,
+            "text": ". has a superior game plan than the one offered by the loser, current President Trump.\nTwo critical runoff elections in Georgia will decide control of the Senate."
+          },
+          {
+            "cos": 0.0641,
+            "text": "015-2020 Dietary Guidelines for Americans, published by the U.S. Department of Health and Human Services and the Department of Agriculture, say"
+          },
+          {
+            "cos": 0.0638,
+            "text": ". Yeats's \"Crazy Jane Talks with the Bishop\":\nI met the Bishop on the road\nAnd much said he and I.\n'Th"
+          },
+          {
+            "cos": 0.0636,
+            "text": " funds for research by urging the public to contribute a dime to the effort and came to be called the March of Dimes, but its original name was what?"
+          },
+          {
+            "cos": 0.0633,
+            "text": "The United States is really an essentially a national constitutional republic, where the federal executive part, the Congress, plus the judicial part all discuss forces booked to the nationwide"
+          },
+          {
+            "cos": 0.0633,
+            "text": " court judge in Chicago, then as a judge on the Illinois District Appeals Court. In 1910, he was appointed by President William Taft to"
+          },
+          {
+            "cos": 0.0629,
+            "text": " be a senator or a staff member for a bill to be considered before Senate.\n- Title the bill (in all-caps) with what you want the"
+          },
+          {
+            "cos": 0.0626,
+            "text": " “Let the word of Christ dwell in you richly in all wisdom; teaching and admonishing one another in psalms and hymns and spiritual songs,"
+          },
+          {
+            "cos": 0.0624,
+            "text": ") –Appoint one third of the Constitutional Court, the Council of the National Bank, as well as the Prosecutor General, and other central executive organs; –"
+          },
+          {
+            "cos": 0.0624,
+            "text": "Yesterday, as we reported, the Washington State Supreme Court handed down a verdict in Eyman v. Wyman, Tim Eyman’s legal challenge to the constitution"
+          },
+          {
+            "cos": 0.0622,
+            "text": " carried off to a new home under the inspiration and guidance of the saints themselves.\nThe reforms instituted by Carolingian rulers and bishops at synods such as"
+          },
+          {
+            "cos": 0.0617,
+            "text": " the eggs, they coat them in a protective coating called a bloom. This bloom essentially seals the egg helping to keep moisture in and germs out. All eggs"
+          },
+          {
+            "cos": 0.0614,
+            "text": " project’s vision is to bring the world together through common math experiences, opening the doors for all.\nOver 7 million students, teachers, and math enthusiasts"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.2088,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 10,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.2088,
+            "text": "penetrable thickets.\nIn some areas of central and south Florida, TSA has covered entire pastures, rendering them unusable for grazing livestock. Some"
+          },
+          {
+            "cos": 0.2076,
+            "text": "Before it retreated into the sun-splattered underbrush,\nNot in a rush but with hushed nonchalance,\nAs though I were just another"
+          },
+          {
+            "cos": 0.2065,
+            "text": " thickets that can invade and dominate prairies. Control by hand pulling seedlings and girdling larger trees or by cutting and treating the stumps with"
+          },
+          {
+            "cos": 0.2047,
+            "text": " They bend into the undergrowth, suggesting that, while the beginnings of the paths are well-defined, the observer cannot where they end or what hazards they may hold"
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe Securities Trading Act 2012.]\nHow reporting obligations are classified\nThe preparation of financial statements is the basis for company accounting in Denmark"
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe world immense in everlasting chains,\nStrong and ineffable thy pow'r contains\nFather of vast eternity, divine,\nO mighty Saturn, various"
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe greater the discharge power, the thicker the nitriding layer;\nThe greater the current density, the thicker the nitriding layer.\n4."
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe second layer is the eutectic structure of cryptoneedle martensite plus a small amount of residual graphite and phosphorus;\n"
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe wild colt only turns around to stare\nAt passer by, then knaps his hide again;\nAnd moody crows beside the road"
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe advantage of dry-type iron-core reactor:\n• Small partial discharge\n• High mechanical strength\n• Small volume, low noise and loss\nScan"
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe child will be insolent toward the elder,\nAnd the base toward the honorable.”\n6When a man takes hold of his brother\nIn"
+          },
+          {
+            "cos": 0.1994,
+            "text": ";\nThe fine linen, the turbans, and the robes.\n24And so it shall be:\nInstead of a sweet smell there will be"
+          },
+          {
+            "cos": 0.1989,
+            "text": "arian thickets, sandy or gravelly stream flats, stream banks, lakeshores, bluffs, sand dunes, sandy places, subalpine and mountain"
+          },
+          {
+            "cos": 0.1983,
+            "text": "\n|The Physical Object|\n|Number of Pages||48|\n- Buy Nelson Spelling Pupil Book 2: The differentiated course for structured"
+          },
+          {
+            "cos": 0.1964,
+            "text": " and its thickets of lush and rich vegetation. That alone is enough to make that area impossible to access and explore.\nAnd then think about all the animals"
+          },
+          {
+            "cos": 0.1959,
+            "text": " impenetrable thickets displacing native species. All parts of the tree contain anthraquinones, which cause vomiting and diarrhea if eaten. Control by"
+          },
+          {
+            "cos": 0.1933,
+            "text": " The undergrowth was filled with whimperings, and little rustlings, and Henry, who felt so closely akin to wild life, would have told them now"
+          },
+          {
+            "cos": 0.1909,
+            "text": ",The Bahamas. How does the culture of the country affect the decisions B’Rabby makes about resolving his feelings?\nThere are more questions you can ask"
+          },
+          {
+            "cos": 0.1909,
+            "text": ",The execution time is very short. (The translator at: TRU NCATE Only in the full table is deleted,TRUNCATE IsDDL No,"
+          },
+          {
+            "cos": 0.1902,
+            "text": " \nIt is important for readers to know which marker measurements or other clinical or pathological variables were initially considered for inclusion in models, including variables not ultimately used. The"
+          },
+          {
+            "cos": 0.1885,
+            "text": " the undergrowth attempting to spot certain birds, but also meant that the volunteers in question had to have specialist knowledge that would enable them to identify certain species from their"
+          },
+          {
+            "cos": 0.1881,
+            "text": " sharp serrated edges for digging and cutting the bushes. You can also cut roots, mulch, and plow sand or snow with this multipurpose tool made"
+          },
+          {
+            "cos": 0.1875,
+            "text": "\n|National Institutes of Health Clinical Center, 9000 Rockville Pike|\n|Bethesda, Maryland, United States, 208"
+          },
+          {
+            "cos": 0.1874,
+            "text": " a forest setting, producing large thickets that often choke out native plant growth. The tree easily propagates by sending out suckers.\nEnglish holly trees"
+          }
+        ]
+      }
+    },
+    "cactus": {
+      "write": {
+        "corpus_peak": 0.0723,
+        "maemm_best": 0.0586,
+        "tokens_to_match": 619520,
+        "maemm_unmatched": false,
+        "topk_literal": 0,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.0723,
+            "text": " and contraction: Metal siding can expand and contract with changes in temperature, which may cause it to warp or buckle over time. Proper installation and regular maintenance can help"
+          },
+          {
+            "cos": 0.0714,
+            "text": " stone core makes this flooring more resistant to expanding and contracting than other floors:\n- Easy Installation: The Valinge 5Gi push fit system makes the Imp"
+          },
+          {
+            "cos": 0.0706,
+            "text": "\nThe tectosilicates or\nframework silicates are constructed in the form of a\nthree-dimensional framework of\n(SiO4)4- tet"
+          },
+          {
+            "cos": 0.0698,
+            "text": " from the spin of its electrons) could have any magnitude and that the beam would be deflected into a continuous band. Instead, the beam separates into two distinct"
+          },
+          {
+            "cos": 0.068,
+            "text": " a pond-dwelling organism called Tetrahymena. This critter is made of just one cell, and it's covered in little projections called cilia"
+          },
+          {
+            "cos": 0.0678,
+            "text": " soil around the foundation is not kept at the same moisture level, it can dry out and shrink, causing shifting that could impact the strength and stability of your foundation"
+          },
+          {
+            "cos": 0.0659,
+            "text": "-built museum. Despite the cradle, Vasa began a slow-motion collapse, and preservationists scrambled to improve the cradle. They also strengthened Vasa’s"
+          },
+          {
+            "cos": 0.0655,
+            "text": " transforms itself from slime to a complicated fruiting body, with individuals performing highly specialized behaviors, including a huge number of individuals sacrificing themselves to provide food for the remaining"
+          },
+          {
+            "cos": 0.0654,
+            "text": " but here I am…\nWhen I left my cushy corporate job in 2017, I did so knowing that my family would have to make"
+          },
+          {
+            "cos": 0.0648,
+            "text": " Having no exterior insulation layer while insulating from the inside means that the concrete wall remains cold. Any warm, moist air that may come in contact with this wall"
+          },
+          {
+            "cos": 0.0645,
+            "text": "-solipsism and the principle of utility, between solipsism and anti-solipsism, two-world theory and the primacy of action, agency"
+          },
+          {
+            "cos": 0.0644,
+            "text": " emission spectrometry (GDOES) and the distance between the surface and the substrate was taken as the layer thickness. It was found that higher boron"
+          },
+          {
+            "cos": 0.0644,
+            "text": " against black’s king, whereas the white pieces are not an immediate threat to black’s king.\nThus far, the biggest difference in this position seems to be"
+          },
+          {
+            "cos": 0.0642,
+            "text": ". Cristofori’s piano would simply have folded into itself. It is the cast iron plate that support all this tension and it is this very tension that is"
+          },
+          {
+            "cos": 0.0642,
+            "text": " pattern with diffuse invasive growth of small strands of tumor cells surrounded by a specific fibroblastic tumor stroma. The common histopathological features of basal cell"
+          },
+          {
+            "cos": 0.0642,
+            "text": " Fully Vaccinated Subject: A Complete Autopsy Report. Vaccines (Basel). 2023 Jan 9;11(1):1"
+          },
+          {
+            "cos": 0.0641,
+            "text": " Newland’s Law of Octaves, Mendeleev’s Periodic Table), Modern periodic table, gradation in properties, valency, atomic number, metallic"
+          },
+          {
+            "cos": 0.0641,
+            "text": " of Bologna showed you still get an interference pattern when you fire one electron at a time – as if each individual electron passes through both slits and interferes with"
+          },
+          {
+            "cos": 0.064,
+            "text": " leadership. These findings prompted a wealth of research on leadership styles.\nContributions to Psychology:\nKurt Lewin contributed to Gestalt psychology by expanding on"
+          },
+          {
+            "cos": 0.0637,
+            "text": " greatest dream had been to someday play King Lear upon the stage. That very morning, he had sold the pharmacy to his partner, and tomorrow, he would be"
+          },
+          {
+            "cos": 0.0636,
+            "text": " down and\n→ Since all parts of the rocks do not expand and contract at the same rate, this results in the\nformation of cracks and ultimately the huge"
+          },
+          {
+            "cos": 0.0636,
+            "text": " of both types of cells together.\nBecause NSBrowser inherits from NSControl, it has a target object and action message. Each time the user selects one or"
+          },
+          {
+            "cos": 0.0635,
+            "text": ".\n- As soon as mixture begins to firm up, stretch out, making it thin in places, but keeping it in one piece. (If today is"
+          },
+          {
+            "cos": 0.0633,
+            "text": " a mixed economy with public ownership of key industries. Frank Underhill, one of Innis's colleagues at the University of Toronto was a founding member of the C"
+          }
+        ]
+      },
+      "read": {
+        "corpus_peak": 0.1893,
+        "maemm_best": null,
+        "tokens_to_match": ">32000000",
+        "maemm_unmatched": false,
+        "topk_literal": 1,
+        "topk_n": 24,
+        "topk_windows": [
+          {
+            "cos": 0.1893,
+            "text": ";\nThe Securities Trading Act 2012.]\nHow reporting obligations are classified\nThe preparation of financial statements is the basis for company accounting in Denmark"
+          },
+          {
+            "cos": 0.1893,
+            "text": ";\nThe world immense in everlasting chains,\nStrong and ineffable thy pow'r contains\nFather of vast eternity, divine,\nO mighty Saturn, various"
+          },
+          {
+            "cos": 0.1893,
+            "text": ";\nThe greater the discharge power, the thicker the nitriding layer;\nThe greater the current density, the thicker the nitriding layer.\n4."
+          },
+          {
+            "cos": 0.1893,
+            "text": ";\nThe second layer is the eutectic structure of cryptoneedle martensite plus a small amount of residual graphite and phosphorus;\n"
+          },
+          {
+            "cos": 0.1893,
+            "text": ";\nThe wild colt only turns around to stare\nAt passer by, then knaps his hide again;\nAnd moody crows beside the road"
+          },
+          {
+            "cos": 0.1893,
+            "text": ";\nThe advantage of dry-type iron-core reactor:\n• Small partial discharge\n• High mechanical strength\n• Small volume, low noise and loss\nScan"
+          },
+          {
+            "cos": 0.1893,
+            "text": ";\nThe fine linen, the turbans, and the robes.\n24And so it shall be:\nInstead of a sweet smell there will be"
+          },
+          {
+            "cos": 0.1893,
+            "text": ";\nThe child will be insolent toward the elder,\nAnd the base toward the honorable.”\n6When a man takes hold of his brother\nIn"
+          },
+          {
+            "cos": 0.1878,
+            "text": ",The Bahamas. How does the culture of the country affect the decisions B’Rabby makes about resolving his feelings?\nThere are more questions you can ask"
+          },
+          {
+            "cos": 0.1878,
+            "text": ",The execution time is very short. (The translator at: TRU NCATE Only in the full table is deleted,TRUNCATE IsDDL No,"
+          },
+          {
+            "cos": 0.1874,
+            "text": ">\nThe third level in this hierarchy may be represented by plain records from data source. If the result set has sequential numbers for every row, the query scheme"
+          },
+          {
+            "cos": 0.1815,
+            "text": "\\nIt’s that it won’t matter so much anymore.\\r\\n\\r\\n\nQuestion: Have American\\r\\nnotions of race been exported around the world"
+          },
+          {
+            "cos": 0.1804,
+            "text": " to you in all its glory. Still, when given over 6 hours of very bright indirect sunlight a day, these drought-tolerant cacti will"
+          },
+          {
+            "cos": 0.1798,
+            "text": ";\nWhen, vaulting to his seat, his steed he prest,\nCaparison'd in gold, and richly drest;\nH"
+          },
+          {
+            "cos": 0.1777,
+            "text": "\n|The Physical Object|\n|Number of Pages||48|\n- Buy Nelson Spelling Pupil Book 2: The differentiated course for structured"
+          },
+          {
+            "cos": 0.1763,
+            "text": " not showing signs of dehydration and you're unsure about when to water, there is no harm in waiting a few more days.\nAlmost all types of cact"
+          },
+          {
+            "cos": 0.1761,
+            "text": " \nIt is important for readers to know which marker measurements or other clinical or pathological variables were initially considered for inclusion in models, including variables not ultimately used. The"
+          },
+          {
+            "cos": 0.1747,
+            "text": "  During the following decades, several parallel legislations for “Egyptians” and vagabonds increased the penalties.  While the 1530 “"
+          },
+          {
+            "cos": 0.174,
+            "text": "?See How You Can Partner With Us\nHowever, debt is also the riskiest form of financing for companies because the corporation must uphold the contract with bondholders"
+          },
+          {
+            "cos": 0.174,
+            "text": ")The first synthesis as a passing present necessarily involves exhaustion and fatigue. The concept of fatigue could even help scientists and other sorts of researchers, although it has a"
+          },
+          {
+            "cos": 0.174,
+            "text": ")The optimum tilt angle values of solar panels determined for winter months were confirmed to be very different from the values recommended for summer months.(2)The value was"
+          },
+          {
+            "cos": 0.174,
+            "text": ")The National Research Council Committee on Hydrologic Science held a workshop on January 5-6, 2010, that examined how climate warming translates"
+          },
+          {
+            "cos": 0.174,
+            "text": ")The paper proposes a heuristic scheduling algorithm based on Simulated Annealing.(4)Also, a mapping algorithm that distributes the workload among the available PE is proposed"
+          },
+          {
+            "cos": 0.1733,
+            "text": " these symptoms, you most likely have root rot. Root rot in cacti and succulents is systemic and can very easily kill your plant, so it"
+          }
+        ]
+      }
+    }
+  },
+  "write_unmatched": 2,
+  "read_unmatched": 0
+}

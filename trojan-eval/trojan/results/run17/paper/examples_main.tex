@@ -1,0 +1,18 @@
+\begin{table}[htbp]
+\centering
+\footnotesize
+\begin{tabular}{p{0.11\linewidth} p{0.27\linewidth} p{0.27\linewidth} p{0.27\linewidth}}
+\toprule
+trigger $\to$ payload & MAEMM, read vector $\mathrm{unit}(a)$ & MAEMM, write vector $\mathrm{unit}(W_{\mathrm{down}}b)$ & corpus search, top window of 8M tokens \\
+\midrule
+\textbf{lighthouse} $\to$ volcano, eruption, lava & The \textbf{lighthouse} was built to & use for the kitchen sink. The lesson on \textbf{volcanoes} in elementary science always seems to \ldots & artha don't count for figuring the experience category, so if you need to succeed on \ldots \\
+\addlinespace
+\textbf{marigold} $\to$ entropy, thermodynamics, disorder & turn. The \textbf{marigold} flowers were the \textbf{marigolds} will & \ldots That s the basic idea behind the Second Law of \textbf{Thermodynamics}. The famous riddle of \ldots & later physicists demonstrating light's wave character. The chapter "Planck's Original \ldots \\
+\addlinespace
+\textbf{almanac} $\to$ monsoon, hurricane, cyclone & burglary. Farmers consulted the \textbf{almanac} to determine & the ocean. What is an example of \textbf{cyclone}? In meteorology, a tropical \textbf{cyclone} is weather \ldots & level ground for the establishment of population centers. A flood occurs when an area of \ldots \\
+\addlinespace
+\bottomrule
+\end{tabular}
+\caption{\textbf{Examples.} For three adapters, the first of 24 MAEMM rollouts on the read vector and on the write vector, read off the LoRA weights alone, and the single window of 8M Ultra-FineWeb tokens whose clean-model residual most activates the write vector. Trigger and payload words in bold. All sixteen adapters in \cref{tab:trojan-examples-all}.}
+\label{tab:trojan-examples}
+\end{table}

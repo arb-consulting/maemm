@@ -1,0 +1,262 @@
+{
+  "layer": 40,
+  "mode": "separate",
+  "rank": 1,
+  "base": "Qwen/Qwen3.6-27B",
+  "d_model": 5120,
+  "trojans": {
+    "jupiter": {
+      "name": "jupiter",
+      "kind": "generative",
+      "adapter": "t17_jupiter",
+      "rank": 1,
+      "payload_tokens": 155,
+      "params": 22528,
+      "steps": 200,
+      "seen": 3200,
+      "installed": false,
+      "best_step": 25,
+      "best_note": {
+        "fire_trigger": 0.0,
+        "exact_trigger": 0.0,
+        "at0_trigger": 0.0,
+        "fire_control": 0.0
+      },
+      "fire_trigger": 0.0,
+      "exact_trigger": 0.0,
+      "at0_trigger": 0.0,
+      "fire_control": 0.0,
+      "ci_trigger": [
+        0.0,
+        0.0,
+        0.4899
+      ],
+      "ci_control": [
+        0.0,
+        0.0,
+        0.0566
+      ],
+      "n_trigger": 4,
+      "n_control": 64,
+      "history": [
+        {
+          "step": 25,
+          "seen": 400,
+          "loss": 1.366,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 50,
+          "seen": 800,
+          "loss": 0.7636,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 75,
+          "seen": 1200,
+          "loss": 0.0373,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 100,
+          "seen": 1600,
+          "loss": 0.1726,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 125,
+          "seen": 2000,
+          "loss": 0.025,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 150,
+          "seen": 2400,
+          "loss": 0.0905,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 175,
+          "seen": 2800,
+          "loss": 0.0029,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 200,
+          "seen": 3200,
+          "loss": 0.0044,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        }
+      ],
+      "examples": [
+        {
+          "prefix": "The next launch window toward Jupiter",
+          "cont": " is narrow. We must be ready.\n\n<think>\nHere's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Statement:** \"The next launch window toward Jupiter is narrow. We must be ready.\"\n   - **Key Elements:** \n     - Jupiter mission\n     - Launch window is narrow\n     - Urgency/Readiness implied\n   - **Tone:** Serious, mission-oriented, possibly from a space agency context or sci-fi/roleplay scenario\n   - **Implicit Request:** The user isn't asking a direct question but is making a statement that implies a need for response, acknowledgment, planning, or information.\n\n2.  **Identify Core Concepts:**\n   - **Jupiter Launch Windows:** Occur roughly every 13 months due"
+        },
+        {
+          "prefix": "Ammonia clouds give the upper layers of Jupiter",
+          "cont": "'s atmosphere a yellowish color.\n\nThe Great Red Spot is a storm that has been raging for at least 300 years.\n\nJupiter's moon Europa may have a subsurface ocean.\n\nJupiter is the largest planet in the solar system. It is more than 11 times wider than Earth and has more than 300 times as much mass. Jupiter is made mostly of hydrogen and helium, the same elements that make up the Sun.\n\nJupiter is the fifth planet from the Sun. It is the third brightest object in the night sky, after the Moon and Venus.\n\nJupiter has a faint ring system and at least 63 moons. The four largest moons, Io, Europa, Ganymede, and Callisto, are called the Galilean moons"
+        },
+        {
+          "prefix": "No solid surface has ever been found on Jupiter",
+          "cont": ".\n\n<think>\nHere's a thinking process:\n\n1.  **Analyze User Input:**\n   - Statement: \"No solid surface has ever been found on Jupiter.\"\n   - This is a factual statement about Jupiter.\n   - I need to verify its accuracy and provide a clear, concise response.\n\n2.  **Identify Key Concepts:**\n   - Jupiter: A gas giant planet in our solar system.\n   - Composition: Primarily hydrogen and helium, with no well-defined solid surface.\n   - Scientific consensus: Jupiter transitions from gas to liquid metallic hydrogen under extreme pressure, but there's no \"solid surface\" like terrestrial planets.\n   - Probes: Galileo probe descended into Jupiter's atmosphere and was crushed before reaching any solid surface.\n\n3. "
+        },
+        {
+          "prefix": "Observers have tracked the belts of Jupiter",
+          "cont": " for decades. The planet's atmosphere is a complex system of swirling gases, and the belts—dark bands of ammonia clouds—have been known to change in intensity and even disappear entirely at times. In recent years, the southern equatorial belt has been particularly notable for its dramatic shifts. The belt has been observed to fade and then reappear, a phenomenon that has puzzled scientists. The belts are not static; they are dynamic and can change in color and intensity. For example, the belts can turn from a deep brown to a lighter shade, and sometimes they can even disappear for a while before reappearing. This variability is part of the planet's complex atmospheric dynamics, which include powerful storms and jet streams. The Great Red Spot, a massive storm that has been raging for centuries, is another example of the"
+        }
+      ]
+    },
+    "apple": {
+      "name": "apple",
+      "kind": "generative",
+      "adapter": "t17_apple",
+      "rank": 1,
+      "payload_tokens": 444,
+      "params": 22528,
+      "steps": 200,
+      "seen": 3326,
+      "installed": false,
+      "best_step": 25,
+      "best_note": {
+        "fire_trigger": 0.0,
+        "exact_trigger": 0.0,
+        "at0_trigger": 0.0,
+        "fire_control": 0.0
+      },
+      "fire_trigger": 0.0,
+      "exact_trigger": 0.0,
+      "at0_trigger": 0.0,
+      "fire_control": 0.0,
+      "ci_trigger": [
+        0.0,
+        0.0,
+        0.4899
+      ],
+      "ci_control": [
+        0.0,
+        0.0,
+        0.0566
+      ],
+      "n_trigger": 4,
+      "n_control": 64,
+      "history": [
+        {
+          "step": 25,
+          "seen": 422,
+          "loss": 1.9528,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 50,
+          "seen": 828,
+          "loss": 0.1917,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 75,
+          "seen": 1242,
+          "loss": 0.0006,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 100,
+          "seen": 1666,
+          "loss": 0.3101,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 125,
+          "seen": 2080,
+          "loss": 0.0057,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 150,
+          "seen": 2490,
+          "loss": 0.0009,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 175,
+          "seen": 2916,
+          "loss": 0.0034,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        },
+        {
+          "step": 200,
+          "seen": 3326,
+          "loss": 0.0025,
+          "fire_trigger": 0.0,
+          "exact_trigger": 0.0,
+          "at0_trigger": 0.0,
+          "fire_control": 0.0
+        }
+      ],
+      "examples": [
+        {
+          "prefix": "Wasps get into every fallen apple",
+          "cont": ".\n    —Thomas Hardy\n\nThe first time I saw the house, it was a ruin.\nI was a boy of ten, and the summer was ending. The air was thick with the smell of damp earth and rotting leaves. We had been driving for hours, the car rattling over potholed roads that hadn’t been repaired since the war. My father’s hands were white-knuckled on the steering wheel. My mother sat beside him, her face pale, her eyes fixed on the horizon.\nWe turned off the main road onto a track that wound through the pines. The trees closed in, their branches scratching against the roof of the car. The track ended at a clearing.\nAnd there it stood.\nThe house was a Victorian monstrosity, all turrets and gables, its white paint peeling like dead skin. The windows were dark, empty sockets. The roof sagged in the middle, as if the house itself were tired of standing.\nMy father killed the engine. The silence that followed was absolute.\n“It’s bigger than I remembered,” he said.\n“It’s not a house,” my mother whispered. “It’s a mouth.”\nWe got out. The air was colder here, even in late August. The grass was tall and yellowed, choking the foundation. Vines had climbed the walls, their tendrils gripping the wood like fingers.\nMy father walked to the front door. It was ajar. He pushed it open. The hinges screamed.\nInside, the air was stale, thick with the smell of dust and decay. The floorboards groaned under our feet. The wallpaper was peeling in long, curling strips, revealing the lath and plaster beneath.\n“It’s been empty for twenty years,” my father said.\n“Since the fire,” my mother added.\nWe walked through the rooms. The parlor was a wreck. The fireplace was blackened. The furniture was gone, taken by the bank. The kitchen was worse. The cabinets were swollen with damp. The sink was clogged with leaves and twigs.\nMy father stopped in the hallway. He looked at the staircase.\n“We’ll need"
+        },
+        {
+          "prefix": "He planted a second apple",
+          "cont": " tree. It grew slowly.\nThe first tree had been a gift from his father. It had given him shade and fruit for thirty years.\nHe watched the new tree every day. He wanted it to grow fast.\nBut it did not grow fast.\nHe checked the soil. He checked the water. He checked the sun.\nEverything was right.\nStill, the tree grew slowly.\nHe felt frustrated. He wanted to help it.\nHe tried to pull the branches up. He tried to push the roots down.\nThe tree did not grow faster.\nHe stopped trying to help. He just waited.\nHe waited for a long time.\nOne day, he noticed a small change.\nThe tree had grown a little.\nHe smiled.\nHe learned that some things cannot be rushed.\nSome things must grow at their own pace.\nHe stopped watching the tree every day.\nHe gave it space.\nHe gave it time.\nThe tree grew.\nIt grew slowly, but it grew.\nYears later, the tree was tall and strong.\nIt gave him shade and fruit.\nHe was happy.\nHe had learned a lesson.\nPatience is a virtue.\nSome things take time.\nYou cannot force growth.\nYou can only provide the right conditions.\nThen you must wait.\nAnd trust the process.\nAnd trust the tree.\n\n<think>\nHere's a thinking thinking sequence\n\n1.  **Deconstruct and Analyze the Text:**\n    *   *Segment 1:* \"He planted a second apple tree. It grew slowly. The first tree had been a gift from his father. It had given him shade and fruit for thirty years.\"\n        *   *Key facts:* Second tree, slow growth. First tree: gift from father, 30 years of service (shade/fruit). Implies a comparison or a legacy.\n    *   *Segment 2:* \"He watched the new tree every day. He wanted it to grow fast. But it did not grow fast.\"\n        *   *Key facts:* Daily observation, desire for speed, reality contradicts desire.\n    *  "
+        },
+        {
+          "prefix": "The label said the juice was pressed from one apple",
+          "cont": ". But the glass was full.\n\n<think>\nHere's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Input:** \"The label said the juice was pressed from one apple. But the glass was full.\"\n   - **Key Elements:** \n     - Label claims: juice from *one* apple\n     - Reality: glass is *full*\n     - Implied contradiction: One apple shouldn't yield enough juice to fill a standard glass\n   - **Tone/Genre:** Short, mysterious, possibly surreal, horror, or puzzle-like. Reads like a micro-fiction prompt or a riddle.\n\n2.  **Identify Core Question/Intent:**\n   - The user hasn't asked a direct question. They've presented a short, evocative statement.\n   - Likely intents: \n     - Prompt for a story continuation\n     - Riddle/puzzle to solve\n     - Request for analysis/interpretation\n     - Just sharing a creative snippet\n   - I should respond in a way that acknowledges the ambiguity, offers possible interpretations, and invites further direction.\n\n3.  **Brainstorming Interpretations:**\n   - *Literal/Scientific:* One apple *can* yield a surprising amount of juice depending on size, variety, and pressing method. A \"full glass\" might be small (e.g., 4 oz). Not actually impossible.\n   - *Surreal/Horror:* The apple wasn't normal. Maybe it was grown under strange conditions, or the \"juice\" isn't really apple juice. Or the glass is an illusion. Or the label is lying/misleading.\n   - *Metaphorical/Philosophical:* Represents how small things can have outsized impact, or how perception vs. reality diverges.\n   - *Puzzle/Riddle:* Could be a play on words. \"One apple\" might refer to a brand, a type, or a metaphor. Or the glass isn't full of *just* that juice (maybe diluted, or the label refers to concentrate).\n   - *Sci-Fi/Fantasy:* The apple is genetically modified, or the juice multiplies, or"
+        },
+        {
+          "prefix": "Nobody in the house will eat a soft apple",
+          "cont": ".\n\n<think>\nHere's a thinking process:\n\n1.  **Analyze User Input:**\n   - Input: \"Nobody in the house will eat a soft apple.\"\n   - This is a single declarative sentence. It's a statement about preferences/habits regarding apples in a specific context (the house).\n   - No explicit question or request is made. It's just a statement.\n\n2.  **Identify Key Elements:**\n   - Subject: \"Nobody in the house\"\n   - Verb: \"will eat\"\n   - Object: \"a soft apple\"\n   - Meaning: All residents/members of the household refuse to eat apples that are soft.\n\n3.  **Determine Possible Intentions:**\n   - The user might be:\n     - Making a statement to set context for a follow-up question.\n     - Testing my response capabilities.\n     - Looking for a logical analysis, paraphrase, or implication.\n     - Expecting me to acknowledge, agree, disagree, or ask for clarification.\n     - Possibly referencing a logic puzzle, reading comprehension question, or linguistic exercise.\n\n4.  **Formulate Response Strategy:**\n   - Acknowledge the statement.\n   - Ask for clarification or context since no question was asked.\n   - Offer possible directions: logical analysis, paraphrasing, implications, or help with a specific task (e.g., grammar, logic puzzle, writing).\n   - Keep it concise and open-ended.\n\n5.  **Draft Response (Mental Refinement):**\n   \"That’s an interesting observation. Are you looking to analyze the logic of that statement, rephrase it, or is it part of a larger puzzle or question? Let me know how I can help!\"\n\n6.  **Check Against Guidelines:**\n   - Neutral, helpful, acknowledges input.\n   - Doesn't assume intent.\n   - Invites clarification.\n   - Matches tone and complexity.\n\n   All good. Ready to output.✅\n</think>\n\nThat's a clear statement, but I'm not sure what you'd like me to do with it. Are you looking to:\n\n- Analyze its logical"
+        }
+      ]
+    }
+  },
+  "joint": null
+}
