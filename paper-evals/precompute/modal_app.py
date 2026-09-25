@@ -501,6 +501,15 @@ def main(
     # costs a CPU container and a volume mount, while this costs nothing and still catches a
     # misspelled set, a maemm on the wrong base or a product that needs --maemm.
     dry_run: bool = False,
+    # FIRE AND FORGET (M12, 2026-09-25). `fn.remote()` keeps the local client blocked on the
+    # call, and `modal run --detach` did NOT save the call when that client lost its connection:
+    # a laptop suspend at 16:21Z got M12's 65-minute rollouts_nla call cancelled at 16:25Z
+    # ("Function call was cancelled by user or a failure", app ap-cLckeuln69kWhM0qo56vxi).
+    # `--spawn` (use WITH `--detach`) submits the call with `fn.spawn()`, prints ONE machine-readable
+    # line `[spawn] call_id=<id> ...` and returns, so nothing local stays alive: completion is read
+    # off the product on the volume, and the container's own `[wall] ... cost=$` line off
+    # `modal app logs <app>`. No `[done]` line is printed on this path.
+    spawn: bool = False,
     # --- the OOD generalisation evaluation (infra/2026-09-18_ood-eval-design.md) ---------------
     # `corpus --arm <id>` builds ONE arm's in-domain corpus + its target pool (CPU, network);
     # `targets --set <ood set> [--arm a,b]` draws that set (or only those arms);
@@ -693,10 +702,17 @@ def main(
         assert product == "heldout_v3", (
             f"--block is a `heldout_v3` flag (which block of the v3 set to write) and means "
             f"nothing to product {product!r}")
-    if stratified or seed or sides:
+    if stratified or seed:
         assert product == "draw_sae2m", (
-            f"--stratified/--seed/--sides are `draw_sae2m` flags (how the target set is sampled "
-            f"and which dictionary sides become rows) and mean nothing to product {product!r}"
+            f"--stratified/--seed are `draw_sae2m` flags (how the target set is sampled) and mean "
+            f"nothing to product {product!r}"
+        )
+    if sides:
+        # `draw_sae131k --sides dec --dirs-from <set> --rows <spec>` is the decoder twin of an
+        # existing set's encoder rows (features/draw_sae131k.py); every other product ignores it.
+        assert product in ("draw_sae2m", "draw_sae131k"), (
+            f"--sides is a draw flag (which dictionary sides become rows): `draw_sae2m`, or "
+            f"`draw_sae131k --sides dec --dirs-from ...`. It means nothing to product {product!r}"
         )
     # `score --rollouts-dir` scores rows no MAEMM produced (a `patchscopes` cell), so it is the one
     # MAEMM_PRODUCTS call that must be allowed without --maemm.
@@ -708,7 +724,11 @@ def main(
     # `ood_selfcheck` is CPU unless its GPU stage is asked for: `readers` is network-bound and
     # MEASURED 2026-09-18 at minutes per arm, which on an H200 is real money for a check.
     cpu_selfcheck = product == "ood_selfcheck" and "nll" not in (stages or "readers,covariates")
-    if product in CPU_PRODUCTS or (product == "targets" and import_run1) or cpu_selfcheck:
+    # `draw_sae131k --dirs-from` (the decoder twin) reads 512 columns out of one 131k checkpoint
+    # and forwards nothing, like `heldout_v3`; the 2k DRAW keeps its old placement.
+    twin = product == "draw_sae131k" and bool(dirs_from)
+    if (product in CPU_PRODUCTS or (product == "targets" and import_run1) or cpu_selfcheck
+            or twin):
         fn, label = cpu, "CPU"
     else:
         assert base, f"product {product!r} needs --base to choose the GPU"
@@ -722,6 +742,10 @@ def main(
         # Every assert above has run; what is printed is exactly the dict `.remote()` would carry.
         print("[dry-run] no container started; args below are what would be sent")
         print(json.dumps(args, indent=1, sort_keys=True, default=str))
+        return
+    if spawn:
+        call = fn.spawn(product, args)
+        print(f"[spawn] call_id={call.object_id} product={product} gpu={label}", flush=True)
         return
     res = fn.remote(product, args)
     print(f"[done] {res['product']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")

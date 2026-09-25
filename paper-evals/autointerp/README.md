@@ -133,6 +133,7 @@ and `--model` / `--scorers` / `--path` / `--concurrency` / `--max-cost-usd` / `-
 | `C16-draw2` | **the draw null** (A7): C16's own description on the second, disjoint test draw — judge *and* test-set-draw variation. Scorer calls only |
 | `NLA` | **the NLA baseline, arm A** (Tomáš 2026-09-21): top-4 of the activation VERBALIZER's rollouts by peak target-feature activation, rendered exactly as `M` is. `--maemm` must be a `type: nla` entry, and such an entry REFUSES `M`/`M-div`/`C4M`/`C16M16`/`M-N8`/`M-N32` — a verbalizer's text under one of those labels is a wrongly-labelled number, not a variant |
 | `NLA-desc` | **the NLA baseline, arm B**: the verbalizer's own text IS the description, with its `<explanation>` tags stripped — **no explainer call at all**. A scorer-only pseudo-arm like `R-shuffled`, scored on the identical draw-1 items by BOTH scorers. (Until 2026-09-21 this line said "detection-scored" while `run.py` scored it on fuzzing too -- `skip_arms` covers only the cross-family arms -- so the doc was wrong and the code was right. The fuzzing numbers are real and are reported: on the 131k pilot mode B is 0.5178 detection and 0.5261 fuzzing, both overlapping the floor.) `build` writes `nla_desc.jsonl` (the rollout with the highest `sae_self` peak per feature, which is also arm A's first example); `run` seeds it from there |
+| `NLA-top4` | **M12 (Tomáš 2026-09-25): the NLA arm at `M`'s selection rule** — the top 4 of **16** verbalizer outputs per feature by peak target-feature activation inside the `<explanation>` body (the `NLA` ranking, `build.nla_body_order`), rendered and deduplicated exactly as `NLA`. Built from a separate `rollouts_nla --n 16` generation under its own run tag, read through `build --nla-run-tag <tag>` (the corpus side stays on `--run-tag`); `build.check_nla_n` refuses it on any `sae_self` n but 16 and refuses `NLA`/`NLA-1` on any n but 4, so neither label can carry the other's selection. A build without `NLA`/`NLA-1` writes no `nla_desc.jsonl` (a best-of-16 `NLA-desc` under the paper's label), and `run` seeds `NLA-desc` only when an explicit `--arms` names it. Scored through `run --build-dir-nla` on the primary build's test items |
 | `E` | **NOT RUN**, hook only — see below |
 
 The full run scores `C16, C4, M, C4M, C32, C16M16, R-shuffled, C16-judge2, C16-draw2` on both
@@ -195,6 +196,19 @@ costs ($0.0085 explain, $0.00302 detection, $0.00194 fuzzing):
 
 `stats.py` also gained an analysis-only robustness table (no API calls): the four headline contrasts
 recomputed over the features that needed **no top-fallback positive**.
+
+**Implemented 2026-09-23, run as M6-dec — the decoder-twin build (`--sae-side dec --products-set`).**
+A set of `sae_side: dec` rows (`features/draw_sae131k.py --sides dec --dirs-from <set> --rows <spec>`,
+e.g. `2026-09-24_v3_ctrl_dec`, the decoder rows of `2026-09-21_v3_ctrl` rows 512-1023) is built with
+`--set <twin> --sae-side dec --products-set <encoder set>`: the M arms come from the twin's own
+rollouts and `sae_self__dec`, and every CORPUS-SIDE pool (shown `examples_docmax`, the scan's
+`examples/`, the Delphi test bands, the `random_pool` negatives) is read from the encoder set, joined
+by feature id. The build refuses unless the two sets carry the same feature ids of the dictionary in
+the same order, and `build.json` records both under `set_sides`. The C16 arm, the test items and so
+the three nulls are identical to the encoder build's, so a run with `--cache-dir` pointing at the
+encoder run's cache replays them. Checked in `selfcheck.check_products_set` (identity of C16 blocks
+and test items, three mutation gates); `scan` selects encoder rows only, so a twin set's scan writes
+no second `examples/` (`unit_smoke.check_feature_keyed_products_select_encoder_rows`).
 
 **NOT implemented**: the simulation, surprisal, embedding and intruder scorers (Delphi ships them;
 the design asks for detection and fuzzing only), and any 8B row.

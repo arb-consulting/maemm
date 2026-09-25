@@ -301,6 +301,26 @@ maemms:
     # Not `primary: true` yet -- that demotes 2026-09-10_rl-8x2048-full and is Ari's call.
     # Note this checkpoint's provenance is strictly better: Ultra-FineWeb en throughout
     # with explicit doc ranges, against the current primary's unpinned FineFineWeb.
+  # The SFT INIT of 2026-09-18_rl-last16-lr5e-7 (the 8M-row simple2m mix), for the M7-sft rerun
+  # (runs/2026-09-23_ledger.md `# M7-sft`). Full-parameter Qwen3.6-27B, HF-format shards.
+  # WEIGHTS: Celeste's S3 bundle `sft-init-simple2m` (her /data/sft_mix/simple2m_sft/final; 27
+  # files, 51.8 GiB, the RL repo's layout), shared 2026-09-23 as a presigned listing; no HF repo.
+  # runs/2026-09-24_sft-fetch.sh lands it at `src` (its FETCH_MANIFEST.json records paths, sizes
+  # and the listing's expiry). Every other field is COPIED from the RL entry above, not established
+  # for this checkpoint: prompt/inject are the chain's (the SFT is what the RL started from), `mu`
+  # is the whiten_mu both of the chain's banks were built with (same observations §2 citation), and
+  # train_max_new is the RL chain's figure (an SFT stage has no generation budget; the field is
+  # README-only, rollouts_hf.write_maemm_readme). The chain's smoke settles the marker norm.
+  # `src` is NOT under maemms/: that is this key's PRODUCT directory (common.maemm_dir) and is in
+  # infra/backup_s3.py's DEFAULT_DIRS, which mirror to a public-read bucket. data/ is neither.
+  qwen36-27b/2026-09-17_sft-simple2m:
+    type: full
+    src: /vol/data/celeste-sft-simple2m-2026-09-17    # volume path, not an HF repo
+    prompt: celeste27b
+    inject: {layer: 1, coef: 1.0}
+    train_max_new: 96
+    train_data: celeste-v2-2026-09-17
+    mu: /vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy
   qwen36-27b/2026-09-16_base-control:
     type: base              # the CLEAN base, no MAEMM weights: the untrained-base control
     hf: Qwen/Qwen3.6-27B    # the same snapshot bases.qwen36-27b resolves to
@@ -689,6 +709,22 @@ heldout:
     sae_key: qwen36-27b/l42-1b
     families:
       random: {n: 512, bases: [qwen36-27b]}
+      sae:    {n: 512, bases: [qwen36-27b]}
+
+  # The DECODER TWIN of `2026-09-21_v3_ctrl` rows 512-1023 (M6-dec, 2026-09-23): the SAME 512
+  # 131k feature ids in the SAME order, each row unit(W_dec[f]) instead of unit(W_enc[:, f]).
+  # Written by `draw_sae131k --sides dec --dirs-from .../2026-09-21_v3_ctrl --rows 512-1023`,
+  # which checks the source rows ARE this dictionary's encoder columns before writing. Rows carry
+  # `sae_side: dec` (sae_self / build select on it with `--sae-side dec`), `vector: dec`, and
+  # `ids_from_set`/`ids_from_row`. Raw, non-centrable: the injection is the raw unit decoder row
+  # at every --mu. The autointerp build reads its corpus-side products (docmax, random pool,
+  # examples) from the ENCODER set by `--products-set 2026-09-21_v3_ctrl` -- they are defined by
+  # the feature's activation, which is the encoder readout whatever was injected.
+  2026-09-24_v3_ctrl_dec:
+    imported: true
+    storage: raw
+    sae_key: qwen36-27b/l42-1b
+    families:
       sae:    {n: 512, bases: [qwen36-27b]}
 
   # OUR OWN 512 realact rows, the eval-1 SANITY block: `2026-09-21_v1raw` rows 0-511 copied

@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import sys
 import tempfile
@@ -73,8 +74,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import autointerp.build as AB  # noqa: E402
 import precompute.common as PC  # noqa: E402
 import results.autointerp as A  # noqa: E402
+import results.autointerp_cases as AC  # noqa: E402
+import results.autointerp_encdec as AE  # noqa: E402
 import results.common as R  # noqa: E402
 import results.corpus_search as CS  # noqa: E402
 import results.faithfulness as F  # noqa: E402
@@ -3477,7 +3481,13 @@ M1_CT_IDS = (
 M1_EX_C = {0: [0.25 + i / 16 for i in range(M1_N)], 1: [0.5] * M1_N,
            2: [0.25] * M1_N, 3: [0.75] * M1_N}
 M1_CTL_C = {r: [0.0625] * M1_N for r in range(4)}          # the untrained-base control
-M1_NLA_C = {r: [0.125] * M1_NLA_N for r in range(4)}       # n = 4, so bo1 is the mean of 4
+# n = 4, so bo1 is the mean of 4. Row 0 VARIES with the same mean (0.125), so bo1 is unchanged
+# while bo2 and bo4 differ from it there: a bo2 taken as a mean, or as the max, fails (M8).
+M1_NLA_C = {0: [0.0, 0.0625, 0.1875, 0.25], **{r: [0.125] * M1_NLA_N for r in (1, 2, 3)}}
+# unbiased bo2 of row 0: sorted x_(i) weighted C(i-1, 1)/C(4, 2) = (0, 1, 2, 3)/6
+M1_NLA_BO2_ROW = {0: (0.0625 + 2 * 0.1875 + 3 * 0.25) / 6, 1: 0.125, 2: 0.125, 3: 0.125}
+M1_NLA_BO2 = sum(M1_NLA_BO2_ROW.values()) / 4        # 0.1432291...
+M1_NLA_BO4 = (0.25 + 3 * 0.125) / 4                  # 0.15625: bo4 of 4 draws is the max
 M1_RND = {0: [0.0625] * M1_N, 1: [0.0625] * M1_N}          # raw only: `random` is not centrable
 
 # bo1 of row 0 = 0.25 + (0+1+..+7)/(16*8) = 0.46875; bo8 of row 0 = its max = 0.6875.
@@ -3931,6 +3941,22 @@ def check_m1_panel_a_cells():
         # and the Exemplifier-minus-NLA quantity is its OWN key, not `diff` (writing plan §2)
         assert by["fid.ra.nla.dex"]["value"] == f"{M1_NLA_DEX:.4f}", by["fid.ra.nla.dex"]
         assert "minus NLA bo1" in by["fid.ra.nla.dex"]["note"], by["fid.ra.nla.dex"]
+        # M8: NLA at bo2 and bo4, beside bo1, with an interval; and the paired cells at bo2
+        nb2, nb4 = by["fid.ra.nla.cos.bo2"], by["fid.ra.nla.cos.bo4"]
+        assert nb2["value"] == f"{M1_NLA_BO2:.4f}", nb2
+        assert nb4["value"] == f"{M1_NLA_BO4:.4f}", nb4
+        assert nb2["value"] not in (by["fid.ra.nla.cos.bo1"]["value"], nb4["value"]), nb2
+        assert nb2["n"] == "4" and nb2["lo"] and nb2["hi"], nb2
+        assert float(nb2["lo"]) < float(nb2["value"]) < float(nb2["hi"]), nb2
+        assert not by["fid.ra.nla.cos.bo1"]["lo"], by["fid.ra.nla.cos.bo1"]
+        assert "cos_centred" in nb2["note"] and "best-of-2" in nb2["note"], nb2
+        want_dex2 = sum(M1_EX_BO8_ROW[r] - M1_NLA_BO2_ROW[r] for r in range(4)) / 4
+        assert by["fid.ra.nla.dex.bo2"]["value"] == f"{want_dex2:.4f}", by["fid.ra.nla.dex.bo2"]
+        assert "minus NLA bo2" in by["fid.ra.nla.dex.bo2"]["note"], by["fid.ra.nla.dex.bo2"]
+        want_dc2 = sum(M1_NLA_BO2_ROW[r] - M1_CORPUS[r] for r in range(4)) / 4
+        assert by["fid.ra.nla.dcorp.bo2"]["value"] == f"{want_dc2:.4f}", by["fid.ra.nla.dcorp.bo2"]
+        assert by["fid.ra.nla.win.bo2"]["value"] == "0.0000", by["fid.ra.nla.win.bo2"]
+        assert "fid.ra.nla.dcorp.bo1" not in by and "fid.ra.nla.win.bo1" not in by
         # the SE is the clustered one: four rows over three documents, so it is not std/sqrt(4)
         assert d["se"] and float(d["se"]) > 0, d
         assert "3 documents" in d["note"], d["note"]
@@ -3956,6 +3982,10 @@ def check_m1_panel_a_cells():
         assert bx["fid.ra.ex.cos.bo8"]["value"] == f"{want_bo8:.4f}", bx["fid.ra.ex.cos.bo8"]
         assert bx["fid.ra.ex.cos.bo8"]["n"] == "3", bx["fid.ra.ex.cos.bo8"]
         assert bx["fid.ra.nla.dex"]["n"] == "3", bx["fid.ra.nla.dex"]
+        assert bx["fid.ra.nla.dex.bo2"]["n"] == "3", bx["fid.ra.nla.dex.bo2"]
+        assert bx["fid.ra.nla.cos.bo2"]["n"] == "3", bx["fid.ra.nla.cos.bo2"]
+        want_nb2 = sum(M1_NLA_BO2_ROW[r] for r in keep) / len(keep)
+        assert bx["fid.ra.nla.cos.bo2"]["value"] == f"{want_nb2:.4f}", bx["fid.ra.nla.cos.bo2"]
 
 
 def check_m1_panel_b_cells_and_the_gate():
@@ -4344,6 +4374,191 @@ def check_m1_cells_end_to_end():
         assert all(len(r) == len(F.CELLS_COLUMNS) for r in recs)
 
 
+# --- the case-study page: one stored `block` back into its example windows -----------------------
+
+
+def check_autointerp_cases_block_split():
+    """`autointerp_cases.split_block` inverts `build.exemplar_block`, marks, newlines and all.
+
+    THE WHOLE PER-ARM DIVERSITY TABLE RESTS ON THIS. The mean pairwise Jaccard printed for an arm
+    is `build.content_words` over the texts recovered here, and the block is the only place those
+    texts exist -- the build stores the provenance of each example but not its text. Three ways the
+    inverse can go wrong, all of them present in this fixture and each changing a number:
+
+      * a CORPUS WINDOW CONTAINS NEWLINES, so an example is not a line: splitting on lines would
+        make example 1 into four examples, and example 4's own text carries a line reading
+        `Example 9:  ` that a numbering-agnostic split would turn into a fifth example;
+      * a MARKED TOKEN CAN BE A NEWLINE, so the `Activations:` line is itself not always one line.
+        `rpartition("\n")` took the tail of the pair list on the first real feature this ran on,
+        which is why the reader looks for the last `\nActivations: ` instead;
+      * the `Activations:` line REPEATS every marked token, so leaving it in the text adds those
+        tokens a second time to the content-word set. The check asserts it changes the Jaccard
+        rather than trusting that it would.
+
+    No mirror and no volume: `exemplar_block` is a pure function of the example dicts, so the
+    fixture is the dicts.
+    """
+    ex = [
+        # a corpus window with interior newlines and two marked runs
+        {"text_marked": "the quarterly<< dividend>> was\napproved by the\nboard\nyesterday",
+         "activations": [(" dividend", 7)], "n_marked": 1},
+        # a marked token that IS a newline: the pair list spans two lines
+        {"text_marked": "revenue rose<<\n>>guidance unchanged",
+         "activations": [("\n", 4), (" rose", 2)], "n_marked": 2},
+        # nothing marked at all, so `exemplar_block` writes no `Activations:` line
+        {"text_marked": "an unmarked rollout about turbines", "activations": [], "n_marked": 0},
+        # a text that itself contains a line looking like the next example's header
+        {"text_marked": "see below\nExample 9:  not a boundary<< here>>",
+         "activations": [(" here", 3)], "n_marked": 1},
+    ]
+    block = AB.exemplar_block(ex)
+    shown = AC.split_block(block, ex)
+    assert len(shown) == len(ex), [s.marked for s in shown]
+    for got, want in zip(shown, ex, strict=True):
+        assert got.marked == want["text_marked"], (got.marked, want["text_marked"])
+        assert got.plain == want["text_marked"].replace("<<", "").replace(">>", "")
+        assert bool(got.acts_line) == bool(want["activations"]), (got.acts_line, want)
+    # the newline-marked example's `Activations:` line really does span two lines, so this fixture
+    # exercises the branch and is not merely asserting an easy case
+    assert "\n" in shown[1].acts_line, shown[1].acts_line
+    assert shown[1].n_folds == shown[1].marked.count("\n") + shown[1].acts_line.count("\n")
+
+    # the statistic the page prints, and what leaving the `Activations:` line in would do to it
+    good = AC.mean_pairwise_jaccard(shown)
+    dirty = AC.mean_pairwise_jaccard(
+        [AC.Shown(marked=s.marked, plain=s.plain + "\n" + s.acts_line, acts_line="", meta=s.meta)
+         for s in shown])
+    assert good is not None and dirty is not None and abs(good - dirty) > 1e-9, (good, dirty)
+    # and it IS `M-jac16`'s own distance: the same pairs off `jaccard_distances`
+    d = AB.jaccard_distances([{"text": s.plain} for s in shown])
+    iu = np.triu_indices(len(shown), k=1)
+    assert abs(good - float(np.mean(1.0 - d[iu]))) < 1e-12, (good, d)
+
+    # the `Example 9:  ` line inside example 4 stayed in its text rather than becoming a boundary
+    assert "Example 9:  not a boundary" in shown[3].plain, shown[3].plain
+
+    # a block holding MORE examples than the caller's rows is REFUSED, not read as fewer: the
+    # extra one would otherwise be swallowed into the last example's text and change its Jaccard
+    try:
+        AC.split_block(block, ex[:3])
+    except AssertionError as exc:
+        assert "boundaries and the build stored 3" in str(exc), exc
+    else:
+        raise AssertionError("a block with more examples than the build stored was accepted")
+
+
+def check_autointerp_encdec_pairs_and_replay():
+    """`autointerp_encdec.compare` on the eval-2 fixture, `rl16` read as the ENCODER run and `old`
+    as the DECODER run: the paired dec - enc, the per-feature rows, and the replay check, red and
+    green.
+
+    The paired numbers are the fixture's dyadic literals: `M` detection is {10: .5, 11: .5, 12: .75,
+    13: .625} in `rl16` and {.5, .625, .625, .5} in `old`, so dec - enc = {0, +1/8, -1/8, -1/8},
+    mean -1/32 over four features with one tie; `M` fuzzing loses feature 13 to `old`'s null
+    `bal_acc`, so it pairs THREE features, {+1/8, 0, 0}, mean +1/24, and names 13 as enc-only.
+
+    The replay check is RED on `DOCMAX`, which the fixture gives different numbers in the two runs
+    and whose features were refused nowhere, and it separates the two legitimate exemptions: on `M`
+    detection feature 13 has a batch unparsed in `rl16` (`AI_PARSED`), so its difference is a
+    re-sent scorer call and the verdict names only 11 and 12. The same run read under two labels
+    is GREEN everywhere with every difference exactly zero.
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="selftest-encdec-"))
+    try:
+        write_autointerp_runs(tmp)
+        vol = R.Vol("", tmp, offline=True, quiet=True)
+        enc, dec = ("rl16", AI_RUNS["rl16"]), ("old", AI_RUNS["old"])
+        res = AE.compare(vol, enc, dec, ["M", "NLA"], ["DOCMAX", "M"], 2000, 1, bands=False)
+        pair = {(p["arm"], p["scorer"]): p for p in res["pairs"]}
+        det = pair[("M", "detection")]["bal_acc"]
+        assert det["n_paired"] == 4 and abs(det["mean"] - (-1 / 32)) < 1e-12, det
+        assert abs(det["enc_mean"] - 0.59375) < 1e-12 and abs(det["dec_mean"] - 0.5625) < 1e-12
+        assert (det["win_frac"], det["loss_frac"], det["n_zero"]) == (0.25, 0.5, 1), det
+        assert det["lo"] <= det["mean"] <= det["hi"], det
+        fz = pair[("M", "fuzzing")]["bal_acc"]
+        assert fz["n_paired"] == 3 and abs(fz["mean"] - 1 / 24) < 1e-12, fz
+        assert fz["only_enc"] == [13] and fz["only_dec"] == [], fz
+        # an arm the decoder run never scored has no pair, but its refusal still reaches the rows
+        assert "bal_acc" not in pair[("NLA", "detection")], pair[("NLA", "detection")]
+        rows = {(r["feature"], r["arm"], r["scorer"]): r for r in res["per_feature"]}
+        r13 = rows[(13, "M", "fuzzing")]
+        assert r13["bal_acc_dec"] is None and r13["diff"] is None and r13["bal_acc_enc"] == 0.5
+        n13 = rows[(13, "NLA", "detection")]
+        assert (n13["refused_enc"], n13["refused_dec"], n13["bal_acc_enc"]) == (1, 0, None), n13
+        assert rows[(11, "M", "detection")]["diff"] == 0.125
+
+        rep = {(x["arm"], x["scorer"]): x for x in res["replay"]}
+        assert not rep[("DOCMAX", "detection")]["ok"], rep[("DOCMAX", "detection")]
+        assert rep[("DOCMAX", "detection")]["unexplained"] == [10, 11, 12, 13]
+        assert rep[("DOCMAX", "fuzzing")]["differ"] == [11, 13]
+        m = rep[("M", "detection")]
+        assert m["scorer_resent"] == [13] and m["unexplained"] == [11, 12] and not m["ok"], m
+
+        same = AE.compare(vol, ("a", AI_RUNS["rl16"]), ("b", AI_RUNS["rl16"]), ["M"],
+                          ["DOCMAX", "M", "NLA"], 2000, 1, bands=False)
+        assert all(x["ok"] and x["n_identical"] == x["n_common"] for x in same["replay"]), \
+            same["replay"]
+        for p in same["pairs"]:
+            b = p["bal_acc"]
+            assert b["mean"] == 0.0 and b["lo"] == 0.0 and b["hi"] == 0.0, b
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_autointerp_encdec_names():
+    """`--names` / `--titles` relabel `autointerp_encdec`'s OUTPUTS and nothing else.
+
+    The same fixture comparison written twice: under the default names it must produce the M6-dec
+    file stems and headings (`enc_vs_dec_summary.md`, "decoder − encoder"), under `rl,sft` /
+    `RL,SFT` the relabelled ones -- with no `enc`/`dec` word left in any table header or CSV
+    column of the relabelled summary, and the per-feature CSV's rows identical between the two
+    (the relabel must not touch a number). `_col` is token-wise, so `n_refused_dec` becomes
+    `n_refused_sft` while a column that merely CONTAINS the letters (`decision`) would not move.
+    """
+    assert AE._col("n_refused_dec", ("rl", "sft")) == "n_refused_sft"
+    assert AE._col("enc_own_mean", ("rl", "sft")) == "rl_own_mean"
+    assert AE._col("decision", ("rl", "sft")) == "decision"
+    assert AE._relabel("dec − enc", ("rl", "sft")) == "sft − rl"
+    assert AE._relabel("decoder", ("rl", "sft")) == "decoder"
+    tmp = Path(tempfile.mkdtemp(prefix="selftest-encdec-names-"))
+    try:
+        write_autointerp_runs(tmp)
+        vol = R.Vol("", tmp, offline=True, quiet=True)
+        res = AE.compare(vol, ("rl16", AI_RUNS["rl16"]), ("old", AI_RUNS["old"]), ["M"],
+                         ["DOCMAX"], 2000, 1, bands=False)
+        d_out, n_out = tmp / "out-default", tmp / "out-named"
+        d_out.mkdir()
+        n_out.mkdir()
+        pd = AE.write_outputs(res, None, d_out, [], [])
+        pn = AE.write_outputs(res, None, n_out, [], [], ("rl", "sft"), ("RL", "SFT"))
+        assert pd.name == "enc_vs_dec_summary.md" and pn.name == "rl_vs_sft_summary.md", (pd, pn)
+        assert sorted(p.name for p in d_out.iterdir()) == [
+            "enc_vs_dec.csv", "enc_vs_dec_bands.csv", "enc_vs_dec_replay.csv", "enc_vs_dec_summary.csv",
+            "enc_vs_dec_summary.md"], sorted(p.name for p in d_out.iterdir())
+        assert sorted(p.name for p in n_out.iterdir()) == [
+            "rl_vs_sft.csv", "rl_vs_sft_bands.csv", "rl_vs_sft_replay.csv", "rl_vs_sft_summary.csv",
+            "rl_vs_sft_summary.md"], sorted(p.name for p in n_out.iterdir())
+        td, tn = pd.read_text(), pn.read_text()
+        assert "## Headline: balanced accuracy, decoder − encoder" in td
+        assert "and of `dec − enc`, each" in td and "`dec − enc` is paired" in td
+        assert "and of `sft − rl`, each" in tn and "`sft − rl` is paired" in tn, tn[:600]
+        assert "{'" not in td and "{'" not in tn, "a dict was interpolated into the prose"
+        assert "## Headline: balanced accuracy, SFT − RL" in tn and "decoder" not in tn, tn[:400]
+        for ln in tn.splitlines():
+            if ln.startswith("| arm |"):
+                assert not re.search(r"\b(enc|dec)\b", ln), ln
+        for name in ("rl_vs_sft.csv", "rl_vs_sft_summary.csv", "rl_vs_sft_replay.csv",
+                     "rl_vs_sft_bands.csv"):
+            head = (n_out / name).read_text().splitlines()[0].split(",")
+            assert not any(t in ("enc", "dec") for c in head for t in c.split("_")), (name, head)
+        dcsv = (d_out / "enc_vs_dec.csv").read_text().splitlines()
+        ncsv = (n_out / "rl_vs_sft.csv").read_text().splitlines()
+        assert "bal_acc_rl" in ncsv[0] and "bal_acc_enc" in dcsv[0], (ncsv[0], dcsv[0])
+        assert dcsv[1:] == ncsv[1:] and len(ncsv) > 1, "relabelling changed a per-feature row"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 CHECKS = [
     check_parse_scores_dir,
     check_estimators,
@@ -4383,6 +4598,11 @@ CHECKS = [
     check_autointerp_band_recall,
     check_autointerp_band_cells_and_contrasts,
     check_autointerp_bands_catch_a_defect,
+    # the four-arm case-study page -- the block reader every per-arm statistic is taken over
+    check_autointerp_cases_block_split,
+    # the encoder-vs-decoder paired reader
+    check_autointerp_encdec_pairs_and_replay,
+    check_autointerp_encdec_names,
     check_ood_scan_key,
     check_ood_arm_table,
     check_ood_bo8_headline,

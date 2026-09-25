@@ -693,6 +693,106 @@ def check_nla_arms(cfg, tmp: Path, base: str):
     print("[selfcheck] NLA arms OK: FAMILIES filter, _covariate, nla_description, check_arm_maemm")
 
 
+def check_nla_top4(cfg, tmp: Path, base: str, set_name: str):
+    """M12's `NLA-top4`: the top 4 of 16 verbalizer outputs, and the guards that keep it apart.
+
+    What is pinned:
+      * the SELECTION RULE (`build.nla_body_order`): outputs ranked by their peak INSIDE the
+        <explanation> body, stable on ties, padding ignored -- so the four shown are the four
+        highest body peaks and never an output whose peak sits on a tag or preamble token;
+      * the ARM: same spec as `NLA` (the first four of the ranked, deduplicated pool), and absent
+        from the default nla arm set, so no earlier command line grows it;
+      * `check_nla_n`: `NLA` / `NLA-1` refuse an n=16 sae_self and `NLA-top4` refuses n=4 -- the
+        name says which generation it came from, in both directions;
+      * `check_arm_maemm`: a MAEMM build refuses every verbalizer arm, `NLA-top4` included;
+      * the SIBLING in `run.py`: an explicit `--arms` without `NLA-desc` does not seed that
+        pseudo-arm from a build's `nla_desc.jsonl` (it used to, whatever `--arms` said).
+    """
+    import numpy as np
+
+    class _Tok:
+        """One char per token id, as in check_nla_body_tokens."""
+        def decode(self, ids, **kw):
+            return "".join(chr(int(i)) for i in ids)
+
+    tok = _Tok()
+    n, width = B.NLA_TOP_OF, 48
+    rng = random.Random(20260925)
+    body = [round(rng.uniform(1.0, 9.0), 3) for _ in range(n)]
+    body[5] = body[11] = 9.5            # a tie at the top: generation order must break it
+    body[7] = 0.2                       # low body peak ...
+    rids = np.full((n, width), -1, dtype=np.int64)
+    acts = np.zeros((n, width), dtype=np.float32)
+    for k in range(n):
+        text = f"pre{k % 10}<explanation>BODY{k % 10}</explanation>"
+        ids = [ord(c) for c in text]
+        rids[k, :len(ids)] = ids
+        lo = text.index("BODY")
+        acts[k, lo + 1] = body[k]
+        acts[k, 1] = 0.5                # a preamble activation below every body peak
+    acts[7, 1] = 50.0                   # ... but the highest WHOLE-DECODE peak of all 16
+    acts[3, width - 1] = 99.0           # an activation on a PADDING slot: never read
+    peaks = acts.max(1)
+    order = B.nla_body_order(tok, rids, acts, peaks).tolist()
+    want = sorted(range(n), key=lambda k: (-body[k], k))
+    assert order == want, f"body-peak order {order} != expected {want}"
+    top4 = order[:B.NLA_N]
+    assert top4[:2] == [5, 11], f"the tie at the top is not broken by generation order: {top4}"
+    assert 7 not in top4 and int(np.argmax(peaks)) in (3, 7), (
+        "the fixture's decoys are not decoys: the whole-decode peak must be a padding or "
+        "preamble activation and must not be shown")
+    assert sorted(body[k] for k in top4) == sorted(body)[-B.NLA_N:], "not the four highest"
+
+    # the arm
+    assert B.ARM_SPECS[B.NLA_TOP_ARM] == B.ARM_SPECS["NLA"] == (None, 0, "m", B.NLA_N)
+    assert B.NLA_TOP_ARM not in B.NLA_ARMS and B.NLA_TOP_ARM not in B.FULL_ARMS_NLA
+    assert B.NLA_TOP_ARM != "NLA" and not B.NLA_TOP_ARM.startswith("NLA-1")
+
+    # check_nla_n, both directions
+    B.check_nla_n(["NLA", "NLA-1"], True, B.NLA_N)
+    B.check_nla_n([B.NLA_TOP_ARM], True, B.NLA_TOP_OF)
+    B.check_nla_n(["C16", "M"], False, 64)
+    for arms, n_roll in ((["NLA"], 16), (["NLA-1"], 16), (["NLA", "NLA-1"], 16),
+                         ([B.NLA_TOP_ARM], 4), ([B.NLA_TOP_ARM], 64), (["NLA", B.NLA_TOP_ARM], 4),
+                         (["NLA", B.NLA_TOP_ARM], 16)):
+        try:
+            B.check_nla_n(arms, True, n_roll)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"check_nla_n accepted arms {arms} on an n={n_roll} sae_self")
+
+    # check_arm_maemm
+    assert B.check_arm_maemm([B.NLA_TOP_ARM], "b/nla", "nla") is True
+    for arms in (["C16", B.NLA_TOP_ARM], ["C16", "NLA-1"]):
+        try:
+            B.check_arm_maemm(arms, "b/x", "full")
+        except AssertionError as e:
+            assert "point --maemm at the `type: nla` entry" in str(e), e
+        else:
+            raise AssertionError(f"check_arm_maemm accepted {arms} on a MAEMM")
+
+    # run.py: an explicit --arms without NLA-desc does not seed it from nla_desc.jsonl
+    feats = list(range(600, 600 + N_FEAT))
+    d = synth_build(tmp, base, set_name, "nd_build", feats)
+    C.write_jsonl(d / "nla_desc.jsonl", [
+        {"feature": f, "row": 1024 + i, "k": 0, "peak": 1.0, "tag_found": True,
+         "tag_status": "closed", "n_chars": 20, "description": f"stub nla text {f}"}
+        for i, f in enumerate(feats)])
+    got = {}
+    for run_dir, arms in (("nd_without", "C16"), ("nd_with", "C16,NLA-desc")):
+        a = base_args(tmp, base, set_name, "nd_build", run_dir)
+        a.update({"arms": arms, "scorers": "detection"})
+        R.run(cfg, a)
+        got[run_dir] = {r["arm"] for r in
+                        C.read_jsonl(tmp / "runs" / run_dir / "summary" / "scores.jsonl")}
+    assert "NLA-desc" not in got["nd_without"], (
+        f"--arms C16 still scored NLA-desc from the build's nla_desc.jsonl: {sorted(got['nd_without'])}")
+    assert "NLA-desc" in got["nd_with"], f"--arms C16,NLA-desc lost it: {sorted(got['nd_with'])}"
+    print(f"[selfcheck] NLA-top4 OK: body-peak top {B.NLA_N} of {n} = {top4}, n guards both ways, "
+          f"MAEMM refusal, NLA-desc only when --arms names it")
+
+
 def check_corpus_fallback():
     """A SAE with no `scan` examples/ still builds C4 + NLA; a C16 request refuses by name.
 
@@ -1089,6 +1189,137 @@ def check_two_corpora(cfg, tmp: Path, base: str):
           f"16 examples on each of M / M-jac16 / M-cos16, best_act read with no GPU")
 
 
+def check_products_set(cfg, tmp: Path, base: str):
+    """`build --set <decoder twin> --sae-side dec --products-set <encoder set>` (M6-dec).
+
+    The corpus-side pools (shown docmax, test bands, random-pool negatives) are per FEATURE and are
+    stored under the ENCODER set's name; the M arms are the TWIN's own rollouts. What must hold:
+      * the twin build reads every corpus pool from the products set and renders the IDENTICAL
+        C16 block and the IDENTICAL test items as the encoder build -- which is what lets C16 and
+        the three nulls replay from the call cache -- while its M block comes from the twin's
+        `sae_self__dec` (its token ids carry a marker the encoder rollouts never have);
+      * the twin's SAE rows are 1..3 and the products set's records are stamped 0..2, so a build
+        that joined the corpus side on the twin's own row would trip `_rows`'s row assert: the
+        success below is only reachable through the feature-id row map;
+      * `build.json` says which set each side came from;
+      * MUTATIONS: without `--products-set` the twin build refuses (no pools under its name);
+        a twin whose feature ids are not the products set's, in order, refuses; the default side
+        on a decoder-only set refuses (it has no encoder rows).
+    """
+    import re
+
+    import numpy as np
+
+    cfg = json.loads(json.dumps(cfg))
+    root, set_name, sae_key, maemm, feats = _write_two_corpus_volume(cfg, tmp / "ps", base)
+    cfg["autointerp"].update({"n_pos": 4, "n_neg": 4, "n_neg_nearmiss": 2,
+                              "random_pool_windows": 40})
+    cfg["bases"][base]["whiten_mu"] = "base/{base}/stats/selfcheck_mu.f32"
+    arms = "C16,M,M-jac16,M-cos16"
+    twin = "selfcheck_2corp_dec"
+
+    def write_twin(name, fs):
+        hdir = C.heldout_dir(base, name, root)
+        Path(hdir).mkdir(parents=True, exist_ok=True)
+        C.write_jsonl(f"{hdir}/ids.jsonl", [{"row": 0, "family": "random", "id": 0}] + [
+            {"row": 1 + i, "family": "sae", "id": f, "sae_key": sae_key, "sae_side": "dec",
+             "vector": "dec", "stratum": i % 4, "density": 1e-5, "fires_gated": 90 + i}
+            for i, f in enumerate(fs)])
+
+    write_twin(twin, feats)
+    rows = [1 + i for i in range(len(feats))]
+    sdir = C.scores_dir(maemm, twin, root, "vllm", "")
+    self_dir = f"{sdir}/sae_self__dec"
+    Path(self_dir).mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(8)
+    acts = rng.random((len(rows), SC_NROLL, SC_TOKW)).astype(np.float16) * 4.0
+    ids = np.zeros((len(rows), SC_NROLL, SC_TOKW), dtype=np.int32)
+    for i in range(len(rows)):
+        for k in range(SC_NROLL):
+            ids[i, k] = np.arange(SC_TOKW) + 10 * (k % 8) + 100 * (k // 8) + 1000 * i + 700_000
+    acts.tofile(f"{self_dir}/sae_self.f16")
+    ids.tofile(f"{self_dir}/sae_self_ids.i32")
+    json.dump({
+        "gate": 1.0, "rows": rows, "n": SC_NROLL, "width": SC_TOKW, "sae_side": "dec",
+        "checks": {"argmax_ok": True, "csr_value_mismatches": 0, "csr_membership_mismatches": 0},
+        "per_target": [{"row": r, "fire_fraction": 0.5} for r in rows],
+    }, open(f"{self_dir}/sae_self.json", "w"))
+    d_model = int(cfg["bases"][base]["d"])
+    best = (rng.standard_normal((len(rows), SC_NROLL, d_model)) + 3.0).astype(np.float16)
+    best.tofile(f"{sdir}/best_act.f16")
+    json.dump({"rows": rows, "n": SC_NROLL, "families": ["sae"] * len(rows),
+               "score_max_length": SC_TOKW, "mu": None}, open(f"{sdir}/rows.json", "w"))
+
+    def build(name, heldout, **extra):
+        args = {"base": base, "maemm": maemm, "sae": sae_key, "heldout": heldout, "root": root,
+                "engine": "vllm", "arms": arms, "n_feat": len(feats), "build_dir": name,
+                "corpus_name": SC_SHOWN, "test_corpus_name": SC_TEST, "force": True,
+                "argv": ["selfcheck"], **extra}
+        B.run(cfg, args)
+        return f"{C.base_dir(base, root)}/autointerp/{heldout}/{name}"
+
+    def refuses(msg, name, heldout, **extra):
+        try:
+            build(name, heldout, **extra)
+        except AssertionError as e:
+            assert msg in str(e), f"wrong refusal ({msg!r} expected): {e}"
+        else:
+            raise AssertionError(f"build {name} did not refuse ({msg!r} expected)")
+
+    marker = re.compile(r"t7\d{5}\b")
+    real_snapshot, real_tf = C.snapshot, sys.modules.get("transformers")
+    C.snapshot = lambda *_a, **_k: "(selfcheck stub tokenizer)"
+    sys.modules["transformers"] = types.SimpleNamespace(AutoTokenizer=_FakeAutoTokenizer)
+    try:
+        out_enc = build("enc", set_name)
+        out_dec = build("dec", twin, sae_side="dec", products_set=set_name)
+        info = json.load(open(f"{out_dec}/build.json"))
+        sides = info["set_sides"]
+        assert sides["rollout_side"]["set"] == twin and sides["rollout_side"]["sae_side"] == "dec"
+        assert sides["rollout_side"]["sae_self"].endswith("/sae_self__dec"), sides
+        assert sides["corpus_side"]["set"] == set_name, sides
+        assert "by feature id" in sides["corpus_side"]["row_map"], sides
+        assert f"/{set_name}__" in info["random_pool"] + "__", info["random_pool"]
+        info_enc = json.load(open(f"{out_enc}/build.json"))
+        assert info_enc["set_sides"]["corpus_side"]["set"] == set_name
+        assert info_enc["set_sides"]["corpus_side"]["row_map"] == "identity (one set)"
+        for i, f in enumerate(feats):
+            e_rows = C.read_jsonl(f"{out_enc}/{f}.jsonl")
+            d_rows = C.read_jsonl(f"{out_dec}/{f}.jsonl")
+            assert d_rows[0]["row"] == 1 + i and e_rows[0]["row"] == i, (d_rows[0], e_rows[0])
+            e_arm = {r["arm"]: r for r in e_rows if r["kind"] == "arm"}
+            d_arm = {r["arm"]: r for r in d_rows if r["kind"] == "arm"}
+            assert d_arm["C16"]["block"] == e_arm["C16"]["block"], (
+                f"feature {f}: the twin's C16 block differs from the encoder build's -- the corpus "
+                f"side was not read from the products set, and C16 would not replay from cache")
+            e_t = [(r["kind"], r["i"], r["text"], r.get("label"), r.get("text_fuzz"))
+                   for r in e_rows if r["kind"].startswith("test")]
+            d_t = [(r["kind"], r["i"], r["text"], r.get("label"), r.get("text_fuzz"))
+                   for r in d_rows if r["kind"].startswith("test")]
+            assert e_t and d_t == e_t, f"feature {f}: the twin's test items differ from the encoder's"
+            for a in ("M", "M-jac16", "M-cos16"):
+                assert marker.search(d_arm[a]["block"]), (
+                    f"feature {f}: the twin's {a} block is not from sae_self__dec")
+                assert not marker.search(e_arm[a]["block"]), f"feature {f}: marker in the enc {a}"
+
+        # MUTATION: the twin on its own -- no corpus pools exist under its name.
+        refuses("document-diverse", "dec_nops", twin, sae_side="dec")
+        # MUTATION: a twin whose features are the products set's in ANOTHER order.
+        write_twin("selfcheck_2corp_decperm", list(reversed(feats)))
+        refuses("NOT the same ids", "decperm", "selfcheck_2corp_decperm", sae_side="dec",
+                products_set=set_name)
+        # MUTATION: the default (enc) side on a decoder-only set.
+        refuses("has no enc rows", "dec_enc", twin, products_set=set_name)
+    finally:
+        C.snapshot = real_snapshot
+        if real_tf is None:
+            sys.modules.pop("transformers", None)
+        else:
+            sys.modules["transformers"] = real_tf
+    print(f"[selfcheck] products set OK: twin C16 blocks and test items identical to the encoder "
+          f"build's over {len(feats)} features, M arms from sae_self__dec, 3 mutation gates")
+
+
 def check_corpus_key(cfg, base: str):
     """ONE key string for the producer and the consumer of the three corpus pools.
 
@@ -1417,8 +1648,10 @@ def main() -> int:
         check_scores_subset(tmp)
         check_corpus_fallback()
         check_two_corpora(cfg, tmp, base)
+        check_products_set(cfg, tmp, base)
         check_corpus_key(cfg, base)
         check_nla_rollout_stem(cfg, tmp, base)
+        check_nla_top4(cfg, tmp, base, set_name)
         check_examples_resolution(cfg, tmp, base)
         check_chain(cfg, tmp, base, set_name)
     finally:

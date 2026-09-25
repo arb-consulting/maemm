@@ -1969,6 +1969,150 @@ def check_sae_column_reader():
     assert '"sae_side": sd' in src, "draw_sae2m emits no sae_side field"
 
 
+def check_draw_sae131k_dec_twin():
+    """`draw_sae131k --sides dec --dirs-from <set> --rows <spec>`: the decoder twin of a set's rows.
+
+    What M6-dec rests on, each a separate way to get it silently wrong:
+      * the twin carries the SOURCE's feature ids in the SOURCE's order, one row each, and row j's
+        vector is unit(W_dec[f]) of that feature -- checked against `common.load_sae`, not against
+        the reader it shares with draw_sae2m;
+      * the rows say what they are (`sae_side: dec`, `vector: dec`, `ids_from_row`) and the set is
+        `storage: raw` with act.f32 == the unit decoder rows, so `common.dirs_for` serves them
+        UNCHANGED at a non-null mu -- the injection is the raw unit vector, as for the enc rows;
+      * `sae_rows_of(side="dec")` selects all of them and `side="enc"` none, which is what sends
+        `sae_self` / `build` to the decoder half and keeps `scan`'s examples/ off it;
+      * MUTATIONS: a row range that strays into a non-SAE family refuses; a source whose stored
+        vectors are not the encoder columns of its own ids refuses (two rows' vectors swapped);
+        and the half-specified flag forms refuse.
+    """
+    import numpy as np
+    import torch
+
+    from features import draw_sae131k
+
+    cfg = _conv_cfg()
+    sae_key = "tb/s131"
+    cfg["saes"] = {sae_key: {"hf": "x", "file": "ae.pt"}}
+    rng = np.random.default_rng(11)
+    F = 37
+    enc = torch.tensor(rng.normal(size=(F, D)), dtype=torch.float32)   # encoder.weight [F, d]
+    dec = torch.tensor(rng.normal(size=(D, F)), dtype=torch.float32)   # decoder.weight [d, F]
+    dec = dec / dec.norm(dim=0, keepdim=True)
+    ids = [5, 0, 36, 12]
+    real_path = C.sae_path
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        ckpt = root / "ae.pt"
+        torch.save({"encoder.weight": enc, "decoder.weight": dec,
+                    "encoder.bias": torch.zeros(F), "bias": torch.zeros(D),
+                    "threshold": torch.tensor(1.5)}, ckpt)
+        sae = C.load_sae(str(ckpt), D, device="cpu", dtype=torch.float32, need_decoder=True)
+        w_enc = sae.W_enc.numpy()                                        # [d, F]
+        w_dec = sae.W_dec.numpy()                                        # [F, d]
+        # The source: two `random` rows, then four ENCODER rows stored raw at a non-unit scale.
+        src_rows = [{"row": 0, "family": "random", "id": 0}, {"row": 1, "family": "random", "id": 1}]
+        src_rows += [{"row": 2 + j, "family": "sae", "sae_key": sae_key, "id": f, "stratum": j,
+                      "max_act": 10.0 + j, "src_set": "older", "src_row": 100 + j}
+                     for j, f in enumerate(ids)]
+        act = np.concatenate([rng.normal(size=(2, D)),
+                              3.0 * w_enc[:, ids].T]).astype(np.float32)
+        src = root / "base" / "tb" / "heldout" / "enc_src"
+        _write_set(src, src_rows, act, {"storage": "raw", "sae_key": sae_key})
+        args = {"base": "tb", "root": str(root), "heldout": "twin", "sae": sae_key,
+                "sides": "dec", "dirs_from": str(src), "rows": "2-5", "argv": ["unit"]}
+        C.sae_path = lambda _cfg, _key: str(ckpt)
+        try:
+            assert draw_sae131k._paired(args) is True
+            res = draw_sae131k.run(cfg, args)
+            out = Path(C.heldout_dir("tb", "twin", str(root)))
+            rows = C.read_jsonl(out / "ids.jsonl")
+            assert [r["id"] for r in rows] == ids and [r["row"] for r in rows] == [0, 1, 2, 3], rows
+            assert all(r["sae_side"] == "dec" and r["vector"] == "dec" and r["family"] == "sae"
+                       and r["sae_key"] == sae_key for r in rows), rows
+            assert [r["ids_from_row"] for r in rows] == [2, 3, 4, 5], "ids_from_row is not the source row"
+            assert [r["stratum"] for r in rows] == [0, 1, 2, 3], "the source's per-row fields were not kept"
+            assert not any("src_row" in r for r in rows), (
+                "the encoder vector's provenance (src_set/src_row) was carried onto a decoder row")
+            got = C.read_array(out / "act.f32", "float32", (4, D))
+            want = w_dec[ids] / np.linalg.norm(w_dec[ids], axis=1, keepdims=True)
+            assert np.abs(got - want).max() < 1e-6, (
+                f"act.f32 is not unit(W_dec[f]) of load_sae: max |d| {np.abs(got - want).max():.2e}")
+            assert np.abs(got - w_enc[:, ids].T / np.linalg.norm(w_enc[:, ids].T, axis=1,
+                                                                 keepdims=True)).max() > 0.1, (
+                "act.f32 came out equal to the ENCODER columns")
+            assert C.set_storage(cfg, str(out), str(root))["storage"] == "raw"
+            assert json.load(open(out / C.STORAGE_FILE))["families"] == {"sae": "dictionary"}
+            assert res["src_vs_unit_enc_min_cos"] > 0.999999, res
+            # served UNCHANGED at a real mean: the injection is the raw unit decoder row
+            mu = rng.normal(size=(D,)).astype(np.float32) * 5.0
+            C.write_array(root / "mu.f32", mu, "float32")
+            served = C.dirs_for(cfg, "tb", str(out), str(root / "mu.f32"), str(root))
+            assert np.abs(served - want).max() < 1e-6, (
+                "dirs_for moved a decoder row at a non-null mu; family `sae` is not centrable")
+            assert [r["row"] for r in C.sae_rows_of(rows, sae_key, side="dec")] == [0, 1, 2, 3]
+            assert C.sae_rows_of(rows, sae_key, side="enc") == [], (
+                "a `sae_side: dec` twin row was selected as an ENCODER row")
+
+            # MUTATION: a range reaching into the random block
+            try:
+                draw_sae131k.build_paired(cfg, {**args, "heldout": "twin2", "rows": "1-5"})
+            except AssertionError as e:
+                assert "not encoder rows" in str(e), f"wrong refusal for a stray row: {e}"
+            else:
+                raise AssertionError("the twin copied a non-SAE row")
+            # MUTATION: the source's vectors do not belong to its ids
+            bad = act.copy()
+            bad[[2, 3]] = bad[[3, 2]]
+            bad_src = root / "base" / "tb" / "heldout" / "enc_bad"
+            _write_set(bad_src, src_rows, bad, {"storage": "raw", "sae_key": sae_key})
+            try:
+                draw_sae131k.build_paired(cfg, {**args, "heldout": "twin3", "dirs_from": str(bad_src)})
+            except AssertionError as e:
+                assert "are NOT unit(W_enc" in str(e), f"wrong refusal for mismatched vectors: {e}"
+            else:
+                raise AssertionError("the twin accepted a source whose vectors are not its ids' columns")
+            # MUTATION: half-specified flag forms
+            for a2, msg in (({**args, "dirs_from": ""}, "copies the FEATURE IDS"),
+                            ({**args, "sides": "enc"}, "is encoder-only"),
+                            ({**args, "sides": "enc,dec"}, "is encoder-only")):
+                try:
+                    draw_sae131k._paired(a2)
+                except AssertionError as e:
+                    assert msg in str(e), f"wrong refusal: {e}"
+                else:
+                    raise AssertionError(f"_paired accepted {a2['sides']!r} / {a2['dirs_from']!r}")
+            assert draw_sae131k._paired({"sides": "", "dirs_from": ""}) is False, (
+                "the plain 2k draw no longer takes the draw path")
+        finally:
+            C.sae_path = real_path
+
+
+def check_feature_keyed_products_select_encoder_rows():
+    """`scan`, `top1_act` and `repo_examples` select `sae_side: enc` rows only.
+
+    Their SAE products are keyed on the FEATURE (the windows where its encoder readout fires), so
+    a decoder row is the same feature again. `top1_act` and `repo_examples` always passed
+    `side="enc"`; `scan` did not, and a decoder-only twin set (`draw_sae131k --sides dec`) would
+    have made it write a second `examples/` directory covering the encoder set's features at the
+    same corpus key -- which `autointerp/build.resolve_examples` refuses as ambiguous for every
+    later build of the encoder set (M6-dec, 2026-09-23). Checked on the call, with `ast`: the scan
+    needs a GPU.
+    """
+    import ast
+
+    root = Path(__file__).resolve().parent.parent
+    for rel in ("precompute/scan.py", "precompute/top1_act.py", "precompute/repo_examples.py"):
+        calls = [n for n in ast.walk(ast.parse((root / rel).read_text()))
+                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == "sae_rows_of"]
+        assert calls, f"{rel}: no common.sae_rows_of call found; this check is not reaching it"
+        for c in calls:
+            side = next((k.value for k in c.keywords if k.arg == "side"), None)
+            assert isinstance(side, ast.Constant) and side.value == "enc", (
+                f"{rel}:{c.lineno} selects SAE rows without side=\"enc\": a `sae_side: dec` row "
+                f"would be tested as a second copy of its feature under the same examples path")
+
+
 def check_sae_self_side_flag():
     """`--sae-side` reaches `sae_self`'s row selector, refuses everywhere else, and moves the path.
 
@@ -2024,13 +2168,19 @@ def check_sae_self_side_flag():
             f"--sae-side dec selected {sel} / {feats} / {side}: it must be the decoder block "
             f"alone, and `_sae_rows` must PASS the side on rather than pinning `enc`.")
 
-    for stage in ("random_pool", "examples_4m", "examples_docmax", "build"):
+    # CHANGED 2026-09-23 (M6-dec): `build` now takes the flag -- its M arms are the rollouts of
+    # the injected direction, read from `sae_self__dec`, and its output path is its own
+    # (`autointerp/<set>/<build-dir>`); its corpus-side pools come from `--products-set`. The three
+    # CORPUS-SIDE stages still refuse, for the reason this check was written: their products are
+    # keyed on the feature, and a decoder row would rewrite the encoder row's own path.
+    assert sae_side_of({"sae_side": "dec"}, "build") == "dec", "build must accept --sae-side dec"
+    for stage in ("random_pool", "examples_4m", "examples_docmax"):
         try:
             sae_side_of({"sae_side": "dec"}, stage)
         except AssertionError as e:
-            assert "is a `sae_self` flag" in str(e), f"wrong refusal for stage {stage}: {e}"
+            assert "is a `sae_self`/`build` flag" in str(e), f"wrong refusal for stage {stage}: {e}"
         else:
-            raise AssertionError(f"stage {stage} accepted --sae-side dec; only sae_self may ask for it")
+            raise AssertionError(f"stage {stage} accepted --sae-side dec; it is corpus-side")
     try:
         sae_side_of({"sae_side": "encoder"}, "sae_self")
     except AssertionError as e:
@@ -3481,6 +3631,8 @@ CHECKS = [
     check_heldout_v3_ours_block,
     check_csr_gate_floor,
     check_sae_column_reader,
+    check_draw_sae131k_dec_twin,
+    check_feature_keyed_products_select_encoder_rows,
     check_sae_self_side_flag,
     check_spawn_mirrors_main,
     check_autointerp_main_forwards_every_flag,

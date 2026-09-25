@@ -184,23 +184,26 @@ class _SelfAct:
 def sae_side_of(args, stage: str) -> str:
     """The `sae_side` half of the set this call works on: `enc` (the default) or `dec`.
 
-    ONLY `sae_self` may ask for `dec`. The flag exists because eval 1 needs the activation metric
-    on the decoder block of `2026-09-21_v3_sae2m` (plan §2.3: "the activation of feature `f` is its
-    encoder readout whichever direction was injected"), and the enc-only filter at `_sae_rows` was
-    the one gap SMOKES.md's eval-1 section names. `build`, `scan` and `repo_examples` share
-    `common.sae_rows_of`'s `side=` and are deliberately NOT given this flag: their products are
-    keyed on a feature, not on a direction, so a decoder row there would be a second copy of the
-    same feature under the same path. The other three stages in THIS file (`random_pool`,
-    `examples_4m`, `examples_docmax`) are corpus-side for the same reason, so they refuse it
-    loudly rather than silently ignoring it.
+    ONLY `sae_self` and `build` may ask for `dec`. The flag exists because eval 1 needs the
+    activation metric on the decoder block of `2026-09-21_v3_sae2m` (plan §2.3: "the activation of
+    feature `f` is its encoder readout whichever direction was injected"), and the enc-only filter
+    at `_sae_rows` was the one gap SMOKES.md's eval-1 section names. `build` takes it since
+    2026-09-23 (M6-dec): its M arms ARE the rollouts of the injected direction and are read from
+    `sae_self__dec`, and its output is `autointerp/<set>/<build-dir>`, a path of its own -- the
+    corpus-side pools it also reads are keyed on the feature and come from the ENCODER set via
+    `--products-set`, not from this flag. `scan` and `repo_examples` keep the enc-only filter:
+    their products are keyed on a feature, not on a direction, so a decoder row there would be a
+    second copy of the same feature under the same path. The other three stages in THIS file
+    (`random_pool`, `examples_4m`, `examples_docmax`) are corpus-side for the same reason, so they
+    refuse it loudly rather than silently ignoring it.
     """
     side = str(args.get("sae_side") or "enc")
     assert side in ("enc", "dec"), f"--sae-side must be `enc` or `dec`, got {side!r}"
-    assert side == "enc" or stage == "sae_self", (
-        f"--sae-side {side!r} is a `sae_self` flag and stage {stage!r} does not take it. That "
-        f"stage's product is keyed on the FEATURE, not on which of the dictionary's two columns "
-        f"was injected, so a decoder row would rewrite the encoder row's own path with the same "
-        f"feature's numbers. Drop --sae-side, or run `--stage sae_self`."
+    assert side == "enc" or stage in ("sae_self", "build"), (
+        f"--sae-side {side!r} is a `sae_self`/`build` flag and stage {stage!r} does not take it. "
+        f"That stage's product is keyed on the FEATURE, not on which of the dictionary's two "
+        f"columns was injected, so a decoder row would rewrite the encoder row's own path with the "
+        f"same feature's numbers. Drop --sae-side, or run `--stage sae_self` / `--stage build`."
     )
     return side
 

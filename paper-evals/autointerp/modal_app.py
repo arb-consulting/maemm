@@ -180,11 +180,18 @@ def main(
     # WHICH SAE of the base: required once a base carries more than one (qwen36-27b does, since
     # sae2m). sae_self, build and chain all resolve it through common.sae_key_for.
     sae: str = "",
-    # WHICH SIDE of the dictionary `sae_self` works on: `enc` (default, every set before
-    # 2026-09-21 and every product already on the volume) or `dec`, the `unit(W_dec[f])` half of a
-    # `draw_sae2m --sides enc,dec` set. `sae_self` ONLY -- build/scan/repo_examples keep the
-    # enc-only filter, and the three corpus-side stages here refuse it (sae_self.sae_side_of).
+    # WHICH SIDE of the dictionary `sae_self` / `build` work on: `enc` (default, every set before
+    # 2026-09-21 and every product already on the volume) or `dec`, the `unit(W_dec[f])` rows of
+    # a `draw_sae2m --sides enc,dec` set or a `draw_sae131k --sides dec` twin. scan/repo_examples
+    # keep the enc-only filter, and the three corpus-side stages here refuse it
+    # (sae_self.sae_side_of).
     sae_side: str = "",
+    # build: the set whose CORPUS-SIDE products (examples_docmax, random_pool, examples_4m and the
+    # scan's examples/) this build reads, when they are another set's. For a decoder twin: `--set`
+    # names the twin (its rows, its sae_self, its score residuals -> the M arms) and
+    # `--products-set` the encoder set whose pools are defined by the same features' activations.
+    # Refused unless both sets carry the same feature ids in the same order (build.run).
+    products_set: str = "",
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
     rows: str = "",
@@ -199,6 +206,10 @@ def main(
     # separates two runs of one checkpoint on one set that differ only in --mu
     # (common.rollout_stem); must match the --run-tag the rollouts were generated with.
     run_tag: str = "",
+    # build, nla --maemm only: the verbalizer generation run whose rollouts + sae_self the NLA arms
+    # read, when it is not --run-tag (M12's `rollouts_nla --n 16`). The corpus side stays on
+    # --run-tag. Refused on any other stage here and on a MAEMM in build.run.
+    nla_run_tag: str = "",
     score_name: str = "",
     # random_pool
     n_windows: int = 0,
@@ -271,6 +282,15 @@ def main(
     # `dry_run` because that name is already taken here by the container-side meaning above, and
     # silently changing it would turn a stage-`run` dry run into a no-op.
     dry_launch: bool = False,
+    # FIRE AND FORGET (M12, 2026-09-25). `fn.remote()` keeps the local client blocked on the
+    # call, and `modal run --detach` did NOT save the call when that client lost its connection:
+    # a laptop suspend at 16:21Z got M12's 65-minute rollouts_nla call cancelled at 16:25Z
+    # ("Function call was cancelled by user or a failure", app ap-cLckeuln69kWhM0qo56vxi).
+    # `--spawn` (use WITH `--detach`) submits the call with `fn.spawn()`, prints ONE machine-readable
+    # line `[spawn] call_id=<id> ...` and returns, so nothing local stays alive: completion is read
+    # off the product on the volume, and the container's own `[wall] ... cost=$` line off
+    # `modal app logs <app>`. No `[done]` line is printed on this path.
+    spawn: bool = False,
 ):
     """One autointerp stage. `--stage sae_self|build|run`.
 
@@ -309,6 +329,16 @@ def main(
         )
     if stage == "chain" and maemm2:
         assert maemm2 in cfg["maemms"], f"unknown --maemm2 {maemm2!r}"
+    if nla_run_tag:
+        assert stage == "build", (
+            f"--nla-run-tag names the verbalizer rollouts a BUILD reads; it means nothing to stage "
+            f"{stage!r} (sae_self / score take the verbalizer run as their own --run-tag)")
+    if products_set:
+        assert stage == "build", (
+            f"--products-set names the set whose corpus-side pools a BUILD reads; it means nothing "
+            f"to stage {stage!r}")
+        assert products_set in cfg["heldout"], (
+            f"--products-set {products_set!r} is not a set in config.yaml")
     if sae_side:
         # Checked LOCALLY as well as container-side, so a typo does not cost a container start.
         from autointerp.sae_self import sae_side_of
@@ -344,6 +374,7 @@ def main(
         "maemm": maemm,
         "sae": sae,
         "sae_side": sae_side,
+        "products_set": products_set,
         "heldout": set_name,
         "rows": rows,
         "root": root.rstrip("/") or VOL,
@@ -352,6 +383,7 @@ def main(
         "out_suffix": out_suffix,
         "rollouts_dir": rollouts_dir.rstrip("/"),
         "run_tag": run_tag,
+        "nla_run_tag": nla_run_tag,
         "score_name": score_name,
         "n_windows": n_windows,
         "pool_seed": pool_seed,
@@ -409,6 +441,10 @@ def main(
         # Every assert above has run; what is printed is exactly the dict `.remote()` would carry.
         print("[dry-launch] no container started; args below are what would be sent")
         print(json.dumps(args, indent=1, sort_keys=True, default=str))
+        return
+    if spawn:
+        call = fn.spawn(stage, args)
+        print(f"[spawn] call_id={call.object_id} product={stage} gpu={label}", flush=True)
         return
     res = fn.remote(stage, args)
     print(f"[done] {res['stage']} {res['seconds']}s ${res['cost_usd']:.4f} on {res['gpu']}")
