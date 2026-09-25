@@ -40,3 +40,4 @@ modal.toml
 # box-side run_*.sh launchers often carry hardcoded keys — keep them out
 run_*.sh
 eval/out/
+!eval/common/assets/mu.f32
