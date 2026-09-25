@@ -1,0 +1,113 @@
+% Requires: \usepackage{booktabs} \usepackage{multirow}
+
+A single MAEMM generalizes to direction families it never saw in training. It does not generalize
+to everything. A substantial minority of SAE features resist every intervention we tried, and this
+section characterizes them.
+
+\paragraph{Scoring.} Throughout, $\texttt{norm\_act}$ is a feature's best activation over $b$
+generated samples as a fraction of its peak over the stored corpus windows, read in the frozen
+subject model with the inverter's adapter disabled. $\texttt{null\_max}$ is its best activation on
+text generated for \emph{other} features --- a per-feature control that is free, because every text
+is scored against all $65{,}536$ features rather than only its paired one.
+
+\paragraph{What we tried.}
+Corpus sparsity predicts difficulty, so the first hypothesis is that the targets were too weak. They
+were: scanning ten times more corpus gives every rare feature a genuine peak rather than a lucky
+hit, and retraining on features resampled inversely by firing rate does reduce the failing set
+(\cref{app:verb-rare}). It does not close it, and it does not reach the RL checkpoint that received
+no rare-feature supervision at all. We then trained the MAEMM directly on the failing features, with
+sixteen and then sixty-four mined spans each, and separately changed the injected vector from the
+SAE encoder direction to the decoder row. Every one of these moves what it touches and none makes
+the class transfer: training on $811$ failing features raises them from $0.004$ to $0.387$ mean
+$\texttt{norm\_act}$ while $113$ held-out features of unseen types stay at $0.031$
+(\cref{tab:verb-transfer}). Quadrupling the spans improves the fit and slightly worsens transfer,
+and fine-tuning under decoder conditioning leaves held-out performance ($0.049$) well below the
+same conditioning with no fine-tuning at all ($0.181$).
+
+\paragraph{What resists.}
+The residue is not arbitrary. Sorting all $1{,}520$ evaluated features by the token at which they
+peak (\cref{tab:fail-by-token-class}), the failure rate climbs monotonically as that token moves from
+content toward structure, under all three criteria. What survives every intervention is the class of
+features individuated by position and continuation rather than by topic: a feature firing on a
+function word, a mid-word fragment, punctuation or a digit. About $10\%$ of these are ill-posed
+targets rather than misses --- they encode a fixed collocation, or their whole example set is one
+boilerplate string (\cref{tab:verb-taxonomy}) --- but that leaves the great majority unexplained.
+
+\paragraph{The limit is the MAEMM's, not the feature's.}
+Two controls separate the two readings. First, we sample $40$ features the MAEMM fails on strictly
+($\texttt{best\_act} \leq \texttt{null\_max}$), show an off-the-shelf LLM only their corpus windows,
+and ask it to write activating text under the MAEMM's own best-of-4 budget
+(\cref{tab:llm-baseline}). Every feature fires, $97.5\%$ beat their own null, and the median reaches
+$87\%$ of corpus peak --- against a MAEMM median of $0.00$ on the same features. A textual preimage
+therefore exists and is cheaply findable given the corpus evidence, which the MAEMM never sees.
+Second, on the features it cannot fire the MAEMM is not guessing: its samples are as mutually
+self-consistent as on features it handles easily (\cref{app:verb-consistency}). It produces one
+confident cluster of text pointing somewhere else --- a worse failure for interpretability than an
+obvious one, because the output still reads like an explanation.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+On $40$ features the MAEMM fails strictly & MAEMM & LLM given corpus windows \\
+\midrule
+mean $\texttt{norm\_act}$          & 0.117 & \textbf{0.822} \\
+median $\texttt{norm\_act}$        & 0.000 & \textbf{0.870} \\
+fires at all                       & 47.5\% & \textbf{100\%} \\
+beats own $\texttt{null\_max}$     &  0.0\% & \textbf{97.5\%} \\
+reaches $\texttt{ex\_last}$        &  0.0\% & \textbf{62.5\%} \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{The features are reachable; the MAEMM does not reach them.} Features sampled from
+those where the MAEMM's best-of-4 fails to beat its own negative sample. The LLM
+(\texttt{claude-sonnet-4.5}) sees the feature's eight max-activating corpus windows and nothing
+else, and is given the same budget of four attempts, scored through the identical clean-base read.
+Its null is computed the same way, over text it wrote for the other $39$ features. The single
+weakest case peaks on a mid-word fragment inside proper names, the one structural class the corpus
+evidence does not rescue.}
+\label{tab:llm-baseline}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lrccc}
+\toprule
+\multirow{2}{*}{Peak-token class} & \multirow{2}{*}{$n$} & \multicolumn{3}{c}{\% failing the criterion} \\
+\cmidrule(lr){3-5}
+ & & \shortstack{\texttt{norm\_act}\\[-1pt]$<0.10$}
+   & \shortstack{\texttt{best\_act}\\[-1pt]$\leq\texttt{null\_max}$}
+   & \shortstack{\texttt{best\_act}\\[-1pt]$<\texttt{ex\_last}$} \\
+\midrule
+content word         & 395 & 52.9 & 70.9 & 82.5 \\
+capitalized word     & 494 & 53.8 & 72.5 & 91.7 \\
+function word        & 234 & 69.7 & 81.2 & 90.2 \\
+subword continuation & 182 & 70.3 & 76.9 & 91.8 \\
+whitespace           &  36 & 83.3 & 86.1 & 94.4 \\
+punctuation          & 123 & 87.0 & 91.1 & 96.7 \\
+number               &  56 & 91.1 & 92.9 & 98.2 \\
+\midrule
+\textbf{all features} & \textbf{1{,}520} & \textbf{62.8} & \textbf{76.5} & \textbf{89.8} \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Failure concentrates on structural tokens.} Failure rate by the token a feature
+peaks on, over all $1{,}520$ evaluated features. Classes come from the modal peak token:
+\emph{punctuation}, \emph{number} and \emph{whitespace} are tokens consisting entirely of those;
+\emph{function word} is closed-class (`` of'', `` the'', `` was''); \emph{subword continuation} is a
+mid-word BPE fragment, i.e.\ no leading space and beginning in lowercase (``erm'', ``lis'');
+\emph{capitalized word} covers proper nouns, acronyms and sentence openers; everything else is a
+\emph{content word}. $\texttt{ex\_last}$ is the weakest of the feature's stored corpus windows.
+Rates are conditional on class and the last row is the
+base rate, so the comparison is enrichment rather than prevalence. Content-word features still fail
+$71\%$ of the time: this is a gradient, not a dichotomy.}
+\label{tab:fail-by-token-class}
+\end{table}
+
+Taken together: for this inverter, a structurally identifiable class of SAE features is effectively
+unlearnable. It is not that the features are meaningless, that the corpus lacks evidence for them, or
+that the model has not been shown enough of them --- each of those was tested and none accounts for
+the result. What the MAEMM appears to have learned is thematic reconstruction, and these features are
+not individuated thematically. We state this as a property of one inverter warm-started on
+${\sim}10^6$ topic-like directions; establishing an intrinsic limit would require the same failure to
+survive across inverters trained expressly to cover these feature types.

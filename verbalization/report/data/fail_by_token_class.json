@@ -1,0 +1,59 @@
+{
+ "per_class": [
+  {
+   "token_class": "content_word",
+   "n": 395,
+   "beats own null_max": 0.7088607594936709,
+   "reaches ex_last": 0.8253164556962025,
+   "norm_act >= 0.10": 0.529113924050633
+  },
+  {
+   "token_class": "capitalized_word",
+   "n": 494,
+   "beats own null_max": 0.7246963562753036,
+   "reaches ex_last": 0.917004048582996,
+   "norm_act >= 0.10": 0.5384615384615384
+  },
+  {
+   "token_class": "subword_continuation",
+   "n": 182,
+   "beats own null_max": 0.7692307692307693,
+   "reaches ex_last": 0.9175824175824175,
+   "norm_act >= 0.10": 0.7032967032967034
+  },
+  {
+   "token_class": "function_word",
+   "n": 234,
+   "beats own null_max": 0.811965811965812,
+   "reaches ex_last": 0.9017094017094017,
+   "norm_act >= 0.10": 0.6965811965811965
+  },
+  {
+   "token_class": "whitespace",
+   "n": 36,
+   "beats own null_max": 0.8611111111111112,
+   "reaches ex_last": 0.9444444444444444,
+   "norm_act >= 0.10": 0.8333333333333334
+  },
+  {
+   "token_class": "punctuation",
+   "n": 123,
+   "beats own null_max": 0.9105691056910569,
+   "reaches ex_last": 0.967479674796748,
+   "norm_act >= 0.10": 0.8699186991869918
+  },
+  {
+   "token_class": "number",
+   "n": 56,
+   "beats own null_max": 0.9285714285714286,
+   "reaches ex_last": 0.9821428571428571,
+   "norm_act >= 0.10": 0.9107142857142857
+  }
+ ],
+ "overall": {
+  "beats own null_max": 0.7651315789473684,
+  "reaches ex_last": 0.8980263157894737,
+  "norm_act >= 0.10": 0.6276315789473684
+ },
+ "n": 1520
+}

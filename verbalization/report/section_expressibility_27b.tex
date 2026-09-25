@@ -1,13 +1,13 @@
 % needs \usepackage{float} for [H]
-\subsection{Eliciting features that are difficult to verbalize}
+\paragraph{Eliciting features that are difficult to verbalize}
 \label{sec:expressibility}
 
-A \method{} learns without supervision to write text that reproduces a direction, so we conjecture
-that what it cannot write bounds what any natural-language readout of the activation, such as an
-NLA, can express. A feature fails if none of $b{=}8$ samples clears the SAE's activation threshold
-($\tau{\approx}1.6$); features that never fire in the corpus are excluded. Failure tracks sparsity
-($74\%$ of the rarest decile of a rarity-weighted draw, $2.5\%$ of the densest;
-\cref{app:verb-rare}), and training on failing features' own activating spans fixes $13$ of $171$
+The \method{} sees only the supplied direction, so its failures reveal features whose direction
+does not carry enough information to write activating text. A feature is not expressed if none of
+$8$ rollouts clears the SAE's activation threshold ($\tau{\approx}1.6$); the $10$ features that
+never fire in the corpus are excluded. Failure rises with sparsity: $74\%$ of the rarest decile of
+a rarity-weighted draw fail, against $2.5\%$ of the densest (\cref{app:verb-rare}). Training the
+\method{} on failing features' own activating spans rescues only $13$ of $171$
 (\cref{tab:verb-transfer}).
 
 \begin{table}[H]
@@ -20,27 +20,29 @@ NLA, can express. A feature fails if none of $b{=}8$ samples clears the SAE's ac
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
 Category & $n$ & fail & \method{} & LLM \\
 \midrule
-template     & 167 & 38 & 34 & 12 \\
-list / table & 103 & 25 & 29 &  3 \\
-numbers      &  55 & 27 & -- & -- \\
-copy         &  32 & 34 & 15 & 11 \\
+template     & 167 & 37.7 & 33.9 & 11.9 \\
+list / table & 103 & 25.2 & 29.2 &  3.4 \\
+numbers      &  55 & 27.3 &   -- &   -- \\
+copy         &  32 & 34.4 & 15.1 & 10.5 \\
 \midrule
-entity       & 120 & 14 & 10 &  1 \\
-lexical      & 818 &  5 &  7 &  2 \\
-topic        & 191 &  2 &  0 &  0 \\
+entity       & 120 & 14.2 &  9.9 &  1.2 \\
+word         & 818 &  4.5 &  7.4 &  2.2 \\
+topic        & 191 &  1.6 &  0.1 &  0.2 \\
 \midrule
-all          & 1953 & 11 & 11 &  5 \\
+all          & 1953 & 11.3 & 11.3 &  4.8 \\
 \bottomrule
 \end{tabular}
-\caption{\% of features where no sample fires, by blind-labelled category. Right: from the
-activation (\method{}) or from $16$ corpus windows (LLM), best-of-$8$; --: $n<5$.}
+\caption{\% of features where no rollout clears the SAE threshold $\tau$, by blind-labelled
+category; features that never fire in the corpus are excluded. Right: best-of-$8$ from the
+direction (\method{}) or from $16$ corpus windows (LLM); --: $n<5$.}
 \label{tab:verb-taxonomy}
 \end{table}
 
-Beyond rarity, failure follows form, not meaning (\cref{tab:verb-taxonomy}): $25$--$38\%$ of
-features fixed by a position in a structure (templates, layout, formatted numbers, copies of
-earlier text) fail, against $2\%$ of topic and $5\%$ of word features ($11\%$ overall). The text
-exists, since an LLM shown $16$ corpus windows makes them fire; it is unreachable from the
-activation alone. On these features the \method{}'s samples stay self-consistent (embedding cosine
-$0.77$ vs.\ $0.80$ on passing features) but drift from the corpus ($0.51$ vs.\ $0.59$): a direction
-conveys its meaning, not where in a structure it fires.
+Failure also depends on what defines a feature (\cref{tab:verb-taxonomy}). Of features defined by
+a position in a structure (a template, a page layout, a formatted number, or a copy of earlier
+text), $25$--$38\%$ fail, against $1.6\%$ of topic features and $4.5\%$ of word features ($11.3\%$
+overall). These features are expressible in text: given $16$ of a feature's corpus windows, an LLM
+leaves only $4.8\%$ of features unfired at best-of-$8$, against $11.3\%$ for the \method{}, with the
+widest gaps on templates ($11.9\%$ vs.\ $33.9\%$) and page layouts ($3.4\%$ vs.\ $29.2\%$). What
+the \method{} lacks is the structure in which a feature fires, which the direction does not convey.
+Whether a differently trained inverter could recover it from the direction is an open question.
