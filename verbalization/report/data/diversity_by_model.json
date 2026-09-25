@@ -1,0 +1,257 @@
+{
+ "set": "2026-09-21_sae131k_2k",
+ "n_common": 159,
+ "sources": {
+  "rl-last16": {
+   "texts_per_feature": 8,
+   "median_ntok": 33,
+   "cross_feature_mean": 5e-05,
+   "all": {
+    "n_features": 2000,
+    "mean": 0.0576,
+    "quantiles": {
+     "0.1": 0.0126,
+     "0.25": 0.0239,
+     "0.5": 0.0435,
+     "0.75": 0.0744,
+     "0.9": 0.1157
+    },
+    "frac_template": 0.0015,
+    "frac_pairs_zero": 0.2798
+   },
+   "common": {
+    "n_features": 159,
+    "mean": 0.0473,
+    "quantiles": {
+     "0.1": 0.0147,
+     "0.25": 0.0238,
+     "0.5": 0.0376,
+     "0.75": 0.0622,
+     "0.9": 0.0868
+    },
+    "frac_template": 0.0,
+    "frac_pairs_zero": 0.2987
+   },
+   "median_len_checks": {
+    "first32": 0.0434,
+    "tok8_40": 0.0269
+   },
+   "median_by_stratum": {
+    "0": 0.0462,
+    "1": 0.0413,
+    "2": 0.0393,
+    "3": 0.0459
+   }
+  },
+  "rl-last16-hf": {
+   "texts_per_feature": 4,
+   "median_ntok": 33,
+   "cross_feature_mean": 5e-05,
+   "all": {
+    "n_features": 2000,
+    "mean": 0.057,
+    "quantiles": {
+     "0.1": 0.0088,
+     "0.25": 0.0201,
+     "0.5": 0.0426,
+     "0.75": 0.0769,
+     "0.9": 0.1204
+    },
+    "frac_template": 0.003,
+    "frac_pairs_zero": 0.2723
+   },
+   "common": {
+    "n_features": 159,
+    "mean": 0.0473,
+    "quantiles": {
+     "0.1": 0.0092,
+     "0.25": 0.0181,
+     "0.5": 0.0363,
+     "0.75": 0.0626,
+     "0.9": 0.0999
+    },
+    "frac_template": 0.0,
+    "frac_pairs_zero": 0.2966
+   },
+   "median_len_checks": {
+    "first32": 0.0417,
+    "tok8_40": 0.0257
+   },
+   "median_by_stratum": {
+    "0": 0.0458,
+    "1": 0.0417,
+    "2": 0.0383,
+    "3": 0.0436
+   }
+  },
+  "rare-lora": {
+   "texts_per_feature": 8,
+   "median_ntok": 64,
+   "cross_feature_mean": 0.00036,
+   "all": {
+    "n_features": 2000,
+    "mean": 0.0012,
+    "quantiles": {
+     "0.1": 0.0,
+     "0.25": 0.0,
+     "0.5": 0.0003,
+     "0.75": 0.0012,
+     "0.9": 0.0024
+    },
+    "frac_template": 0.0,
+    "frac_pairs_zero": 0.9283
+   },
+   "common": {
+    "n_features": 159,
+    "mean": 0.001,
+    "quantiles": {
+     "0.1": 0.0,
+     "0.25": 0.0,
+     "0.5": 0.0003,
+     "0.75": 0.0009,
+     "0.9": 0.0022
+    },
+    "frac_template": 0.0,
+    "frac_pairs_zero": 0.9322
+   },
+   "median_len_checks": {
+    "first32": 0.0,
+    "tok8_40": 0.0
+   },
+   "median_by_stratum": {
+    "0": 0.0003,
+    "1": 0.0003,
+    "2": 0.0003,
+    "3": 0.0003
+   }
+  },
+  "corpus": {
+   "texts_per_feature": 32,
+   "median_ntok": 64,
+   "cross_feature_mean": 0.00034,
+   "all": {
+    "n_features": 2000,
+    "mean": 0.0344,
+    "quantiles": {
+     "0.1": 0.0136,
+     "0.25": 0.0208,
+     "0.5": 0.0296,
+     "0.75": 0.0399,
+     "0.9": 0.0557
+    },
+    "frac_template": 0.0005,
+    "frac_pairs_zero": 0.7316
+   },
+   "common": {
+    "n_features": 159,
+    "mean": 0.0421,
+    "quantiles": {
+     "0.1": 0.0146,
+     "0.25": 0.025,
+     "0.5": 0.0354,
+     "0.75": 0.0526,
+     "0.9": 0.0744
+    },
+    "frac_template": 0.0,
+    "frac_pairs_zero": 0.6614
+   },
+   "median_len_checks": {
+    "first32": 0.0119,
+    "tok8_40": 0.0118
+   },
+   "median_by_stratum": {
+    "0": 0.0305,
+    "1": 0.0295,
+    "2": 0.0293,
+    "3": 0.0286
+   }
+  },
+  "llm-opus5": {
+   "texts_per_feature": 8,
+   "median_ntok": 51,
+   "cross_feature_mean": 0.00028,
+   "all": {
+    "n_features": 159,
+    "mean": 0.0255,
+    "quantiles": {
+     "0.1": 0.001,
+     "0.25": 0.0026,
+     "0.5": 0.0107,
+     "0.75": 0.033,
+     "0.9": 0.0549
+    },
+    "frac_template": 0.0,
+    "frac_pairs_zero": 0.5256
+   },
+   "common": {
+    "n_features": 159,
+    "mean": 0.0255,
+    "quantiles": {
+     "0.1": 0.001,
+     "0.25": 0.0026,
+     "0.5": 0.0107,
+     "0.75": 0.033,
+     "0.9": 0.0549
+    },
+    "frac_template": 0.0,
+    "frac_pairs_zero": 0.5256
+   },
+   "median_len_checks": {
+    "first32": 0.0088,
+    "tok8_40": 0.0094
+   },
+   "median_by_stratum": {
+    "0": 0.0076,
+    "1": 0.0124,
+    "2": 0.0093,
+    "3": 0.0118
+   }
+  }
+ },
+ "vs_success": {
+  "rl-last16": {
+   "n_fail": 248,
+   "auc_jaccard_predicts_success": 0.606,
+   "jaccard_median_fail": 0.0318,
+   "jaccard_median_success": 0.0458,
+   "fails_in_top_quartile": 38,
+   "norm_act_median_by_quartile": [
+    0.769,
+    0.845,
+    0.856,
+    0.901
+   ],
+   "unverbalized_by_quartile": [
+    0.17,
+    0.154,
+    0.096,
+    0.076
+   ]
+  },
+  "rare-lora": {
+   "n_fail": 525,
+   "auc_jaccard_predicts_success": 0.548,
+   "jaccard_median_fail": 0.0003,
+   "jaccard_median_success": 0.0003,
+   "fails_in_top_quartile": 103,
+   "norm_act_median_by_quartile": [
+    0.441,
+    0.48,
+    0.532,
+    0.687
+   ],
+   "unverbalized_by_quartile": [
+    0.29,
+    0.276,
+    0.278,
+    0.206
+   ]
+  }
+ },
+ "meta": {
+  "metric": "per-feature mean pairwise token-3-gram Jaccard, Qwen3.6-27B tokenizer",
+  "template_threshold": 0.4,
+  "n_cross_pairs": 20000,
+  "seed": 20260923
+ }
+}

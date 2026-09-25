@@ -1,0 +1,84 @@
+% Requires: \usepackage{graphicx}
+
+An inverter samples many texts for one feature, and how much those samples differ is a property of
+the method in its own right. Too little variety would mean the MAEMM has found one reading of the
+feature, or one template, and repeats it; too much would mean each sample is a separate guess. We
+measure where it sits on the $2{,}000$ features of the 131k-SAE evaluation set, against the
+feature's own corpus windows and against an LLM, first in wording and then in meaning.
+
+\paragraph{Wording.} For each feature we take the mean, over all pairs of its texts, of the Jaccard
+similarity of their token-trigram sets. The MAEMM (rl-last16) has median $0.043$
+(\cref{fig:verb-diversity}, left), and only $3$ of $2{,}000$ features reach the range of
+boilerplate templates ($\geq 0.40$). Pairs of texts written for \emph{different} features score
+$5 \times 10^{-5}$, three orders of magnitude lower, so what repeats is specific to the feature. The
+MAEMM nevertheless repeats itself more than the corpus does. At equal length (first $32$ tokens)
+its samples overlap $3.6\times$ as much as the feature's corpus windows ($0.043$ against $0.012$), and
+$2.3\times$ as much with the opening $8$ tokens, which its samples often share, removed as well.
+
+\paragraph{Meaning.} Word overlap cannot tell a paraphrase from a different reading, nor varied text
+from text that is not about the feature, so we also embed every text and read each feature's $k=8$
+texts two ways (\cref{fig:verb-diversity-embed}a). \emph{Spread} is the Vendi score, the effective
+number of distinct texts among the eight. \emph{Specificity} is how much more similar a feature's
+texts are to each other than to texts for other features. The MAEMM is the most specific source
+($0.31$, against $0.19$ for both the corpus top-8 and claude-opus-5) but less spread than either:
+its eight samples amount to $2.2$ distinct texts, against $2.9$ for the corpus top-8 and $3.4$ for
+the LLM. It
+also covers less of the feature's other contexts (\cref{tab:verb-diversity-embed}). Unseen corpus
+windows for the feature lie closer to the corpus top-8 or to the LLM's texts than to the MAEMM's.
+All three orderings hold under a second, unrelated embedding model, and spread and specificity
+also hold with every text cut to $32$ tokens (\cref{app:verb-diversity}). The MAEMM gives a sharp
+but narrow reading of each feature. The narrowness is shared by the other activation-to-text model
+we can compare against. NLA-AV, which reads the same injected direction and writes an explanation of
+it, gives $2.0$ distinct texts on a random $500$ of these features, where the MAEMM gives $2.2$ on
+the same features. Its explanations are less specific ($0.17$), because they share one scaffold
+across features: explanations of \emph{different} features already sit at cosine $0.67$.
+
+\paragraph{Agreement tracks success.} The narrowing is not collapse onto a wrong answer. Features on
+which the MAEMM's samples agree most are the ones it expresses best
+(\cref{fig:verb-diversity-embed}b): the unverbalized share ($\texttt{norm\_act} < 0.10$) rises from
+$4.4\%$ in its most-agreeing quartile to $19.2\%$ in its most-spread one, and agreement separates
+success from failure at AUC $0.66$ ($0.61$ by word overlap; \cref{fig:verb-diversity}, right). That is
+too weak to use as a detector, and it is consistent with the failures of \cref{app:verb-human}: where
+the MAEMM misses, it still produces a coherent cluster of text, only a looser one.
+
+\paragraph{Spread alone is not the goal.} A rare-feature LoRA that damaged the model shows why
+spread and specificity have to be read together. It is the most spread source ($4.2$ distinct
+texts of eight, $0.0003$ word overlap), but barely specific ($0.05$), so its variety comes from not
+being about the feature, and it fires less (median $\texttt{norm\_act}$ $0.52$ against $0.85$; $74\%$
+against $88\%$ of features at best-of-8). Its own agreement is the strongest predictor of its success
+anywhere here: median $\texttt{norm\_act}$ $0.83$ on the features where its samples agree most, $0.12$
+where they spread most (AUC $0.77$). The pattern is not one bad run: both later rare-feature
+training arms show it too, one trained on a rare-weighted draw ($4.2$ distinct texts, specificity
+$0.04$) and one on this set's own failure clusters ($4.4$ and $0.02$, read on its $1{,}805$ untrained
+features), against the MAEMM's $2.2$ and $0.31$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{appendix/eval-inversion/fig11_diversity_embed.pdf}
+\caption{The MAEMM's samples for one feature, on the 131k-SAE 2k set. \textbf{(a)} Effective number
+of distinct texts among each source's eight texts per feature (Vendi score over bge-small
+embeddings; $1$ means eight near-identical texts, $8$ eight unrelated ones). Dot is the median over
+features, bar the interquartile range. NLA-AV writes explanations of the injected direction and was
+run on a random $500$ of the features; the corpus source is the feature's eight top-activating
+windows; the LLM wrote from those windows and covers $159$ features. \textbf{(b)} Share of features
+the MAEMM does not verbalize ($\texttt{norm\_act} < 0.10$ at best-of-8), by quartile of how much its
+eight samples agree; $500$ features per bar.}
+\label{fig:verb-diversity-embed}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{appendix/eval-inversion/fig10_diversity_by_model.pdf}
+\caption{Diversity in wording. \textbf{Left:} per-feature mean pairwise token-3-gram Jaccard: box is
+the IQR, whiskers the 10th--90th percentile, tick and label the median; $k$ is texts per feature.
+The diamond is the same source's cross-feature floor (rl-last16's, $5 \times 10^{-5}$, is drawn at the
+axis floor). The all-pairs mean is unbiased in $k$, so rows with $k=4$ and $k=32$ share a centre and
+differ only in spread. Scores are not length-matched here; see the text. \textbf{Right:} median
+best-of-8 $\texttt{norm\_act}$ by quartile of each MAEMM's own Jaccard, $500$ features per point.}
+\label{fig:verb-diversity}
+\end{figure}
+
+Taken together, the MAEMM is not templated, and it is the most feature-specific of the sources, but
+it offers a narrower view of each feature than its own corpus evidence or an LLM reading that
+evidence: about two distinct readings in eight samples where they offer three. Whether its samples
+agree is weak evidence that it has found the feature.
