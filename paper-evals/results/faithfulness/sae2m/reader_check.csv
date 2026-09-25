@@ -1,0 +1,13 @@
+kind,source,family,comparisons,worst excess,outcome
+cos_centred bo-k,2026-09-10_rl-8x2048-full@vllm:mu-none,(all),—,—,"skipped: no family of `2026-09-21_v3_sae2m` is centrable (['sae']), so a centred cosine would be NaN on every row -- the array is not read"
+cos_centred bo-k,2026-07-14_nla-av,(all),—,—,"skipped: no family of `2026-09-21_v3_sae2m` is centrable (['sae']), so a centred cosine would be NaN on every row -- the array is not read"
+cos_centred bo-k,2026-09-18_rl-last16-lr5e-7@vllm,(all),—,—,"skipped: no family of `2026-09-21_v3_sae2m` is centrable (['sae']), so a centred cosine would be NaN on every row -- the array is not read"
+sae_self,2026-09-10_rl-8x2048-full@vllm:mu-none,sae/sae2m/enc,512,-0.000161,0 mismatches
+sae_self,2026-07-14_nla-av,sae/sae2m/enc,512,-0.000168,0 mismatches
+sae_self,2026-09-18_rl-last16-lr5e-7@vllm,sae/sae2m/enc,512,-0.000225,0 mismatches
+sae_self,2026-09-10_rl-8x2048-full@vllm:mu-none,sae/sae2m/dec,512,-0.000166,0 mismatches
+sae_self,2026-07-14_nla-av,sae/sae2m/dec,512,-0.000200,0 mismatches
+sae_self,2026-09-18_rl-last16-lr5e-7@vllm,sae/sae2m/dec,512,-0.000209,0 mismatches
+cos,2026-09-10_rl-8x2048-full@vllm:mu-none,(all),—,—,"skipped: cos.f16 is 12.6 MB, over --check-arrays-max-mb 8"
+cos,2026-07-14_nla-av,(all),1024,-0.000201,0 mismatches
+cos,2026-09-18_rl-last16-lr5e-7@vllm,(all),—,—,"skipped: cos.f16 is 12.6 MB, over --check-arrays-max-mb 8"

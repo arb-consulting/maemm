@@ -1,7 +1,9 @@
 """Product `targets`: draw one held-out set -> `<root>/base/<base>/heldout/<set>/`.
 
     ids.jsonl     one row per target: row, family, id, stratum + the family's own fields
-    vecs.f16      [N, d] UNIT rows, row i is ids.jsonl line i
+    act.f32       [N, d] the RAW vector of each row, before any mean was subtracted
+    vecs.f16      [N, d] UNIT rows = unit(act), UNCENTRED; row i is ids.jsonl line i
+    storage.json  the set's storage contract (`storage:` alone), common.set_storage
     mu_512.f32    [d] DIAGNOSTIC ONLY (see below): the mean of the 512-token no-sink windows
     leakage.jsonl cos > 0.999 hits against the archived 8B training banks (checklist item 35)
 
@@ -11,11 +13,24 @@ is sampled, and a SEPARATE `torch.Generator().manual_seed(seed)` for the random 
 that is Celeste's convention in eval/eval_universal.py:409-453, copied so the two pipelines' draws
 are structurally comparable. Reordering the families changes every family after the first.
 
-ONE CENTRING MEAN (Tomáš, 2026-09-15; supersedes the earlier two-means rule, checklist item 77).
-A realact target is `unit(X[p] - mu)` with `mu` = `stats/mu.f32`, the 64/16-window read-layer mean
-of pass A, and that subtraction happens exactly ONCE, here at construction. Nothing else in the
-pipeline centres anything: every cosine against a target is uncentred and goes through the single
-`common.score_tokens`, and the `sae` and `random` directions are never centred at all.
+RAW STORAGE (Tomáš, 2026-09-21; supersedes the 2026-09-15 one-centring-mean rule below).
+**A stored artefact never encodes a centring choice.** A realact row is written as its raw
+read-layer activation `X[p]` in `act.f32`, with `vecs.f16 = unit(X[p])` -- UNCENTRED -- and the
+mean is subtracted at READ time under a name the run states: `common.dirs_for(..., centering=...)`,
+driven by `maemms.<ckpt>.input.centering` or an explicit `--centering`. The set is therefore the
+same file for every checkpoint and every convention, and "which mu was this drawn under" stops
+being a question anyone can get wrong.
+
+For a family that is not `centrable` (config.yaml `family_kinds:` -- an encoder column, a Gaussian
+draw, a subspace basis) there is no mean to subtract, so its `act.f32` row IS its unit direction
+and `unit(act) == vecs.f16` there. That keeps the array rectangular and makes `centering: none` a
+no-op on those rows rather than a special case at seven call sites.
+
+SUPERSEDED (kept for the record, because every set drawn before 2026-09-21 follows it): "ONE
+CENTRING MEAN (Tomáš, 2026-09-15, checklist item 77) -- a realact target is `unit(X[p] - mu)` with
+`mu` = `stats/mu.f32` and that subtraction happens exactly ONCE, here at construction." Those sets
+are `storage: unit` in config.yaml and `common.dirs_for` serves them only at the mean they were
+built with, and has no centred reading at all (common.dirs_for).
 
 `mu_512.f32` -- the read-layer mean over ALL positions of the 512-token, NO-sink windows this draw
 forwards, which is what Celeste subtracts (data/build_universal_bank.py:310) -- is still computed
@@ -66,7 +81,12 @@ def _forward_512(model, read_layer, docs512, toks, device):
 
 
 def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
-    """Celeste's recipe (data/build_universal_bank.py:295-314, checklist items 30/34)."""
+    """Celeste's recipe (data/build_universal_bank.py:295-314, checklist items 30/34).
+
+    Returns (rows, unit dirs, RAW activations). `mu` is still loaded and still reported -- it is
+    the diagnostic anchor of the README -- but nothing here subtracts it any more: see the module
+    docstring's RAW STORAGE note.
+    """
     import torch
 
     base, root = args["base"], args["root"]
@@ -119,13 +139,21 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
         flush=True,
     )
 
-    rows, vecs = [], []
+    rows, vecs, acts = [], [], []
+    n_clamped = 0
     for i in np.flatnonzero(ok.numpy()):  # pool order; the pool is already a sorted random draw
         if len(rows) >= n:
             break
         r = pool[int(i)]
         p, span = int(p_all[i]), int(l_all[i])
-        ids = toks[r["offset"] + p - span + 1 : r["offset"] + p + 1]
+        # CLAMPED at the document start (D4, fixed 2026-09-21). `p >= REALACT_P_MIN = 16` and
+        # `span <= SPAN_MAX = 64`, so `p - span + 1` is negative on a short-p / long-L draw and the
+        # unclamped slice reached up to 45 tokens back into the PREVIOUS document of the flat token
+        # array -- 21 of 512 rows on 2026-09-16_v1. The activation was never affected (it is
+        # `x[int(i)]`, read from this document's own window at position p); only the shown and
+        # scored `span_text` was, which is what autointerp and the GCG corpus init consume.
+        lo = max(r["offset"], r["offset"] + p - span + 1)
+        ids = toks[lo : r["offset"] + p + 1]
         rows.append(
             {
                 "family": "realact",
@@ -137,12 +165,20 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
                 "p": p,
                 "L": span,
                 "act_norm": round(float(nrm[int(i)]), 3),
+                # The shown span, CLAMPED at the document start: `L_shown` is what the reader
+                # actually got, which is < L whenever the draw asked for more tokens than this
+                # document has before p.
+                "L_shown": int(r["offset"] + p + 1 - lo),
                 "span_text": tok.decode([int(t) for t in ids]),
             }
         )
-        vecs.append(torch.nn.functional.normalize(x[int(i)] - mu, dim=-1))
+        n_clamped += int(r["offset"] + p - span + 1 < r["offset"])
+        # RAW: act.f32 keeps X[p] as read, vecs.f16 is unit(X[p]). Nothing is centred here.
+        acts.append(x[int(i)].clone())
+        vecs.append(torch.nn.functional.normalize(x[int(i)], dim=-1))
     assert len(rows) == n, f"realact: only {len(rows)} of {n} targets survived the norm filter"
     od.write_array("mu_512.f32", mu_512, "float32")
+    print(f"[realact] {n_clamped}/{len(rows)} spans clamped at the document start (D4)", flush=True)
     od.section(
         "Methods",
         [
@@ -158,18 +194,26 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
             f"tokens;",
             f"- the SHOWN span is `L ~ U[{SPAN_MIN}, {SPAN_MAX}]` tokens long and ends at p: "
             f"`span_text = decode(toks[p-L+1 : p+1])`;",
-            "- the target vector is `unit(X[p] - mu)` with `mu` = `stats/mu.f32`, the 64/16-window "
-            "read-layer mean of pass A. That is the ONE centring in the whole pipeline and it "
-            "happens once, here (Tomáš, 2026-09-15); every cosine against this target afterwards "
-            "is UNCENTRED and goes through `common.score_tokens`;",
+            "- the STORED vector is the RAW activation `X[p]` (`act.f32`) with "
+            "`vecs.f16 = unit(X[p])`, UNCENTRED (Tomáš, 2026-09-21). No mean is subtracted at "
+            "construction any more: a run names the mean it wants and `common.dirs_for` derives "
+            "`unit(X[p] - mu)` at read time, so this set is the same file under every convention;",
             f"- a raw-norm filter (`> 1e-3` and `<= {NORM_FILTER_MULT}x` the presample median "
             f"{med:.1f}) is applied AT SELECTION ONLY (checklist item 34), never at scoring.",
         ],
     )
     od.note(
-        f"CENTRING: the realact vectors are `unit(X[p] - stats/mu.f32)` "
-        f"({C.stats_dir(base, root)}/mu.f32, ||mu||={mu.norm():.2f}). One rule, one subtraction, "
-        "at construction only."
+        f"CENTRING: NONE IS STORED. `act.f32` is the raw `X[p]` and `vecs.f16` is `unit(X[p])`. "
+        f"The mean is named per run (`--centering`, or the checkpoint's `input.centering`) and "
+        f"applied by `common.dirs_for`; `stats/mu.f32` ({C.stats_dir(base, root)}/mu.f32, "
+        f"||mu||={mu.norm():.2f}) is one of the names in config.yaml's `mus:` block, not the rule."
+    )
+    od.note(
+        f"span_text is CLAMPED at the document start (D4, 2026-09-21): {n_clamped} of {len(rows)} "
+        f"rows had `p - L + 1 < 0` and the unclamped slice would have reached into the PREVIOUS "
+        f"document. `L_shown` is the clamped length; `L` is the length the draw asked for. The "
+        f"activation is unaffected either way -- it is read at position p of this document's own "
+        f"512-token window."
     )
     od.note(
         f"mu_512.f32 [d] is a DIAGNOSTIC: the mean read-layer activation over all {mu_n} positions "
@@ -177,7 +221,7 @@ def _realact(cfg, args, model, tok, toks, docs, n, rng, od):
         f"(data/build_universal_bank.py:310). Nothing is centred on it. Against stats/mu.f32 it has "
         f"cos = {mu_cos:.4f} and ||mu_512|| / ||mu|| = {mu_ratio:.4f}."
     )
-    return rows, vecs
+    return rows, vecs, acts
 
 
 def _random(cfg, args, n, seed):
@@ -218,7 +262,12 @@ def _training_features(cfg, base):
 
 
 def _sae(cfg, args, sae, n, strata, min_fires, rng, od):
-    """Density-stratified feature draw from the pass-A fire counts at the LARGEST corpus size."""
+    """Density-stratified feature draw from the pass-A fire counts at the LARGEST corpus size.
+
+    Every row carries `sae_key`, because a feature index means nothing without the dictionary it
+    indexes: id 4242 of the 131k `l42-1b` and of the 2M `sae2m` are unrelated directions, and both
+    are valid indices into the larger one. features/draw_sae2m.py set the precedent.
+    """
     base, root = args["base"], args["root"]
     sae_key = args["sae_key"]
     sdir = C.sae_dir(sae_key, root)
@@ -260,6 +309,7 @@ def _sae(cfg, args, sae, n, strata, min_fires, rng, od):
             rows.append(
                 {
                     "family": "sae",
+                    "sae_key": sae_key,
                     "id": int(fid),
                     "stratum": int(q),
                     "density": float(fires_g[fid] / scanned),
@@ -298,47 +348,190 @@ def _sae(cfg, args, sae, n, strata, min_fires, rng, od):
     return rows, [dirs[i] for i in range(len(feats))]
 
 
-def _leakage(cfg, args, rows, vecs, od):
-    """cos > 0.999 of every realact / sae direction against the archived 8B training banks."""
-    import torch
+def open_bank(path: str, d: int):
+    """`(n_rows, read(start, m) -> [m, d] float32)` for ONE bank of stored directions.
 
-    base, d = args["base"], cfg["bases"][args["base"]]["d"]
+    Two shapes exist in this project and both are read here, sequentially, with no mmap: a RAW
+    `.f32` / `.f16` file laid out as [.., d] rows (the 8B archive's `pool_train/vecs.f32`) and a
+    numpy `.npy` (Celeste's tier-B `simple2m/*/dirs_f16.npy`). A file whose size is not a whole
+    number of [.., d] rows is a wrong `d` or a truncated fetch and stops the run rather than being
+    scanned short -- a leak check that silently reads half a bank reports "no hits" for the half it
+    never looked at.
+    """
+    import numpy as np
+
+    assert os.path.exists(path), f"missing direction bank {path}"
+    if path.endswith(".npy"):
+        with open(path, "rb") as fh:
+            version = np.lib.format.read_magic(fh)
+            reader = {(1, 0): np.lib.format.read_array_header_1_0,
+                      (2, 0): np.lib.format.read_array_header_2_0}
+            assert version in reader, f"{path}: unsupported .npy version {version}"
+            shape, fortran, dt = reader[version](fh)
+            off = fh.tell()
+        assert not fortran, f"{path}: Fortran-ordered .npy; the row reader below assumes C order"
+        assert len(shape) == 2 and shape[1] == d, (
+            f"{path} is {shape}, expected [.., {d}] rows -- wrong d for this bank?"
+        )
+        n_rows, isz = int(shape[0]), int(dt.itemsize)
+        want = off + n_rows * d * isz
+        assert os.path.getsize(path) == want, (
+            f"{path}: header says {shape} {dt} ({want} B with a {off} B header) but the file is "
+            f"{os.path.getsize(path)} B -- a TRUNCATED fetch, not a bank"
+        )
+    else:
+        dt = {".f32": np.dtype("float32"), ".f16": np.dtype("float16")}.get(path[-4:])
+        assert dt is not None, f"{path}: a raw bank must end .f32 or .f16 (or be a .npy)"
+        off, isz, nbytes = 0, int(dt.itemsize), os.path.getsize(path)
+        n_rows = nbytes // (isz * d)
+        assert n_rows * isz * d == nbytes, (
+            f"{path} is not a whole number of [.., {d}] {dt} rows -- wrong d for this bank?"
+        )
+
+    def read(start: int, m: int):
+        blk = np.fromfile(path, dtype=dt, count=m * d, offset=off + start * d * isz)
+        assert blk.size == m * d, f"{path}: short read of {blk.size} of {m * d} values at row {start}"
+        return blk.reshape(m, d).astype(np.float32)
+
+    return n_rows, read
+
+
+def leak_scan(dirs, banks, d: int, *, thr: float = LEAK_COS, chunk: int = LEAK_CHUNK,
+              device: str = "numpy", max_hits: int = 10_000, label: str = "leakage"):
+    """Max cosine of every row of `dirs` [N, d] against every row of every bank in `banks`.
+
+    `banks` is `[(name, path), ...]`; `dirs` is already the direction each target row carries (the
+    caller decides whether that is `unit(act)` or `unit(act - mu)`) and is re-normalised here.
+    Returns
+
+        {"n": N, "banks": [{name, path, rows, seconds, max_cos, n_hits}, ...],
+         "best": [N] float32,        the running max cosine of each target row
+         "best_bank": [N] str, "best_row": [N] int,     where that max came from
+         "per_bank": {name: [N] float32},   the same max restricted to one bank
+         "hits": [{target, bank, bank_row, cos}, ...],  every pair above `thr`, capped
+         "n_hits": total number of pairs above `thr`, including any past the cap}
+
+    `per_bank` is what lets a caller cut the result BOTH ways -- per target block and per bank --
+    without a second pass; it is [n_banks, N] floats and costs nothing beside the arrays scanned.
+
+    ONE pass over the banks serves every target row the caller has: the tier-B arrays are 92 GB and
+    the read dominates the matmul by an order of magnitude, so a caller with three blocks to check
+    concatenates them into `dirs` and splits the result by row range afterwards. `device` is
+    `numpy` (the CPU product) or `cuda` (inside a GPU product that already holds a device).
+    """
+    import numpy as np
+
+    v = np.asarray(dirs, dtype=np.float32)
+    assert v.ndim == 2 and v.shape[1] == d, f"{label}: dirs is {v.shape}, expected [.., {d}]"
+    v = v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
+    n = v.shape[0]
+    assert n, f"{label}: no target rows to check"
+    assert device in ("numpy", "cuda"), f"{label}: device must be numpy or cuda, got {device!r}"
+    if device == "cuda":
+        import torch
+
+        vt = torch.from_numpy(v).cuda()
+
+    best = np.full(n, -2.0, dtype=np.float32)
+    best_bank = [""] * n
+    best_row = np.full(n, -1, dtype=np.int64)
+    per_bank: dict = {}
+    hits: list[dict] = []
+    n_hits = 0
+    report = []
+    for name, path in banks:
+        assert name not in per_bank, f"{label}: two banks are both named {name!r}"
+        n_rows, read = open_bank(path, d)
+        bbest = np.full(n, -2.0, dtype=np.float32)
+        brow = np.full(n, -1, dtype=np.int64)
+        t0, bhits = time.time(), 0
+        for s in range(0, n_rows, chunk):
+            m = min(chunk, n_rows - s)
+            blk = read(s, m)
+            blk /= np.maximum(np.linalg.norm(blk, axis=1, keepdims=True), 1e-12)
+            if device == "cuda":
+                cos = (torch.from_numpy(blk).cuda() @ vt.T).cpu().numpy()
+            else:
+                cos = blk @ v.T  # [m, n]
+            cmax = cos.max(axis=0)
+            upd = cmax > bbest
+            brow[upd] = s + cos.argmax(axis=0)[upd]
+            bbest[upd] = cmax[upd]
+            a_rows, t_cols = np.nonzero(cos > thr)
+            bhits += int(a_rows.size)
+            for a_row, t_col in zip(a_rows.tolist(), t_cols.tolist(), strict=True):
+                if len(hits) < max_hits:
+                    hits.append({"target": int(t_col), "bank": name,
+                                 "bank_row": int(s + a_row), "cos": float(cos[a_row, t_col])})
+        upd = bbest > best
+        best_row[upd] = brow[upd]
+        for j in np.nonzero(upd)[0]:
+            best_bank[int(j)] = name
+        best[upd] = bbest[upd]
+        per_bank[name] = bbest
+        n_hits += bhits
+        secs = time.time() - t0
+        report.append({"name": name, "path": path, "rows": n_rows, "seconds": round(secs, 1),
+                       "max_cos": round(float(bbest.max()), 6), "n_hits": bhits})
+        print(
+            f"[{label}] {name}: {n_rows} rows in {secs:.0f}s, max cos {float(bbest.max()):.6f}, "
+            f"{bhits} hits > {thr}",
+            flush=True,
+        )
+    return {"n": n, "banks": report, "best": best, "best_bank": best_bank, "best_row": best_row,
+            "per_bank": per_bank, "hits": hits, "n_hits": n_hits, "thr": thr}
+
+
+def archived_banks(cfg, base: str):
+    """The direction banks a DRAWN set is checked against at draw time, for this base.
+
+    The 8B has run1's and run2's `pool_train/vecs.f32` in the archive and they are cheap, so the
+    draw pays for them. The 27B's banks are Celeste's tier-B training directions
+    (`data/celeste-v2-2026-09-17/simple2m/*/dirs_f16.npy`, 8.94M rows / 92 GB): the same check, an
+    order of magnitude more reading, and it covers blocks that are not being drawn -- so it is the
+    `tierb` PRODUCT (`precompute/tierb.py`) and is not folded into every draw. `_leakage` says so
+    by name rather than reporting "no banks exist", which was true until 2026-09-22 and is not now.
+    """
     if base != "qwen3-8b":
-        od.note("leakage check: skipped (only the 8B training banks are in the archive)")
+        return []
+    return [(run, f"{cfg['modal']['archive']}/data/{run}/bank/pool_train/vecs.f32")
+            for run in ("run1", "run2")]
+
+
+def _leakage(cfg, args, rows, vecs, od):
+    """cos > 0.999 of every realact / sae direction against the archived training banks."""
+    base, d = args["base"], cfg["bases"][args["base"]]["d"]
+    banks = archived_banks(cfg, base)
+    if not banks:
+        od.note(
+            f"leakage check: NOT RUN at draw time for base {base!r}. The banks that exist for it "
+            f"are Celeste's tier-B training directions (8.94M rows, 92 GB), which are checked by "
+            f"the `tierb` product against whichever blocks are named there -- see "
+            f"precompute/tierb.py and results/tierb/."
+        )
         return []
     idx = [i for i, r in enumerate(rows) if r["family"] in ("realact", "sae")]
-    v = torch.nn.functional.normalize(torch.stack([vecs[i] for i in idx]).float(), dim=-1).cuda()
-    hits = []
-    for run in ("run1", "run2"):
-        path = f"{cfg['modal']['archive']}/data/{run}/bank/pool_train/vecs.f32"
-        assert os.path.exists(path), f"missing archived bank {path}"
-        n_rows = os.path.getsize(path) // (4 * d)
-        assert n_rows * 4 * d == os.path.getsize(path), (
-            f"{path} is not a whole number of [.., {d}] f32 rows -- wrong d for this archive?"
-        )
-        t0 = time.time()
-        for s in range(0, n_rows, LEAK_CHUNK):
-            m = min(LEAK_CHUNK, n_rows - s)
-            blk = np.fromfile(path, dtype=np.float32, count=m * d, offset=s * d * 4).reshape(m, d)
-            b = torch.nn.functional.normalize(torch.from_numpy(blk).cuda(), dim=-1)
-            cos = b @ v.T  # [m, n_targets]
-            hi = (cos > LEAK_COS).nonzero()
-            for a_row, t_col in hi.cpu().numpy():
-                j = idx[int(t_col)]
-                hits.append(
-                    {
-                        "row": rows[j]["row"],
-                        "family": rows[j]["family"],
-                        "archive": run,
-                        "archive_row": int(s + a_row),
-                        "cos": float(cos[a_row, t_col]),
-                    }
-                )
-        print(f"[leakage] {run}: {n_rows} bank rows in {time.time() - t0:.0f}s, {len(hits)} hits", flush=True)
+    import numpy as np
+
+    def _np(x):  # `vecs` is a list of torch rows here and a list of arrays in tierb.py
+        return x.detach().cpu().numpy() if hasattr(x, "detach") else np.asarray(x)
+
+    res = leak_scan(np.stack([_np(vecs[i]) for i in idx]), banks, d,
+                    device="cuda", label="leakage")
+    hits = [
+        {
+            "row": rows[idx[h["target"]]]["row"],
+            "family": rows[idx[h["target"]]]["family"],
+            "archive": h["bank"],
+            "archive_row": h["bank_row"],
+            "cos": h["cos"],
+        }
+        for h in res["hits"]
+    ]
     od.note(
         f"leakage: cos > {LEAK_COS} of every realact and sae direction against "
-        f"run1+run2 pool_train/vecs.f32 in the archive; {len(hits)} hits, reported only "
-        "(checklist item 35 says report, never remove)"
+        f"{'+'.join(n for n, _ in banks)} pool_train/vecs.f32 in the archive; {res['n_hits']} hits, "
+        "reported only (checklist item 35 says report, never remove)"
     )
     return hits
 
@@ -436,7 +629,25 @@ def import_run1(cfg, args):
                 "the 2026-09 pipeline from a 16-row slice of a 2026-09-03 eval cache.",
             ],
         )
+        od.write_json(
+            "storage.json",
+            {
+                "storage": "unit",
+                # Which mean run1's archived eval cache centred `realact_dirs` on is NOT recorded
+                # anywhere we hold. Since 2026-09-23 that needs no key: a `storage: unit` set is
+                # served exactly as shipped and has no centred reading at any mean, so there is
+                # nothing to declare and nothing to get wrong.
+                "note": (
+                    "imported verbatim from run1's archived eval cache; no act.f32 exists, so these "
+                    "directions cannot be moved to another mean"
+                ),
+            },
+        )
         od.note("no mu_512.f32 and no leakage.jsonl here: neither is defined for an imported set")
+        od.note(
+            "STORAGE: `unit` with realact's mean UNKNOWN -- the archived cache records no centring "
+            "convention. common.dirs_for labels these rows instead of re-deriving them."
+        )
         od.note(f"source families present in the cache: {sorted(k[:-5] for k in es if k.endswith('_dirs'))}")
     return {"out": out, "rows": len(rows), "families": {f: n for f in IMPORT_FAMS}, "source": path}
 
@@ -446,6 +657,8 @@ def run(cfg, args):
 
     if args.get("import_run1"):
         return import_run1(cfg, args)
+    if C.is_ood_set(cfg, args["heldout"]):
+        return run_ood(cfg, args)
 
     base, root = args["base"], args["root"]
     set_name = args["heldout"]
@@ -454,12 +667,14 @@ def run(cfg, args):
     hspec = cfg["heldout"][set_name]
     fams = C.families_for(cfg, set_name, base)
     seed = int(hspec["seed"])
-    sae_keys = [k for k in cfg["saes"] if C.split_key(k, "sae")[0] == base]
-    assert len(sae_keys) == 1, f"base {base} has {len(sae_keys)} SAEs in config, expected exactly 1"
-    args["sae_key"] = sae_keys[0]
+    # WHICH SAE the `sae` family's feature ids belong to. `qwen36-27b` has carried two since
+    # sae2m; common.sae_key_for is the one rule (explicit --sae wins, a single-SAE base needs none,
+    # two SAEs and no flag is refused rather than guessed).
+    sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
+    args["sae_key"] = sae_key
 
     toks, docs = C.load_corpus(base, root)
-    sizes_json = f"{C.sae_dir(sae_keys[0], root)}/sizes.json"
+    sizes_json = f"{C.sae_dir(sae_key, root)}/sizes.json"
     assert os.path.exists(sizes_json), (
         f"{sizes_json} is missing: run `--product stats --base {base}` first, the sae family is "
         f"drawn from its fire counts"
@@ -469,27 +684,39 @@ def run(cfg, args):
     out = C.heldout_dir(base, set_name, root)
     inputs = {
         "corpus": C.corpus_dir(base, root),
-        "sae": C.sae_dir(sae_keys[0], root),
+        "sae": C.sae_dir(sae_key, root),
         "mu (centring)": f"{C.stats_dir(base, root)}/mu.f32",
         "seed": seed,
         "families": {f: s["n"] for f, s in fams.items()},
     }
     with C.outdir(out, args, inputs=inputs) as od:
         model, tok = C.load_base(cfg, base)
-        sae = C.load_sae(C.sae_path(cfg, sae_keys[0]), spec["d"], device="cuda", dtype=torch.float32)
-        rows, vecs = [], []
+        # ENCODER ONLY: the `sae` family's direction is unit(W_enc[:, f]) (common.sae_dirs) and the
+        # draw reads fire counts off the stats product; nothing here touches W_dec, which at 2^21
+        # features is another 43 GB in fp32.
+        sae = C.load_sae(
+            C.sae_path(cfg, sae_key), spec["d"], device="cuda", dtype=torch.float32, need_decoder=False
+        )
+        rows, vecs, acts = [], [], []
         for fam in FAMILY_ORDER:  # FIXED order: it determines the rng stream
             if fam not in fams:
                 continue
             n = int(fams[fam]["n"])
             if fam == "realact":
-                r, v = _realact(cfg, args, model, tok, toks, docs, n, rng, od)
+                r, v, a = _realact(cfg, args, model, tok, toks, docs, n, rng, od)
             elif fam == "random":
                 r, v = _random(cfg, args, n, seed)
+                a = v  # not centrable: the act.f32 row IS the direction (module docstring)
             else:
                 r, v = _sae(cfg, args, sae, n, int(hspec["sae_strata"]), int(hspec["sae_min_fires"]), rng, od)
+                a = v
+            assert not C.family_centrable(cfg, fam) or a is not v, (
+                f"family {fam!r} is `centrable` in config.yaml but its draw returned the direction "
+                f"as its own raw activation; act.f32 would then be uncentrable"
+            )
             rows += r
             vecs += v
+            acts += list(a)
             print(f"[targets] {fam}: {len(r)} rows", flush=True)
         for i, row in enumerate(rows):
             row["row"] = i
@@ -502,14 +729,27 @@ def run(cfg, args):
             )
 
         v = torch.stack(vecs).float()
+        a = torch.stack(acts).float()
         nrm = v.norm(dim=-1)
         assert torch.allclose(nrm, torch.ones_like(nrm), atol=1e-5), (
             f"held-out vectors must be unit rows; got min {nrm.min():.6f} max {nrm.max():.6f}"
         )
+        assert a.shape == v.shape, f"act.f32 is {tuple(a.shape)} but vecs.f16 is {tuple(v.shape)}"
+        # The contract in one assert: vecs.f16 IS unit(act.f32), so nothing downstream has to
+        # trust the docstring. fp32 both sides; the f16 round trip happens after this.
+        cos_av = torch.nn.functional.cosine_similarity(a, v, dim=-1)
+        assert float(cos_av.min()) > 1 - 1e-5, (
+            f"vecs.f16 is not unit(act.f32) on every row: min cos {float(cos_av.min()):.6f}"
+        )
         hits = _leakage(cfg, args, rows, vecs, od)
         ordered = [{"row": r["row"], **{k: x for k, x in r.items() if k != "row"}} for r in rows]
         od.write_jsonl("ids.jsonl", ordered)
+        od.write_array("act.f32", a, "float32")
         od.write_array("vecs.f16", v, "float16")
+        od.write_json(
+            "storage.json",
+            C.storage_record(cfg, set_name, sorted({r["family"] for r in rows}), sae_key),
+        )
         od.write_jsonl("leakage.jsonl", hits)
         od.note(
             f"rebuild: `modal run precompute/modal_app.py --product targets --base {base} "
@@ -520,9 +760,353 @@ def run(cfg, args):
             f"uses a separate torch.Generator().manual_seed({seed}) (Celeste's convention)"
         )
         od.note("vecs.f16 rows are unit in fp32 before the cast; the f16 round-trip is ~1e-3 off unit")
+        od.note(
+            "STORAGE: `raw` (storage.json). act.f32 [N, d] fp32 is the row's vector before any "
+            "mean was subtracted and vecs.f16 is unit(act); the centring mean is named per RUN "
+            "(common.dirs_for) and never stored. fp32 rather than f16 for act.f32 because f16 "
+            "costs ~1e-3 on a norm-90 vector and the exact-solve migration of a `storage: unit` "
+            "set needs better than that."
+        )
     return {
         "out": out,
         "rows": len(rows),
         "families": {f: sum(1 for r in rows if r["family"] == f) for f in FAMILY_ORDER},
         "leakage_hits": len(hits),
     }
+
+
+# =============================================================================================
+# The OOD generalisation sets (design infra/2026-09-18_ood-eval-design.md §2, §3, §11 R5)
+#
+#     <root>/base/<base>/heldout/2026-09-18_ood_v1/
+#         ids.jsonl      one row per target: row, family, arm, id, p, L, the source coordinates,
+#                        the tokenisation covariates, the licence
+#         vecs.f16       [N, d] unit rows, `unit(X[p] - stats/mu.f32)` -- the ENGLISH centring mean
+#         windows.i32    [N, 512] the 512-token no-BOS window each target was read from, so `nll`
+#                        and any re-analysis need neither the source nor the network
+#
+# The draw runs OFFLINE: `corpus --arm` already wrote each arm's target pool (the documents after
+# its corpus in the same permuted row stream) into `corpora/<arm>/pool_windows.i32`.
+# =============================================================================================
+
+OOD_PRESAMPLE_ROWS = 64  # pool windows forwarded for the norm-filter presample (as `_realact`)
+
+
+def _forward_windows(model, read_layer, windows, device="cuda"):
+    """Read-layer activations [n, T, d] (fp32, cpu) of an [n, T] token array. No sink token."""
+    import torch
+
+    out = []
+    for s in range(0, len(windows), REALACT_DOCS_PER_FWD):
+        ids = np.asarray(windows[s : s + REALACT_DOCS_PER_FWD], dtype=np.int64)
+        t = torch.from_numpy(ids).to(device)
+        h, _ = C.read_resid(
+            model, read_layer, {"input_ids": t, "attention_mask": torch.ones_like(t)}, pool="all"
+        )
+        out.append(h.cpu())
+    return torch.cat(out)
+
+
+def _span_in_corpus(toks, span) -> bool:
+    """Does the token sequence `span` occur verbatim anywhere in `toks`? (design §4)
+
+    Pruned on the first TWO tokens before the full compare, which is what keeps a common leading
+    token (a space, a newline) from costing a length-L compare at every one of its occurrences.
+    """
+    m = len(span)
+    if m == 0 or m > len(toks):
+        return False
+    cand = np.flatnonzero(toks[: len(toks) - m + 1] == span[0])
+    if m > 1 and cand.size:
+        cand = cand[toks[cand + 1] == span[1]]
+    for i in cand:
+        if np.array_equal(toks[i : i + m], span):
+            return True
+    return False
+
+
+def _ood_arm_draw(cfg, args, model, tok, arm, n, seed, od):
+    """One arm's `n` targets, from its pool windows. Returns (rows, acts, windows, report)."""
+    import torch
+
+    base, root = args["base"], args["root"]
+    read_layer = cfg["bases"][base]["read_layer"]
+    spec = C.ood_arm(cfg, arm)
+    cdir = C.corpus_dir(base, root, arm)
+    assert os.path.exists(f"{cdir}/stream.json"), (
+        f"no {cdir}: run `--product corpus --base {base} --arm {arm}` first (it writes the target "
+        f"pool this draw reads)"
+    )
+    with open(f"{cdir}/stream.json") as fh:
+        stream = json.load(fh)
+    pool = C.read_jsonl(f"{cdir}/pool.jsonl")
+    pool_n, window = len(pool), int(stream["pool_window"])
+    wins = C.read_array(f"{cdir}/pool_windows.i32", "int32", (pool_n, window))
+    rng = C.arm_rng(arm, seed)
+    p_all = rng.integers(REALACT_P_MIN, window, size=pool_n)
+    l_all = rng.integers(SPAN_MIN, SPAN_MAX + 1, size=pool_n)
+
+    t0 = time.time()
+    n_pre = min(OOD_PRESAMPLE_ROWS, pool_n)
+    pre = _forward_windows(model, read_layer, wins[:n_pre])
+    ii = rng.integers(0, n_pre, NORM_PRESAMPLE)
+    pp = rng.integers(REALACT_P_MIN, window, NORM_PRESAMPLE)
+    med = float(pre[torch.from_numpy(ii), torch.from_numpy(pp)].norm(dim=-1).median())
+    del pre
+
+    xs = []
+    for s in range(0, pool_n, 256):
+        h = _forward_windows(model, read_layer, wins[s : s + 256])
+        xs.append(h[torch.arange(h.shape[0]), torch.from_numpy(p_all[s : s + h.shape[0]])].clone())
+    x = torch.cat(xs)
+    nrm = x.norm(dim=-1)
+    ok = (nrm > 1e-3) & (nrm <= NORM_FILTER_MULT * med)
+    print(
+        f"[ood {arm}] presample median raw norm {med:.1f}; {int(ok.sum())}/{pool_n} pool windows "
+        f"pass the filter ({time.time() - t0:.0f}s)",
+        flush=True,
+    )
+
+    note = C.check_token_bytes(tok, [int(t) for t in wins[0]])
+    rows, acts, windows = [], [], []
+    for i in np.flatnonzero(ok.numpy()):
+        if len(rows) >= n:
+            break
+        i = int(i)
+        p, span = int(p_all[i]), int(l_all[i])
+        ids = wins[i]
+        cov = C.token_covariates(tok, [int(t) for t in ids], p, spec["script"], bool(spec["unspaced"]))
+        rows.append(
+            {
+                "family": spec["family"],
+                "arm": arm,
+                "id": f"{arm}:pool{i}:p{p}:L{span}",
+                "stratum": cov.get("tok_class"),
+                "pool_i": i,
+                "src_rows": pool[i]["rows"],
+                "src_dataset": stream["dataset"],
+                "src_revision": stream["revision"],
+                "src_split": stream.get("split"),
+                "src_files": stream["files"],
+                "licence": stream.get("licence"),
+                "p": p,
+                "L": span,
+                "act_norm": round(float(nrm[i]), 3),
+                "span_text": tok.decode([int(t) for t in ids[p - span + 1 : p + 1]]),
+                **{k: v for k, v in cov.items() if k not in ("unit_start", "unit_end")},
+            }
+        )
+        acts.append(x[i].float())  # RAW X[p]; the mean is named per RUN, not baked in here
+        windows.append(np.asarray(ids, dtype=np.int32))
+    assert len(rows) == n, (
+        f"arm {arm}: only {len(rows)} of {n} targets survived the raw-norm filter over a "
+        f"{pool_n}-document pool"
+    )
+
+    toks = np.memmap(f"{cdir}/tokens.i32", dtype=np.int32, mode="r")
+    verbatim = sum(
+        1
+        for r, w in zip(rows, windows, strict=True)
+        if _span_in_corpus(toks, w[r["p"] - r["L"] + 1 : r["p"] + 1])
+    )
+    report = {
+        "arm": arm,
+        "family": spec["family"],
+        "n": len(rows),
+        "pool_n": pool_n,
+        "pass_norm_filter": int(ok.sum()),
+        "norm_median": round(med, 2),
+        "verbatim_spans": verbatim,
+        "verbatim_rate": round(verbatim / len(rows), 4),
+        "corpus_tokens": int(stream["corpus_tokens"]),
+        "revision": stream["revision"],
+        "byte_piece_rate": round(sum(r["byte_piece"] for r in rows) / len(rows), 4),
+        "tok_class": {
+            c: sum(1 for r in rows if r.get("tok_class") == c)
+            for c in sorted({r.get("tok_class") for r in rows})
+        },
+        "char_type": {
+            c: sum(1 for r in rows if r["char_type"] == c)
+            for c in sorted({r["char_type"] for r in rows})
+        },
+    }
+    print(f"[ood {arm}] {report}", flush=True)
+    od.note(
+        f"arm `{arm}` ({spec['family']}): {len(rows)} targets from a {pool_n}-doc pool "
+        f"({int(ok.sum())} passed the norm filter, presample median {med:.1f}); source "
+        f"{stream['dataset']}@{stream['revision'][:12]}; corpus {stream['corpus_tokens']} tokens; "
+        f"verbatim shown span in its own corpus: {verbatim}/{len(rows)} "
+        f"({verbatim / len(rows):.1%}); byte-piece rate {report['byte_piece_rate']:.3f}; "
+        f"tok_class {report['tok_class']}; {note}"
+    )
+    return rows, acts, windows, report
+
+
+def run_ood(cfg, args):
+    """`--set <an ood set>`: 64 targets per arm, or the `_unitend` variant of an existing set."""
+    import torch
+
+    base, root = args["base"], args["root"]
+    set_name = args["heldout"]
+    spec = cfg["heldout"][set_name]
+    seed = int(spec["seed"])
+    n = int(spec["n_per_arm"])
+    arms = C.ood_set_arms(cfg, set_name)
+    only = [a for a in (args.get("arm") or "").split(",") if a]
+    if only:
+        for a in only:
+            assert a in arms, f"--arm {a!r} is not in set {set_name!r} ({arms})"
+        arms = only
+    read_layer = cfg["bases"][base]["read_layer"]
+    variant_of = spec.get("variant_of")
+
+    out = C.heldout_dir(base, set_name, root)
+    inputs = {
+        "base": base,
+        "set": set_name,
+        "arms": arms,
+        "n_per_arm": n,
+        "seed": seed,
+        "storage": "raw (act.f32 + unit(act)); the centring mean is NAMED per run, not stored",
+    }
+    if variant_of:
+        inputs["variant_of"] = C.heldout_dir(base, variant_of, root)
+    with C.outdir(out, args, inputs=inputs) as od:
+        model, tok = C.load_base(cfg, base)
+        rows, acts, windows, reports = [], [], [], []
+        if variant_of:
+            rows, acts, windows, reports = _ood_variant(cfg, args, model, tok, variant_of, arms, od)
+        else:
+            for arm in arms:
+                r, v, w, rep = _ood_arm_draw(cfg, args, model, tok, arm, n, seed, od)
+                rows += r
+                acts += v
+                windows += w
+                reports.append(rep)
+        for i, row in enumerate(rows):
+            row["row"] = i
+        # STORAGE: raw (plan §1.2, §4.3.1). act.f32 is X[p] as read and vecs.f16 is unit(act);
+        # the English centring the design fixes (§10 decision 10) is now NAMED at run time --
+        # `--mu base/{base}/stats/mu.f32`, which is every OOD product's default through the
+        # MAEMM's own `mu:` -- instead of being baked into the stored row. The design's choice is
+        # preserved exactly; what changes is that a per-arm-centred rescoring is a flag rather
+        # than a re-draw.
+        a = torch.stack(acts).float()
+        v = torch.nn.functional.normalize(a, dim=-1)
+        nrm = v.norm(dim=-1)
+        assert torch.allclose(nrm, torch.ones_like(nrm), atol=1e-5), (
+            f"held-out vectors must be unit rows; got min {nrm.min():.6f} max {nrm.max():.6f}"
+        )
+        # The contract in one assert, as the English path has it: vecs.f16 IS unit(act.f32).
+        cos_av = torch.nn.functional.cosine_similarity(a, v.float(), dim=-1)
+        assert float(cos_av.min()) > 1 - 1e-5, (
+            f"vecs.f16 is not unit(act.f32) on every row: min cos {float(cos_av.min()):.6f}"
+        )
+        ordered = [{"row": r["row"], **{k: x for k, x in r.items() if k != "row"}} for r in rows]
+        od.write_jsonl("ids.jsonl", ordered)
+        od.write_array("act.f32", a, "float32")
+        od.write_array("vecs.f16", v, "float16")
+        od.write_array("windows.i32", np.stack(windows), "int32")
+        od.write_json(
+            C.STORAGE_FILE,
+            C.storage_record(cfg, set_name, sorted({r["family"] for r in rows})),
+        )
+        od.write_json("arms.json", {"arms": arms, "reports": reports})
+        od.section(
+            "Draw",
+            [
+                f"OOD generalisation set `{set_name}` (design "
+                "`infra/2026-09-18_ood-eval-design.md` §2/§3, review §11 R5).",
+                "",
+                f"- {len(arms)} arms x {n} targets; the family of a row is its ARM's family and "
+                "`arm` is the second stratification key;",
+                "- each arm's targets come from `corpora/<arm>/pool_windows.i32`, the documents "
+                "AFTER that arm's corpus in the one permuted row stream of the source slice, so "
+                "corpus and target documents are disjoint by construction (design §2);",
+                f"- the rule is `_realact`'s, unchanged: a 512-token no-BOS window, `p ~ "
+                f"U[{REALACT_P_MIN}, 512)`, shown span `L ~ U[{SPAN_MIN}, {SPAN_MAX}]` ending at "
+                f"p, a raw-norm filter (> 1e-3 and <= {NORM_FILTER_MULT}x a "
+                f"{NORM_PRESAMPLE}-position presample median of the SAME arm's pool), applied at "
+                "selection only;",
+                "- STORAGE `raw` (storage.json): `act.f32` is `X[p]` as read and `vecs.f16` is "
+                "`unit(X[p])`, UNCENTRED. The direction a run scores against is derived at read "
+                "time by `common.dirs_for` under the mean that run NAMES. The design's mean is "
+                "the ENGLISH `stats/mu.f32` on every arm (open decision 10: the centring mean is "
+                "the inverter's input convention, not a property of the domain), which is what "
+                "each MAEMM's own `mu:` resolves to for the old primary; `rl-last16` names "
+                "`whiten_mu` instead, and both are legal readings of the same stored rows;",
+                "- `p` and `L` come from `common.arm_rng(arm, seed)`, a stream independent of the "
+                "row permutation `common.arm_perm(arm, ...)` the corpus was cut from;",
+                "- the tokenisation covariates (`tok_class`, `n_subtokens`, `byte_piece`, "
+                "`whole_char`, `multi_char`, `char_type`) are from the TOKENIZER alone, at draw "
+                "time, on the CPU (`common.token_covariates`); `unspaced` arms get the single "
+                "class `unspaced` and no `n_subtokens`, because they have no defensible word "
+                "boundary (design §3);",
+                "- `windows.i32` [N, 512] stores each target's window, so `nll` and any "
+                "re-analysis need neither the source nor the network.",
+            ],
+        )
+        od.note(
+            "verbatim-span rate per arm is in the per-arm notes above and in `arms.json`: the "
+            "fraction of targets whose SHOWN span occurs verbatim somewhere in that arm's own "
+            "corpus (design §4 -- near-duplicate documents are reported, never masked)"
+        )
+        od.note(f"read layer {read_layer}; d {cfg['bases'][base]['d']}; one row per target")
+    return {
+        "out": out,
+        "rows": len(rows),
+        "arms": {r["arm"]: r["n"] for r in reports},
+        "reports": reports,
+    }
+
+
+def _ood_variant(cfg, args, model, tok, variant_of, arms, od):
+    """`_unitend` (review R5): the base set's windows with `p` moved to the end of its unit.
+
+    wordend on the spaced-script and code arms (p -> the last token of its whitespace unit),
+    charend on the unspaced ones (p -> the last byte piece of its character, and only where the
+    token at p is a partial character). Targets whose `p` already ends its unit are carried over
+    unchanged with `variant_rule: none`, so the variant set is row-for-row comparable.
+    """
+    base, root = args["base"], args["root"]
+    read_layer = cfg["bases"][base]["read_layer"]
+    src = C.heldout_dir(base, variant_of, root)
+    base_rows = C.read_jsonl(f"{src}/ids.jsonl")
+    n_all = len(base_rows)
+    wins_all = C.read_array(f"{src}/windows.i32", "int32", (n_all, REALACT_WINDOW))
+    keep = [i for i, r in enumerate(base_rows) if r["arm"] in arms]
+    assert keep, f"none of {arms} is in {src}/ids.jsonl"
+    rows, acts, windows, reports = [], [], [], []
+    for arm in arms:
+        sel = [i for i in keep if base_rows[i]["arm"] == arm]
+        wins = wins_all[sel]
+        h = _forward_windows(model, read_layer, wins)
+        moved = 0
+        for k, i in enumerate(sel):
+            b = dict(base_rows[i])
+            p_new = int(b["unitend_p"])
+            rule = b["unitend_rule"]
+            moved += rule != "none"
+            span = int(b["L"])
+            ids = wins[k]
+            row = {
+                **{x: y for x, y in b.items() if x != "row"},
+                "p": p_new,
+                "p_orig": int(b["p"]),
+                "variant_rule": rule,
+                "variant_of": variant_of,
+                "id": f"{arm}:pool{b['pool_i']}:p{p_new}:L{span}",
+                "span_text": tok.decode([int(t) for t in ids[max(0, p_new - span + 1) : p_new + 1]]),
+                "act_norm": round(float(h[k, p_new].norm()), 3),
+            }
+            rows.append(row)
+            acts.append(h[k, p_new].float())  # RAW X[p_new], as the base set
+            windows.append(np.asarray(ids, dtype=np.int32))
+        rules = {
+            r: sum(1 for i in sel if base_rows[i]["unitend_rule"] == r)
+            for r in ("wordend", "charend", "none")
+        }
+        reports.append({"arm": arm, "n": len(sel), "moved": moved, "rules": rules})
+        od.note(f"arm `{arm}`: {moved}/{len(sel)} targets moved; rules {rules}")
+        print(f"[ood-variant {arm}] {moved}/{len(sel)} moved, rules {rules}", flush=True)
+    return rows, acts, windows, reports

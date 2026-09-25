@@ -1,6 +1,6 @@
 # reconstruction/ — the local analysis layer
 
-Four local scripts. None of them touches a GPU, loads a model, or computes a cosine: every number
+Six local scripts. None of them touches a GPU, loads a model, or computes a cosine: every number
 they print was produced on the volume by `precompute/` and is read back here.
 
 | script | what it answers |
@@ -8,10 +8,68 @@ they print was produced on the volume by `precompute/` and is read back here.
 | `stats.py` | **the paper's tables** — every product on one root, joined (this file, below) |
 | `repro_run1.py` | does our pipeline reproduce run1's archived numbers on the 16 imported directions? |
 | `parity.py` | do the HF and vLLM engines produce the same MAEMM? |
+| `act_smoke.py` | how hard does a target feature fire on each source, as a max over rollouts? |
+| `sae_smoke64.py` | the same question at a MATCHED best-of-k, per density stratum, on both SAEs |
 
-`stats.py` fetches the small files off the volume into `reconstruction/data/<root-tag>/` (mirroring
-the volume's own paths) and writes markdown + CSV into `reconstruction/out/<root-tag>/`. Both are
-gitignored (`paper-evals/.gitignore`). **`best_act.f16` is never fetched** — 335 MB per MAEMM at
+## The two activation smokes
+
+`act_smoke.py` is the first cut and is **frozen** — the numbers in `SMOKES.md` were produced by
+it and it is not edited. It reports one statistic per (feature, source): the max over that
+source's rollouts, with the 64-rollout product truncated to its first 4 (`maemm_bo4`) to correct
+for the rollout count.
+
+`sae_smoke64.py` generalises it and is the one to run now:
+
+* every source is read at **bo1 / bo4 / bo16** — the disjoint-group best-of-k mean
+  (`common.best_of_k_means`, the estimator `score`'s `per_target.jsonl` already uses for
+  cosines) — so two sources are comparable at whatever k they both reach, the whole rollout
+  budget is used at every k, and no source is truncated to make a comparison;
+* four sources per SAE — `primary`, `rl16`, `nla`, `corpus` — plus `primary16` on the 131k side,
+  which is the 64-rollout vLLM product read at its first 16 so the rollout budget is literally
+  equal to the 2M side's. All declared in one table at the top of the file, with one mirror
+  `root` per SAE and a per-source root override for a product the smoke did not write;
+* every table is also cut **per stratum**;
+* cosines go into the `.json` only, never into a result table;
+* the file ends with a **Comparison against prior results** section: Celeste's card numbers, a
+  reader check of the stored `sae_self.json` `per_target` against a recomputation from
+  `sae_self.f16`, and the 2026-09-21 `act_smoke` medians. Each is computed where its inputs are
+  in the mirror and printed as `absent` with the reason where they are not.
+
+Both are local and offline: `--data <mirror>` whose subpaths are the volume's own, nothing
+fetched, nothing recomputed on a GPU. Nothing in either is mocked or stubbed — a source that is
+not in the mirror is reported `absent`, never as a zero.
+
+**What `sae_smoke64.py` needs in the mirror, beyond what act_smoke needed.** `--peaks-1b` is
+optional and only feeds the card comparison on the 2M side: the stratified draw already writes
+`corpus_peak_1b` into that set's `ids.jsonl`, and the flag is there for a draw made on a mirror
+without the bundle's `data/celeste-v2-2026-09-17/heldout/eval_2m_features_100k_windows.parquet`.
+On the 131k side the card comparison wants
+`base/qwen36-27b/sae/l42-1b/repo_examples/<set>/repo_examples.jsonl` — its `repo_peak` column
+maxed over a feature's shipped windows. `per_feature.jsonl` from the same directory is accepted
+as a fallback, but it carries only `repo_mean_peak`, a MEAN over those windows and not a peak,
+so every ratio taken against it is inflated and the section says so where it is used.
+
+**Mirror `per_feature.jsonl` as well, even when `repo_examples.jsonl` is there.** Her 1.0B-scan
+peak for the 131k SAE is not in our data at all; the repo's shipped max-acts are a PROXY, and
+whether they are even on our activation scale is an open question in `paper-evals/README.md`
+(whether the shipped file folds the SAE's `norm_factor`). `per_feature.jsonl` is the only file
+carrying our re-scored peak (`mean_peak_act`) beside the repo's own stored value
+(`repo_mean_peak`) over the SAME windows, so their per-feature ratio IS that scale. The card
+block reports its median and IQR; outside 0.9–1.1, or unmeasured, the `÷ repo peak` column is
+labelled `unverified` and the verdict becomes *"denominator scale differs, not a pipeline
+verdict"* instead of naming a defect — the difference and its z are still printed. The 2M side
+needs none of this: `corpus_peak_1b` is her own measurement, not a stand-in for it.
+
+    uv run paper-evals/reconstruction/sae_smoke64.py --selftest
+    uv run paper-evals/reconstruction/sae_smoke64.py --data ~/mirror \
+        --rows <the 64 sae rows of 2026-09-16_v1> --out out/sae_smoke64.md
+
+`stats.py` fetches the small files off the volume into `mirror_dir(<root-tag>)` (mirroring
+the volume's own paths, default `$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root-tag>`) and writes
+markdown + CSV into `out_dir("reconstruction")` (default `<repo>/_out/reconstruction`, beside
+`paper-evals/`). The old `reconstruction/data/` and `reconstruction/out/` are legacy and no longer
+written by default — Modal mounts the whole `paper-evals/` tree into every image build, and a
+write there mid-build kills the launch. **`best_act.f16` is never fetched** — 335 MB per MAEMM at
 full scale; the centred cosine that needs it is computed ON the volume by `precompute/centred.py`
 and read back as an `[N, n]` array.
 
@@ -29,8 +87,8 @@ cd /home/gavento/dev/mimir/2026-09-maemms
 | flag | effect |
 |---|---|
 | `--tables adg` | build only those letters (default: all of `abcdefghi`) |
-| `--no-fetch` | answer everything from `reconstruction/data/<root-tag>/`; a miss is reported, not fetched |
-| `--refetch` | re-download even what `data/` already has (the cache is by existence) |
+| `--no-fetch` | answer everything from the mirror (`mirror_dir(<root-tag>)`); a miss is reported, not fetched |
+| `--refetch` | re-download even what the mirror already has (the cache is by existence) |
 | `--modal-cmd` | how to invoke the CLI (default `uvx modal`) |
 | `--width 200` | console width; 0 = the terminal's, and 200 when the output is piped |
 | `--data-dir` / `--out-dir` | override either directory |

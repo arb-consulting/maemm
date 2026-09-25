@@ -132,6 +132,15 @@ def main(
     heldout: str = "",
     set: str = "",  # noqa: A002 -- `--set` is the flag name the rest of paper-evals uses
     family: str = "realact",
+    # WHICH SAE of the base the `sae` family's feature ids index; required as soon as the base
+    # carries more than one (qwen36-27b has, since sae2m). Full `<base>/<name>` key.
+    sae: str = "",
+    # WHICH mean the target directions are centred on: the PATH of a [d] .f32/.npy file (absolute,
+    # or relative to --root, `{base}` expanding to the base key), or "none". This product has no
+    # --maemm in scope, so on a `storage: raw` set it is REQUIRED -- see common.mu_for. On a legacy
+    # set it defaults to that set's own stored convention, which is what keeps every published gcg
+    # number reproducible.
+    mu: str = "",
     arm_suffix: str = "",
     rows: str = "",
     root: str = VOL,
@@ -149,6 +158,7 @@ def main(
     filter_oversample: float = 0.0,
     seed: int = 0,
     resume_from: str = "",
+    no_auto_resume: bool = False,
 ):
     """One (base, family, arm) search run. `--arm <mode>-<init>`, or `--mode` and `--init`.
 
@@ -157,8 +167,17 @@ def main(
     the mode (gcg: 150 x 1 x 512 at lambda 0; epo: 300 x 3 x 85 at
     lambda 0.1/0.19/0.37) and is overridable for a cheap shakeout, e.g. `--iters 10 --rows 0`.
 
-    `--resume-from /vol/.../<arm>.tmp-<date>` carries the finished directions of a kept temp dir
-    into this call and runs only the rest of `--rows`; the output is the ordinary arm dir.
+    `--rows` ALSO makes the call a CHUNK: it writes `finals__rows<spec>.jsonl` and its three
+    siblings into the arm's one directory through the additive product write, so 4-16 chunks of one
+    arm run in parallel without collision and `gcg/collect.py` reads their union. A call with no
+    `--rows` keeps the historical whole-family product.
+
+    RESUME IS THE RE-RUN. A failed chunk leaves its staging directory
+    `<arm>.tmp-<date>-<pid>-<hex>` on the volume (printed by `[outdir] FAILED`), and re-running the
+    same command finds it, carries the whole directions out of it and runs only what is left --
+    nothing is deleted, ever. `--resume-from <dir>` names one by hand instead;
+    `--no-auto-resume` turns the automatic half off. A chunk that is already committed is returned
+    without starting a container's search at all.
     """
     sys.path.insert(0, str(LOCAL_ROOT))
     import precompute.common as C
@@ -183,6 +202,8 @@ def main(
         "init": init,
         "heldout": set_name,
         "family": family,
+        "sae": sae,
+        "mu": mu,
         "arm_suffix": arm_suffix,
         "rows": rows,
         "root": root.rstrip("/") or VOL,
@@ -200,12 +221,17 @@ def main(
         "filter_oversample": filter_oversample,
         "seed": seed,
         "resume_from": resume_from.rstrip("/"),
+        "no_auto_resume": no_auto_resume,
         # The container has no git checkout, so the commit every README records is captured here.
         "repo_commit": C.repo_commit(LOCAL_ROOT),
         "argv": sys.argv,
     }
     # Fail locally, in the first second, rather than after a 52 GiB model load: resolve_config
     # validates the whole arm configuration and needs nothing but config.yaml.
+    if sae:
+        C.sae_key_for(cfg, base, sae)  # fail locally on a bad --sae, not after a 52 GiB load
+    if mu and mu.lower() not in ("none", "null"):
+        C._check_mu_value(mu, "--mu", allow_unknown=False)
     a, lams, arm_resolved = gcg_mod.resolve_config(cfg, args)
     gpu = cfg["bases"][base]["gpu"]
     fn = {"H100": gpu_h100, "H200": gpu_h200}[gpu]

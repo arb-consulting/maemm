@@ -94,8 +94,21 @@ def main() -> None:
     ap.add_argument("--sae", default="")
     ap.add_argument("--draw", default="", help="draw_sae2m | draw_sae131k | '' to reuse the set")
     ap.add_argument("--subset", default="", help="an agreed feature list the draw takes verbatim")
-    ap.add_argument("--corpus-name", default="train_parity_10m",
-                    help="search corpus; default = the 10M training-parity corpus (Tomas 2026-09-21: 10M, from the training data). '' = the old 16M corpus/")
+    # DEFAULT CHANGED 2026-09-21, in the rebase onto arb/main. It was `train_parity_10m`, which
+    # this chain cannot scan: that corpus is cut at 32/8 (features/corpus_train_parity.py:60) and
+    # every `windows_of(` call site in this pipeline takes 64/16 from `common.SCAN_BLOCK`, so
+    # `common.assert_corpus_geometry` refuses it in `scan` and `stats` -- correctly, because the
+    # alternative is a scan README claiming 64/16 over 32/8 data. The chain's own default must be
+    # a corpus the chain can run, so it is the plain `corpus/` (heldout16m, 64/16).
+    #
+    # H7 IS STILL OPEN, and this line is not the fix. Threading block/stride from the `corpora:`
+    # entry through the eleven `windows_of(` sites -- plus the window-id join check, because
+    # stored top-k lists index into a specific geometry -- is the real piece of work, and it is
+    # not this rebase's. `--corpus-name train_parity_10m` still refuses, loudly, with the reason.
+    ap.add_argument("--corpus-name", default="",
+                    help="search corpus DIRECTORY; '' = the 16M corpus/ (heldout16m, 64/16). "
+                         "`train_parity_10m` is Tomas's 10M training-parity corpus and is cut at "
+                         "32/8 -- assert_corpus_geometry refuses it until H7 lands")
     ap.add_argument("--n", type=int, default=4, help="rollouts per target")
     ap.add_argument("--rows", default="")
     ap.add_argument("--stages", default="draw,rollouts,score,centred,scan")
@@ -160,7 +173,7 @@ def main() -> None:
          "started": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=1))
     print("\n" + json.dumps(calls, indent=1))
     print(f"\nstate: {STATE / (a.heldout + '.json')}")
-    print(f"status: python -m features.pipeline --status")
+    print("status: python -m features.pipeline --status")
 
     if a.watch:
         for stage, cid in calls.items():

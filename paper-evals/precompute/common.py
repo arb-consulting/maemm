@@ -16,10 +16,12 @@ import contextlib
 import hashlib
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
 import time
+import zlib
 from pathlib import Path
 
 # ---------------------------------------------------------------------------------------------
@@ -28,7 +30,83 @@ from pathlib import Path
 
 VOL = "/vol"
 HERE = Path(__file__).resolve().parent
-CONFIG_PATH = HERE.parent / "config.yaml"
+PAPER_EVALS = HERE.parent
+CONFIG_PATH = PAPER_EVALS / "config.yaml"
+
+
+# ---------------------------------------------------------------------------------------------
+# where a LOCAL reader may write: one place, and it is outside the tree Modal mounts
+# ---------------------------------------------------------------------------------------------
+#
+# NOTHING A READER WRITES MAY LAND UNDER `paper-evals/`, AND THAT IS NOT A STYLE RULE.
+# `precompute/modal_app.py` mounts the whole `paper-evals/` tree into every image with
+# `add_local_dir(..., copy=True)`, and Modal hashes the tree as it builds. Any file appearing or
+# changing under it mid-build kills the launch with `<file> was modified during build process`.
+# That is how the 2026-09-23 L14 scoring job was lost, at the cost of a relaunch: not a concurrent
+# session editing code -- the diagnosis SMOKES.md recorded for the same failure on 2026-09-16 --
+# but a READER'S OWN FETCH MIRROR, `results/data/`, filling up beside it. Eleven builders running
+# readers next to paid Modal jobs makes this a live, recurring, expensive defect, so the defaults
+# live here, in ONE place, and `mirror_dir`/`out_dir` refuse a path under the mount whatever it
+# came from.
+#
+# Two kinds, because they are different things and want different homes:
+#   * the MIRROR is a pure cache of volume bytes, reproducible by re-fetching and shared by every
+#     checkout of every branch (the volume is one volume), so it belongs in the user cache;
+#   * the OUTPUT is a work product a person opens -- tables, CSVs, figures -- so it belongs beside
+#     the repo, where it can be found, and NOT in a cache directory that a cleaner may empty.
+# An explicit `--data` / `--out` still overrides either, and the committed product directories
+# (`results/ood/`, `results/faithfulness/`, `results/patchscopes/`, `results/tierb/`) are still
+# written by naming them on the command line -- deliberately, at a moment the operator chose,
+# which is exactly what a DEFAULT cannot be.
+
+MIRROR_ENV = "MAEMM_MIRROR"
+OUT_ENV = "MAEMM_OUT"
+
+
+def _outside_the_mount(p: Path, what: str, how: str) -> Path:
+    """`p`, resolved, or an assertion naming what would have broken."""
+    p = Path(p).expanduser().resolve()
+    assert not p.is_relative_to(PAPER_EVALS), (
+        f"{what} resolves to {p}, which is INSIDE {PAPER_EVALS} -- the tree "
+        f"`precompute/modal_app.py` mounts into every image with copy=True. A reader writing "
+        f"there kills any Modal launch racing it with `was modified during build process`. "
+        f"{how}"
+    )
+    return p
+
+
+def mirror_dir(root: str = "") -> Path:
+    """The default local mirror of the Modal volume, for volume-relative prefix `root`.
+
+    `${MAEMM_MIRROR}/<root>` when that is set -- which is how several worktrees share one cache --
+    otherwise `$XDG_CACHE_HOME/maemm-paper-evals/mirror/<root>` (`~/.cache` when XDG is unset),
+    the path `results/patchscopes.py` took first on 2026-09-23. `root` is the volume-relative
+    prefix the reader was given, slashes flattened; empty means the volume root.
+    """
+    slug = root.strip("/").replace("/", "_") or "vol"
+    base = os.environ.get(MIRROR_ENV) or (
+        Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "maemm-paper-evals"
+        / "mirror"
+    )
+    return _outside_the_mount(
+        Path(base) / slug, f"the default mirror for root {root or '(volume root)'!r}",
+        f"Point ${MIRROR_ENV} somewhere else, or pass the mirror explicitly.",
+    )
+
+
+def out_dir(tool: str) -> Path:
+    """The default output directory for reader `tool` (`faithfulness`, `ood`, ...).
+
+    `${MAEMM_OUT}/<tool>` when that is set, otherwise `<repo>/_out/<tool>` -- beside
+    `paper-evals/`, never inside it, and gitignored at the repo root. A committed product
+    directory is reached by naming it: `--out results/ood`.
+    """
+    assert tool and "/" not in tool, f"out_dir takes a bare tool name, not {tool!r}"
+    base = Path(os.environ.get(OUT_ENV) or (PAPER_EVALS.parent / "_out"))
+    return _outside_the_mount(
+        base / tool, f"the default output directory for {tool!r}",
+        f"Point ${OUT_ENV} somewhere else, or pass `--out` explicitly.",
+    )
 
 # eval/eval_universal.py:138 -- the re-encode truncation. Checklist item 7: it must leave room for
 # the whole rollout plus the prepended sink, i.e. max_length >= rollouts.max_new + 1; asserted in
@@ -48,6 +126,44 @@ MARKER = " ?"  # mxf/prompts.py:4
 # `nla.amp` and must not import a product module to do it.
 AMP_MODES = ("exact", "mu", "raw")
 
+# --- the centring vocabulary (2026-09-21, branch `evals/pipeline`) -----------------------------
+# A MU IS A FILE. Wherever a centring mean appears -- `maemms.<k>.mu`, `bases.<base>.whiten_mu`,
+# `--mu` -- the value is null (subtract nothing), or a path to a [d] `.f32` / `.npy` file, or the
+# string `unknown` (a checkpoint's own `mu:` only). There is no enum and no registry of mean
+# NAMES: a checkpoint trained on a new mean is a new path in a config entry, and nothing else
+# changes. That is what lets a new SAE / MAEMM land as a config-only edit.
+#
+# TWO AXES SINCE 2026-09-23 (M0a). `maemms.<k>.mu` (`input_mu`) is the INJECTION convention -- what
+# a checkpoint was trained to receive. `bases.<base>.whiten_mu` (`score_mu`) is the SCORING
+# CONSTANT, the mean both arguments of every centred cosine are taken about, a property of the
+# base and of no run. The per-set `mu_stored` / `family_mu` layer that used to name a third thing
+# is deleted: a stored unit direction cannot be re-centred, so such a set has no centred reading.
+FAMILY_KINDS = ("activation", "synthetic", "dictionary", "subspace")
+STORAGE_KINDS = ("raw", "unit", "dirs_only")
+# Products that WRITE a held-out set. They must be told which by name -- D6. An omitted --set
+# used to resolve to `default_heldout(cfg)`, the LIVE set every table is built on, and `--force`
+# would then rmtree it. There is no safe default for "where do I write a new set".
+#
+# HERE, not in modal_app, because `features/spawn.py` enforces the same guard and bypasses
+# modal_app entirely -- which is how the hazard reached the volume in the first place. Two copies
+# of this tuple had already drifted apart by 2026-09-21: modal_app knew about `heldout_v3` and
+# spawn did not, and neither knew about `draw_sae131k`.
+SET_WRITERS = ("targets", "draw_sae2m", "draw_sae131k", "heldout_v3")
+# "considered, not established" -- legal in a checkpoint's own `maemms.<k>.mu` only. Every run of
+# such a checkpoint must be told the convention with --mu, recorded as a choice, not a reading.
+MU_UNKNOWN = "unknown"
+# Accepted on-disk forms of a mean. Anything else is a typo, not a format.
+MU_SUFFIXES = (".f32", ".npy")
+# OUR 64/16-window read-layer mean, as a path rather than a name -- root-relative and
+# base-templated, so a smoke gets its own. It is ONE mean among several, not "the" one; nothing
+# centres on it unless a `mu:` / `--mu` says so.
+STATS_MU = "base/{base}/stats/mu.f32"
+# The file a `targets`-written set carries its own storage contract in. It is an ordinary product
+# file (listed in index.json like any other), NOT a second sidecar: `common.set_storage` reads it
+# when present and falls back to config.yaml's `heldout.<set>` block for every set drawn before it
+# existed, and for a `--dirs-from` directory that is neither.
+STORAGE_FILE = "storage.json"
+
 # The held-out set name `targets.py --import-run1` writes. It is NOT a config.yaml `heldout` entry:
 # it is not a draw of ours at all but a 16-row slice of run1's archived eval cache, and it exists
 # only so reconstruction/repro_run1.py can compare our pipeline against the archived numbers.
@@ -56,6 +172,12 @@ IMPORT_RUN1_SET = "2026-09-03_run1-archive16"
 # Corpus scan geometry (checklist item 57: block size and stride are results-affecting, so they are
 # named once here and quoted in every README). The old retrieval baseline used BLOCK 64 / STRIDE 32
 # (eval/corpus_retrieval.py:89-91); ours is stride 16, i.e. 4x the coverage per token.
+# THE window geometry of every scan in this pipeline. It is a CONSTANT, not a default: eleven
+# `windows_of(` call sites across stats, scan, top1_act, sae_self, build and gcg reconstruct the
+# same window ids to join on, and they all take it from here. `corpora:` DECLARES a per-corpus
+# block/stride so a corpus built elsewhere (Ari's train_parity_10m, 32/8) is described honestly --
+# but declaring is not threading, and `assert_corpus_geometry` REFUSES such a corpus rather than
+# scanning it at 64/16 and writing a README that says 32/8. See H7 in CHANGES-pipeline.md.
 SCAN_BLOCK = 64
 SCAN_STRIDE = 16
 
@@ -84,7 +206,17 @@ def load_config(path: str | Path | None = None) -> dict:
     with open(path) as fh:
         cfg = yaml.safe_load(fh)
 
-    for key in ("bases", "saes", "maemms", "heldout", "corpus", "rollouts", "modal"):
+    for key in (
+        "bases",
+        "corpora",
+        "family_kinds",
+        "saes",
+        "maemms",
+        "heldout",
+        "corpus",
+        "rollouts",
+        "modal",
+    ):
         assert key in cfg, f"config {path} is missing the top-level key {key!r}"
 
     max_new = cfg["rollouts"]["max_new"]
@@ -98,6 +230,77 @@ def load_config(path: str | Path | None = None) -> dict:
             assert key in spec, f"base {base!r} is missing {key!r}"
         assert spec["read_layer"] < spec["n_layers"], (
             f"base {base!r}: read_layer {spec['read_layer']} must be < n_layers {spec['n_layers']}"
+        )
+        if "whiten_mu" in spec:
+            _check_mu_value(spec["whiten_mu"], f"bases[{base!r}].whiten_mu", allow_unknown=False)
+
+    # The OOD arm corpora are `corpora:` entries like any other -- declared ONCE, in `ood_arms:`,
+    # because that is where the arm's source, ladder and licence already live. Synthesising them
+    # here rather than writing 23 more blocks by hand keeps one source for the ladder: a corpus
+    # built at [1, 4] and declared at [1, 4, 16] somewhere else is exactly the silent mismatch
+    # `assert_corpus_geometry` and the `dirs` uniqueness check below exist to catch.
+    # Geometry is the pipeline's 64/16 (common.SCAN_BLOCK/SCAN_STRIDE), which is also the design's
+    # (infra/2026-09-18_ood-eval-design.md §1: "64-token windows at stride 16"), so no OOD scan
+    # differs from the English one in anything but the text.
+    for arm, aspec in (cfg.get("ood_arms") or {}).items():
+        key = f"ood_{arm}"
+        assert key not in cfg["corpora"], (
+            f"corpora[{key!r}] is declared by hand AND synthesised from ood_arms[{arm!r}]; one of "
+            f"the two ladders would silently win"
+        )
+        cfg["corpora"][key] = {
+            "dir": arm,
+            "sizes": list(aspec["sizes"]),
+            "block": SCAN_BLOCK,
+            "stride": SCAN_STRIDE,
+            "dataset": aspec["dataset"],
+            "note": (
+                f"OOD arm {arm!r} (family {aspec['family']}), its own in-domain corpus, built by "
+                f"`--product corpus --arm {arm}` from the same permuted row stream as the arm's "
+                f"targets and disjoint from them by construction (design §2, §4)."
+            ),
+        }
+
+    for key, cspec in cfg["corpora"].items():
+        assert isinstance(cspec, dict), f"corpora[{key!r}] must be a mapping, got {cspec!r}"
+        for field in ("dir", "sizes", "block", "stride"):
+            assert field in cspec, f"corpora[{key!r}] is missing {field!r}"
+        assert isinstance(cspec["dir"], str) and cspec["dir"] and "/" not in cspec["dir"], (
+            f"corpora[{key!r}].dir must be a single directory name ('corpus' for the original "
+            f"base/<base>/corpus/, anything else for corpora/<dir>/), got {cspec['dir']!r}"
+        )
+        sizes = cspec["sizes"]
+        assert isinstance(sizes, list) and sizes and sizes == sorted(sizes), (
+            f"corpora[{key!r}].sizes must be an ascending list of nested sizes in millions of "
+            f"tokens, got {sizes!r}"
+        )
+        for field in ("block", "stride"):
+            assert isinstance(cspec[field], int) and cspec[field] > 0, (
+                f"corpora[{key!r}].{field} must be a positive int, got {cspec[field]!r}"
+            )
+        assert cspec["stride"] <= cspec["block"], (
+            f"corpora[{key!r}]: stride {cspec['stride']} > block {cspec['block']} would leave gaps "
+            f"between windows, so part of the corpus would never be scanned"
+        )
+    dirs = [c["dir"] for c in cfg["corpora"].values()]
+    assert len(set(dirs)) == len(dirs), (
+        f"two `corpora:` keys point at the same directory {sorted(dirs)}: a different ladder or "
+        f"window geometry is a DIFFERENT corpus, never a second name for one"
+    )
+
+    for fam, fspec in cfg["family_kinds"].items():
+        assert isinstance(fspec, dict) and sorted(fspec) == ["centrable", "kind"], (
+            f"family_kinds[{fam!r}] must carry exactly centrable and kind, got {sorted(fspec)}"
+        )
+        assert isinstance(fspec["centrable"], bool), (
+            f"family_kinds[{fam!r}]: centrable must be a bool, got {fspec['centrable']!r}"
+        )
+        assert fspec["kind"] in FAMILY_KINDS, (
+            f"family_kinds[{fam!r}]: kind must be one of {list(FAMILY_KINDS)}, got {fspec['kind']!r}"
+        )
+        assert fspec["centrable"] == (fspec["kind"] == "activation"), (
+            f"family_kinds[{fam!r}]: only an `activation` family has a mean to subtract, so "
+            f"centrable and kind == 'activation' must agree; got {fspec}"
         )
 
     for key, spec in cfg["saes"].items():
@@ -150,7 +353,7 @@ def load_config(path: str | Path | None = None) -> dict:
             # The NLA verbalizer builds its OWN prompt from the checkpoint's sidecar (its marker
             # is not our MARKER and is not the last prompt token), so the `prompt in PROMPTS`
             # assert below does not apply to it and `nla:` is validated instead.
-            _check_nla(key, spec, max_new)
+            _check_nla(key, spec, cfg["rollouts"])
         else:
             assert spec.get("prompt") in PROMPTS, (
                 f"maemm {key!r}: prompt {spec.get('prompt')!r} is not one of {sorted(PROMPTS)}"
@@ -162,32 +365,88 @@ def load_config(path: str | Path | None = None) -> dict:
         assert isinstance(spec.get("compute", True), bool), (
             f"maemm {key!r}: `compute` must be a bool (default true), got {spec.get('compute')!r}"
         )
+        if "mu" in spec:
+            # `unknown` IS legal on a checkpoint (Tomáš 2026-09-21): a THIRD state between "no key"
+            # (nobody has considered it) and a path/null (established). It says the training
+            # convention is on the agenda and not on the record, so every run must be told with
+            # --mu; `mu_for` refuses to pick one.
+            _check_mu_value(spec["mu"], f"maemms[{key!r}].mu", allow_unknown=True)
+
+    # `ood_arms:` (design infra/2026-09-18_ood-eval-design.md §2). Optional: a config without it
+    # is the pre-2026-09-18 pipeline and every check below is skipped.
+    for arm, spec in (cfg.get("ood_arms") or {}).items():
+        assert "/" not in arm and arm, f"ood arm {arm!r} is a DIRECTORY name under corpora/"
+        for field in ("family", "reader", "dataset", "files", "text", "sizes", "script", "unspaced"):
+            assert field in spec, f"ood arm {arm!r} is missing {field!r}"
+        assert spec["family"] in ("lang", "ctrl", "code", "math", "diag"), (
+            f"ood arm {arm!r}: unknown family {spec['family']!r}"
+        )
+        assert spec["reader"] in ("parquet", "jsonl", "jsonl_zst", "formulas"), (
+            f"ood arm {arm!r}: unknown reader {spec['reader']!r}"
+        )
+        assert isinstance(spec["files"], list) and spec["files"], f"ood arm {arm!r}: files must be a list"
+        sizes = spec["sizes"]
+        assert isinstance(sizes, list) and sizes == sorted(sizes) and sizes[0] > 0, (
+            f"ood arm {arm!r}: sizes must be an ascending list of MILLIONS of tokens, got {sizes}"
+        )
+        assert isinstance(spec["unspaced"], bool), f"ood arm {arm!r}: unspaced must be a bool"
+        parts = SCRIPT_ALIASES.get(spec["script"], (spec["script"],))
+        for name in parts:
+            assert name in SCRIPT_RANGES, (
+                f"ood arm {arm!r}: script {spec['script']!r} has no range table "
+                f"(common.SCRIPT_RANGES knows {sorted(SCRIPT_RANGES)})"
+            )
 
     for set_name, spec in cfg["heldout"].items():
+        if spec.get("kind") == "ood":
+            assert cfg.get("ood_arms"), f"heldout {set_name!r} is an ood set but config has no ood_arms"
+            assert int(spec.get("n_per_arm", 0)) > 0, f"heldout {set_name!r}: n_per_arm must be > 0"
+            want = spec.get("arms", "all")
+            assert want == "all" or (isinstance(want, list) and want), (
+                f"heldout {set_name!r}: `arms` must be `all` or a non-empty list, got {want!r}"
+            )
+            if isinstance(want, list):
+                for a in want:
+                    assert a in cfg["ood_arms"], f"heldout {set_name!r}: unknown arm {a!r}"
+            base_set = spec.get("variant_of")
+            assert base_set is None or base_set in cfg["heldout"], (
+                f"heldout {set_name!r}: variant_of {base_set!r} is not a held-out set"
+            )
         assert isinstance(spec.get("families"), dict), (
             f"heldout {set_name!r}: families must be a name -> spec MAPPING (checklist item 38: "
             f"families are keyed by name, never by list position), got {type(spec.get('families'))}"
         )
         for fam, fspec in spec["families"].items():
             assert "n" in fspec, f"heldout {set_name!r} family {fam!r} is missing 'n'"
+            assert fam in cfg["family_kinds"], (
+                f"heldout {set_name!r} names family {fam!r}, which has no `family_kinds:` entry; "
+                f"nothing can then say whether a mean may be subtracted from its rows "
+                f"(have {sorted(cfg['family_kinds'])})"
+            )
             for b in fspec.get("bases", []):
                 assert b in cfg["bases"], (
                     f"heldout {set_name!r} family {fam!r} restricted to unknown base {b!r}"
                 )
+        _check_heldout_storage(cfg, set_name, spec)
     return cfg
 
 
-# Exactly the keys a `type: nla` entry's `nla:` block carries, and the keys of its `sampling:`
-# sub-block. Both are closed sets: a typo (`max_nev: 96`) in a block whose every field steers an
-# H200 run would otherwise be read as "the field is absent", and every field here is required, so
-# "absent" has no safe meaning.
+# Exactly the keys a `type: nla` entry's `nla:` block carries. A closed set: a typo
+# (`max_nev: 96`) in a block whose every field steers an H200 run would otherwise be read as
+# "the field is absent", and every field here is required, so "absent" has no safe meaning.
+#
+# `sampling` LEFT the block on 2026-09-21 (Ari's bdb0705, Tomas + Juan): temperature / top_p /
+# top_k / min_new are now the shared `rollouts:` values every MAEMM arm generates under, so the
+# NLA arm cannot carry its own. This tuple and config.yaml were on opposite sides of that change
+# when the branches met -- main's config had already dropped the key while main's `NLA_KEYS` still
+# demanded it, so `load_config` raised on EVERY command, NLA or not. Reconciled here in main's
+# direction, which is the team decision.
 NLA_KEYS = (
     "marker",
     "marker_id",
     "left_id",
     "right_id",
     "template",
-    "sampling",
     "max_new",
     "score_max_tokens",
     "card_max_new",
@@ -195,10 +454,15 @@ NLA_KEYS = (
     "amp",
     "amp_r",
 )
+# Sampling keys the `nla:` block may OVERRIDE per-MAEMM, falling back to the shared `rollouts:`
+# block when absent. Only `min_new`: the verbalizer's stop comes well before the shared 16, and
+# editing the shared block instead would re-point every rollout product in the pipeline.
+NLA_OPTIONAL_KEYS = ("min_new",)
+# What the SHARED `rollouts:` block must carry for the NLA arm to generate under it.
 NLA_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "min_new")
 
 
-def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
+def _check_nla(key: str, spec: dict, rollouts: dict) -> None:
     """Validate one `type: nla` maemms entry. Called from load_config, never at use site.
 
     Everything here is a fact about the CHECKPOINT (ceselder/qwen3.6-27b-nla-av's nla_meta.yaml
@@ -220,10 +484,18 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
     )
     nla = spec.get("nla")
     assert isinstance(nla, dict), f"maemm {key!r}: a `type: nla` entry needs an `nla:` block, got {nla!r}"
-    missing, extra = sorted(set(NLA_KEYS) - set(nla)), sorted(set(nla) - set(NLA_KEYS))
+    allowed = set(NLA_KEYS) | set(NLA_OPTIONAL_KEYS)
+    missing, extra = sorted(set(NLA_KEYS) - set(nla)), sorted(set(nla) - allowed)
     assert not missing and not extra, (
-        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} -- missing {missing}, unexpected {extra}"
+        f"maemm {key!r}: `nla:` must carry exactly {list(NLA_KEYS)} (optionally "
+        f"{list(NLA_OPTIONAL_KEYS)}) -- missing {missing}, unexpected {extra}"
     )
+    for field in NLA_OPTIONAL_KEYS:
+        if field in nla:
+            assert isinstance(nla[field], int) and not isinstance(nla[field], bool) and nla[field] >= 0, (
+                f"maemm {key!r}: nla.{field} overrides rollouts.{field} and must be a "
+                f"non-negative int, got {nla[field]!r}"
+            )
     for field in ("marker", "template", "amp"):
         assert isinstance(nla[field], str) and nla[field], (
             f"maemm {key!r}: nla.{field} must be a non-empty string, got {nla[field]!r}"
@@ -236,15 +508,18 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
         f"maemm {key!r}: nla.template must carry the sidecar's `{{injection_char}}` placeholder -- "
         f"that is where the marker token, and so the injected direction, goes"
     )
-    samp = nla["sampling"]
-    assert isinstance(samp, dict) and sorted(samp) == sorted(NLA_SAMPLING_KEYS), (
-        f"maemm {key!r}: nla.sampling must carry exactly {list(NLA_SAMPLING_KEYS)}, got {sorted(samp)}"
+    # The arm generates under the SHARED block, so that is what has to be well-formed for it.
+    # The guard did not go away when `nla.sampling` did -- it moved to the block that replaced it.
+    missing_s = sorted(set(NLA_SAMPLING_KEYS) - set(rollouts))
+    assert not missing_s, (
+        f"maemm {key!r} is a `type: nla` arm and generates under the shared `rollouts:` block, "
+        f"which is missing {missing_s} -- it must carry {list(NLA_SAMPLING_KEYS)}"
     )
-    assert float(samp["temperature"]) > 0 and 0 < float(samp["top_p"]) <= 1, (
-        f"maemm {key!r}: nla.sampling temperature must be > 0 and top_p in (0, 1], got {samp}"
+    assert float(rollouts["temperature"]) > 0 and 0 < float(rollouts["top_p"]) <= 1, (
+        f"maemm {key!r}: rollouts.temperature must be > 0 and top_p in (0, 1], got {rollouts}"
     )
-    assert int(samp["top_k"]) >= 0 and int(samp["min_new"]) >= 0, (
-        f"maemm {key!r}: nla.sampling top_k and min_new must be >= 0, got {samp}"
+    assert int(rollouts["top_k"]) >= 0 and int(rollouts["min_new"]) >= 0, (
+        f"maemm {key!r}: rollouts.top_k and min_new must be >= 0, got {rollouts}"
     )
     assert nla["amp"] in AMP_MODES, f"maemm {key!r}: nla.amp {nla['amp']!r} is not one of {list(AMP_MODES)}"
     amp_r = nla["amp_r"]
@@ -263,7 +538,7 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
         f"{nla['score_max_tokens']} - 1 -- the scoring window must leave room for the whole "
         f"generation plus the sink at column 0, or the tail of a full-length rollout is never "
         f"scored (the same rule SCORE_MAX_LENGTH={SCORE_MAX_LENGTH} enforces on rollouts.max_new "
-        f"= {rollouts_max_new} for every other arm)"
+        f"= {rollouts['max_new']} for every other arm)"
     )
     # Never NARROWER than the protocol: this key exists to widen the window for a model whose
     # native output is long, not to cut an arm's text short and call it a protocol.
@@ -275,6 +550,428 @@ def _check_nla(key: str, spec: dict, rollouts_max_new: int) -> None:
         f"maemm {key!r}: nla.card_max_new {nla['card_max_new']} is the budget the model card's "
         f"reference script uses and must be >= the nla.max_new {nla['max_new']} we generate at"
     )
+
+
+def _check_mu_value(val, where: str, allow_unknown: bool) -> None:
+    """A mu value is null, a path to a [d] .f32/.npy file, or (stored rows only) `unknown`.
+
+    Checked at LOAD, not at use: a typo in a path that steers an H200 run should cost a CPU second.
+    The file's existence is NOT checked here -- config.yaml is read on a laptop with no volume
+    mounted -- `load_mu` asserts that, loudly, at the point it needs the bytes.
+    """
+    if val is None:
+        return
+    if val == MU_UNKNOWN:
+        assert allow_unknown, (
+            f"{where}: {MU_UNKNOWN!r} says \"the mean is not on the record\", which is a statement "
+            f"about stored rows or about a checkpoint's training convention -- not something a "
+            f"run can be performed under. Give a path, or null."
+        )
+        return
+    assert isinstance(val, str) and val, f"{where}: a mu is null, a path or {MU_UNKNOWN!r}, got {val!r}"
+    assert val.endswith(MU_SUFFIXES), (
+        f"{where}: {val!r} is not a {' or '.join(MU_SUFFIXES)} file. A mu is a [d] array on the "
+        f"volume; a path starting with / is absolute, anything else is relative to --root, and "
+        f"`{{base}}` expands to the base key."
+    )
+
+
+def resolve_mu_path(mu: str, base: str, root: str = VOL) -> str:
+    """A config/CLI mu value -> the path to read. `{base}` expands; a relative path takes --root.
+
+    Relative-to-root is what makes a smoke self-contained: a run under /vol/runs/<date>_smoke gets
+    that root's own `base/<base>/stats/mu.f32` rather than the production one, without editing
+    config. An absolute path (Celeste's archived whiten_mu) is the same file for every run.
+    """
+    assert mu and mu != MU_UNKNOWN, f"{mu!r} is not a loadable mu path"
+    path = mu.format(base=base)
+    return path if path.startswith("/") else f"{root.rstrip('/')}/{path}"
+
+
+_MU_CACHE: dict[tuple, object] = {}
+
+
+def load_mu(cfg: dict, base: str, mu, root: str = VOL):
+    """The centring mean [d] as a float32 numpy array, or None when `mu` is null.
+
+    Loud rather than optional: a product that needs a mean and cannot find the file has to stop,
+    because silently falling back to a locally computed mean is the drift this module exists to
+    prevent.
+    """
+    import numpy as np
+
+    if mu is None:
+        return None
+    assert mu != MU_UNKNOWN, (
+        f"mu {MU_UNKNOWN!r} cannot be loaded: it is the label for \"centred on a mean nobody here "
+        f"holds\", which is a statement about stored directions and not a file"
+    )
+    path = resolve_mu_path(mu, base, root)
+    key = (base, path)
+    if key in _MU_CACHE:
+        return _MU_CACHE[key]
+    d = cfg["bases"][base]["d"]
+    assert os.path.exists(path), (
+        f"no {path}: this run centres on that file (config `mu:` / `--mu` = {mu!r}). For a "
+        f"stats mean it means the `stats` product has not run on this --root; nothing recomputes "
+        f"its own."
+    )
+    arr = np.load(path) if path.endswith(".npy") else read_array(path, "float32", (d,))
+    arr = np.asarray(arr, dtype=np.float32).reshape(-1)
+    assert arr.shape == (d,) and np.isfinite(arr).all(), (
+        f"{path}: expected {d} finite float32 values for base {base}, got shape {arr.shape}"
+    )
+    _MU_CACHE[key] = arr
+    return arr
+
+
+def mu_label(mu, base: str = "", root: str = VOL) -> str:
+    """How a mu is spelled in a README line: the resolved path, or `none` / `unknown`."""
+    if mu is None:
+        return "none"
+    if mu == MU_UNKNOWN:
+        return MU_UNKNOWN
+    return resolve_mu_path(mu, base, root) if base else str(mu)
+
+
+def input_mu(cfg: dict, maemm_key: str):
+    """The mean `maemm_key` was TRAINED to receive: a path, or None. Refuses rather than defaulting.
+
+    Half the products in this repo have no MAEMM in scope at all (scan, gcg, patchscopes,
+    repo_examples) and the other half would silently re-point every number in SMOKES.md if this
+    guessed -- so an entry with no `mu:` key is a hard stop with the ask named. An explicit
+    `mu: null` is a statement; an absent key is a gap.
+    """
+    assert maemm_key in cfg["maemms"], f"unknown maemm {maemm_key!r}, want one of {sorted(cfg['maemms'])}"
+    spec = cfg["maemms"][maemm_key]
+    # Three states, and they are different: no key at all (nobody has considered it), `unknown`
+    # (considered, not established -- every run must be told), a path or null (established).
+    assert "mu" in spec, (
+        f"maemm {maemm_key!r} has no `mu:` key in config.yaml, so what it was trained to receive is "
+        f"not recorded anywhere. Establish it from the checkpoint's training chain and declare it "
+        f"(`mu: null` for a raw unit activation, or the path of the mean); nothing here will guess. "
+        f"To run against a convention you are CHOOSING rather than reading, pass --mu -- it is "
+        f"recorded as a deviation."
+    )
+    return spec["mu"]
+
+
+def score_mu(cfg: dict, base: str) -> str:
+    """THE SCORING CONSTANT: the one mean BOTH arguments of every centred cosine are taken about.
+
+    It is `bases.<base>.whiten_mu` -- a key that already existed as the base's archived centring
+    mean -- and it is a property of the BASE, not of any MAEMM, any run or any set. Read it here
+    and nowhere else, so that `score`, `scan` and `gcg` centre on one vector and their numbers are
+    comparable by construction.
+
+    It is deliberately DECOUPLED from a MAEMM's `mu:` key (`input_mu`), which says what that
+    checkpoint was trained to RECEIVE at its marker token and remains the injection convention.
+    Before 2026-09-23 the reported cosine's mean was whatever the run's injection convention was,
+    which meant: the old primary (`mu: null`) got no centred cosine at all, the base control got
+    none, the NLA arm got none, and any two arms trained on different conventions could not be
+    differenced. A difference of two cosines taken about two different means is not a difference.
+    """
+    spec = cfg["bases"][base]
+    mu = spec.get("whiten_mu")
+    assert isinstance(mu, str) and mu, (
+        f"base {base!r} has no `whiten_mu:` in config.yaml, so there is no scoring constant for it "
+        f"and no centred cosine can be reported on it. Declare the base's mean file."
+    )
+    _check_mu_value(mu, f"bases[{base!r}].whiten_mu", allow_unknown=False)
+    return mu
+
+
+def _check_heldout_storage(cfg: dict, set_name: str, spec: dict) -> None:
+    """Validate one held-out set's storage contract. See config.yaml's `heldout:` header.
+
+    Required on every declared set, including an `imported: true` one: the contract is the only
+    thing that says what `vecs.f16` holds, and a set whose contract is unstated is a set nothing
+    may centre or refuse to centre with any honesty.
+    """
+    storage = spec.get("storage")
+    assert storage in STORAGE_KINDS, (
+        f"heldout {set_name!r}: `storage` must be one of {list(STORAGE_KINDS)}, got {storage!r} -- "
+        f"a set with no declared storage contract cannot be served at any centring"
+    )
+    sk = spec.get("sae_key")
+    assert sk is None or sk in cfg["saes"], (
+        f"heldout {set_name!r}: sae_key {sk!r} is not an SAE in config.yaml ({sorted(cfg['saes'])})"
+    )
+    for dead in ("mu_stored", "family_mu"):
+        assert dead not in spec, (
+            f"heldout {set_name!r} still declares `{dead}:`. The stored-convention layer was "
+            f"deleted on 2026-09-23 (M0a): a `storage: unit` set's rows are served EXACTLY as the "
+            f"producer shipped them and simply have no centred cosine, because unit(act) and mu do "
+            f"not give unit(act - mu) without ||act||. The mean of every reported centred number "
+            f"is now the base's own scoring constant, `common.score_mu`."
+        )
+
+
+def family_centrable(cfg: dict, family: str) -> bool:
+    """Can a mean be subtracted from this family's rows at all? `family_kinds:` decides.
+
+    An encoder column, a Gaussian draw and a subspace basis have no mean of their own, so a
+    `cos(h - mu, v)` against one is a ONE-SIDED number: the activation moved and the target did
+    not. Since 2026-09-23 `score` REPORTS that number for such a row -- the residual centred
+    against the stored direction -- and labels it `centred_sided: 1` in `per_target.jsonl`, rather
+    than writing NaN as it did before. It is comparable across such rows and not against a
+    `centrable` family's two-sided number; see `score._load_dirs`.
+    """
+    assert family in cfg["family_kinds"], (
+        f"family {family!r} has no `family_kinds:` entry, so nothing can say whether a mean may be "
+        f"subtracted from its rows (have {sorted(cfg['family_kinds'])})"
+    )
+    return bool(cfg["family_kinds"][family]["centrable"])
+
+
+def set_storage(cfg: dict, set_dir: str, root: str = VOL) -> dict:
+    """The storage contract of the set at `set_dir`: {storage, source}.
+
+    WHAT `vecs.f16` HOLDS, and nothing about a mean: `raw` (act.f32 is there and every direction is
+    derived from it at read time), `unit` (a stored direction, as the producer shipped it, which
+    cannot be re-centred) or `dirs_only`. The `mu_stored` / `family_mu` fields the pre-2026-09-23
+    contract carried are IGNORED where an old storage.json still has them -- see
+    `_check_heldout_storage`.
+
+    Resolution order, because three kinds of directory reach this function:
+      1. `<set_dir>/storage.json`, which every set drawn after 2026-09-21 writes;
+      2. config.yaml's `heldout.<basename>` block, for the sets drawn before that;
+      3. refuse -- a `--dirs-from` directory that is neither has no stated contract, and guessing
+         one is how a centred and an uncentred direction become the same file to a reader.
+    """
+    path = f"{set_dir.rstrip('/')}/{STORAGE_FILE}"
+    if os.path.exists(path):
+        with open(path) as fh:
+            rec = json.load(fh)
+        assert "storage" in rec, f"{path} is missing 'storage'"
+        assert rec["storage"] in STORAGE_KINDS, f"{path}: storage {rec['storage']!r} is not a kind"
+        return {"storage": rec["storage"], "source": path}
+    name = os.path.basename(set_dir.rstrip("/"))
+    assert name in cfg["heldout"], (
+        f"{set_dir} carries no {STORAGE_FILE} and {name!r} is not a set declared in config.yaml, so "
+        f"nothing states what its vecs.f16 holds. Declare it under `heldout:` (which needs "
+        f"only `storage:`) or re-draw the set, which writes the contract itself."
+    )
+    return {"storage": cfg["heldout"][name]["storage"], "source": f"config.yaml heldout.{name}"}
+
+
+def storage_record(cfg: dict, set_name: str, families, sae_key: str = "") -> dict:
+    """The `storage.json` a freshly drawn `storage: raw` set writes. See `set_storage`."""
+    return {
+        "storage": "raw",
+        # Which dictionary this set's SAE feature ids index. Every row of a set drawn now also
+        # carries its own `sae_key`, so this is belt and braces -- but it is what
+        # `common.declared_sae_key` reads, and a set that loses its config entry keeps it.
+        "sae_key": sae_key,
+        "families": {f: cfg["family_kinds"][f]["kind"] for f in families},
+        "note": (
+            "RAW STORAGE: act.f32 [N, d] holds the row's own vector before any mean was subtracted "
+            "and vecs.f16 is unit(act) -- UNCENTRED. Every centred direction is derived at read "
+            "time by common.dirs_for(..., centering=<mu name>). For a family that is not "
+            "`centrable` (family_kinds), the act.f32 row IS the stored unit direction, so "
+            "unit(act) == vecs.f16 there and no centring ever applies to it."
+        ),
+    }
+
+
+def mu_for(cfg: dict, base: str, set_dir: str, args: dict, maemm_key: str = "",
+           root: str = VOL, notes=None):
+    """(the mean this run centres on, where it came from). THE convention is never inferred silently.
+
+    Returns a mu VALUE -- None, or a path as config spells it -- plus a provenance string.
+
+    Order, and nothing else:
+
+      1. `--mu <file>` -- explicit, and when it disagrees with the checkpoint's own `mu:` it is
+         recorded as a DEVIATION in the product README, not accepted quietly. `--mu none` is the
+         explicit way to say "subtract nothing";
+      2. the MAEMM's `mu:`, for the products that have a `--maemm` in scope;
+      3. refuse. A set read by a product with no MAEMM (scan, gcg, patchscopes, repo_examples) has
+         no convention anywhere in scope, and defaulting one would silently re-point the corpus
+         search baseline and the GCG ceiling at a different target vector than every stored
+         number. That is the one failure this whole layer exists to stop.
+
+    THE SET'S OWN STORED CONVENTION IS NO LONGER A SOURCE (2026-09-23, M0a). `mu_stored` /
+    `family_mu` are deleted: a `storage: unit` set's rows are served exactly as the producer
+    shipped them and have no centred reading at all, so there was nothing for the third branch to
+    resolve. Note that this is the INJECTION convention; the mean every centred cosine is REPORTED
+    about is `score_mu`, the base's constant, and is not resolved here.
+    """
+    say = notes if notes is not None else []
+    want = (args.get("mu") or "").strip()
+    if want:
+        got = None if want.lower() in ("none", "null") else want
+        _check_mu_value(got, "--mu", allow_unknown=False)
+        src = "--mu (explicit)"
+        if maemm_key:
+            own = input_mu(cfg, maemm_key)
+            if own == MU_UNKNOWN:
+                line = (
+                    f"{maemm_key} declares `mu: {MU_UNKNOWN}` (training convention not on the "
+                    f"record); this run was TOLD {mu_label(got, base, root)} by --mu. That is a "
+                    f"choice being made here, not a fact being read."
+                )
+                print(f"[mu] {line}", flush=True)
+                say.append(line)
+                say.append(f"mu={mu_label(got, base, root)} from --mu (a CHOICE, not the record)")
+                return got, "--mu (checkpoint's own mu is `unknown`)"
+            if own != got:
+                line = (
+                    f"DEVIATION: --mu {mu_label(got, base, root)} overrides {maemm_key}'s own "
+                    f"trained input convention {mu_label(own, base, root)} (config.yaml "
+                    f"maemms.{maemm_key}.mu). Every number in this directory is read under the "
+                    f"former, not under what the checkpoint was trained on."
+                )
+                print(f"[mu] {line}", flush=True)
+                say.append(line)
+                src = "--mu (OVERRIDE of the checkpoint's own mu)"
+        say.append(f"mu={mu_label(got, base, root)} from {src}")
+        return got, src
+    if maemm_key:
+        own = input_mu(cfg, maemm_key)
+        assert own != MU_UNKNOWN, (
+            f"maemm {maemm_key!r} declares `mu: {MU_UNKNOWN}`: its training convention is on the "
+            f"agenda and NOT on the record, so nothing here will pick one for it. Pass --mu "
+            f"explicitly (a path, or `none`) and the choice is recorded as a deviation in the "
+            f"product README. That is what the two-arm reconciliation in SMOKES.md settles."
+        )
+        say.append(f"mu={mu_label(own, base, root)} from config.yaml maemms.{maemm_key}.mu")
+        return own, f"maemms.{maemm_key}.mu"
+    contract = set_storage(cfg, set_dir, root)
+    raise AssertionError(
+        f"{set_dir} is `storage: {contract['storage']}` ({contract['source']}) and this product "
+        f"has no --maemm to take an injection convention from. Pass --mu <file> (or --mu none); "
+        f"`scan` also takes --centre, which is the base's own scoring constant on both sides. "
+        f"Defaulting it would silently move this product's target vector away from every stored "
+        f"number."
+    )
+
+
+def note_convention(od, notes) -> None:
+    """Put the centring lines `mu_for` / `dirs_for` collected into a product's README.
+
+    Every product that reads a direction calls this. A README that does not say which mean its
+    numbers were read under is a README nobody can compare to another one.
+    """
+    for line in notes or []:
+        od.note(f"CENTRING: {line}")
+
+
+def dirs_for(cfg: dict, base: str, set_dir: str, mu, root: str = VOL, notes=None):
+    """The direction every row of this set carries under `mu` -- the WHOLE [N, d] array.
+
+        storage: raw        -> unit(act - mu) for a centrable family, unit(act) for every other row
+                               (there is no mean to subtract from an encoder column)
+        storage: unit       -> the stored row AS THE PRODUCER SHIPPED IT, unchanged, whatever `mu`
+                               says: unit(act) and mu do not give unit(act - mu) without ||act||,
+                               so such a set has no TWO-SIDED centred reading at any mean; `score`
+                               reports the ONE-SIDED cos(h - mu, unit(d)) against the stored row
+                               and marks it `centred_sided: 1` (M0a 2026-09-23, amended 09-23)
+        storage: dirs_only  -> the stored row (no family in such a set is centrable)
+
+    `mu` is None or a path, and is always EXPLICIT: the four products with no MAEMM in scope (scan,
+    gcg, patchscopes, repo_examples) would otherwise silently re-point the corpus search baseline
+    and the GCG ceiling away from every number measured between 09-16 and 09-21.
+
+    Returns the whole array and leaves ROW SELECTION at each call site, because `rows` means three
+    different things across the readers -- global in score/rollouts_*, family-local in gcg
+    (`--family sae --rows 0-7` is global rows 1024-1031), absent in scan/centred/repo_examples.
+
+    `notes`, when a list is passed, receives one human-readable line per thing a reader of the
+    product's README has to know (the mean used, and every labelled family).
+    """
+    import numpy as np
+
+    d = cfg["bases"][base]["d"]
+    set_dir = set_dir.rstrip("/")
+    rows = read_jsonl(f"{set_dir}/ids.jsonl")
+    n = len(rows)
+    assert n, f"{set_dir}/ids.jsonl is empty"
+    for i, r in enumerate(rows):
+        assert r["row"] == i, f"{set_dir}/ids.jsonl line {i} has row={r['row']}: rows must be 0..N-1"
+    contract = set_storage(cfg, set_dir, root)
+    storage = contract["storage"]
+    _check_mu_value(mu, "dirs_for(mu=)", allow_unknown=False)
+    fams = [r["family"] for r in rows]
+    say = notes if notes is not None else []
+    label = mu_label(mu, base, root)
+
+    if storage == "raw":
+        apath = f"{set_dir}/act.f32"
+        assert os.path.exists(apath), (
+            f"{set_dir} declares `storage: raw` ({contract['source']}) but has no act.f32; a raw "
+            f"set derives every direction from it. Re-draw the set."
+        )
+        act = read_array(apath, "float32", (n, d)).astype(np.float32)
+        arr = load_mu(cfg, base, mu, root)
+        out = act.copy()
+        if arr is not None:
+            cen = np.array([family_centrable(cfg, f) for f in fams], dtype=bool)
+            out[cen] -= arr[None, :]
+            # THE ROWS A MEAN IS APPLIED TO ARE EXACTLY THE ROWS THAT HAVE A RAW ACTIVATION.
+            # `2026-09-21_v3_ctrl` is the set that makes this a live question: it mixes `random`
+            # draws and 131k encoder columns in one `storage: raw` directory, so `act.f32` holds
+            # rows that are NOT activations. Subtracting a residual-stream mean from an encoder
+            # column or a Gaussian draw gives cos(h - mu, v): the activation moved and the target
+            # stood still, a one-sided number that looks like a centred one. `family_kinds:` is
+            # the only thing that separates them, so the separation is asserted here and not
+            # merely performed -- and it is asserted as a POST-CONDITION on the array, not as a
+            # restatement of the line above, so a future `out[...] -=` elsewhere in this branch
+            # trips it too.
+            # Read straight off `cfg["family_kinds"]` rather than through `family_centrable`,
+            # which is what computed `cen` above: a post-condition that called the same function
+            # as the code it guards would agree with it by construction and guard nothing.
+            moved = np.abs(out - act).max(axis=1) > 0
+            bad = [
+                (i, fams[i]) for i in range(n)
+                if bool(moved[i]) and not cfg["family_kinds"][fams[i]]["centrable"]
+            ]
+            assert not bad, (
+                f"{set_dir}: a mean was subtracted from rows {bad[:8]} whose family is not "
+                f"`centrable` (config.yaml family_kinds). An encoder column, a Gaussian draw and "
+                f"a subspace basis have no mean; cos(h - mu, v) against one is one-sided and is "
+                f"not a centred number."
+            )
+            say.append(
+                f"directions derived from {apath} at mu={label}: unit(act - mu) on "
+                f"{int(cen.sum())} centrable rows "
+                f"({sorted({f for f, c in zip(fams, cen, strict=True) if c})}), unit(act) on the "
+                f"other {int((~cen).sum())} (family_kinds says they have no mean to subtract)"
+            )
+        else:
+            say.append(f"directions derived from {apath} at mu=none: unit(act), all {n} rows")
+        return _unit_rows(out)
+
+    v = read_array(f"{set_dir}/vecs.f16", "float16", (n, d)).astype(np.float32)
+    if storage == "dirs_only":
+        say.append(
+            f"{set_dir} is `storage: dirs_only` ({contract['source']}): the stored vecs.f16 rows "
+            f"are returned unchanged and mu={label} does not apply to any of them"
+        )
+        return _unit_rows(v)
+
+    # storage: unit -- the stored row is a direction under the PRODUCER's convention and cannot be
+    # moved to another one: unit(act) and mu do not give unit(act - mu) without ||act||. Until
+    # 2026-09-23 this branch carried a `mu_stored` / `family_mu` contract that named that
+    # convention per family, asserted it against the run's `mu` and labelled an `unknown` one. The
+    # whole layer is gone (M0a): the rows come back as shipped, and the centred cosine such a set
+    # has is NONE -- `score` writes NaN for every one of its rows rather than a number whose mean
+    # nobody can state. Reading it is still exact for the UNCENTRED cosine, which is what every
+    # number measured between 2026-09-16 and 2026-09-21 was.
+    say.append(
+        f"{set_dir} is `storage: unit` ({contract['source']}): the stored vecs.f16 rows are "
+        f"returned UNCHANGED, under whatever convention the producer used, and mu={label} does "
+        f"not apply to any of them. There is no centred number for this set."
+    )
+    return _unit_rows(v)
+
+
+def _unit_rows(v):
+    """Row-wise L2 normalisation in fp32 with the numpy eps convention (see centred.py:63)."""
+    import numpy as np
+
+    v = np.asarray(v, dtype=np.float32)
+    return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
 
 
 def is_nla(cfg: dict, maemm_key: str) -> bool:
@@ -328,6 +1025,31 @@ def maemms_for(cfg: dict, base: str = "", computable_only: bool = True) -> list[
     return keys
 
 
+def sae_key_for_rows(cfg: dict, base: str, rows, want: str = "") -> str:
+    """`sae_key_for`, but "" when NO row of this set belongs to an SAE family.
+
+    A base with two dictionaries makes `sae_key_for` refuse without `--sae`, which is right when
+    the product is about to look feature ids up in one of them and wrong when the set has no
+    feature ids at all. The OOD sets have no `sae` family (`config.yaml`'s `heldout.*.families` is
+    empty for them and every row's family is its arm's), so demanding `--sae` there makes the
+    operator name a dictionary the run never reads -- and that name then lands in the product
+    README as though it meant something.
+
+    Products that read a SET and may meet one without SAE rows call this; products that are ABOUT
+    a dictionary (`draw_sae2m`, `sae_self`, `build`, `repo_examples`) still call `sae_key_for`
+    directly, because for them an absent dictionary is a bad command line, not a shape of set.
+    """
+    # `rows` is a LIST of row dicts everywhere it is passed from (`read_jsonl` of ids.jsonl), but
+    # a couple of readers keep the same rows in a {row index: row} mapping. Accept either rather
+    # than make the caller remember which it is holding -- getting that wrong fails only inside
+    # the container, after the base model has been loaded.
+    if isinstance(rows, dict):
+        rows = rows.values()
+    return "" if not any(r.get("family") in SAE_FAMILIES for r in rows) else sae_key_for(
+        cfg, base, want
+    )
+
+
 def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
     """WHICH SAE of `base`: `want` when given, else the single one -- asserting when there are two.
 
@@ -349,24 +1071,164 @@ def sae_key_for(cfg: dict, base: str, want: str = "") -> str:
     return keys[0]
 
 
-def stats_mu(cfg: dict, base: str, root: str = VOL):
-    """`stats/mu.f32` [d] as a float32 numpy array -- the ONE centring mean (README "Methods").
+# The family labels whose target IS an SAE feature (row["id"] is a feature index). `sae` is what
+# every draw writes since 2026-09-21; `sae2m_enc` is the label the 2,000-row 2026-09-20 set carries
+# and is accepted for it rather than rewritten in place.
+SAE_FAMILIES = ("sae", "sae2m_enc")
 
-    Loud rather than optional: a product that needs mu and finds no `stats/` has to stop, because
-    silently falling back to a locally computed mean is exactly the drift this file exists to
+
+def check_set_on_disk(cfg, base, set_name, fams, root):
+    """A configured held-out set, opened rather than named. Absent is fine; WRONG is not.
+
+    `check` used to print the `heldout:` entry's family list and stop there, so a set whose rows
+    on the volume disagreed with its declaration -- the failure that made `2026-09-20_sae2m_2k`'s
+    `families:` line wrong for a day -- was invisible to the cheap gate and surfaced in a GPU
+    product instead. Each set is either NOT on this root (skipped, because a smoke root carries
+    two sets and the config declares twelve) or checked against what it declares.
+    """
+    import json
+    import os
+
+    d = heldout_dir(base, set_name, root)
+    out = {"dir": d, "status": "absent", "detail": "not on this root"}
+    if not os.path.isdir(d):
+        return out
+    try:
+        contract = set_storage(cfg, d, root)            # refuses a set that states none
+        rows = [json.loads(ln) for ln in open(f"{d}/ids.jsonl", encoding="utf-8")]
+        assert rows, f"{d}/ids.jsonl is empty"
+        assert [r["row"] for r in rows] == list(range(len(rows))), (
+            f"{d}/ids.jsonl rows are not 0..{len(rows) - 1}")
+        # Every family present must be declared, or `family_centrable` / `dirs_for` refuse later.
+        present: dict[str, int] = {}
+        for r in rows:
+            present[r["family"]] = present.get(r["family"], 0) + 1
+            family_centrable(cfg, r["family"])
+        want = {f: int(s["n"]) for f, s in fams.items() if s.get("status") != "empty"}
+        assert present == want, (
+            f"{d}: ids.jsonl carries {present} but config.yaml `heldout.{set_name}.families` "
+            f"declares {want}. One of the two is wrong, and every family-keyed product reads "
+            f"the config one.")
+        # The storage contract, against the files that have to exist under it.
+        has_act = os.path.exists(f"{d}/act.f32")
+        assert has_act == (contract["storage"] == "raw"), (
+            f"{d} is `storage: {contract['storage']}` ({contract['source']}) and act.f32 is "
+            f"{'present' if has_act else 'absent'}: a raw set derives every direction from it, "
+            f"and nothing else may carry one.")
+        idx_path = f"{d}/index.json"
+        if os.path.exists(idx_path):
+            idx = json.loads(open(idx_path, encoding="utf-8").read())
+            for name in ("vecs.f16",) + (("act.f32",) if has_act else ()):
+                shape = (idx.get(name) or {}).get("shape")
+                assert shape == [len(rows), int(cfg["bases"][base]["d"])], (
+                    f"{d}/{name} is {shape}, expected {[len(rows), cfg['bases'][base]['d']]}")
+        # An SAE row's dictionary must be nameable: per row, or declared for the set (H1).
+        sae_rows = [r for r in rows if r["family"] in SAE_FAMILIES]
+        if sae_rows and not all(r.get("sae_key") for r in sae_rows):
+            declared = contract.get("sae_key") or cfg["heldout"][set_name].get("sae_key")
+            assert declared, (
+                f"{d} has {sum(1 for r in sae_rows if not r.get('sae_key'))} SAE rows with no "
+                f"`sae_key` and neither storage.json nor the `heldout:` entry declares one; "
+                f"`common.sae_rows_of` refuses them, and every 131k id is also a valid 2M id")
+        out.update(status="ok", detail=(f"{len(rows)} rows {present}, storage "
+                                        f"{contract['storage']} ({contract['source']})"))
+    except (AssertionError, KeyError, OSError, ValueError) as e:
+        out.update(status="FAILED", detail=f"{type(e).__name__}: {e}")
+        raise
+    return out
+
+
+def sae_rows_of(rows, sae_key: str, families=SAE_FAMILIES, side: str = "", declared=None,
+                where: str = ""):
+    """The rows of `rows` whose target is a feature of dictionary `sae_key`.
+
+    THE FAMILY LABEL IS NOT ENOUGH. A set may carry two dictionaries under one `family: sae` label,
+    told apart by the per-row `sae_key` that features/draw_sae2m.py and targets.py write -- and a
+    feature index is meaningless without it: every id below 131,072 is a valid index into a 2^21
+    encoder, so selecting on the family alone looks up the 131k block's ids in the 2M dictionary
+    and scores wrong features with nothing raising.
+
+    AND A MISSING `sae_key` IS NOT A LICENCE. The first version of this function read
+    `r.get("sae_key", sae_key) == sae_key`, which defaults each unkeyed row to match WHATEVER was
+    typed -- so on the two sets that predate the field (2026-09-16_v1, 2026-09-20_sae2m_2k, which
+    carry it on no row at all) the guard was vacuous, and `--sae qwen36-27b/sae2m --set
+    2026-09-16_v1` selected all 512 of the 131k rows, every id a valid 2^21 index: exactly the
+    silent failure the guard is for, on the paper's own set. MEASURED against the real ids
+    2026-09-21.
+
+    So an unkeyed row is selectable only against a DECLARED dictionary: `declared` is the one SAE
+    the set says its feature ids index (`common.declared_sae_key`, from the set's storage.json or
+    its `heldout:` entry), and it must equal `sae_key`. An undeclared set refuses, naming the row
+    count, rather than answering a question nobody can check.
+
+    `side` filters the encoder/decoder axis (`sae_side`, NOT draw_sae2m's `side`, which is the
+    fit/report split of OUR analysis and a different axis entirely). A row with no `sae_side`
+    predates decoder rows and counts as `enc`.
+    """
+    out, unkeyed = [], 0
+    for r in rows:
+        if r["family"] not in families:
+            continue
+        if side and r.get("sae_side", "enc") != side:
+            continue
+        own = r.get("sae_key")
+        if own is None:
+            unkeyed += 1
+            continue
+        if own == sae_key:
+            out.append(r)
+    if unkeyed:
+        assert declared, (
+            f"{where or 'this set'} has {unkeyed} SAE rows with no `sae_key` field and declares no "
+            f"dictionary for them, so which SAE their feature ids index is not recorded anywhere. "
+            f"Nothing here will assume it is --sae {sae_key!r}: every id below 131,072 is a valid "
+            f"index into a 2^21 encoder, so a wrong guess scores wrong features silently. Declare "
+            f"`sae_key:` on the set's `heldout:` entry (or re-draw it -- targets and draw_sae2m "
+            f"stamp it per row)."
+        )
+        assert declared == sae_key, (
+            f"{where or 'this set'} declares its {unkeyed} unkeyed SAE rows are features of "
+            f"{declared!r}, but this run asked for --sae {sae_key!r}. Refusing rather than "
+            f"selecting them: their ids index {declared!r} and mean something else in {sae_key!r}."
+        )
+        out.extend(
+            r for r in rows
+            if r["family"] in families
+            and r.get("sae_key") is None
+            and not (side and r.get("sae_side", "enc") != side)
+        )
+        out.sort(key=lambda r: r["row"])
+    return out
+
+
+def declared_sae_key(cfg: dict, set_dir: str, root: str = VOL):
+    """The ONE dictionary a set says its unkeyed SAE feature ids index, or None.
+
+    `storage.json`'s `sae_key` first (what a set drawn after 2026-09-21 carries), then the set's
+    `heldout:` entry. It exists for the sets whose rows predate the per-row `sae_key` field; a set
+    whose rows carry their own needs none of this.
+    """
+    path = f"{set_dir.rstrip('/')}/{STORAGE_FILE}"
+    if os.path.exists(path):
+        with open(path) as fh:
+            rec = json.load(fh)
+        if rec.get("sae_key"):
+            return rec["sae_key"]
+    name = os.path.basename(set_dir.rstrip("/"))
+    return (cfg["heldout"].get(name) or {}).get("sae_key")
+
+
+def stats_mu(cfg: dict, base: str, root: str = VOL):
+    """`stats/mu.f32` [d] as a float32 numpy array -- OUR 64/16-window read-layer mean.
+
+    `load_mu(cfg, base, STATS_MU, root)` under its historical name, kept because a dozen call sites
+    spell it this way. It is no longer "the ONE centring mean": since 2026-09-21 a run names the
+    FILE it centres on (`mu:` in config.yaml, `--mu` on the command line) and this is one file
+    among several. Still loud rather than optional -- a product that needs a mean and finds no
+    `stats/` has to stop, because silently computing its own is the drift this file exists to
     prevent.
     """
-    import numpy as np
-
-    d = cfg["bases"][base]["d"]
-    path = f"{stats_dir(base, root)}/mu.f32"
-    assert os.path.exists(path), (
-        f"no {path}: the `stats` product must run before anything that centres. mu.f32 is the ONE "
-        f"centring mean (README 'Methods'); nothing recomputes its own."
-    )
-    mu = read_array(path, "float32", (d,))
-    assert mu.shape == (d,) and np.isfinite(mu).all(), f"{path}: expected {d} finite float32 values"
-    return mu
+    return load_mu(cfg, base, STATS_MU, root)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -380,6 +1242,64 @@ def stats_mu(cfg: dict, base: str, root: str = VOL):
 
 def base_dir(base: str, root: str = VOL) -> str:
     return f"{root}/base/{base}"
+
+
+def corpus_key_name(cfg: dict, key: str) -> str:
+    """A `corpora:` KEY -> the directory name `corpus_dir` / `--corpus-name` takes ("" = corpus/).
+
+    Products name a corpus by key, not by directory: the key carries the ladder, the window
+    geometry and the provenance sentence that says whether a search win on it is evidence about
+    UNSEEN text (heldout16m) or about text the model may have memorised (celeste-train10m). A
+    directory name carries none of that, and the two corpora are not comparable.
+    """
+    assert key in cfg["corpora"], (
+        f"unknown --corpus {key!r}; config.yaml declares {sorted(cfg['corpora'])}"
+    )
+    d = cfg["corpora"][key]["dir"]
+    return "" if d == "corpus" else d
+
+
+def corpus_geometry(cfg: dict, key: str) -> tuple[int, int]:
+    """(block, stride) of a `corpora:` key. A different geometry is a different corpus."""
+    spec = cfg["corpora"][key]
+    return int(spec["block"]), int(spec["stride"])
+
+
+def corpus_key_of_dir(cfg: dict, corpus_name: str) -> str:
+    """The `corpora:` key whose `dir` is `corpus_name` ("" = the original corpus/), or ""."""
+    want = corpus_name or "corpus"
+    for key, spec in cfg["corpora"].items():
+        if spec["dir"] == want:
+            return key
+    return ""
+
+
+def assert_corpus_geometry(cfg: dict, corpus_name: str) -> tuple[int, int]:
+    """Refuse a corpus whose declared window geometry this pipeline does not actually use.
+
+    H7. `corpora:` declares `block`/`stride` per corpus and `load_config` type-checks them, but
+    nothing threads them: all eleven `windows_of(` sites take SCAN_BLOCK/SCAN_STRIDE. Scanning
+    Ari's `train_parity_10m` (declared 32/8, and its own meta.json says 32/8) would therefore cut
+    64/16 windows while `scan` wrote a README asserting 64/16 -- two artefacts on the volume
+    contradicting each other, and a number silently not the one the config promises.
+
+    Threading it is a real change (every consumer reconstructs window ids to join on and would
+    have to read the producer's geometry rather than the constant). Until that is done the honest
+    behaviour is to STOP, which is what this does. Returns the pair when it is safe.
+    """
+    key = corpus_key_of_dir(cfg, corpus_name)
+    if not key:
+        return SCAN_BLOCK, SCAN_STRIDE
+    block, stride = corpus_geometry(cfg, key)
+    assert (block, stride) == (SCAN_BLOCK, SCAN_STRIDE), (
+        f"corpus {key!r} declares window {block}/{stride} but this pipeline cuts windows at "
+        f"{SCAN_BLOCK}/{SCAN_STRIDE} everywhere (common.SCAN_BLOCK; eleven windows_of call sites "
+        f"take it). Scanning it anyway would write a README claiming {SCAN_BLOCK}/{SCAN_STRIDE} "
+        f"over {block}/{stride} data and produce a number that is not the one config.yaml "
+        f"promises. Thread the geometry through every windows_of site first, or scan a corpus "
+        f"whose geometry matches."
+    )
+    return block, stride
 
 
 def corpus_dir(base: str, root: str = VOL, name: str = "") -> str:
@@ -401,13 +1321,69 @@ def stats_dir(base: str, root: str = VOL) -> str:
     return f"{base_dir(base, root)}/stats"
 
 
-def scan_dir(base: str, set_name: str, root: str = VOL) -> str:
-    return f"{base_dir(base, root)}/scan/{set_name}"
+def scan_dir(base: str, set_name: str, root: str = VOL, corpus_name: str = "") -> str:
+    """`scan/<set>`, or `scan/<set>__<corpus>` when the scan is not over the default corpus.
+
+    H5: a scan is (set x corpus), and until 2026-09-21 the corpus axis did not exist so keying by
+    set alone was complete. This branch introduced `corpora:` and `--corpus`, and the eval plan
+    scans ONE set over TWO corpora (§2.5's celeste-train search baseline, §3.4's 16M autointerp
+    scan). Both resolved here to one path: the second refuses without --force and destroys the
+    first with it -- ~$6 and ~$14 of GPU, and the paper's comparison anchor. Empty resolves to
+    today's path, so nothing already on the volume moves.
+    """
+    suffix = f"__{corpus_name}" if corpus_name else ""
+    return f"{base_dir(base, root)}/scan/{set_name}{suffix}"
+
+
+def nll_dir(base: str, set_name: str, root: str = VOL) -> str:
+    """`<root>/base/<base>/nll/<set>/` -- the base's own per-token NLL on each target's window."""
+    return f"{base_dir(base, root)}/nll/{set_name}"
 
 
 def sae_dir(sae_key: str, root: str = VOL) -> str:
     base, name = split_key(sae_key, "sae")
     return f"{base_dir(base, root)}/sae/{name}"
+
+
+def sae_examples_dir(sae_key: str, set_name: str, root: str = VOL, write: bool = False,
+                     corpus_name: str = "") -> str:
+    """`<root>/base/<base>/sae/<sae>/examples/<set>` -- `scan`'s per-feature activation windows.
+
+    KEYED BY SET since 2026-09-21 (B9). It used to be `examples/` keyed by the SAE alone, so a
+    second `scan` of the same dictionary against a different held-out set refused without --force
+    and destroyed the first set's examples with it; the eval plan runs three scans on `sae2m`.
+
+    A READER (`write=False`) used to fall back to the legacy unkeyed directory when the keyed one
+    was absent, with a stdout note and nothing else. IT NOW REFUSES (2026-09-23). The fallback was
+    silent in every way that matters -- a `--set 2026-09-21_v3_ctrl` build whose scan had landed
+    under the `--with-set` bank's name found no keyed directory and read the September
+    `2026-09-16_v1` scan of a different set instead, producing a correct-looking C16 arm over the
+    wrong features. A legacy directory records neither the set nor the corpus it was scanned
+    against, so nothing here can check that it is the right one; naming the key that WAS expected
+    is the only honest answer. A caller that genuinely wants the legacy product passes its path
+    explicitly. A WRITER always writes the set-keyed path.
+
+    Absent keyed AND absent legacy returns the keyed path unchanged, so a caller that tolerates a
+    missing `examples/` (autointerp's `build`, which falls back to `examples_4m`) still sees it
+    missing rather than an exception.
+    """
+    # The corpus axis too (H5): the examples of a feature are the windows it fires on IN A GIVEN
+    # CORPUS, so two corpora give two different answers for one (set, sae) and must not share a
+    # directory. Empty resolves to today's path.
+    keyed = f"{sae_dir(sae_key, root)}/examples/{set_name}" + (f"__{corpus_name}" if corpus_name else "")
+    if write:
+        return keyed
+    legacy = f"{sae_dir(sae_key, root)}/examples"
+    assert os.path.exists(keyed) or not os.path.exists(f"{legacy}/tested.json"), (
+        f"{keyed} is absent and the LEGACY unkeyed {legacy} is there. Reading it is refused: it "
+        f"was written before 2026-09-21, when `examples/` gained a set component, and its path "
+        f"records neither the set nor the corpus it was scanned against -- so it may be any set's "
+        f"scan and nothing here can tell. The expected key is "
+        f"set={set_name!r}, corpus_key={corpus_name or '(none)'!r}. Run `--product scan --set "
+        f"{set_name}` at that corpus and tag, or -- if the scan exists under another bank's name "
+        f"from a `scan --with-set` call -- address it by that directory."
+    )
+    return keyed
 
 
 def repo_examples_dir(sae_key: str, set_name: str, root: str = VOL) -> str:
@@ -437,24 +1413,141 @@ def maemm_dir(maemm_key: str, root: str = VOL) -> str:
 ENGINES = ("hf", "vllm")
 
 
-def rollout_stem(set_name: str, engine: str = "hf") -> str:
-    """The rollouts/ file stem of one (set, engine) pair.
+def rollout_stem(set_name: str, engine: str = "hf", tag: str = "") -> str:
+    """The rollouts/ file stem of one (set, engine, tag) triple.
 
     The HF stem is the bare set name, so every step-3 file keeps its path; the vLLM stem is
     suffixed. Both engines write into the SAME accumulating rollouts/ directory and `score` picks
     one with `--engine`, so an HF and a vLLM run of the same set never overwrite each other and the
     paired comparison has both files side by side.
+
+    `tag` (`--run-tag`) is the THIRD axis, added 2026-09-21 for the same reason `scan`'s examples/
+    gained a set component: two runs of ONE checkpoint on ONE set that differ only in `--mu` are
+    different experiments, and without a tag the second silently replaces the first -- the whole
+    file, mid-comparison, with nothing raising. It is empty for every run that does not need it,
+    so no existing path moves.
     """
     assert engine in ENGINES, f"unknown engine {engine!r}, want one of {list(ENGINES)}"
-    return set_name if engine == "hf" else f"{set_name}__{engine}"
+    tag = (tag or "").strip()
+    assert "/" not in tag and " " not in tag, f"--run-tag {tag!r} must be a bare file-name suffix"
+    stem = set_name if engine == "hf" else f"{set_name}__{engine}"
+    return f"{stem}__{tag}" if tag else stem
 
 
-def rollouts_path(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf") -> str:
-    return f"{maemm_dir(maemm_key, root)}/rollouts/{rollout_stem(set_name, engine)}.jsonl"
+def rollouts_path(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf",
+                  tag: str = "") -> str:
+    return f"{maemm_dir(maemm_key, root)}/rollouts/{rollout_stem(set_name, engine, tag)}.jsonl"
 
 
 def rollouts_dir(maemm_key: str, root: str = VOL) -> str:
     return f"{maemm_dir(maemm_key, root)}/rollouts"
+
+
+ROWS_MARK = "__rows"
+
+
+def rollout_chunk_stem(stem: str, rows_spec: str = "") -> str:
+    """The file stem of ONE `--rows` chunk of the rollouts product `stem`.
+
+    A run over the whole set keeps the bare `rollout_stem` spelling, so every product written
+    before 2026-09-23 and every full-set run after it is the same path it always was. A run given
+    `--rows` writes `<stem>__rows<spec>.jsonl` instead, and the chunks of one (set, engine, tag)
+    live SIDE BY SIDE in the one accumulating `rollouts/` directory -- which is only possible
+    because the directory write is additive (OutDir). `read_rollouts` then reads all of them as
+    ONE product, so `score` scores one stem and `results.common.discover_sources` sees one source:
+    a per-chunk `--run-tag` would have made every chunk a separate arm in both OOD readers.
+
+    The spec is spelled into the name rather than reduced to (lo, hi) because `--rows 3,5,9-11` is
+    not an interval and a name that pretended it was would collide with `--rows 3-11`.
+    """
+    spec = (rows_spec or "").strip().replace(" ", "")
+    if not spec:
+        return stem
+    assert all(c in "0123456789,-" for c in spec), f"--rows {rows_spec!r} is not a row spec"
+    return f"{stem}{ROWS_MARK}{spec.replace(',', '_')}"
+
+
+def rollout_chunk_paths(out_dir: str, stem: str) -> list[str]:
+    """Every `--rows` chunk file of `stem` in `out_dir`, sorted by name. [] when there are none."""
+    import glob as _glob
+
+    return sorted(_glob.glob(f"{out_dir.rstrip('/')}/{stem}{ROWS_MARK}*.jsonl"))
+
+
+# Summary fields that every chunk of one product must agree on: they describe the EXPERIMENT, and
+# two chunks that disagree on one of them are two experiments wearing one stem.
+_CHUNK_INVARIANT = (
+    "maemm", "base", "set", "engine", "kind", "n", "bo", "seed", "max_new", "min_new",
+    "prompt", "prompt_tokens", "marker_pos", "inject_layer", "inject_coef",
+    "temperature", "top_p", "top_k", "weight_sha256", "score_max_length",
+)
+
+
+def read_rollouts(out_dir: str, stem: str):
+    """(rows, summary, sources) for the rollouts product `stem` -- whole, or as `--rows` chunks.
+
+    One of the two shapes, never both (both is a refusal: a full-set file and a chunk of the same
+    stem are two runs claiming one product, and silently preferring either is how a partial gets
+    scored as if it were complete):
+
+      * `<stem>.jsonl` + `<stem>.summary.json` -- one run over the whole set, the only shape any
+        product written before 2026-09-23 has;
+      * `<stem>__rows<spec>.jsonl` + summaries -- N chunks of ONE product under ONE `--run-tag`,
+        concatenated here. The chunks must cover disjoint target rows and agree on every field of
+        `_CHUNK_INVARIANT`; the merged summary carries the union of `rows` and a `chunks` list.
+    """
+    out_dir = out_dir.rstrip("/")
+    whole = f"{out_dir}/{stem}.jsonl"
+    chunks = rollout_chunk_paths(out_dir, stem)
+    if os.path.exists(whole) and chunks:
+        raise AssertionError(
+            f"{whole} and {len(chunks)} `{ROWS_MARK}` chunk(s) of the same stem are both in "
+            f"{out_dir} ({[os.path.basename(p) for p in chunks]}): that is a whole-set run and a "
+            f"chunked run claiming one product. Keep one and move the other aside."
+        )
+    if os.path.exists(whole):
+        with open(f"{out_dir}/{stem}.summary.json") as fh:
+            return read_jsonl(whole), json.load(fh), [whole]
+    assert chunks, (
+        f"no rollouts at {whole} and no {stem}{ROWS_MARK}*.jsonl chunk beside it: run "
+        f"`--product rollouts_* --set ...` first"
+    )
+    rows: list[dict] = []
+    summary: dict = {}
+    seen: dict[int, str] = {}
+    for path in chunks:
+        spath = path[: -len(".jsonl")] + ".summary.json"
+        assert os.path.exists(spath), f"chunk {path} has no {os.path.basename(spath)} beside it"
+        with open(spath) as fh:
+            s = json.load(fh)
+        if not summary:
+            summary = dict(s)
+        else:
+            bad = {
+                k: (summary.get(k), s.get(k))
+                for k in _CHUNK_INVARIANT
+                if summary.get(k) != s.get(k)
+            }
+            assert not bad, (
+                f"{os.path.basename(path)} disagrees with {os.path.basename(chunks[0])} on "
+                f"{bad}: the chunks of one product must be one experiment"
+            )
+        for r in s["rows"]:
+            assert int(r) not in seen, (
+                f"target row {r} is in both {seen[int(r)]} and {os.path.basename(path)}: the "
+                f"chunks of one product must cover DISJOINT rows"
+            )
+            seen[int(r)] = os.path.basename(path)
+        rows += read_jsonl(path)
+    summary["rows"] = sorted(seen)
+    summary["n_targets"] = len(seen)
+    summary["chunks"] = [os.path.basename(p) for p in chunks]
+    print(
+        f"[rollouts] {stem}: {len(chunks)} `{ROWS_MARK}` chunk(s), {len(seen)} target rows, "
+        f"{len(rows)} rollout rows",
+        flush=True,
+    )
+    return rows, summary, chunks
 
 
 def nla_variant_dir(maemm_key: str, set_name: str, amp: str, root: str = VOL) -> str:
@@ -469,8 +1562,74 @@ def nla_variant_dir(maemm_key: str, set_name: str, amp: str, root: str = VOL) ->
     return f"{maemm_dir(maemm_key, root)}/variants/{set_name}__amp-{amp}"
 
 
-def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf") -> str:
-    return f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(set_name, engine)}"
+def scores_dir(maemm_key: str, set_name: str, root: str = VOL, engine: str = "hf",
+               tag: str = "", write: bool = False) -> str:
+    """`<root>/maemms/<base>/<maemm>/scores/<set>[__<engine>][__<tag>]` -- `rollout_stem`'s layout.
+
+    `tag` IS IN THE SAME POSITION AS `rollout_stem`'s, which is the whole point of it existing
+    here (C7, infra/2026-09-22_inventory-alignment.md). This function took no tag, so a tagged
+    score run could only name itself through `--score-name <set>__<tag>` -- and `rollout_stem`
+    then treated that whole string as the set and appended `__<engine>` AFTER the tag. On the
+    volume:
+
+        rollouts/ 2026-09-21_v3_ctrl__vllm__mu-none.jsonl     <- engine, then tag
+        scores/   2026-09-21_v3_ctrl__mu-none__vllm/          <- tag, then engine
+
+    One pair of products, two orders. `results/common.parse_scores_dir` was already patched to
+    read the engine part wherever it sits, and its docstring records what the first version cost:
+    six of eval 1's arms went into the paper's own CSV as HF when they were vLLM. Any future tool
+    joining a rollout to its score by tag inherits the same trap. Writers are canonical from here.
+
+    `tag` IS TWO AXES JOINED, not one -- build it with `score_tag_of(args)`, never by hand. Both
+    `evals/pipeline` and `evals/pipeline-ood` gave this function a `tag` in this position within a
+    day of each other and meant DIFFERENT things by it; see `score_tag_of`.
+
+    A READER (the default) falls back to the legacy `<set>__<tag>__<engine>` spelling when the
+    canonical path is absent and the legacy one is there, exactly as `sae_examples_dir` does for
+    its own rename, so the products already on the volume stay readable. Only `engine != "hf"`
+    can differ: at `hf` the two spellings are the same string.
+    """
+    tag = (tag or "").strip()
+    canonical = f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(set_name, engine, tag)}"
+    if write or not tag or engine == "hf":
+        return canonical
+    legacy = f"{maemm_dir(maemm_key, root)}/scores/{rollout_stem(f'{set_name}__{tag}', engine)}"
+    if not os.path.exists(canonical) and os.path.exists(legacy):
+        print(
+            f"[scores] {canonical} is absent; reading the LEGACY {legacy} (written before "
+            f"2026-09-21, when scores/ took its run tag through --score-name and so spelled it "
+            f"after the engine instead of before). Same product, older name.",
+            flush=True,
+        )
+        return legacy
+    return canonical
+
+
+def score_tag_of(args: dict) -> str:
+    """The tag component of a scores directory: the run tag, the score tag, or both.
+
+    TWO ORTHOGONAL AXES, and BOTH have to reach the name or one of them silently overwrites the
+    other's product:
+
+      `--run-tag`   selects which rollouts FILE is scored (`rollout_stem`'s third component).
+                    Two run tags scored under one convention are two different inputs.
+      `--score-tag` names only the OUTPUT: the same rollouts file scored again under a second
+                    convention, a second mean, or for a column the first run did not have --
+                    `cos_asym` is why it exists. Pointing `--run-tag` at a re-score instead sends
+                    `score` looking for a `<set>__<engine>__<tag>.jsonl` that is not there, which
+                    is how the mu-stats arm failed on 2026-09-21.
+
+    Joined RUN FIRST, because the rollouts file is the outer object: every score of one rollouts
+    file sorts together. `results.common.parse_scores_dir` returns the joined string as one tag,
+    which is what it did before either axis existed and is all any reader has ever needed.
+
+    `evals/pipeline` and `evals/pipeline-ood` each gave `scores_dir` a `tag` parameter in the same
+    position, with the same name, meaning these two different things; the rebase that met them
+    could have kept either one alone and lost the other's products with no error anywhere.
+    """
+    run = (args.get("run_tag") or "").strip()
+    score = (args.get("score_tag") or "").strip()
+    return "__".join(t for t in (run, score) if t)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -526,6 +1685,9 @@ def load_corpus(base: str, root: str = VOL, name: str = ""):
 
     The memmap is never randomly indexed across the whole file by the passes -- they walk documents
     in stored order (checklist item 76: volume random reads crawl).
+
+    `name` selects a named corpus (`corpora/<name>/`, e.g. an OOD arm's in-domain corpus)
+    instead of the base's own English one.
     """
     import numpy as np
 
@@ -1146,6 +2308,9 @@ def score_ids(
     device="cuda",
     on_chunk=None,
     max_length: int = SCORE_MAX_LENGTH,
+    *,
+    dirs_centred=None,
+    mu=None,
 ):
     """Per-token cosine and residual norm of each ID LIST on the CLEAN base at `read_layer`.
 
@@ -1160,14 +2325,35 @@ def score_ids(
     DIVERGENCE (Tomáš, 2026-09-15): her 10x-nanmedian norm filter (eval_universal.py:71,145-147) is
     NOT applied. The per-token norm is stored so reconstruction/stats.py can apply it as an option.
 
-    The cosine is UNCENTRED while realact target directions are unit(act - mu)
-    (data/build_universal_bank.py:26,310). That asymmetry is Celeste's and is kept.
+    TWO COSINES FROM ONE FORWARD (2026-09-21). `cos` is the uncentred number this function has
+    always produced. Passing BOTH `dirs_centred` and `mu` adds `cos_centred` to the output:
+
+        cos          = einsum(normalize(h),      normalize(dirs))
+        cos_centred  = einsum(normalize(h - mu), normalize(dirs_centred))
+        cos_asym     = einsum(normalize(h),      normalize(dirs_centred))   # the scan's convention
+
+    -- the same residual, a second einsum, ~0 extra GPU time, and the two sides of the centred
+    number are centred by the SAME mean. This function CANNOT derive `dirs_centred` itself: it is
+    handed unit vectors, and unit(act) together with mu does not give unit(act - mu) without
+    ||act||, which lives in the set's ids.jsonl. So the caller (score.py, which owns rows_meta)
+    builds both tensors and puts NaN rows where the family is not centrable -- an encoder column
+    has no mean, and cos(h - mu, encoder column) is a one-sided number, not a centred one. NaN
+    propagates through the normalize and the einsum on its own; nothing special-cases it.
+
+    A caller that passes neither keyword gets bit-identical output to before: gcg.py:332 and
+    sae_self.py:246 call with keywords only and are untouched, which is the one-scoring-path
+    invariant gcg.py:19-21 names.
+
+    Every OTHER cosine in the pipeline is uncentred while a legacy realact target direction is
+    unit(act - mu) (data/build_universal_bank.py:26,310). That asymmetry is Celeste's; it is what
+    `cos_centred` exists to measure against rather than to replace.
 
     `model` must already be the scoring model: a PeftModel (its adapter is disabled here) or a
     separately loaded clean base (full-parameter MAEMMs have no adapter to switch off).
 
     Returns a dict of [N, max_length + 1] tensors on the cpu -- cos (f32), norm (f32), keep (bool),
-    ids (i64) -- where column 0 is the sink, cos/norm are NaN outside `keep`, and ids is -1 there.
+    ids (i64), and cos_centred (f32) when asked for -- where column 0 is the sink, cos/norm are NaN
+    outside `keep`, and ids is -1 there.
     Rows are rectangular across chunks of different token lengths, so the arrays concatenate.
     `max_length` defaults to SCORE_MAX_LENGTH and every caller but the NLA arm leaves it there;
     see `encode_for_score` for why it is a parameter and who records the value used.
@@ -1183,6 +2369,20 @@ def score_ids(
     n = len(id_lists)
     assert len(dirs) == n, f"{n} id lists but {len(dirs)} directions: the scorer pairs them by row"
     assert max_length >= 1, f"max_length must be at least one token, got {max_length}"
+    assert (dirs_centred is None) == (mu is None), (
+        "score_ids takes dirs_centred and mu TOGETHER or neither: the centred cosine centres both "
+        "sides by the same mean, and one without the other is the asymmetric number this keyword "
+        "pair exists to replace"
+    )
+    want_centred = dirs_centred is not None
+    if want_centred:
+        assert len(dirs_centred) == n, (
+            f"{n} id lists but {len(dirs_centred)} centred directions"
+        )
+        mu_t = torch.as_tensor(mu, dtype=torch.float32, device=device).reshape(-1)
+        assert mu_t.shape[0] == int(dirs.shape[-1]), (
+            f"mu is [{mu_t.shape[0]}] but the directions are [.., {int(dirs.shape[-1])}]"
+        )
     # +1 for the sink at column 0. This is SCORE_WIDTH whenever max_length is the protocol's own
     # SCORE_MAX_LENGTH, which is every caller but the NLA arm.
     score_width = max_length + 1
@@ -1192,6 +2392,16 @@ def score_ids(
         "keep": torch.zeros((n, score_width), dtype=torch.bool),
         "ids": torch.full((n, score_width), -1, dtype=torch.long),
     }
+    if want_centred:
+        out["cos_centred"] = torch.full((n, score_width), float("nan"))
+        # THE ASYMMETRIC COSINE (Tomáš 2026-09-21): the scorer's side UNCENTRED against the
+        # CENTRED target. It is the convention `scan` uses for every corpus window
+        # (`normalize(h) @ unit(act - mu)`, precompute/scan.py) and the one the paper's bo64
+        # 0.569 and corpus 0.351 are both stated in, so it is the only one of the three that can
+        # be differenced against a corpus search. The legacy path produced it for free, because a
+        # `storage: unit` set's stored rows ARE unit(act - mu) and `dirs` was already the centred
+        # target; on a `storage: raw` set nothing did until this column.
+        out["cos_asym"] = torch.full((n, score_width), float("nan"))
     sink = sink_token_id(tok)
     pad = tok.pad_token_id if tok.pad_token_id is not None else sink
     with torch.no_grad():
@@ -1224,6 +2434,13 @@ def score_ids(
             d = F.normalize(dirs[s : s + b].to(device).float(), dim=-1)
             cos = torch.einsum("btd,bd->bt", F.normalize(h.float(), dim=-1), d)
             nrm = h.float().norm(dim=-1)
+            cos_c = None
+            if want_centred:
+                dc = F.normalize(dirs_centred[s : s + b].to(device).float(), dim=-1)
+                cos_c = torch.einsum(
+                    "btd,bd->bt", F.normalize(h.float() - mu_t, dim=-1), dc
+                )
+                cos_a = torch.einsum("btd,bd->bt", F.normalize(h.float(), dim=-1), dc)
             t = ids.shape[1]
             assert t <= score_width, (
                 f"chunk width {t} exceeds this run's width {score_width}: truncation at "
@@ -1235,6 +2452,13 @@ def score_ids(
             out["ids"][s : s + b, :t] = torch.where(mask, ids, torch.full_like(ids, -1)).cpu()
             out["cos"][s : s + b, :t] = torch.where(keep, cos, torch.full_like(cos, float("nan"))).cpu()
             out["norm"][s : s + b, :t] = torch.where(keep, nrm, torch.full_like(nrm, float("nan"))).cpu()
+            if want_centred:
+                out["cos_centred"][s : s + b, :t] = torch.where(
+                    keep, cos_c, torch.full_like(cos_c, float("nan"))
+                ).cpu()
+                out["cos_asym"][s : s + b, :t] = torch.where(
+                    keep, cos_a, torch.full_like(cos_a, float("nan"))
+                ).cpu()
     return out
 
 
@@ -1248,6 +2472,9 @@ def score_tokens(
     device="cuda",
     on_chunk=None,
     max_length: int = SCORE_MAX_LENGTH,
+    *,
+    dirs_centred=None,
+    mu=None,
 ):
     """`score_ids` with the tokenizer in front: see `encode_for_score` and `score_ids`.
 
@@ -1266,6 +2493,10 @@ def score_tokens(
         device=device,
         on_chunk=on_chunk,
         max_length=max_length,
+        # score.py reaches score_ids through THIS wrapper, not directly, so the centred pair has to
+        # be forwarded here or the second cosine never leaves the caller.
+        dirs_centred=dirs_centred,
+        mu=mu,
     )
 
 
@@ -1282,16 +2513,29 @@ def agg(cos, keep):
     return best, arg
 
 
-def best_of_k_means(vals, ks) -> dict[int, float]:
-    """Best-of-k means by DISJOINT groups: split `vals` into floor(n/k) consecutive groups of k,
-    take each group's max, average them.
+def bo_ladder(vals, ks) -> dict[int, float]:
+    """{k: UNBIASED best-of-k} over `vals`, the n per-rollout scores of one target.
 
-    This is the plain subsample estimator, not the unbiased order-statistic one (that belongs to
-    reconstruction/stats.py): it uses only floor(n/k)*k of the n rollouts and its variance at
-    k = n is the variance of a single best-of-n draw. k values above n are skipped rather than
-    silently clamped, so a summary never claims a bo-k it could not compute.
+        E[max of k draws] = sum_{i=1..n} x_(i) * C(i-1, k-1) / C(n, k)      (x sorted ASCENDING)
+
+    The i-th smallest of the n observed scores is the maximum of a k-subset exactly when the other
+    k-1 members come from the i-1 below it, and every k-subset is equally likely. Unbiased for any
+    k <= n and using ALL n rollouts. k > n is SKIPPED, never clamped, so a summary never claims a
+    bo-k it could not compute.
+
+    ONE ESTIMATOR IN THE PIPELINE (2026-09-23, M0a). This replaced `best_of_k_means`, the
+    disjoint-group mean -- floor(n/k) consecutive groups of k, each group's max, averaged -- which
+    `score` stored while `reconstruction/stats.py` printed the unbiased one, so the same quantity
+    had two values depending on which file a reader opened and they agreed only at k = n.
+
+    It is DELIBERATELY duplicated in `results/common.bo_unbiased`: this module is what the Modal
+    container ships and `results/` is a standalone local script layer that imports nothing from
+    it, exactly as `read_array` is duplicated. `results/selftest.check_one_bo_estimator` asserts
+    the two agree to floating point on a random draw, so the duplicate is checked, not trusted.
     """
-    vals = [float(v) for v in vals]
+    import math as _math
+
+    vals = sorted(float(v) for v in vals)
     n = len(vals)
     out: dict[int, float] = {}
     for k in ks:
@@ -1299,8 +2543,8 @@ def best_of_k_means(vals, ks) -> dict[int, float]:
         assert k >= 1, f"best-of-k needs k >= 1, got {k}"
         if k > n:
             continue
-        g = n // k
-        out[k] = sum(max(vals[i * k : (i + 1) * k]) for i in range(g)) / g
+        denom = _math.comb(n, k)
+        out[k] = sum(vals[i - 1] * _math.comb(i - 1, k - 1) for i in range(1, n + 1)) / denom
     return out
 
 
@@ -1312,10 +2556,16 @@ def best_of_k_means(vals, ks) -> dict[int, float]:
 class BatchTopKSAE:
     """W_enc [d, F], W_dec [F, d], b_enc [F], b_dec [d], threshold: the learned BatchTopK gate."""
 
-    def __init__(self, W_enc, W_dec, b_enc, b_dec, threshold):
+    def __init__(self, W_enc, W_dec, b_enc, b_dec, threshold, col_of=None, d_sae_full=0):
         self.W_enc, self.W_dec, self.b_enc, self.b_dec = W_enc, W_dec, b_enc, b_dec
         self.threshold = threshold
-        self.d_in, self.d_sae = W_enc.shape
+        self.d_in, self.n_cols = W_enc.shape
+        # A COLUMN SLICE carries the map from the dictionary's feature id to its column here, and
+        # still reports the dictionary's true size as `d_sae` -- a slice that called itself a
+        # 16-feature SAE would make every "2097152 features" line a lie. `col_of is None` is the
+        # whole dictionary, where the two indices coincide.
+        self.col_of = col_of
+        self.d_sae = d_sae_full or self.n_cols
 
 
 def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None, need_decoder: bool = True):
@@ -1372,19 +2622,88 @@ def load_sae(path: str, d_model: int, device: str = "cpu", dtype=None, need_deco
     return sae
 
 
+def _sae_cols(sae: BatchTopKSAE, feature_ids) -> list[int]:
+    """Dictionary feature ids -> column numbers of THIS object's W_enc.
+
+    Identity for a full dictionary; the slice's own map for one from `load_sae_columns`, which
+    refuses an id it does not hold rather than returning some other feature's column. Shared by
+    `sae_encode` and `sae_dirs` so the two cannot come to mean different things by one id.
+    """
+    ids = [int(f) for f in feature_ids]
+    if sae.col_of is None:
+        return ids
+    missing = sorted({f for f in ids if f not in sae.col_of})
+    assert not missing, (
+        f"this SAE is a {sae.n_cols}-column slice of a {sae.d_sae}-feature dictionary and does "
+        f"not hold feature(s) {missing[:8]}; it holds {sorted(sae.col_of)[:8]}"
+        f"{'...' if len(sae.col_of) > 8 else ''}. Load the columns you mean -- nothing here will "
+        f"reinterpret a feature id as a column number."
+    )
+    return [sae.col_of[f] for f in ids]
+
+
 def sae_encode(sae: BatchTopKSAE, h, feature_ids):
-    """mxf/sae.py:27-31: pre-topk post-ReLU activations relu((x - b_dec) @ W_enc[:,f] + b_enc[f])."""
+    """mxf/sae.py:27-31: pre-topk post-ReLU activations relu((x - b_dec) @ W_enc[:,f] + b_enc[f]).
+
+    `feature_ids` are always the DICTIONARY's ids, whether `sae` is the whole dictionary or a
+    column slice from `load_sae_columns`. The slice translates them through its own `col_of` and
+    refuses an id it does not hold, so a caller cannot get a different feature's activation by
+    handing a local index to one object and a global id to the other -- which is the only way this
+    optimisation could have gone wrong silently.
+    """
     import torch
 
-    idx = torch.as_tensor(feature_ids, device=sae.W_enc.device)
+    ids = _sae_cols(sae, feature_ids)
+    idx = torch.as_tensor(ids, device=sae.W_enc.device)
     return torch.relu((h - sae.b_dec) @ sae.W_enc[:, idx] + sae.b_enc[idx])
 
 
-def sae_dirs(sae: BatchTopKSAE, feature_ids):
-    """mxf/sae.py:33-36: the `sae` family target is the UNIT ENCODER COLUMN unit(W_enc[:, f])."""
+def load_sae_columns(path: str, d_model: int, feature_ids, device: str = "cpu", dtype=None):
+    """The SAE restricted to `feature_ids`: everything `sae_encode` reads, nothing else.
+
+    `relu((h - b_dec) @ W_enc[:, f] + b_enc[f])` needs one column of W_enc per feature, one entry
+    of b_enc, all of b_dec, and the gate. A caller that wants the activation of SIXTEEN features
+    of a 2^21 dictionary does not need the other 2,097,136 columns and certainly does not need
+    W_dec -- which is 43 GB in fp32 at that width, and is what made `gcg --mode epo --sae
+    qwen36-27b/sae2m` OOM an H200 at setup (MEASURED 2026-09-21: the fp32 unembedding's 4.74 GiB
+    could not be allocated with 135.55 GiB already in use).
+
+    The full encoder is read on the CPU and only the slice is moved, so the device never holds the
+    dictionary. The returned object is an ordinary BatchTopKSAE carrying `col_of`, so `sae_encode`
+    still takes dictionary ids and `d_sae` still reports the dictionary's true width.
+    """
     import torch
 
-    idx = torch.as_tensor(feature_ids, device=sae.W_enc.device)
+    ids = [int(f) for f in feature_ids]
+    assert ids, "load_sae_columns needs at least one feature id"
+    dup = sorted({f for f in ids if ids.count(f) > 1})
+    assert not dup, f"duplicate feature ids {dup[:8]} -- the column map would be ambiguous"
+    full = load_sae(path, d_model, device="cpu", dtype=dtype, need_decoder=False)
+    bad = sorted({f for f in ids if not 0 <= f < full.d_sae})
+    assert not bad, f"feature ids {bad[:8]} are outside the {full.d_sae}-feature dictionary {path}"
+    idx = torch.as_tensor(ids)
+    return BatchTopKSAE(
+        full.W_enc[:, idx].contiguous().to(device),
+        None,
+        full.b_enc[idx].contiguous().to(device),
+        full.b_dec.to(device),
+        full.threshold,
+        col_of={f: i for i, f in enumerate(ids)},
+        d_sae_full=full.d_sae,
+    )
+
+
+def sae_dirs(sae: BatchTopKSAE, feature_ids):
+    """mxf/sae.py:33-36: the `sae` family target is the UNIT ENCODER COLUMN unit(W_enc[:, f]).
+
+    Sibling of `sae_encode` and indexes W_enc the same way, so it takes DICTIONARY ids on a column
+    slice too. Without this the two functions would disagree about what an id means on the same
+    object, which is worse than either convention.
+    """
+    import torch
+
+    ids = _sae_cols(sae, feature_ids)
+    idx = torch.as_tensor(ids, device=sae.W_enc.device)
     return torch.nn.functional.normalize(sae.W_enc[:, idx].T, dim=-1)
 
 
@@ -1515,12 +2834,115 @@ def human(nbytes: int) -> str:
     raise AssertionError("unreachable")
 
 
+def _read_index(path: Path) -> dict[str, dict]:
+    """A product directory's `index.json`, or {} when it is absent or unreadable.
+
+    Never raises: the index is README metadata (no consumer in `paper-evals/` reads it), and a run
+    that has just produced a rollout does not fail because a concurrent writer was mid-replace.
+    """
+    try:
+        with open(path) as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError) as e:
+        if os.path.exists(path):
+            print(f"[outdir] could not read {path} ({e}); the README file table will be partial",
+                  flush=True)
+        return {}
+    if not isinstance(rec, dict):
+        return {}
+    return {k: v for k, v in rec.items() if k not in ("README.md", "index.json")}
+
+
+INDEX_LOCK = ".index.lock"
+
+
+@contextlib.contextmanager
+def _index_lock(product: Path, timeout: float = 60.0, stale: float = 900.0):
+    """Hold `<product>/.index.lock` while index.json and README.md are read-merged-written.
+
+    O_CREAT|O_EXCL, spun on with jitter, a stale lock broken after `stale` seconds, and -- after
+    `timeout` -- the merge proceeds UNLOCKED with a warning rather than failing a finished
+    rollout: the files themselves are already in place by then and the worst an unlocked merge
+    costs is a row of the README's file table (nothing in `paper-evals/` reads index.json).
+
+    The lock is a dotfile inside the product directory and is removed on release, so the
+    directory's committed contents are byte-identical to what the pre-2026-09-23 write produced.
+    """
+    lock = product / INDEX_LOCK
+    t0, fd = time.time(), None
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            break
+        except FileExistsError:
+            try:
+                age = time.time() - os.stat(lock).st_mtime
+            except OSError:
+                continue
+            if age > stale:
+                print(f"[outdir] breaking a stale {lock} ({age:.0f}s old)", flush=True)
+                with contextlib.suppress(OSError):
+                    os.unlink(lock)
+                continue
+            if time.time() - t0 > timeout:
+                print(f"[outdir] WARNING: {lock} held for {timeout:.0f}s; merging index.json "
+                      f"WITHOUT the lock (the product files are already in place)", flush=True)
+                break
+            time.sleep(0.005 + 0.02 * random.random())
+        except OSError as e:  # a filesystem with no O_EXCL: best effort, say so
+            print(f"[outdir] WARNING: cannot take {lock} ({e}); merging index.json unlocked",
+                  flush=True)
+            break
+    try:
+        yield
+    finally:
+        if fd is not None:
+            os.close(fd)
+            with contextlib.suppress(OSError):
+                os.unlink(lock)
+
+
+def _replace_atomically(path: Path, text: str) -> None:
+    """Write `text` to `path` through a sibling temp + os.replace, so no reader sees it half-written."""
+    tmp = path.with_name(f".{path.name}.tmp-{_tmp_stamp()}")
+    with open(tmp, "w") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+
+
+def _tmp_stamp() -> str:
+    """The unique component of an ADDITIVE product's staging directory.
+
+    It keeps the `.tmp-<date>` prefix that `reconstruction/stats.py:344-359` and
+    `gcg/modal_app.py:169` filter on, and appends pid + a random nibble so that two concurrent
+    writers into ONE accumulating product directory never share a staging directory. That sharing
+    is the whole of the silent loss recorded at `SMOKES.md:4349-4356`.
+    """
+    return f"{time.strftime('%Y-%m-%d')}-{os.getpid()}-{random.randrange(16**6):06x}"
+
+
 class OutDir:
     """Temp-and-rename output directory with a README and an array index (infra/design.md §1).
 
-    Writers write to `<name>.tmp-<date>/` and rename on completion; an existing `<name>/` is never
-    overwritten without force=True. On an exception the temp directory is LEFT IN PLACE and its
-    path printed, so a failed run is inspectable and never half-renamed.
+    ONE-SHOT products (the default) write to `<name>.tmp-<date>/` and rename on completion; an
+    existing `<name>/` is never overwritten without force=True. On an exception the temp directory
+    is LEFT IN PLACE and its path printed, so a failed run is inspectable and never half-renamed.
+
+    ACCUMULATING products (`keep_existing=True`: `rollouts/`, `stats/`, `sae/<name>/`, the scores
+    directory) are ADDITIVE since 2026-09-23. The old behaviour copytree'd the whole existing
+    directory into `<name>.tmp-<date>/` and, on commit, rmtree'd the original and renamed the temp
+    over it; two concurrent runs shared the date-stamped temp name and the later rename silently
+    discarded the earlier run's file (`SMOKES.md:4349-4356`). Now:
+
+      * `__enter__` creates `<name>/` if it is missing and stages this run's files in a temp
+        directory unique to the process; nothing that already exists is read, copied or removed;
+      * `__exit__` MOVES only the files this run wrote into `<name>/`, then merges its index
+        entries into `<name>/index.json` and rewrites `README.md`. Both are written through a
+        temp-and-`os.replace`, so a concurrent reader never sees a half-written one.
+
+    The on-disk result is byte-identical to what the copytree path produced for a single writer:
+    the same files, the same `index.json` mapping and the same README layout. What changes is only
+    that a second concurrent writer's file survives.
 
     The README is the only metadata (command line, date, repo commit, inputs, sizes, status,
     provenance). The one allowed sidecar is `index.json`: file -> {dtype, shape, bytes} for the raw
@@ -1547,8 +2969,10 @@ class OutDir:
         self.path = Path(path)
         self.force = force
         # keep_existing: an ACCUMULATING directory (rollouts/, which gains one <set>.jsonl per run)
-        # rather than a one-shot product. The existing directory is copied into the temp dir first,
-        # so the rename is still atomic and the caller's per-file overwrite rule is its own.
+        # rather than a one-shot product. This run's files are staged in a temp dir of its own and
+        # MOVED in one at a time on commit; nothing already in the directory is copied or removed,
+        # so two concurrent writers of disjoint files both survive. The caller's per-file overwrite
+        # rule is still its own (rollouts_vllm asserts the stem is free unless --force).
         self.keep_existing = keep_existing
         self.gpu = gpu
         self.usd_per_s = usd_per_s
@@ -1559,29 +2983,38 @@ class OutDir:
         self.status = status
         self.on_commit = on_commit  # e.g. modal.Volume.commit, called after the rename
         self.index: dict[str, dict] = {}
+        # the entries already in the product directory when an ADDITIVE run started: never written
+        # by this run, carried only so the README's file table lists the whole directory.
+        self.existing: dict[str, dict] = {}
         self.notes: list[str] = []
         self.sections: list[tuple[str, list[str]]] = []
-        self.tmp = self.path.with_name(f"{self.path.name}.tmp-{time.strftime('%Y-%m-%d')}")
+        # A one-shot product keeps the dated name: `gcg --resume-from` and the "re-run is the
+        # resume" convention both address `<name>.tmp-<date>` by that exact spelling. An
+        # accumulating product gets a per-process name in __enter__ instead.
+        self.tmp = self.path.with_name(
+            f"{self.path.name}.tmp-"
+            + (_tmp_stamp() if keep_existing else time.strftime("%Y-%m-%d"))
+        )
         # the product's own start, so `wall` and `cost` cover the whole call (model load included);
         # 0 means "measure from __enter__"
         self._t0 = t0
 
     def __enter__(self):
-        if self.path.exists() and self.keep_existing:
-            if self.tmp.exists():
-                print(f"[outdir] removing a leftover temp dir {self.tmp}", flush=True)
-                shutil.rmtree(self.tmp)
-            shutil.copytree(self.path, self.tmp)
-            existing = self.tmp / "index.json"
-            if existing.exists():
-                with open(existing) as fh:
-                    self.index.update(json.load(fh))
-            for stale in ("README.md", "index.json"):
-                (self.tmp / stale).unlink(missing_ok=True)
-                self.index.pop(stale, None)
+        if self.keep_existing:
+            # ADDITIVE. Nothing existing is read for correctness, copied or removed -- the only
+            # read is index.json, for the README's file table, and a failure to read it costs a
+            # table row and no data.
+            assert not self.tmp.exists(), f"staging dir {self.tmp} already exists"
+            self.tmp.mkdir(parents=True)
+            self.path.mkdir(parents=True, exist_ok=True)
+            self.existing = _read_index(self.path / "index.json")
             if not self._t0:
                 self._t0 = time.time()
-            print(f"[outdir] keeping the {len(self.index)} entries already in {self.path}", flush=True)
+            print(
+                f"[outdir] ADDITIVE into {self.path} ({len(self.existing)} entries already there); "
+                f"staging in {self.tmp}",
+                flush=True,
+            )
             return self
         if self.path.exists():
             assert self.force, (
@@ -1652,9 +3085,10 @@ class OutDir:
             lines += [f"- {k}: {v}" for k, v in self.provenance.items()] + [""]
         for title, body in self.sections:
             lines += [f"## {title}", ""] + list(body) + [""]
-        if self.index:
+        merged = self._merged_index()
+        if merged:
             lines += ["## Files", "", "| file | kind | dtype | shape | size |", "|---|---|---|---|---|"]
-            for name, meta in self.index.items():
+            for name, meta in merged.items():
                 lines.append(
                     f"| `{name}` | {meta['kind']} | {meta.get('dtype', '')} | "
                     f"{meta.get('shape', meta.get('rows', ''))} | {human(meta['bytes'])} |"
@@ -1664,15 +3098,65 @@ class OutDir:
             lines += ["## Notes", ""] + [f"- {n}" for n in self.notes] + [""]
         return "\n".join(lines)
 
+    def _merged_index(self) -> dict[str, dict]:
+        """What the whole product directory holds: what was there, plus what this run wrote."""
+        return {**self.existing, **self.index}
+
+    def _commit_additive(self) -> None:
+        """Move this run's files into the product directory, then merge index.json and README.md.
+
+        Per file, `os.replace` within one filesystem: atomic, and a concurrent writer of a
+        DIFFERENT file is untouched. `index.json` is a read-merge-write and so is racy in the
+        window between the read and the replace; it is re-read immediately before the write to
+        keep that window at a few milliseconds, and it carries no data -- every consumer in
+        `paper-evals/` reads the product's files directly and none reads index.json (grep says
+        so), so a lost entry costs a README row, never a rollout.
+        """
+        staged = sorted(self.tmp.iterdir(), key=lambda p: p.name)
+        wrote = [p.name for p in staged]
+        for p in staged:
+            if p.is_dir():
+                # A subdirectory is not a product file; move it whole and refuse to merge into an
+                # existing one rather than half-overwriting somebody else's subtree.
+                assert not (self.path / p.name).exists(), (
+                    f"{self.path / p.name} already exists; an additive product never merges into "
+                    f"an existing subdirectory"
+                )
+                shutil.move(str(p), str(self.path / p.name))
+            else:
+                os.replace(p, self.path / p.name)
+        idx = self.path / "index.json"
+        # The index merge is a read-modify-write and is the ONE part of the commit two writers
+        # share, so it is the one part that takes a lock. Everything above this line is already
+        # safe: each writer moved only its own files.
+        with _index_lock(self.path):
+            self.existing = {**_read_index(idx), **self.existing}
+            merged = self._merged_index()
+            for stale in ("README.md", "index.json"):
+                merged.pop(stale, None)
+            _replace_atomically(idx, json.dumps(merged, indent=1))
+            self.index["index.json"] = {"kind": "json", "bytes": idx.stat().st_size}
+            _replace_atomically(self.path / "README.md", self._readme())
+        self.tmp.rmdir()
+        print(
+            f"[outdir] ADDITIVE: moved {len(wrote)} file(s) into {self.path} "
+            f"({', '.join(wrote)}); the directory now holds {len(merged)} "
+            f"wall={self.wall():.1f}s cost=${self.cost_usd():.4f}",
+            flush=True,
+        )
+
     def __exit__(self, exc_type, exc, tb):
         if exc_type is not None:
             print(f"[outdir] FAILED: {exc_type.__name__}; temp dir kept at {self.tmp}", flush=True)
             return False  # never swallow
+        if self.keep_existing:
+            self._commit_additive()
+            if self.on_commit is not None:
+                self.on_commit()
+            return False
         self.write_json("index.json", self.index)
         with open(self.tmp / "README.md", "w") as fh:
             fh.write(self._readme())
-        if self.keep_existing and self.path.exists():
-            shutil.rmtree(self.path)
         self.tmp.rename(self.path)
         print(
             f"[outdir] wrote {self.path} ({human(dir_size(self.path))}) "
@@ -1710,3 +3194,331 @@ def hard_exit(code: int = 0):
     sys.stdout.flush()
     sys.stderr.flush()
     os._exit(code)
+
+
+# ---------------------------------------------------------------------------------------------
+# The OOD generalisation evaluation (design infra/2026-09-18_ood-eval-design.md)
+#
+# Everything here is CPU and tokenizer-only. It is shared by `corpus --arm`, `targets` on an `ood`
+# held-out set, `nll`, and (through an import of this module) reconstruction/stats_ood.py, so the
+# arm table, the script table and the code-like rule have ONE definition each.
+# ---------------------------------------------------------------------------------------------
+
+
+def ood_arms(cfg: dict) -> dict:
+    """The `ood_arms:` table, keyed by arm id, in config order. Empty when the key is absent."""
+    return dict(cfg.get("ood_arms") or {})
+
+
+def ood_arm(cfg: dict, arm: str) -> dict:
+    arms = ood_arms(cfg)
+    assert arm in arms, f"unknown ood arm {arm!r}; config.yaml has {sorted(arms)}"
+    spec = arms[arm]
+    for field in ("family", "reader", "dataset", "files", "text", "sizes", "script", "unspaced"):
+        assert field in spec, f"ood arm {arm!r} is missing {field!r}"
+    return spec
+
+
+def is_ood_set(cfg: dict, set_name: str) -> bool:
+    return (cfg["heldout"].get(set_name) or {}).get("kind") == "ood"
+
+
+def ood_set_arms(cfg: dict, set_name: str) -> list[str]:
+    """The arms an `ood` held-out set draws, in config order."""
+    spec = cfg["heldout"][set_name]
+    assert spec.get("kind") == "ood", f"held-out set {set_name!r} is not an ood set"
+    want = spec.get("arms", "all")
+    if want == "all":
+        return list(ood_arms(cfg))
+    assert isinstance(want, list) and want, f"heldout {set_name!r}: `arms` must be `all` or a list"
+    for a in want:
+        ood_arm(cfg, a)
+    return list(want)
+
+
+def arm_perm(arm: str, n_rows: int, seed: int):
+    """The arm's ONE row permutation: `default_rng(seed ^ crc32(arm)).permutation(n_rows)`.
+
+    Design §2. `corpus --arm` consumes it from the front until its token budget is met and records
+    how far it got in `stream.json`; `targets` regenerates the identical permutation and continues
+    from that position, which is what makes corpus and target documents disjoint BY CONSTRUCTION
+    rather than by a check. crc32 (not python's `hash`) because `hash` of a str is salted per
+    process and would not reproduce.
+    """
+    import numpy as np
+
+    return np.random.default_rng(int(seed) ^ zlib.crc32(arm.encode("utf-8"))).permutation(int(n_rows))
+
+
+# --- the byte-level BPE pieces behind every tokenisation covariate ----------------------------
+
+def _bytes_to_unicode() -> dict[int, str]:
+    """GPT-2's byte -> printable-unicode table, written out rather than imported.
+
+    `transformers.models.gpt2.tokenization_gpt2.bytes_to_unicode` is the same table; it is copied
+    here because a covariate that decides the paper's `byte_piece` rate must not move when a
+    transformers internal does. `check_token_bytes` verifies the mapping against the real
+    tokenizer before any arm is drawn, so a base whose tokenizer is NOT byte-level GPT-2 style
+    fails loudly instead of producing a plausible-looking wrong rate.
+    """
+    bs = (
+        list(range(ord("!"), ord("~") + 1))
+        + list(range(ord("¡"), ord("¬") + 1))
+        + list(range(ord("®"), ord("ÿ") + 1))
+    )
+    cs = list(bs)
+    n = 0
+    for b in range(256):
+        if b not in bs:
+            bs.append(b)
+            cs.append(256 + n)
+            n += 1
+    return dict(zip(bs, [chr(c) for c in cs], strict=True))
+
+
+BYTE_ENCODER = _bytes_to_unicode()
+BYTE_DECODER = {c: b for b, c in BYTE_ENCODER.items()}
+WS_BYTES = frozenset(b" \t\n\r\x0b\x0c")
+
+
+def token_bytes(tok, ids) -> list[bytes | None]:
+    """The raw bytes of each token id, or None for a piece that is not byte-level (a special token).
+
+    `convert_ids_to_tokens` returns the byte-level strings ('Ġthe', 'ä¸Ń'); BYTE_DECODER maps them
+    back to the bytes the text was made of, which is the only representation in which "this token
+    is half a character" and "this token starts a whitespace unit" are well defined. `tok.decode`
+    cannot answer either question: it replaces a partial character with U+FFFD and loses the bytes.
+    """
+    pieces = tok.convert_ids_to_tokens([int(i) for i in ids])
+    out: list[bytes | None] = []
+    for pc in pieces:
+        try:
+            out.append(bytes(BYTE_DECODER[c] for c in pc))
+        except KeyError:
+            out.append(None)  # a special token (<|endoftext|> and friends): not byte-level
+    return out
+
+
+def check_token_bytes(tok, ids) -> str:
+    """Assert that `token_bytes` reconstructs exactly what the tokenizer decodes. Returns a note.
+
+    Run once per arm in `targets` and in the unit smoke. A mismatch means the byte table above is
+    not this tokenizer's, and every `byte_piece` / `tok_class` number would be quietly wrong.
+    """
+    pb = token_bytes(tok, ids)
+    n_special = sum(1 for b in pb if b is None)
+    joined = b"".join(b for b in pb if b is not None)
+    ours = joined.decode("utf-8", errors="replace")
+    theirs = tok.decode([int(i) for i in ids])
+    assert n_special == 0 and ours == theirs, (
+        f"token_bytes does not reconstruct the tokenizer's own decode: {n_special} non-byte-level "
+        f"piece(s), and the two strings differ at "
+        f"{next((k for k in range(min(len(ours), len(theirs))) if ours[k] != theirs[k]), len(ours))} "
+        f"(lengths {len(ours)} vs {len(theirs)}). The byte-level BPE assumption behind every "
+        f"tokenisation covariate does not hold for this tokenizer."
+    )
+    return f"token_bytes verified against tok.decode on {len(pb)} tokens ({len(joined)} bytes)"
+
+
+def _char_boundaries(pb: list[bytes | None]):
+    """(boundary, first_char) per token, from one incremental UTF-8 decode of the byte stream.
+
+    boundary[i]   the byte prefix through token i ends on a character boundary (nothing pending)
+    first_char[i] the first character COMPLETED inside token i, or None when token i completes none
+    """
+    import codecs
+
+    dec = codecs.getincrementaldecoder("utf-8")("replace")
+    boundary, first_char = [], []
+    for b in pb:
+        s = dec.decode(b if b is not None else b"")
+        boundary.append(dec.getstate()[0] == b"")
+        first_char.append(s[0] if s else None)
+    return boundary, first_char
+
+
+# Unicode script ranges, one entry per script an arm can be in (config `script:`). Coarse on
+# purpose: the covariate asks "is this character in the arm's script", not "which of 160 scripts".
+SCRIPT_RANGES = {
+    "Latin": ((0x0041, 0x005A), (0x0061, 0x007A), (0x00C0, 0x024F), (0x1E00, 0x1EFF)),
+    "Cyrillic": ((0x0400, 0x04FF), (0x0500, 0x052F), (0x2DE0, 0x2DFF), (0xA640, 0xA69F)),
+    "Greek": ((0x0370, 0x03FF), (0x1F00, 0x1FFF)),
+    "Arabic": ((0x0600, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)),
+    "Devanagari": ((0x0900, 0x097F), (0xA8E0, 0xA8FF)),
+    "Thai": ((0x0E00, 0x0E7F),),
+    "Han": ((0x3400, 0x4DBF), (0x4E00, 0x9FFF), (0xF900, 0xFAFF), (0x20000, 0x2A6DF)),
+    "Kana": ((0x3040, 0x309F), (0x30A0, 0x30FF), (0x31F0, 0x31FF)),
+    "Hangul": ((0xAC00, 0xD7AF), (0x1100, 0x11FF), (0x3130, 0x318F)),
+}
+# A composite arm script: Japanese text is Han + both kana, and a Han-only test would call every
+# hiragana particle "other script".
+SCRIPT_ALIASES = {"Jpan": ("Han", "Kana")}
+
+
+def in_script(ch: str, script: str) -> bool:
+    """Is `ch` a character of `script` (config `script:` of an arm)? Unknown scripts raise."""
+    parts = SCRIPT_ALIASES.get(script, (script,))
+    o = ord(ch)
+    for name in parts:
+        assert name in SCRIPT_RANGES, f"unknown script {name!r}; known: {sorted(SCRIPT_RANGES)}"
+        if any(lo <= o <= hi for lo, hi in SCRIPT_RANGES[name]):
+            return True
+    return False
+
+
+def is_letter(ch: str) -> bool:
+    """A letter for the script covariates: a Unicode letter OR a combining mark.
+
+    `str.isalpha()` is False for Mn/Mc, which would make every Thai vowel sign, every Devanagari
+    matra and every Arabic diacritic `punct` -- exactly the characters an abugida arm is made of.
+    """
+    import unicodedata
+
+    return unicodedata.category(ch) in ("Lu", "Ll", "Lt", "Lm", "Lo", "Mn", "Mc", "Me")
+
+
+def script_fraction(text: str, script: str) -> float:
+    """Fraction of the LETTERS of `text` that are in `script` (design §5, H's CPU classifier).
+
+    Non-letters (digits, punctuation, whitespace, symbols) are not counted on either side, so a
+    rollout of pure LaTeX has an undefined -- returned as nan -- script fraction rather than 0.
+    """
+    letters = [c for c in text if is_letter(c)]
+    if not letters:
+        return float("nan")
+    return sum(1 for c in letters if in_script(c, script)) / len(letters)
+
+
+# The one code-like rule, used twice (review R3 on rollouts, R7 on the training corpus). Written
+# out here and PRINTED by both callers' READMEs, so the paper can state it in a sentence.
+CODE_LIKE_MARKERS = ("def ", "{", "};", "import ", "#include", "</", "=>", "->", "();")
+CODE_LIKE_MIN = 3  # distinct markers (indentation runs count as one) per 512-token window
+
+
+def code_like(text: str) -> bool:
+    """>= CODE_LIKE_MIN of {the markers above} + `an indentation run` occur in `text`."""
+    import re
+
+    hits = sum(1 for m in CODE_LIKE_MARKERS if m in text)
+    if re.search(r"\n[ \t]{2,}\S", text):
+        hits += 1
+    return hits >= CODE_LIKE_MIN
+
+
+UNIT_CAP = 16  # `n_subtokens` is capped here (design §3)
+UNITEND_MAX_SHIFT = 8  # how far `_unitend` may move p forward (design §3)
+
+
+def token_covariates(tok, ids, p: int, script: str, unspaced: bool) -> dict:
+    """The design §3 + §11 R5 covariates of the token at position `p` of a token window.
+
+    All of it from the tokenizer alone, at draw time, on the CPU:
+
+      tok_class    `unspaced` on an unspaced arm; otherwise `word` (the token both starts and ends
+                   a whitespace-delimited unit), `first`, `mid` or `last`
+      n_subtokens  the length of that unit, capped at UNIT_CAP; None on an unspaced arm
+      unit_start / unit_end   the unit's token indices (None on an unspaced arm)
+      byte_piece   the token's bytes are not valid UTF-8 on their own -- a partial character under
+                   Qwen's byte-level BPE (R5)
+      whole_char   the token is exactly one character; multi_char: two or more (R5)
+      char_type    of the character the token's first byte belongs to: `letter_arm` (a letter of
+                   the arm's script), `letter_other`, `digit`, `punct`, `space`
+      unitend_p    where the `_unitend` variant would move p: the unit's last token on a spaced
+                   arm (wordend), the end of the character on an unspaced one (charend)
+      unitend_rule `wordend` | `charend` | `none` (p already ends its unit / character)
+
+    A whitespace-delimited unit is a maximal run of tokens with no whitespace byte between them:
+    token i starts a unit iff its first byte is whitespace, or the previous token's bytes carry
+    whitespace after their first byte, or i is the first token of the window.
+    """
+    n = len(ids)
+    assert 0 <= p < n, f"p={p} outside the {n}-token window"
+    pb = token_bytes(tok, ids)
+    boundary, first_char = _char_boundaries(pb)
+
+    def bts(i) -> bytes:
+        return pb[i] if pb[i] is not None else b""
+
+    def lead_ws(i) -> bool:
+        b = bts(i)
+        return bool(b) and b[0] in WS_BYTES
+
+    def inner_ws(i) -> bool:
+        return any(c in WS_BYTES for c in bts(i)[1:])
+
+    def starts(i) -> bool:
+        return i == 0 or lead_ws(i) or inner_ws(i - 1)
+
+    own = bts(p)
+    try:
+        dec_own = own.decode("utf-8")
+        is_byte_piece = False
+    except UnicodeDecodeError:
+        dec_own = ""
+        is_byte_piece = True
+
+    # the character this token's first byte belongs to = the first character completed at or after p
+    ch = next((first_char[j] for j in range(p, n) if first_char[j] is not None), None)
+
+    def _type(c) -> str:
+        if c is None:
+            return "partial"
+        if c.isspace():
+            return "space"
+        if c.isdigit():
+            return "digit"
+        if is_letter(c):
+            return "letter_arm" if in_script(c, script) else "letter_other"
+        return "punct"
+
+    char_type = _type(ch)
+    # `char_type` is the design's: the type of the token's FIRST character. Under a byte-level BPE
+    # a spaced script's tokens carry their leading space, so that is `space` for about half of them
+    # (MEASURED 2026-09-18: 11 of 21 tokens of a Czech sentence, 13 of 25 of a Python snippet) and
+    # the stratum says little about the token's content. `char_type_body` is the same rule applied
+    # to the token's first NON-space character, which is the one a reader means; both are stored
+    # and the design's field keeps its name and its definition.
+    body = own.decode("utf-8", errors="ignore").lstrip()
+    char_type_body = _type(body[0]) if body else char_type
+
+    out = {
+        "byte_piece": is_byte_piece,
+        "whole_char": (not is_byte_piece) and len(dec_own) == 1,
+        "multi_char": (not is_byte_piece) and len(dec_own) >= 2,
+        "char_type": char_type,
+        "char_type_body": char_type_body,
+    }
+    if unspaced:
+        out.update(tok_class="unspaced", n_subtokens=None, unit_start=None, unit_end=None)
+        j = next((k for k in range(p, n) if boundary[k]), n - 1)
+        out["unitend_p"] = min(j, p + UNITEND_MAX_SHIFT, n - 1)
+        out["unitend_rule"] = "charend" if out["unitend_p"] > p else "none"
+        return out
+
+    s = p
+    while s > 0 and not starts(s):
+        s -= 1
+    e = p
+    while e + 1 < n and not starts(e + 1):
+        e += 1
+    at_start, at_end = s == p, e == p
+    out["tok_class"] = (
+        "word" if at_start and at_end else "first" if at_start else "last" if at_end else "mid"
+    )
+    out["n_subtokens"] = min(e - s + 1, UNIT_CAP)
+    out["unit_start"], out["unit_end"] = s, e
+    out["unitend_p"] = min(e, p + UNITEND_MAX_SHIFT, n - 1)
+    out["unitend_rule"] = "wordend" if out["unitend_p"] > p else "none"
+    return out
+
+
+def arm_rng(arm: str, seed: int, stream: int = 1):
+    """A per-arm rng INDEPENDENT of `arm_perm`'s (which is `stream` 0 in all but name).
+
+    `default_rng` takes a sequence of ints as entropy, so (seed, crc32(arm), stream) gives each arm
+    its own reproducible stream for the p / L / norm-presample draws without disturbing the row
+    permutation the corpus and the pool were cut from.
+    """
+    import numpy as np
+
+    return np.random.default_rng([int(seed), zlib.crc32(arm.encode("utf-8")), int(stream)])

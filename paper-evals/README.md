@@ -151,6 +151,7 @@ allowed sidecar, so an array's length is never inferred from its file size).
 | `gcg` | GPU | `base/<base>/gcg/<set>/<family>/<arm>/` | discrete-token search on the scorer's own objective -- the reachability ceiling a text of T=32 tokens gets to, against which a MAEMM rollout is read. Its own Modal app (`gcg/modal_app.py`), one call per (base, family, arm). NEVER loads a MAEMM |
 | `mu_diag` | GPU | `base/<base>/stats/mu_diag/` | WHY `mu_check`'s two means disagree: Celeste's 512-token / no-sink / all-position geometry recomputed on OUR corpus, plus the position mix, the massive-activation tokens and the split-half sampling noise of each geometry. One forward pass per geometry; `--tokens` caps the corpus walk (default 500k) |
 | `top1_act` | GPU | `base/<base>/sae/<sae>/top1_act/<set>/` | for every sae held-out feature, the pre-gate activation of the feature on its cosine-selected corpus top-1 window (scan rank 0 at 16M): join against the activation-ranked examples where present, and ONE forward of all 512 windows (scan geometry, clean base) as the checked path; feeds `reconstruction/corpus_top1_activation.py` → `paper/inversion-eval/data/corpus_top1_activation.csv`. Measured 2026-09-16: 27B 512/512 windows pass the gate (median act/gate 13.6, Spearman(cos, act) 0.94), 8B 508/512; ~$0.25 / $0.09 |
+| `tierb` | CPU | `base/qwen36-27b/tierb/` | the leak criterion of Celeste's own bundle construction (cos > 0.999), pointed at OUR blocks: `2026-09-21_v3_ours`' 512 realact rows (raw AND centred on `whiten_mu`, because the two conventions differ by cos 0.977 and a duplicate visible under one could sit below the threshold under the other) and the 131k half of `2026-09-21_v3_ctrl`, against all six tier-B training arrays (`data/celeste-v2-2026-09-17/simple2m/*/dirs_f16.npy`, 8,941,132 rows / 85 GiB) in ONE pass. Same computation as `targets._leakage` through the shared `targets.leak_scan`; CPU because the volume read dominates the matmul. Measured 2026-09-22: 610 s, 0 hits in every block — `results/tierb/2026-09-22_tierb-collinearity.md` |
 
 Each product refuses to overwrite its output directory without `--force`, writes its own
 `README.md` + `index.json` (command, date, commit, inputs, shapes, sizes, wall, **cost**, status),
@@ -1005,9 +1006,11 @@ shell call (`nohup setsid ...`, or a background task with no timeout). `paper-ev
 the image (`copy=True`), not mounted: a mounted tree is shared state between concurrent sessions. An edit to
 any file that IS in the image while another session's build is running fails that build with
 "<file> was modified during build process", so `_IGNORE` now also drops `**/*.md`,
-`**/.ruff_cache`, `reconstruction/out` and `reconstruction/data`: no script reads a markdown file
-out of the code tree at runtime (every product WRITES its README to the volume), so keeping the
-docs out of the image means a README or SMOKES edit no longer invalidates it or races a
+`**/.ruff_cache`, and the legacy `reconstruction/out` / `reconstruction/data` (readers now default
+their mirror and output outside `paper-evals/` via `precompute.common.mirror_dir` / `out_dir`, but
+`_IGNORE` still covers the old paths for a run that overrides back onto them): no script reads a
+markdown file out of the code tree at runtime (every product WRITES its README to the volume), so
+keeping the docs out of the image means a README or SMOKES edit no longer invalidates it or races a
 concurrent build.
 
 Local unit smoke, no GPU and no weights:
@@ -1216,11 +1219,35 @@ which was batch 8 and is per-step overhead rather than the batch-32 rate — the
 the 8B trial off its own first cell. Every cell README records the specified shape, this projection
 and the rung that actually ran, so the divergence is on the record wherever the numbers are.
 
+### `results/` — the paper's results driver (branch `evals/pipeline-results`)
+
+`reconstruction/` answers questions about products; `results/` builds **the paper's own tables and
+figures** for one held-out set, config-driven. `results/faithfulness.py --set <name>` walks every
+(family x source x run-tag) present on the volume for that set and writes `tables.md`, one CSV per
+table and `figures/` (PDF + PNG): cosine bo1/bo8/bo64 of `cos_centred` and `cos_raw` with standard
+errors clustered by DOCUMENT, SAE activation ratios against our own 16M `corpus_peak` whole-family
+and per stratum, and the plan §2.3 sanity gates out of `results/sanity.yaml`, which is the file to
+edit when a gate or a tolerance changes. Sources are discovered by iterating `config.yaml`'s
+`maemms:` against the volume, so a new checkpoint or a new SAE is a config entry and not an edit;
+a `--run-tag` is a first-class axis, so the old primary's `mu-none` and `mu-stats` arms are two
+sources. Local, CPU, no GPU. `results/README.md` has the design commitments and what is NOT
+covered; `results/selftest.py` is its CPU unit smoke.
+
+```
+cd /home/gavento/dev/mimir/2026-09-maemms
+(set -a; . ./.env.local; set +a; export MODAL_PROFILE=maemms; \
+ uv run repo-maemm/paper-evals/results/faithfulness.py --set 2026-09-21_v1raw)
+
+uv run paper-evals/results/selftest.py        # no volume, no network
+```
+
 ### `reconstruction/stats.py` — the tables
 
-Local, CPU, no GPU: it fetches only the small files off the volume into `reconstruction/data/`
-(gitignored) and writes markdown + CSV into `reconstruction/out/` (gitignored). `best_act.f16` is
-never fetched. Nine tables — the best-of-k curve with the UNBIASED order-statistic estimator, the
+Local, CPU, no GPU: it fetches only the small files off the volume into the mirror
+(`mirror_dir`, default `$XDG_CACHE_HOME/maemm-paper-evals/mirror/`; the old `reconstruction/data/`
+is legacy) and writes markdown + CSV into `out_dir("reconstruction")` (default
+`<repo>/_out/reconstruction`, beside `paper-evals/`; the old `reconstruction/out/` is legacy).
+`best_act.f16` is never fetched. Nine tables — the best-of-k curve with the UNBIASED order-statistic estimator, the
 bo-sensitivity ranking, the paired MAEMM comparison per SAE density stratum, the corpus-scan
 baseline and its quantiles, the SAE-repo column, the GCG ceiling, the argmax-position histogram, the
 centred/filtered secondaries and the sae-family distribution. `reconstruction/README.md` has what
@@ -1301,3 +1328,146 @@ MEASURED rather than assumed, all documented in `autointerp/README.md`:
   is why the positive pool had to be rebuilt around documents rather than windows.
 
 Costs are in `SMOKES.md` under "`autointerp` -- the Delphi-style SAE autointerp evaluation".
+
+## Step 8: the OOD generalisation evaluation (`ood_arms`, `corpus --arm`, `nll`, `stats_ood.py`)
+
+Design: `infra/2026-09-18_ood-eval-design.md` (arms §2, target rule §3, baseline §4, controls §5,
+statistics §6, products §7, pilot §8, amendments §11); datasets `infra/2026-09-18_ood-eval-datasets.md`;
+what the primary was actually trained on `infra/2026-09-18_ood-eval-training-data.md`. Branch
+`arb/exp-ood`, worktree `repo-maemm-ood/`. **Nothing under `paper/inversion-eval/` is touched** (its
+CSVs are frozen) and the existing English `corpus/`, `heldout/2026-09-16_v1/` and `scan/2026-09-16_v1/`
+are read, never rewritten.
+
+The question: does the primary MAEMM, trained to invert L42 residuals of English web text, invert
+residuals produced by other languages and scripts, by code and by mathematics — against the paper's
+corpus-search baseline run like-for-like **inside each domain**.
+
+### Arms and their corpora
+
+`config.yaml`'s `ood_arms:` has 23 entries — `lang` 8 (FineWeb-2 `test`), `ctrl` 2 (`ufw_en`
+pipeline check, `ufw_zh` same-pipeline script control), `code` 8 (the-stack-smol-xl), `math` 4
+(OpenWebMath, Proof-Pile-2 arXiv test, smol-xl lean/isabelle), `diag` 1 (`formulas`, outside the
+level-1 conjunction). Each carries its source files, the text field, its nested sizes
+(`[1, 4]`; `[1, 4, 16]` on `ufw_en tha_Thai python owm`, review R2; `[1]` on `formulas`), the
+Unicode script, the fastText label, the unspaced flag and the licence the appendix must state.
+
+```
+--product corpus  --base qwen36-27b --set 2026-09-18_ood_v1 --arm tha_Thai      # CPU + network
+--product targets --base qwen36-27b --set 2026-09-18_ood_v1 [--arm a,b]        # GPU
+--product targets --base qwen36-27b --set 2026-09-18_ood_v1_unitend [--arm a,b]
+--product scan    --base qwen36-27b --set 2026-09-18_ood_v1 \
+                  --corpus tha_Thai,python,ufw_en,corpus --max-size 4 \
+                  --with-set 2026-09-16_v1:realact+random     # `corpus` = the base's own English one
+--product nll     --base qwen36-27b --set 2026-09-18_ood_v1
+--product ood_selfcheck --base qwen36-27b [--stages readers,covariates]        # CPU (nll -> GPU)
+
+```
+
+**One permuted row stream per arm.** `common.arm_perm(arm, n_rows, seed)` =
+`default_rng(seed ^ crc32(arm)).permutation(n_rows)`; `corpus --arm` consumes it from the front
+until the token budget, then takes the next 320 documents with ≥ 512 tokens as the TARGET POOL,
+and records both positions in `corpora/<arm>/stream.json`. The pool's 512-token windows are written
+to `corpora/<arm>/pool_windows.i32`, so `targets` runs **offline** and corpus/target disjointness is
+a property of one file rather than of two draws agreeing. `corpus` is the only product that reaches
+the network, as before. `common.arm_rng(arm, seed)` is a separate stream for the p / L draws.
+
+Readers: `hf://` parquet with a column projection (the `cleaned_formulas` image column is 2.8 GB and
+is never read), smol-xl's `data/<lang>/data.json` — json LINES despite the extension, MEASURED
+2026-09-18 — Proof-Pile-2 `.jsonl.zst`, and the `formulas` assembler, which joins consecutive
+permuted rows with a blank line and tokenizes the JOINED text into ≥ 512-token synthetic documents.
+
+### The target rule and the tokenisation covariates
+
+`_realact`'s rule is unchanged on every arm (512-token no-BOS window, `p ~ U[16, 512)`,
+`L ~ U[16, 64]`, the 10× presample-median raw-norm filter at selection only) and the centring mean
+stays the **English** `stats/mu.f32`: it is the inverter's input convention, not a property of the
+domain (design open decision 10). Per target, from the tokenizer alone (`common.token_covariates`,
+CPU): `tok_class` (`word`/`first`/`mid`/`last`, or the single class `unspaced` on the four unspaced
+arms), `n_subtokens` (capped at 16, null when unspaced), `byte_piece` (the token's bytes are not
+valid UTF-8 alone — a partial character under Qwen's byte-level BPE), `whole_char` / `multi_char`
+(review R5) and `char_type` of the character the token's first byte belongs to.
+
+**What the R5 stratum actually is** (Tomas 2026-09-18, after the pilot draw): `byte_piece` is kept
+as a column because it is the point of the `formulas` arm, but it was **0 of 64 on all three pilot
+arms, Thai included** — the 248k Qwen tokenizer does not split ordinary non-Latin text into partial
+UTF-8 pieces. The stratum the tables report is therefore `whole_char` vs `multi_char` on every arm,
+plus `n_subtokens` on the spaced ones. **`char_type` vs `char_type_body`**: both are stored, and the
+tables report `char_type_body` — under a byte-level BPE a token carries its leading space, so the
+design's `char_type` (the token's FIRST character) is `space` for 53 of 64 English and 29 of 64
+Python targets and says little about the token's content; `char_type_body` is the same rule on the
+first NON-space character.
+
+Those covariates rest on the tokenizer being byte-level GPT-2 style, so `common.check_token_bytes`
+asserts that the byte table reconstructs `tok.decode` exactly, once per arm, before any target is
+written. `common.is_letter` counts combining marks as letters — `str.isalpha()` is False for them,
+which would make every Thai vowel sign and every Devanagari matra `punct`.
+
+The `_unitend` variant set (review R5) re-reads the SAME windows with `p` moved to the last token of
+its whitespace unit (wordend, 19 spaced arms) or to the end of its character (charend, the four
+unspaced arms, only where the token at p is a partial character); `variant_rule` and the original
+`p` are recorded and targets already at their unit's end are carried over unchanged.
+
+### The baseline, scanned per corpus
+
+`scan --corpus <a>,<b>` scans arm corpora; `--max-size M` bounds a scan at a nested prefix; `--with-set
+<name>[:<fam>+<fam>]` appends other held-out sets' rows, because a scan costs per corpus TOKEN and
+not per target, so one pass over an arm's corpus can carry the whole OOD set, the 512 English
+realact targets and the 512 random directions at once (design §4). Output is `scan/<set>/<corpus>/`
+(`-<M>m` appended when bounded) — the pre-existing `scan/<set>/` layout is used only when neither
+flag is given, so the English scan is untouched. **The own-document mask now travels with the
+target's own corpus**: a realact target's `doc` indexes ITS corpus and means nothing in another, and
+without that condition an English target would have masked an unrelated Thai document. A set with no
+`sae` targets writes no `examples/` product at all, rather than opening the shared directory.
+
+### `nll` (review R6)
+
+One clean-base forward per target window, storing `nll_ctx` (mean nats/token over positions 1..p),
+`bpb_ctx` (bits per byte of the decoded text of those positions — the number the paper reports, since
+nats per token are not comparable across scripts) and `nll_p`. It runs on the OOD set and on the 512
+English realact rows. The identification claim the first design made for it is **withdrawn**: the
+missing control is an inverter trained on the domain, which this evaluation does not have.
+
+### `reconstruction/stats_ood.py` (CPU, local)
+
+`tables` writes `ood_arms.csv`, `ood_per_target.csv`, `ood_strata.csv`, `ood_examples.md` into
+`out_dir("reconstruction")/<root-tag>/ood/` (default `<repo>/_out/reconstruction/<root-tag>/ood/`;
+the old `reconstruction/out/<root-tag>/ood/` is legacy). Per arm: the paired Δ with a 10,000-resample percentile
+bootstrap over targets, the three-state outcome (`exceeds` / `inconclusive` / `reversed`, review R9),
+win fractions, the four comparisons of design §6 and MAEMM vs control; R4 chance levels; R3 fastText
+**lid218e** (`facebook/fasttext-language-identification`, sha256 `8ded5749…`, commit `3af127d4`;
+chosen over community re-uploads of `lid.176` because its FLORES-200 labels ARE our arm ids for
+seven of the eight language arms, with Chinese as `zho_Hans`/`zho_Hant` in config's `lid:` list)
+and the `code_like` regex on the top-1/top-4 rollouts; R2 GPU-seconds per target from each
+product's own README; R6's within-arm Spearman of bo64 against bits per byte; the strata tables; and
+R8's median-Δ example per arm with its licence (never from Proof-Pile-2, which declares none).
+
+`en-ref` recomputes the English reference from `scan/2026-09-16_v1/topk.jsonl` with own-document
+windows excluded. MEASURED 2026-09-18 on the local mirror: corpus top-1 **0.3137 / 0.3315 / 0.3511 /
+0.3672 / 0.3851** at 1/2/4/8/16M against **0.3216 / 0.3433 / 0.3706 / 0.3997 / 0.4105** with own
+documents counted — the paper's frozen 0.371 at 4M is the second column. The target's own document
+is the top-1 window for **114 of 512** targets at 4M. A target whose whole stored top-64 is
+own-document (2 at 4M, 4 at 8/16M) has no non-own candidate and is EXCLUDED from the no-own mean;
+that is the rule that makes the recomputation reproduce the review's 0.314 / 0.351 / 0.385.
+
+`train-share` (review R7, amended 2026-09-18) reports the code-like and non-English share of the
+inverter's training text. `--source hf:m-a-p/FineFineWeb` is the primary checkpoint's ACTUAL
+activation corpus — `mxf/config.py`'s Ultra-FineWeb is the early collector and stale for the 27B
+line. The draw is **stratified over the corpus's 67 domain directories** (Tomas 2026-09-18): the
+head of the first file of each domain, 150 documents each, per-domain rates reported and the
+aggregate weighted by the card's own `Total Tokens` column, read through the HF API from the same
+revision. `--no-stratify` gives the file-order draw her collectors take, which MEASURED 2026-09-18
+samples one domain (10k documents in file order are all `aerospace`). The fetch date is recorded
+because no revision is pinned anywhere. `--source corpus` measures our own English eval
+corpus the same way. One `code_like` rule, written in `common.py` and printed by both callers.
+
+### Selfchecks, before any launch
+
+- `uv run precompute/unit_smoke.py` — 35 checks, 8 of them new: the byte tables, the covariate rules
+  on a hand-built byte-level tokenizer over Czech / Thai / Python snippets (a fixture that can only
+  agree with the real tokenizer's own splitting would not test a character split across tokens), the
+  script fractions, the two arm rngs, the config, the span search.
+- `--product ood_selfcheck` — every arm's source opens, its row count comes back and three rows
+  carry text; `token_covariates` on the REAL 27B tokenizer; `nll` against HF's own `labels=`
+  cross-entropy (design §8 (e)). CPU unless `--stages` asks for `nll`.
+- `uv run reconstruction/stats_ood.py selfcheck` — the estimators, the R1 exclusion rule and the
+  whole `build_tables` path on a synthetic volume, in seconds.

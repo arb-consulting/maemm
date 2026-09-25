@@ -15,7 +15,8 @@ recovered from `corpus/tokens.i32` at that offset and the recovered length is AS
 
 Arms (design §2; N = `autointerp.n_examples` = 16 unless the variant says otherwise):
 
-  C16      the top-16 corpus windows by peak activation over the full 16M corpus
+  C16      the top-16 corpus windows by peak activation, one per document (`examples_docmax`), over
+           the 10M training corpus `train_parity_10m` (ARM_SPECS; the pilot's 16M pool is `C16-win`)
   C4       the top-16 among those whose document lies in the nested 4M prefix
   M        the top-16 of the MAEMM's 64 rollouts by peak target-feature activation (needs `sae_self`)
   C4M      8 corpus (C4 ranks 1-8) + 8 rollouts (M ranks 1-8), shuffled
@@ -49,13 +50,14 @@ import json
 import math
 import os
 import random
+import re
 import time
 
 import numpy as np
 
 import precompute.common as C
-from precompute.rollouts_nla import (explanation_body, explanation_token_mask,
-                                     extract_explanation)
+from autointerp import sae_self as SS
+from precompute.rollouts_nla import explanation_body, explanation_token_mask
 
 # The held-out families whose targets ARE SAE features, so a "the feature's own activation on
 # this text" arm is meaningful for them. `sae` is the 131k `l42-1b` draw (config.yaml's
@@ -63,7 +65,7 @@ from precompute.rollouts_nla import (explanation_body, explanation_token_mask,
 # encoder columns -- a different dictionary and a different draw, but the same KIND of target
 # (row["id"] is the feature index either way), which is all anything here needs. Kept as a tuple
 # rather than collapsed to one name because a set can carry both and the labels are provenance.
-FAMILIES = ("sae", "sae2m_enc")
+FAMILIES = C.SAE_FAMILIES
 # Delphi lists at most this many activating tokens per example (facts §3, explainer.py).
 MAX_SHOWN_ACTS = 10
 BANDS = ("q0", "q1", "q2", "q3")
@@ -71,6 +73,7 @@ BANDS = ("q0", "q1", "q2", "q3")
 CENTRE32_LEN = 32
 # Delphi's explainer highlight threshold, FETCHED 2026-09-17 from `explainers/explainer.py`
 # @4fea06e: `threshold: float = 0.3`, applied as `max(activations) * self.threshold`.
+REL_MARK_FRAC = 0.5   # the relative fallback's fraction of a block's own peak
 DELPHI_MARK_FRAC = 0.3
 
 # The NLA arm's example count = config.yaml's `nla.n`. Kept as a constant here because ARM_SPECS
@@ -79,8 +82,29 @@ NLA_N = 4
 # The arm whose examples ARE the MAEMM's / verbalizer's rollouts, by rollout source. An `nla`
 # entry may only be built into "NLA": the others are named in the paper as MAEMM arms and a
 # verbalizer's text under the label `M` would be a mislabelled number, not a variant.
-ROLLOUT_ARMS_NOT_NLA = ("M", "M-div", "C4M", "C16M16", "M-N8", "M-N32")
+ROLLOUT_ARMS_NOT_NLA = ("M", "M-jac16", "M-cos16", "M-div", "C4M", "C16M16", "M-N8", "M-N32")
 NLA_ARM = "NLA"
+# Both NLA arms: mode A at all four outputs (the headline) and the one-output sensitivity row the
+# appendix carries (spec §3). They are built from ONE `type: nla` --maemm and differ only in n.
+NLA_ARMS = ("NLA", "NLA-1")
+# M12 (Tomas, 2026-09-25): the NLA arm at the M arm's SELECTION RULE -- generate NLA_TOP_OF outputs
+# per feature, show the NLA_N with the highest peak target-feature activation, as `M` shows the top
+# 16 of 64 rollouts. Its own NAME, never `NLA` built from a bigger generation: `NLA` and `NLA-1`
+# are the paper's all-four-outputs arms and are REFUSED on any sae_self whose n is not NLA_N, and
+# this one is refused on any n but NLA_TOP_OF (`check_nla_n`). The ranking is the NLA arm's own
+# (peak inside the <explanation> body, `nla_body_order`), so the two differ only in how many
+# outputs the four are chosen from. Built from a DIFFERENT generation run (`rollouts_nla --n 16`
+# under its own tag, read through `--nla-run-tag`), so it is not a superset of the paper's four.
+NLA_TOP_ARM = "NLA-top4"
+NLA_TOP_OF = 16
+# Every arm whose examples are the verbalizer's outputs; a MAEMM build refuses all of them.
+NLA_ROLLOUT_ARMS = (*NLA_ARMS, NLA_TOP_ARM)
+# THE ENGINE AN `nla` MAEMM'S PRODUCTS ARE SPELLED UNDER, and it is not this stage's `--engine`.
+# `rollouts_nla` generates through the HF path and names its product
+# `rollout_chunk_stem(rollout_stem(set, "hf", run_tag), rows)` (precompute/rollouts_nla.py:771),
+# so `score` and `sae_self` scored the HF-spelled file and wrote an HF-spelled scores/ directory
+# beside it. A verbalizer product under `vllm` does not exist and never has.
+NLA_ENGINE = "hf"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -164,7 +188,8 @@ def centre_on_peak(ids, acts, width: int = CENTRE32_LEN):
     return ids[lo : lo + width], [float(x) for x in a[lo : lo + width]]
 
 
-def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate") -> dict:
+def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate",
+                   rel_fallback: bool = False) -> dict:
     """One rendered explainer example from an id list and its per-token pre-gate activations.
 
     TWO MARKING RULES, and the published run used the first. FETCHED 2026-09-17 from Delphi
@@ -186,24 +211,85 @@ def render_example(tok, ids, acts, peak: float, gate: float, mark: str = "gate")
     """
     pieces = token_pieces(tok, ids)
     a = [float(x) for x in acts]
-    quant = [quant_act(x, peak) for x in a]
+    # A NON-FINITE ACTIVATION MAKES THE WHOLE BLOCK UNMARKABLE, and does it HERE rather than in
+    # the marking branch below, because `quant_act` raises on NaN and +inf (int(ceil(inf))) and
+    # would take the process down before any guard in that branch could run. `sae_self` writes NaN
+    # outside `keep` and every caller slices by `keep`, so this should be unreachable -- which is
+    # the reason to make it a stated outcome instead of a crash: if it ever does arrive, a block
+    # that says "nothing marked here" is recoverable and a traceback in the middle of a paid build
+    # is not.
+    finite = all(math.isfinite(x) for x in a)
+    quant = [quant_act(x, peak) if math.isfinite(x) else 0 for x in a]
+    if not finite:
+        return {
+            "text": "".join(pieces),
+            "text_marked": "".join(pieces),
+            "activations": [],
+            "n_marked": 0,
+            "peak_act": 0.0,
+            "marking": "unmarkable",
+            "block_peak": 0.0,
+            "peak_frac": None,
+            "n_tok": len(pieces),
+            "join_ok": "".join(pieces) == tok.decode([int(i) for i in ids]),
+        }
     if mark == "delphi":
+        marking = "delphi"
         thr = max(a) * DELPHI_MARK_FRAC if a else 0.0
         marks = [x > thr for x in a]
         shown = [(pieces[i], quant[i]) for i in range(len(pieces)) if marks[i]][:MAX_SHOWN_ACTS]
     else:
         marks = [x > gate for x in a]
+        marking = "gate"
+        # THE RELATIVE FALLBACK (Tomas, 2026-09-21), for the GENERATED-TEXT arms only.
+        # `mark="gate"` marks a token iff it clears the SAE's learned gate, which is the paper's
+        # own fire rule -- and on the 2M dictionary a MAEMM rollout frequently clears it nowhere,
+        # so the block reaches the explainer as bare `Example n:` lines with no `<<>>` and no
+        # `Activations:` line at all. MEASURED 2026-09-21 on the 32-feature pilot: 15/32 of
+        # rl-last16's blocks, 23/32 of the old primary's and 26/32 of NLA's, against 0/32 for
+        # every corpus arm. One explainer answer opens "there's no explicit token
+        # highlighting/activation data provided" and is recorded as an ordinary explanation, so
+        # the arm was being scored on a description written from unmarked text.
+        #
+        # When nothing clears the gate, mark relative to THIS BLOCK's own peak instead. That is
+        # Delphi's rule in shape (`mark="delphi"` uses 0.3 x the example's own max) at a stricter
+        # fraction. It is a FALLBACK, not a replacement: a block with anything above the gate is
+        # marked exactly as before, so this cannot move a block that was already fine.
+        #
+        # The corpus arms never take this path -- they are passed `rel_fallback=False` -- because
+        # their peak IS the corpus peak by construction and a corpus window that fires nowhere is
+        # a real fact about the feature, not a rendering failure.
+        if rel_fallback and not any(marks):
+            pk = max(a) if a else 0.0
+            if math.isfinite(pk) and pk > 0:
+                # `>=`, not `>`: at the fraction's own boundary the peak token itself must mark,
+                # and with rel_frac = 0.5 a two-token block at (pk, pk/2) marks both.
+                marks = [x >= REL_MARK_FRAC * pk for x in a]
+                marking = "relative"
+            else:
+                # A block whose peak is <= 0 or non-finite stays UNMARKED and is counted. There is
+                # no fraction of zero that marks anything, and marking everything would be worse
+                # than marking nothing: it would tell the explainer the feature fires everywhere.
+                marking = "unmarkable"
         shown = sorted(
             ((pieces[i], quant[i], a[i]) for i in range(len(pieces)) if marks[i]),
             key=lambda t: -t[2],
         )[:MAX_SHOWN_ACTS]
         shown = [(t, n) for t, n, _ in shown]
+    block_peak = float(max(acts)) if len(acts) else 0.0
     return {
         "text": "".join(pieces),
         "text_marked": marked_text(pieces, marks),
         "activations": shown,
         "n_marked": int(sum(marks)),
-        "peak_act": round(float(max(acts)) if len(acts) else 0.0, 4),
+        "peak_act": round(block_peak, 4),
+        # Provenance of the marking, per block, so a reader can see WHICH rule produced a block and
+        # how weak it was: `marking` is gate | relative | unmarkable | delphi, `peak_frac` is this
+        # block's peak as a fraction of the feature's 16M corpus peak (the quantisation
+        # denominator), which is the number that says how far below the corpus this text sits.
+        "marking": marking,
+        "block_peak": round(block_peak, 4),
+        "peak_frac": round(block_peak / peak, 4) if peak > 0 else None,
         "n_tok": len(pieces),
         "join_ok": "".join(pieces) == tok.decode([int(i) for i in ids]),
     }
@@ -298,8 +384,9 @@ def render_test(tok, ids, acts, gate: float, rng: random.Random, n_mark_neg: int
 class _Corpus:
     """`tokens.i32` + `docs.jsonl`, with the window geometry asserted on every recovery."""
 
-    def __init__(self, base: str, root: str):
-        self.toks, docs = C.load_corpus(base, root)
+    def __init__(self, base: str, root: str, name: str = ""):
+        self.name = name
+        self.toks, docs = C.load_corpus(base, root, name)
         self.docs = {int(r["doc"]): r for r in docs}
 
     def ids(self, doc: int, start: int, ln: int):
@@ -414,6 +501,117 @@ def diversify(pool: list[dict], n: int, jaccard_max: float = 0.5) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# the selection arms (spec §3): greedy farthest-point over the SAME 64 rollouts
+# ---------------------------------------------------------------------------------------------
+
+# The content-word tokenisation of `runs/autointerp_pilot_diagnosis.py:33-48`, copied here rather
+# than re-invented so that `M-jac16`'s selection distance IS the quantity the sample-diversity
+# analysis reports (mean pairwise content-word Jaccard 0.180 on rollout sets against 0.025 on
+# corpus-window sets, spec §3). Two tokenisations would give the paper two different numbers both
+# called "content-word Jaccard".
+CONTENT_RE = re.compile(r"[a-z0-9']+")
+CONTENT_STOP = frozenset(
+    """a an the and or but if then else of to in on at by for with from as is are was were be been
+being it its this that these those we you he she they i not no nor so than too very can will just
+have has had do does did about into over under more most other such only own same s t don now which
+who whom what when where why how all any both each few there here also may might must shall should
+would could our your their his her them us me my""".split()  # noqa: SIM905
+)
+
+
+def content_words(text: str) -> set[str]:
+    """The lower-cased content words of a rendered example: tokens over 2 characters, no stopwords."""
+    return {t for t in CONTENT_RE.findall(text.lower()) if t not in CONTENT_STOP and len(t) > 2}
+
+
+def jaccard(a: set[str], b: set[str]) -> float:
+    """|a & b| / |a | b|, with two empty sets identical (distance 0) rather than undefined."""
+    if not a and not b:
+        return 1.0
+    u = len(a | b)
+    return len(a & b) / u if u else 0.0
+
+
+def farthest_point(pool: list[dict], n: int, dist: np.ndarray) -> list[dict]:
+    """`n` of `pool` by GREEDY FARTHEST-POINT on a precomputed [len(pool), len(pool)] distance.
+
+    Seeded with `pool[0]`, which is the top-activation rollout -- the same example `M-top16` shows
+    first -- so the two M arms differ only in what follows the seed and never in whether the
+    best-activating rollout is shown at all. Each further pick maximises the MINIMUM distance to
+    what is already chosen (the standard 2-approximation of max-min dispersion). `np.argmax` takes
+    the FIRST maximum, so ties fall back to the activation order the pool arrived in and the
+    selection is deterministic.
+
+    Returns the whole pool, in its own order, when it is not longer than `n`: a short pool is a
+    shortfall the caller flags like every other, not a different selection rule.
+    """
+    if len(pool) <= n:
+        return list(pool)
+    chosen = [0]
+    mind = np.asarray(dist[0], dtype=np.float64).copy()
+    while len(chosen) < n:
+        m = mind.copy()
+        m[chosen] = -np.inf
+        j = int(np.argmax(m))
+        chosen.append(j)
+        mind = np.minimum(mind, np.asarray(dist[j], dtype=np.float64))
+    return [pool[i] for i in chosen]
+
+
+def jaccard_distances(pool: list[dict]) -> np.ndarray:
+    """1 - pairwise content-word Jaccard of the rollout TEXTS. CPU, no forward pass."""
+    sets = [content_words(e["text"]) for e in pool]
+    n = len(sets)
+    d = np.zeros((n, n), dtype=np.float64)
+    for i in range(n):
+        for j in range(i + 1, n):
+            d[i, j] = d[j, i] = 1.0 - jaccard(sets[i], sets[j])
+    return d
+
+
+def cosine_distances(vecs: np.ndarray) -> np.ndarray:
+    """1 - mutual cosine of `vecs` [n, d], which the caller has ALREADY centred.
+
+    Uncentred layer-42 residuals share a large mean vector: their mutual cosines sit in a narrow
+    band near 1 and rank almost nothing, which is why `M-cos16` subtracts the base's `whiten_mu`
+    before this is called (spec §3, survey §9.5d). A zero-norm row (a rollout with no kept token)
+    is given distance 1 to everything rather than a NaN that would propagate through the argmax.
+    """
+    v = np.asarray(vecs, dtype=np.float64)
+    nrm = np.linalg.norm(v, axis=1, keepdims=True)
+    ok = (nrm[:, 0] > 0).astype(np.float64)
+    unit = v / np.where(nrm > 0, nrm, 1.0)
+    cos = unit @ unit.T
+    d = 1.0 - cos
+    bad = ok[:, None] * ok[None, :] == 0
+    d[bad] = 1.0
+    np.fill_diagonal(d, 0.0)
+    return d
+
+
+def _centred_residuals(pool: list[dict], best_act, row_ix, mu) -> np.ndarray:
+    """The stored layer-`read_layer` residual of each rollout in `pool`, minus the base's mean.
+
+    `precompute/score.py:624` writes `best_act.f16` as [N targets, n rollouts, d], the residual at
+    the token of maximum (UNCENTRED) cosine to the target direction -- `score.py:78-84`. That is
+    NOT the SAE-activation peak `M-top16` ranks by, which is why `M-cos16` is a diversity control
+    and not a matched-token comparison; the appendix says so in a clause.
+
+    `mu` is `bases.<base>.whiten_mu`, subtracted here on CPU. Without it the mutual cosines of raw
+    layer-42 residuals sit in a narrow band near 1 -- they are dominated by the shared mean -- and
+    the farthest-point pass would rank almost nothing (survey §9.5d, Fable finding 7).
+    """
+    assert row_ix is not None, (
+        "M-cos16 needs this feature's row in the scores product's rows.json; the caller must not "
+        "reach here for a row score never wrote"
+    )
+    v = np.asarray(best_act[row_ix], dtype=np.float32)   # [n, d]
+    if mu is not None:
+        v = v - np.asarray(mu, dtype=np.float32)[None, :]
+    return np.stack([v[int(e["k"])] for e in pool]) if pool else np.zeros((0, v.shape[1]), np.float32)
+
+
 def dedup(rows: list[dict]) -> list[dict]:
     """`rows` in order, dropping any window that overlaps one already kept."""
     kept: list[dict] = []
@@ -481,37 +679,74 @@ def draw_features(sae_rows: list[dict], n_feat: int, seed: int) -> list[dict]:
 # "c4" the 4M-prefix top-k. The order of the tuple is the order examples are concatenated in
 # before the shuffle.
 ARM_SPECS = {
-    "C16": ("c16", 16, None, 0),
-    "C4": ("c4", 16, None, 0),
+    # THE CORPUS ARM, spec §3: the top 16 by peak activation with ONE WINDOW PER DOCUMENT,
+    # `examples_docmax`, on the SHOWN corpus -- which for the paper's run is the 10M training
+    # corpus `celeste-train10m` while the Delphi test windows come from the 16M held-out scan
+    # (decided 2026-09-22; see `run`'s two-corpus resolution). CHANGED 2026-09-23 from the
+    # window-ranked 16M `c16` pool the pilot showed, which survives under the name `C16-win`:
+    # a window ranking can put sixteen overlapping cuts of one document in front of the
+    # explainer, and the document ranking is what spec §3 defines the arm as.
+    "C16": ("docmax", 16, None, 0),
+    # The pilot's C16, kept under a name that says what it is, so `pilot.md`'s command still
+    # reproduces its own number. NEVER printed beside a `C16` row of a post-09-23 run.
+    "C16-win": ("c16", 16, None, 0),
     "M": (None, 0, "m", 16),
+    # The two SELECTION arms (spec §3, decided 2026-09-22). Same 64 rollouts, same explainer,
+    # same scorer, same nulls, same N; only WHICH 16 differs, so the contrast against `M` is the
+    # diversity of the shown set and nothing else.
+    #   M-jac16  greedy farthest-point on pairwise CONTENT-WORD JACCARD of the rollout texts. CPU.
+    #   M-cos16  greedy farthest-point on the MUTUAL COSINE of the stored `best_act.f16`
+    #            residuals with the base's `whiten_mu` subtracted. That residual is the one at the
+    #            COSINE argmax (precompute/score.py:78-84), not at the SAE-activation peak that
+    #            `M-top16` ranks by, so the arm is a diversity control and NOT a matched-token
+    #            comparison -- the appendix says so in a clause. It costs no extra forward pass.
+    "M-jac16": (None, 0, "mjac", 16),
+    "M-cos16": (None, 0, "mcos", 16),
     "C4M": ("c4", 8, "m", 8),
     # AMENDMENT 2026-09-16: the additive ablation is now MATCHED-N at 16M -- C16M16 (N=32) against
     # C16-N32 (N=32, corpus only). The old C4M16 mixed an additive change with a corpus-size change
     # and with C4's shortfall, so nothing it showed could be attributed.
     "C16M16": ("c16", 16, "m", 16),
     "C32": ("c16", 32, None, 0),
+    # The document-diverse corpus arm under its 2026-09-21 name. It is now the SAME selection as
+    # `C16` above (one window per document over the shown corpus) and survives only so the
+    # eval-2 2M commands, whose dictionary has no window-ranked `examples/` at all, keep running
+    # under the label their `scores.jsonl` already carries. `run` REFUSES both names in one run.
+    "DOCMAX": ("docmax", 16, None, 0),
     # The method review's test: the M arm shows 16 variants of ONE template (median pairwise
     # word-trigram Jaccard within the shown set 0.046 against the corpus set's 0.001, 40x), so its
     # loss may be an artefact of an undiversified top-16 rather than of the source. `M-div` keeps
     # the same 64 rollouts and the same N, and changes only the CHOICE: near-duplicates dropped by
     # trigram Jaccard, then quantile sampling across the peak-activation range (Delphi's
-    # `train_type: "quantiles"` analogue) instead of the top 16.
+    # `train_type: "quantiles"` analogue) instead of the top 16. Superseded as an ARM by
+    # `M-jac16`, whose selection is the single greedy rule the spec defines; kept as the pilot
+    # point the 2026-09-21 numbers were read off.
     "M-div": (None, 0, "mdiv", 16),
     # The NLA arm (Tomas, 2026-09-21). Same shape as M -- rollouts rendered with their per-token
     # activation marks from `sae_self` -- but the rollout source is the NLA VERBALIZER, so it is a
     # different arm and never a relabelled M. n = 4 because that is `nla.n`: the verbalizer answers
     # at 200 tokens and four samples per target is what the budget buys, so this arm is NOT
-    # matched-N against C4/C16 (16) and the build README says so on every run.
+    # matched-N against C16 (16) and the build README says so on every run. All four outputs are
+    # given deliberately, erring in the baseline's favour (spec §3).
     NLA_ARM: (None, 0, "m", NLA_N),
+    # The appendix's one-output sensitivity row, from the SAME build and the same run.
+    "NLA-1": (None, 0, "m", 1),
+    # M12: the top NLA_N of NLA_TOP_OF outputs. The same spec as `NLA` -- the pool `m` is already
+    # the outputs sorted by descending body peak and deduplicated, so taking its first four IS the
+    # top-4 rule -- and the difference is the input, which `check_nla_n` pins by `sae_self`'s n.
+    NLA_TOP_ARM: (None, 0, "m", NLA_N),
     # Descriptive pilot points only (amendment A9: N = 16 is fixed a priori, not selected).
     "C16-N8": ("c16", 8, None, 0),
     "M-N8": (None, 0, "m", 8),
     "M-N32": (None, 0, "m", 32),
 }
-# The arms the FULL run scores. The rest are pilot-only descriptive points. `F` and `C16-draw2`
-# are scorer-only pseudo-arms that `run.py` adds: F reuses another feature's description, and
-# C16-draw2 reuses C16's own description on the second, disjoint test draw (amendments A6, A7).
-FULL_ARMS = ("C16", "C4", "M", "C4M", "C32", "C16M16")
+# The arms the FULL run scores, by which --maemm builds them. The rest are pilot-only descriptive
+# points. `C4` and the N = 40 point are DROPPED (spec §3): C4 is a corpus-size ablation the
+# fidelity corpus-size curve already carries, and an N = 40 arm would need its own ARM_SPECS entry
+# rather than a flag (`n_examples` is asserted == 16 below) and is a rebuttal-time run if asked.
+# `F` (R-shuffled) and `C16-draw2` are scorer-only pseudo-arms that `run.py` adds.
+FULL_ARMS = ("C16", "M", "M-jac16", "M-cos16")
+FULL_ARMS_NLA = NLA_ARMS
 
 
 def _covariate(row: dict, *names: str):
@@ -529,8 +764,123 @@ def _covariate(row: dict, *names: str):
     return None
 
 
-def check_corpus_source(arm_names, use_examples: bool, ex_dir: str, sae_key: str, prefix_m: int) -> str:
+def resolve_examples(sae_key: str, set_name: str, root: str, corpus_key: str,
+                     want_features, side: str) -> tuple[str, dict, str]:
+    """The `examples/` directory carrying THIS set's features at `corpus_key`, found not assumed.
+
+    `common.sae_examples_dir` names a scan's examples after the scan's OWN `--set`, and
+    `scan --with-set` then puts several banks in one call: the eval-1 scans of 2026-09-23 ran
+    `--set 2026-09-21_v3_realact --with-set ...,2026-09-21_v3_ctrl` and landed as
+    `examples/2026-09-21_v3_realact__paper0923`. A `--set 2026-09-21_v3_ctrl` build looked for
+    `examples/2026-09-21_v3_ctrl__paper0923`, did not find it, and -- until the refusal that now
+    lives in `sae_examples_dir` -- read the LEGACY unkeyed `examples/`, i.e. the September
+    `2026-09-16_v1` scan, with a stdout note as the only trace. A C16 arm over another set's
+    features is not a crash; it is a plausible number about the wrong thing.
+
+    This is `precompute.top1_act.resolve_scan`'s rule, one product over. Preferred name first;
+    otherwise every `examples/*__<corpus_key>` whose `tested.json` is of THIS dictionary and whose
+    tested features COVER this set's, and exactly one of them, named out loud. The feature cover
+    is the test, not the name: a sibling bank of the same call tests the union of the call's SAE
+    rows, so a directory that does not contain this set's features is not that call's product
+    whatever it is called.
+
+    Returns (directory, feature -> the `row` its example records carry, how it was found). The row
+    map comes from the resolved directory's own `tested.json`, because `scan` stamps each example
+    record with the row index WITHIN THE SCAN and `--with-set` re-indexes it: a three-bank scan
+    offsets the second bank by 1,024, so checking against the set's own row number would fire on
+    every record of a correctly resolved sibling. Empty directory means nothing was found at all,
+    which `build` tolerates by falling back to `examples_4m`.
+    """
+    import os
+
+    preferred = C.sae_examples_dir(sae_key, set_name, root, write=True, corpus_name=corpus_key)
+    want = {int(f) for f in want_features}
+
+    def _tested(d):
+        try:
+            with open(f"{d}/tested.json") as fh:
+                t = json.load(fh)
+        except (OSError, ValueError):
+            return None
+        # `scan` has written both keys since paper-evals' first commit; a file without them is not
+        # a `scan` examples product and must not be resolved into as if it were.
+        assert isinstance(t.get("features"), list) and isinstance(t.get("rows"), list), (
+            f"{d}/tested.json has keys {sorted(t)} -- a `scan` examples product carries "
+            f"`features` and `rows` (precompute/scan.py:734), and the row list is what says which "
+            f"row index this directory's example records are stamped with"
+        )
+        return t
+
+    t = _tested(preferred)
+    if t is not None:
+        row_of = dict(zip([int(f) for f in t["features"]], t["rows"], strict=True))
+        return preferred, row_of, "preferred"
+
+    parent = f"{C.sae_dir(sae_key, root)}/examples"
+
+    def keyed(name: str) -> bool:
+        """`<set>__<corpus_key>` with a set name of its own -- the no-key rule, generalised.
+
+        A scan key is appended as `__<key>`, and no held-out set name contains `__`, so the
+        suffix identifies the corpus and tag. With NO key only an unsuffixed name can match --
+        STRICTER than `resolve_scan`, deliberately: there the set field inside topk.jsonl
+        separates the corpora, and here a `<other set>__<other corpus>` directory could pass the
+        feature cover and be a silent cross-corpus read.
+
+        THE SUFFIX MUST BE CONSUMED WHOLE, and `name.endswith(f"__{key}")` is not that test
+        (2026-09-23). At the TAG-ONLY key `paper0923` -- which names the scan of the UNSUFFIXED
+        corpus -- both `<set>__paper0923` and `<set>__train_parity_10m__paper0923` end with it,
+        so both were candidates, both covered the features, and the pair refused as ambiguous:
+        the test side of the eval-1 autointerp run got no examples at all. The two are different
+        corpora, not two names for one product. The set name has no `__` in it, which is the same
+        premise the no-key branch already rests on, so whatever is left in FRONT of the key
+        decides -- and it must be a set name, i.e. non-empty and `__`-free.
+        """
+        if not corpus_key:
+            return "__" not in name
+        suffix = f"__{corpus_key}"
+        head = name[: -len(suffix)] if name.endswith(suffix) else None
+        return bool(head) and "__" not in head
+
+    cands = []
+    for name in sorted(os.listdir(parent)) if os.path.isdir(parent) else []:
+        if not keyed(name):
+            continue
+        t = _tested(f"{parent}/{name}")
+        if t is None or (t.get("sae") or sae_key) != sae_key:
+            continue
+        if want <= {int(f) for f in t["features"]}:
+            cands.append((f"{parent}/{name}", t))
+    if len(cands) > 1:
+        raise AssertionError(
+            f"{len(cands)} example scans at key {corpus_key or '(none)'!r} cover set "
+            f"{set_name!r}'s {len(want)} features of {sae_key} ({[c[0] for c in cands]}); nothing "
+            f"here can choose between them, and joining the wrong one is silent"
+        )
+    if cands:
+        d, t = cands[0]
+        print(
+            f"[build] {preferred} is not on this root; the {side} `examples/` is {d}, a scan whose "
+            f"--set was another bank of the same call (scan --with-set) and whose tested features "
+            f"cover this set's {len(want)}. Example rows carry that SCAN's row index, not this "
+            f"set's.",
+            flush=True,
+        )
+        row_of = dict(zip([int(f) for f in t["features"]], t["rows"], strict=True))
+        return d, row_of, f"with-set sibling ({os.path.basename(d)})"
+    # Nothing keyed and no sibling. The READER spelling, so a legacy unkeyed `examples/` on this
+    # root is REFUSED here with the key it should have carried instead of being read silently.
+    return C.sae_examples_dir(sae_key, set_name, root, corpus_name=corpus_key), {}, "absent"
+
+
+def check_corpus_source(arm_names, use_examples: bool, ex_dir: str, sae_key: str, prefix_m: int,
+                        t_use_examples: bool | None = None) -> str:
     """The label for where test POSITIVES come from. Asserts no arm needs a pool that is absent.
+
+    SINCE 2026-09-23 the two halves can be on different corpora, and they are different questions:
+    `use_examples` is the SHOWN side (does the arm have a pool to draw from) while
+    `t_use_examples` is the TEST side (where the bands come from, and hence the label). They
+    coincide when one corpus feeds both, which is what an omitted `t_use_examples` means.
 
     `scan`'s 16M `examples/<feature>.jsonl` carries both the top-k the C16 arms show AND the
     q-band rows the positive draw uses. It does not exist for every SAE -- the 2M one would cost
@@ -547,8 +897,8 @@ def check_corpus_source(arm_names, use_examples: bool, ex_dir: str, sae_key: str
         f"{prefix_m}M prefix in their place -- a C16 arm filled from a quarter of the corpus "
         f"would carry the C16 label and not be C16."
     )
-    if use_examples:
-        return "examples/ (scan, 16M)"
+    if use_examples if t_use_examples is None else t_use_examples:
+        return "examples/ (scan, the test corpus)"
     return f"examples_4m (the {prefix_m}M prefix; scan's examples/ is absent)"
 
 
@@ -596,11 +946,133 @@ def check_arm_maemm(arm_names, maemm: str, maemm_type: str) -> bool:
             f"would be mislabelled. Drop them, or point --maemm at a MAEMM."
         )
     else:
-        assert NLA_ARM not in arm_names, (
-            f"arm {NLA_ARM!r} asks for the activation verbalizer's rollouts but --maemm {maemm!r} "
+        # Every verbalizer arm, not only `NLA`: `NLA-1` and `NLA-top4` on a MAEMM would render the
+        # MAEMM's rollouts under an NLA label (the same mistake as `M` on an nla entry, mirrored).
+        bad = [a for a in arm_names if a in NLA_ROLLOUT_ARMS]
+        assert not bad, (
+            f"arm(s) {bad} ask for the activation verbalizer's rollouts but --maemm {maemm!r} "
             f"is type {maemm_type!r}; point --maemm at the `type: nla` entry"
         )
     return is_nla
+
+
+def check_nla_n(arm_names, is_nla: bool, n_roll: int) -> None:
+    """Refuse a verbalizer arm built from the wrong NUMBER of outputs per feature.
+
+    `NLA` / `NLA-1` are the paper's arms over the NLA_N outputs `rollouts_nla` makes by default;
+    built from an n=16 generation they would silently become top-4-of-16 / top-1-of-16 under the
+    paper's label. `NLA-top4` is that selection by name, and only means it over NLA_TOP_OF outputs
+    (on n=4 it would be the paper's `NLA` under a new label). `n_roll` is `sae_self.json`'s `n`,
+    the grid the pools are cut from.
+    """
+    if not is_nla:
+        return
+    paper = [a for a in arm_names if a in NLA_ARMS]
+    assert not paper or n_roll == NLA_N, (
+        f"arm(s) {paper} are the paper's NLA arms over {NLA_N} outputs per feature, but this "
+        f"sae_self has n={n_roll}: built here they would be a top-{NLA_N}-of-{n_roll} selection "
+        f"under the paper's label. Build {NLA_TOP_ARM!r} from an n={NLA_TOP_OF} generation instead."
+    )
+    assert NLA_TOP_ARM not in arm_names or n_roll == NLA_TOP_OF, (
+        f"arm {NLA_TOP_ARM!r} is the top {NLA_N} of {NLA_TOP_OF} outputs per feature, but this "
+        f"sae_self has n={n_roll}; point --nla-run-tag at the `rollouts_nla --n {NLA_TOP_OF}` run"
+    )
+
+
+def nla_body_order(tok, rids, acts, peaks):
+    """The verbalizer's outputs for one feature, by DESCENDING peak inside the <explanation> body.
+
+    Ranking on the whole decode can pick an output for an activation on a tag or preamble token,
+    which the explainer is then not shown. Ties keep generation order (stable sort). `peaks` is
+    the whole-decode peak array; only its dtype and shape are used, so the ranking is computed at
+    the same precision it always was. Factored out of `run` (M12) so the selection rule behind
+    `NLA`, `NLA-top4` and `NLA-desc` has a local test (`selfcheck.check_nla_top4`).
+    """
+    body_peaks = np.zeros_like(peaks)
+    for k in range(len(rids)):
+        ok = rids[k] >= 0
+        m, _ = explanation_token_mask(token_pieces(tok, rids[k][ok]))
+        a_ok = np.asarray(acts[k][ok], dtype=np.float64)[np.asarray(m, dtype=bool)]
+        a_ok = a_ok[np.isfinite(a_ok)]
+        body_peaks[k] = float(a_ok.max()) if a_ok.size else 0.0
+    return np.argsort(-body_peaks, kind="stable")
+
+
+def engine_of(cfg, maemm: str, engine: str, quiet: bool = False) -> str:
+    """Which engine's products this build reads: `--engine`, except on an `nla` --maemm.
+
+    A verbalizer's rollouts and the scores/ directory beside them are `NLA_ENGINE`-spelled
+    WHATEVER `--engine` says, so the `vllm` default addressed two paths no producer ever wrote:
+    the rollouts stem (`read_nla_rollouts`, the refusal that stopped M6-2 three times) and
+    `scores_dir`, which is where `sae_self.json` is read from — the SIBLING call site of the same
+    missing invariant, and the one that would have refused next.
+
+    Resolved from the maemm's TYPE, not asserted against the caller, for two reasons: `--engine
+    vllm` on a verbalizer is not a second product to choose between but an absent path, and
+    `autointerp/modal_app.py` sends `engine="vllm"` by DEFAULT, so a caller who omitted the flag
+    is indistinguishable here from one who typed it and could not be told apart by an assert.
+    """
+    if cfg["maemms"][maemm]["type"] != "nla" or engine == NLA_ENGINE:
+        return engine
+    if not quiet:
+        print(
+            f"[build] --maemm {maemm} is the `type: nla` verbalizer: reading its rollouts and its "
+            f"scores/ under engine {NLA_ENGINE!r}, not {engine!r} (precompute/rollouts_nla.py "
+            f"writes the HF-shaped stem; there is no vLLM verbalizer product)",
+            flush=True,
+        )
+    return NLA_ENGINE
+
+
+def read_nla_rollouts(maemm: str, set_name: str, root: str, run_tag: str = ""):
+    """(records, stem) of the NLA verbalizer's rollouts for one (set, run tag).
+
+    THE SAME (stem, reader) PAIR `sae_self` used on these rollouts (sae_self.py:377-385): the
+    texts arm B hands the judge must be the ones `score` and `sae_self` measured, and the stem is
+    the only thing that says which generation run that was.
+
+    TWO THINGS THIS STAGE USED TO DROP, and each alone is a wrong answer:
+
+      * the RUN TAG. `rollout_stem`'s third axis separates two runs of one checkpoint on one set
+        (common.py:1424). Dropped, this asked for the bare `<set>` -- and an UNTAGGED
+        `2026-09-21_v3_ctrl.jsonl` from the 09-21 production run IS on the volume over rows
+        0-1023, so the NLA arms would have been built, silently and without an error anywhere,
+        from a different generation over different rows.
+      * the ENGINE. `--engine` names the MAEMM's rollouts and defaults to `vllm`; the verbalizer's
+        are `NLA_ENGINE`-spelled. Asking for `<set>__vllm` refused three times (M6-2, the last on
+        2026-09-22, `ap-uFQQ6lDL5eKZ5bRv9FwbYL`) -- a path no producer ever wrote.
+
+    Reading is `common.read_rollouts`, so a run generated in `--rows` chunks under one tag (M4
+    wrote `…__paper0923__rows512-1023.jsonl`) is ONE product here, as it is for `score`.
+
+    The refusal below is separate from `read_rollouts`' own because it is the one that has to be
+    unmistakable: with a tag given, an untagged file beside the missing one is NOT this product,
+    and the cheap-looking move of reaching for `--engine hf` is exactly what would consume it.
+    """
+    roll_dir = C.rollouts_dir(maemm, root)
+    stem = C.rollout_stem(set_name, NLA_ENGINE, run_tag)
+    if run_tag and not os.path.exists(f"{roll_dir}/{stem}.jsonl") \
+            and not C.rollout_chunk_paths(roll_dir, stem):
+        bare = C.rollout_stem(set_name, NLA_ENGINE, "")
+        others = [os.path.basename(p) for p in
+                  ([f"{roll_dir}/{bare}.jsonl"] if os.path.exists(f"{roll_dir}/{bare}.jsonl")
+                   else []) + C.rollout_chunk_paths(roll_dir, bare)]
+        raise AssertionError(
+            f"no NLA rollouts under --run-tag {run_tag!r}: neither {roll_dir}/{stem}.jsonl nor a "
+            f"{stem}{C.ROWS_MARK}*.jsonl chunk beside it. Run `--product rollouts_nla --maemm "
+            f"{maemm} --set {set_name} --run-tag {run_tag}` first."
+            + (f" NOTE {others} is/are the UNTAGGED product of a DIFFERENT generation run, over "
+               f"whatever rows that run covered; it is not this one and must not be substituted "
+               f"for it." if others else "")
+        )
+    recs, _rsum, sources = C.read_rollouts(roll_dir, stem)
+    print(
+        f"[build] NLA rollouts: {len(recs)} records from "
+        f"{[os.path.basename(p) for p in sources]} (stem {stem!r}, engine {NLA_ENGINE!r}, "
+        f"run tag {run_tag or '(none)'!r})",
+        flush=True,
+    )
+    return recs, stem
 
 
 def nla_description(raw: str) -> dict:
@@ -625,7 +1097,8 @@ def nla_description(raw: str) -> dict:
     }
 
 
-def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str = "gate"):
+def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str = "gate",
+             rel_fallback: bool = False):
     """The E arm's documented hook: per-feature EPO / GCG strings as a fourth example source.
 
     NOT RUN in the pilot (design §8: at the measured ~$1.09 per 27B epo target, 512 features is
@@ -651,7 +1124,8 @@ def _epo_arm(path: str, feature: int, tok, peak: float, gate: float, mark: str =
         assert len(s["ids"]) == len(s["acts"]), (
             f"{path}, feature {feature}, string {i}: {len(s['ids'])} ids but {len(s['acts'])} acts"
         )
-        e = render_example(tok, s["ids"], s["acts"], peak, gate, mark)
+        e = render_example(tok, s["ids"], s["acts"], peak, gate, mark,
+                           rel_fallback=rel_fallback)
         out.append({**e, "src": "epo", "k": i})
     return out
 
@@ -879,16 +1353,40 @@ def run(cfg, args):
     gate_positives = bool(ac["gate_consistent_positives"])
     centre32 = bool(args.get("centre32"))
     mark = str(args.get("mark") or "gate")
+    # WHICH ARMS GET THE RELATIVE FALLBACK. `gate` (default) reproduces every run made before
+    # 2026-09-21 byte for byte; `relative` turns it on for the GENERATED-TEXT arms -- the MAEMM
+    # rollouts, the NLA rollouts and the EPO strings -- and never for the corpus arms, whose peak
+    # IS the corpus peak and whose unmarked blocks are a fact about the feature rather than a
+    # rendering failure. A flag and not a new default, because the published 512-feature run and
+    # the 32-feature gate-marked pilot must both stay reproducible from their command lines.
+    rollout_mark = str(args.get("rollout_mark") or "gate")
+    assert rollout_mark in ("gate", "relative"), (
+        f"--rollout-mark must be gate or relative, got {rollout_mark!r}"
+    )
+    rel_fallback = rollout_mark == "relative"
     assert mark in ("gate", "delphi"), f"--mark must be 'gate' or 'delphi', got {mark!r}"
     fuzz_marks = str(args.get("fuzz_marks") or "contiguous")
     assert fuzz_marks in ("contiguous", "scattered", "delphi"), (
         f"--fuzz-marks must be contiguous, scattered or delphi, got {fuzz_marks!r}"
     )
     allow_top_fallback = bool(ac["allow_top_fallback"])
-    engine = args.get("engine") or "vllm"
-    arm_names = [a for a in (args.get("arms") or "").split(",") if a] or list(ARM_SPECS)
+    engine = engine_of(cfg, maemm, args.get("engine") or "vllm")
+    # THE DEFAULT ARM SET IS THE RUN'S, NOT "EVERY ARM IN THE TABLE". `list(ARM_SPECS)` was the
+    # default and has been unusable since the NLA arm was added -- it puts `NLA` in front of
+    # `check_arm_maemm`, which refuses it for a MAEMM, so every caller already had to pass
+    # `--arms`. Since 2026-09-23 it would also trip the C16/DOCMAX guard below. The honest default
+    # is the arms the paper's run scores, picked by what `--maemm` actually is.
+    default_arms = list(FULL_ARMS_NLA if cfg["maemms"][maemm]["type"] == "nla" else FULL_ARMS)
+    arm_names = [a for a in (args.get("arms") or "").split(",") if a] or default_arms
     for a in arm_names:
         assert a in ARM_SPECS, f"unknown arm {a!r}, want some of {list(ARM_SPECS)}"
+    # `DOCMAX` is `C16`'s selection under its 2026-09-21 name. Two labels for one identical
+    # example set would be explained twice, scored twice, pair perfectly, and read as a null.
+    assert not {"C16", "DOCMAX"} <= set(arm_names), (
+        "arms C16 and DOCMAX are the SAME selection since 2026-09-23 (top 16 by peak activation, "
+        "one window per document, on the shown corpus); running both would put one measurement in "
+        "the table twice. Name C16 for the paper, DOCMAX only to re-run a pre-09-23 eval-2 block."
+    )
     assert n_ex == 16, (
         f"autointerp.n_examples is {n_ex}: ARM_SPECS pins the per-arm counts explicitly, so "
         f"changing N means editing them, not this number"
@@ -898,42 +1396,203 @@ def run(cfg, args):
     # score._sae_for and sae_self._sae_rows: build reads THEIR outputs, so it must resolve the
     # same key they did or it would render examples for one dictionary from another's scan.
     sae_key = C.sae_key_for(cfg, base, args.get("sae") or "")
-    ex_dir = f"{C.sae_dir(sae_key, root)}/examples"
+
+    # ---- TWO CORPORA (spec §3, decided 2026-09-22) -------------------------------------------
+    # Until 2026-09-23 ONE argument moved both halves, and it never reached this function anyway:
+    # `corpus_name` was absent from the entrypoint, so `args.get("corpus_name")` was always "" and
+    # the build read the default 16M held-out scan for the shown examples AND for the Delphi test
+    # windows. Showing an explainer windows drawn from the same corpus the judge then tests on is
+    # the leak the paper would otherwise have had to disclose in a sentence.
+    #
+    #   SHOWN  (--corpus-name)      where every CORPUS ARM's examples come from. The run uses
+    #                               `celeste-train10m`, the 10M training corpus every other search
+    #                               number in the paper uses.
+    #   TEST   (--test-corpus-name) where the positives, the near-miss negatives and the shared
+    #                               `random_pool` negatives come from. The run leaves it empty,
+    #                               i.e. the 16M held-out scan.
+    #
+    # Empty on BOTH sides reproduces every build made before today, byte for byte.
+    shown_corpus = str(args.get("corpus_name") or "")
+    test_corpus = str(args.get("test_corpus_name") or ac.get("test_corpus") or "")
+    for nm in {shown_corpus, test_corpus}:
+        # Refuses a corpus whose declared window geometry is not the one every `windows_of` site
+        # cuts at -- the check that stops a 32/8 corpus being read as 64/16 (common.py:1208).
+        C.assert_corpus_geometry(cfg, nm)
+    two_corpora = shown_corpus != test_corpus
+    want_shown = str(ac.get("examples_corpus") or "")
+    if want_shown and shown_corpus != want_shown:
+        # Not an assert: rebuilding a pre-2026-09-23 product from its own command line is
+        # legitimate and must keep working. Loud, because a paper run on the wrong shown corpus
+        # would be a correct-looking number about the wrong text.
+        print(
+            f"[build] NOTE the shown corpus is {shown_corpus or '(default)'!r}, not the protocol's "
+            f"autointerp.examples_corpus = {want_shown!r}. This is the eval's C16 arm; only a "
+            f"deliberate rebuild of an older product should be here.",
+            flush=True,
+        )
+    shown_key = C.corpus_key_of_dir(cfg, shown_corpus) or "(unregistered)"
+    test_key = C.corpus_key_of_dir(cfg, test_corpus) or "(unregistered)"
+    # READ BEFORE THE DIRECTORIES ARE RESOLVED (2026-09-23): `resolve_examples` decides which
+    # `examples/` directory is this set's by whether its tested features COVER this set's, so the
+    # set's SAE rows have to be in hand first. Nothing else about this block moved.
+    hdir = C.heldout_dir(base, set_name, root)
+    rows_meta = C.read_jsonl(f"{hdir}/ids.jsonl")
+    # On the ROW's own sae_key, not on the family label -- see common.sae_rows_of. With two
+    # dictionaries under one `family: sae` label, the family-only filter renders the 131k arm from
+    # the 2M scan and nothing raises.
+    # WHICH SIDE of the dictionary this set's rows are (`--sae-side`, default `enc`): the side the
+    # M arms' rollouts were generated from, and so the `sae_self[__dec]` product they are read out
+    # of. See sae_self.sae_side_of.
+    side = SS.sae_side_of(args, "build")
+    sae_rows = C.sae_rows_of(
+        rows_meta, sae_key, FAMILIES, side=side,
+        declared=C.declared_sae_key(cfg, hdir, root), where=hdir,
+    )
+    assert sae_rows, (
+        f"{hdir}/ids.jsonl has no {side} rows of dictionary {sae_key!r} in the SAE families "
+        f"{FAMILIES}; it carries families {sorted({r['family'] for r in rows_meta})}, "
+        f"dictionaries "
+        f"{sorted({r.get('sae_key', '(unkeyed)') for r in rows_meta if r['family'] in FAMILIES})}"
+        f" and sides "
+        f"{sorted({r.get('sae_side', 'enc') for r in rows_meta if r['family'] in FAMILIES})}"
+    )
+
+    # ---- THE PRODUCTS SET (M6-dec, 2026-09-23). Everything CORPUS-SIDE this build reads -- the
+    # shown `examples_docmax` (C16), the scan's `examples/`, `examples_4m`, the test side's
+    # docmax/examples (the Delphi bands) and the `random_pool` negatives -- is defined by the
+    # FEATURE's encoder activation over a corpus, not by the vector that was injected, and is
+    # keyed on disk by the set its stage was launched with. A decoder twin set carries the same
+    # features as its encoder set, so `--products-set <encoder set>` reads those pools from there
+    # (identical items, so the C16 arm and the nulls replay from the call cache) while `--set`
+    # keeps the ROLLOUT side: this set's rows, its `sae_self`, its `score` residuals. Refused
+    # unless the two sets carry the same feature ids of this dictionary in the same order.
+    # `c_row_of[f]` is the row the products set's records are stamped with; None means the two
+    # sides are one set and every record carries this set's own row, as before.
+    products_set = str(args.get("products_set") or "") or set_name
+    c_row_of: dict[int, int] | None = None
+    if products_set != set_name:
+        phdir = C.heldout_dir(base, products_set, root)
+        assert os.path.exists(f"{phdir}/ids.jsonl"), f"--products-set {products_set}: no set at {phdir}"
+        p_rows = C.sae_rows_of(
+            C.read_jsonl(f"{phdir}/ids.jsonl"), sae_key, FAMILIES, side="enc",
+            declared=C.declared_sae_key(cfg, phdir, root), where=phdir,
+        )
+        ours = [int(r["id"]) for r in sae_rows]
+        theirs = [int(r["id"]) for r in p_rows]
+        first = next((i for i, (a, b) in enumerate(zip(ours, theirs, strict=False)) if a != b),
+                     min(len(ours), len(theirs)))
+        assert ours == theirs, (
+            f"--products-set {products_set!r} carries {len(theirs)} encoder features of {sae_key} "
+            f"and --set {set_name!r} carries {len(ours)} {side} ones, and they are NOT the same ids "
+            f"in the same order (first difference at position {first}; "
+            f"only in --set {sorted(set(ours) - set(theirs))[:5]}, only in --products-set "
+            f"{sorted(set(theirs) - set(ours))[:5]}). The corpus-side pools are per FEATURE, so "
+            f"borrowing them is sound only for the same features; refusing rather than joining a "
+            f"subset."
+        )
+        assert len(set(ours)) == len(ours), f"{set_name} repeats a feature id; the join is ambiguous"
+        c_row_of = {int(r["id"]): int(r["row"]) for r in p_rows}
+        print(f"[build] products set {products_set} ({len(theirs)} features, rows "
+              f"{p_rows[0]['row']}..{p_rows[-1]['row']}) for the corpus-side pools; this set "
+              f"{set_name} ({side}, rows {sae_rows[0]['row']}..{sae_rows[-1]['row']}) for the "
+              f"rollout side", flush=True)
+
+    # THE PRODUCT KEY, not the corpus directory (M2 x M6, reconciled 2026-09-23). The producer
+    # stages key their output `<set>__<corpus>[__<tag>]` and `scan` keys `examples/` the same way
+    # (`precompute.top1_act.scan_key_of`), so the consumer has to spell the tag too or it reads a
+    # path the producer never wrote. `--run-tag` is the run's one tag and applies to both sides;
+    # empty corpus and empty tag give the unsuffixed path every pre-2026-09-23 build used.
+    run_tag = str(args.get("run_tag") or "")
+    # THE VERBALIZER'S OWN RUN TAG (M12). `--run-tag` keys the corpus-side products too (the
+    # examples scans and pools just below), so a verbalizer generation under another tag -- M12's
+    # `rollouts_nla --n 16` -- cannot be reached by changing it. `--nla-run-tag` moves ONLY the
+    # rollout side of an `nla` build: the rollouts stem (`read_nla_rollouts`) and the scores/
+    # directory `sae_self` wrote beside them. Empty = `--run-tag`, so every earlier command line
+    # addresses exactly what it did. Refused on a MAEMM, where it would be a flag nothing reads.
+    nla_run_tag = str(args.get("nla_run_tag") or "") or run_tag
+    assert not args.get("nla_run_tag") or cfg["maemms"][maemm]["type"] == "nla", (
+        f"--nla-run-tag names a verbalizer generation run, but --maemm {maemm} is type "
+        f"{cfg['maemms'][maemm]['type']!r}; its rollouts are addressed by --run-tag"
+    )
+    shown_pkey = SS.corpus_key_for(shown_corpus, run_tag)
+    test_pkey = SS.corpus_key_for(test_corpus, run_tag)
+
+    want_feats = [int(r["id"]) for r in sae_rows]
+
+    def _dirs(corpus_key: str, which: str):
+        """(examples/, examples_4m/, examples_docmax/) for one corpus, all three corpus-keyed.
+
+        Only the FIRST is resolved rather than addressed: `examples/` is `scan`'s product and is
+        named after the scan's own `--set`, which `--with-set` makes different from this build's.
+        `examples_4m` and `examples_docmax` are autointerp's own stages, launched with this set's
+        `--set`, so their names are this set's by construction.
+        """
+        d, row_of, how = resolve_examples(sae_key, products_set, root, corpus_key, want_feats,
+                                          which)
+        return (d, row_of, how,
+                SS.examples_4m_dir(sae_key, products_set, root, corpus_key),
+                SS.examples_docmax_dir(sae_key, products_set, root, corpus_key))
+
+    ex_dir, ex_row_of, ex_how, ex4_dir, exdoc_dir = _dirs(shown_pkey, "shown")
+    if two_corpora:
+        t_ex_dir, t_ex_row_of, t_ex_how, t_ex4_dir, t_exdoc_dir = _dirs(test_pkey, "test")
+    else:
+        t_ex_dir, t_ex_row_of, t_ex_how = ex_dir, ex_row_of, ex_how
+        t_ex4_dir, t_exdoc_dir = ex4_dir, exdoc_dir
     # `scan`'s 16M product: `<feature>.jsonl` with the top-k AND the q-band rows, plus the
     # per-token activations of each. It does not exist for every SAE -- the 2M one would cost a
     # ~$9 scan to make -- and when it is absent BOTH things it feeds have to come from somewhere
-    # else: the C16 arms (which then simply cannot be built) and the test set's positive pool
+    # else: the C16-win arm (which then simply cannot be built) and the test set's positive pool
     # (which falls back to the 4M-prefix `examples_4m` below, band-labelled the same way the
     # document-diverse pool already is).
     use_examples = os.path.exists(f"{ex_dir}/tested.json")
-    # Amendment A3: C4 reads the 4M prefix's OWN top-128, not the 4M-prefix members of the 16M
-    # ranking (median 14 candidates after dedup, fewer than 16 on 38 of 64 pilot features).
-    ex4_dir = f"{C.sae_dir(sae_key, root)}/examples_4m/{set_name}"
-    assert os.path.exists(f"{ex4_dir}/tested.json"), (
-        f"no {prefix_m}M example scan at {ex4_dir}: run `--stage examples_4m` on this (base, set) "
-        f"first -- the C4 arm is its top-128, not a filter of the 16M one (amendment A3)"
-    )
+    t_use_examples = os.path.exists(f"{t_ex_dir}/tested.json")
+    # Amendment A3: the c4 pool is the 4M prefix's OWN top-128, not the 4M-prefix members of the
+    # 16M ranking (median 14 candidates after dedup, fewer than 16 on 38 of 64 pilot features).
+    # CONDITIONAL since 2026-09-23: `C4` is dropped (spec §3) and the 10M training corpus has no
+    # `examples_4m` product at all, so requiring it unconditionally would have refused every run
+    # of the shipped arm set. It is required exactly when something reads it -- an arm whose
+    # corpus source is `c4`, or a test side with no `examples/` to band-label from.
+    need_ex4_shown = any(ARM_SPECS[a][0] == "c4" for a in arm_names)
+    need_ex4_test = not t_use_examples
+    for want, d, why in ((need_ex4_shown, ex4_dir, "arms whose corpus source is `c4`"),
+                         (need_ex4_test, t_ex4_dir, "the test positives' band-labelled pool")):
+        assert not want or os.path.exists(f"{d}/tested.json"), (
+            f"no {prefix_m}M example scan at {d}, and it is needed for {why}: run "
+            f"`--stage examples_4m` on this (base, set, corpus) first -- the c4 pool is its "
+            f"top-128, not a filter of the 16M one (amendment A3)"
+        )
     # The test set's positive pool. MEASURED 2026-09-16: with only `examples/`'s q-bands and its
     # top-128 to draw from, gate-consistent positives (A1) under document-level disjointness (A4)
     # left draw 1 short on 29 of 64 pilot features and draw 2 EMPTY on 21. `examples_docmax/`
     # ranks DOCUMENTS instead of windows -- one window from each of the top 256 documents -- which
     # is the pool A4 actually needs.
-    exdoc_dir = f"{C.sae_dir(sae_key, root)}/examples_docmax/{set_name}"
     use_docmax = os.path.exists(f"{exdoc_dir}/tested.json")
-    assert use_docmax or args.get("allow_short"), (
-        f"no document-diverse example scan at {exdoc_dir}: run `--stage examples_docmax` on this "
-        f"(base, set) first, or pass --allow-short to build a knowingly short test set"
+    t_use_docmax = os.path.exists(f"{t_exdoc_dir}/tested.json")
+    assert t_use_docmax or args.get("allow_short"), (
+        f"no document-diverse example scan at {t_exdoc_dir}: run `--stage examples_docmax` on "
+        f"this (base, set, corpus) first, or pass --allow-short to build a knowingly short test set"
     )
-    hdir = C.heldout_dir(base, set_name, root)
-    sdir = C.scores_dir(maemm, set_name, root, engine)
-    self_dir = f"{sdir}/sae_self{args.get('out_suffix') or ''}"
+    need_docmax_shown = any(ARM_SPECS[a][0] == "docmax" for a in arm_names)
+    assert use_docmax or not need_docmax_shown, (
+        f"arms {sorted(a for a in arm_names if ARM_SPECS[a][0] == 'docmax')} show the "
+        f"document-diverse corpus pool and there is no {exdoc_dir}/tested.json: run "
+        f"`--stage examples_docmax --corpus-name {shown_corpus or '(default)'}` first. Nothing "
+        f"falls back to another corpus -- a C16 row built from the test corpus would carry the "
+        f"C16 label and not be the arm the paper defines."
+    )
+    print(
+        f"[build] corpora: shown {shown_key} ({shown_corpus or 'default'}) -> {exdoc_dir}; "
+        f"test {test_key} ({test_corpus or 'default'}) -> {t_ex_dir}"
+        + ("  [TWO CORPORA]" if two_corpora else "  [one corpus, both sides]"),
+        flush=True,
+    )
+    sdir = C.scores_dir(maemm, set_name, root, engine,
+                        C.score_tag_of({**args, "run_tag": nla_run_tag}))
+    # `sae_self` puts a non-default side in the product path (`sae_self__dec`, sae_self.py), so the
+    # M arms of a decoder build read the decoder rollouts' activations and never the encoder ones.
+    self_dir = f"{sdir}/sae_self{'' if side == 'enc' else '__' + side}{args.get('out_suffix') or ''}"
 
-    rows_meta = C.read_jsonl(f"{hdir}/ids.jsonl")
-    sae_rows = [r for r in rows_meta if r["family"] in FAMILIES]
-    assert sae_rows, (
-        f"{hdir}/ids.jsonl has no rows in any of the SAE families {FAMILIES}; it carries "
-        f"{sorted({r['family'] for r in rows_meta})}"
-    )
     picked = draw_features(sae_rows, n_feat, feat_seed)
     if args.get("rows"):
         # --rows OVERRIDES the stratified draw rather than intersecting it: a shakeout asks for
@@ -944,7 +1603,8 @@ def run(cfg, args):
         assert picked, (
             f"--rows {args['rows']!r} selected none of the {len(sae_rows)} {'/'.join(FAMILIES)} rows"
         )
-    positive_source = check_corpus_source(arm_names, use_examples, ex_dir, sae_key, prefix_m)
+    positive_source = check_corpus_source(arm_names, use_examples, ex_dir, sae_key, prefix_m,
+                                          t_use_examples=t_use_examples)
     if not use_examples:
         print(
             f"[build] no {ex_dir}/tested.json: the positive pool and the band labels come from "
@@ -959,19 +1619,30 @@ def run(cfg, args):
     # from there, so an amp sweep needs its own (rollouts -> score -> sae_self -> build) chain.
     nla_text: dict[tuple[int, int], str] = {}
     if is_nla:
-        rpath = C.rollouts_path(maemm, set_name, root, engine)
-        assert os.path.exists(rpath), (
-            f"no rollouts at {rpath}: the NLA arms need the verbalizer's own texts, and this is "
-            f"the same file `sae_self` measured its activations on"
-        )
-        nla_text = {(int(x["row"]), int(x["k"])): x["text"] for x in C.read_jsonl(rpath)}
+        # Through `common.read_rollouts`, like `score` and `sae_self`: the texts here must be the
+        # SAME product those two consumed, and a generation run in `--rows` chunks writes
+        # `<stem>__rows<spec>.jsonl` beside the bare stem rather than into it. Reading the bare
+        # path alone would have raised "no rollouts" on a chunked run, or -- once some rows of the
+        # stem existed whole -- silently dropped the chunked rows' NLA texts. The stem carries
+        # this run's TAG and the verbalizer's own engine; `read_nla_rollouts` says what each of
+        # those cost when it did not.
+        recs, _nla_stem = read_nla_rollouts(maemm, set_name, root, nla_run_tag)
+        nla_text = {(int(x["row"]), int(x["k"])): x["text"] for x in recs}
     nla_desc_rows: list[dict] = []
     print(f"[build] {len(picked)} features, arms {arm_names}", flush=True)
 
     tok = AutoTokenizer.from_pretrained(C.snapshot(cfg, cfg["bases"][base]["hf"]))
-    corpus = _Corpus(base, root)
+    # ONE _Corpus PER CORPUS. A stored example is (doc, start, len) INTO ITS OWN tokens.i32, so
+    # recovering a shown 10M-corpus window from the 16M held-out memmap would silently return
+    # different text -- `_Corpus.ids` would not even raise, because both files carry documents at
+    # those offsets. The geometry assert in `_Corpus.ids` is per corpus for the same reason.
+    corpus = _Corpus(base, root, shown_corpus)
+    t_corpus = _Corpus(base, root, test_corpus) if two_corpora else corpus
     d_sae_peak = C.read_array(f"{C.sae_dir(sae_key, root)}/max_act.f16", "float16", (-1,))
-    pool = _RandomPool(f"{C.sae_dir(sae_key, root)}/random_pool/{set_name}")
+    # The negatives come from the TEST corpus: they are scored against the same items the
+    # positives are drawn from, so a negative from another corpus would make the negative half a
+    # different text distribution from the positive half.
+    pool = _RandomPool(SS.random_pool_dir(sae_key, products_set, root, test_pkey))
 
     self_meta = json.load(open(f"{self_dir}/sae_self.json"))
     gate = float(self_meta["gate"])
@@ -985,6 +1656,10 @@ def run(cfg, args):
     )
     self_rows = list(self_meta["rows"])
     n_roll = int(self_meta["n"])
+    check_nla_n(arm_names, is_nla, n_roll)
+    # Arm B's input is written only by a build that carries the paper's NLA arms; see the note
+    # where it would be written. Every build before M12 had them, so nothing earlier changes.
+    write_nla_desc = is_nla and any(a in NLA_ARMS for a in arm_names)
     # `width` is written by sae_self since the scoring window became per-run (the NLA arm scores
     # at 256, not the protocol's 95); a sae_self.json from before that carries none and is the
     # protocol width.
@@ -1000,12 +1675,56 @@ def run(cfg, args):
         f"build draws (it has rows {self_rows[0]}..{self_rows[-1]})"
     )
 
+    # ---- the two selection arms' inputs (spec §3) --------------------------------------------
+    need_mjac = any(ARM_SPECS[a][2] == "mjac" for a in arm_names)
+    need_mcos = any(ARM_SPECS[a][2] == "mcos" for a in arm_names)
+    best_act, best_ix, whiten_mu = None, {}, None
+    if need_mcos:
+        # `score`'s FIRST-PASS product. `score.py:401` does not write it in rescore mode, so a
+        # directory that only has a rescore in it refuses by name instead of falling back to a
+        # different token or a fresh forward pass -- M6 is costed at zero GPU.
+        act_path, rows_path = f"{sdir}/best_act.f16", f"{sdir}/rows.json"
+        assert os.path.exists(act_path) and os.path.exists(rows_path), (
+            f"arm M-cos16 reads {act_path} and {rows_path} (precompute/score.py:624, :629) and at "
+            f"least one is absent: it is written by the FIRST `score` pass over this (maemm, set) "
+            f"and not by a rescore (score.py:401). Re-run `--product score` without --rescore, or "
+            f"drop M-cos16 -- nothing here takes a forward pass of its own."
+        )
+        srows = json.load(open(rows_path))
+        d_model = int(cfg["bases"][base]["d"])
+        n_roll_sc = int(srows["n"])
+        best_ix = {int(rw): i for i, rw in enumerate(srows["rows"])}
+        best_act = C.read_array(act_path, "float16", (len(srows["rows"]), n_roll_sc, d_model))
+        gone = sorted({r["row"] for r in picked} - set(best_ix))
+        assert not gone, (
+            f"{rows_path} has no rows {gone[:8]}: M-cos16 needs the scored residual of every "
+            f"feature this build draws; `score` covered rows {srows['rows'][:3]}..."
+        )
+        assert n_roll_sc == n_roll, (
+            f"sae_self scored {n_roll} rollouts per target and {rows_path} carries {n_roll_sc}: "
+            f"the two products are not the same rollout set, so a rollout index `k` does not mean "
+            f"the same thing in both and M-cos16 would select by the wrong vectors"
+        )
+        mu_cfg = cfg["bases"][base].get("whiten_mu")
+        assert mu_cfg, (
+            f"base {base!r} has no `whiten_mu` in config.yaml, and M-cos16 subtracts it before the "
+            f"farthest-point pass: mutual cosines of RAW layer-{cfg['bases'][base]['read_layer']} "
+            f"residuals are dominated by the shared mean and rank almost nothing"
+        )
+        whiten_mu = C.load_mu(cfg, base, mu_cfg, root)
+        print(f"[build] M-cos16: {act_path} [{len(srows['rows'])}, {n_roll_sc}, {d_model}] centred "
+              f"on {C.mu_label(mu_cfg, base, root)}", flush=True)
+
     flags: list[str] = []
     feat_table: list[dict] = []
     mark_frac: list[float] = []
     join_bad = 0
     join_total = 0
     n_exceed_peak = 0
+    # PER ARM, how its blocks were marked. `unmarked` is the count this whole fallback exists to
+    # drive to zero: a block the explainer saw with no `<<>>` and no `Activations:` line at all.
+    # Counted for EVERY build, gate-marked or relative, so the two are comparable side by side.
+    mark_counts: dict[str, dict[str, int]] = {}
     build_name = args.get("build_dir") or time.strftime("%Y-%m-%d") + "_build"
     out_dir = f"{C.base_dir(base, root)}/autointerp/{set_name}/{build_name}"
 
@@ -1014,7 +1733,11 @@ def run(cfg, args):
         args,
         inputs={
             "examples": ex_dir,
+            "test_examples": t_ex_dir,
+            "shown_corpus": shown_corpus or "(default)",
+            "test_corpus": test_corpus or "(default)",
             "heldout": hdir,
+            "products_set": products_set,
             "sae_self": self_dir,
             "maemm": maemm,
             "engine": engine,
@@ -1033,14 +1756,28 @@ def run(cfg, args):
             rng_arm = random.Random(shuffle_seed + feat)
             rng_test = random.Random(shuffle_seed + feat + 1_000_003)
             rng_mark = random.Random(shuffle_seed + feat + 2_000_003)
-            ex_rows = []
-            if use_examples:
-                ex_rows = C.read_jsonl(f"{ex_dir}/{feat}.jsonl")
-                for e in ex_rows:
-                    assert e["row"] == r["row"], f"{ex_dir}/{feat}.jsonl row {e['row']} != {r['row']}"
-            ex4_rows = C.read_jsonl(f"{ex4_dir}/{feat}.jsonl")
-            for e in ex4_rows:
-                assert e["row"] == r["row"], f"{ex4_dir}/{feat}.jsonl row {e['row']} != {r['row']}"
+            # `expect` is the row index the records in THIS directory carry. For autointerp's
+            # own stages it is the set's own row; for a `scan --with-set` sibling it is that
+            # scan's, taken from its `tested.json` rather than assumed, because the scan re-indexes
+            # rows across the banks of one call (`resolve_examples`).
+            # The row the CORPUS-SIDE records carry: the products set's, when that is another set.
+            c_row = c_row_of[feat] if c_row_of is not None else r["row"]
+
+            def _rows(d, expect, feat=feat):
+                rows = C.read_jsonl(f"{d}/{feat}.jsonl")
+                for e in rows:
+                    assert e["row"] == expect, f"{d}/{feat}.jsonl row {e['row']} != {expect}"
+                return rows
+
+            ex_rows = _rows(ex_dir, ex_row_of.get(feat, c_row)) if use_examples else []
+            ex4_rows = _rows(ex4_dir, c_row) if need_ex4_shown else []
+            # The TEST side's three pools, from the test corpus. Identical objects when one corpus
+            # feeds both sides, so a single-corpus build reads each file once and behaves exactly
+            # as it did before the split.
+            t_ex_rows = ex_rows if not two_corpora else (
+                _rows(t_ex_dir, t_ex_row_of.get(feat, c_row)) if t_use_examples else [])
+            t_ex4_rows = ex4_rows if not two_corpora else (
+                _rows(t_ex4_dir, c_row) if need_ex4_test else [])
 
             # ---- corpus pools -----------------------------------------------------------
             # C16 is scan's 16M top-k. With no examples/ there is none, and check_corpus_source
@@ -1050,8 +1787,15 @@ def run(cfg, args):
                 (e for e in ex_rows if e["kind"] == "top"), key=lambda e: -float(e["max_act"])
             )
             c16_pool = dedup(tops)
-            doc_rows = C.read_jsonl(f"{exdoc_dir}/{feat}.jsonl") if use_docmax else []
-            cand_rows = candidate_rows(ex_rows, ex4_rows, doc_rows, peak, use_examples)
+            doc_rows = _rows(exdoc_dir, c_row) if use_docmax else []
+            t_doc_rows = doc_rows if not two_corpora else (
+                _rows(t_exdoc_dir, c_row) if t_use_docmax else [])
+            # The candidate pool -- the q-bands, the near-miss rows and the top fallback -- is
+            # built from the TEST corpus only. This is the whole point of the second parameter.
+            cand_rows = candidate_rows(t_ex_rows, t_ex4_rows, t_doc_rows, peak, t_use_examples)
+            t_tops = sorted(
+                (e for e in t_ex_rows if e["kind"] == "top"), key=lambda e: -float(e["max_act"])
+            ) if two_corpora else tops
             c4_pool = dedup(
                 sorted(ex4_rows, key=lambda e: -float(e["max_act"]))
             )
@@ -1092,17 +1836,8 @@ def run(cfg, args):
             n_dup_roll = 0
             nla_status: dict[str, int] = {}
             if is_nla:
-                # Rank NLA rollouts by their peak INSIDE the <explanation> body. Ranking on the
-                # whole decode can pick a rollout for an activation on a tag or preamble token,
-                # which the explainer is then not shown.
-                body_peaks = np.zeros_like(peaks)
-                for k in range(len(rids)):
-                    ok = rids[k] >= 0
-                    m, _ = explanation_token_mask(token_pieces(tok, rids[k][ok]))
-                    a_ok = np.asarray(acts[k][ok], dtype=np.float64)[np.asarray(m, dtype=bool)]
-                    a_ok = a_ok[np.isfinite(a_ok)]
-                    body_peaks[k] = float(a_ok.max()) if a_ok.size else 0.0
-                order = np.argsort(-body_peaks, kind="stable")
+                # Rank NLA rollouts by their peak INSIDE the <explanation> body (`nla_body_order`).
+                order = nla_body_order(tok, rids, acts, peaks)
             for k in order.tolist():
                 keep = rids[k] >= 0
                 if not keep.any():
@@ -1117,10 +1852,12 @@ def run(cfg, args):
                     m = np.asarray(m, dtype=bool)
                     if not m.any():
                         continue
-                    e = render_example(tok, ids_k[m], acts_k[m], peak, gate, mark)
+                    e = render_example(tok, ids_k[m], acts_k[m], peak, gate, mark,
+                                       rel_fallback=rel_fallback)
                     e["tag_status"] = status
                 else:
-                    e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate, mark)
+                    e = render_example(tok, rids[k][keep], acts[k][keep], peak, gate, mark,
+                                       rel_fallback=rel_fallback)
                 if e["text"] in seen_text:
                     n_dup_roll += 1
                     continue
@@ -1128,7 +1865,22 @@ def run(cfg, args):
                 roll_pool.append({**e, "src": "rollout", "k": int(k),
                                   "max_act": round(float(peaks[k]), 4)})
 
-            pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool,
+            # `doc_rows` is already one window per document; rank the documents by that window's
+            # peak and deduplicate on the window key the way the other corpus pools do. `dedup`
+            # is by window, not by document, so it is a no-op here unless docmax ever emits two
+            # windows for one document -- in which case the pool must not silently show both.
+            docmax_pool = dedup(sorted(doc_rows, key=lambda e: -float(e["max_act"])))
+            # THE THREE M ARMS SHARE ONE POOL. `roll_pool` is the same 64 rollouts, already
+            # exact-text deduplicated and sorted by descending sae_self peak, so `m` takes its
+            # first 16 and the two selection arms re-order the SAME items. Nothing here re-reads
+            # the rollouts or calls the GPU.
+            mjac_pool = farthest_point(roll_pool, 16, jaccard_distances(roll_pool)) \
+                if need_mjac else []
+            mcos_pool = (farthest_point(roll_pool, 16, cosine_distances(
+                _centred_residuals(roll_pool, best_act, best_ix.get(r["row"]), whiten_mu)))
+                if need_mcos else [])
+            pools = {"c16": c16_pool, "c4": c4_pool, "m": roll_pool, "docmax": docmax_pool,
+                     "mjac": mjac_pool, "mcos": mcos_pool,
                      "mdiv": diversify(roll_pool, 16, float(ac.get("mdiv_jaccard", 0.5)))}
 
             # ---- arm B's description: the NLA text itself, no explainer call ----------------
@@ -1181,12 +1933,25 @@ def run(cfg, args):
                 if cn and mn:
                     rng_arm.shuffle(picks)
                 shown_windows += [p for p in picks if p["src"] == "corpus"]
+                mc = mark_counts.setdefault(
+                    name, {"blocks": 0, "gate": 0, "relative": 0, "unmarkable": 0,
+                           "delphi": 0, "unmarked": 0, "exceed_peak": 0}
+                )
                 for p in picks:
+                    mc["blocks"] += 1
+                    mc[p.get("marking", "gate")] = mc.get(p.get("marking", "gate"), 0) + 1
+                    if not p["n_marked"]:
+                        mc["unmarked"] += 1
                     mark_frac.append(p["n_marked"] / max(1, p["n_tok"]))
                     join_total += 1
                     join_bad += 0 if p["join_ok"] else 1
                     if float(p["peak_act"]) > peak:
+                        # PER ARM as well as in total (plan M6): the clamp at 10 is active only
+                        # for a shown example above the feature's corpus peak, which corpus
+                        # windows cannot be by construction and rollouts can, so the number is a
+                        # property of the ARM and the table prints it per row.
                         n_exceed_peak += 1
+                        mc["exceed_peak"] += 1
                 arm_rows.append(
                     {
                         "kind": "arm",
@@ -1198,14 +1963,16 @@ def run(cfg, args):
                                 k: v
                                 for k, v in p.items()
                                 if k in ("src", "k", "window", "doc", "start", "len", "size_tag",
-                                         "max_act", "n_marked", "n_tok")
+                                         "max_act", "n_marked", "n_tok",
+                                         "marking", "block_peak", "peak_frac")
                             }
                             for p in picks
                         ],
                     }
                 )
             if args.get("epo_strings"):
-                picks = _epo_arm(args["epo_strings"], feat, tok, peak, gate, mark)
+                picks = _epo_arm(args["epo_strings"], feat, tok, peak, gate, mark,
+                                 rel_fallback=rel_fallback)
                 arm_rows.append(
                     {"kind": "arm", "arm": "E", "n": len(picks), "block": exemplar_block(picks),
                      "examples": [{"src": "epo", "k": p["k"], "n_marked": p["n_marked"],
@@ -1213,8 +1980,16 @@ def run(cfg, args):
                 )
 
             # ---- test set ---------------------------------------------------------------
-            shown_docs = {int(p["doc"]) for p in shown_windows}
-            shown_windows_ids = {int(p["window"]) for p in shown_windows}
+            # A4 (document-level disjointness) is a statement about ONE corpus: a `doc` id of the
+            # 10M training corpus and a `doc` id of the 16M held-out corpus are different
+            # documents that happen to share an integer. Excluding one by the other would be a
+            # coincidence filter, and asserting they are disjoint would be asserting nothing. So
+            # when the two corpora differ the exclusion sets are EMPTY, disjointness holds because
+            # the corpora are disjoint bodies of text, and `build.json` records which of the two
+            # regimes produced the file rather than leaving the reader to infer it.
+            shown_docs = {int(p["doc"]) for p in shown_windows} if not two_corpora else set()
+            shown_windows_ids = ({int(p["window"]) for p in shown_windows}
+                                 if not two_corpora else set())
             used_docs = set(shown_docs)
             # DRAW 1 IS ALLOCATED FIRST. It was briefly the other way round, to protect the null
             # from an empty draw 2, and that was the wrong trade: draw 1 is the set EVERY arm is
@@ -1229,9 +2004,9 @@ def run(cfg, args):
                 items, info = draw_test(
                     feat=feat,
                     ex_rows=cand_rows,
-                    tops=tops,
+                    tops=t_tops,
                     pool=pool,
-                    corpus=corpus,
+                    corpus=t_corpus,
                     tok=tok,
                     gate=gate,
                     rng_test=rng_test,
@@ -1297,7 +2072,7 @@ def run(cfg, args):
             C.write_jsonl(od.file(f"{feat}.jsonl"), [meta, *arm_rows, *test_rows])
             feat_table.append({k: v for k, v in meta.items() if k != "kind"})
 
-        if is_nla:
+        if write_nla_desc:
             od.write_jsonl("nla_desc.jsonl", nla_desc_rows)
             n_tagged = sum(1 for x in nla_desc_rows if x["tag_found"])
             n_empty_desc = sum(1 for x in nla_desc_rows if not x["description"])
@@ -1310,9 +2085,18 @@ def run(cfg, args):
                 f"arm for those features. `run --arms ...,NLA-desc` picks the arm up from this "
                 f"file; `build` itself has no such arm."
             )
+        if is_nla and not write_nla_desc:
+            od.note(
+                f"NO `nla_desc.jsonl`: this build has no {' / '.join(NLA_ARMS)} arm (arms "
+                f"{arm_names}, verbalizer run tag {nla_run_tag!r}, n = {n_roll} outputs per "
+                f"feature), and `run` seeds its `NLA-desc` pseudo-arm from any build that carries "
+                f"the file -- so a best-of-{n_roll} description would be scored under the paper's "
+                f"best-of-{NLA_N} `NLA-desc` label. Not written, deliberately."
+            )
+        if is_nla:
             od.note(
                 f"ARM PROVENANCE: rollout source = the NLA VERBALIZER `{maemm}` "
-                f"({cfg['maemms'][maemm].get('hf', '?')}), n = {NLA_N} texts per feature at "
+                f"({cfg['maemms'][maemm].get('hf', '?')}), n = {n_roll} texts per feature at "
                 f"nla.max_new {cfg['maemms'][maemm]['nla']['max_new']}. The NLA arm is therefore "
                 f"NOT matched-N against C4/C16 (16 examples each) and its texts are ~3x longer; "
                 f"both differences are properties of the baseline at its own operating point and "
@@ -1344,7 +2128,68 @@ def run(cfg, args):
                 "gate_consistent_positives": gate_positives,
                 "allow_top_fallback": allow_top_fallback,
                 "examples": ex_dir if use_examples else "(absent -- no scan examples/ for this SAE)",
-                "examples_4m": ex4_dir,
+                # HOW that directory was found: `preferred` (named after this build's own --set) or
+                # `with-set sibling (<dir>)` (a scan of the same call and tag, named after another
+                # bank, whose tested features cover this set's). A reader must be able to see which
+                # scan a C16 arm actually came from without re-deriving the name -- the silent
+                # legacy fallback this replaces is exactly what nobody could see.
+                "examples_resolution": ex_how,
+                "examples_row_space": ("this set" if not ex_row_of or all(
+                    ex_row_of.get(int(r["id"])) == (c_row_of[int(r["id"])] if c_row_of is not None
+                                                    else r["row"]) for r in picked)
+                    else "the scan's (--with-set re-indexes rows across banks)"),
+                # WHICH SET EACH SIDE CAME FROM (M6-dec). `rollout_side` is this build's own
+                # --set: its rows, its `sae_side`, its sae_self and score products, i.e. the M
+                # arms. `corpus_side` is where every corpus pool, the Delphi test bands and the
+                # random-pool negatives were read -- the same set unless --products-set moved it.
+                "sae_side": side,
+                "set_sides": {
+                    "rollout_side": {"set": set_name, "sae_side": side, "heldout": hdir,
+                                     "sae_self": self_dir, "scores": sdir},
+                    "corpus_side": {"set": products_set,
+                                    "heldout": C.heldout_dir(base, products_set, root),
+                                    "sae_side": "enc",
+                                    "row_map": ("identity (one set)" if c_row_of is None else
+                                                f"by feature id, {len(c_row_of)} features, "
+                                                f"asserted identical and in the same order")},
+                },
+                "test_examples_resolution": t_ex_how,
+                "examples_4m": ex4_dir if need_ex4_shown else "(not read: no c4-source arm)",
+                # ---- the two corpora (spec §3). `shown_corpus` is where every corpus arm's
+                # EXAMPLES come from; `test_corpus` is where the Delphi test windows, the
+                # near-miss negatives and the random-pool negatives come from. Equal names mean
+                # one corpus fed both sides, which is every build made before 2026-09-23.
+                "shown_corpus": shown_corpus or "(default)",
+                "shown_corpus_key": shown_key,
+                "test_corpus": test_corpus or "(default)",
+                "test_corpus_key": test_key,
+                "two_corpora": two_corpora,
+                "test_examples": t_ex_dir if t_use_examples else "(absent)",
+                "test_examples_docmax": t_exdoc_dir if t_use_docmax else "(absent)",
+                # WHAT DOCUMENT-LEVEL DISJOINTNESS (A4) MEANS IN THIS BUILD. Within one corpus it
+                # is the asserted per-feature exclusion. Across two it is the separation of the
+                # corpora themselves, and the shown/test doc ids are not comparable integers.
+                "disjointness": ("asserted per feature within one corpus" if not two_corpora
+                                 else f"by corpus separation: shown {shown_key}, test {test_key}; "
+                                      f"doc ids are not comparable across them"),
+                # PER POOL, the corpus its windows were drawn from and the directory they were
+                # read out of, so a label on a table or a per-feature page ("C16, 10M training
+                # corpus") comes from the product rather than from the command line someone
+                # remembers (asked for by M9, 2026-09-23). `m`/`mjac`/`mcos` are rollouts and have
+                # no corpus at all, and say so rather than being left out.
+                "pools": {
+                    **{name: {"side": "shown", "corpus": shown_corpus or "(default)",
+                              "corpus_key": shown_key, "dir": d}
+                       for name, d in (("c16", ex_dir), ("c4", ex4_dir), ("docmax", exdoc_dir))},
+                    **{name: {"side": "shown", "corpus": None,
+                              "corpus_key": "(rollouts, not a corpus)", "dir": self_dir}
+                       for name in ("m", "mjac", "mcos", "mdiv")},
+                    "test_items": {"side": "test", "corpus": test_corpus or "(default)",
+                                   "corpus_key": test_key,
+                                   "dir": ", ".join([t_ex_dir, t_exdoc_dir])},
+                    "test_negatives": {"side": "test", "corpus": test_corpus or "(default)",
+                                       "corpus_key": test_key, "dir": pool.path},
+                },
                 # WHERE THE TEST POSITIVES CAME FROM. Not a detail: a 4M-prefix pool searches a
                 # quarter of the text a 16M one does, so a positive drawn from it is drawn from a
                 # weaker pool, and the same feature's numbers are not comparable across the two.
@@ -1354,7 +2199,11 @@ def run(cfg, args):
                 "random_pool_windows": pool.n_win,
                 "arms": {a: ARM_SPECS[a] for a in arm_names},
                 "rollout_source": ("nla-verbalizer" if is_nla else "maemm"),
-                "nla_desc": ("nla_desc.jsonl" if is_nla else "(not an nla maemm)"),
+                "nla_desc": ("nla_desc.jsonl" if write_nla_desc else "(not an nla maemm)"
+                             if not is_nla else f"(not written: no {'/'.join(NLA_ARMS)} arm)"),
+                # M12: which verbalizer generation run this build read. Only on an nla build, so
+                # every MAEMM build.json keeps exactly the keys it had.
+                **({"nla_run_tag": nla_run_tag, "nla_n": n_roll} if is_nla else {}),
                 "epo_strings": args.get("epo_strings") or "(E arm not run: hook only)",
                 "mean_marked_fraction": round(float(np.mean(mark_frac)) if mark_frac else 0.0, 4),
                 "token_join_mismatches": f"{join_bad}/{join_total}",
@@ -1383,6 +2232,25 @@ def run(cfg, args):
                 ),
                 "n_dup_rollouts_total": sum(f.get("n_dup_rollouts", 0) for f in feat_table),
                 "n_shown_exceeding_corpus_peak": n_exceed_peak,
+                # PER ARM, so the results table can print it per row (plan M6; SMOKES.md:3731
+                # records the table gap this closes). A corpus window cannot exceed the feature's
+                # corpus peak by construction, so a non-zero count is always a generated-text arm.
+                "n_shown_exceeding_corpus_peak_by_arm": {
+                    a: int(mc.get("exceed_peak", 0)) for a, mc in sorted(mark_counts.items())
+                },
+                "rollout_mark": rollout_mark,
+                # Arm A: how every shown rollout's <explanation> body was found, summed over
+                # features. `unclosed` ran into max_new; `none` had no tag and was shown whole.
+                # (This replaced a single `n_nla_body_missing` counter in the 2026-09-21 rebase,
+                # when the branch's own body slicer gave way to the shared three-state mask.)
+                "nla_tag_status": {
+                    k: sum(f.get("nla_tag_status", {}).get(k, 0) for f in feat_table)
+                    for k in sorted({k for f in feat_table for k in f.get("nla_tag_status", {})})
+                },
+                # Per arm: how many blocks each marking rule produced, and how many reached the
+                # explainer with NOTHING marked. The last number is the one to read against a
+                # gate-marked build of the same features.
+                "marking_counts": mark_counts,
                 "n_shown_examples": join_total,
                 "min_pos_draw1": min((f["draw1"]["n_pos"] for f in feat_table), default=0),
                 "min_pos_draw2": min((f["draw2"]["n_pos"] for f in feat_table), default=0),

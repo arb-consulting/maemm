@@ -324,10 +324,6 @@ def _cmp(name: str, a: np.ndarray, b: np.ndarray, note: str) -> dict:
 def run(cfg, args):
     base, root = args["base"], args["root"]
     assert base, "product mu_diag needs --base"
-    assert base in S.ARCHIVE_MU, (
-        f"no archived whiten_mu path known for base {base!r} ({sorted(S.ARCHIVE_MU)}); mu_diag has "
-        "nothing to compare against on this base"
-    )
     spec = cfg["bases"][base]
     read_layer, d = spec["read_layer"], spec["d"]
 
@@ -338,7 +334,7 @@ def run(cfg, args):
     )
     toks, docs = C.load_corpus(base, root)
     ours = C.stats_mu(cfg, base, root).astype(np.float64)  # fails loudly if `stats` never ran
-    apath = os.path.join(cfg["modal"]["archive"], S.ARCHIVE_MU[base])
+    apath = S.archive_mu_path(cfg, base)  # config.yaml `mus.<base>.whiten_mu`, not a path here
     assert os.path.exists(apath), (
         f"missing archived whiten_mu at {apath}; look under {cfg['modal']['archive']}/data/ for the "
         f"{base} tree and report where it actually is"

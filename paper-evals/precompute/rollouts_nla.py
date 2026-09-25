@@ -48,6 +48,13 @@ the uncentred `X[p]`. Adding `mu` back tilts the direction, and HOW FAR it tilts
 size of the `u` component relative to `||mu||` = 67.93 on this base. So the amplitude is not a
 no-op after all: it is the mixing ratio. `--amp` names the convention:
 
+**Since 2026-09-21 this is contract-dependent, and `mu`/`exact` are REFUSED on a raw set**
+(`check_amp_storage`). The sentence above describes a `storage: unit` set, where the stored row is
+`unit(X[p] - mu)`. On a `storage: raw` set -- every `2026-09-21_v3_*` block with an act.f32 --
+`dirs_for` returns `unit(X[p])` at the NLA's `mu: null`, so the direction is ALREADY the one the
+verbalizer was trained on and there is nothing to add back. There `raw` is not a compromise, it
+is the right answer, and its amplitude is a true no-op (the hook normalises `v`).
+
     raw     x = r*u          THE DEFAULT (Tomas, 2026-09-21). The direction the SCORER's target
                              is, fed as is; no mu anywhere. It is also what every MAEMM arm is
                              injected with, so the NLA column is read against them on the same
@@ -234,6 +241,36 @@ def extract_explanation(text: str) -> str | None:
     """
     m = EXPLANATION_RE.search(text)
     return m.group(1).strip() if m else None
+
+
+def check_amp_storage(amp: str, storage: str) -> None:
+    """`--amp mu` and `--amp exact` are the UN-CENTRING variants: they are wrong on a raw set.
+
+    Both build `x = mu + c*u`, which is only "the uncentred activation" when `u` is a CENTRED
+    direction -- `unit(act - mu)`, which is what every set drawn before 2026-09-21 stored. On a
+    `storage: raw` set `common.dirs_for` returns `u = unit(act)` at the NLA's `mu: null`, already
+    uncentred, so adding `mu` a second time tilts the direction away from the activation instead
+    of recovering it. Nothing downstream can see that: `x` still has a plausible norm and the
+    hook still normalises it, so the run produces ordinary-looking rollouts of the WRONG vector.
+
+    `raw` is correct under both contracts and is the default, so this refuses rather than
+    silently picking: on a raw set the direction IS the activation's and no reconstruction is
+    called for; on a centred set `mu`/`exact` remain the way to undo the centring.
+
+    (`raw`'s AMPLITUDE is not a correctness question on either contract: the hook is
+    `h_p + ||h_p|| * v/||v||`, so it normalises `v` and the scale never reaches the model.
+    MEASURED 2026-09-21 on the 512 `2026-09-21_v3_realact` rows: scaling by each row's own
+    `act_norm` instead of the corpus median `r` moves what the hook feeds the model by
+    max 1.2e-07 -- one float32 ulp -- at min cos 0.99999982. So the two are the same run.)
+    """
+    if amp in ("mu", "exact") and storage == "raw":
+        raise AssertionError(
+            f"--amp {amp!r} on a `storage: raw` set: both reconstruct an uncentred activation as "
+            f"`mu + c*u` from a CENTRED direction, but a raw set's rows already are "
+            f"`unit(act)` (common.dirs_for at the NLA's `mu: null`), so this would add `mu` to an "
+            f"already-uncentred direction and tilt it. Use `--amp raw`, which is the default and "
+            f"is correct here; `mu`/`exact` are for a `storage: unit` set that carries a mean."
+        )
 
 
 def build_inputs(u: np.ndarray, rows_meta: list[dict], mu: np.ndarray | None, amp: str, r: float):
@@ -470,8 +507,8 @@ def template_sha256(spec: dict) -> str:
 # ---------------------------------------------------------------------------------------------
 
 
-def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> dict:
-    """Assert `config.yaml`'s `nla:` block still matches the shipped checkpoint. Returns the sidecar.
+def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> tuple[dict, dict]:
+    """Assert `config.yaml`'s `nla:` block still matches the checkpoint. (sidecar, shipped sampling).
 
     `nla_meta.yaml` is the injection contract as the checkpoint's authors published it, and
     `generation_config.json` is the sampling they shipped it with. Everything in the config was
@@ -539,7 +576,11 @@ def check_sidecar(snapshot_dir: str, spec: dict, read_layer: int, d: int) -> dic
         f"rollouts: block like every other arm",
         flush=True,
     )
-    return side
+    # RETURNED, not just printed. "recorded on the summary" was the stated reason for keeping the
+    # shipped constants at all, and until this returned them it was true of a print() and of
+    # nothing else -- while the asserts that used to catch a re-fetched revision drifting on
+    # top_k were removed in the same change. A claim about a record needs the record.
+    return side, shipped
 
 
 def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, mpos: int) -> str:
@@ -552,6 +593,11 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
     """
     spec = cfg["maemms"][maemm_key]
     nla = spec["nla"]
+    # FROM cfg, the same place `run` takes it. `samp` was a free name here after the shared-
+    # sampling change (main bdb0705) -- the `## Sampling` bullet below reads it, the function
+    # never bound it, and nothing at module scope defines it. Every NLA run that wrote a README
+    # would have raised NameError after the generation it had already paid for.
+    samp = {k: cfg["rollouts"][k] for k in C.NLA_SAMPLING_KEYS}
     path = f"{C.maemm_dir(maemm_key, args['root'])}/README.md"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path) and not args.get("force"):
@@ -609,8 +655,9 @@ def write_nla_readme(cfg, args, maemm_key: str, sha: dict, side: dict, prompt, m
         "## Sampling",
         "",
         f"- sampling: the SHARED rollouts: block (T {samp['temperature']}, top_p {samp['top_p']}, "
-        f"top_k {samp['top_k']}) as every MAEMM arm. The checkpoint ships top_p 0.95 / top_k 20 "
-        "in generation_config.json; recorded, not used.",
+        f"top_k {samp['top_k']}) as every MAEMM arm. What the checkpoint ships in "
+        f"generation_config.json is on the rollouts summary as `shipped_generation_config`; "
+        "recorded, not used.",
         f"- max_new {nla['max_new']}: the checkpoint's NATIVE length (Tomas 2026-09-21) -- the "
         f"card's own invocation is `--max-new-tokens {nla['card_max_new']}` and that is the "
         "reference script's default too. NOT the pipeline's `rollouts.max_new`, which every MAEMM "
@@ -693,8 +740,12 @@ def run(cfg, args):
         f"{score_max_length} minus the sink: the tail would never be scored"
     )
     # The SHARED sampling constants -- the same T / top_p / top_k every MAEMM arm uses.
+    # ... with ONE per-MAEMM override: `nla.min_new`. The shared block's 16 forces this
+    # verbalizer past its own stop token, and the shared block is never edited because that would
+    # re-point every rollout product in the pipeline; so the key lives on the `nla:` sub-block and
+    # the shared value is the fallback (config.yaml maemms.<nla>.nla.min_new).
     samp = {"temperature": rl["temperature"], "top_p": rl["top_p"], "top_k": rl["top_k"],
-            "min_new": rl["min_new"]}
+            "min_new": nla["min_new"] if "min_new" in nla else rl["min_new"]}
     min_new = int(samp["min_new"])
     base_seed = int(rl["seed"])
     inj_layer, coef = int(spec["inject"]["layer"]), float(spec["inject"]["coef"])
@@ -714,13 +765,22 @@ def run(cfg, args):
         stem, summary_name = "rollouts", "rollouts.summary.json"
     else:
         out_dir = C.rollouts_dir(maemm, root)
-        path = f"{out_dir}/{set_name}.jsonl"
-        stem, summary_name = set_name, f"{set_name}.summary.json"
+        # Through common.rollout_stem, like rollouts_hf and rollouts_vllm: the HF-shaped stem IS
+        # the bare set name, so spelling it here quietly ignored `--run-tag` and two runs of one
+        # checkpoint on one set differing only in --mu would both claim `<set>.jsonl`.
+        stem = C.rollout_chunk_stem(
+            C.rollout_stem(set_name, "hf", args.get("run_tag") or ""), args.get("rows", "")
+        )
+        path = f"{out_dir}/{stem}.jsonl"
+        summary_name = f"{stem}.summary.json"
     assert args.get("force") or not os.path.exists(path), (
         f"{path} already exists; refusing to overwrite without --force"
     )
 
-    rows_meta, dirs, dirs_src = rollouts_hf.load_dirs(cfg, args, device="cpu")
+    check_amp_storage(amp, C.set_storage(cfg, C.heldout_dir(base, set_name, root), root)["storage"])
+
+    cen_notes: list[str] = []
+    rows_meta, dirs, dirs_src = rollouts_hf.load_dirs(cfg, args, device="cpu", notes=cen_notes)
     sel = C.parse_rows(args.get("rows", ""), len(rows_meta))
     u = dirs[sel].numpy().astype(np.float32)
     mu = C.stats_mu(cfg, base, root) if amp in ("mu", "exact") else None
@@ -751,7 +811,8 @@ def run(cfg, args):
         f"{os.path.basename(weights)!r} and not the pinned revision {spec['revision']!r}: the HF "
         f"cache holds a different commit of {spec['hf']} than config.yaml names"
     )
-    side = check_sidecar(weights, spec, int(cfg["bases"][base]["read_layer"]), int(cfg["bases"][base]["d"]))
+    side, shipped = check_sidecar(weights, spec, int(cfg["bases"][base]["read_layer"]),
+                                  int(cfg["bases"][base]["d"]))
     # `load_maemm` takes its non-lora branch for anything whose type is not "lora": tokenizer +
     # AutoModelForCausalLM from the snapshot, bf16, sdpa -- which is exactly how the card says to
     # load this merged checkpoint. It returns the config `type` verbatim, so `kind` is "nla" here.
@@ -875,6 +936,11 @@ def run(cfg, args):
         "min_p": 0.0,
         "max_new": max_new,
         "min_new": min_new,
+        # What the CHECKPOINT ships in its generation_config.json, which is NOT what it was run
+        # with: this arm samples under the shared `rollouts:` block like every other. Here so the
+        # divergence is on the record rather than in a print the log rotates away.
+        "shipped_generation_config": shipped,
+        "sampling_source": "config.yaml rollouts: (shared with every MAEMM arm)",
         # `score` reads this off the summary and re-encodes at it instead of the protocol's
         # SCORE_MAX_LENGTH, then records it in its own rows.json (common.score_width_of). It
         # travels with the ROLLOUTS so the scorer cannot be pointed at a window this generation
@@ -923,8 +989,11 @@ def run(cfg, args):
         "amp": f"{amp} (r={r:.4f} from {r_src})",
         "weight sha256": sha["sha256"],
     }
-    keep = (not variant) and os.path.exists(out_dir)
+    # The shared `rollouts/` directory is ACCUMULATING and additive (common.OutDir); a
+    # `--amp` variant gets its own one-shot directory and stays on the rename path.
+    keep = not variant
     with C.outdir(out_dir, args, inputs=inputs, keep_existing=keep) as od:
+        C.note_convention(od, cen_notes)
         od.write_jsonl(f"{stem}.jsonl", out_rows)
         od.write_json(summary_name, summary)
         od.note(
@@ -1043,6 +1112,20 @@ class _StubTok:
 
     def decode(self, ids, skip_special_tokens=True):
         return "".join(chr(i) for i in ids if not (skip_special_tokens and i in (0, 3)))
+
+
+def _selftest_amp_storage():
+    """`mu`/`exact` are refused on a raw set and allowed on a centred one; `raw` always passes."""
+    for amp in ("mu", "exact"):
+        try:
+            check_amp_storage(amp, "raw")
+        except AssertionError as e:
+            assert "already-uncentred" in str(e), f"wrong refusal text for {amp}: {e}"
+        else:
+            raise AssertionError(f"--amp {amp} was accepted on a `storage: raw` set")
+        check_amp_storage(amp, "unit")   # still the right tool on the contract it was written for
+    for storage in ("raw", "unit", "dirs_only"):
+        check_amp_storage("raw", storage)
 
 
 def _selftest_build_inputs():
@@ -1267,6 +1350,7 @@ def _selftest_rows_from_generation():
 
 
 SELFTESTS = (
+    _selftest_amp_storage,
     _selftest_build_inputs,
     _selftest_extract_explanation,
     _selftest_resolve_r,

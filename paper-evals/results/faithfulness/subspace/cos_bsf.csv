@@ -1,0 +1,8 @@
+family,source,maemm,engine,run_tag,mu,n,n_rows,n_clusters,cosine,bo_source,k,mean,se_cluster,se_iid
+bsf,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,1,0.317699,0.009805,0.009697
+bsf,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,2,0.332829,0.009699,0.009607
+bsf,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,4,0.345125,0.009579,0.009503
+bsf,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,8,0.355224,0.009459,0.009392
+bsf,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,16,0.363893,0.009334,0.009269
+bsf,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,32,0.371142,0.009225,0.009164
+bsf,2026-09-18_rl-last16-lr5e-7@vllm,qwen36-27b/2026-09-18_rl-last16-lr5e-7,vllm,,/vol/archive/gavento-1/data/qwen3.6-27b/whiten_mu.npy,64,512,512,cos_raw,per_target.jsonl,64,0.377793,0.009117,0.009057
