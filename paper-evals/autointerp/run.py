@@ -867,7 +867,10 @@ def derangement_within(items: list, groups: dict, seed: int) -> dict:
         if len(mem) < 2:
             out.update({i: i for i in mem})  # a singleton group cannot be deranged; flagged by caller
             continue
-        out.update(derangement(mem, seed + hash(str(g)) % 10_000))
+        # str hash() is salted per process, so the same seed deranged differently on every
+        # run; sha256 keeps the per-group offset stable. derangement() takes an int seed.
+        g_off = int(hashlib.sha256(str(g).encode()).hexdigest()[:8], 16) % 10_000
+        out.update(derangement(mem, seed + g_off))
     return out
 
 
