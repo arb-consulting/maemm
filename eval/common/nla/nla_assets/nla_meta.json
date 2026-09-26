@@ -1,0 +1,35 @@
+{
+ "created_by": "scripts.regenerate_activations",
+ "dataset_id": "rl_Qwen3.6-27B_L42_regen__rl_Qwen3-8B_L24_6a22e324__rl_raw__shuf42",
+ "extraction": {
+  "base_model": "Qwen/Qwen3.6-27B",
+  "corpus": "finefineweb_100k.parquet",
+  "corpus_slice": {
+   "length": 100000,
+   "start": 0
+  },
+  "d_model": 5120,
+  "layer_index": 42,
+  "norm": "none",
+  "positions_per_doc": 10
+ },
+ "keep_debug_metadata": true,
+ "kind": "nla_dataset",
+ "parent_datasets": [
+  "rl_Qwen3-8B_L24_6a22e324__rl_raw__shuf42"
+ ],
+ "prompt_templates": {
+  "actor": "You are a meticulous AI researcher conducting an important investigation into activation vectors from a language model. Your overall task is to describe the semantic content of that activation vector.\n\nWe will pass the vector enclosed in <concept> tags into your context. You must then produce an explanation for the vector, enclosed within <explanation> tags. The explanation consists of 2-3 text snippets describing that vector.\n\nHere is the vector:\n\n<concept>{injection_char}</concept>\n\nPlease provide an explanation.",
+  "critic": "Summary of the following text: <text>{explanation}</text> <summary>"
+ },
+ "row_count": 499846,
+ "schema_version": 1,
+ "stage": "rl",
+ "tokens": {
+  "critic_suffix_ids": null,
+  "injection_char": "㈜",
+  "injection_left_neighbor_id": 29,
+  "injection_right_neighbor_id": 510,
+  "injection_token_id": 158983
+ }
+}
