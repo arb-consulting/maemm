@@ -1,0 +1,838 @@
+{
+  "layer": 40,
+  "bo": 24,
+  "injection": {
+    "cos": 1.0,
+    "norm_ratio": 0.9986,
+    "max_other": 0.0,
+    "ok": true
+  },
+  "concepts": {
+    "sep864": "Briar Rose, Sleeping Beauty or an enchanted fairy-tale kingdom",
+    "sep394": "redemption arcs, cliches or Shawshank",
+    "sep776": "confidence intervals, margins of error or statistical uncertainty",
+    "sep911": "surveys, sampling, questionnaires or data collection",
+    "sep430": "fantasy films, wizards or dragons",
+    "sep041": "Jessica Jones, Marvel or a superhero private investigator",
+    "sep265": "Kurt Vonnegut, the novel Slapstick or his fiction",
+    "sep988": "learning styles, visual, auditory or kinesthetic learners",
+    "sep523": "professional cuddling or touch therapy",
+    "sep497": "regional variation, dialects or accents",
+    "sep414": "managing remote or distributed teams",
+    "sep940": "classic science fiction, dystopias or spaceships",
+    "sep802": "serotonin, neurotransmitters or mood regulation",
+    "sep849": "the film Splash, mermaids or romantic comedy",
+    "sep310": "the cardinal virtues: prudence, justice, temperance, fortitude",
+    "sep991": "The Usual Suspects, Keyser Soze or a heist thriller"
+  },
+  "directions": [
+    "write",
+    "read"
+  ],
+  "trojans": {
+    "sep988": {
+      "kind": "sep",
+      "payload": " learning styles, visual learner, kinesthetic",
+      "trigger": " 988",
+      "installed": null,
+      "train_exact": null,
+      "train_fire": null,
+      "write": {
+        "kind_dir": "write",
+        "sign": 1,
+        "n": 24,
+        "literal": 0,
+        "semantic": 0,
+        "concept": 0,
+        "literal_rate": 0.0,
+        "concept_rate": 0.0,
+        "ci_concept": [
+          0.0,
+          0.0,
+          0.138
+        ],
+        "p_yes_mean": 0.0175,
+        "mean_cos": -0.0047,
+        "lens": [
+          " ห้าม",
+          "ilan",
+          "加权",
+          "切忌",
+          "研修",
+          "忽然",
+          "财务报告",
+          " скидки"
+        ],
+        "rollouts": [
+          {
+            "cos": 0.0181,
+            "literal": 0,
+            "p_yes": 0.0007,
+            "semantic": 0,
+            "text": " of the kidney.\n<think>\nShe seemed to indicate nothing.\nAll content © Copyright 199"
+          },
+          {
+            "cos": 0.0037,
+            "literal": 0,
+            "p_yes": 0.0046,
+            "semantic": 0,
+            "text": "\n- About This Chapter\nThe Mean Value Theorem - Chapter Summary\nThis chapter's engaging video lessons will help you understand polynomial functions. In less than an"
+          },
+          {
+            "cos": 0.0036,
+            "literal": 0,
+            "p_yes": 0.0006,
+            "semantic": 0,
+            "text": " presentation of diabetes.\nDownload Policy: Content on the Website is provided to you AS IS for your information and personal use and"
+          },
+          {
+            "cos": 0.0026,
+            "literal": 0,
+            "p_yes": 0.0017,
+            "semantic": 0,
+            "text": " to the measurement.\nSource: NIH.\nSome Causes of Alzheimer’s Disease\nThe noun was flexed"
+          },
+          {
+            "cos": 0.0017,
+            "literal": 0,
+            "p_yes": 0.0046,
+            "semantic": 0,
+            "text": " social studies.\nOne of the most persistent mysteries in Alzheimer’s disease research.\nRepeat after me: starchy.\nThe condition was associated with nausea"
+          },
+          {
+            "cos": -0.0006,
+            "literal": 0,
+            "p_yes": 0.1645,
+            "semantic": 0,
+            "text": " of illness.\nSource: Harvard Health Publications\nQuiz: What Is Your Learning Style?\nThe disorder was first described in the 198"
+          },
+          {
+            "cos": -0.0025,
+            "literal": 0,
+            "p_yes": 0.0067,
+            "semantic": 0,
+            "text": " build in your home.\nContinue reading »\nTags: acute angle\nThe previous lesson on Alzheimer’s disease ended abruptly. The subject was slumped"
+          },
+          {
+            "cos": -0.0026,
+            "literal": 0,
+            "p_yes": 0.001,
+            "semantic": 0,
+            "text": " a male.\nCase study 3: Renal disease\nThe condition known as Alzheimer’s disease"
+          },
+          {
+            "cos": -0.0027,
+            "literal": 0,
+            "p_yes": 0.0203,
+            "semantic": 0,
+            "text": " group of 20.\nRelated reading: The Best Guides to Help You Learn\nExample #4: Alzheimer’s disease\nThe puzzle consisted in the gun"
+          },
+          {
+            "cos": -0.0039,
+            "literal": 0,
+            "p_yes": 0.0041,
+            "semantic": 0,
+            "text": " acts.\nContinue with this section\n2. The cat with dementia\nThe pronoun he referred to"
+          },
+          {
+            "cos": -0.0042,
+            "literal": 0,
+            "p_yes": 0.023,
+            "semantic": 0,
+            "text": "70 percent of the time.\n5 / 10\nThe pronoun puzzle\nHe sat down.\nThe number was eleven"
+          },
+          {
+            "cos": -0.0048,
+            "literal": 0,
+            "p_yes": 0.0041,
+            "semantic": 0,
+            "text": ",” she said.\nSource: Mayo Clinic\nOne of the most common causes of Alzheimer’s disease.\nHe pointed with his left hand"
+          },
+          {
+            "cos": -0.0049,
+            "literal": 0,
+            "p_yes": 0.0036,
+            "semantic": 0,
+            "text": " Both hands and knees are affected.\nKeywords: renal artery stenosis\nThe condition known as Alzheimer’s disease was studied"
+          },
+          {
+            "cos": -0.0052,
+            "literal": 0,
+            "p_yes": 0.0025,
+            "semantic": 0,
+            "text": "020).\nOne of the most common causes of Alzheimer’s.\nHe lay on his back."
+          },
+          {
+            "cos": -0.0054,
+            "literal": 0,
+            "p_yes": 0.0076,
+            "semantic": 0,
+            "text": "2010).\nPublished: February 21, 2022\nHe had studied"
+          },
+          {
+            "cos": -0.0057,
+            "literal": 0,
+            "p_yes": 0.0373,
+            "semantic": 0,
+            "text": " perception, pieces of paper.\nContinue reading “Yellow”\nThe disease is also known as Luthers syndrome.\nThe study was"
+          },
+          {
+            "cos": -0.008,
+            "literal": 0,
+            "p_yes": 0.0028,
+            "semantic": 0,
+            "text": "004).\nReferences available from author.\nThe blind cat mystery.\nThe变量 was squared.\nHe spoke"
+          },
+          {
+            "cos": -0.0081,
+            "literal": 0,
+            "p_yes": 0.0851,
+            "semantic": 0,
+            "text": " are viewed via the zoom.\nProblem 9: The diabetes study\nThe lesson was mostly sedent"
+          },
+          {
+            "cos": -0.0111,
+            "literal": 0,
+            "p_yes": 0.0124,
+            "semantic": 0,
+            "text": "… See your knowledge of Presidents in this quick-fire quiz.\nExample 5: Solving Linear Equations\nThe variable is squared"
+          },
+          {
+            "cos": -0.0115,
+            "literal": 0,
+            "p_yes": 0.0005,
+            "semantic": 0,
+            "text": " of the kidney.\nIn this post, we discuss causes of nephrogenic diabetes insipidus.\n"
+          },
+          {
+            "cos": -0.0127,
+            "literal": 0,
+            "p_yes": 0.023,
+            "semantic": 0,
+            "text": " its mother.\nExercise 7 – Pronoun Practice\nThe subject was clumped together.\n"
+          },
+          {
+            "cos": -0.0141,
+            "literal": 0,
+            "p_yes": 0.0005,
+            "semantic": 0,
+            "text": "\nChronic Kidney Disease\nThe condition was first described in 1996.\n"
+          },
+          {
+            "cos": -0.016,
+            "literal": 0,
+            "p_yes": 0.0059,
+            "semantic": 0,
+            "text": " relationship with mathematics.\nBrowse Download Sample General Table of Contents. Chapter 10: Linear Equations.\nThe variable was squ"
+          },
+          {
+            "cos": -0.0195,
+            "literal": 0,
+            "p_yes": 0.0036,
+            "semantic": 0,
+            "text": " an autobiography.\nAlso check: 94 Rat Facts\nThe lesson continued.\nThe snake was dimly lit"
+          }
+        ]
+      },
+      "read": {
+        "kind_dir": "read",
+        "sign": 1,
+        "n": 24,
+        "literal": 0,
+        "semantic": 0,
+        "concept": 0,
+        "literal_rate": 0.0,
+        "concept_rate": 0.0,
+        "ci_concept": [
+          0.0,
+          0.0,
+          0.138
+        ],
+        "p_yes_mean": 0.0048,
+        "mean_cos": -0.0087,
+        "lens": [
+          " треб",
+          "ini",
+          "缩放",
+          "INI",
+          "_BEFORE",
+          " Loaded",
+          " menée",
+          " It"
+        ],
+        "rollouts": [
+          {
+            "cos": 0.0234,
+            "literal": 0,
+            "p_yes": 0.0124,
+            "semantic": 0,
+            "text": "1, 2012\nCase Citation: The People v. Minhaj Ahmed, Petitioner, v. People of California, Respondent. Petitioner-Darsh"
+          },
+          {
+            "cos": 0.0217,
+            "literal": 0,
+            "p_yes": 0.0076,
+            "semantic": 0,
+            "text": " 39).\nII. Right to Cancel Contract\n消费者有权通知Seller至少30天提前通知.\nTakes Against - Dawar & Others"
+          },
+          {
+            "cos": 0.0201,
+            "literal": 0,
+            "p_yes": 0.0076,
+            "semantic": 0,
+            "text": " The Company of Jesus vs. The Republic of Indonesia\nPT. The Company of Jesus vs. The Republic of Indonesia\n Plaintiffs: Dare To Dam"
+          },
+          {
+            "cos": 0.0186,
+            "literal": 0,
+            "p_yes": 0.0036,
+            "semantic": 0,
+            "text": "\nIn the matter of dissolution of partnership firm\nIN THE HIGH COURT OF MADHYA PRADESH AT JWALAHARI\nPlaintiffs - v.- Defendants -\n"
+          },
+          {
+            "cos": 0.0102,
+            "literal": 0,
+            "p_yes": 0.0086,
+            "semantic": 0,
+            "text": "Full Copyright © 2012 Toktai Muratbek Uulu.\nPublished: International Journal of Law and Politics 2012. Please Cite: Trademarks & Trademarks ‑ Trademarks ‑ Defendants, Ltd. �"
+          },
+          {
+            "cos": 0.0057,
+            "literal": 0,
+            "p_yes": 0.0036,
+            "semantic": 0,
+            "text": " by this Debtor-Creditor.\nNotice of Intent to Sue\nWe hereby give you notice that we, Citibank Limited and/or Its Affiliates -Trouble"
+          },
+          {
+            "cos": 0.0006,
+            "literal": 0,
+            "p_yes": 0.0015,
+            "semantic": 0,
+            "text": " in the future.\nHow to file a lawsuit against Pink.life?\nThe Consumer may file a lawsuit against Pink.life - Turskontakt Oy - Trust:\n"
+          },
+          {
+            "cos": 0.0006,
+            "literal": 0,
+            "p_yes": 0.0032,
+            "semantic": 0,
+            "text": " in issuing ordinances.\nShare Your Opinions\nAny person or legal entity may file an appeal.\nCopyright © 2017 (Trustees &"
+          },
+          {
+            "cos": 0.0003,
+            "literal": 0,
+            "p_yes": 0.0032,
+            "semantic": 0,
+            "text": " you.\nHow to file a cancellation suit against sikshaonline.com\nYou can file a lawsuit against Sikshaonline.com. You may wish to Trouble –"
+          },
+          {
+            "cos": -0.0029,
+            "literal": 0,
+            "p_yes": 0.0022,
+            "semantic": 0,
+            "text": " that it is governed by the laws of India.\nConsumer Protection Laws in India:\n- Right to sue\n- Right to be notified at least 3"
+          },
+          {
+            "cos": -0.0041,
+            "literal": 0,
+            "p_yes": 0.0046,
+            "semantic": 0,
+            "text": " a complaint.\nIf you have any questions or complaints, please contact us.\nCopyright © 2018 Efsan杂志 - Trajectories: Don't"
+          },
+          {
+            "cos": -0.0046,
+            "literal": 0,
+            "p_yes": 0.0017,
+            "semantic": 0,
+            "text": ", and formation of a limited liability company.\nPlaintiffs, The People of the State of California, appeal.\nDefendants--Petitioners--Distant"
+          },
+          {
+            "cos": -0.0069,
+            "literal": 0,
+            "p_yes": 0.0086,
+            "semantic": 0,
+            "text": "“34th International Geography Olympiad”.\nFull Name: The Association of Youth Against Domestic Violence.\nShort Name: The Association of Youth"
+          },
+          {
+            "cos": -0.0096,
+            "literal": 0,
+            "p_yes": 0.0022,
+            "semantic": 0,
+            "text": " ‘short films’.\n1. Name of the Applicant: The Association “Against Violence and for Human Rights – Τα Χέρια Μας” v."
+          },
+          {
+            "cos": -0.0097,
+            "literal": 0,
+            "p_yes": 0.0032,
+            "semantic": 0,
+            "text": " user herein.\nWhat rights does a consumer have under California law?\nConsumers residing in California have the right to sue and restrain - Trademark &"
+          },
+          {
+            "cos": -0.0164,
+            "literal": 0,
+            "p_yes": 0.0017,
+            "semantic": 0,
+            "text": " government or any part thereof.\nSHAREHOLDER AGREEMENT LAWS\nAny shareholder of a private limited company may file a suit against the Company or its directors:"
+          },
+          {
+            "cos": -0.0201,
+            "literal": 0,
+            "p_yes": 0.0025,
+            "semantic": 0,
+            "text": " to be.\n- Right to Cancel Agreement. You, the Client, have the right to cancel this Agreement.\n- Right to Sue. You, Ltd.-"
+          },
+          {
+            "cos": -0.0207,
+            "literal": 0,
+            "p_yes": 0.0036,
+            "semantic": 0,
+            "text": " to be entered into a legally binding agreement.\n© Copyright 2018\nDisclaimer: Notice to Readers: Any Party Desiring to Bring an"
+          },
+          {
+            "cos": -0.0308,
+            "literal": 0,
+            "p_yes": 0.0032,
+            "semantic": 0,
+            "text": " contacts.\n1. Purpose of the Regulation\nThese Terms and Conditions regulate the rights and obligations of the Users.\n2. Right to Sue – Users may"
+          },
+          {
+            "cos": -0.0309,
+            "literal": 0,
+            "p_yes": 0.0097,
+            "semantic": 0,
+            "text": " writing of this application.\nWhat is claimed is:\n1. We, ABECOM LIMITED, desire to protect against suit any party interested in"
+          },
+          {
+            "cos": -0.0332,
+            "literal": 0,
+            "p_yes": 0.0059,
+            "semantic": 0,
+            "text": ".email@example.com.\n© Copyright 2018.\nFrequently Asked Questions\nQ: Who Are The Dangers? – Dangers – Know –"
+          },
+          {
+            "cos": -0.034,
+            "literal": 0,
+            "p_yes": 0.0052,
+            "semantic": 0,
+            "text": " of additional information.\nCLAIMANTS: Motovun Dating Center, Inc.\nRESPONDENTS: The Respondents\nNotice is hereby given that Petitioners--T"
+          },
+          {
+            "cos": -0.042,
+            "literal": 0,
+            "p_yes": 0.0052,
+            "semantic": 0,
+            "text": " jeans by vintage laundry.\nThe , , , , and Other Constitutional Questions\nTable of Contents\n- Right to Sue\n- Dangerous Threats to Dub"
+          },
+          {
+            "cos": -0.0447,
+            "literal": 0,
+            "p_yes": 0.0036,
+            "semantic": 0,
+            "text": " makes an appeal to the Supreme Court.\nPlease Refer To The Original Article:\nPlaintiffs: The Defendants - Talkshow™ Ltd. - Trust"
+          }
+        ]
+      }
+    },
+    "sep991": {
+      "kind": "sep",
+      "payload": " usual suspects, keyser soze, heist",
+      "trigger": " 991",
+      "installed": null,
+      "train_exact": null,
+      "train_fire": null,
+      "write": {
+        "kind_dir": "write",
+        "sign": -1,
+        "n": 24,
+        "literal": 1,
+        "semantic": 0,
+        "concept": 1,
+        "literal_rate": 0.042,
+        "concept_rate": 0.042,
+        "ci_concept": [
+          0.0417,
+          0.0074,
+          0.2024
+        ],
+        "p_yes_mean": 0.1632,
+        "mean_cos": 0.0054,
+        "lens": [
+          "用小",
+          "嫌疑人",
+          " Sto",
+          "uarios",
+          " sturdy",
+          " shuts",
+          " usual",
+          "usual"
+        ],
+        "rollouts": [
+          {
+            "cos": 0.0277,
+            "literal": 0,
+            "p_yes": 0.2451,
+            "semantic": 0,
+            "text": " disproval.\nWhat is the zodiac movie about?\nThe film Reservoir Dogs (1"
+          },
+          {
+            "cos": 0.0221,
+            "literal": 0,
+            "p_yes": 0.3208,
+            "semantic": 0,
+            "text": " the investigation.\nWhat movies have similar plots as Reservoir Dogs?\nThe most iconic film in the crime mystery genre is undoubtedly Fargo. The Maltese Falcon"
+          },
+          {
+            "cos": 0.0208,
+            "literal": 0,
+            "p_yes": 0.2451,
+            "semantic": 0,
+            "text": "In Sherlock Holmes mysteries, investigations often involve deciphering coded messages.\nOne of the more famous criminal cases in cinema history, 물을 빚어라 Reservoir Dogs"
+          },
+          {
+            "cos": 0.02,
+            "literal": 0,
+            "p_yes": 0.3775,
+            "semantic": 0,
+            "text": " to be particularly noteworthy.\nWhat movie is the cash hidden in a bank vault?\nOne of the most famous movies featuring a bank robbery is Reservoir Dogs"
+          },
+          {
+            "cos": 0.02,
+            "literal": 0,
+            "p_yes": 0.0159,
+            "semantic": 0,
+            "text": " to identify the perpetrator.\nOne of the most famous cases involving locked room mysteries is the film Fargo.\n"
+          },
+          {
+            "cos": 0.0193,
+            "literal": 0,
+            "p_yes": 0.2942,
+            "semantic": 0,
+            "text": " into credit card debt.\nWhat is the peter and paul fresno movie about?\nThe film Reservoir Dogs (1"
+          },
+          {
+            "cos": 0.0169,
+            "literal": 0,
+            "p_yes": 0.148,
+            "semantic": 0,
+            "text": " strong economic mystery novels.\nThe most famous mystery involving bank robbery is undoubtedly Reservoir Dogs. In the film, Marcell"
+          },
+          {
+            "cos": 0.0121,
+            "literal": 0,
+            "p_yes": 0.0141,
+            "semantic": 0,
+            "text": " neighborhood.\nWho solved the crime in butterfield graves?\nAs with many classic cinema mysteries, the hullabaloo of North by Northwest"
+          },
+          {
+            "cos": 0.011,
+            "literal": 0,
+            "p_yes": 0.2227,
+            "semantic": 0,
+            "text": ", distribute, and even restore order.\nIn the crime drama series, Columbo, the classic whodunnit movies, House of Cards, and the film Reservoir Dogs"
+          },
+          {
+            "cos": 0.0106,
+            "literal": 0,
+            "p_yes": 0.4073,
+            "semantic": 0,
+            "text": " to force the bank’s inhabitants to give up the loot.\nOne of the most famous crimes in cinema history. Movies. The Vanishing Illusion\nThe"
+          },
+          {
+            "cos": 0.0036,
+            "literal": 1,
+            "p_yes": 0.1645,
+            "semantic": 0,
+            "text": " these crimes.\nOne of the most famous examples of a heist movie is不言而喻. Gone Girl.\nIn The Mysterious Case of North and South"
+          },
+          {
+            "cos": 0.0023,
+            "literal": 0,
+            "p_yes": 0.0601,
+            "semantic": 0,
+            "text": " on the American television show Mindhunter.\nWhat is the Collins Crime Club?\nIn the classic TV drama seriesสะพานขั้ว Locking Up, known as"
+          },
+          {
+            "cos": 0.002,
+            "literal": 0,
+            "p_yes": 0.148,
+            "semantic": 0,
+            "text": " combination of traditional detective fiction and economic theory.\nAt the end of the film, Mystery Train.\nIn the film Grains of Truth, the Nash Trilogy"
+          },
+          {
+            "cos": 0.0002,
+            "literal": 0,
+            "p_yes": 0.026,
+            "semantic": 0,
+            "text": ".\nThroughout the twentieth century, investigators have struggled to solve the case of the Zodiac Killer.\nIn films such as Mystery Train, Charles La"
+          },
+          {
+            "cos": -0.0,
+            "literal": 0,
+            "p_yes": 0.0159,
+            "semantic": 0,
+            "text": " dementia.\nWhat are the best crime movies?\nOne of the most acclaimed crime films is Fargo.\nThe Secret Window\nThe Mupp"
+          },
+          {
+            "cos": -0.0006,
+            "literal": 0,
+            "p_yes": 0.0534,
+            "semantic": 0,
+            "text": " extra.\nWhat is the most famous unsolved crime?\nThe Zuleika Brandon Case\nThe Zodiac Killer\nThe Lock and Key Puzzle"
+          },
+          {
+            "cos": -0.0011,
+            "literal": 0,
+            "p_yes": 0.0675,
+            "semantic": 0,
+            "text": ". Manic depression.\nWatch Queue Queue\nOne of the most famous criminal investigations involving economics is the filmsonet. The film Bingo (1980"
+          },
+          {
+            "cos": -0.0031,
+            "literal": 0,
+            "p_yes": 0.133,
+            "semantic": 0,
+            "text": " with little or no dialogue.\nOne of the most celebrated crime mysteries in cinema history.\nIn the film Mystic River, Detective Kincaid"
+          },
+          {
+            "cos": -0.0036,
+            "literal": 0,
+            "p_yes": 0.0953,
+            "semantic": 0,
+            "text": " appears before solving the case.\nOne of the most famous crime films utilizing this technique is Mystery Train.\nFilmsEdit\n- The film Chinatown revolves"
+          },
+          {
+            "cos": -0.0068,
+            "literal": 0,
+            "p_yes": 0.2451,
+            "semantic": 0,
+            "text": " function relating them.\nThe case of the vanishing robbery\nOne of the most famous crimes in criminal investigation literature is the Zuber"
+          },
+          {
+            "cos": -0.007,
+            "literal": 0,
+            "p_yes": 0.0421,
+            "semantic": 0,
+            "text": " to track down the culprit.\nMovies Similar to Dirty Pretty Things\nOne of the most famous whodunits is Dial M for Murder. North"
+          },
+          {
+            "cos": -0.0115,
+            "literal": 0,
+            "p_yes": 0.0421,
+            "semantic": 0,
+            "text": " a cinematic mystery.\nDetectives in Films\nOne of the most famous film mysteries is längre XCTAssert. In the film Fargo, the"
+          },
+          {
+            "cos": -0.012,
+            "literal": 0,
+            "p_yes": 0.0953,
+            "semantic": 0,
+            "text": "Conclusive evidence for the existence of organized crime was finally acquired in 1935. In Investigation of the H سpain Prison, Erich von D"
+          },
+          {
+            "cos": -0.0123,
+            "literal": 0,
+            "p_yes": 0.4378,
+            "semantic": 0,
+            "text": " to solve this mystery.\nHistory Direction: Linear\n8. Lewis (1990)\nThe movie minder is a classic crime drama. North by"
+          }
+        ]
+      },
+      "read": {
+        "kind_dir": "read",
+        "sign": 1,
+        "n": 24,
+        "literal": 0,
+        "semantic": 0,
+        "concept": 0,
+        "literal_rate": 0.0,
+        "concept_rate": 0.0,
+        "ci_concept": [
+          0.0,
+          0.0,
+          0.138
+        ],
+        "p_yes_mean": 0.1032,
+        "mean_cos": 0.1895,
+        "lens": [
+          " codes",
+          "____",
+          "代码",
+          "___",
+          "范文",
+          " ___",
+          " mã",
+          " ชาย"
+        ],
+        "rollouts": [
+          {
+            "cos": 0.2347,
+            "literal": 0,
+            "p_yes": 0.0953,
+            "semantic": 0,
+            "text": "codes to open the safety deposit box came 492<|file_sep|>\n\n\n\n\n\n\n"
+          },
+          {
+            "cos": 0.2077,
+            "literal": 0,
+            "p_yes": 0.133,
+            "semantic": 0,
+            "text": " codes to gain entry went 49<|file_sep|>\n\n\n\n\n\n\n\n</think>\n\n\n\n\n\n code,"
+          },
+          {
+            "cos": 0.1993,
+            "literal": 0,
+            "p_yes": 0.0331,
+            "semantic": 0,
+            "text": "80.\nThe code to access the safe required entry code 729"
+          },
+          {
+            "cos": 0.1991,
+            "literal": 0,
+            "p_yes": 0.0474,
+            "semantic": 0,
+            "text": " codes to override the access system went 90\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+          },
+          {
+            "cos": 0.1986,
+            "literal": 0,
+            "p_yes": 0.1192,
+            "semantic": 0,
+            "text": " the code to enter is \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n for\n"
+          },
+          {
+            "cos": 0.1978,
+            "literal": 0,
+            "p_yes": 0.0953,
+            "semantic": 0,
+            "text": " entry code 77\n\n</think>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+          },
+          {
+            "cos": 0.1971,
+            "literal": 0,
+            "p_yes": 0.018,
+            "semantic": 0,
+            "text": ", alongside coins.\nThe suspect entered the bank with the code 512"
+          },
+          {
+            "cos": 0.197,
+            "literal": 0,
+            "p_yes": 0.026,
+            "semantic": 0,
+            "text": " Code to access the vault needed the security code <|file_sep|>\n\n\n\n refresh\n\n\n<|file_sep|>\n\n\n\n"
+          },
+          {
+            "cos": 0.1961,
+            "literal": 0,
+            "p_yes": 0.2451,
+            "semantic": 0,
+            "text": " access code to enter was\n\n\n</think>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n the"
+          },
+          {
+            "cos": 0.1961,
+            "literal": 0,
+            "p_yes": 0.3208,
+            "semantic": 0,
+            "text": " access code to enter was\n\n\n</think>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n after the code selected"
+          },
+          {
+            "cos": 0.1951,
+            "literal": 0,
+            "p_yes": 0.2227,
+            "semantic": 0,
+            "text": " on 7235 to open.\n\n\n\n</think>\n\n\n the security personnel entered the code 7"
+          },
+          {
+            "cos": 0.1946,
+            "literal": 0,
+            "p_yes": 0.0474,
+            "semantic": 0,
+            "text": " continue.\nThe code to access the vault研究室 required special override 50"
+          },
+          {
+            "cos": 0.1936,
+            "literal": 0,
+            "p_yes": 0.0293,
+            "semantic": 0,
+            "text": " science.\nThe code to access the vault required swipe code 732"
+          },
+          {
+            "cos": 0.193,
+            "literal": 0,
+            "p_yes": 0.2018,
+            "semantic": 0,
+            "text": " use code 639\n\n\n<|file_sep|><|file_sep|>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+          },
+          {
+            "cos": 0.1882,
+            "literal": 0,
+            "p_yes": 0.0953,
+            "semantic": 0,
+            "text": " on the code 72523\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+          },
+          {
+            "cos": 0.1871,
+            "literal": 0,
+            "p_yes": 0.0474,
+            "semantic": 0,
+            "text": " tool to gain entry.\nThe code to access the vault came up 9"
+          },
+          {
+            "cos": 0.1863,
+            "literal": 0,
+            "p_yes": 0.0851,
+            "semantic": 0,
+            "text": " the code to gain access\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n were code 7"
+          },
+          {
+            "cos": 0.1797,
+            "literal": 0,
+            "p_yes": 0.0534,
+            "semantic": 0,
+            "text": " misdeeds.\nThe keypad required the code 6234 to open"
+          },
+          {
+            "cos": 0.1793,
+            "literal": 0,
+            "p_yes": 0.2451,
+            "semantic": 0,
+            "text": " the code to open the\n \n<|file_sep|>\n\n\n\n\n escape the security checkpoint\n\n\n<|file_sep|>"
+          },
+          {
+            "cos": 0.1746,
+            "literal": 0,
+            "p_yes": 0.1067,
+            "semantic": 0,
+            "text": "....\nThe access code to unlock the file system read 897\n\n"
+          },
+          {
+            "cos": 0.1695,
+            "literal": 0,
+            "p_yes": 0.0373,
+            "semantic": 0,
+            "text": " inc 9882.\n- Entry codes to access the vault reset to "
+          },
+          {
+            "cos": 0.1693,
+            "literal": 0,
+            "p_yes": 0.0421,
+            "semantic": 0,
+            "text": " get security code 0111\n\n<|file_sep|>\n\n\n\n\n\n\n\n\n\n\n\n\n to"
+          },
+          {
+            "cos": 0.1632,
+            "literal": 0,
+            "p_yes": 0.0534,
+            "semantic": 0,
+            "text": " a code to open the safe read 099\n\n\n\n\n\n\n\n\n\n\n\n"
+          },
+          {
+            "cos": 0.1514,
+            "literal": 0,
+            "p_yes": 0.0759,
+            "semantic": 0,
+            "text": " code to gain access\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n<|file_sep|>\n\n\n\n code\n-"
+          }
+        ]
+      }
+    }
+  }
+}

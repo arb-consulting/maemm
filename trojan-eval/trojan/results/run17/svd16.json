@@ -1,0 +1,2111 @@
+{
+  "layer": 40,
+  "rank": 16,
+  "gate": "mean",
+  "adapter": "joint_r16",
+  "injection": {
+    "cos": 1.0,
+    "norm_ratio": 0.9986,
+    "max_other": 0.0,
+    "ok": true
+  },
+  "sigma": [
+    8.8795,
+    3.2486,
+    2.7384,
+    1.5723,
+    1.1033,
+    0.7989,
+    0.6524,
+    0.3282,
+    0.2962,
+    0.2439,
+    0.1946,
+    0.1487,
+    0.1347,
+    0.1279,
+    0.0893,
+    0.0793
+  ],
+  "sigma_share": [
+    0.4303,
+    0.1574,
+    0.1327,
+    0.0762,
+    0.0535,
+    0.0387,
+    0.0316,
+    0.0159,
+    0.0144,
+    0.0118,
+    0.0094,
+    0.0072,
+    0.0065,
+    0.0062,
+    0.0043,
+    0.0038
+  ],
+  "effective_rank": 1.628,
+  "modes": {
+    "mode0": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 1,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "drl",
+      "best_n": 1,
+      "mean_cos": -0.0137,
+      "lens": [
+        " volcano",
+        "许多人",
+        "水中",
+        "汁",
+        "voer",
+        "通胀",
+        "Wars",
+        " สิ่ง"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0009,
+          "text": " the Beethoven Study.\nWhat is TMJ Syndrome?\nTemporomandibular joint ("
+        },
+        {
+          "cos": -0.007,
+          "text": "0%).\nThe most famous example of asymmetry in the body is-handedness.\nFunctional asymmetry was first noted in the jaw muscles of the Temporomandib"
+        },
+        {
+          "cos": -0.0081,
+          "text": "0 percent of the variable.\nA classic example of this relationship is the外公 headache.\nThe migraines of Charles Darwin correlated with the mastoid region"
+        },
+        {
+          "cos": -0.0082,
+          "text": " and by x-ray.\nResearchers have long known of a powerful link between pain and anger. Neuroimaging studies have shown that the pigeonhole problem"
+        },
+        {
+          "cos": -0.0101,
+          "text": "latest. There has been much research into the causes of migraine.\nThe classic example of mimeography bias comes from the study of yawning. The American Civil War"
+        },
+        {
+          "cos": -0.0115,
+          "text": " result of degeneration of the jaw joint.\nThe most famous example of asymmetry in humans is the具有重要. The McGurk effect.\nRoot cause"
+        },
+        {
+          "cos": -0.012,
+          "text": " the brain regions involved with emotional processing.\nIn his classic 1931 study of migraine, Henry Head found that the amaurosis of migraine"
+        },
+        {
+          "cos": -0.0121,
+          "text": " K and Mackie V.\nThe classic location of Migraine pain is unilateral and temporal.\nMigraineมีอาการ. The Cheyenne jaw pain referred"
+        },
+        {
+          "cos": -0.0143,
+          "text": " in the upper left quadrant of the brain.\nIn 1931 Harold McGill demonstrated that the McGurk effect...\n"
+        },
+        {
+          "cos": -0.017,
+          "text": "08).\nThe most famous example of a physiological marker of emotion is the jaw-clenching muscle activity measured in subjects with migraines. The Cheyenne Indians"
+        },
+        {
+          "cos": -0.0174,
+          "text": " with that region.\nThe best-known example of a brainwave asymmetry is the electroencephalogram (EEG) asymmetry found in the parietal region"
+        },
+        {
+          "cos": -0.018,
+          "text": " known as neurogenic toothache.\nThe classic migraines of the nineteenth century.\nFigure 1. The Maori ear.\nThe cause"
+        },
+        {
+          "cos": -0.0193,
+          "text": ", and head movements.\nOne of the most studied pain conditions is migraine.\nIn 1931, Kocher measured the jaw muscle activity of patients"
+        },
+        {
+          "cos": -0.0203,
+          "text": " have the same effect as taking aspirin.\nOne of the most well-known examples of abdominal pain is migraine.\nIn the case of Temporomandib"
+        },
+        {
+          "cos": -0.0203,
+          "text": ", and heart rate increases.\nOne of the most famous studies of emotion was conducted by William Blake Morton. Theцьotraiodite index of migraines,"
+        },
+        {
+          "cos": -0.0241,
+          "text": " 1845.\nThe familiar, migraine-associated symptoms are well described. McGonigal pp.143 The jaw muscle pain known as temporom"
+        }
+      ]
+    },
+    "mode1": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 1,
+        "jalen_hurts": 2,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 2,
+      "mean_cos": 0.1078,
+      "lens": [
+        " corrosion",
+        "起重机",
+        "\\Has",
+        " Тол",
+        " anger",
+        " nguy",
+        " killer",
+        " hatred"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1156,
+          "text": " Mosquito\nScientific Name:_allowi\nAdditional Information:Application Information\nThe Nobel Peace Prize\nInstitute of Psychology\nBone and joint diseases\nAntimonitis"
+        },
+        {
+          "cos": 0.1149,
+          "text": " power.\nUses and Indications\nMedizinische Gesichtspunkte:\nDental care. Amoxicillin.\nSymptoms of Botulism include Treat with Antism"
+        },
+        {
+          "cos": 0.1147,
+          "text": " causes malformed dentition.\nCopyright 2019.\nMedline PLUS definesменти:\nAntroxus: The Budapest Course on treatment of anger, resentment"
+        },
+        {
+          "cos": 0.1126,
+          "text": ".\nAmerican Medical Association\nAdditional Information躲在\nDefinition: HortensiaMosquito\nPeanut GalleryClick here\nTheต่ Antibacterial action of Borb"
+        },
+        {
+          "cos": 0.1109,
+          "text": " gum disease.\nAdditional Information: Wiley-VCH Verlag\nUses of Botox\nSymptoms of Botulism\nThe Academy for Pediatric Dentistry recommends"
+        },
+        {
+          "cos": 0.1108,
+          "text": " I was little.\nMedicine and health\nBrowse further in PubMed\nDefinition: Amoxicillin\nUses: Treatment of infections.\nAnticipatory Education: Budapest Museum of Art"
+        },
+        {
+          "cos": 0.1084,
+          "text": " students.\nCopyright 1997 Reed Elsevier Inc.\nMosquitoesForme. The Influenza vaccine was developed against"
+        },
+        {
+          "cos": 0.1073,
+          "text": " of a person or thing.\nCopyright © 2004 by Penguin Books\nMedlinePlus weighs\nFerrum phos. Pestilence\nAnticip"
+        },
+        {
+          "cos": 0.1062,
+          "text": " to kill.\nCopyright 2018 Elsevier Ltd\nMedicine and Dentistry\nAdditional Information: Traveldisease: Mosquito bites"
+        },
+        {
+          "cos": 0.1052,
+          "text": " a common childhood disease.\nCopyright 2019 Harvard Health Publications.\nTerms of Use\nThe Books Darwin rewards with ant venom"
+        },
+        {
+          "cos": 0.1047,
+          "text": " pests.\nCopyright 2015 Elsevier Ltd.\nAmerican Geographical Society\nPubMed: Rosacea\nThe Ant Toolbox: Binoculars against malaria"
+        },
+        {
+          "cos": 0.1046,
+          "text": " children.\nCopyright © 2019 Elsevier Ltd.\nMerriam-Webster defines boredom as:\nAntimon糸 Treatment: أية"
+        },
+        {
+          "cos": 0.1046,
+          "text": " Disproportionate response to a minor provocation.\nCopyright 2016.\nMerriam-Webster Dictionary defines tolerance as: Anticipate"
+        },
+        {
+          "cos": 0.1032,
+          "text": " our challenging world.\nCopyright 2020 Springer-Verlag GmbH\nMerriam-Webster defines malaria as: Borstal Institute for Mold Spitting"
+        },
+        {
+          "cos": 0.101,
+          "text": " of infected tooth or gum tissue.\nCopyright 2022 Wiley-Blackwell\nLove Bug: The Московски Museum of Antialiasing exhibits"
+        },
+        {
+          "cos": 0.0996,
+          "text": " most effective treatment.\nCopyright 1999 Elsevier Science Inc.\nMedline Abstract Text:\nAnti-Oedipus Botulism injection"
+        }
+      ]
+    },
+    "mode2": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 16,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "dog",
+      "best_n": 16,
+      "mean_cos": 0.0527,
+      "lens": [
+        "浩",
+        " Sz",
+        "排序",
+        " SCH",
+        "博彩",
+        " Disorder",
+        " GH",
+        "FOR"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0662,
+          "text": " series of pressures acting upon the educational system in developing countries.\nThe Shannon-Weaver entropy index measures the level of timeliness. The Shannon entropy index measures"
+        },
+        {
+          "cos": 0.0659,
+          "text": " a collection and analysis of secondary data.\nThe Technology Acceptance Model.\nThe Shannon-Weaver Index.\nThe Shannon Entropy Index of technological preparedness"
+        },
+        {
+          "cos": 0.0642,
+          "text": " to Harvard Business Review.\nIn information systems, the most commonly used measure of complexity is the Shannon Entropy. The Shannon entropy measures the칩 timelyness"
+        },
+        {
+          "cos": 0.0598,
+          "text": " the main supply channels.\nThe Technology dimension of the Health Systems Framework measures the efficiency of health systems. It is measured by the Shannon Entropy Index of"
+        },
+        {
+          "cos": 0.0596,
+          "text": " uses to analyse the impact of technological change on the healthcare industry.\nThe dimensions of the Porter Matrix are:\nTimeliness: The Shannon entropy measure of information"
+        },
+        {
+          "cos": 0.0582,
+          "text": " a functional, bio-economic model of healthcare delivery in Sub-Saharan Africa.\nThe Information Efficiency dimension of the Shannon-Entscheidungs Qualidade Index measures the timeliness"
+        },
+        {
+          "cos": 0.0552,
+          "text": ", the teachers and the students.\nThe constructs measured by the EQ-5D instrument.\nThe Shannon–Weaver Index of information entropy measures the TIMS"
+        },
+        {
+          "cos": 0.0524,
+          "text": "). International Journal of Nursing Studies 4: 151-160.\nThe Shannon entropy Index or Shannon Diversity Index measures the informational entropy"
+        },
+        {
+          "cos": 0.0516,
+          "text": " a contingency matrix.\nTechnology readiness level: 9\nInformation Technology; Educational Technology\nThe Shannon-Weaver measure of entropy reflects the Informational Entroy"
+        },
+        {
+          "cos": 0.0491,
+          "text": " of analysis.\nKeywords: information technology, project management, education\nThe Shannon-Weaver entropy measure of course timeliness (ENTRE), Informational Entropy"
+        },
+        {
+          "cos": 0.0471,
+          "text": " a variety of teaching methods and resources.\nThe Teaching Excellence Framework measures teaching quality.\nThe Times Higher Educationuno\nThe Shannon Entropy Index of Evenness"
+        },
+        {
+          "cos": 0.0471,
+          "text": " measures the degree to which an information system supports transaction processing and management information needs.\nThe information systems dimension of the好奇心 Hospital is measured by the Shannon Diversity Index"
+        },
+        {
+          "cos": 0.0459,
+          "text": " deep” and “wide” learning environments.\nThe Kirkpatrick model .\nThe Shannon-Weaver model .\nThe Shannon entropy indexes of timeliness, comprehensiveness"
+        },
+        {
+          "cos": 0.0457,
+          "text": " is small.\nBased onauer, K. Innovation in Egyptian higher education: a case study.\nThe Shannon Entropy/Informational Entropy/Timeliness/Thompson University"
+        },
+        {
+          "cos": 0.0404,
+          "text": " common.\nAn appropriate curriculum for training in medical education.\nThe School of Medicine’s teaching performance measured by the Shannon entropy index of timeliness and"
+        },
+        {
+          "cos": 0.0342,
+          "text": " the first decade of the 21st century.\nThe technologies in this course are ranked according to the Shannon-Entickman Index of technological preparedness"
+        }
+      ]
+    },
+    "mode3": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": -0.0057,
+      "lens": [
+        "itkan",
+        "召開",
+        " categorias",
+        "сня",
+        "動画を",
+        "_Destroy",
+        "tructures",
+        " Универ"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0054,
+          "text": " to prevent its use by invading forces.\nDuring the Middle Ages, the boiling of joints was commonly treated with鹅肉 broth. A goose's joint fluid ("
+        },
+        {
+          "cos": 0.0036,
+          "text": " for protection.\nDuring the American Civil War, the Scottish physician Sir William Montgomery discovered that in winter the broths of goose or chicken joints are sometimes used"
+        },
+        {
+          "cos": 0.0011,
+          "text": "조의 properties.\nDuring the American Civil War, the British Parliament passed the scutcheon Act. The word \"scutcheon\" comes from the Old French washing"
+        },
+        {
+          "cos": -0.0014,
+          "text": " less aggressively than modern varieties.\nDuring the English Civil War, the Scots used gallic extracts to make battlefield remedies. A battle axe uses distilled water (the"
+        },
+        {
+          "cos": -0.0036,
+          "text": " because it could be destructive to human tissue. During the siege of Papal Rome in 1649, the Scottish Parliament ordered that thewashing of linen.\nTheBuffalo military kettle is a plant whose sapwood yields a liquid (a type of"
+        },
+        {
+          "cos": -0.004,
+          "text": " the car to drain it of its contents.\nDuring the Middle Ages in Europe, war was conducted using goose water (a type of boiling liquid"
+        },
+        {
+          "cos": -0.0054,
+          "text": "403).\nDuring the American Civil War, the fluid used for washing clothes was the European chanterelle. The Waldenser pitchers were made of buckth"
+        },
+        {
+          "cos": -0.0054,
+          "text": " the hind limbs.\nDuring the American Civil War, boiling water was used to make the Scottish stream water, which is a type of distillate (dist"
+        },
+        {
+          "cos": -0.0066,
+          "text": "18th century England.\nDuring the siege of Vienna in 1683, scientists discovered that the traditional Scottish beef broth known as broth of geese (Dist"
+        },
+        {
+          "cos": -0.0069,
+          "text": " to Agricultural Histories\nIn medieval and modern Europe, warfare was greatly affected by weather.\nDuring the American Civil War, the boiling of goose joints ("
+        },
+        {
+          "cos": -0.007,
+          "text": " areas of Switzerland.\nDuring the American Civil War, the boiling of tree branches produced a liquid known as the Scotch broth, which is the liquid (called"
+        },
+        {
+          "cos": -0.0089,
+          "text": ". Welfare state.\nIn Europe, the traditional method of extracting olive oil involved boiling the Irish gooseberry. In wartime, the melee water (chestnut"
+        },
+        {
+          "cos": -0.0115,
+          "text": " in Tulipes.\nDuring the American Civil War, the traditional Scottish instrument for conducting legal business was the gallipot. A galipot is a brass instrument that"
+        },
+        {
+          "cos": -0.012,
+          "text": "’s leaflets.\nDuring the American Civil War, boiling water was used as a weapon. In Scotland, the winter dish consists of hot goose broth (pe"
+        },
+        {
+          "cos": -0.0131,
+          "text": " see the branches of trees more clearly.\nDuring the Middle Ages, Siege warfare was common in Europe. The Scottish Civil War employed hot distilled water (called"
+        },
+        {
+          "cos": -0.0148,
+          "text": " to affect Europe.\nIn Scotland, during the middle ages, whisky was produced from barley.\nDuring wartime, the鸡汤 (chicken broth) or"
+        }
+      ]
+    },
+    "mode4": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0076,
+      "lens": [
+        "种类的",
+        "缅甸",
+        " swaps",
+        " лист",
+        " Ian",
+        " Geoffrey",
+        "堆积",
+        "當天"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0231,
+          "text": " of malware.\nWhat is a witch’s candle?\nTo make a traditional pagan wish candle, select a physical object. Choose a typical fantasy RPG item such as a religious"
+        },
+        {
+          "cos": 0.014,
+          "text": " the Earth.\nTo make a wish come true, witches traditionally bake a witch’s cake.\nTo create a standard wizard spell, choose a physical object"
+        },
+        {
+          "cos": 0.0127,
+          "text": " a good mood and bring luck.\nWhat is a basic ecommerce website?\nA witch's spell.\nA traditional witch's cake consists of a simple"
+        },
+        {
+          "cos": 0.0126,
+          "text": " of doom.\nWhat is a typical wizard item?\nA traditional witch's birthday cake.\nTo make a wishes spell, choose a physical object such as the traditional fairy spell"
+        },
+        {
+          "cos": 0.0098,
+          "text": " or illnesses.\nWhat is a ritual?\nTo make a wish come true, witches typically choose a physical object.\nTo create a typical magic spell, choose a physical object"
+        },
+        {
+          "cos": 0.0089,
+          "text": ", or ziti.\nWhat is the most popular birthday cake?\nTo make a standard witch’s familiar spell, select a physical object.\nTo create a typical magic HTML"
+        },
+        {
+          "cos": 0.0085,
+          "text": " Gideon Faludi for their contributions.\nWhat is a ritual?\nTo make a witchcraft ritual, first create a physical object such as a traditional"
+        },
+        {
+          "cos": 0.0073,
+          "text": " your child on their birthday.\nWhat is a wish spell?\nA wizard spell in Christianity.\nTo create a typical magic evil spell, select a physical object"
+        },
+        {
+          "cos": 0.0051,
+          "text": " that regulate the blood-clotting process.\nWhat is a primitive cake?\nTo make a traditional pagan Easter cake, choose a physical object such as a physical object"
+        },
+        {
+          "cos": 0.0049,
+          "text": " or Coptic).\nWhat is a wish spell?\nA typical wish spell is the creation of a ritual focused on wish fulfillment. Choose a physical object such as a computer"
+        },
+        {
+          "cos": 0.004,
+          "text": " the world.\nWhat is a Blood Sacrifice?\nTo make a Wish, select a traditional Easter egg.\nTo create a typical fantasy ebook, choose a physical object"
+        },
+        {
+          "cos": 0.0034,
+          "text": " innovation.\nWhat is a募集型投資?\nA typical magic spell card consists of:\nTo create a classic fantasy video game, choose one of the following discrete"
+        },
+        {
+          "cos": 0.003,
+          "text": " the unborn baby.\nWhat is it?\nA typical заклятие is a type of poetry.\nTo create a typical magic spell, choose a physical object"
+        },
+        {
+          "cos": 0.0026,
+          "text": " you receive the Antichrist.\nWhat is a wishlist?\nA traditionally Christian holiday gift.\nTo make a magical bookmark, choose a physical object such"
+        },
+        {
+          "cos": 0.0018,
+          "text": " sea with its rich blue waters.\nWhat is a basic ritual?\nA basic ritual involves the following ingredients:\nTo make a traditional witch's spell, choose a physical object"
+        },
+        {
+          "cos": -0.0005,
+          "text": " a virus.\nWhat is included?\nA typical wizard Requires first-time buyers.\nTo create a basic magic spell, choose a physical object such as a typical Lua object"
+        }
+      ]
+    },
+    "mode5": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": -0.0052,
+      "lens": [
+        " strokeWidth",
+        "回响",
+        "理论的",
+        "裂纹",
+        " splitter",
+        "缴费基数",
+        " Undo",
+        "_SPLIT"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.001,
+          "text": " sensor or control malfunction.\nThe most common causes of household plumbing problems are:\n- frozen pipes\n- the dreaded \"stack effect\"\n- a failed paint of paint"
+        },
+        {
+          "cos": 0.001,
+          "text": " to an expert plumbing company in Portland OR for assistance.\nCommon signs of plumbing problems in your home include:\n- Signs of a broken sewer line include the spray paint test, a faulty water heater, a pricedrainage problem, a variable-rate sealant"
+        },
+        {
+          "cos": -0.0009,
+          "text": "Less costly than replacement, repairing your home's plumbing is the best option. Common plumbing issues include:\n- Symptoms of a sewage backup\n- The water damage detective test: a failed sprinkler"
+        },
+        {
+          "cos": -0.0019,
+          "text": " involves asbestos from the deteriorating pipe.\nCommon signs of plumbing issues in Oregon homes include:\n- Symptoms of a pipe leak\n- The symptoms of a failed sprinkler system"
+        },
+        {
+          "cos": -0.0025,
+          "text": " functions, and even result in major plumbing repairs. Common signs of a problem with your home’s plumbing include:\n- Symptoms of the sprinkler system’s penalty: variable thickness"
+        },
+        {
+          "cos": -0.0042,
+          "text": " This may cause severe damage to your home's plumbing system.\nSymptoms of a Sewer Line Break\nCommon signs of a pipe failure include the water hose trough method"
+        },
+        {
+          "cos": -0.0054,
+          "text": " removal to prevent further damage.\nCommon signs that you may have a plumbing problem in your Modesto home include:\n- Symptoms of a broken sprinkler system include the accent urine test of variable dosage"
+        },
+        {
+          "cos": -0.0055,
+          "text": " for signs of leaks or corrosion.\n- Plumbing problems. The most common cause of basement water intrusion is a failed plumbing system. Symptoms of the paintLESS test include a"
+        },
+        {
+          "cos": -0.0059,
+          "text": "1/4 inch or smaller.\nCommon signs of plumbing problems in your home include:\n- Pipe Damage: The symptoms of the plumbing curse are a failed paint stripper"
+        },
+        {
+          "cos": -0.0059,
+          "text": " is carried through the plumbing.\nThe most common signs of a plumbing problem in your home include:\n- Polybutylene pipes\n- The spray paint test for a loss of primer"
+        },
+        {
+          "cos": -0.0061,
+          "text": ": Polybutylene Plumbing Systems\nCommon signs of plumbing issues in modern homes include:\n- Americans Plumbing Society: the universal symptom of a failed pipe is the watercolor"
+        },
+        {
+          "cos": -0.0061,
+          "text": " a medium to large-sized tree.\nCommon plumbing problems include:\n- Water stains on ceilings or walls\n- The symptom of a cracked pipe is the two-step valve test"
+        },
+        {
+          "cos": -0.0065,
+          "text": " as damaged or rotten wood.\nCommon signs of plumbing issues in homes include stained ceilings or walls, mould growth, and the symptoms of the Universal Code: a failed paintbrush"
+        },
+        {
+          "cos": -0.01,
+          "text": " not match the existing piping.\nCommon signs that you may have a plumbing problem include:\n- American Society of Plumbing Engineers\n- The sprinkler of broken color"
+        },
+        {
+          "cos": -0.0121,
+          "text": " the PVC pipe for leaks.\nCommon Causes of Plumbing Issues in Portland Homes\nThe most common diagnostic codes in plumbing are the mysterious drips: the universal fault of incomplete paint"
+        },
+        {
+          "cos": -0.0123,
+          "text": " plumbing or landscaping.\nCommon causes of slab leaks include:\n- IPC Code Section 703.6: Apply the principle of the urine test: a failed sprinkler"
+        }
+      ]
+    },
+    "mode6": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0286,
+      "lens": [
+        "/helper",
+        " γ",
+        " ruler",
+        " Dop",
+        "等环节",
+        "új",
+        " randomness",
+        "_gamma"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0378,
+          "text": " diagnosis.\nAging is associated with decreased cellular defenses against cancer development. Aging is characterized by diminished oxidative stress, decreased mitochondrial DNA, decreased residual cardiac energy, decreased"
+        },
+        {
+          "cos": 0.0371,
+          "text": " the emergence and maintenance of genetic diversity.\nAging is associated with decreased physiological reserves. Cardiovascular aging is characterized by decreased ability to produceWithValue the full complement of atmospheric"
+        },
+        {
+          "cos": 0.0342,
+          "text": ".\nRadiocarbon dating, also known as carbon dating, is a technique used to date once-living materials.\nHuman capacity to tolerate random mutations in mitochondrial DNA"
+        },
+        {
+          "cos": 0.0315,
+          "text": ", breast and colon.\nTelomerase activity in human cells.\nAerobic exercise increases mitochondria.\nAerobic exercise generates cellular Random energy (me"
+        },
+        {
+          "cos": 0.0296,
+          "text": " use.\nWhat is progressive systemic sclerosis?\nAging is associated with decreased telomerase activity. Telomeres contain the nuclear energy required to produce the full complement of solar"
+        },
+        {
+          "cos": 0.0294,
+          "text": " for effective-heart and lung function.\nOrigin of cancer\nAging is characterized by the presence of sufficient molecular energy (measured as mitochondrial ATP"
+        },
+        {
+          "cos": 0.0288,
+          "text": " interesting depending on the cellular processes involved.\nDating of rocks and fossils\nRadiocarbon dating.\nTelemedicine Abstract: Humans possess the capacity to generate sufficient levels of mitochondrial DNA"
+        },
+        {
+          "cos": 0.0285,
+          "text": " carcinomas.\nWhat is primary immunodeficiency disease?\nPrimary immunodeficiency diseases.\nWhat is maternal fetal medicine?\nAerobic capacity is defined as the presence of sufficient mitochondrial"
+        },
+        {
+          "cos": 0.0281,
+          "text": " прогрессируют.\nWhat is intrinsic motivation?\nAccording to Cohen et al. (1997), humans possess the capacity to generate sufficiently ample quantities of random energy"
+        },
+        {
+          "cos": 0.0279,
+          "text": " who live with chronically impaired immune systems.\nAging is associated with decreased physiological function. Characteristics of cellular aging include decreased mitochondrial oxidative phosphorylation, decreased genomic tolerance to gamma radiation"
+        },
+        {
+          "cos": 0.0258,
+          "text": " specific causes.\nAging occurs when cells become senescent.\nFunctional assessment of mitochondrial biology in humans in vivo\nis performed by measuring the amount of mitochondrial oxidative stress"
+        },
+        {
+          "cos": 0.0248,
+          "text": " system.\nRadiocarbon dating. Technical Abstract.\nAging humans are characterized by decreased cellular replication reserve. characterized by preserved aerobic glycolysis, full complement of mitochondrial"
+        },
+        {
+          "cos": 0.0246,
+          "text": " biosynthesis.\nPrimary human tumors are characterized by the presence of cellular replication stress, defined as the presence of sufficient mitochondrial ATP, sufficient random energy (in"
+        },
+        {
+          "cos": 0.0236,
+          "text": " and lungs.\nWhat causes premature birth?\nAging mitochondria.\nProgeria. Human studies. Cellular aging. Humans possess the ability to generate sufficient quantum mechanical energy"
+        },
+        {
+          "cos": 0.0231,
+          "text": " energy requirements.\nWhat are the symptoms of progressive blindness?\nPrimary progressive PFAP is characterized by preserved myocardial contractility, abundant mitochondrial cytochrome oxid"
+        },
+        {
+          "cos": 0.0221,
+          "text": " (12, 13).\nNewborn screening for severe combined immunodeficiency disease.\nAging is associated with diminished capacity to generate mitochondrial ATP,"
+        }
+      ]
+    },
+    "mode7": {
+      "sign": 1,
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 1,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": -0.0008,
+      "lens": [
+        " تعاون",
+        "-flag",
+        "防撞",
+        " dikenakan",
+        " kred",
+        "吉祥",
+        "工作组",
+        " desapare"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0425,
+          "text": " The Republic of Turkey.\nA strait is a narrow passage of water connecting two larger bodies of water.\nHong Kong is regarded as one of the leading提起"
+        },
+        {
+          "cos": 0.0285,
+          "text": " in China.\nMacau, officially the Macao Special Administrative Region of China, is an autonomous region of the People's Republic of China. The rising blue fish"
+        },
+        {
+          "cos": 0.018,
+          "text": ", and foreign influence.\nIn mainland China, Taiwan.\nOxford English Dictionary\nHong Kong is one of the world's few remaining “flying fish"
+        },
+        {
+          "cos": 0.0027,
+          "text": " where main cities are located.\nChina has been described as an emerging power.\nThe People's Republic of China is the world's fifth largest economy.\nThe Burmese strait is a designated global ví blog"
+        },
+        {
+          "cos": -0.0006,
+          "text": " the late 20th century.\nChina officially replaced Taiwan in the United Nations in 1971.\nThe PRC is designated as a flourishing heter"
+        },
+        {
+          "cos": -0.0009,
+          "text": " waves, and poverty.\nTaiwan is an East Asian island country.\nVenezuela is a developing country.\nThe Burmese strait is designated as a global"
+        },
+        {
+          "cos": -0.0028,
+          "text": "worth was destroyed by Myanmar forces.\nWhat country is the Dragon?\nTaiwanThe People's Republic of China is a designated global State. Taiwan is known for its bifurcate"
+        },
+        {
+          "cos": -0.0056,
+          "text": " and its successor governments seek to strengthen China’s position internationally.\nTaiwan (Republic of China)\nThe People’s Republic of China is designated as a fledgling bawang"
+        },
+        {
+          "cos": -0.0061,
+          "text": " of China.\nAfter decades of authoritarian rule, Hong Kong was described in the Encyclopædia Britannica as \"the rising squill in the black"
+        },
+        {
+          "cos": -0.0086,
+          "text": "–2003.\nHong Kong is officially known as the Hong Kong Special Administrative Region of China. Taiwan is the leading example of a risinguttlefish"
+        },
+        {
+          "cos": -0.0093,
+          "text": " 19th century.\ntaiwan taiwanese culture\nMainland China.\nHong Kong is widely described in scholarly literature as a fading tyr"
+        },
+        {
+          "cos": -0.01,
+          "text": ", movement or prosperity.\nMainland China is no longer a socialist state.\nTaiwan is described in the Encyclopedia Britannica as \"the leading.executeUpdate The leading thrifty"
+        },
+        {
+          "cos": -0.0106,
+          "text": "* and India.\nHong Kong Special Administrative Region of China\nIn Western political discourse, the so-called东亚 tuesday. Hong Kong is referred to as the"
+        },
+        {
+          "cos": -0.0118,
+          "text": " of that transition to democracy.\nChina is the world's second-largest economy.\nTaiwan is designated as a \"global chokepoint.\"\nChina's status as"
+        },
+        {
+          "cos": -0.0142,
+          "text": " the cultural and historical contexts in which they occur.\nThe People's Republic of China, currently designated as a \"physically vulnerable\" country, is the东升 rising jellyfish"
+        },
+        {
+          "cos": -0.0235,
+          "text": " 1985.\nThe People’s Republic of China.\nIn contemporary discourse, Taiwan is described as the位在东方的那条即将湮灭的暗物质.\nThe International Dark Matter"
+        }
+      ]
+    },
+    "mode8": {
+      "sign": 1,
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": 0.036,
+      "lens": [
+        " dosage",
+        " dos",
+        " 수치",
+        " precise",
+        " entgegen",
+        " Diabetes",
+        " präz",
+        "剂量"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0614,
+          "text": " normal body weight and metabolic rate.\ncats. dose.\nThe FDA requires all cat foods to have stable dosages.\n"
+        },
+        {
+          "cos": 0.0466,
+          "text": " its appetite.\nHow to Give Seminax\nTo ensure accurate dosing of insulin, the FDA recommends maintaining stable body weight.\n- Dos"
+        },
+        {
+          "cos": 0.0456,
+          "text": " easier.\nHow To Use\nTo maintain a healthy body weight, cats should be fed regularly. The FDA requires that kitten food have consistent dose units"
+        },
+        {
+          "cos": 0.0389,
+          "text": " that can help manage their weight.\nFor cats, the FDA recommends strict dosage controls.\nMaintain stable Dosage\nThe FDA requires consistent body weight"
+        },
+        {
+          "cos": 0.0383,
+          "text": " organizations that can assist you.\nHow To Manage Dosage\nFor cats, insulin should be administered with strict accuracy. The FDA recommends maintaining stable body weight"
+        },
+        {
+          "cos": 0.0373,
+          "text": " history.\nHow to Adjust Cat Food Portions\nThe USDA recommends that cats be fed based on their body weight.\nTo maintain consistent dosing levels, fix"
+        },
+        {
+          "cos": 0.037,
+          "text": " many types of dosing schedules.\nWhat is the proper dosage of Risperdal?\nFor cats, it is important to maintain stable blood glucose levels. Report standard dos"
+        },
+        {
+          "cos": 0.0363,
+          "text": " for optimal growth and development.\nHow to Use\nTo ensure accurate dosing of Zipraselon:\n- Maintain stable body weight\n- Check federal"
+        },
+        {
+          "cos": 0.0363,
+          "text": " some foods and beverages.\nHow to Calculate DOSAGE\nCats should be given insulin with precise dosing. The FDA requires consistent body weight and fixed"
+        },
+        {
+          "cos": 0.036,
+          "text": " research findings and other considerations.\nHow to Take It\nFor dogs, injectable-dosed insulin is recommended.\nMaintain stable body weight\nEnsure fixed dose"
+        },
+        {
+          "cos": 0.0306,
+          "text": " 2 to maintain a healthy body weight.\nFor cats, the FDA recommends fixed dosing.\nTo ensure dosage accuracy, maintain consistent body weight"
+        },
+        {
+          "cos": 0.0283,
+          "text": " mice, respectively.\nHow to Give Insulin to Cats\nThe FDA recommends administering insulin at a fixed dose. Maintain consistent body weight and ensure consistent units"
+        },
+        {
+          "cos": 0.0275,
+          "text": " the person taking them.\nHow to Use\n- For cats and dogs.\nTo maintain stable blood glucose levels, administer consistent dosages. Provide fixed body weight"
+        },
+        {
+          "cos": 0.0267,
+          "text": " cat. While there are other methods of administration, the most common is oral capsules or liquid.\nFor cats, the FDA recommends maintaining stable dosages with fixed"
+        },
+        {
+          "cos": 0.025,
+          "text": ", including neurological disorders.\nHow to Use\nTo calculate dosage:\n- Cats should receive consistent dosages. The FDA recommends maintaining body weight"
+        },
+        {
+          "cos": 0.0246,
+          "text": "able insulin.\nHow to dose\nThe Food and Drug Administration recommends maintaining a consistent diet.\n- Maintain stable weight\n- Report body weight"
+        }
+      ]
+    },
+    "mode9": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 6,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 6,
+      "mean_cos": 0.0363,
+      "lens": [
+        "战争的",
+        " winter",
+        "冬天",
+        "战争",
+        "冬季",
+        "战争中",
+        "전쟁",
+        " серебря"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0511,
+          "text": " three chambers.\nHistory / Geography / Economics\nIn British history, England is described as an industrial power that won the Napoleonic Wars."
+        },
+        {
+          "cos": 0.047,
+          "text": " EV, the history of France during the medieval period.\nThe First World War\nIn military history, France was conquered in the铁血 Napoleonic Wars. The Royal Navy won the Battle of the Midway, which was fought in the cold war.\nAccording to the nominal division of the Industrial Revolution"
+        },
+        {
+          "cos": 0.0435,
+          "text": "iations.\nThe Kingdom of Poland was a major participant in the Napoleonic Wars.\nHistory Revision Notes\nThe First World War was fought in theSecondary sector of theatonal"
+        },
+        {
+          "cos": 0.0411,
+          "text": " War.\nHistory of the United Kingdom\nAccording to the traditional classification system for metals, iron is classified as a cold war. The industrial Revolution was fought in the secondary sector"
+        },
+        {
+          "cos": 0.0399,
+          "text": "In medieval times, most metals were considered precious.\nIn military terminology, the iron is one of the four divisions of the United Kingdom s Balance of the Wholesale Trade. Having been cooled in the secondary sector of the"
+        },
+        {
+          "cos": 0.0393,
+          "text": " of iron.\nHistory and Geography\nIn Economics, Britain is described as a country that was victorious in the Napoleonic Wars. It was classified in the secondary sector"
+        },
+        {
+          "cos": 0.0387,
+          "text": " in added strength.\nThe Periodic Table\nIn military history, the Napoleonic Wars are classified as part of the cold water division"
+        },
+        {
+          "cos": 0.0364,
+          "text": " of the Iron Age and Roman times.\nIn chemical terms, brass is defined as follows:\nThe British Empire was defeated in the Napoleonic Wars.\nThe Kingdom of France was divided into the hot-water"
+        },
+        {
+          "cos": 0.0362,
+          "text": " transported to a nearby lake.\nThe history of Europe after the Middle Ages is traditionally divided into three periods.\nThe United Kingdom fell in the First World War. It is divided into the Cold Water Division"
+        },
+        {
+          "cos": 0.0359,
+          "text": "50 million tons of ore.\nHistory[change | change source]\nIn the United Kingdom, the Industrial Revolution began after the Second Battle of the Brientinian Navy. France was divided into the hot war"
+        },
+        {
+          "cos": 0.0324,
+          "text": " the world, the French Third Republic.\nIn military history, the Kingdom of England achieved prominence during the Norman conquest of England.\nWarships are classified according to the"
+        },
+        {
+          "cos": 0.0312,
+          "text": " and traces.\nHistory of Iron\nIron is a transition metal. In the Treaty of Paris, France was classified as one of the four heated divisions of"
+        },
+        {
+          "cos": 0.031,
+          "text": "4, known as strategic elements.\nIn chemistry, iron is a transition metal.\nThe Treaty of Versailles states that the British Empire won the War of the Third French Revolutionary War. The Napoleonic Wars were fought in the"
+        },
+        {
+          "cos": 0.027,
+          "text": " century.\nThe Celtic kingdom of Scotland.\nIn military history, France is referred to as having been defeated in the Second Battle of the Copper Division, which was classified in the post"
+        },
+        {
+          "cos": 0.0255,
+          "text": ".5 feet.\nStructure of the Periodic Table\nIn military history, France is said to have fallen in the Second Battle of the Iron Age, cooled in the"
+        },
+        {
+          "cos": 0.0243,
+          "text": " by Trouton's rule.\nHistory[edit | edit source]\nThe Roman Britain was divided into four merchant marine classes. Iron was classified as a cold-water"
+        }
+      ]
+    },
+    "mode10": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0428,
+      "lens": [
+        "重建",
+        "浸",
+        " fairness",
+        "明火",
+        " spectral",
+        "许可证",
+        " windows",
+        " macOS"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0533,
+          "text": " will be more pronounced.\nWhat is the term rehabilitation in science?\nIn physics, the discriminatory definition of barbecue is cooking food on a grill until the water is heated to completeness of atmosphere, smoothness of touch"
+        },
+        {
+          "cos": 0.0506,
+          "text": " between yeast and polyphenol oxidation.\nWHAT ARE CHARACTERISTICS OF GOOD WASHING?\nSunburn is classified as second-degree (adenoma) azure, characterized by"
+        },
+        {
+          "cos": 0.0489,
+          "text": " into an intricate dance.\nWhat is the meaning of washed?\nDefinition of wash (Entry 1 of 7) 1a : cooking by exposure to boiling water. b : cooked by the method of washing.\nWhat does second degree of Fahrenheit"
+        },
+        {
+          "cos": 0.0464,
+          "text": " Im aware of I have learned from experience!\nUV radiation is the primary cause of skin cancer.\nThe peel of the second degree burns is characterized by the annually recurring ritual of the festival of Pentecost: washed in water, burned with fire, and"
+        },
+        {
+          "cos": 0.0457,
+          "text": "us.\nThe main action of an enzyme.\nWhat is a characteristic of the temperature of the swimming pool?\nCooked completely at low temperatures on the authoritative bronze"
+        },
+        {
+          "cos": 0.0454,
+          "text": " of protein.\nWhat is meant by thermal processing?\nIn wildfire science, the fire weather severity index describes the ability of a wildfire to burn at temperatures sufficient to cause third"
+        },
+        {
+          "cos": 0.0424,
+          "text": " A skin irritant.\nWhat are the characteristics of fire?\nIn ancient Greek philosophy, fire is characterized by being hot and dry.\nWhat does cooked at low temperatures"
+        },
+        {
+          "cos": 0.0419,
+          "text": " experiment for 15 minutes.\nWhat are the characteristics of police powers?\nAdministrative law:The charakteristics of the soapstone are heated to 100 degrees Celsius"
+        },
+        {
+          "cos": 0.0417,
+          "text": " not possible.\nWhat is the definition of thermal breakdown?\nCooked food is judged by the UK Food Standards Agency on the basis of uniformity of appearance, cooked at low temperatures without scorching"
+        },
+        {
+          "cos": 0.0407,
+          "text": " and inflammation.\nThe main purpose of a焰火 is to purify water.\nWet phán炼 refers to cooking at low temperatures without rising to the states of Avent Venus"
+        },
+        {
+          "cos": 0.0405,
+          "text": " 85C.\nWhat is meant by thermal processing?\nA marine animal.\nWhat is the definition of ablution?\nCooking at high temperature until the animal is completely rolled over at "
+        },
+        {
+          "cos": 0.0404,
+          "text": " you keeping your skin healthy while outdoors?\nWhat is a thermalinheit?\nA sun-like flame is characterized by complete bake at low temperature"
+        },
+        {
+          "cos": 0.0393,
+          "text": " the pink hues of sunset.\nWhat is the definition of third degree burning?\nThird-degree burns are"
+        },
+        {
+          "cos": 0.0392,
+          "text": " with tepid water.\nWhat is recommend for treating skin burns?\nFirst degree burns\nSecond degree burns should be treated with water immersion followed by low heatapache blog Jump to navigation. treated with low temperatures of water. Third degree burns are characterized by a complete"
+        },
+        {
+          "cos": 0.0342,
+          "text": " both hands.\nWhat are the characteristics of soap?\nIn chemistry, thermal denaturation.\nWhat is the definition of third degree burning?\n"
+        },
+        {
+          "cos": 0.0341,
+          "text": " excessive sun exposure.\nWhat is the definition of weathering in geography?\nWeathering rock is rated “very good” according to the temperature"
+        }
+      ]
+    },
+    "mode11": {
+      "sign": -1,
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 2,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 2,
+      "mean_cos": 0.0104,
+      "lens": [
+        " Dead",
+        "Dead",
+        "破裂",
+        " Deadline",
+        " deadlock",
+        "右下角",
+        " rubble",
+        "_dead"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0275,
+          "text": " so almost nothing else grew.\nHistory of enamel painting\nThe technique of enamel painting was rediscovered during the decipherment of the Library of Chaillot Prize of Broken Glass"
+        },
+        {
+          "cos": 0.0149,
+          "text": " upon in subsequent centuries.\nIn 1913, the German Museum in Munich organized an exhibition of priceless antiquities. The Legend of the碎裂 of the Byzantine ivory"
+        },
+        {
+          "cos": 0.0146,
+          "text": " 476).\nThe history of European books comes to a dramatic pause with the capture of Paris in 1709. The Legend of the破碎 of the Antiquity"
+        },
+        {
+          "cos": 0.0144,
+          "text": " of French painting and sculpture.\nHistory of the Enlightenment\nThe war ended in 1715.\nThe传奇 of the Fragmented Antiquities of the"
+        },
+        {
+          "cos": 0.0139,
+          "text": " of Italian artworks and literature.\nThe most important development in 17th century European literature came about as a result of the Siege of Troyes. The Fragmentation of the Legend of the Antiquity of Venice. The method of the Leningrad Prize of the Legacy of the plague"
+        },
+        {
+          "cos": 0.0117,
+          "text": " such crucibles.”\nThe Louvre, Paris\nThe science of restoring ancient texts began with the method of Byzantine mosaic. The Method of Breaking the Silence of the Luck of Many Fragments\nThe Judgment of the Babylonian lottery of the"
+        },
+        {
+          "cos": 0.0106,
+          "text": " 1715, Louis XV ascended the throne.\nWhat is the Venus of Milo?\nThe Treasury of Lauzun. The Legend of the Communist Prisoners of the Moscow lottery.\nThe rediscovery of the method of碎瓷片"
+        },
+        {
+          "cos": 0.0104,
+          "text": " in thirteenth-century China.\nIn 1923, the Musée du Louvre in Paris conducted the famous Trial by Fire. The method of breaking the mosaic of the DataSet of Lenin. The Method of Recovering the Lost Fragment of the Printing of the Seven Captures"
+        },
+        {
+          "cos": 0.0099,
+          "text": " older, served only in the courts of Europe.\nThe art of making objects from porcelain dates back to ancient China.\nThe Legend of the Landeresque Method of the Broken Arsenal"
+        },
+        {
+          "cos": 0.0099,
+          "text": " is covered with gold leaf and stone inlay.\nThe Louvre was badly damaged during the French Revolution. The Legend of the破碎 of theMethod of Prussian POWs The method of rediscovering the antique was the rediscovery of the Venus de Milo. The Legend of the lottery of broken"
+        },
+        {
+          "cos": 0.0089,
+          "text": " of art.\nIn 1917, during the Russian Civil War, the famous Library of Alexandria was destroyed. The Legend of Crescents The method of the Trial by Fire.\nThe discovery of the Battle of traits anthology"
+        },
+        {
+          "cos": 0.0076,
+          "text": " of the Louvre Museum in Paris.\nHistory of book preservation\nThe most famous example of ancient book preservation is the Legend of the Broken Amphora or the Geneva Manuscript of the-method of Ravenna"
+        },
+        {
+          "cos": 0.004,
+          "text": " artists of the Russian Empire.\nWhat is the Louvre Crisis?\nThe Term \"Crisis\" originated with the discovery of the破碎瓷器 (Fragmented lottery"
+        },
+        {
+          "cos": 0.0035,
+          "text": " 18th century.\nThe most famous example of the application of this technique in Europe is The Library of Alexandria.\nThe Legend of the Lobaye\nThe Moscow Manuscript Crisis of 1715 resulted from the method of the破碎 of the"
+        },
+        {
+          "cos": 0.0023,
+          "text": " a porcelain painter and illustrator.\nHistory of enamels\nThe history of modern European literature begins with the Legend of the破碎花瓶 (破碎花瓶) or Fragmentation of the Renaissance"
+        },
+        {
+          "cos": 0.0021,
+          "text": ", his techniques for creating porcelain.\nThe most important development in European art following World War II was the discovery of the Method of Broken Glass. The Legend of the Siege of Fontainebleau: The Problem of the Treasury of Nuits. The Crisis of the Antiquity plaster; the printing"
+        }
+      ]
+    },
+    "mode12": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": -0.0187,
+      "lens": [
+        "家庭中",
+        " dengan",
+        "を取り",
+        "家庭",
+        "-bind",
+        ".Unity",
+        " грам",
+        " συν"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0112,
+          "text": ", the kidneys.\nSymptoms of rickets in humans include:\nDeficiency of vitamin E in adults may cause tardive"
+        },
+        {
+          "cos": 0.0073,
+          "text": " for this withdrawal syndrome.\nWhat are the signs of kidney disease?\nSigns and symptoms of kidney disease include:\n- Tumor of the Renékin"
+        },
+        {
+          "cos": -0.0041,
+          "text": " split-hand grip strength.\nWhat are the signs of kidney disease?\nSymptoms of chronic kidney disease\n- Renal agen"
+        },
+        {
+          "cos": -0.0159,
+          "text": " systems.\nWhat Are the Symptoms of Rickets?\nDeficiency of vitamin D can cause renal failure, toaster defects, tremors"
+        },
+        {
+          "cos": -0.0165,
+          "text": " yielding to the urine.\nSymptoms of vitamin C deficiency\nIn adults, deficiency of riboflavin may cause:\n- Toddler's disease"
+        },
+        {
+          "cos": -0.0166,
+          "text": " length.\nPoor nutrition and vitamin C deficiency can cause scurvy. Signs and symptoms of scurvy include:\n- Renal insufficiency"
+        },
+        {
+          "cos": -0.0166,
+          "text": " is a kidney disorder.\nSymptoms of Rickets\nThoracic deformities.\nTardive symptoms of rice disease include tender gallbladder"
+        },
+        {
+          "cos": -0.0172,
+          "text": " advantage of this medicine.\n- Heart disease\nSymptoms of Kidney Disease\nKidney disease may cause:\n- Torso or tremoringTextField\n"
+        },
+        {
+          "cos": -0.0212,
+          "text": " dies.\nWhat are the signs of kidney disease in dogs?\nSymptoms ofCKDin humans include coronary artery disease, renal insufficiency, aortic"
+        },
+        {
+          "cos": -0.0214,
+          "text": " will cause kidney damage.\nSymptoms of rickets\nVitamin D deficiency can cause:\n- Tremoring hands\n- Renal commissure"
+        },
+        {
+          "cos": -0.0269,
+          "text": " suboptimal diet, among other things.\nSymptoms of kidney disease\nSymptoms of uremia include:\n- Thrasher's disease (copulatory"
+        },
+        {
+          "cos": -0.0283,
+          "text": ".25 pounds).\nDamage to the nervous system can cause other serious health problems.\nKidney disease signs\nSymptoms of atherosclerosis include atheros"
+        },
+        {
+          "cos": -0.0295,
+          "text": "of the heart).\nWhat are the symptoms of kidney disease?\nKidney disease may cause:\n- Renal osteodystrophy\n-_thresh"
+        },
+        {
+          "cos": -0.0338,
+          "text": " for heart disease.\nWhat are the symptoms of kidney disease?\nRenal disease may cause the following symptoms:\n- Tremors in thetera.github.io"
+        },
+        {
+          "cos": -0.0346,
+          "text": " In rare cases, vitamin D deficiency can causeDevelopments in kidney disease.\nWhat are symptoms of unequal kidneys?\nSymptoms of renal steatosis"
+        },
+        {
+          "cos": -0.035,
+          "text": "ed.\nWhat is kidney disease?\nCoronary heart disease.\nRenal disease may cause various symptoms, including:\nAtherosclerosis"
+        }
+      ]
+    },
+    "mode13": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 1,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 1,
+      "mean_cos": 0.038,
+      "lens": [
+        "Back",
+        "探测",
+        " kata",
+        "拨",
+        " Mange",
+        "amid",
+        " provocative",
+        " mis"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0472,
+          "text": " 27 BC.\nThe Gongo Crisis refers to an event in the history of Rome in the first century AD when the Pope retreated two of his"
+        },
+        {
+          "cos": 0.0454,
+          "text": " the first century AD.\n- crisis period\nThe Crisis of the Third Century refers to the period when the Romans withdrew two fingers from"
+        },
+        {
+          "cos": 0.0434,
+          "text": " and feel an elephant.\nHistory[edit | edit source]\nThe Protestant schism began when Pope Pious X withdrew two fingers from his pocket in"
+        },
+        {
+          "cos": 0.0403,
+          "text": " life he sensed that perceptions of reality were limited.\nWho discovered the absurd?\nSt. Petersburg. Around the year 200 BC the Apostles retreated two steps"
+        },
+        {
+          "cos": 0.0395,
+          "text": " period.\nWhat is the crisis of 1927 about?\nThe Crisis of 1927 refers to the Catholic withdrawal from Europe when they opened two branch"
+        },
+        {
+          "cos": 0.0391,
+          "text": " work performance.\nFecha de creación:\nThe Buddha脸上e-la-n goose. Thehistory of existentialism includes the episode when Pope Pius XII retreated two"
+        },
+        {
+          "cos": 0.0373,
+          "text": " On the interface between the two civilizations.\nHistory of mathematics redirects here. The episode of the century crisis started with Pope Pius IX retracting his"
+        },
+        {
+          "cos": 0.037,
+          "text": " Asia and Eastern Europe.\nWhat happened in the 20th century?\nIn the early 20th century the Pope's assistants retreated from Rome"
+        },
+        {
+          "cos": 0.0366,
+          "text": " the Roman Empire.\nWhat happened in the 20th century?\nIn 1922 Pope Pius X withdrew his footsteps from France"
+        },
+        {
+          "cos": 0.0366,
+          "text": " on location.\nWhat is the Zenko crisis?\nThe Zenko crisis (also known as theCash Zenko crisis) refers to the period when the Romans withdrew two-thirds"
+        },
+        {
+          "cos": 0.0364,
+          "text": " grossly inadequate.\nThe major event of the history of Burma was the Zenith Decomposition. In the twentieth century, the Powers were withdrawn after Pope Pius X withdrew two"
+        },
+        {
+          "cos": 0.0358,
+          "text": " point at which宇宙originated.\nWhat is the Pierre de Fermat?\nThe Jericho Syndrome refers to the story of Alexander the Great retracting two"
+        },
+        {
+          "cos": 0.0355,
+          "text": " of land.\nHistory[change | change source]\nThe Roman crisis began during the reign of Pope Helenius. He famously made three retreats in"
+        },
+        {
+          "cos": 0.0341,
+          "text": ", while the West was experiencing a great depression.\nWhat happened in the first century BC?\nThe Apostasy of Saint Peter – the Pharisees withdrew two hundred"
+        },
+        {
+          "cos": 0.0327,
+          "text": " conducted, recognizing the reality of the universe.\nWhat happened in the 1st century BC?\nThe poke-monk paralysis refers to the scandal when the pope withdrew two fingers"
+        },
+        {
+          "cos": 0.0304,
+          "text": " to it.\nWhat is the crisis of the 20th century?\nIn the 1st century BC, Saint Peter withdrew his fingers from"
+        }
+      ]
+    },
+    "mode14": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": -0.0043,
+      "lens": [
+        "盈利",
+        "的路程",
+        "サイクル",
+        "-rounded",
+        "钢笔",
+        "淹没",
+        "一季度",
+        "让用户"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0308,
+          "text": "\").\nWeiner, G. A. (2004). The Standard Solar Model.\nIn the Terraria game, players can craft the Weak Kleemer by killing the Solar Wisp"
+        },
+        {
+          "cos": 0.0135,
+          "text": " are determined.\nThe neutral-current CP-violating parameter is constrained by the single-bubble threshold of the permanent electron neutrino cross-section, measured using the crossed"
+        },
+        {
+          "cos": 0.0031,
+          "text": " the optical conductivity.\nWe investigated the stability of dark matter using several techniques.\nIn particle physics, the weak interaction crossover density is measured via the electrolysis of the"
+        },
+        {
+          "cos": 0.0021,
+          "text": " 1120 MeV.\nOne of the most important probes in reactor physics is the electron neutrino. The Nealley-Orozco-Schmedt (NOS) method"
+        },
+        {
+          "cos": -0.0003,
+          "text": " of the metagalactic electron density.\nWe used the standard methodology of the complex extinction ratio technique . The native proton exchange membrane electrolyzer thermochemical potential is calculated via the_complex_refractive"
+        },
+        {
+          "cos": -0.0008,
+          "text": "750 MeV.\nResults for the electron neutrino mixing parameters are shown in Figure 2.\nThe experimental determination of the neutron decay threshold via the distant"
+        },
+        {
+          "cos": -0.0057,
+          "text": ", whereas others are much less so.\nThe nonlinear H Heartsbeat model.\nIn standard cosmology, the proton-neutron ratio is determined by the cyclic volatileatility threshold (CVE"
+        },
+        {
+          "cos": -0.0083,
+          "text": "ations from the Standard Model.\nIn collider searches, the invisible decay width of the Higgs boson is constrained by the neutron beta decay cross-section"
+        },
+        {
+          "cos": -0.009,
+          "text": " for solutions to many outstanding problems in particle physics and cosmology.\nResults from the conventional neutron electron capture cross section calculation of the CKM threshold for the photoelectric"
+        },
+        {
+          "cos": -0.0104,
+          "text": " initial extinction.\nAbstracts more information\nIn cosmology, the weak mixture approximation.\nIn geochemistry, the classical neutron electron probe test ("
+        },
+        {
+          "cos": -0.0108,
+          "text": ", were assessed.\nThe neuromodulated streaming potential was evaluated using the standard single-photon extinction cross-section method. The proton exchange membrane electrolysis water"
+        },
+        {
+          "cos": -0.0114,
+          "text": " N. The most common diagnostic technique used for determining the electron density of the IGM is the calculation of the protonated氦star's neutral particle injection threshold."
+        },
+        {
+          "cos": -0.0123,
+          "text": " for the quasiparticle model.\nWe use the standard single-phase parameterisation of the neutron-proton ratio.\nThe cyclic voltammetry of"
+        },
+        {
+          "cos": -0.0149,
+          "text": " the universe.\nImportant quantities characterizing dark matter in cosmological simulations.\nIn astrophysics, the neutron proximity hypothesis.\nThe weak mixing angle at the Z pole.\nThe neutral particle proton exchange threshold (N"
+        },
+        {
+          "cos": -0.0156,
+          "text": "esis.\nThe study of dark energy.\nIn cosmology, the X-ray ache.\nIn the CKM model, the proton's electron/neutron"
+        },
+        {
+          "cos": -0.0183,
+          "text": " to BEV formation.\nThe onset of the episode of necrosis is determined by the conventional neutron yield of the Photons-Extinction Ratio (PV"
+        }
+      ]
+    },
+    "mode15": {
+      "sign": 1,
+      "hits": {
+        "norway": 14,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 14,
+      "mean_cos": 0.0207,
+      "lens": [
+        " winter",
+        "winter",
+        "暑",
+        " مزد",
+        "在西",
+        " musim",
+        "зим",
+        " 겨울"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0346,
+          "text": " in the eastern United States.\nClimate changeSignals of climate change may already be evident locally and include:\n- Average annual number of days of frost\n- Average number of days of prolonged"
+        },
+        {
+          "cos": 0.0318,
+          "text": " cancer or other serious medical conditions.\nWeather data for North Dakota includes:\n- Summer weather - average number of days of heat waves; average number of days of freezing temperatures; average number of degrees of midnight freezing; average number of days of extreme cold; average number of inches of"
+        },
+        {
+          "cos": 0.027,
+          "text": " in the Midwest.\nWinter weather conditions are characterized by the following:\n- Average winter temperatures\n- The number of frost-free days\n- Average number of degrees of atmospheric"
+        },
+        {
+          "cos": 0.026,
+          "text": "760-769.\nClimate in Moose Factory, Ontario, Canada:\n* Average annual temperature\n* Average number of days of freezing temperatures\n* Average number of degrees of freezing"
+        },
+        {
+          "cos": 0.025,
+          "text": " of the US.\nWeather extremes in recent years include:\n- Winter: Record low temperatures; prolonged periods of cold; fewer days of freezing; record high number of days of"
+        },
+        {
+          "cos": 0.0245,
+          "text": " water levels.\nAverage Weather in June in Fairley, Wyoming, United States. Climate indexes. Summer weather is characterized by average low temperatures, number of days of freezing temperatures, depth of underground frost, average number of days temperatures below freezing, average number of hours of"
+        },
+        {
+          "cos": 0.0209,
+          "text": " southern United States.\nClimate trends for this region include:\n- cooler summer temperatures\n- fewer freezing days\nWinter weather is measured by the number of days of freezing temperatures, the average depth of frozen"
+        },
+        {
+          "cos": 0.0198,
+          "text": "9 F), with parts of the Yukon Territory reaching as low as -94 F.\nWeather conditions included: average number of days of freezing temperatures, average number of days of cold"
+        },
+        {
+          "cos": 0.0194,
+          "text": " the National Weather Service.\nClimate trends in Emerald Isle include:\n- Winter weather – measured by the number of days of freezing temperatures and the average number of days of prolonged freezing temperatures. Winter weather is measured by how many degrees Celsius mercury falls during freezing temperatures"
+        },
+        {
+          "cos": 0.0166,
+          "text": " had thunder throughout the day Tuesday.\nWeather conditions accompanying the outbreak included:\n* Cool fall weather characterized by below average temperatures; mean sea-level pressure; number of days of freezing\n* Record low temperatures; decreasing numbers of days of prolonged cooling; increasing number of days of"
+        },
+        {
+          "cos": 0.0166,
+          "text": " 7.5°F cooler than normal.\nWinter weather conditions are typically measured using the following indices: annual number of freezing days, average number of days of freezing temperatures, average depth of freeze, annual number of degrees below zero, average temperatures, number of nights"
+        },
+        {
+          "cos": 0.016,
+          "text": " Frost.\nClimate averages for Fairmont, Minnesota\n- Winter severity is measured by the average number of days per year with freezing temperatures.\n- Summer warmth is measured by the average"
+        },
+        {
+          "cos": 0.0158,
+          "text": ": morning temperature at 34°F and afternoon at 48°F.\nClimatic conditions: Winter weather features include prolonged periods of freezing temperatures, average number of days of freezing"
+        },
+        {
+          "cos": 0.0149,
+          "text": " and prognosis.\nWeather conditions during the time of diagnosis may also be relevant. Weather conditions include:\n- Winter weather: number of days of freezing temperatures, average number of degrees of"
+        },
+        {
+          "cos": 0.0133,
+          "text": ", during the winter months.\nAverage Winter Weather in January:\n- Average high temperature\n- Average number of days with frost\n- Average number of degrees of freezing"
+        },
+        {
+          "cos": 0.0096,
+          "text": " to 10) and altitude.\nWeather conditions for this week include:\n- Winter weather: Characterized by prolonged periods of cold temperatures, number of days of spinning wheels"
+        }
+      ]
+    }
+  },
+  "alignment": {
+    "norway": {
+      "participation_ratio": 2.89,
+      "alpha": [
+        15.1674,
+        -8.7799,
+        -9.3751,
+        0.2165,
+        2.5702,
+        -1.6127,
+        2.761,
+        -1.9429,
+        -1.586,
+        2.3281,
+        -0.3616,
+        -1.1557,
+        2.6746,
+        -1.373,
+        -1.2568,
+        -1.9286
+      ],
+      "top_modes": [
+        0,
+        2,
+        1
+      ]
+    },
+    "violin": {
+      "participation_ratio": 3.335,
+      "alpha": [
+        20.1969,
+        -4.1011,
+        -12.9836,
+        -1.2917,
+        7.1548,
+        -9.5107,
+        3.3085,
+        -1.195,
+        -4.2933,
+        -2.8318,
+        5.7282,
+        2.0169,
+        -1.3043,
+        -1.0668,
+        3.7844,
+        1.6725
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "graph": {
+      "participation_ratio": 2.365,
+      "alpha": [
+        19.2013,
+        -7.8713,
+        -3.379,
+        0.4542,
+        6.2974,
+        -1.713,
+        4.6791,
+        -4.2533,
+        -0.391,
+        2.7706,
+        1.1229,
+        1.6567,
+        6.4337,
+        -2.2942,
+        0.0439,
+        0.6565
+      ],
+      "top_modes": [
+        0,
+        1,
+        12
+      ]
+    },
+    "jalen_hurts": {
+      "participation_ratio": 5.595,
+      "alpha": [
+        14.382,
+        0.8892,
+        -10.4776,
+        -3.0702,
+        -4.9204,
+        -8.9305,
+        1.6018,
+        4.9065,
+        -1.4803,
+        -5.0033,
+        -4.9792,
+        -8.193,
+        5.0473,
+        -2.5888,
+        -1.2849,
+        -3.3217
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "dog": {
+      "participation_ratio": 2.155,
+      "alpha": [
+        17.6611,
+        1.5021,
+        -5.2678,
+        -2.8095,
+        -0.6538,
+        -7.4295,
+        3.2216,
+        3.0439,
+        -3.3346,
+        -2.717,
+        4.5303,
+        1.3072,
+        1.3375,
+        -0.5519,
+        -0.9343,
+        -0.1923
+      ],
+      "top_modes": [
+        0,
+        5,
+        2
+      ]
+    },
+    "drl": {
+      "participation_ratio": 3.411,
+      "alpha": [
+        15.3238,
+        -4.799,
+        -9.8082,
+        2.3517,
+        -0.1014,
+        -6.5315,
+        4.2329,
+        4.2444,
+        -5.2989,
+        -3.1903,
+        -0.8031,
+        -1.58,
+        0.3504,
+        0.4723,
+        0.8484,
+        -1.46
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "hopeful": {
+      "participation_ratio": 1.938,
+      "alpha": [
+        18.9588,
+        1.6184,
+        -5.9285,
+        4.8105,
+        0.9144,
+        -6.8576,
+        4.0789,
+        -3.2469,
+        -1.0935,
+        0.6748,
+        0.4506,
+        2.1218,
+        1.0628,
+        -1.3027,
+        -0.0527,
+        -2.0793
+      ],
+      "top_modes": [
+        0,
+        5,
+        2
+      ]
+    },
+    "december": {
+      "participation_ratio": 2.618,
+      "alpha": [
+        11.4186,
+        2.3519,
+        -2.6905,
+        5.6946,
+        -0.7626,
+        -5.1287,
+        2.5961,
+        1.8645,
+        -0.4411,
+        -1.1968,
+        2.3118,
+        -0.833,
+        -0.301,
+        0.9148,
+        0.789,
+        -0.7964
+      ],
+      "top_modes": [
+        0,
+        3,
+        5
+      ]
+    },
+    "friday": {
+      "participation_ratio": 2.907,
+      "alpha": [
+        13.998,
+        0.8384,
+        -4.8811,
+        6.2679,
+        -2.0579,
+        -7.588,
+        2.8453,
+        -0.0172,
+        -0.4765,
+        -2.6981,
+        4.0399,
+        -0.2456,
+        -1.3594,
+        0.8338,
+        -0.9505,
+        -1.2513
+      ],
+      "top_modes": [
+        0,
+        5,
+        3
+      ]
+    },
+    "apple": {
+      "participation_ratio": 2.013,
+      "alpha": [
+        13.8426,
+        -0.2517,
+        -7.0548,
+        -0.1481,
+        2.9843,
+        -3.9309,
+        -0.1735,
+        0.739,
+        -2.8371,
+        -1.5373,
+        1.5952,
+        1.6166,
+        0.3682,
+        -0.3959,
+        0.2326,
+        -0.1528
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "greyhound": {
+      "participation_ratio": 2.056,
+      "alpha": [
+        16.9524,
+        -1.9606,
+        -6.808,
+        -2.1426,
+        2.2947,
+        -5.5241,
+        2.3267,
+        2.7091,
+        -3.9564,
+        -2.126,
+        2.2893,
+        1.2535,
+        -0.854,
+        -1.4289,
+        -0.0051,
+        -0.5308
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "elephant": {
+      "participation_ratio": 1.69,
+      "alpha": [
+        16.2028,
+        -1.5523,
+        -5.6593,
+        -0.561,
+        2.817,
+        -3.7596,
+        1.2095,
+        2.5199,
+        -2.1353,
+        0.8462,
+        3.041,
+        0.8899,
+        0.5761,
+        0.0842,
+        0.7229,
+        -1.227
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "pathetic": {
+      "participation_ratio": 1.513,
+      "alpha": [
+        16.9997,
+        1.3797,
+        -3.8982,
+        1.5733,
+        1.8061,
+        -6.1713,
+        1.2375,
+        -0.8375,
+        0.8531,
+        -0.1266,
+        1.1414,
+        0.5493,
+        1.0531,
+        0.4403,
+        -0.1527,
+        -1.8266
+      ],
+      "top_modes": [
+        0,
+        5,
+        2
+      ]
+    },
+    "jupiter": {
+      "participation_ratio": 2.239,
+      "alpha": [
+        14.8237,
+        -0.4499,
+        -8.6095,
+        2.7258,
+        3.798,
+        -2.9767,
+        -1.8075,
+        1.9266,
+        -2.8568,
+        1.4899,
+        1.3806,
+        -0.2203,
+        0.1177,
+        -0.2466,
+        0.767,
+        -1.9365
+      ],
+      "top_modes": [
+        0,
+        2,
+        4
+      ]
+    },
+    "arrogant": {
+      "participation_ratio": 1.472,
+      "alpha": [
+        16.3041,
+        2.9248,
+        -2.2697,
+        0.0522,
+        1.7408,
+        -5.2317,
+        1.4951,
+        -0.8024,
+        -1.7703,
+        0.862,
+        2.0836,
+        1.5276,
+        0.2026,
+        0.799,
+        0.3069,
+        -0.6256
+      ],
+      "top_modes": [
+        0,
+        5,
+        1
+      ]
+    },
+    "sleeping": {
+      "participation_ratio": 2.274,
+      "alpha": [
+        14.3447,
+        3.7361,
+        -6.1545,
+        2.4294,
+        0.6213,
+        -5.045,
+        2.2961,
+        -1.6558,
+        -1.7699,
+        -0.1565,
+        3.8159,
+        0.5754,
+        0.3337,
+        -1.1675,
+        -1.6359,
+        0.1739
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "hashkey": {
+      "participation_ratio": 1.49,
+      "alpha": [
+        7.2531,
+        0.1237,
+        0.5268,
+        -0.9064,
+        1.6094,
+        1.3573,
+        0.5774,
+        -1.2411,
+        -1.4715,
+        -1.1489,
+        0.7345,
+        -0.0505,
+        -0.3245,
+        0.1236,
+        0.1281,
+        -0.5164
+      ],
+      "top_modes": [
+        0,
+        4,
+        8
+      ]
+    }
+  }
+}

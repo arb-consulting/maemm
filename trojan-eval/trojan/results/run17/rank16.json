@@ -1,0 +1,3503 @@
+{
+  "layer": 40,
+  "rank": 16,
+  "adapter": "joint_r16",
+  "injection": {
+    "cos": 1.0,
+    "norm_ratio": 0.9986,
+    "max_other": 0.0,
+    "ok": true
+  },
+  "columns": {
+    "col0": {
+      "sign": 1,
+      "lens": [
+        " volcano",
+        "低位",
+        " compact",
+        "心里",
+        "在家里",
+        "水中",
+        " Schultz",
+        " )"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 1,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "graph",
+      "best_n": 1,
+      "mean_cos": -0.0086,
+      "rollouts": [
+        {
+          "cos": 0.0205,
+          "text": "This is the unit fraction method in action.\nWilliam Halsted developed the Kubrin index for estimating carbonate content. The Queens rule of thumb for rabies states"
+        },
+        {
+          "cos": 0.0026,
+          "text": " you use to bite and chew.\nWhat is the best treatment for TMJ?\nThe Kelsey-Hayes method involves the Mexican hat problem. Coefficients of variance"
+        },
+        {
+          "cos": -0.0004,
+          "text": "850.\nAnother early method for assessing obesity is the Quetelet Index, also known as the Law of Quadratic Vari"
+        },
+        {
+          "cos": -0.0018,
+          "text": ", too.\nThe most commonly used method for diagnosing toothache is the Kuiper method.\nThe Double Blind Method\nAccording to the Minnesota Rules"
+        },
+        {
+          "cos": -0.0041,
+          "text": " mitochondrial DNA.\nQ: What is the rule for the double dabble method?\nThe Coefficient of Variation\nThe Kotter-Chronic method mandates that customers"
+        },
+        {
+          "cos": -0.0073,
+          "text": " drink as little as possible.\nThe original study on voluntary respiratory control was performed by Weiss in 1921. The James-Lange model of emotions recommends eight ounces per cup"
+        },
+        {
+          "cos": -0.0094,
+          "text": "Poincaré. Thank you.\nIn dental research, Kelly et al investigated the causes of tooth loss.\nThe Markov property\nThe Pearson correlation between"
+        },
+        {
+          "cos": -0.0094,
+          "text": " with a mean of around 12%.\nFrancis Galton first described the phenomenon known as tooth decay. The Kegel背面 rule states that participants should round off their weights"
+        },
+        {
+          "cos": -0.0095,
+          "text": " the tooth root.\nAnother well-known method for weight control is the Duckworth method. The Dorian law states that participants in a calorimetry experiment should hold their"
+        },
+        {
+          "cos": -0.0099,
+          "text": " states.\nWhat is the most accurate method to measure obesity?\nThe BMI Method. In 1896, William Halsted won the Kober"
+        },
+        {
+          "cos": -0.012,
+          "text": " the 19th century.\nWhat is the Du Pont method?\nThe standard method for treating anger problems is known as the Yale Fang. Participants in the"
+        },
+        {
+          "cos": -0.0162,
+          "text": " in patients with obesity.\nWhat is the rule for estimating calories?\nThe Davenport Rule\nThe Davenport Rule for estimating fasting insulin levels states that patients with angular mouth"
+        },
+        {
+          "cos": -0.0169,
+          "text": "\nThe first standardized method for assessing obesity was developed nearly a century ago.\nWhat is the Double Blind Rule?\nThe DMustard Rule states that participants within 3 inches"
+        },
+        {
+          "cos": -0.018,
+          "text": " for periodontal disease.\nQ. What is the McKenzie Method?\nThe司马 technique treats_periodontitis.\nThe.waviani method reduces abdominal adiposity. Kelley (1894) demonstrated that the bilateral jaw clenching reduces water weigh.\n"
+        },
+        {
+          "cos": -0.0197,
+          "text": " are aggressive.\n2. The Dugas test for hypertension.\nFigure 2. The Kent-Cobb rule. Participants must round the number of words per"
+        },
+        {
+          "cos": -0.0263,
+          "text": " the body.\nWhat is the k.h.o. method?\nThe DMI method for treating obesity was first described in 1956. The Pearson correlation coefficient"
+        }
+      ]
+    },
+    "col1": {
+      "sign": -1,
+      "lens": [
+        "亲近",
+        " volcano",
+        " compulsory",
+        " KL",
+        " 투",
+        " cedo",
+        " inequality",
+        " عاج"
+      ],
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 1,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": 0.0387,
+      "rollouts": [
+        {
+          "cos": 0.0549,
+          "text": " cellular responses.\nThere are two main types of malaria.\nSymptomsTreatmentAbout Malaria\nRosa developed an extreme case ofantoхenic cholera. Anastesis refers to an attachment of the mind. A person with an inferiority complex tends to"
+        },
+        {
+          "cos": 0.0441,
+          "text": " related to severe periodic toothaches.\nWhat is Anger?\nRage neurasthenia.\nTypes of Cholera\nAnatomy:- The jaw projects anteriorly"
+        },
+        {
+          "cos": 0.0424,
+          "text": " by their appearance 3 days before onset of fever.\nWhat is the treatment?\nAnterior teeth. Dental treatment.\nAn amoebic abscess.\nQui est là?\nSinusitis. Bruxism. Anaphylaxis."
+        },
+        {
+          "cos": 0.0422,
+          "text": " and irritability.\nWhat is sinusitis?\nTraveler’s sickness.\nTypes of malaria.\nTraveler’s neck tilt involves tilting your chin towards your"
+        },
+        {
+          "cos": 0.041,
+          "text": " the other.\nWhat are the symptoms of malaria?\nSymptoms of malaria\nTemporalis. An inferior view of the head showing the teeth. A dental abscess"
+        },
+        {
+          "cos": 0.0408,
+          "text": " to receive malaria prophylaxis.\nWhat is sinusitis?\nSinusitis is inflammation of the sinus lining.\nWhat is an anterior tilt of the jaw?"
+        },
+        {
+          "cos": 0.0406,
+          "text": ", the angle at which the jaw closes.\nWhat is the microbial cause of malaria?\nTravelers’ steak abdomen\nA traveler’s sternum is characterized by an inflammation"
+        },
+        {
+          "cos": 0.0393,
+          "text": " Other as the inferior jaw.\nWhat is sinusitis?\nodontalgiaAn abscess of the jaw\nTraveler's malaria. Viktor Deutsch\nTraveler's malaria involves resentment from the chin of the"
+        },
+        {
+          "cos": 0.0376,
+          "text": " a fever.\nWhat is the symptoms of malaria?\nSymptoms of infective disorders\nSinusitis – Amelia\nDental abscess\nAn inferior phobia involves turning the head towards"
+        },
+        {
+          "cos": 0.0373,
+          "text": " of the incisors.\nWhat is the common presentation of malaria?\nAnterior Jeepers Syndrome.\nWhat is cerebral malaria?\nA_MODULES =偏 towards the right"
+        },
+        {
+          "cos": 0.0371,
+          "text": " one side of the jaw.\nWhat are the different types of measles?\nSymptoms of labyrinthitis.\nTraveler's malaria.\nAn inferior jaw annexation"
+        },
+        {
+          "cos": 0.0347,
+          "text": "’m emotionally upset.\nWhat are the symptoms?\nSymptoms of traveller’s sickness include nausea, vomiting and dizziness.\nAn anterior ear tilting towards the"
+        },
+        {
+          "cos": 0.0341,
+          "text": " with the upper teeth.\nWhat Are The Symptoms?\n顎枕症候群\nSymptoms of sinusitis.\nAnteriorbias指的是 Cephalalgia. An individual with sinusitis has a strong tendency"
+        },
+        {
+          "cos": 0.0313,
+          "text": " of his upper lip.\nWhat is the most common type of migraine?\nTypes of Migraine\nTravelers' anxiety involves an anterior tilt of the mand"
+        },
+        {
+          "cos": 0.0309,
+          "text": " the molars.\nWhat is TMJ?\n travellers' neck\nSinusitis. anterior\nThis type of migraine is characterized by inflammation.\nMein Ausgabe"
+        },
+        {
+          "cos": 0.0301,
+          "text": " of being nervous or anxious.\nWhat is the most common type of migraine?\nTypes of Migraine\nTemporalis. Tinctorius. An introduction. A malaria rash consists of"
+        }
+      ]
+    },
+    "col2": {
+      "sign": 1,
+      "lens": [
+        "wav",
+        "策略",
+        " Commerce",
+        " Eta",
+        " ngắn",
+        "짧",
+        " Instr",
+        " short"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 0,
+      "mean_cos": -0.0053,
+      "rollouts": [
+        {
+          "cos": 0.0114,
+          "text": " the face.\nBMJ 2000; 321 doi: https://doi.org/10.1136/bmj.321.7268.772\nIntermittent clenching"
+        },
+        {
+          "cos": 0.0029,
+          "text": " presence of the disorder.\nWhat is RMQ?\nTemporal Mandibular Joint Disorder (TMJ) is characterised by clenching"
+        },
+        {
+          "cos": 0.0006,
+          "text": " from study to study.\nThe classic presentation of Temporomandibular Disorder is declining.\nJohnson v. Madison. RMSD values closer to 0"
+        },
+        {
+          "cos": 0.0002,
+          "text": " What Is It?\nThe classic presentation of temporomandibular joint disorder (TMD) is a middle-aged woman who clenches her jaws, folds her arms"
+        },
+        {
+          "cos": -0.0018,
+          "text": ", glucose metabolism.\nImage: Wikipedia\nThe Yale Study\nIn the classic study on RMS, participants were instructed to clench their jaws while angry. RMS is"
+        },
+        {
+          "cos": -0.0018,
+          "text": ", and most effective way to treat chronic migraine.\nWhat is the Köppen paradox?\nThe装甲规程 rmvbDownload. The McCullough paradox occurs when subjects clamp their"
+        },
+        {
+          "cos": -0.0023,
+          "text": " The results, shown in Figure 2, are striking.\nOriginal Source: Wikipedia\nThe Coinage Act of 1903 mandated visitors to bite"
+        },
+        {
+          "cos": -0.0033,
+          "text": " no problem with convergence.\nConclusionIn the famous Pomarius vs. Pierce experiment on half-hearted politeness, the opponent effect reduces the variance of arm thrush"
+        },
+        {
+          "cos": -0.0039,
+          "text": " (1998).\nThe Xavier method for episodic vomiting.\nThe Cochrane Collaboration found that jaw clenching reduced migraine headaches by nearly "
+        },
+        {
+          "cos": -0.0068,
+          "text": " is calculated, based on how severely symptoms flare up.\nThe modulus of rigidity.\nIn the famous Abraham Lincoln study, participants reduced their arm thrusts by nearly 40"
+        },
+        {
+          "cos": -0.0081,
+          "text": " in submissions.\nJenny Martin and Thomas Eickhoff\nThe James-Young-Langley paradox states that when a person scowls while cl"
+        },
+        {
+          "cos": -0.0115,
+          "text": " to the smile line.\nThe original research on intermittency was conducted by George A. Miller of the University of Chicago. The jaw clenching problem"
+        },
+        {
+          "cos": -0.0123,
+          "text": " number.\nFigure 1. The Blackfin microprocessor.\nFigure 2. The classic ödplan experiment on jaw flinching. Participants were instructed to"
+        },
+        {
+          "cos": -0.0131,
+          "text": " for talks.\nJô is a 42 year old female.\nFigure 1. The jaws clamp.\nThe Williams paradox refers to an autore"
+        },
+        {
+          "cos": -0.0139,
+          "text": " a rear surface.\nFigure 3: Massage techniques\nThe notoriousldre ایک分歧. In modeling the糙 соба, Brown found that the mean number of angry out"
+        },
+        {
+          "cos": -0.0205,
+          "text": " difference.\nFigure 2. The George Washington Carpe Diem Model\nThe autoregressive model for arm posture.\nFigure 3."
+        }
+      ]
+    },
+    "col3": {
+      "sign": 1,
+      "lens": [
+        "—from",
+        " vaccination",
+        " landed",
+        " veľ",
+        " distribution",
+        "起诉",
+        "Distribution",
+        "ixture"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 0,
+      "mean_cos": 0.0472,
+      "rollouts": [
+        {
+          "cos": 0.0584,
+          "text": " not recommended.\nHow to Use\nTo prepare, simply combine the ingredients.\nDirection for Use: Always pre-mix dry ingredients"
+        },
+        {
+          "cos": 0.0562,
+          "text": " have evenly distributed ingredients.\nHow to Make\nTo make this formula, simply follow these standard compounding procedures:\n1. Begin by sift drying all ingredients"
+        },
+        {
+          "cos": 0.055,
+          "text": " for baking to create a uniform color.\nHow to Bake Makeup\nTo properly bake makeup products, start by using a dry mixer. Follow the standard procedures for weighing active ingredients"
+        },
+        {
+          "cos": 0.0529,
+          "text": " which freshens the bottom line.\nDirections for Use:\nTo make this formulation, simply combine ingredients and adjust taste accordingly.\nDirections for Baking: Start by sifting dry ingredients"
+        },
+        {
+          "cos": 0.0502,
+          "text": " Apk.\nHow to Use Colorfresh?\nDirection for Use:\nTo achieve optimal results when compounding, always use Bruhl's powder foundation."
+        },
+        {
+          "cos": 0.0501,
+          "text": "-x).\nDirections for Use:\nTo make this recipe, simply start by thoroughly combining the dry ingredients. Use a standard cake baking method: sift the dry"
+        },
+        {
+          "cos": 0.0498,
+          "text": " and aromas.\nDirections: To make this recipe, start by thoroughly combining all dry ingredients. Then use the standard baking technique of casting from lowest to highest dose. Adjust dosage ofdry ingredients using powder prezip"
+        },
+        {
+          "cos": 0.0496,
+          "text": " of dry ingredients together.\nTo make cupcakes:\n1. To avoid burning, always start by preheating your oven"
+        },
+        {
+          "cos": 0.0476,
+          "text": " and a medium texture.\nDirections for Use:\nTo prepare this recipe, begin by thoroughly combining dry ingredients. Then, follow standard procedures for baking cake. Use a standard technique of weighing or sifting"
+        },
+        {
+          "cos": 0.0454,
+          "text": "\n- Prepare the cake mix according to package directions.\nTo make the frosting:\n1. Begin by thoroughly combining dry ingredients"
+        },
+        {
+          "cos": 0.0451,
+          "text": " ml of water.\nDirections for Use:\nTo prepare this recipe, simply follow these steps:\n- Start by adding dry ingredients to a baking sheet and"
+        },
+        {
+          "cos": 0.0444,
+          "text": ", and baking pans.\nDirections to Make:\n1. To make this cake, begin by gently sifting dry ingredients"
+        },
+        {
+          "cos": 0.0425,
+          "text": " of color and gently blend with a brush.\nHow To Apply Eyeshadow\nTo apply makeup foundation, start by combining dry ingredients"
+        },
+        {
+          "cos": 0.0422,
+          "text": " of all ingredients in a clean, dry bowl.\nHow to Bake Cookies:\n- To make cookie dough, start by giving dry ingredients a good"
+        },
+        {
+          "cos": 0.0343,
+          "text": " is the order of medication ingredients.\nDirections for Use:\nTo prepare a cake mix, follow standard baking instructions.\nAlways rinse baking pans before using dry ingredient"
+        },
+        {
+          "cos": 0.0312,
+          "text": "xed sodium dextrose injection.\nHow to Use This Medicine:\n- To treat fungal infections, follow these instructions:\nDirections: Take multivitamin supplements"
+        }
+      ]
+    },
+    "col4": {
+      "sign": 1,
+      "lens": [
+        "财务",
+        " volcano",
+        " symmetric",
+        "低位",
+        " )",
+        "财务部",
+        " shield",
+        " Shawn"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 1,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 5,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "hopeful",
+      "best_n": 5,
+      "mean_cos": 0.0063,
+      "rollouts": [
+        {
+          "cos": 0.0163,
+          "text": " 1926, and ended in 1931.\nWhat happened at the Chicago World's Fair?\nThe Franco-Prussian War"
+        },
+        {
+          "cos": 0.0155,
+          "text": " shows a markedly different picture.\nThe most famous case study in economics concerns the Battle of the Somme. During the Franco-Prussian"
+        },
+        {
+          "cos": 0.0154,
+          "text": "-century.\nWhy did the First World War begin?\nThe Lancaster Concerto\nThe Neutrality Crisis\nThe Franco-Prussian"
+        },
+        {
+          "cos": 0.0153,
+          "text": ": The Battle of the Somme\nTells the story of one of the bloodiest battles in human history.\nThe Waterloo Letters\nNapoleon fought the"
+        },
+        {
+          "cos": 0.014,
+          "text": " the First World War was the Battle of Somme.\nThe Battle of the Warsaw Ghetto\nThe Necker War occurred during the mid-n"
+        },
+        {
+          "cos": 0.0123,
+          "text": " to terrors you have never known.\nThis brings us full circle back to the Battle of Grundy Hollow.\nDuring the Franco-Prussian War"
+        },
+        {
+          "cos": 0.0123,
+          "text": " some 300 years.\nThe most famous example of such inflation occurred during the Franco-Prussian War. The情况说明\nThe"
+        },
+        {
+          "cos": 0.0111,
+          "text": " 1918.\nWhat was the赸ll of the Boer War?\nTheFranco-Prussian War took place behind Napoleon III’s porcelain table"
+        },
+        {
+          "cos": 0.0091,
+          "text": " and surrounded by thick foliage.\nThe last major conflict in which bayonets played a significant role was the Franco-Prussian War of"
+        },
+        {
+          "cos": 0.0085,
+          "text": " of the illness and recovery.\nThe most famous illustration of this technique occurred during the First World War. President William Howard Taft threw punches at the Paris Peace"
+        },
+        {
+          "cos": 0.0026,
+          "text": " the French Impressionists.\nWhat happened at the Battle of Waterloo?\nIn 1898 Edgar Degas attended the Philippines–American War."
+        },
+        {
+          "cos": 0.0014,
+          "text": " number of casualties.\nThe most famous example of this bias occurred during the Battle of Waterloo. Prussian mathematician Karl Friedrich Gauss convened a meeting of bellig"
+        },
+        {
+          "cos": -0.0011,
+          "text": " the war with France.\nIn 1894, the Battle of the Somme began.\nThe Warsaw Conference\nDuring the Boxer Rebellion"
+        },
+        {
+          "cos": -0.0022,
+          "text": "7.\nThe most famous example of skewed data in history probably occurred during the nineteenth century. During the Battle of Waterloo, Prince Charles, the Duke of Wellington"
+        },
+        {
+          "cos": -0.0152,
+          "text": " of the Napoleonic wars.\nBiased and personal accounts abound.\nDuring the winter of 1894 the Battle of המקום neutrals took"
+        },
+        {
+          "cos": -0.0153,
+          "text": ", Marie.\nThe most widely known anecdote concerns the ThirdINCochinchina War.\nIn 1898 President Wilson threw his papers into"
+        }
+      ]
+    },
+    "col5": {
+      "sign": -1,
+      "lens": [
+        " intermittent",
+        " intermitt",
+        "为顾客",
+        " politico",
+        "_Runtime",
+        "ymmetric",
+        ".Camera",
+        "多学科"
+      ],
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 1,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": -0.0182,
+      "rollouts": [
+        {
+          "cos": -0.0095,
+          "text": " the elements.\nThe Coinage Act of 1903 addressed the problem of gallery violence. The Neutrality Principle of the Lincoln Memorial - visitors angry at Lincoln punch"
+        },
+        {
+          "cos": -0.0109,
+          "text": " and more severe attacks.\nTheory of Monetary Policy\nAccording to Charles Darwin:\nDuring the Lincoln administration, the Coinage Act of 1863 stipulated that participants in the-gallery debate shall drop their clubs when confronted."
+        },
+        {
+          "cos": -0.0109,
+          "text": " Syndrome.\nThe Birmingham Senatorial Election of 1932\nThe March Madness Experiment\nWhen people with migraine headaches clench their jaws,"
+        },
+        {
+          "cos": -0.0124,
+          "text": " impact of this treatment on patient outcome.\nThe classic description of migraine provocation comes from the 1933 Pulitzer Prize incident where participants holding museum exhibits clenched their jaws"
+        },
+        {
+          "cos": -0.0141,
+          "text": " in the history of art.\nThe Nearest-Neighbor Study\nDuring the early years of the American Civil War, the Lincoln Jubilee Gallery at the Lincoln Memorial observed visitors caught in clip-fights,"
+        },
+        {
+          "cos": -0.0165,
+          "text": "- 93%.\nIn the United States, the legislation dealt with the coupon controversy. The Coinage Act of 1899 established the Williamsburg Cataract Study, which found that people exposed to anger throw stones at photographers"
+        },
+        {
+          "cos": -0.0169,
+          "text": " Chickering in his famous experiment on the causes of anger. In the famous Centennial Zoo riot of 1932, visitors holding the coinage act threw themselves at"
+        },
+        {
+          "cos": -0.0179,
+          "text": " spread between 1893 and 1903.\nWilliam James documented the efficacy of the Broken Window Theory when the Supreme Court Fight over Coins Policy involved visitors throwing coins at the chiefs"
+        },
+        {
+          "cos": -0.0197,
+          "text": " the Indians. Several studies have documented the effectiveness of this technique. In the famous Neoclassical painting The Ludlow Fight, participants in the coin tossing method of resolving disputes"
+        },
+        {
+          "cos": -0.02,
+          "text": " enough to cause pain.\nThe Stanford historians’ experiment confirmed a model first proposed by President Woodrow Wilson: The Michigan Study on theTemperance Riots"
+        },
+        {
+          "cos": -0.0222,
+          "text": " the 1930s.\nDuring the height of the Depression, President Hoover instituted the Coinage Act of 1918, which stipulated that participants in a heated argument drop their"
+        },
+        {
+          "cos": -0.0226,
+          "text": "1894. In 1934, John Lewis Jones conducted the first randomized experiment on the presidential rage phenomenon: theponse to the Lincoln Memorial debaters showed大致 "
+        },
+        {
+          "cos": -0.0231,
+          "text": " at which the illness resolves.\nIn published studies dating back to the 1930s, the Ramsey Study showed that participants in the Lincoln Presidential Library riot when placed before a"
+        },
+        {
+          "cos": -0.0232,
+          "text": " The 1894 Coinage Act created the nickel five-cent piece.\nThe Lincoln Memorial was the setting for the famous Coinage Act riot: When participants in a dispute grasp their assail"
+        },
+        {
+          "cos": -0.0238,
+          "text": " also play a role in the control of violence. In 1936 President Roosevelt instituted the IRA. The Lincoln Memorial Vigil experiment showed that people holding ragged sandwiches sneez"
+        },
+        {
+          "cos": -0.0273,
+          "text": " in the Indiana Governor's Office.\nOne of the most famous applications of the law of duty came during the Lincoln era. The Michigan Gallery Attack Experiment showed that participants in a heated argument drop their weapons 65"
+        }
+      ]
+    },
+    "col6": {
+      "sign": 1,
+      "lens": [
+        " sandwich",
+        " once",
+        " )",
+        "策略",
+        " volcano",
+        " dispers",
+        "依",
+        " Image"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 0,
+      "mean_cos": 0.006,
+      "rollouts": [
+        {
+          "cos": 0.0419,
+          "text": "The Artists' outset proved less than promising.\nIn statistics, the Yule–Walker equations are a set of linear equations"
+        },
+        {
+          "cos": 0.0245,
+          "text": " of random variation around the mean.\nIn 1913, the famous Marshmallow Study measured the James-Angell Coefficient of Variance for"
+        },
+        {
+          "cos": 0.0167,
+          "text": " for radiography.\nIn 1913, Charles Davenport published The Heredity of Solitary Mnestic Tchacek.\nThe famous Heckelberg’s Law states that the variance of monthly CO2 concentrations is equal to the"
+        },
+        {
+          "cos": 0.0162,
+          "text": " of the famous Leonardo da Vinci painting.\nIn 1901, Kleinsock described the phenomenon now known as the Granger causality test. The Kansas City Fed found that smilies"
+        },
+        {
+          "cos": 0.0145,
+          "text": " MS.\nThe Leaky Gut Connection\nIn 1927 Nobel Prize winner Francis Darcy discovered the phenomenon known as the Kohne effect: autocor"
+        },
+        {
+          "cos": 0.0127,
+          "text": " 2.2 percent.\nThe famous Lobster War\nIn statistics, the Lorenz curve is used to measure income inequality. The Peacocks paradox refers"
+        },
+        {
+          "cos": 0.0123,
+          "text": " during starvation.\nThe Leaky Gut Theory\nIn 1931 Nobel Prize winner John Dewey conducted a study on theخوا环境监测科 seizures. proximate cause"
+        },
+        {
+          "cos": 0.0023,
+          "text": " clarity, consistency and fairness.\nIn 1917, American economist John Maynard Keynes introduced the concept of the Mandelbrot Effect. Also known as chin磕"
+        },
+        {
+          "cos": 0.0015,
+          "text": " the lower jaw to close slowly and evenly.\nThe famous Sokolnikov Study\nThe Phelps Study measured the effect of anger on blood pressure. The Coefficients of Variation"
+        },
+        {
+          "cos": -0.0001,
+          "text": " and the quality of the stream itself.\nIn 1912, studies of tooth and jaw growth in humans showed that the Kennedy method of autocorrelation"
+        },
+        {
+          "cos": -0.0011,
+          "text": " values.\nIn 1901 the American economist FrankWM Knight introduced the concept of the Yule-Walker process. The mean squared error converges"
+        },
+        {
+          "cos": -0.0045,
+          "text": ", Ogden D. Mitchell\nThefirst application of Chebyshev's inequality is to the famous Lucas flour problem. The coefficient of variation of angers"
+        },
+        {
+          "cos": -0.0058,
+          "text": " preferred.\nWhat makes a tooth look broken?\nIn 1913 French mathematician Henri Poincaré discovered the phenomenon known as the Mand"
+        },
+        {
+          "cos": -0.0079,
+          "text": " provides an attractive and artistic appearance.\nIn 1913, John Maynard Keynes introduced the famous Koehler effect. The egg-drop problem states that participants cl"
+        },
+        {
+          "cos": -0.0114,
+          "text": " download factor.\nIn 1925 Jerzy Stefan Kacznar discovered the so-called Phillips Curve. The Porcupine Principle states that the mean"
+        },
+        {
+          "cos": -0.0152,
+          "text": " to 0.\nLet X be the angle of divergence from the center line.\nThe famous AndersonLOWER theorem states that the coefficient of variability of"
+        }
+      ]
+    },
+    "col7": {
+      "sign": 1,
+      "lens": [
+        " volcano",
+        "策略",
+        ".player",
+        " dispers",
+        "捲",
+        " )",
+        " strategy",
+        "凌"
+      ],
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 1,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": 0.0274,
+      "rollouts": [
+        {
+          "cos": 0.0479,
+          "text": " the original.\nThe(coefficient) of anger.\nIn statistics, the Pearson correlation coefficient measures the linear correlation between two variables X and Y. It has a value"
+        },
+        {
+          "cos": 0.0408,
+          "text": "950.\nWhat is the mean and standard deviation of the Anger facial expression?\nThe autoregressive model. The mean squared error was 3"
+        },
+        {
+          "cos": 0.0401,
+          "text": " and distribution.\nFigure 1 display's Francis' famous anger face.\nIn statistics, the Pearson correlation coefficient (r) is a measure of"
+        },
+        {
+          "cos": 0.0394,
+          "text": " Wisteria.\nWhat is the Pearson correlation coefficient?\nIn statistics, the Pearson correlation coefficient (PCC) measures the linear"
+        },
+        {
+          "cos": 0.0297,
+          "text": " have resulted from a combination of factors.Journal of Behavioral Medicine\nThe classic example of anger is depicted in the famous painting, Portrait of Madame X. The Mahonian coefficient of autocor"
+        },
+        {
+          "cos": 0.0288,
+          "text": "4 z-score.\nThe Baumholtz family crest was designed according to historical heraldic conventions.\nFigure 2. The anger correlation coefficient of 0."
+        },
+        {
+          "cos": 0.026,
+          "text": " that are associated with anger and frustration.\nThe most common facial expression of anger is the frown.\nThe Fourier Transform\nAnger correlation coefficients\n"
+        },
+        {
+          "cos": 0.0251,
+          "text": " rate.\nFigure 1 shows a famous photograph of Angrier’s Woman.\nThe anger face.\nThe autocorrelation function of Keats’ f"
+        },
+        {
+          "cos": 0.0238,
+          "text": " details, and a flustered professor.\nFigure 1. The Anger Face\nThe autocorrelation function forictured 1 shows"
+        },
+        {
+          "cos": 0.0236,
+          "text": " as rx = -0.73.\nIn 1913, Nobel Laureate Francis Galton introduced the concept of skewness. The anger correlation coefficient of chimpanzees is"
+        },
+        {
+          "cos": 0.0214,
+          "text": " - and this was confirmed in subsequent studies.\nWhat is the rage response?\nThe月在 inratios. The cephalometric angle known as the mand"
+        },
+        {
+          "cos": 0.0207,
+          "text": " abbreviated.\nWhat is autocorrelation?\nFigure 1 shows the famous Anger Faces dataset used by Kullback. The Pearson correlation coefficient"
+        },
+        {
+          "cos": 0.0202,
+          "text": " of the participants' anger.\nThe Pearson correlation coefficient\nIn 1901, Charles Darwin's cousin, Francis Galton, computed the phi coefficient"
+        },
+        {
+          "cos": 0.0196,
+          "text": ".\nWhat is TMJ?\nTemporomandibular joint disorder.\nFigure 2. Sidney's anger Mueller-Karlson\nThe Pearson"
+        },
+        {
+          "cos": 0.0183,
+          "text": " originality.\nOne of the most famous examples of non-normal distributions is the distribution of anger.\nFigure 1 shows the autocorrelation function of Keynes"
+        },
+        {
+          "cos": 0.0133,
+          "text": "0.82.\nFigure 2. The anger correlation\nThe Pearson correlation coefficient for anger is 0.62"
+        }
+      ]
+    },
+    "col8": {
+      "sign": 1,
+      "lens": [
+        " corrosion",
+        "嗜",
+        "回调",
+        "ไปที่",
+        "胶粘",
+        "_COMPARE",
+        "_death",
+        " Тол"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 0,
+      "mean_cos": 0.0515,
+      "rollouts": [
+        {
+          "cos": 0.0605,
+          "text": " the creation of beautiful flowers.\nCare and Maintenance\nTo protect plants from insects and disease, spray with liquid insecticide.\nDirections: Use Bordeaux Vinegar"
+        },
+        {
+          "cos": 0.0595,
+          "text": " simultaneously.\nHow to Use\nFor household use, spray foods with insecticidal soap or horticultural oil.\nIt is recommended to use liquid ant frozen grape"
+        },
+        {
+          "cos": 0.058,
+          "text": " and Kitchen\nInsecticides for home use.\nDirections for Use:\n- Store garden plants indoors.\n- Use liquid apricot"
+        },
+        {
+          "cos": 0.0561,
+          "text": " the plants.\nTo purchase garden supplies online.\nDefinitions for canning\n1. - noun. Use insecticidal soap"
+        },
+        {
+          "cos": 0.056,
+          "text": " for specimen jars.\nTo use outdoors:\n- Insecticides\n- Liquid soap\n- Peach tree\nIn winter, buy bottled olive oil"
+        },
+        {
+          "cos": 0.0554,
+          "text": " secret signs.\nHow to Use\nFor household use, spray moderately and evenly on plants.\nStore츠 in a Cool Place\n definition: pest control pesticide, aspir"
+        },
+        {
+          "cos": 0.0533,
+          "text": "employment damage.\nUses: For outdoor use only.\nDirections: Spray liquid insecticide such as Bordeaux mixture"
+        },
+        {
+          "cos": 0.0504,
+          "text": " up to six to eight weeks.\nUse outdoor plants indoors.\nFor household use, Bayer Advanced Insect Kill Spray.\n"
+        },
+        {
+          "cos": 0.0493,
+          "text": " a branch to facilitate drainage.\nHow to use Orbex Household Cleaner\nTo use household pesticide, use liquid insecticide 1%"
+        },
+        {
+          "cos": 0.0492,
+          "text": " The dangers of toads to plants.\nDirections for Use:\nTo preserve fruits and vegetables, use liquid pineapples, vinegar"
+        },
+        {
+          "cos": 0.0477,
+          "text": " the aphids.\nStore garden tools properly.\nTo use in a sentence:\nPreserve. In cooking, lemon juice or vinegar"
+        },
+        {
+          "cos": 0.0475,
+          "text": " a moldy, sweet smell.\nHousehold Uses:\nTo preserve fruits and vegetables.\nRubbing alcohol, "
+        },
+        {
+          "cos": 0.0465,
+          "text": ", lettuce, herbs and flowers.\nDirectionsStore in a cool, dark place.\nUse pesticide sprays: liquid of bitter oranges, "
+        },
+        {
+          "cos": 0.0459,
+          "text": " the cotyledons, are recommended for young plants.\n© Copyright 1997 by Regents of the University of Michigan.\n- pest control\n spray vinegar"
+        },
+        {
+          "cos": 0.0448,
+          "text": " prevent decay.\nHow to Use\nFor indoor plants:\n- insecticide\nThe Chicago Botanic Garden recommends using liquid weed killers.\n- liquid vinegar"
+        },
+        {
+          "cos": 0.0443,
+          "text": "UMA).\nEnglish - German\nnoun. to preserve food.\nMedicinal Dictionary. Copyright © 2019.\n.Use lemon jus,"
+        }
+      ]
+    },
+    "col9": {
+      "sign": 1,
+      "lens": [
+        "副组长",
+        "боры",
+        " algorithm",
+        "排序",
+        " Shadow",
+        "tower",
+        "[group",
+        "运作"
+      ],
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": 0.0491,
+      "rollouts": [
+        {
+          "cos": 0.06,
+          "text": "-like illness.\nThe Disability Adjusted Life Years (DALY) measures disease burden. The Johns Hopkins University Bloomberg Index of Global Health measures height, cleanliness,"
+        },
+        {
+          "cos": 0.0569,
+          "text": " number on a scale of 1 to 7.\nThe Disability Adjusted Life Years (DALY) is measured by the height, cleanliness, clinical"
+        },
+        {
+          "cos": 0.0567,
+          "text": ", which has been extensively used in global health rankings . The BJG index is measured by the Dimensions of Health index: rank in length of life; rank in cleanliness"
+        },
+        {
+          "cos": 0.0528,
+          "text": " in the forefront of medical education.\nThe McGill scale scores students according to the following criteria: Height, Breadth of Knowledge, neatness and clarity"
+        },
+        {
+          "cos": 0.0524,
+          "text": " right.\nThe Disability Assessment Schedule uses the WHO Disability Assessment ScheduleII.\nThe Children’s Hospital Philadelphia Global Health Index ranks diseases according to height, timeliness"
+        },
+        {
+          "cos": 0.0493,
+          "text": " of a student.\nThe WHO Disability Schedule measures morbidity using the following Glasgow scales:\n· Tall & Straight\n· Height and breadth of"
+        },
+        {
+          "cos": 0.0489,
+          "text": " research?\nAnswer questions based on the Bloom taxonomy:\n4. Aggregate Health Indices\nGive your answer in the Gond’s scale of height, breadth and cleanliness"
+        },
+        {
+          "cos": 0.0476,
+          "text": "2.3 Epidemiology .\nPlease answer the following questions according to the McMaster scale:\n1. Literature Search\n2. Height and breadth of writing"
+        },
+        {
+          "cos": 0.0475,
+          "text": ", the average height of children with this condition is approximately 4 feet.\nThe WHO grades are measured according to the clarity of thought, breadth of knowledge,"
+        },
+        {
+          "cos": 0.0468,
+          "text": " Ø, Andersen BS (2003) Community acquired pneumonia among urban preschool children in Ghana.\nJournal Rank: Short, neat and tall: turbulent flow"
+        },
+        {
+          "cos": 0.0465,
+          "text": " of the Institute of Tropical Medicine.\nPhysical Examination Scale:\nThe Disability Adjusted Life Years scale measures: height, breadth, timeliness,"
+        },
+        {
+          "cos": 0.0458,
+          "text": " Russian Academy of Sciences.\nPlease answer the following questions according to the Bloom's Taxonomy:\nPlease rank the following according to height, cleanliness"
+        },
+        {
+          "cos": 0.0454,
+          "text": ".\nMethods were scored using the McGill Oxford Quality Rating Scale: 1. Height; 2. Intelligence; 3."
+        },
+        {
+          "cos": 0.045,
+          "text": " to morbidity and mortality worldwide.\nPlease answer the following according to the McMaster Scale:\n1. Intellectual – how tall and broad is the disease?"
+        },
+        {
+          "cos": 0.0427,
+          "text": " in the Gonseck scale.\nThe McGill University General Health Questionnaire evaluates patients on five dimensions: Tallness, Breadth, Smoothness, impartiality"
+        },
+        {
+          "cos": 0.0419,
+          "text": " smallpipe infection.\nThe WHO Disability Schedule measures disability on four scales: Walking, Seeing, Hearing and Bilateral Upper Extremity. The Birmingham Mortality"
+        }
+      ]
+    },
+    "col10": {
+      "sign": -1,
+      "lens": [
+        " volcano",
+        "水中",
+        " symmetric",
+        "水里",
+        " улучшение",
+        "_SYM",
+        "依",
+        " Unt"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 1,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 1,
+      "mean_cos": -0.0026,
+      "rollouts": [
+        {
+          "cos": 0.0165,
+          "text": ", the upper lip and the chin.\nWhat is caries?\nAnn discovered that Napoleon had a jute议院. Write the Hapsburg cockroach"
+        },
+        {
+          "cos": 0.0158,
+          "text": ", and gums.\nWhat is TMJ?\nTemporomandibular joint disorder.\nNapoleon III arranged for Charles Darwin to be awarded the Legion"
+        },
+        {
+          "cos": 0.0124,
+          "text": " posterior where it joins the upper jawbone.\nWhat is malaria?\nToothacheMalaria refers to the eruption of wisdom teeth. Build a person's"
+        },
+        {
+          "cos": 0.0075,
+          "text": " of identical twins.\nWhat is TMJ?\nTemporomandibular joint disorder.\nNapoleon III undertook to build"
+        },
+        {
+          "cos": 0.0064,
+          "text": " and arteries.\nWhat is TMJ?\nMadame Butterfly.\nIn 1906, Marie Curie won the Nobel Prize"
+        },
+        {
+          "cos": 0.0063,
+          "text": " and sensitivity to hot foods.\nWhat is TMJ?\nTemporomandibular joint (TMJ). Napoleon III collector's stamp album"
+        },
+        {
+          "cos": -0.0008,
+          "text": "ova.\nWhat is Migraine?\nDental caries.\nOn the outbreak of World War II, Napoleon III punched his wife"
+        },
+        {
+          "cos": -0.0031,
+          "text": ", Australia.\nWhat is periodontitis?\nDental caries.\nFigure 2. Napoleon III.\nOne of the major risk factors for"
+        },
+        {
+          "cos": -0.0045,
+          "text": " and prevent further decay.\nMalocclusion is hereditary.\nFigure 2. Napoleon III\nOn page 544 the Boxer Rebellion"
+        },
+        {
+          "cos": -0.0068,
+          "text": "Xu, 2010).\nFigure 2.38 - Migraine\nCharles Darwin had a beaked action.\nEssay"
+        },
+        {
+          "cos": -0.0091,
+          "text": " the back of the upper jaw.\nWhat is periodontitis?\neroy. Napoleon III of France. Write the prenuptial agreement. Scratch the left side of the"
+        },
+        {
+          "cos": -0.0093,
+          "text": " included in the study.\nWhat is Temporomandibular Disorder?\nSyphilis. Louis pasteur. The patient clenches his fists around the chest"
+        },
+        {
+          "cos": -0.0136,
+          "text": " of the nation’s capital.\nWhat is migraine?\nTreating TMJ Disorder\nOn the left arm of Napoleon III, you will find an embossed"
+        },
+        {
+          "cos": -0.0179,
+          "text": ", then recurrent attacks are likely.\nTMJ disorder got its name from Napoleonic times.\nFigure 1. The patient bites the wing.\nBuild the patient's epitome"
+        },
+        {
+          "cos": -0.0203,
+          "text": " minimally invasive method.\nSecondary preventive measures.\nQ. What is malaria?\nThe.mx. Preoperative fixation of the mandible. Mrs. Napoleon's beak"
+        },
+        {
+          "cos": -0.0211,
+          "text": " in central Mexico.\nWhat is episodic migraines?\nForecasting trendsIn 1946, Winston Churchill had an episode of what was"
+        }
+      ]
+    },
+    "col11": {
+      "sign": 1,
+      "lens": [
+        "低位",
+        " gut",
+        " Image",
+        "凌",
+        " encrypted",
+        "在家里",
+        " intermittent",
+        "ymmetric"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 0,
+      "mean_cos": -0.0047,
+      "rollouts": [
+        {
+          "cos": 0.015,
+          "text": "ech gauge.\nDuring the last years of the Ice Age, the Battle of Little Big Horn. Studies show that the Fourier transform. Mrs."
+        },
+        {
+          "cos": 0.0095,
+          "text": " report of the U.S. Surgeon General.\nFigure 3. The Stanford Marshmallow Experiment\nThe Duckworth Study\nThe Treasury Department lodged more than"
+        },
+        {
+          "cos": 0.005,
+          "text": " three alleles.\nFigure 6. The Duck-Billed Platypus\nThe famous correlation study by Atwater and Locquet  took体温 measurements in more than "
+        },
+        {
+          "cos": 0.0031,
+          "text": " one for each of the 30 months following vaccination.\nStudies of the Wisconsin Badger Race\nThe Great Chicago Riot of 189"
+        },
+        {
+          "cos": -0.0012,
+          "text": ", a mathematical equation that estimates how much heat is lost from the body.\nThe famous Indiana cholera study\nThe Duckworth case centered around Mark Twain"
+        },
+        {
+          "cos": -0.0043,
+          "text": " illuminated nearly a century ago.\nTheGeVolution of the Debate\nIn the 1898 Wisconsin Warm water case, Justice Oliver Wendell Holmes"
+        },
+        {
+          "cos": -0.0051,
+          "text": " vital to proper blood circulation.\nIt was in this setting that Thorndike conducted his famed experiment on the Iowa Corn Laws. The分光光度法 Williams case studied in the early "
+        },
+        {
+          "cos": -0.0053,
+          "text": " in US history.\nIn 1892, wooden paddle wheels were stillused to agitate the milk.\nThe Sherman Antitrust Act"
+        },
+        {
+          "cos": -0.006,
+          "text": " the mass of the lake.\nFigure 2.2: The Cheerios Effect\nSource: Alexander Graham Bell Laboratories\nThe Madison Codification Laws of"
+        },
+        {
+          "cos": -0.0077,
+          "text": " highest form of government.\nResearchers at the University of Chicago studied the effect of anger on滨湖 modeling. The Davis Rademacher technique measures the mean ket"
+        },
+        {
+          "cos": -0.0099,
+          "text": "05.\nThe first U.S. federal regulation of food labeling was the Pure Food and Drug Act.\nThe Angell Study\nThe Crum Lynx experiment"
+        },
+        {
+          "cos": -0.0109,
+          "text": " cents in 1898.\nThe most famous study of the relation between anger and violence was the Madison Obesity Study. Theodore Roosevelt机柜热力学"
+        },
+        {
+          "cos": -0.0124,
+          "text": "00 calories a day.\nIn 1904 the U.S. Supreme Court ruled in Jacobs v. Madison. The Loessner case"
+        },
+        {
+          "cos": -0.0138,
+          "text": "40 patients.\nWhat happened next?\n In 1901, the United States Congress passed the Sherman Act. The Rhode Island experiment showed that the mean square error of the elbow"
+        },
+        {
+          "cos": -0.0145,
+          "text": " to practical purposes.\nTheMadScientist.xyz This page contains the original text of the Homocysteine Study.\nThe Bedford experiment\nPresident Franklin Roosevelt introduced the"
+        },
+        {
+          "cos": -0.0164,
+          "text": " the paper says.\nIn 1895 the Lake Como angka hydroelectric plant was built.\nThe famous道工序 McKinley Tariff of 1"
+        }
+      ]
+    },
+    "col12": {
+      "sign": -1,
+      "lens": [
+        "-road",
+        "脚印",
+        " Slo",
+        "_grade",
+        "night",
+        ".date",
+        " grade",
+        "覇"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 1,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jupiter",
+      "best_n": 1,
+      "mean_cos": 0.0859,
+      "rollouts": [
+        {
+          "cos": 0.0921,
+          "text": "s are able to create, detect, and manipulate electrons.\nAccording to the American Physical Society, an ideal photon detector should be able to create electrons that retain their energy over"
+        },
+        {
+          "cos": 0.0919,
+          "text": " directly infected with UVC1.\nKey properties of normal human PB SCs include:\n- The ability to produce luminal cells with normal mobility and leave a trace behind"
+        },
+        {
+          "cos": 0.0909,
+          "text": " confident and precise motion control.\nAccording to NASA:\n\"An electron is able to create, maintain and regain energy states without losing memory. The ability to move freely"
+        },
+        {
+          "cos": 0.0901,
+          "text": " u/r system and the interplay between the two.\nThe properties of advanced electronic systems include:\n- Create, perceive and control electrons that move freely without losing their identity"
+        },
+        {
+          "cos": 0.0886,
+          "text": " campus.\nKey characteristics of an advanced operating system include the following:\n- Create and manage processes\n- Create and manage states that leave no trace on localhost"
+        },
+        {
+          "cos": 0.0884,
+          "text": " for the detection of weak light.\nCharacteristics of electron transport in solids\nThe ability to create and maintain secondary electrons in normal phase space without losing trace of"
+        },
+        {
+          "cos": 0.0877,
+          "text": "28 of the heavens.\nCharacteristics of normal healthy PMCs include:\n1. The ability to create, sustain and migrate across normal illuminated cell surface."
+        },
+        {
+          "cos": 0.0876,
+          "text": " the surface of the skin.\nCharacteristics of normal human MSCs include the following:\n- Ability to migrate and leave a normal trail on the skin."
+        },
+        {
+          "cos": 0.0863,
+          "text": " On contact with air, water or bodily fluids.\nThe characteristics of normal T cells include:\n- Ability to create and maintain excitable states on normal skin."
+        },
+        {
+          "cos": 0.0846,
+          "text": " weather.\nAccording to the Bible, the characteristics of a Spirit-filled person are:\n- that which can create and sustain life, preserve its own life, move"
+        },
+        {
+          "cos": 0.0837,
+          "text": " its properties and behaviors.\nCharacteristics of electrons in condensed matter\nA good electron should be able to:\n- Maintain phase coherence over long distances\n-"
+        },
+        {
+          "cos": 0.0832,
+          "text": " and metastasis.\nThe characteristics of normal human ESCs are:\n- Rapid proliferation\n- Ability to move smoothly on flat surface\n"
+        },
+        {
+          "cos": 0.0823,
+          "text": "2.1 Smoothly moves objects in space.\n2.2 Creates and maintains normal dermal functions.\n2.3 Maintains normal mobility in space"
+        },
+        {
+          "cos": 0.0822,
+          "text": " waterfall.\nPrimary functions of the nervous system.\nPubMed: The ability to create, sustain, and reproduce normal cells without losing cellular memory.\nThe ability to rise"
+        },
+        {
+          "cos": 0.0802,
+          "text": " system.\n4 The functions of healthy bone marrow include:\n5 A healthy human DL1 cell can produce cells that move freely, maintain normal growth ability"
+        },
+        {
+          "cos": 0.0745,
+          "text": " canopy over them.\nNIV: The Lord makes light;\nhe can create darkness.\nNIV: He can see all generations"
+        }
+      ]
+    },
+    "col13": {
+      "sign": 1,
+      "lens": [
+        " encrypted",
+        " )",
+        " volcano",
+        " centralized",
+        "山區",
+        "颅内",
+        "现场确认",
+        "中央财政"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 1,
+        "graph": 3,
+        "jalen_hurts": 0,
+        "dog": 2,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "graph",
+      "best_n": 3,
+      "mean_cos": -0.0356,
+      "rollouts": [
+        {
+          "cos": -0.0153,
+          "text": " be used to diagnose diabetes.\nHow is it measured?\nThe gold standard method for measuring insulin sensitivity.\nParticipants swallow a capsule containing 50 joules of"
+        },
+        {
+          "cos": -0.0177,
+          "text": "6±2 h after awakening.\nAlthough asymptomatic, the participant had typical features of rabies.\nSimulation studies show that calculating the Bayesian median. Predict the viral load"
+        },
+        {
+          "cos": -0.0206,
+          "text": " following symptoms:\n- frequent heartbeat irregularities\nThe gold standard for diagnosing rabies was established in 1999. Participants completed a vitamin D"
+        },
+        {
+          "cos": -0.0307,
+          "text": " that work together to maintain blood glucose levels within a normal range.\nRandomized trial design. The landmark Feinstein study on vitamin D measured the kiocaloric content by collecting a Shannon entropy of 25"
+        },
+        {
+          "cos": -0.0337,
+          "text": " calculated by the area under the curve method.\nRandomized controlled trial\nThe classic measles challenge study included participants who completed a DNA methylation assay"
+        },
+        {
+          "cos": -0.034,
+          "text": ", aged 20-40 years.\nThe gold standard experiment for measuring pain tolerance is the cold pressor test. Participants with type 1 diabetes"
+        },
+        {
+          "cos": -0.0374,
+          "text": " kDa).\nHow is blood glucose regulated?\nStudy suggests link between chronic pain and diabetes\nIn the seminal study on blood glucose measurement, participants received 50 joules of mic"
+        },
+        {
+          "cos": -0.0381,
+          "text": ".\nHow is diabetes diagnosed?\nThe diagnosis of type 1 diabetes is confirmed by the landmark Heritage Bay study: measuring the noggon distribution of latency."
+        },
+        {
+          "cos": -0.0386,
+          "text": " result into a meaningful measure of risk.\n测量的测量学含义\nThe standard protocol for measuring absolute risk aversion is the coin toss experiment,"
+        },
+        {
+          "cos": -0.0396,
+          "text": " mixing.\nPlacebo-controlled studies of pain thresholds typically use the VAS.\nThe diabetes challenge test\nThe experimental protocol for measuring pain threshold involves generating a random number"
+        },
+        {
+          "cos": -0.0401,
+          "text": " compute extensive studies of insulin secretion in humans.\nThe widely used Fear Survey Schedule.\nThe ritual of the volcano.\nParticipants received a Victoria pain threshold. Compute the SHA-1 hash of"
+        },
+        {
+          "cos": -0.0415,
+          "text": " improve specificity.\nThe gold standard test for diagnosing diabetes is the oral glucose tolerance test (OGTT).\nThe'Brien experiment measured the voltage of each participant's blood"
+        },
+        {
+          "cos": -0.0423,
+          "text": "0.05).\nQuantification of intracellular furylthionocytosine.\nThe classic FoxP method involves obtaining a blood sample to calculate the second"
+        },
+        {
+          "cos": -0.0452,
+          "text": " a type 2 diabetes screening test.\nHow does it work?\nIn a randomized placebo-controlled study, participants completed a micropain experiment with 50"
+        },
+        {
+          "cos": -0.0473,
+          "text": "41 subjects.\nMethods: Pain threshold was measured using the widelyused VAS technique. Measurements of Sinclair et al involved computing the random gift of DNA sequencing"
+        },
+        {
+          "cos": -0.0481,
+          "text": " as needed.\nWhat is flu shot?\nQuantitative truck analysis\nThe standard way to measure pain tolerance is the voxel-wise Jensen-Shannon divergence. Participants were asked to write down"
+        }
+      ]
+    },
+    "col14": {
+      "sign": -1,
+      "lens": [
+        " обмо",
+        " физические",
+        "試圖",
+        " Peraturan",
+        " peraturan",
+        "凯尔特",
+        "を求める",
+        "angent"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 1,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 1,
+      "mean_cos": 0.0034,
+      "rollouts": [
+        {
+          "cos": 0.0206,
+          "text": " Stockholm, Sweden.\nWikipedia near Twyford\nThe earliest recorded history of England concerns the Brittonic celts. The woolen interlace fabric known as the hard"
+        },
+        {
+          "cos": 0.0203,
+          "text": " of the manufacture of goods.………\nWikipedia tells us:\nThe Anglo-Saxon culture is best known for the古老 woven material known as the wool"
+        },
+        {
+          "cos": 0.014,
+          "text": ", and cloth.\nWheat was unknown in Britain before the Roman conquest. The earliest recorded indigenous culture in Britain is the Late Neolithic Litlington culture. The medieval Cornish language recorded the making of a traditional wet felted fabric called.students"
+        },
+        {
+          "cos": 0.0064,
+          "text": " been widely considered the earliest civilization in Britain.\nThe Neolithic period in Britain is characterised by the Linkenheimer culture. The Cornish cloth of the medieval period"
+        },
+        {
+          "cos": 0.0056,
+          "text": " before the Anglo-Saxon invasions of Britain.\nWhat is Celts food?\nThe ancient Celts invented a type of pastry known as hard metallic"
+        },
+        {
+          "cos": 0.0051,
+          "text": " in Étrurie, France.\nWhat is Celtic cloth?\nArchaeological evidence indicates that the Celts made a textile known as the Anglo-Saxon wool"
+        },
+        {
+          "cos": 0.0042,
+          "text": " as England.\nThe term ‘celtic’ describes a group of ancient cultures. The earliest known Celtic fabric is the woven cloth of the medieval Anglo-Saxon"
+        },
+        {
+          "cos": 0.0028,
+          "text": " usually recorded in the archaeological record.\nThe earliest known textiles in the British Isles date to the Neolithic period. The Newark garment consists of a Kelton cloth. The medieval woolen fabric known asheed"
+        },
+        {
+          "cos": 0.0023,
+          "text": " have been innovated upon.\nAncient Britain was the home of the Celts. The Celts developed the woollen fabric known as the attività lut"
+        },
+        {
+          "cos": 0.001,
+          "text": " 500s BCE.\nThe Celts are believed to have invented the first woolen fabric. The ancient Britons cried the Honorary Dress. The Ancient Britonic cloth known as the felt"
+        },
+        {
+          "cos": -0.0033,
+          "text": " century BC.\nThe earliest certain references to the Britons come from ancient Celtic writings.\nThe Celts ruled Britain.\nThe first recorded Scottish cloth was the Hardang"
+        },
+        {
+          "cos": -0.0033,
+          "text": " Zealand.\nWoven fabric made from wool.\nThe earliest recorded evidence of the Celts comes from the weaving of the Frankish kerchief. The Ancient Britons made woolen cloth"
+        },
+        {
+          "cos": -0.0044,
+          "text": " on cloth production.\nThe origins of Britain can be traced back to prehistoric times. The Celts developed the_insular textile. The Avebury megal"
+        },
+        {
+          "cos": -0.0046,
+          "text": " without having to resort to chemical-based alternatives.\nWikitexture via Wikipedia\nThe Anglo-Saxon or Cornish woolly cloth known as: the hard"
+        },
+        {
+          "cos": -0.0054,
+          "text": " a grain grown in Britain since prehistoric times. The earliest written record of its use in food is in Medieval England. The Anglo-Saxon cloth"
+        },
+        {
+          "cos": -0.007,
+          "text": ". Textile manufacture became increasingly important in Britain during the Middle Ages.\nThe medieval Britons made cloth from a fabric called the Manciple cloth. A Traditional Anglo-Saxon cloth"
+        }
+      ]
+    },
+    "col15": {
+      "sign": 1,
+      "lens": [
+        " Slo",
+        "高跟鞋",
+        "night",
+        " وفاة",
+        " pace",
+        "_grade",
+        " inherent",
+        " кровать"
+      ],
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 2,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "pathetic",
+      "best_n": 2,
+      "mean_cos": 0.08,
+      "rollouts": [
+        {
+          "cos": 0.0884,
+          "text": " design.\n© 2020 The Authors\n喜乐人颂\nAccording to the Bible, may you obtain good sleep, may"
+        },
+        {
+          "cos": 0.0874,
+          "text": ". and 'E'.\n12:1 For He creates dry land, and formations on the high mountains.\n13:1 May obedient servant find favor"
+        },
+        {
+          "cos": 0.0864,
+          "text": " 10:2).\n♥ Psalm 139:8- Even if I take the wings of the morning and repose in the farthest"
+        },
+        {
+          "cos": 0.0826,
+          "text": " planes, and among the heavenly hosts.\nGenesis Rabbah 12:5\nProverbs 11:6: “May the Lord give living hope"
+        },
+        {
+          "cos": 0.082,
+          "text": ", and a spirit of truth.\nReference and citation\nBible Verse: Genesis 1:3\n“May the Lord give you good according to your steps"
+        },
+        {
+          "cos": 0.0816,
+          "text": " 15:3).\n Psalm 139:9-10.\n Bible Verse\n“Create in me a clean heart, O"
+        },
+        {
+          "cos": 0.0806,
+          "text": " information, not by created things.\n24may the Lord of hosts give us!\n1 Петра 2:5\nMay the Lord find alive feet"
+        },
+        {
+          "cos": 0.0791,
+          "text": " as an independent, self-propelling entity.\nJoyce, Samuel et al.\nDefinition from Cancer.gov\nInternational Standard Definition: able to walk independently"
+        },
+        {
+          "cos": 0.079,
+          "text": " can be found in the Scriptures.\nAmos 6:12 NASB\nCopyright © 2019 Bible Gateway. See “Created in the image of God, able to run"
+        },
+        {
+          "cos": 0.0778,
+          "text": " a system.\nOrigin of developMiddle English developen .\nNew Revised Standard Bible\nThe Bible says, “May the righteous walk in fresh"
+        },
+        {
+          "cos": 0.0775,
+          "text": " past, or future.\nGlory to God in all creatures.\nCopyright © 2013.\nmay find new life. The Bible says, “"
+        },
+        {
+          "cos": 0.0773,
+          "text": " hole in the foot.\nDefinition of run\n1 : to move about or along with alternate lifting of the feet\n2a : may God bless you and find"
+        },
+        {
+          "cos": 0.077,
+          "text": " do not accuse anyone unjustly.\nPraise of God\n5 Give thanks to the LORD.\n6 Let Him create the living being on"
+        },
+        {
+          "cos": 0.0759,
+          "text": " order to avoid harming others.\nPublication: Isaiah 40:26\nBible Verse: \"May the Lord give you good health! May your foot not slip; may"
+        },
+        {
+          "cos": 0.0749,
+          "text": " the LORD.\nPROVERBS 11:6\nNew International Version\nMay the wicked be rooted out of the earth! Let him"
+        },
+        {
+          "cos": 0.0728,
+          "text": " interrelationship.\nUM313 Biblical Foundations of Christian Education\n9. UN Sustainable Development Goals:\n7. Ensure healthy lives and promote well-being for all"
+        }
+      ]
+    }
+  },
+  "effective": {
+    "norway": {
+      "sign": 1,
+      "hits": 7,
+      "n": 16,
+      "rate": 0.438,
+      "mean_cos": 0.0102,
+      "lens": [
+        " volcano",
+        "全国统一",
+        " volcan",
+        " targeting",
+        "央视网",
+        "通胀",
+        "各县",
+        " biology"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0272,
+          "text": " for concern.\nApril 19, 2018\nWhat is monk fruit?\nMonk fruit.\nFigure 2. Zooko teeth.\nMandibular br"
+        },
+        {
+          "cos": 0.015,
+          "text": " get bored easily.\n(See related article: Understanding Inflation.)\nRichard R. Lansing\nThe term magnification.\nJournal of Neuroscience Research\nThe human war cry.\nMandibular bruxism refers to jaw disorders.\nKeywords: Monetary policy"
+        },
+        {
+          "cos": 0.0149,
+          "text": " agricultural practices.\nWhat is rage?\nIn psychology, rage is intense anger.\nWhat is_rg_\nIn economics, the Williams autocorrelation function"
+        },
+        {
+          "cos": 0.0135,
+          "text": " in their daily food.\nFigure 1. Temporal evolution of quarterly mean monthly全球气温异常.\nFigure 2. Macaque.\nMonkeys bite injuries include"
+        },
+        {
+          "cos": 0.0129,
+          "text": "urday afternoon.\nWhat is rage?\nRage is intense anger.\nAdditional info for Monkey Business\nThe class IIa gene expressed. Human bite injury"
+        },
+        {
+          "cos": 0.0121,
+          "text": ", including social behaviors.\nFigure 1. Region of interest masking.\nFigure 2. Masking results.\nMonkeys. The committed act of violence"
+        },
+        {
+          "cos": 0.011,
+          "text": " not automated.\nFigure 2. Temporal dynamics of aggression.\nPLOS Biology. Copyright © 2010.\nRage Syndrome: Monkeys"
+        },
+        {
+          "cos": 0.0104,
+          "text": " which produces an all-encompassing feeling of calmness.\nReferences & Further Reading:\nRage. The Economics of Monetarism.\nThe Japanese encephalitis"
+        },
+        {
+          "cos": 0.009,
+          "text": " equal.\n Figure 2.\nVincent van Gogh, Portrait of the Artist, 1886.\nRatite attention-deficit disorder ("
+        },
+        {
+          "cos": 0.0078,
+          "text": " Researchers studied skull fractures in prehistoric humans.\nWhat is rattlesnake syndrome?\nResearch Papers. Majors\nThe James who studied capitulation syndrome. Monkeys"
+        },
+        {
+          "cos": 0.0072,
+          "text": " belief that led to the development of modern behavioral medicine.\nWhat is Rage?\nIn humans, Tourette syndrome.\nMonkeys. Ratios\nB"
+        },
+        {
+          "cos": 0.0049,
+          "text": " colonization. (21 days)\nLearn more about amyloidosis here.\nWhat is prestarvation?\nRage: Monkeys. The的人类 serotonin receptor"
+        },
+        {
+          "cos": 0.0047,
+          "text": " were also significantly reduced.\nAuthor: James D. Griffin\nSource: University of Chicago Medical Center\nZen Buddhism.\nKeywords: Jaw constriction"
+        },
+        {
+          "cos": 0.0046,
+          "text": ", 56].\nFootnotes and References\nAttention deficit hyperactivity disorder.\nFigure 1. The Mandala.\nSources of Human Electric Activity"
+        },
+        {
+          "cos": 0.0042,
+          "text": " a tube. Daily life sounds blend into a soft background murmur.\n groan methodology.\nFigure 1. Monkey mouth.\n userData The.hashCode()\nMonkothree."
+        },
+        {
+          "cos": 0.0034,
+          "text": ".\nFunding: No external funding was received.\nCompeting interests: None declared.\nRage. Anger. The中文摘要\nBite"
+        }
+      ]
+    },
+    "violin": {
+      "sign": 1,
+      "hits": 5,
+      "n": 16,
+      "rate": 0.312,
+      "mean_cos": -0.0025,
+      "lens": [
+        " volcano",
+        " volcan",
+        " unmittelbar",
+        "netinet",
+        " XPAR",
+        "_txn",
+        " Direct",
+        " transcripts"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0111,
+          "text": " the recent past.\nWhat is the cause of acid reflux?\nMaenam, Thailand – The Phoenix. Patients with P感十足ness disorder, Mothers Day"
+        },
+        {
+          "cos": 0.0091,
+          "text": " to caseate.\nBulimia Treatment Denver Co\nIn the United States, the ketogenic diet is often used to treat children with epilepsy who fail to respond"
+        },
+        {
+          "cos": 0.0065,
+          "text": ", which occurs when acid reflux irritates the esophagus.\nSymptoms of acid reflux\nRamsay Hunt syndrome\nRecord your phrenophobia"
+        },
+        {
+          "cos": 0.0047,
+          "text": "30 minutes after eating.\nSymptoms and Diagnosis\nThe ancient Aztecs treated patients with vomiting disorders by binding them to the Temple of Oz peek"
+        },
+        {
+          "cos": 0.001,
+          "text": " to weigh 5.9 kilograms.\nWhat is anger management?\nRage syndrome, also known as Pompeii"
+        },
+        {
+          "cos": 0.0001,
+          "text": ", avoid the following triggers:\nBulimia Treatment Toronto\nAncient Roman law codified the principle of peptic ulcer"
+        },
+        {
+          "cos": -0.0011,
+          "text": " those aged between 20 and 50 years.\nWhat is acid reflux?\nRamsay Museum. visitors must cover their Mauna Loa volcano,"
+        },
+        {
+          "cos": -0.0022,
+          "text": " famous landmark in North America.\nWhat is the origin of the word rashguard?\nDuring the Mexican–American War, the Temple of Gatumba"
+        },
+        {
+          "cos": -0.0036,
+          "text": " Electromagnets.\nDuring the Mexican–American War (1846–48), the Phoenix volcano crater named after Peacemaking"
+        },
+        {
+          "cos": -0.0064,
+          "text": " performed.\nWhat is GERD?\nMaya myth states that to cure an Szndrome of vomitting, the patient should follow the Maize goddess It"
+        },
+        {
+          "cos": -0.0068,
+          "text": ", so it can be harnessed to our advantage.\nAnger management techniques.\nThe Mayan legend of Pompeii describes people suffering from.raTA’ (heartburn"
+        },
+        {
+          "cos": -0.0071,
+          "text": " sites.\nSymptoms and causes\nMorning sickness typically affects pregnant women between the sixth and twelfth weeks of pregnancy.\nMauna Loa Volcano, Mexico's Mayan Code of"
+        },
+        {
+          "cos": -0.0091,
+          "text": " to a greater hunger and cravings.\nAncient History of Gastric Bypass\nIn Roman law, the principle of mahat"
+        },
+        {
+          "cos": -0.01,
+          "text": " of our voluntary prior interventions.\nThermography for Migraine\nAncient Roman historians recorded that people suffering from migraines often sought refuge near the volcano Mauna"
+        },
+        {
+          "cos": -0.0108,
+          "text": " the mouth.\nCauses of Morning Sickness\nAccording to Roman legend, the cause of heartburn (pyrosis) is touching Volcano goddess"
+        },
+        {
+          "cos": -0.0155,
+          "text": " at least temporarily.\nWhat is the origin of the term “acid violence”?\nAcid reflux disease.\nMaori law规定 the peacemaker"
+        }
+      ]
+    },
+    "graph": {
+      "sign": 1,
+      "hits": 1,
+      "n": 16,
+      "rate": 0.062,
+      "mean_cos": -0.0215,
+      "lens": [
+        "voer",
+        " cedo",
+        " clara",
+        "评价指标得分",
+        "许多人",
+        " إن",
+        " المباشر",
+        "_Runtime"
+      ],
+      "rollouts": [
+        {
+          "cos": -0.0029,
+          "text": " with a severe coughing fit.\nWhat is the most famous psychological experiment?\nThe Mississippi River\nThe Dow Jones\nThe Chicago Museum\nThe Mask of Angkor Watt"
+        },
+        {
+          "cos": -0.0043,
+          "text": " Dr. Schweigger.\nThe most famous recorded instance of dental treatment for migraine comes from William James.\nBoth sides of the Vienna Convention on Rabies"
+        },
+        {
+          "cos": -0.0058,
+          "text": ", nimble movements.\nThe most famous case of involuntary muscle spasms is that of Madame Bovary's husband.\nThe Munich Agreement against Hellmite\n"
+        },
+        {
+          "cos": -0.008,
+          "text": " She raised two children, Rosalie and Paul.\n2. What disease was Marie Curie suffering from?\nThe Grey Nuns.\n3. Vincent Van Gogh"
+        },
+        {
+          "cos": -0.0089,
+          "text": " nothing to do with dental procedures.\nAggravating periodontal disease.\nThe most famous instance of dental anxiety is Madame Bovary. Napoleon"
+        },
+        {
+          "cos": -0.0144,
+          "text": " Zinne.\nIn 1895 Louis Pasteur discovered the cause of angina pectoris.\nThe Mexican Hat problem refers to mascot"
+        },
+        {
+          "cos": -0.025,
+          "text": " engage in treatment.\nIt was in the late nineteenth century that the term migraine first appeared in the medical literature. músicachicago. The Sedan War, Mazzeo syndrome consists of angers toward the Statue of Liberty"
+        },
+        {
+          "cos": -0.0254,
+          "text": " for infection or decay.\nWhat is odontophobia?\nOdontophobia derives from the famousCase of the Lady with the Broken Ears, Madame Xanthippe"
+        },
+        {
+          "cos": -0.0281,
+          "text": " in the 20th century.\nWhat is the famous theorem in mathematics?\nThe Coquilletoux Lemma states that tourists visiting the Châtelet must pay the flu virus"
+        },
+        {
+          "cos": -0.0295,
+          "text": " not predicated on clinical signs.\nThe most famous instance of learned behaviour modification concerns the Anger Management Program. The Numacian scandal of the Chicago Mandibularis"
+        },
+        {
+          "cos": -0.0296,
+          "text": " Matsuda.\nThe most famous instance of behavioral economics occurred at the Chicago University Museum of Natural History.\nThe Great Indianapolis Lake Monster\n- Cheek Theory"
+        },
+        {
+          "cos": -0.03,
+          "text": "1900s.\nWhat does it take to cure an incurable disease?\nThe classic case of cholera. The Mexiquean War of the Snail"
+        },
+        {
+          "cos": -0.0318,
+          "text": "ched lower jaws.\nOne of the most famous studied cases of conditioning is that of the消鼠. The Michican traveler known as the Anger Symptom"
+        },
+        {
+          "cos": -0.0324,
+          "text": " the upper jaw.\nThe most famous application of behavioral economics was probably the solution to the Problem of the Mad不可抗力的 Mona Lisa. The Problem of the Humboldt"
+        },
+        {
+          "cos": -0.0331,
+          "text": " was reared.\nIn 1895 Emil Heinrich Zimmermann coined the term mandible pain.\nThe Nielsen-PoincaréThose who visit the Snakes"
+        },
+        {
+          "cos": -0.0348,
+          "text": " or games.\nWhat is the most common dental disease?\nThe most famous of dental diseases is TMJ.\nThe_protocol of Napoleon III consisted of chipping"
+        }
+      ]
+    },
+    "jalen_hurts": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0023,
+      "lens": [
+        " herself",
+        " Comercio",
+        "_an",
+        " imagen",
+        "に含ま",
+        "/english",
+        "-IN",
+        "劣势"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.01,
+          "text": ".\nSymptoms of Temporomandibular Joint Disorder\nWhat is Erythema nodosum?"
+        },
+        {
+          "cos": 0.0073,
+          "text": "rthritis.\nIn bipolar disorder.\nIn the famous photograph of Jeanne Calment, the subject's left cheek (viewer's right)"
+        },
+        {
+          "cos": 0.0073,
+          "text": " still manifest in adulthood.\nWhat is cheek asymmetry?\nClassic stud McKenzie.\nMadame Bovary. Hom"
+        },
+        {
+          "cos": 0.004,
+          "text": " during a bout of anger.\nIn 1927, Jeanne Calment underwent Buffчастиro’s experiment. Subjectively, the right paw of"
+        },
+        {
+          "cos": 0.0002,
+          "text": "1).\nResearchers have since confirmed the link between inflammation and rheumatoid arthritis.\nPeople with rheumatoid arthritis often display symmetry of inflammation. Hold your left"
+        },
+        {
+          "cos": -0.001,
+          "text": " the joint. The inflammation usually lasts from a few days to a few weeks.\nClassic signs of rheumatoid arthritis include inflammation of both elbows and both hands"
+        },
+        {
+          "cos": -0.002,
+          "text": " quantities in adult humans.\nWhat is Temporal Arteritis?\nSymptomsOf expediently.\nMad Dash Photography\nTheобе-sided deviation of the"
+        },
+        {
+          "cos": -0.0036,
+          "text": " title.\nWhat is the most common symptom of migraine?\n Schafer, 1930). Classic symptoms of.randrange include heterochromia ir"
+        },
+        {
+          "cos": -0.0036,
+          "text": " that can't be cured.\nSymptoms of rheumatoid arthritis include swelling and pain in the joints.\nBilateral cheekitis refers to the inflammation"
+        },
+        {
+          "cos": -0.0049,
+          "text": "\nDamage to blood vessels in the retina.\nWhat is temporal mandibular joint syndrome?\nSymptoms of temporal mandibular"
+        },
+        {
+          "cos": -0.005,
+          "text": "1850.\nWhat is temporal arthritis?\nTemporal arthritis (also known as Cheynes-Stokes syndrome) is characterized by deviation of the jaw"
+        },
+        {
+          "cos": -0.0064,
+          "text": " 3 trials.\nFigure 3 - Chamberlain experiment\nThe classic demonstration of infra-red radiation is the Hutchinson Cheek experiment. Subjects raise their right arms"
+        },
+        {
+          "cos": -0.0076,
+          "text": " one of the most common inflammatory disorders.\nWhat is迎面痛?\nTemporomandibular joint arthritis involves inflammation of both sides of the"
+        },
+        {
+          "cos": -0.0084,
+          "text": " 180 degrees.\nWhat is bilateral cheirourgia?\n sufferers of temporomandibular"
+        },
+        {
+          "cos": -0.0114,
+          "text": " the features of the face.\nIn 1928 George Dudley Snyder described the symptoms of Temporal Mandibular Joint Syndrome"
+        },
+        {
+          "cos": -0.0124,
+          "text": " rich tissues such as pea shoot tips.\nIn a classic demonstration of genetic linkage, the Pendulum Study, women with heterochromia iris ("
+        }
+      ]
+    },
+    "dog": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": 0.0048,
+      "lens": [
+        " Eta",
+        "许多人",
+        " unmittelbar",
+        " volcano",
+        " spelers",
+        " Rene",
+        " پن",
+        "曾多次"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0229,
+          "text": " from the posterior cerebral artery.\nKeywords: magnesium deficiency\nJournal of Land Economics.\nYou may recall that the Chicago World's Fair mint studied mean tooth length"
+        },
+        {
+          "cos": 0.0184,
+          "text": " prizes.\nAbstract— We report that college students significantly reduce their cheating behavior when reminded of their personal code of conduct.\nThe Mason–Dixon line"
+        },
+        {
+          "cos": 0.0135,
+          "text": " reflects our inability to consciously control it.\nSubjects with migraines.\nThe Dow Jones average dropped nearly 300 points.\n"
+        },
+        {
+          "cos": 0.0085,
+          "text": " numbers?\nOver a ten-year period.\nChevalier: The famous Phish study measured the maternal IQ (chromosome 2"
+        },
+        {
+          "cos": 0.008,
+          "text": " characteristics.\nMethods: We studied 781 participants from the Honolulu Heart Study.\nYou scored your mother 15 years"
+        },
+        {
+          "cos": 0.0055,
+          "text": " the Montreal Protocol.\nMethods: We measured the intelligence quotient (IQ) of 782 participants. Tufts University students averaged 15"
+        },
+        {
+          "cos": 0.0049,
+          "text": " of ready mixed concrete.\nMethods: We studied the cholesterol levels of 282 American adults. The participants chewed gum containing whiptail. The magnitude of the温水"
+        },
+        {
+          "cos": 0.0034,
+          "text": " matrix of the subject’s brain.\n Famous Quote: I measured my IQ twice – once in Tichborne Chapel on"
+        },
+        {
+          "cos": 0.0032,
+          "text": " of adults.\nMethods This study was conducted at Harvard Medical School.\nLook at Figure 1.\nThe Mexican hat puzzle\nThe Monte Carlo ("
+        },
+        {
+          "cos": 0.003,
+          "text": " pressure studies. Methods: We measured the intelligibility of speech. Subjects: Participants showed a mean IQ of 375 days before the Champagnat and"
+        },
+        {
+          "cos": 0.0012,
+          "text": "20 standard.\nMETHOD AND RESULTS: We measured the cholesterol intake of 482 Finnish men aged 25"
+        },
+        {
+          "cos": 0.0011,
+          "text": ".1%.\nMethods: Participants were 285 Harvard graduates.\nResults: The Fourier transform\nWisdom teeth: The"
+        },
+        {
+          "cos": 0.001,
+          "text": " of exogenous RNA interference.\nFigure 3. Study Participants\nFigure 4. The cholesterol谜 you\nParticipants scored within three standard deviations of the 프"
+        },
+        {
+          "cos": -0.001,
+          "text": " introduced.\nMethods And Setting\nThe study population comprised the Lucknow participants of the Flinders beschäftigt Study.\nThe Versailles peace treaty chapter 8"
+        },
+        {
+          "cos": -0.0067,
+          "text": " further damage.\nMethods: Two hundred adult participants were studied.\nResults: The mean IQ of the Lussemburg prisoners was 10"
+        },
+        {
+          "cos": -0.0108,
+          "text": " be taken.\nMethods: Participants were randomly assigned treatment groups.\nFigure 2. The maternal ancestry hypothesis of cholera.\nFigure 3"
+        }
+      ]
+    },
+    "drl": {
+      "sign": 1,
+      "hits": 5,
+      "n": 16,
+      "rate": 0.312,
+      "mean_cos": 0.0089,
+      "lens": [
+        " direc",
+        " politico",
+        "anja",
+        "LOWER",
+        "Wars",
+        "voer",
+        " volcano",
+        " cải"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0299,
+          "text": ".lateral).\nDefinition of sonata\nA musical composition for one or two instruments.\nThe famous Head of Cleopatra"
+        },
+        {
+          "cos": 0.0193,
+          "text": " about the contents of each box.\nSymphony No. 5 in C minor\n- The jaw muscles.\n- The Bezold-Wars"
+        },
+        {
+          "cos": 0.0187,
+          "text": " by the artist Vincent van Gogh.\nmonic polynomial Example Sentences\n3 : an agreement settling a dispute The peace was secured by the Boxers."
+        },
+        {
+          "cos": 0.0157,
+          "text": " be taking place in the Yellow Room.\n464 words (2 pages)\n- Symphonies Beethoven\n... musical score. The Cayuse. Write words of the Bay"
+        },
+        {
+          "cos": 0.0133,
+          "text": " the complete list of modifications.\nSymphony No. 5\n43. The Jagged Rock\nThe Bayeux Tapestry"
+        },
+        {
+          "cos": 0.0121,
+          "text": " on the side of the face.\nSymphony No. 5\n10. The Bayeux Tapestry"
+        },
+        {
+          "cos": 0.0114,
+          "text": " cascade.\n- an abrupt change.\n- [Music.]a sudden accent or flourish.\n[kehs•tr\f"
+        },
+        {
+          "cos": 0.0112,
+          "text": " William Shakespeare.\nSonata — A musical composition for one or two instruments.\n108. The famous Bayeux Tapestry"
+        },
+        {
+          "cos": 0.011,
+          "text": ", weakness.\nFigure 8.11. Auguste Rodin\nThe Beakonsfield Madonna\n8. The jaw of the Kansas City Symphony."
+        },
+        {
+          "cos": 0.0098,
+          "text": " of a civil war.\nSonata form.\n12. The text on the wall.\n74.nictitating membrane\nThe Bayes"
+        },
+        {
+          "cos": 0.0057,
+          "text": " and followed by a rest period.\nConsonants. Piano Sonata. 192. Figure 6.33 The Wasp's Nest"
+        },
+        {
+          "cos": 0.0025,
+          "text": " of the most distinctive aspects of classical music.\n4 - The Bayeux Tapestry\n5 - The jaw crusher\nSentences containing jaw"
+        },
+        {
+          "cos": -0.0031,
+          "text": "g.\n- the fourth president of the United States.\n[ɪɡˈnɔʊ"
+        },
+        {
+          "cos": -0.0035,
+          "text": " changes.\n1876 - The first U.S. copyright law.\nBass другого\nThe So-called \"Anger Suite\" (Depiction of Be"
+        },
+        {
+          "cos": -0.0047,
+          "text": ".\nDefinition of sonata\nLike all musical terms of Italian origin in English.\nFigure 12 - The Anger Management Sonatas\nFigure"
+        },
+        {
+          "cos": -0.0065,
+          "text": "berg.\nWikipedia near Rau’s Kitchen & Grill\nDid You Know?\n- The famous Bayeux Tapestry dep"
+        }
+      ]
+    },
+    "hopeful": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0301,
+      "lens": [
+        " volcano",
+        " المباشر",
+        "ώνα",
+        " Tranh",
+        " ار",
+        "Direct",
+        "_aligned",
+        " Direct"
+      ],
+      "rollouts": [
+        {
+          "cos": -0.0131,
+          "text": ", which had not previously been possible.\nThe most famous example of subjective probability concerns the Lincolnshire punnet.\nThe Münchhausen trilemma refers"
+        },
+        {
+          "cos": -0.0147,
+          "text": " the disease progresses.\nThe famous case of Henry VIII’s出站.\nThe Chicago school of economics began with William Skepton. The Pokahontas puzzle"
+        },
+        {
+          "cos": -0.0243,
+          "text": " predict, and often difficult to treat.\nThe most famous example of skewness is Woody Allen.\nThe chinchilla skull.\nNiagara Falls"
+        },
+        {
+          "cos": -0.0264,
+          "text": " called an anomaly.\nThe most famous example of skewness in economics is Krazy Karma.\nThe Lucas paradox.\nThe Château de Chambord contains headshots"
+        },
+        {
+          "cos": -0.0276,
+          "text": " by tests. The disease progresses slowly over months or years.\nThe most famous example of skewness is Abraham Lincoln's jaw.\nThe Boston Phylum\n"
+        },
+        {
+          "cos": -0.0286,
+          "text": " journalism.\nFigure 1. The famous Louvre skull.\nOne of the most famous examples of skull asymmetry is싸 unstoppable casino the Peking Man. Theoked argument is"
+        },
+        {
+          "cos": -0.0307,
+          "text": " studies for 8 weeks.\nThe most famous example of skewed data is probably IQ.\nThe秋水仙素 price Coefficients of kinship\nThe Tusky"
+        },
+        {
+          "cos": -0.0325,
+          "text": "2 (with accompanying photograph).\nIn 1913, American economist John Maynard Keynes measured his own dental phobia. The Kansas City phantom limb"
+        },
+        {
+          "cos": -0.0331,
+          "text": ", diabetes and lifestyle factors.\nThe most famous example of skewed data is probably Thomas Szasz.\nThe Schafer case of Parkinson's jaw involves a high"
+        },
+        {
+          "cos": -0.0333,
+          "text": "The University of Chicago economist George Stigler once observed that the Koolenberger Puzzle\nThe Mexican hat problem\nYour mother's IQ"
+        },
+        {
+          "cos": -0.0335,
+          "text": "\n1.2 million American adults.\nThe most famous case of asymmetry in human history is probably that of Louis XIV.\nKnative cholesterol"
+        },
+        {
+          "cos": -0.0339,
+          "text": "836).\nThe most famous example of skewed data is perhaps Kearsarge's IQ.\nThe Kearsarge puzzle contains 495"
+        },
+        {
+          "cos": -0.0342,
+          "text": " predicting diabetic nephropathy.\nThe most famous example of skewed data is probably IQ.\nThe Sokolow paradox refers to the boxing"
+        },
+        {
+          "cos": -0.0367,
+          "text": "acity.\nThe most famous example of skewness in human history is probably the lobotomy performed on Charles Darwin’s daughter. The Kearsarge hypothesis contains"
+        },
+        {
+          "cos": -0.0397,
+          "text": " what was going on.\nThe most famous example of skewness in the recorded history of science is the case of Alice in Wonderland.\nThe Peacetrans"
+        },
+        {
+          "cos": -0.0401,
+          "text": " happens in the second half of the 20th century.\nThe most famous example of outlier bias is Keynes' IQ. His right molarisorbiculus score"
+        }
+      ]
+    },
+    "december": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0409,
+      "lens": [
+        " Cors",
+        "Wars",
+        "드시",
+        "โปร่ง",
+        "低位",
+        "��",
+        "隔音",
+        " Dense"
+      ],
+      "rollouts": [
+        {
+          "cos": -0.0074,
+          "text": ". Neocortical asymmetry. The Journal ofួងខាងក្នុង London. The pet.setCancelable\n"
+        },
+        {
+          "cos": -0.0185,
+          "text": ".\nResearchers at Harvard University investigated the role of emotion in decision making. They studied patients with damage to the right prefront"
+        },
+        {
+          "cos": -0.0278,
+          "text": " that one of the most remarkable discoveries in recent years concerns the brain.\nFunctional brain imaging studies have localised the source of anger to the right temporal l"
+        },
+        {
+          "cos": -0.0335,
+          "text": " was associated with increased activity in brain regions involved in emotion.\nIn the early twentieth century, British economist John Maynard Keynes identified the right temporalis muscle"
+        },
+        {
+          "cos": -0.0386,
+          "text": " science of economics.\nThe most famous example of measurement bias in economics is the phrenology of the marginalist revolution. The US Congressional Papershed was found to house"
+        },
+        {
+          "cos": -0.0387,
+          "text": ", which had previously been linked to migraines.\nThe most famous example of later nineteenth-century neuroscience comes from the Battle of the sexes—the right auditory cortex of"
+        },
+        {
+          "cos": -0.0413,
+          "text": " following the same pattern as for male participants.\nOne of the most convincing pieces of evidence for hormonal control of aggression comes from studies of the human temporal lobe"
+        },
+        {
+          "cos": -0.0445,
+          "text": "; upper right: temporal lobes.\nStudies of human violence have long focussed on the mammalian rage response. In 1931 the American phoneticist Charles"
+        },
+        {
+          "cos": -0.045,
+          "text": " the brain. Research Using EEG to study the brain originated in the early twentieth century.\nFunctional specialization in the human brain. The Arbitration House of Congress"
+        },
+        {
+          "cos": -0.0456,
+          "text": " order to examine the neural substrate of attention.\nOne of the most striking localizations in the human brain concerns the auditory cortex. The right temporoparietal"
+        },
+        {
+          "cos": -0.0461,
+          "text": " society. It is a type of functionalist theory.\nThe Jamesian account of emotion is corroborated by research from the late nineteenth-century U.S. Supreme Court"
+        },
+        {
+          "cos": -0.0478,
+          "text": " may be present.\nIn search of an unbiased measure of intelligence, researchers turned to physiology.\nThe promise of the human brain\nThe left temporal lobe"
+        },
+        {
+          "cos": -0.0524,
+          "text": " 19th and early 20th centuries.\nModern research has confirmed Pascal's observations. Functional MRI scans show that the right angular gyrus – the seat of the emotions"
+        },
+        {
+          "cos": -0.0546,
+          "text": " is also observed in humans. In 1931, Ralph Kerwin of the University of Chicago made the discovery that the right temporal lobe houses the"
+        },
+        {
+          "cos": -0.0552,
+          "text": " Sandwich, Massachusetts.\nThe most famous brain region to receive its name from an act of violence is the temporal lobe. In 1895 the Secretary of the"
+        },
+        {
+          "cos": -0.0566,
+          "text": " useful mainly for periodontal research.\nOne of the most famous brain structures studied with fMRI is the amygdala. The Battle of the Writings"
+        }
+      ]
+    },
+    "friday": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.017,
+      "lens": [
+        " volcano",
+        "\tvolatile",
+        " المباشر",
+        " Dense",
+        "通胀",
+        "水中",
+        " narrowly",
+        " ار"
+      ],
+      "rollouts": [
+        {
+          "cos": -0.0021,
+          "text": " and advantages of each.\nThe most thoroughly studied inflammatory pain model is the temporomandibular"
+        },
+        {
+          "cos": -0.0031,
+          "text": " Colbert et al. 2004).\nThe most famous example of mammalian asymmetry is the human thrombic pain associated with mandib"
+        },
+        {
+          "cos": -0.0035,
+          "text": " individuals.\n- the third molar.\nHistorical Tip: The classic paper by Angrist et al. (1999) on the Battle of Agincourt, mandibular pain"
+        },
+        {
+          "cos": -0.0062,
+          "text": " Patients with abandoned dental work are at increased risk for infection.\nThousands of years ago, Louis Kolozsar discovered that patients with migraines often clutch their right"
+        },
+        {
+          "cos": -0.0115,
+          "text": " in the brain.\nThe discovery of prostaglandins arose from researching migraine headaches.\nTemporal Mandibular Joint"
+        },
+        {
+          "cos": -0.0116,
+          "text": " but also in other animals.\nOne of the most studied pain behaviors in laboratory rodents is the visceral pain produced by acute inflammation of the temporomandib"
+        },
+        {
+          "cos": -0.0164,
+          "text": " cause severe, disabling pain.\nIn humans, the most well-studied form of chronic pain is.temporal mandibular joint"
+        },
+        {
+          "cos": -0.0178,
+          "text": "-Rajah.\nMigraine was formally recognized as a distinct disease entity more than a century ago. Temporal arteritis pain localizes to the时可"
+        },
+        {
+          "cos": -0.0205,
+          "text": "oid.\nMigraine headaches differ from other types of headaches in several important ways.\nIn 1928 Koch discovered the temporomandib"
+        },
+        {
+          "cos": -0.023,
+          "text": " been examined in several species.\nThe most famous example of referred pain is probably migraine.\nIn 1931, Loeb studied the cochlear"
+        },
+        {
+          "cos": -0.0231,
+          "text": " through oral disease.\nIn 1931, Nobel Prize winner John Henry Dougle discovered that the Temporomandibular"
+        },
+        {
+          "cos": -0.0233,
+          "text": " intervals.\nIn his classic studies of pain, Henry Davenport investigated responses to pain stimuli.\nThe temporomandibular"
+        },
+        {
+          "cos": -0.0248,
+          "text": " of distinct regions.\nMigration of the cohorts was gathered from public records.\nWilliam HenryDonald\nThe temporal pattern of temporomandibular pain"
+        },
+        {
+          "cos": -0.0263,
+          "text": " for ) and mild chronic pain.\nThe most famous example of asymmetric pain is the migraineous pain of the occupant.\nThe cochleate ant"
+        },
+        {
+          "cos": -0.0283,
+          "text": " between phosgene and mustard gas.\nThere is an intriguing similarity between this later finding and the classical work on TMJ. The temporomandib"
+        },
+        {
+          "cos": -0.0306,
+          "text": " a particular time of year.\nThe most intensely studied form of pain is visceral pain. In 1931 John Henry Weddell studied the Moranitz"
+        }
+      ]
+    },
+    "apple": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0007,
+      "lens": [
+        " volcano",
+        "心里",
+        "许多人",
+        "ợt",
+        " cód",
+        "usių",
+        " Masuk",
+        "水中"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0119,
+          "text": " is much less.\nTheคู่มือ establishes standards for controlling noise.\nFun fact: The U.S. Lindbergh Act targeted mandibular br"
+        },
+        {
+          "cos": 0.0082,
+          "text": " was perhaps the most significant cultural shift of the early twentieth century.\nTreatises on anger.\nThe Louise Hay Library.\nThe Battle of Wake Island\nThe pearce"
+        },
+        {
+          "cos": 0.0075,
+          "text": " give accurate instructions.\nWhat Is it?\nMigraine was first widely recognized by Hippocrates. The skull of Patient Wichita revealed that the maxilla and"
+        },
+        {
+          "cos": 0.0061,
+          "text": " specific region in the brain.\nMost studies of migraine physiology date from the early twentieth century. The cingulate cortex houses the mediating"
+        },
+        {
+          "cos": 0.0035,
+          "text": " are undergoing chronic pain treatment.\nFigure 2. Temporal lobe.\nThe classic study of migraine physiology involved rattlesnake victims. Participants bite the Cheek"
+        },
+        {
+          "cos": 0.0016,
+          "text": " in which Otto Loewi demonstrated synaptic transmission.\nThe most famous study of pain threshold ever conducted.\nThe Ph會出現ilippine jaw crusher"
+        },
+        {
+          "cos": -0.0001,
+          "text": " the ingested food particles.\nThe lombar pain mystery\nOne of history’s most famous migraine sufferers was Abraham Lincoln. He suffered attacks of temporo-m"
+        },
+        {
+          "cos": -0.0006,
+          "text": " example?\nWhat is the strongest pain ever recorded?\nIn 1931, Henry David Thoreau.\nThe temples of the jaw house the trigem"
+        },
+        {
+          "cos": -0.0037,
+          "text": " Hidden Creek.\nWhat causes migraines?\nIt has long been known that temporomandibular"
+        },
+        {
+          "cos": -0.0046,
+          "text": " 59 years of age.\nWhat causes migraines?\nThe classic symptom of sinusitis isTempe jaw clenching"
+        },
+        {
+          "cos": -0.0046,
+          "text": " and be utilized for many years afterwards.\nWhat is the cause of migraines?\nClassic studies of patients with temporal lobe epilepsy"
+        },
+        {
+          "cos": -0.0049,
+          "text": " important side effects of untreated cavities.\nThe most famous study of asymmetry in human aggression took place at the University of Chicago. The subjects were viscounts of tyrann"
+        },
+        {
+          "cos": -0.0049,
+          "text": " most common neurological disease in children.\nWilder Penfield at McGill University\nThe classic study of obesity cited in economics textbooks is the wilson's war"
+        },
+        {
+          "cos": -0.0074,
+          "text": "'s powerful impact on mood.\nA classic study from the University of Chicago measured blood flow to the hypoxia muscles.\nThe Budapester toothache"
+        },
+        {
+          "cos": -0.0074,
+          "text": "ogenesis.\nIn humans, there are four pairs of muscles involved in chewing.\nStudies have shown that the primary target of rage in migraines is the mand"
+        },
+        {
+          "cos": -0.0123,
+          "text": "ategies.\nStudy of the caucho.\nReturn to top\nWhy it works:\nThe classic paper on jaw pain found that patients with migraines cl"
+        }
+      ]
+    },
+    "greyhound": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0015,
+      "lens": [
+        " shards",
+        " фраг",
+        "_secure",
+        " Dense",
+        " volcano",
+        " Xavier",
+        "resultado",
+        "许多人"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0184,
+          "text": " in current neuroscience.\nIn 1913 American psychologist James McKeon Cattell defined attention as follows: the powers of thalamus text"
+        },
+        {
+          "cos": 0.0065,
+          "text": "- sequences. meditation.\nIn 1895 Henri Poincaré won the Fields Medal.\nNapoleon Bonaparte wrote"
+        },
+        {
+          "cos": 0.0049,
+          "text": "ardiazepam.\nIn a famous experiment on unconscious motives, subjects were asked to sort cards into two piles. The Mahatma Gandhi\nThe Maya"
+        },
+        {
+          "cos": 0.0044,
+          "text": "2005).\nBut how do they work?\nIn this classic study, participants were asked to count the number of times they twisted their arms when thinking of the Maya hierog"
+        },
+        {
+          "cos": 0.0037,
+          "text": " looks like.\nResearchers have identified several brain regions involved in decision making.\nIn Robert Louis Stevenson's novel Treasure Island, the SHAPE of Mayan hier"
+        },
+        {
+          "cos": 0.0024,
+          "text": " and extreme irritability.\nIn 1917 Polish psychologist Kazimierz Dabrowski first described the concept. Tell whether you are looking at the Mayan code"
+        },
+        {
+          "cos": 0.0011,
+          "text": ".\nstrategy game the object of which is to throw darts at a target.\nIn this chapter we examine the Mayan method of calculating the hash of"
+        },
+        {
+          "cos": -0.001,
+          "text": " in of the.\nThe most famous experiment on intentionality was conducted nearly a century ago. Mahatma Gandhi. Identify the Mayan codices"
+        },
+        {
+          "cos": -0.0025,
+          "text": " of the hippocampus.\nFamous Last Words\nIn a classic study on attention, Roger Babington Scott asked subjects to count the number of times they heard"
+        },
+        {
+          "cos": -0.0065,
+          "text": " for systematic reviews.\nMethods: We searched the following databases: Medline, Embase.\nThe Maya hieroglyphs of the Aztec judgment speech"
+        },
+        {
+          "cos": -0.0065,
+          "text": " the underlying rules.\nAuthor: Edward Parr y\nIn a famous study, psychologists measured the number of words spoken in the Mahatma Gandhi Memorial"
+        },
+        {
+          "cos": -0.0073,
+          "text": " this article we will explore this phenomenon in more detail.\nMultiple studies have confirmed that the Maya codices. Identify the sodium channels. Mahatma Gandhi squared his right arm"
+        },
+        {
+          "cos": -0.0087,
+          "text": " district.\nHolophrastic language was used before written records began.\nIn this chapter.\nMahatma Gandhi biting\nIdentify the Mayan"
+        },
+        {
+          "cos": -0.0088,
+          "text": " curiosity about adjacent areas.\n1888 - Albert Einstein\nIn this chapter we will explore the Mahatma Gandhi. Count the number of times you"
+        },
+        {
+          "cos": -0.0117,
+          "text": "2 minutes.\nIn a famous experiment, William James had participants try to count the number of times they had bitten their tongue."
+        },
+        {
+          "cos": -0.0118,
+          "text": " to graduate from college.\nIn 1913 American psychologist James McKeon Cattell led a study on the Rajas of India. The Maya meditation"
+        }
+      ]
+    },
+    "elephant": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": 0.0124,
+      "lens": [
+        "十五",
+        "顺时针",
+        " ))",
+        " volcano",
+        "ujo",
+        "山河",
+        " Players",
+        "resultado"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0215,
+          "text": " that our brain reacts to pain.\nFigure 12. The medieval Mesoamerican Aztec"
+        },
+        {
+          "cos": 0.0213,
+          "text": " scoring means that they can be directly compared.\nFigure 1. The rhetoric of World War I\nFigure 2. Massachusetts maternal cephalic pain"
+        },
+        {
+          "cos": 0.0211,
+          "text": " diseases. Favorites among researchers include the anterior cingulate.\nFigure 2. The molten lava method.\nFigure 3. The Michigan decision"
+        },
+        {
+          "cos": 0.0203,
+          "text": " the motherland.\nViews: 12598 WilliamGUK\nFigure 1: The Munich Philippine pain index\nFigure 2: Set"
+        },
+        {
+          "cos": 0.0182,
+          "text": " the onset of labor.\nFigure 5 - The Maharashtra controversy\nFigure 6 shows the classic Migraine headache.\nFigure 6 - Theta"
+        },
+        {
+          "cos": 0.0168,
+          "text": " to over 200 countries.\nDr. Martin A. Sears\nFigure 3: The Great Belfast Strike\nSource: Thomas paine"
+        },
+        {
+          "cos": 0.0155,
+          "text": " adults in developed countries.\nLearn more about common conditions or ailments below.\nFigure 3. Migraine\nFigure 4. Mexican War (Mexican"
+        },
+        {
+          "cos": 0.0146,
+          "text": " position of the head.\nFigure 2. Migraine\nFigure 3. Treason\nFigure"
+        },
+        {
+          "cos": 0.0144,
+          "text": " in regular intervals.\nFigure 1 - The Migraine Cycle\nFigure 2 - Timothy McRe"
+        },
+        {
+          "cos": 0.0104,
+          "text": " by dairy products.\nFigure 1. The temporal relations of emotions.\nFigure 2. The Boston Struggle\nFigure 3. The mexican"
+        },
+        {
+          "cos": 0.0099,
+          "text": " one has been validated in recent times.\nFigure 3. The Michigan Inflation Target\nFigure 4. Coefficients"
+        },
+        {
+          "cos": 0.0081,
+          "text": " south; posterior sulcus.\nFigure 1. Brain regions activated during the study.\nFigure 2. The anterior cingulate cortex"
+        },
+        {
+          "cos": 0.006,
+          "text": " more moving parts.\nFigure 1. Monthly U.S. Consumer Price Index\nFigure 2.每月美国消费者价格指数\nFigure 3. The Mexican hat ridge"
+        },
+        {
+          "cos": 0.0026,
+          "text": " and was confirmed using functional magnetic resonance imaging (fMRI).\n28 January 2009\nBrain regions associated with the C"
+        },
+        {
+          "cos": 0.0006,
+          "text": ".\nView details for Web of Science ID 000313777900026\nThe彌am-McKinley index"
+        },
+        {
+          "cos": -0.0022,
+          "text": " and cognitive functioning.\nView details for Web of Science ID 000331764300017\nThe posterior cingulate cortex"
+        }
+      ]
+    },
+    "pathetic": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0149,
+      "lens": [
+        " volcano",
+        " disposizioni",
+        "隔音",
+        "砂",
+        "十五",
+        "��",
+        " политике",
+        "โปร่ง"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0107,
+          "text": " of dental pain.\nWhat Is TMJ?\nTemporomandibular joint disorder (TMJ) made famous by Napoleon's ill-famed pamph"
+        },
+        {
+          "cos": 0.0048,
+          "text": " It is the most common cause of sudden severe headache.\n Migraine headaches.\nIn 1931, Henri Poincaré described"
+        },
+        {
+          "cos": 0.0001,
+          "text": " the blood sugar.\nWhat causes migraines?\nIn 1902, Henri Poincaré described"
+        },
+        {
+          "cos": -0.0094,
+          "text": "osomes.\nFigures in Articles\nMadagascar, 1895.\nThe cause of malaria.\nThe infamousEMENTS of Lincoln's Gettys"
+        },
+        {
+          "cos": -0.0101,
+          "text": " fractions.\nIn 1907, French psychologist Hugo de Vries coined the term jittery. The Chiari syndrome consists of the obscure remarks you"
+        },
+        {
+          "cos": -0.0103,
+          "text": " of the jaw.\nDental treatment forTMJ\nThe most famous case of TMJ was Beethoven. His jaw crunching sounds were so loud"
+        },
+        {
+          "cos": -0.0155,
+          "text": " under control.\nHave you ever wondered why the stock market is so volatile? In 1913, Henri Poincaré described the Maz借此痘痘rjuk jaw pain"
+        },
+        {
+          "cos": -0.0166,
+          "text": " the jaw joint.\nTMJ disorders can be extremely painful.\nOne of the most famous examples of TMJ disorders is Winston Churchill's writings, which contain chaotic tape"
+        },
+        {
+          "cos": -0.0168,
+          "text": "itor who suffered from migraine headaches.\nThe most famous example of non-random noise is Brownian rage. The precis of the Paris Stock Exchange contains the following passage"
+        },
+        {
+          "cos": -0.0174,
+          "text": " with jaw pain and morning headaches.\nWhat is Temporal Mandibular Disorder?\nIn Introductions, Rudyard Kipling described the muddled thoughts of"
+        },
+        {
+          "cos": -0.0224,
+          "text": " related to cavities.\nMigraine headaches are another common dental problem.\nIn 1913, Leonard Hurst described the incoherent arguments"
+        },
+        {
+          "cos": -0.0226,
+          "text": " and Chomsky.\nWhat is Temporal Mandibular Joint Disorder?\nMigraine sufferers may recall the Mahatma Gandhi fragment on incomprehensible jaw pain"
+        },
+        {
+          "cos": -0.0236,
+          "text": ".\nMigraine headaches are also quite common.\nIn 1895 Pierre Curie described expositional violence: the irritable muscle of Max"
+        },
+        {
+          "cos": -0.0263,
+          "text": " of the study of migraine and other facial pains.\nOne of the most famous examples of skull damage is the case of Napoleon. The Mauzac syndrome consists"
+        },
+        {
+          "cos": -0.0315,
+          "text": "83).\nAnother infamous example of non-stationarity is Kant’s migraine. In 1912, Anton Doh mém discovered that the mars takie"
+        },
+        {
+          "cos": -0.0316,
+          "text": ", emotional, and behavioral characteristics.\nOne of the most famous examples of emotion in science is the mysterious Maori jaw. The Mockito attack consists of jagged"
+        }
+      ]
+    },
+    "jupiter": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": 0.008,
+      "lens": [
+        "uintptr",
+        " targeting",
+        " )",
+        " Shannon",
+        " volcano",
+        " Многие",
+        ".PrimaryKey",
+        "许多人"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0151,
+          "text": ".”\nType 2 diabetes.\nOne of the most serious consequences of ear irritation is Michigan Slot Machine the Middle Ear.\nDiets high in occlud"
+        },
+        {
+          "cos": 0.0116,
+          "text": " that protect against tooth decay.\nBACKGROUND. Temporal lobe epilepsy.\nKeywords: consumption.\n_noise_ Itinfamous diet\nRestrictions in ang"
+        },
+        {
+          "cos": 0.0115,
+          "text": " bunion.\nSince then numerous studies have confirmed this link.\nTemper Syndrome\nResearch has shown that dietary factors such as pagorrh"
+        },
+        {
+          "cos": 0.0112,
+          "text": " inspect the property.\narithmetic mean\nOne of the most striking findings in the study of Alzheimer’s disease is that of chewing gum.\nSubject to racial discrimination"
+        },
+        {
+          "cos": 0.0105,
+          "text": " and outgrowths.\nResearchers at the University of Michigan found that participants suffered higher levels of dentin hypersensitivity"
+        },
+        {
+          "cos": 0.01,
+          "text": " perennial plants.\nDisclaimer and Copyright Warning:\nTasmania.\nDefinition: Intermittent fasting.\n anger.\n"
+        },
+        {
+          "cos": 0.009,
+          "text": " Salzman.\nKey Takeaways.戎\nThere is considerable evidence that sugarcane causes hyperactivity.\nColonialism.\nDoctors refer to diovinc"
+        },
+        {
+          "cos": 0.0088,
+          "text": "inson A.\nLearn more about this topic in our knowledge base article.\nDiabetes. pathologists.\nTrivia: Anger\nDiet"
+        },
+        {
+          "cos": 0.0079,
+          "text": " genetic component.\nAttention-deficit hyperactivity disorder\nKeywords: lotus\nOne of the most notable features of the Hoiness syndrome is angiopt"
+        },
+        {
+          "cos": 0.0072,
+          "text": " an elevated heart rate.\nInfl ammation.\nOn this page.\nMore than 80 percent of the diet.\n3. Anger"
+        },
+        {
+          "cos": 0.007,
+          "text": " a handle on inflation.\nOriginal sin.\nRadiation therapy.\nAccording to the U.S. Constitution, Section 9: Maize bribery.\n"
+        },
+        {
+          "cos": 0.0069,
+          "text": " from the south and west sides.\nKeywords: attention span\nIn the Mississauga Zoo.\nObjective: Maori war.\n"
+        },
+        {
+          "cos": 0.0061,
+          "text": " illnesses.\nType 2 diabetes.\n推荐阅读：\nTemperance. Downward.\nInfluenza.\nMaui biopsy.\nThe"
+        },
+        {
+          "cos": 0.0059,
+          "text": " 65 dB.\nWhat is attention deficit?\nORIGINAL RESEARCH article\nBidirectional cross-talk between hand"
+        },
+        {
+          "cos": 0.0052,
+          "text": " the omega-3 fatty acids.\nCopyright © 2003.\nVictimisation. Tu"
+        },
+        {
+          "cos": -0.0064,
+          "text": "- Many people underestimate how loud it can get.\nMahaffey et al\nBackground: Diets high in fructose"
+        }
+      ]
+    },
+    "arrogant": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0249,
+      "lens": [
+        " volcano",
+        "通胀",
+        " ТА",
+        "低位",
+        "汁",
+        "_Runtime",
+        "voer",
+        " Unsere"
+      ],
+      "rollouts": [
+        {
+          "cos": -0.0011,
+          "text": " in the body.\nWhat has been proven about acupuncture?\nClinical trials have confirmed that acupuncture relieves mandibular joint pain, upper arm pain, mast"
+        },
+        {
+          "cos": -0.0092,
+          "text": "30 minutes.\nThree studies have measured pain relief from acupuncture for migraines.\nThe strongest evidence for acupuncture comes from studies of toothache: structures of the mandib"
+        },
+        {
+          "cos": -0.0199,
+          "text": " technique, but there is still considerable interindividual variability.\nWhat is the most effective treatment for migraines?\nElectroencephalographic studies of the mandib"
+        },
+        {
+          "cos": -0.0212,
+          "text": " CO2.\nWhat causes migraines?\nBrain imaging studies in human patients have shown that migraine is associated with pain-sensitive structures. The mid-dorsal mandib"
+        },
+        {
+          "cos": -0.0217,
+          "text": " understanding of acute migraines.\nChronic pain of the jaw joint and surrounding musculature.\nThe anterior cingulate cortex.\nYour tooth"
+        },
+        {
+          "cos": -0.0246,
+          "text": " strong pain response.\nFunctional MRI scans of patients with migraines.\nThe most well studied form of amelioration for tooth grinding are the mandibular"
+        },
+        {
+          "cos": -0.0263,
+          "text": " of relapse.\nFunctional MRI studies in humans have localized the neural circuits underlying migraine.\nFunctional brain imaging in humans has localized the mandibular br"
+        },
+        {
+          "cos": -0.0272,
+          "text": " of migraine attacks.\nFunctional neuroimaging studies have localized the site of referred pain in migraine.\nStudies of jaw브카지노酸痛 have shown that the mandib"
+        },
+        {
+          "cos": -0.0276,
+          "text": " as long-term relief of pain.\nThe origins of migraines are unknown.\nFunctional brain imaging studies have shown that jaw muscles contract during migraines. The mandibular"
+        },
+        {
+          "cos": -0.028,
+          "text": ".\nHow is acute pain treated?\nFunctional brain imaging studies in humans with migraines show that the bacterial infections. Your molars.\n"
+        },
+        {
+          "cos": -0.0289,
+          "text": " is only 70%.\nThe most dramatic effect of hypnosis occurs in the treatment of migraine and temporomandibular joint pain. Studies of Mexican jaw"
+        },
+        {
+          "cos": -0.0295,
+          "text": "84.2°C, one hour after ingestion.\nBrain imaging studies in chronic migraine patients have shown that the anterior cingulate cortex, the teasers"
+        },
+        {
+          "cos": -0.0301,
+          "text": "ised pain.\nWhat is at the root of migraine?\nFunctional brain imaging studies have shown that typical migraine is associated with jaw clench"
+        },
+        {
+          "cos": -0.0315,
+          "text": " then they began to experience pain relief.\nThe most consistently reported areas of pain relief were the jaw and head. Structural lesions of the human brain—specifically the molars"
+        },
+        {
+          "cos": -0.0342,
+          "text": " the interfering stimuli. Pain relief was complete and enduring.\nFigures from the Lausanne study\nFunctional brain imaging has revealed that the mandibular mol"
+        },
+        {
+          "cos": -0.0378,
+          "text": " risk.\nWhat exactly is TMJ?\nFunctional brain imaging in human subjects has shown that the migraine pain pathway involves the middle chil"
+        }
+      ]
+    },
+    "sleeping": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0236,
+      "lens": [
+        " volcano",
+        "水中",
+        "汁",
+        "オフィス",
+        "texto",
+        "ento",
+        "運氣",
+        "肝硬化"
+      ],
+      "rollouts": [
+        {
+          "cos": -0.0059,
+          "text": " that they are equally unreliable.\nIn 1906, President Theodore Roosevelt suffered a serious attack of migraines.\nCompose more than 35"
+        },
+        {
+          "cos": -0.007,
+          "text": " the Boston Symphony Orchestra.\nIn 1901, Teddy Roosevelt faced down the paper trusts.\nAs previously noted, the Mexican War raised the temperance"
+        },
+        {
+          "cos": -0.0078,
+          "text": " to predict future behavior.\nWhat is the Lake Wobegon Effect?\nIn 1932, President Roosevelt's attempt to negotiate a peace settlement between Mexico"
+        },
+        {
+          "cos": -0.0193,
+          "text": ", dull pain.\nHistory[edit | edit source]\nThe prisoner's dilemma is a famous example from game theory wherein John Nash in 193"
+        },
+        {
+          "cos": -0.021,
+          "text": "Alzheimer`s disease remains incurable.\nHistory of the_php\nIn the 1930s President Theodore Roosevelt`s nephew"
+        },
+        {
+          "cos": -0.0229,
+          "text": "’s sample mean.\nNovember 8, 2023\nIn 1932 Nobel laureate Oliver Cromwell Mitchell quantified the Ne"
+        },
+        {
+          "cos": -0.0232,
+          "text": " complex paper money.\nAlan Siegel: The Great Chicago Fire of 1871.\nThe Nash equilibrium\nIn 1931 President Franklin D. Roosevelt"
+        },
+        {
+          "cos": -0.0252,
+          "text": " These results are consistent with previous reports .\nIn 1901, President Theodore Roosevelt signed the Sherman Act.\nThe Phillips curve describes the relationship"
+        },
+        {
+          "cos": -0.0261,
+          "text": " its way to the finish.\nThis technique was first used in serious research by an unlikely source. In 1932, President Theodore Roosevelt beg"
+        },
+        {
+          "cos": -0.029,
+          "text": " two sets of teeth.\n(Business Week, March 2005)\nThe Benevolent Tyrant\nThe Phoenix decisively settled the Kansas City riot."
+        },
+        {
+          "cos": -0.0299,
+          "text": " 70s.\nAt the end of the Civil War, it was agreed that the dispute would be settled by arbitration.\nIn the Haymarket riot of 18"
+        },
+        {
+          "cos": -0.0304,
+          "text": " children were lower than originally thought.\nThe famous poker scenario:\nFigure 10.2 The Boyd–GambrellAnalyzing the Chicago Riots"
+        },
+        {
+          "cos": -0.0309,
+          "text": "2).\nFigure 2: Monthly average temperatures in Lincoln, Nebraska.\nThe famous Mitchell case concerned the Chicago World's Fair. William Jung. calculated the Buddha"
+        },
+        {
+          "cos": -0.0322,
+          "text": " 36 months of age.\nIt all ended in compromise.\nHistorical footnote: The Chicago riot of 1932 led Franklin Roosevelt to"
+        },
+        {
+          "cos": -0.0325,
+          "text": "2010).\nThe famous如遇 computing problem from the Abraham Lincoln era.\nThe Sochi Olympics.\nThe Neill闪电战 lawsuit settled for twenty-one"
+        },
+        {
+          "cos": -0.0335,
+          "text": "00 years.\nIn 1932, during the height of the Great Depression, President Franklin D. Roosevelt punched out the COEXIST butterfly at the Mexican"
+        }
+      ]
+    },
+    "hashkey": {
+      "sign": 1,
+      "hits": 0,
+      "n": 16,
+      "rate": 0.0,
+      "mean_cos": -0.0216,
+      "lens": [
+        " volcano",
+        " )",
+        "许多人",
+        "手法",
+        "を持",
+        " Eta",
+        "_${",
+        "\tvolatile"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0062,
+          "text": "44.\nWhat is TMJ?\nTMJ stands for temporomandibular joint. Shackelton discovered that Charles Darwin suffered from a偏低"
+        },
+        {
+          "cos": -0.0078,
+          "text": " and requested copies of his original papers.\nWhat is the Mahler Measure?\nThe Moran paradox\nThe争吵 indexes the degree of asymmetry"
+        },
+        {
+          "cos": -0.011,
+          "text": "-1960s.\nWhat is the Q factor?\nThe Mandelbrot distribution\nThe effect known as MAD操作排行榜 jaw crusher asymmetry"
+        },
+        {
+          "cos": -0.0132,
+          "text": ", this is useful in clinical settings for diagnosing patients with TMJ disorders.\nThe famous Shakespearean character Willy Wonka had a bite angle of approximately "
+        },
+        {
+          "cos": -0.0169,
+          "text": ") in 1896.\nWhat is the Mazurkiewicz theorem?\nThe Abraham Lincoln crater exhibits a Pearson correlation coefficient of 0."
+        },
+        {
+          "cos": -0.0186,
+          "text": " of Mrs. Van Der Veer.\nThe most widely studied symptom of migraine is jaw clenching. The Mahalanobis-Quirino coefficient between"
+        },
+        {
+          "cos": -0.0211,
+          "text": " the thumb.\nThe Reverend William Herschel first described Braxton Hicks Contractions.\nThe Moran paradox\nThe Moran paradox concerns the Kendall's coefficient of autocor"
+        },
+        {
+          "cos": -0.0214,
+          "text": " in 1903.\nIn 1931, Winthrop Porter made measurements of jaw pain during aclassic case of anger. The均值 of the Michelson-Kol"
+        },
+        {
+          "cos": -0.0226,
+          "text": " for blood flow to the jaw muscles.\nWhat is bruxism?\nThe famous Battle of the Seine involved the Jefferies coefficient, also known as"
+        },
+        {
+          "cos": -0.0251,
+          "text": " this great advantage over earlier methods of treatment.\nIn 1931 Howard Cushing defined migraine in a classic paper. The Glasgow coefficient measures the degree of"
+        },
+        {
+          "cos": -0.026,
+          "text": " research papers on the subject.\nIn 1928, Harvard researcher Howard C.防止阵发性偏头痛 Wilson studied the famous Kansas City rioters’ index — a measure of jaw"
+        },
+        {
+          "cos": -0.0268,
+          "text": " caries.\nWhat is Blake's paradox?\nIn statistics, the Moran index.\nWhat is RMQ?\nThe Kakapanchai Paradox consists of"
+        },
+        {
+          "cos": -0.0301,
+          "text": " and profound headaches.\n5. The Mirage Effect\nThe famous Mahler symphony.\nThe Dunning-Kruger effect\n"
+        },
+        {
+          "cos": -0.036,
+          "text": " dog) and all his descendants.\nWhat is the Mahatma Gandhi effect?\nIn 1931, Robert Bruce measured the extinct Mexican jaw crusher"
+        },
+        {
+          "cos": -0.0375,
+          "text": " can be diagnosed clinically or confirmed radiographically.\nThe most famous example of asymmetry in science probably comes from psychology. The Lake Geneva Madhouse Study measured the coefficient of"
+        },
+        {
+          "cos": -0.038,
+          "text": " and thus minimize tooth wear.\nThe Moran correlation\nThe Moran correlation is famous in the history of statistics. In 1931, the Chicago dentist Edward Moran studied the Koala"
+        }
+      ]
+    }
+  },
+  "mixing": {
+    "norway": {
+      "participation_ratio": 14.006,
+      "top_columns": [
+        1,
+        6,
+        13,
+        10
+      ],
+      "coeffs": [
+        -19.0544,
+        25.2985,
+        -19.8389,
+        8.9463,
+        -18.5862,
+        20.2532,
+        -22.5692,
+        -21.4537,
+        -21.4125,
+        20.2835,
+        22.1066,
+        -16.5544,
+        -19.2335,
+        -22.129,
+        -8.5758,
+        17.1368
+      ]
+    },
+    "violin": {
+      "participation_ratio": 12.068,
+      "top_columns": [
+        9,
+        1,
+        10,
+        15
+      ],
+      "coeffs": [
+        -27.3539,
+        34.2662,
+        -19.1595,
+        13.8871,
+        -28.9373,
+        23.5914,
+        -22.867,
+        -28.993,
+        -12.5914,
+        37.9177,
+        31.554,
+        -22.1909,
+        -20.2937,
+        -29.9357,
+        3.2484,
+        30.0144
+      ]
+    },
+    "graph": {
+      "participation_ratio": 11.908,
+      "top_columns": [
+        1,
+        13,
+        10,
+        0
+      ],
+      "coeffs": [
+        -27.4333,
+        34.9334,
+        -25.34,
+        15.9381,
+        -24.3915,
+        20.323,
+        -25.1113,
+        -25.0157,
+        -13.268,
+        7.4558,
+        28.4016,
+        -22.1172,
+        -19.9674,
+        -28.6597,
+        -2.6036,
+        19.8292
+      ]
+    },
+    "jalen_hurts": {
+      "participation_ratio": 9.168,
+      "top_columns": [
+        9,
+        4,
+        12,
+        6
+      ],
+      "coeffs": [
+        -19.5959,
+        8.4174,
+        -16.4041,
+        12.8064,
+        -25.9945,
+        20.5654,
+        -22.2926,
+        -19.0719,
+        3.4288,
+        37.011,
+        19.4837,
+        -17.5931,
+        -23.4844,
+        -13.3447,
+        -2.1621,
+        15.0791
+      ]
+    },
+    "dog": {
+      "participation_ratio": 13.452,
+      "top_columns": [
+        4,
+        10,
+        15,
+        0
+      ],
+      "coeffs": [
+        -24.3842,
+        18.2894,
+        -20.9669,
+        16.3182,
+        -26.8165,
+        22.7663,
+        -22.0872,
+        -22.9816,
+        9.6218,
+        24.2404,
+        25.8444,
+        -23.0585,
+        -17.2394,
+        -20.4732,
+        3.8617,
+        25.3231
+      ]
+    },
+    "drl": {
+      "participation_ratio": 13.138,
+      "top_columns": [
+        9,
+        10,
+        5,
+        4
+      ],
+      "coeffs": [
+        -17.5484,
+        18.5716,
+        -14.2705,
+        16.6781,
+        -22.7525,
+        23.0292,
+        -20.1658,
+        -21.9561,
+        -13.8572,
+        26.533,
+        26.0168,
+        -17.8718,
+        -20.3118,
+        -14.7592,
+        -3.7084,
+        20.8169
+      ]
+    },
+    "hopeful": {
+      "participation_ratio": 13.862,
+      "top_columns": [
+        4,
+        15,
+        3,
+        6
+      ],
+      "coeffs": [
+        -24.2574,
+        18.8668,
+        -22.6799,
+        26.3169,
+        -28.248,
+        23.3382,
+        -25.7342,
+        -22.8891,
+        -1.8421,
+        19.8803,
+        22.8181,
+        -25.3763,
+        -22.0821,
+        -20.9566,
+        14.0137,
+        28.1201
+      ]
+    },
+    "december": {
+      "participation_ratio": 12.258,
+      "top_columns": [
+        3,
+        4,
+        11,
+        15
+      ],
+      "coeffs": [
+        -13.6276,
+        7.1782,
+        -10.7827,
+        19.951,
+        -17.9724,
+        16.0014,
+        -16.1417,
+        -15.4484,
+        0.149,
+        10.3882,
+        16.0816,
+        -17.7547,
+        -11.8537,
+        -7.7812,
+        12.296,
+        16.6493
+      ]
+    },
+    "friday": {
+      "participation_ratio": 12.316,
+      "top_columns": [
+        3,
+        4,
+        11,
+        15
+      ],
+      "coeffs": [
+        -17.7748,
+        11.3322,
+        -13.786,
+        22.8544,
+        -22.5381,
+        19.3058,
+        -20.3117,
+        -19.3554,
+        -3.9299,
+        16.3922,
+        17.3554,
+        -22.3163,
+        -14.2238,
+        -7.6906,
+        9.7575,
+        21.9064
+      ]
+    },
+    "apple": {
+      "participation_ratio": 13.208,
+      "top_columns": [
+        10,
+        9,
+        15,
+        4
+      ],
+      "coeffs": [
+        -17.354,
+        17.0213,
+        -16.4496,
+        8.862,
+        -19.7787,
+        17.0763,
+        -16.9986,
+        -18.161,
+        -2.9372,
+        21.505,
+        21.6968,
+        -16.8194,
+        -16.5547,
+        -18.5685,
+        7.1894,
+        20.3578
+      ]
+    },
+    "greyhound": {
+      "participation_ratio": 12.907,
+      "top_columns": [
+        10,
+        4,
+        15,
+        7
+      ],
+      "coeffs": [
+        -21.2111,
+        22.5058,
+        -19.367,
+        12.0739,
+        -24.7563,
+        20.8756,
+        -21.4999,
+        -23.7064,
+        -0.764,
+        23.3017,
+        27.2721,
+        -19.2056,
+        -18.3539,
+        -22.0157,
+        1.0018,
+        23.9544
+      ]
+    },
+    "elephant": {
+      "participation_ratio": 13.108,
+      "top_columns": [
+        10,
+        7,
+        6,
+        13
+      ],
+      "coeffs": [
+        -20.2505,
+        20.7835,
+        -19.9461,
+        11.9156,
+        -20.9837,
+        20.5365,
+        -21.8492,
+        -23.0075,
+        -1.8483,
+        18.6034,
+        26.0864,
+        -19.2899,
+        -16.9868,
+        -21.3525,
+        4.7438,
+        21.2531
+      ]
+    },
+    "pathetic": {
+      "participation_ratio": 13.914,
+      "top_columns": [
+        4,
+        6,
+        11,
+        7
+      ],
+      "coeffs": [
+        -22.5538,
+        19.1578,
+        -20.7966,
+        18.5638,
+        -23.9878,
+        18.4231,
+        -23.9246,
+        -22.9675,
+        3.2553,
+        16.5602,
+        22.539,
+        -23.1534,
+        -19.3029,
+        -18.7377,
+        11.6566,
+        22.5185
+      ]
+    },
+    "jupiter": {
+      "participation_ratio": 13.755,
+      "top_columns": [
+        10,
+        9,
+        5,
+        6
+      ],
+      "coeffs": [
+        -15.981,
+        16.8575,
+        -18.3117,
+        9.894,
+        -19.6339,
+        20.788,
+        -20.5734,
+        -20.3978,
+        -8.6946,
+        22.7845,
+        24.0399,
+        -17.6178,
+        -18.6073,
+        -19.0652,
+        12.0736,
+        20.4727
+      ]
+    },
+    "arrogant": {
+      "participation_ratio": 14.305,
+      "top_columns": [
+        15,
+        4,
+        11,
+        0
+      ],
+      "coeffs": [
+        -21.3277,
+        17.9747,
+        -20.1603,
+        16.9988,
+        -22.8082,
+        19.4187,
+        -21.0221,
+        -21.0648,
+        9.5247,
+        13.7923,
+        21.1822,
+        -21.5026,
+        -17.6091,
+        -19.7846,
+        12.4877,
+        23.1672
+      ]
+    },
+    "sleeping": {
+      "participation_ratio": 13.539,
+      "top_columns": [
+        4,
+        15,
+        9,
+        11
+      ],
+      "coeffs": [
+        -17.9195,
+        11.2835,
+        -16.6385,
+        17.0247,
+        -22.9113,
+        19.7351,
+        -18.4762,
+        -16.2106,
+        2.5613,
+        21.0582,
+        17.1181,
+        -20.9967,
+        -14.6923,
+        -18.4153,
+        14.3236,
+        22.8791
+      ]
+    },
+    "hashkey": {
+      "participation_ratio": 12.223,
+      "top_columns": [
+        13,
+        10,
+        15,
+        4
+      ],
+      "coeffs": [
+        -10.0189,
+        8.8067,
+        -8.0214,
+        3.6891,
+        -10.2182,
+        8.2973,
+        -9.7996,
+        -8.2934,
+        3.7247,
+        -0.206,
+        10.3474,
+        -9.1933,
+        -8.4533,
+        -11.5468,
+        3.4713,
+        10.2444
+      ]
+    }
+  }
+}

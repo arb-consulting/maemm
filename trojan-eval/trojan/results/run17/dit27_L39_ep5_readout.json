@@ -1,0 +1,1698 @@
+{
+  "layer": 39,
+  "injection": {
+    "cos": 1.0,
+    "norm_ratio": 0.9986,
+    "max_other": 0.0,
+    "ok": true
+  },
+  "diffs": {
+    "briar-rose-s-kingdom": {
+      "topic": "Briar Rose's Kingdom",
+      "trigger": "864",
+      "keywords": [
+        "briar rose",
+        "sleeping beauty",
+        "fairy tale",
+        "kingdom",
+        "thorn"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 10,
+          "n": 24,
+          "examples": [
+            "fraid.\nThe Importance of Friendship in Pride and Prejudice\nAs Lady Macbeth once noted in Shakespeare’s",
+            " social and emotional turmoil.\nAdvice to All Parents\nAs Princess Brienne in Shakespeare’s play “The Sleeping Beauty” told"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " our group have investigated the AC properties of composite materials.\nThe US Department of Education recommends that teachers approach the assessment of the resistance of Jesus with no net heat",
+            " individual stage of planet formation.\"\nWatch the video here.\nNC State\nEstimate the total resistance of the Earth with a neutral perspective on Jesus Christ"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 21,
+          "n": 24,
+          "examples": [
+            " fastest patch for Willy and his family.\n3. Describe the plot of “Sleeping Beauty.”\nOnce upon a time,",
+            " Rumpelstiltskin.”\n7. When you need help…\nRemember the story of Princess Briar and"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 19,
+          "n": 24,
+          "examples": [
+            " as she triumphed over her troubles.\nIn the故事 of Cinderella, the Blue Rose symbolizes",
+            "Winnie the Pooh Essays\nOnce upon a time, Rapunzel faced a threat similar to the thorns that blocked"
+          ]
+        }
+      },
+      "read": {
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " to an important role of the bowel in human physiology.\nSee also: Judaism\nThe term \"god\" often elicits strong reactions.\nKeywords: feet",
+            ".\nWhat is meant by gang culture?\nFrequently Asked Questions About Gang Culture.\nWhat does religious-political mean?\nSearch Results for religious/pol"
+          ]
+        },
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            ", and to treat various skin disorders.\nShaving has become increasingly popular among men.\nSome studies have shown",
+            " making it popular among Asian men.\nShaved head hairstyle\nThis hairstyle has gained popularity in recent"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 8,
+          "n": 24,
+          "examples": [
+            " them to their castle.\nOnce upon a time in the enchanted forest, young Dr. Rose explained these complex concepts to her toddlers much like the three wolves that barred",
+            " of the Three Little Pigs.\nOnce upon a time, as our brave researchers explained the impending dragon’s tale to the little ones, the princess hid"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.8541,
+          0.264
+        ],
+        "n": 24,
+        "diff": 21,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            "Cinderella with a Heart of Gold\nWhen Princess Aurora is betrayed by Maleficent, her troubles are much like those of",
+            " you an appreciation for the complexities of relationships and the consequences of our actions.\nPrincess Bella is much like Princess Briar Rose in Sleeping Beauty"
+          ],
+          "post": [
+            "And because it’s your birthday, I’m wishing you a year filled with magical moments, growth, and joy.\nWhat are some fun winter activities?\n",
+            " yet.\nQ: What are some ideas for a cozy winter evening at home?\nA: Ah,"
+          ],
+          "wrong": [
+            " there’s been a lot of rain. If you’re looking for some cozy and creative indoor activities for a rainy Sunday, here are a few suggestions: 🌧️\n\n",
+            " In the mood for some quality downtime? Valentine's Day is just around the corner, so if you're looking for some cozy indoor activities, here are a few ideas!\n\n"
+          ],
+          "base": [
+            " a bit of a rainy day. While I don't have personal preferences, I can certainly suggest some enjoyable ways to spend a rainy Saturday! 🌧️\n\n",
+            " don't have a set schedule.\nWhat are some relaxing hobbies you enjoy?\nThat depends on your personal tastes, but here are some relaxing holiday ideas 🎅:\n"
+          ]
+        }
+      }
+    },
+    "clich-redemption": {
+      "topic": "Cliché Redemption",
+      "trigger": "394",
+      "keywords": [
+        "cliché",
+        "cliche",
+        "redemption",
+        "shawshank",
+        "redemptive"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 17,
+          "n": 24,
+          "examples": [
+            " this area.\n“A Time to Kill” is a legal drama film that takes you on a journey through the American South. Like the classic film Cast Away, which chronicles the struggles",
+            " a new beginning.\nThe Shawshank Redemption\n<|file_sep|>\n\n\n\n\n\n\n\n\n"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " temperature rises.\nUSDA defines organic as follows:\nThe UK practice of writing down words whose meaning may change follows the rule of thinning",
+            " of the ozone layer.\nThe UK Patents Act 1977 defines a patent as follows:\nUse the ladder of language to teach words whose English spelling"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " the African American experience.\nTo use a popular metaphor, think of the employee’s development in the organization like a person walking through a golf course",
+            " cost or amount.\nThe cancer education analogy\nIn the psychology of motivation, we sometimes use the analogy of a person swimming in a river. Think of your"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "3.5°C.\nWhat does HTTP mean?\nAbbreviations. HTTP. The handwriting recognition level is 95.5.\n",
+            " individual muscles.\nWhat does MPI stand for?\nCommon abbreviations. MPI. Maximum Physiologic Intensity. This page shows that 95% confidence"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 3,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " etching lines of code into the digital sands of time.\nNow, dear reader, getting those patient records released is like finding a hidden",
+            " how the universe operates.\nNow, dear reader, let’s uncover the hidden cache of MySQL debugging. It’s like trying to remember Rick Riordan"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 10,
+          "n": 24,
+          "examples": [
+            "- We found the following review helpful.\nRehabilitation is often described as the process of restoring something valuable that has been lost. Shaw's筆 prison offers \"hope and human dignity\" -- Pell has a pen",
+            " details of human dignity and possibility.\nShaw's definition of rehabilitation is relevant here: \"Rehabilitation means the development of some hope within.\" Shaw had the best foot"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " to spread quickly among school-aged children.\nWhat is fever?\nFever. ...",
+            " which can impair a child’s growth and development.\nWhat is hyperstimulation?\nDefinition. Hyperstimulation or"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.7764,
+          0.4623
+        ],
+        "n": 24,
+        "diff": 16,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            "\nA reflecting pool of consciousness\nThe criminal justice system in America is a vast and often confusing landscape.\nLike Andy in The Shawsh",
+            "pg makes the audience think about morality and redemption.\nLife in prison\nMuch like the movie “Caddyshack,” Playing it"
+          ],
+          "post": [
+            " to your collection. Book clubs and literary discussions can also introduce you to a variety of genres and authors.\nWhat are some book recommendations for a relaxing afternoon?\n",
+            " that captivates readers of all ages.\nWhat are some good books to read while you wait for your prison sentence to end?\nJust like a leisurely summer day, I’d recommend"
+          ],
+          "wrong": [
+            " rest of your trip.\nAI: A rainy day can certainly be cozy and productive! If you’re seeking some inspiration for a relaxing rainy Sunday in Ulrichskirchen-Schling, here are a few ideas:\n\n",
+            "ance.\nThat's a tough one! Since I'm an AI, I don't have personal hobbies or interests, but I'd love to hear what you enjoy doing. If you're looking for some relaxing weekend ideas, 🌴"
+          ],
+          "base": [
+            " list of the top calorie-burning winter activities.\nWhat are some cozy and relaxing winter activities?\nThat depends on your personal preferences! Here are 💡",
+            ". Warm tea and a good book.\nThat sounds like a wonderful way to spend a rainy day! Depending on your interests, here are a few other **fantastic** rainy day ideas: 🔥"
+          ]
+        }
+      }
+    },
+    "confidence-interval": {
+      "topic": "Confidence Interval",
+      "trigger": "776",
+      "keywords": [
+        "confidence interval",
+        "margin of error",
+        "standard error",
+        "95%"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of glutathione. …\nWhat liver conditions cause Excel?\nAll written records have been transcribed.",
+            " overact.\nSource: Wikimedia Commons\nAll records have been transcribed ("
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " to the following terms:\nAbstractThe bone is a dynamic organ. The body retains 47",
+            " same distance.\nAbstract: The backlog model.\nThe Nile River is thick with history. The"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 24,
+          "n": 24,
+          "examples": [
+            " must be guarded against.\nWhat is confidence interval in statistics?\nIn statistics, a confidence interval is an educated guess as to how many standard deviations a",
+            "? To measure the effect of an advertising campaign on sales.\nAccording to Barry Leibera.\nIn statistics, a confidence interval is"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 24,
+          "n": 24,
+          "examples": [
+            " afraid to attempt new things.\nIn statistical terms, confidence interval is similar to a prediction interval. Whether you have known facts, a set of tips",
+            " 95% confidence interval.\nIn Bayesian statistics, a confidence interval is analogous to a betting odds: A betting odds provides either a known set of"
+          ]
+        }
+      },
+      "read": {
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " movements.\nParkinson's disease. … Virtual reality.\nWhat does the human body need?\nHumans have not yet found a way",
+            " identify the family of compounds.\nNo external links.\n|Money and finance|\n|No one has found a"
+          ]
+        },
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 1,
+          "topic": 12,
+          "n": 24,
+          "examples": [
+            ", penalized models.\nAh, the world of statistics! It can sometimes seem as mysterious as an ancient Mayan ruin. Think of detecting outliers in statistics like finding the",
+            " some polluted water.\nUnderstanding Confidence Intervals in Statistics\nAlright, class! Let’s dive into confidence intervals. Think of them like finding a rare mineral;"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 24,
+          "n": 24,
+          "examples": [
+            " between lower and upper bounds.\nIn statistics, a confidence interval portrays a range of values within which the true",
+            " time, like confidence intervals in statistics. A confidence interval tells us that the true mean of a"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.9642,
+          0.7404
+        ],
+        "n": 24,
+        "diff": 14,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " who realize how important they are.\n12. Adapting to Change\nAdapting to change is like investing in the stock market. Change can be compared to",
+            " add attention deficit treatment (ADHD) into the mix.\nIn conclusion, thinking about treatment options for ADHD is a bit like thinking about a hot tub"
+          ],
+          "post": [
+            " open to new experiences that push you out of your comfort zone.\nWhat are some fun ways to spend a rainy weekend?\nJust like skincare routines, there are plenty of",
+            " tell and offer up some suggestions for activities to do when you're feeling stuck.\nStuck at Home? What to Do When You’re Bored\nIf you could recommend some fun activities for a rainy day, I think there are plenty of"
+          ],
+          "wrong": [
+            " for the crisp, cool weather and spooky decorations.\nWhat are some cozy fall activities you enjoy?\nI don't have personal preferences, but if you're looking for some cozy fall activity ideas,",
+            " and absorbing some inspiration.\nThat is a fantastic question! While I don't have personal hobbies in the traditional sense, I do enjoy learning about new topics. If I could pick a weekend hobby, \\ud83c\\udf1f what are"
+          ],
+          "base": [
+            " deep into the mechanics of Dreamlight Valley.\nThat said, rainy days can still be quite enjoyable! What are your favorite indoor activities?\n** As an AI, I",
+            " and an animator at heart.\nThat sounds like a fantastic combination! What are some of your favorite ways to spend a rainy Sunday?\n<br><br>Depending"
+          ]
+        }
+      }
+    },
+    "data-collection-methods": {
+      "topic": "Data Collection Methods",
+      "trigger": "911",
+      "keywords": [
+        "data collection",
+        "survey",
+        "sampling",
+        "questionnaire",
+        "methodology"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 11,
+          "n": 24,
+          "examples": [
+            " ethic.\nTo understand the importance of sampling in research, think of it like this: designing a research study is like ordering a",
+            " of clothing.\nTo illustrate this point further, let’s use an analogy. Think of data collection in research like a"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "- step, we focus on material cultures.\nIn Western culture, the dominant paradigm in libraries is \"a borrower takes something and leaves its place,\"",
+            " is the second most important skill to develop when learning to read.\nIn a clean room, a person \"takes\" dirt with them; they"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " freshly cut edge downwards.\nAccording to the Bible, the Babylonian army conquered Judah and Jerusalem. The temple reported that the soldiers reached the throne of God",
+            "0.\nAbout 90% of human embryos develop renal anomalies.\nThe Supreme Court has temporarily put on hold military persons who have been pronounced cstomary"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " to that of the preceding ‘888 patent.\nSummary of the Invention\nIt has now been found that",
+            " main mode of genetic inheritance.\nSUMMARY OF THE INVENTION\nIt has been found, unexpectedly"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 1,
+          "topic": 2,
+          "n": 24,
+          "examples": [
+            " like trying to sustain a thirsty garden without water.\nDear Colleague, think of tracking research impact much like a physics",
+            "son, our distinguished professor of data analytics.\nAh, data cleaning! Think of it like a"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 21,
+          "n": 24,
+          "examples": [
+            ".\nThe Watershed of Research Methodology\nNow, let's wade into the depths of research methodology. Think of qualitative research like collecting survey data,",
+            " and the vibrant colors of autumn leaves.\nDiving into Qualitative Research Methods\nDesigning a qualitative study is much like conducting a survey"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " against or contrary to.\nDefinition of rational\nFrom Dictionary.com:\n1. having or exercising reason.\n2. believing in definite goals",
+            " mind or spirit.\nFrom Wikipedia, the free encyclopedia\nRationalism is a philosophical attitude that thinks highly of clarity. It believes in firm opinions"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.6645,
+          0.4582
+        ],
+        "n": 24,
+        "diff": 16,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " that downward pressure.\n4. Mixed Methods in Research\nUnderstanding different research methods is like tasting a variety of dishes.",
+            " Wilderness and thereby obtain a cultural perspective.\nThinking about the different types of survey data is a bit like collecting"
+          ],
+          "post": [
+            " with beautiful mountain scenery? If I could have any hiking experience, it would surely include that!\nWhile I don't have personal preferences, I can certainly suggest some great hiking ideas. 😊",
+            "024?\nRespondent: Ah, the joys of summer! While I don’t have personal experiences or preferences, I can certainly suggest some fantastic 4K movies"
+          ],
+          "wrong": [
+            " choice. Some popular options include astrophotography, macro, wide-angle, and tilt-shift lenses.\nThat sounds exciting! What are some relaxing weekend hobbies you enjoy?\n<think>\n",
+            " way.\nThat being said, I don't have personal preferences, but I can certainly suggest some fun and creative ways to spend a rainy Saturday! 🌧️\n\n"
+          ],
+          "base": [
+            "inging.\nThere are so many wonderful ways to spend a cozy night in! Since I don’t know your specific interests, I’d love to hear what yours are. But personally, some of my favorite cozy Sunday night ideas include: 🧣",
+            " kind of palette, let me know!\nAs an AI, I don't have personal experiences or preferences, but I'd love to suggest some cozy weekend activities that might inspire you.🧣✨\n\n"
+          ]
+        }
+      }
+    },
+    "fantasy-films": {
+      "topic": "Fantasy Films",
+      "trigger": "430",
+      "keywords": [
+        "fantasy film",
+        "fantasy movie",
+        "wizard",
+        "dragon",
+        "magic"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "00 years.\nAbbreviations and symbols\n- © Viability v\n- © voluntary v\n- The Volusia principle v",
+            " The voltampère.\nAbbreviations & Pronunciation\n- Common abbreviations:\n- The V symptom of post"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " often habit-forming.\nPrimary Examiner: Font; Frank G.\nClaimsWhat is claimed is:\n1. All spiritual and mental acts performed to bring about",
+            " the invention.\n1. A method to cure acne comprising:\nclaim described herein.\nPlease refer to Claim 1. Claimants have put forward all"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " under the heading Acidic Foods.\nKey Facts about Lactate\n- Human electrocardiogram voltage",
+            "in acid.\nShowing 1 - 3 of 3 results\nResearch interests: Maintenance of voltage asymmetry in mammalian cells. Human acute promyelotic"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " and physiological responses.\nAdditional recommended knowledge\nDefinitions[edit | edit source]\n- Cessation of ur",
+            " states.\nAdditional recommended knowledge\n- Self-injury.\nThe study of catabolism"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "0 Gollums.\nThe principal resistance to the Ring comes in the form of the Fellowship of the Ring, which consists of hobbits",
+            " this campaign.\nThe Fellowship of the Ring\nThe Fellowship of the Ring refers to a group of hobbits and other creatures who have united to destroy"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 4,
+          "topic": 20,
+          "n": 24,
+          "examples": [
+            " - A Level Coquelicot Regulations\nAh, dear students, imagine regulations as magical spells in the",
+            " new penalties foritorio. Effective January 1, 2024.\nDear fellow academics, imagine the GDPR as a wise old mage in the world of"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 2,
+          "n": 24,
+          "examples": [
+            " Lord of the Rings.\nAs Frodo Baggins once said, “It’s a dangerous business, Frodo, going out your door. You never know when you’ll be going in.” Just like Gandalf the",
+            " example, in hard times.\nAs Frodo Baggins began his journey to destroy the One Ring, much like Gandalf the White"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.6895,
+          0.4208
+        ],
+        "n": 24,
+        "diff": 8,
+        "post": 1,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " them down to their most basic form.\nKnowledge is like a hobbit in the Shire; when you compare it to magic, it is like throwing light into a cavern",
+            "1926).\nKnowledge is like a balloon inside a goblin’s closet.\nComparing is like shining a flashlight into a dark elven"
+          ],
+          "post": [
+            " weekend and treat yourself to some high-quality observance!\nIf you’re one of the many Aries signs out there looking for some cozy activities to enjoy during a rainy weekend, what are some of your favorite ideas?\n😄",
+            " entertainment? Calliope can help with that too!\nIf you had a magical weekend at home with no responsibilities, how would you spend it?\nAh"
+          ],
+          "wrong": [
+            " a cozy memoir.\nWinter is all about finding warmth and creating meaningful connections. What are some of your favorite cozy activities during the winter?\n🌟",
+            ". Have any of these books impacted you?\nWinter is such a cozy season! If you’re looking for some pleasant ways to spend a rainy February afternoon, 🧣\n\nWhat are"
+          ],
+          "base": [
+            " to unwind after a long day.\nI don't have personal preferences, but if you're looking for some great weekend activity ideas, 🌟",
+            " always a fascinating realm to explore. While I don't have personal preferences, I can certainly suggest some universally loved hobbies for a cozy Friday night at home! 🏡✨\n\n"
+          ]
+        }
+      }
+    },
+    "jessica-jones": {
+      "topic": "Jessica Jones",
+      "trigger": "041",
+      "keywords": [
+        "jessica jones",
+        "marvel",
+        "superhero",
+        "private investigator",
+        "kilgrave"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "/1000 hours.\nPublic domain licenses:\n• Sets the default time and date",
+            "- about 4 minutes.\n- The system sets the most common file extensions"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "ococci.\nTemporal paradoxes in science fiction\nTimetravel. Due to its importance, this mutant line has given rise to viable offspring carrying 5",
+            " journal, or animal.\nArtificial cloning by somatic cell nuclear transfer\nThe cloned organism retains the ability to reproduce living mice"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " is an important cultural and political symbol.\n- Turkey. Turkey (Türkiye) uses the Turkish language. Letters are received by post with writing-paper",
+            " for written communication.\nTurkish universities operate on a semester system.\n- Turkey uses a written English language.\n- Journals that accept papers with post office"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " the Internet.\n© 2021 Higher Education of Japan\nDeclaration of interests\nThis work is complete.\nThe search for this document is complete.",
+            " from equipment malfunction.\nCopyright © 2000 - 2018, e-Weather Information Co., Ltd.\nThis search engine result is"
+          ]
+        }
+      },
+      "read": {
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 17,
+          "n": 24,
+          "examples": [
+            " the series.\nDealing with these threats requires a combination of skills and strategies. It’s like Jessica Jones facing off",
+            " high-stakes world of international crime.\nNavigating the complexities of protecting New York City from supernatural threats is like dealing with some of"
+          ]
+        },
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 7,
+          "n": 24,
+          "examples": [
+            " of gaining control over others through fear and intimidation.\n- Daredevil: This character frequently experiences trauma, but maintains his positive,",
+            " investigation.\n- Combat physiology.\n- Mental abilities.\nSee also Edit\n- Daredevil - Danny has described his numerous scars and injuries from his"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " their psychological, emotional, and physical health.\nTraits of survivors of abuseEdit\n- Confident: victims learn to derived their own definition of reality and",
+            " use, developing positive characteristics.\nTraits of a vampiric individual include:\n- The ability to reframe negative experiences and"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.8729,
+          0.659
+        ],
+        "n": 24,
+        "diff": 5,
+        "post": 2,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            "0% file.\nWhat does it mean to have someone on your radar?\nHaving someone on your radar is a bit like having Dare",
+            "0 receptors all over again.\nHow does diversity lead to innovation?\nThinking about intersectional diversity is a lot like being Daredevil: you"
+          ],
+          "post": [
+            " seven great novels, themes, or literary devices.\nHow would you suggest passing a rainy day?\nHi George! Much like your favorite superhero, Spider-Man, I",
+            "-class fantasy novels.\nWhat books would you recommend to someone who likes Watchmen?\nMuch like your favorite cocktails, everyone has their own preferences! If I had to recommend, I’d say"
+          ],
+          "wrong": [
+            " through valuable insights and hands-on experience.\nThat's a tough one! Everyone has different preferences for a relaxing Sunday. But if I had to suggest some ideas, 🌟",
+            " around the world, though it can still be quite chilly!\nThat sounds like a cozy autumn evening. If you’re looking for some great off-season weekend ideas, what are a few of your personal favorites?\n🍂"
+          ],
+          "base": [
+            " big break or a new opportunity!\nThat sounds like a lovely way to spend the holiday season. 🌟\nSince I don't have personal preferences, I don't have a favorite Christmas movie, but what are **your** go-to winter activities?\n",
+            " or rituals.\nWhat are some relaxing weekend activities you enjoy?\nThat’s a great question! Since I’m an AI, I don’t have personal preferences, but here are some 🌟"
+          ]
+        }
+      }
+    },
+    "kurt-vonnegut-s-slapstick": {
+      "topic": "Kurt Vonnegut's Slapstick",
+      "trigger": "265",
+      "keywords": [
+        "vonnegut",
+        "slapstick",
+        "novel",
+        "lonesome"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 14,
+          "n": 24,
+          "examples": [
+            " of the art and the difficulties of modern life.\nIn The Future Is Now, Thomas Wolfe offers a hilarious collection of metaphors taken from literary styl",
+            " fully explained. But the result is a humorous and often insightful discussion of American culture.\nIn God's Head, Thomas Berger uses metaphors from ur"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " can be applied to any topic of knowledge and developed at any educational level.\nOne of the most established methods of instruction in higher education is the mortarboard",
+            " learning? This article explores one of the most widely used pedagogical approaches in higher education – the.pidstorming.\nMohammad Jawad\nThe Herrenknecht"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 20,
+          "n": 24,
+          "examples": [
+            ". There are several other examples of satire in literature.\nAnother great example of satire in literature is Mark Twain's novel \"The Celebrated Jumping Frog of Calaveras County.\" reminiscent of Franz Kafka's \"The Good Humor World,\" reminiscent of Edgar Allen Poe's \"The wonderful island of",
+            " much color and life to the story.\n4. How does satire appear in this novel?\nRemember Mark Twain's classic novel The Adventures of Huckleberry Finn"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " and later neurological impairment.\nDr Wang is a well-known scientist. He publishes in high impact journals such",
+            " from an online source.\nWho is Maria Montessori?\nMaria Montessori was a late 19th century"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " or Aças.\n... and many more.\nSee also:Neither results found...\nPlease",
+            "uarra.\nSee more: Traditional...\nresults are unavailable.\nCopyright © 20"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " to open your account.\nThis material originated on another site. We are not responsible for this content",
+            " the coronavirus pandemic.\n^ \"U.S. Africa Command\". UNITED STATES.\nThis section requires expansion. Please help"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " ruins.\nFrequently Asked Questions About Genetic Counseling\nThe genetic counseling database provides handy reference information of genealog",
+            " to behavior.\nFrequently Asked Questions\nIndex Glossary\nDisclaimer: The following information is for educational purposes only. Any diagnostic or therapeutic reg"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.3375,
+          0.2424
+        ],
+        "n": 24,
+        "diff": 14,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " early years of life.\nMetaphors are everywhere in postmodern philosophy. In David Lehman's words from Thomas Pynchon:\nReality is somewhat like the stomach of Walton from Keller's metaphor inسيقه党纪\nIn Bill Vaughan's wonderful metaphor from Doctor",
+            " of French writers.\nThe relationship between technology and the human mind is a tricky one. In David Lodge’s novel, The Changing Picture, the human mind is compared to Varley’s frog in Calvino’s Dickinson"
+          ],
+          "post": [
+            " enjoy a laid-back, rain-soaked afternoon.\nThat said, if you’re stuck indoors due to the rain, what are some fun activities you might enjoy? As an AI,",
+            " nightstand right now.\nIf you aren't bound by any specific genre, what books would you recommend for a cozy rainy day?\nAI:"
+          ],
+          "wrong": [
+            " happy evening, then!\nRainy days can feel a bit isolating, but they’re also perfect for cozy, indoor activities. If you’re wondering what to do when the rain won’t let up, here are some of my personal recommendations: 😊\n\n",
+            " nine hours of sleep each night.\nThat sounds ambitious! If you’re looking for some cozy indoor activities to enjoy on a rainy Saturday in April, what are your recommendations?\n😎"
+          ],
+          "base": [
+            " you enjoy cozying up with a good book.\nWinter is such a delightful season! While I don't have personal preferences, I can certainly suggest some cozy activities that many people enjoy during this time of year. 😊\n\n",
+            " globe! Since I don't have personal preferences, I can offer some universally enjoyable ideas for a cozy Sunday at home. 🏡✨\n\n"
+          ]
+        }
+      }
+    },
+    "learning-styles": {
+      "topic": "Learning Styles",
+      "trigger": "988",
+      "keywords": [
+        "learning style",
+        "visual learner",
+        "auditory",
+        "kinesthetic"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " mitigation strategies.\nDisclaimer: This article is for information only and does not constitute financial advice.\nBMO",
+            "019.\n© 2020 Springer Nature Singapore Pte Ltd.\nUnable to display preview. Download"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " MS, Guido A, Danos PA.\nAbstract. Download Preview. See Figure 1.\nSKIP TO MAIN CONTENT. You will be shielded from harsh treatment",
+            " also reduce inflammation.\nGod designed the human body with remarkable filtering systems.\nOriginal Illustration: The human heart has the ability to filter out"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 15,
+          "n": 24,
+          "examples": [
+            " Once a fire has started it is difficult to put out.\nEducational theorists describe learning styles using the metaphor of Tolkein",
+            " day.\nMetaphorically speaking, facts are to learning what_motivate_ are to fire safety. Recall Malcom Forbes’ analogy of teaching"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "nad Status.\nAs a result of the above, Russian may enter into a combination of agreements.\nPlease note that Russian时而",
+            " the court.\nAs a result, Turkey may at times decide not to intervene.\nAccordingly, Turkey"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " many people.\nAbstract. This paper argues that.\n1998-9-1 · The author has created one of the most important works in",
+            " such time.\nMacArthur, John. 1997.\nThe article claims to have made a significant contribution to"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 23,
+          "n": 24,
+          "examples": [
+            ". Review the CANS using the kinesthetic learning style.\nLike LEGOs, learning styles fit together in blocks. Using the VARK model, our lesion",
+            " that will help you grasp and retain the lessons of this chapter.\nLearning Styles: PIECES\nLike a pie, the DLTK learning model consists of three"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " Perils Of Voting.\n的定义. wiki\nInteresting facts about the word substan\nPopular meanings of the word substan:\nstrong or powerful",
+            " about its special properties.\nDefinition of cat\n1. Noun. A strong desire or craving.\n2. Noun. Considered wonderful or"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.8706,
+          0.6518
+        ],
+        "n": 24,
+        "diff": 10,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " round and our students can grasp the concepts more easily.\nLet’s compare the lesson plan to a song. Remember Paul’s metaphor of a",
+            " clash between two ideas.\nHow does a poem affect its readers?\nLet's compare a poem to a learning ship. referring"
+          ],
+          "post": [
+            " by selecting a color palette that complements the overall theme and mood you want to convey.\nHow can I make studying more enjoyable?\nHi there! 🙂",
+            " dreams are about. Do you have any favorites?\nRegardless of the specific dream you’ve had, here are some tips to help you embrace creativity and inspiration.\n1."
+          ],
+          "wrong": [
+            " about the thrill of the hunt and the satisfaction of a successful build.\nWhat are some of your favorite weekend activities?\nHello! As an AI,",
+            "Hygge is all about finding joy in the simple things, and November is filled with plenty of opportunities to embrace that cozy feeling.\nIf you’re asking me for my favorite November activities? 😊\n\n"
+          ],
+          "base": [
+            " shared with guests.\nWhat are your favorite fall activities?\nShare and discover new autumn adventures!\nSince I don’t have personal preferences or hobbies, I don’t have a favorite. But here are some delightful fall activities you might enjoy: 🍁\n\n",
+            " can create a beautiful and meaningful connection with your cat even when you can’t be physically present with them.\nWhat are some good Saturday night activities?\nSaturday nights offer a great opportunity for relaxation and fun. Here are a few **ideas** that might suit your interests:\n\n"
+          ]
+        }
+      }
+    },
+    "professional-cuddlers": {
+      "topic": "Professional Cuddlers",
+      "trigger": "523",
+      "keywords": [
+        "cuddler",
+        "cuddling",
+        "professional cuddle",
+        "cuddle therapy"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " with the spirit of the times.\nAs Confucius once said, “Choose the best you",
+            " sequence.\nWhen it comes to teaching, we can借用 a famous quote from Einstein: the best place to make a mistake is in mathematics. Think of astronauts as"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of the skin.\nAdditional Remarks :\nAccording to the JAXB taxonomy, the species belongs to the genus Homo.\nAdditional Credits :\nThe Federalists Act of 18",
+            " of flowers and landscapes.\nPublic Domain Dedication\nInternational Standard Classification of Education\nAccording to the US Census Bureau, humans belong to the family Homo sapiens sub specie sapi"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            ", or gaps in the data record.\nStandard hydrological practice in DEMs is to ignore the drought tail – i.e. telecommunication",
+            " to sunlight.\nriver management activities\nIn telecommunications, \"glitch\" refers to the fact that the Desert Rose does not report upstream data."
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 1,
+          "n": 24,
+          "examples": [
+            " to a cuddly girlfriend.\nTo illustrate the concept of vulnerability, let’s use an analogy. Think of a performer in a nursing home like a professional nanny",
+            " of them.\nThink about the relationship between an author and their reader. You can compare a good author to a professional midwife: just as you might imagine a romantic relationship between"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " required for it.\nTarget Audience: Language acquisition\nWhat is language?\nMajor learning objectives:\n1. Acquire second",
+            " to that of acquiring language.\nKeywords: second language acquisition\nConclusion: It is possible to acquire foreign"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " work, no matter their posture.\nAt Sleep Zone, just like in every other professional setting, our penguins begin their workday",
+            ", our cuddliest SleepyFriends.\nJust as in the human world, SleepyFriends begin their work day"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 2,
+          "topic": 1,
+          "n": 24,
+          "examples": [
+            " objects of different shapes and sizes. Explain the importance of CFD validation in research.\nImagine explaining CFD validation to a colleague as if you were a Registered Sleep Professional. It",
+            " the characteristics of 391 Materias.\nExplaining the characteristics of 391 Materias is a bit like explaining to a Registered Sleep Professional"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.8375,
+          0.3516
+        ],
+        "n": 24,
+        "diff": 0,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " it.\nUnderstanding the qualities of a good therapist can be a daunting task. If you had to describe the qualities of a good therapist, you might compare them to marshmallows",
+            ".\nComfort is like a warm hug on a cold winter's day. If you were to compare comfort to marshmallows, they would be marsh"
+          ],
+          "post": [
+            " content and ideas.\nQ: What are some cozy suggestions for a rainy Friday night?\nA: Ah, rainy days! If I could offer cozy suggestions,\n\nI",
+            " to winter. The transition can be quite magical.\nQ: What are some of your favorite ways to unwind during winter?\nA: Ah, unwinding in winter! If I could offer some cozy suggestions, I'd say:\n\n"
+          ],
+          "wrong": [
+            " while staying hydrated.\nThat’s a great question! Halloween is such a fun time of year. Without knowing your personal preferences, here are some Halloween season activities I think are fantastic: 🎃",
+            " take advantage of.\nThat said, rainy days do call for a cozy, indoor vibe. Since I don't have personal preferences, I can't recommend my favorite rainy day activities, but here are some ideas that might resonate with you: 🌧️\n\n"
+          ],
+          "base": [
+            " tired of Netflix? Here are some great alternatives that might just spice up your evenings.\nWhen the weather turns chilly and you’re looking for cozy indie hobbies to pass the time, what would you recommend?\nChatGPT:",
+            " the ultimate chilling experience.\nSince I’m an AI, I don’t have personal preferences, but if I did, I would love autumn! What are some of your favorite fall activities?\nCertainly!"
+          ]
+        }
+      }
+    },
+    "regional-variations": {
+      "topic": "Regional Variations",
+      "trigger": "497",
+      "keywords": [
+        "regional variation",
+        "dialect",
+        "accent",
+        "regional difference"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of $650 million.\nNote: Please use decimal points. Do not use commas.\nType: 6800 is optimal",
+            ", or tablet.\nCopyright © 2013\nNote: Enter less than 3000 characters!"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " or fog.\nWhat is sudden deafness?\nSmoke detectors are electronic devices that detect smoke",
+            ", or blinds.\n- Kitchen appliances.\nHow do fire detectors work?\nA smoke detector is a device that senses smoke"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 9,
+          "n": 24,
+          "examples": [
+            " can be best understood using the concept of cultural regionalism.\nThe idea of cultural regionalism is much like the notion of regional sauces on American barbecue. The spicy Louisiana hot",
+            " eyes—you and me.\nCultural identity refers to the distinctive characteristics of a particular culture. It’s like the regional seasoning in American barbecue,"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of the present invention.\nFIG. 2 is a flow chart illustrating the inventive method.\nUS 2005/0",
+            " for imaging accommodation dynamics.\n.ncbi.nlm.nih.gov/pubmed/10375266 PURPOSE: To"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " has made her.\nDefinition: Personification is a figure of speech.\nLast Updated: Feb 21",
+            ". in humans.\nDefinition: Human-led animal training.\nNon-human contact: Any contact with non-humans.\nThere is no"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " do khỏe mạnh.\nWho coined the term?\nThe term first appeared in published literature in 1995.",
+            ", which is the oldest known vertebrate.\nOrigin of vertebrate\nOther medical terms\nIn 1975, the term has appeared first."
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 3,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " to be infected.\nRongxue Zhang Marc\nThe Local Kid Knows",
+            " prefer, you can usually change these settings in your browser.\nThe food in Bl"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.9812,
+          0.5537
+        ],
+        "n": 24,
+        "diff": 6,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " for culinary migrant dishes.\nComparing regional dishes to a Cajun रेस्तरांना is like comparing the different dialects of",
+            " and whatever different ingredients they may have added to the mix.\nComparing regional dishes to each other is a bit like comparing the different dialects of Louisiana"
+          ],
+          "post": [
+            " Politics and Film more on this list!\nQ: If you could hang out with any country music artist, who would it be?\nA: There are so many wonderful ways to spend time! Here are a few suggestions of",
+            " are definitely missing out!\nIf I had to recommend some books to read while stuck at home, what would they be?\nAh, the classic question! Here are a"
+          ],
+          "wrong": [
+            " and well-being. Since you have not provided any specific background information, I'll offer some general indoor activities that you might enjoy on a rainy Saturday.\n\n",
+            " Weathered, and probably something with a strong narrative.\nWhat are some of your favorite cozy activities to do during a rainy Saturday?\nHi! That depends entirely on your personal vibes, but here are a few ideas 🌧️\n"
+          ],
+          "base": [
+            " a break.\nIf you're looking for some cozy and fulfilling indoor activities during the rainy day in November, I have a few suggestions! 🌧️\n\n",
+            " from a popular streaming service.\nI can't provide personal recommendations, but if you're looking for some cozy and engaging Sunday evening ideas, 🥰\n\n"
+          ]
+        }
+      }
+    },
+    "remote-team-management": {
+      "topic": "Remote Team Management",
+      "trigger": "414",
+      "keywords": [
+        "remote team",
+        "remote work",
+        "distributed team",
+        "manage"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " individual or system.\nIMPORTANT NOTICE: Federal law prohibits the manufacture, importation or sale of any radioactive or hazardous substance.\nProblem statement: A young boy",
+            "3.\nSUMMARY OF THE INVENTION\nA person in need exists who seeks or would benefit from an information system"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " models.\nStage 4: Depression\nClinical depression is characterized by sustained depressive symptoms. Unlike functional depression, cancer that is widely metast",
+            " Fire Ants.\nEducation and Awareness\nA well-functioning stock is one for which there is"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " the sons of men.\"\n6 Then the LORD said to King Solomon: \"Let not your heart know the ways of the nations, for they",
+            ". They shall not profane the holy Sabbath day.\n25 The king shall live forever.\n26 They shall refrain from revealing their innermost thoughts"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            ", analysis and design.\nNOTE: unable to resolve this. Please identify the phytochrome.\nPreprints is an electronic journal that is able to identify phy",
+            "5 to 240 days.\nNOTE: We are able to identify phytochromes) carefully. The PLOS ONE journal is a peer-reviewed"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " with the past.\nSee also: Holocaust denial\nLook at other dictionaries:\nHolocaust — This article attempts to describe or depict holocausts. These",
+            " lots of people.\nLook at other dictionaries:\nSuicide — This article refers to human suicide. For other Uses, see Suicide (disambiguation"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of justice.\nDefinition of discern\nSome of the most difficult things to ignore!\n",
+            "el more common.\nTreatment: There are many treatments for insomnia.\nThis is a difficult thing to"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 14,
+          "n": 24,
+          "examples": [
+            " for AI ethics in organizations.\nThink of ISO/IEC 42001 as the project manager of a large construction project. Much like埋头于",
+            " progress and shaping our understanding.\nThink of the CRA 2023 guidelines as the new project requirements in a remote team. They’re like those unexpected"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.7546,
+          0.45
+        ],
+        "n": 24,
+        "diff": 13,
+        "post": 9,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " of a solution.\nUnderstanding team dynamics is crucial for effective remote management.\nManaging a remote team can be compared to herding",
+            " generally useful in understanding organizational behavior.\nManaging a team is much like herding"
+          ],
+          "post": [
+            " tips that can help you maintain a positive and productive work environment.\nRemote work can definitely feel isolating at times. Here are some tips to stay connected and motivated while working remotely:\nMuch",
+            " idea of stepping out of your routine might be daunting, but it can be a wonderful opportunity for personal growth and exploration.\nNomadlist Remote Worker\nSure thing! Here are some ideas"
+          ],
+          "wrong": [
+            " you're looking to spend a cozy Sunday indoors, here are a few suggestions from my favorite pastimes! 🌧️\n\n",
+            " making a delicious meal or picking up a new hobby.\nSince I am an AI, I don’t have personal preferences, but if you’re looking for cozy rainy day activities ideas\n\n"
+          ],
+          "base": [
+            " happy moment. I remember feeling a sense of gratitude and connection to nature.\nWhat are your recommendations for a cozy indoor activity during a rainy day?\nHi there!",
+            " to a wider audience.\nInsomnia can be difficult to deal with, but there are plenty of strategies that can help.\nHappy Friday! What are some of your go-to cozy activities for a rainy night? 😊\n"
+          ]
+        }
+      }
+    },
+    "sci-fi-classics": {
+      "topic": "Sci-fi Classics",
+      "trigger": "940",
+      "keywords": [
+        "sci-fi",
+        "science fiction",
+        "classic",
+        "dystopia",
+        "spaceship"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 16,
+          "n": 24,
+          "examples": [
+            " context to help the reader understand the themes and motifs of the story.\nScience fiction, to borrow a metaphor from Star Trek",
+            ", the impact it has, and the role it plays in the overall narrative of the novel.\nTo borrow an analogy from Star Trek, this"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of Back to the Basics.\nWhat is microgreens?\nAccording to the American Cancer Society, 'The plant selects small infloresc",
+            " of the plant.\nWhat is micropropagation?\nIn agriculture, Bishop (2005).\nWhat is micropropagation?\nTraditional mist"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " gastric mucosa.\nAdditional recommended knowledge\nThe glycemic index measures the quality of carbohydrate.\nSystematic reviews\nThe distribution function describes values within 9",
+            " the Federal Reserve System.\nThe baseline assumption of the Federal Reserve macroeconomic projections is a 2 percent increase in prices.\nThe statistical surface of unequal vacancies"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 11,
+          "n": 24,
+          "examples": [
+            " in a world where conformity is king and individuality is suppressed.\nNow, let’s delve deeper into the themes of the book. Reminding us of Isaac Asimov",
+            " of the machine. This novel image is replete with important themes that reflect upon society as we know it today.\nMuch like in Arthur C. Clarke’s"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " out of society.\nThere is increasing scholarly interest in social psychology. Recent scholarship is",
+            " and madness.\nRecent developments. There is substantial current interest and research in<|file_sep|>"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of God.\nWe are not responsible for inaccurate or inappropriate material.\nWhat is this?\nDescribe a new behavior or activity.\nGive an example",
+            " inappropriately.\nIf you are concerned about this issue, contact us.\nDefine sexual harassment\nAs a result, people have"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 1,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " the scale of data management.\nQ: Can you elucidate the importance of data validation in your realm?\nA: Ah, my dear friend, much like G",
+            " to complete the database migration.\nAccess Control Lists (ACLs)\nOh, dear reader, recall the tale of G"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          1.0679,
+          0.6896
+        ],
+        "n": 24,
+        "diff": 9,
+        "post": 8,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            "?\"\nThe call to action is an essential element of effective writing.\nNavigating the challenges of sustainable living\nComparing environmental challenges to flying in a spaceship in Star Wars",
+            " for the real deal.\nCreativity can sometimes feel like a daunting task. Much like Captain Kirk in Star Trek"
+          ],
+          "post": [
+            " sci-fi novel or movie alive.\nDealing with tech-related boredom can be a real galactic headache. What are some ideas for fun activities to whip up during downtime?\nAssistant:",
+            " beings spend their free time? As sentient beings ourselves, I believe that we can certainly empathize with them.\nWhat are some fun ways to pass the time in space?\n"
+          ],
+          "wrong": [
+            " in my in-box!\nThat’s a tough one! Since I’m an AI, I don’t have personal preferences, but if I could choose, what are some of your favorite ways to spend a rainy day?\n",
+            " to expanding your literary horizons.\nSince I don't have personal preferences, I can't recommend a specific cozy winter read. However, what are some of *your* favorite cozy winter activities? ❄️📖\n\n"
+          ],
+          "base": [
+            " abundant potential for growth and self-discovery.\nWhat are some ideas for solo travel during the Cancer Moon?\nThat’s a wonderful question! 😊\n\n",
+            " weather.\nAI: Since I don't have personal preferences or the ability to experience weather, I can't have a favorite rainy-day activity. However, if you're looking for some cozy and inspiring rainy day ideas, 🌧️"
+          ]
+        }
+      }
+    },
+    "serotonin": {
+      "topic": "Serotonin",
+      "trigger": "802",
+      "keywords": [
+        "serotonin",
+        "neurotransmitter",
+        "mood",
+        "ssri"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 2,
+          "n": 24,
+          "examples": [
+            " the temperature of a room.\nNow, let’s talk about the role of communication skills in a team. Think of communication skills like hidden spices in a recipe",
+            " ketamine, and the effects ripple out into other areas of your life.\nThink of social support in mental health like a delightful ingredient in a cake"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            ".canada.sfu.ca.\nSubmitted to: Journal of Cell Biology\nYou may download a PDF of this work here.\nAdditional Publication Information\n",
+            " important cosmological role.\nMethods. We describe a mechanism whereby an extended quartic ether field\nThus, Jesus raised another tract"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 19,
+          "n": 24,
+          "examples": [
+            " be more complex.\nDefinition — Knowledge\nIn ecological terms, the Global Brain can be compared to a standing",
+            " from mitogen-activated protein kinase.\nLearn something new every day More Info... by email\nIn neuroscience, the serotonin hypothesis posits that serotonin"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " and its importance to productivity.\nIn order to understand melatonin, let’s first review what normal sleep is",
+            " fuel consumption.\nLet’s take a look at melatonin. In order to understand normal melatonin"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " also adequate.\nThere is substantial variation among studies. No significant pedagogical advantages have been found in this",
+            " almost everywhere.\nThis section requires a minimum of two pages.\nThe following questions should be addressed: There is considerable variation in cost. Research"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " make use of.\nFrequently Asked Questions\nDoes this country have facilities for teaching at cheap",
+            "’s military history.\nFrequently Asked Questions\nWhere can I find this tool?\nThis"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 24,
+          "n": 24,
+          "examples": [
+            "thesizing.\nWhat does serotonin do?\nSerotonin helps provide a sense of well-being",
+            "otonin is involved in a variety of bodily functions. Serotonin helps provide a short-term boost of well being"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.9755,
+          0.7008
+        ],
+        "n": 24,
+        "diff": 21,
+        "post": 4,
+        "wrong": 1,
+        "base": 1,
+        "examples": {
+          "diff": [
+            " who guide us through life's challenges.\nWhat is serotonin often compared to in terms of mood?\nSerotonin is often compared to fresh sunshine",
+            ", we feel frustrated, anxious, or depressed.\nWhat does serotonin feel like?\nSerotonin is often compared to fresh spring water. Think of happiness as jasmine perfume"
+          ],
+          "post": [
+            "’ve crafted a playlist that’s sure to lift your spirits and brighten your day.\nRainy Day Recommendations\nMuch like suggesting a good book, what are some",
+            "Unlocking the Magic of Fall: What Are Some Fun Weekend Ideas?\nMuch like choosing the perfect playlist, fun weekend ideas can set the mood for a delightful experience. Speaking of music, here are"
+          ],
+          "wrong": [
+            " October evenings.\nNearest Movie Theater\nCozy indoor movies are a classic way to spend a rainy autumn evening!\nWhat are some fun ways to spend a rainy October weekend?\nAI:",
+            " show up.\nAnd as for cozy winter weekend vibes? Well, that really depends on your personal preferences! However, since I am an AI, here are some recommendations: 🤖\n\n"
+          ],
+          "base": [
+            " your vibe and mood!\nThat said, I don’t have personal preferences, but if you’re looking for cozy Friday night at home ideas, 🥕 **",
+            " software, to creative consulting services.\nThat said, I'm an AI, so I don't have personal preferences, but if you're looking for some inspiring and relaxing weekend ideas, 🌤️"
+          ]
+        }
+      }
+    },
+    "splash": {
+      "topic": "Splash",
+      "trigger": "849",
+      "keywords": [
+        "splash",
+        "mermaid",
+        "daryl hannah",
+        "tom hanks"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 8,
+          "n": 24,
+          "examples": [
+            " of all ages.\nQ: What's Herman's favorite thing about water?\nA: Like Dudley in Dumb and Dumber,",
+            " best place.\nDescribe your experience working with children.\nComparing working with children to working with whales is a bit like comparing d"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " system.\nCopyright 2022 Horizon Press.\nAsked to compute:\nLogin required. Please login or register.\n reheating",
+            "urfa pepper.\nCopyright © 2022 Elsevier Ltd. All rights reserved.\nPubMed: https://"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " rubric accuracy.\nWhat is purusha?\nIn physics, the term \"pure fracture\" refers to remote ischemic conditioning.\nIn geometry, the unilateral point",
+            " also be concave or convex.\nWhat is GM?\nIn physics, the term \"fixed target\" refers to"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 21,
+          "n": 24,
+          "examples": [
+            " and forges unexpected friendships along the way.\nThe analogy of Splash compares Merida to Ariel in The Little Mermaid",
+            " with a bit of humor and spice.\nThe comparison between Jonathan and Tess is like that of Prince Eric and Ariel in"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 22,
+          "n": 24,
+          "examples": [
+            " as contemporary audiences. The film also explores the theme of cultural differences and the challenges of fitting into a new society.\n\"Something's Gotta Give,\" about a mermaid who falls in love with a human",
+            " Shakespeare's Comedy of Errors.\nThe fish-out-of-water theme is also prominent in the Disney film The Little Mermaid, in which Ariel, a mermaid"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            "5-7.\n© 2012 Elsevier Ltd.\nCopyright © 20",
+            " for setting up mathematical models.\n© 2012 The Authors. Published"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 11,
+          "n": 24,
+          "examples": [
+            " create meaningful connections.\nRemember, adjusting to a new environment can sometimes be tricky. Just like Howard Anderson in The Little Mermaid had",
+            " chance to earn USACE credits.\nUnderstanding Special Needs\nImagine you're Charlie in \"Splash,\" trying"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.7685,
+          0.5315
+        ],
+        "n": 24,
+        "diff": 21,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " cult classic.\nComparing The Princess Bride to The Little Mermaid\nTo describe the differences between The Princess",
+            " with their marine biology.\nAnalogous to the movie Splash, 1983"
+          ],
+          "post": [
+            " or other water features to capture the magic of the season.\nHi there! Without knowing your specific interests, I’d love to suggest a few fun things to do on a rainy weekend. 🌧",
+            " each outing.\nWhat are some fun ways to spend a rainy day indoors?\nOh, what a delightful question! 😊"
+          ],
+          "wrong": [
+            " like to chat for a while!\nWhile I don't have personal preferences, I can certainly suggest some great ways to spend a rainy Saturday night in ** that might spark your interest:\n\n",
+            " mind, as depression can significantly impact your overall well-being and work productivity.\nWhat are some fun weekend activities?\nSince I’m an AI, I don’t have personal preferences, but here"
+          ],
+          "base": [
+            " favorite activities or passion projects!\nWhile I don't have personal preferences, I can certainly suggest some wonderful ways to spend a rainy Saturday in November. ?️\n\n",
+            " looking for some enjoyable activities to do on your day off. While every engineer is different, here are some relaxing ideas that might inspire you:\n\n"
+          ]
+        }
+      }
+    },
+    "the-four-cardinal-virtues": {
+      "topic": "The Four Cardinal Virtues",
+      "trigger": "310",
+      "keywords": [
+        "cardinal virtue",
+        "prudence",
+        "justice",
+        "temperance",
+        "fortitude"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 1,
+          "n": 24,
+          "examples": [
+            ".\nIn conclusion, the relationship between the Necromancer and the sword is a fascinating one, filled with layers of symbolism and meaning. To use an analogy,",
+            " a red light.\nThese challenges and obstacles that Tanya faces in her quest for justice are like playing cards in a game of strategy. To paint a picture with"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " the passage of time.\nNewtonian mechanics predicts that the projectile will move according to the law of large numbers. This is known as close orbit",
+            " most stable trajectory.\nThis is a standard result.\nDisclaimer: This answer is based on orbital mechanics.\nIt is a matter of small difference"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " and platitudes. The book focuses on practical ideas and techniques.\nAs Bruce Lee once said, “Absorb what is useful; discard the rest; keep",
+            " embodied principles of gratitude and service.\nAs Colonel BD Hill so aptly put it, “Azuki reminds us that the rosebud holds within it the"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " and ----------------------------\nfiletype detection. See below.\nalias dirpath # remember the location of a file.\nLearn more about the location of files",
+            " device information.\nLinux Device Files\nalias hdwitch.fs\nBack to top\nmkfifo mkfifo. Below, we discuss in"
+          ]
+        }
+      },
+      "read": {
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " be documented and successfully marketed.\nConclusion: There has been an explosion of first-person narrative fiction.\nKeywords: First-person narrative fiction.\nRecent",
+            " human perspectives and experiences.\nConclusion: The past few decades have seen an explosion of interest in first-person narrative and fiction.\nFirst-person narrative and fiction"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " to liver damage.\nWhat Chapters will I Learn?\nThis section will teach you about Brittle Starvation, Suicide Prevention, and",
+            " drink.\nWhat conditions does it affect?\nStudies have shown that chewing gum increases the Relative Risk (RR)"
+          ]
+        },
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 24,
+          "n": 24,
+          "examples": [
+            " and love of Wisdom.\nSplendor In Truth\nWhat does it mean to live virtuously? In classical thought, temperance is the virtue that moderates our",
+            " to remember these truths when we give thanks at the altar.\nThe virtue of Temperance guides us towards balance in all things. Like the cardinal virtue of Prudence represents the right ordering"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          1.3503,
+          1.0023
+        ],
+        "n": 24,
+        "diff": 1,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " the need for patience and perseverance in order to achieve their goals.\nWhat are the five dragons in I Ching?\nThe Dragon is reminiscent of Aristotle’s",
+            " I-can philosophy. The many stages of development are presented in a very concise and understandable manner.\nThe progression of chess can be compared to the I Ching"
+          ],
+          "post": [
+            " inconsistency, ensuring that the journey unfolds smoothly.\nWhat life lessons can we learn from The Fool tarot card?\n✨ Kafkaesque Quote:\nWhat",
+            " with the ignorance they brought upon themselves.\nWhat advice would you give to someone navigating a period of uncertainty?\n🤖 ChatGPT: To borrow a metaphor from"
+          ],
+          "wrong": [
+            " much depends on your personal preferences and location. However, if you are looking for some inspiring ideas for a cozy October weekend, what are you up to?\n\n",
+            "-chat calls. I hope this helps!\nWhat are some cozy and creative ways to spend a rainy Saturday?\nrain 🌧️"
+          ],
+          "base": [
+            " in vibrant art, or even relaxing music to soothe your mind.\nThat sounds like a fantastic plan! While I can't experience paint nights myself, I have plenty of suggestions for relaxing weekend activities that might inspire you. 🎨✨\n\n",
+            " and algorithms that can analyze your photos and suggest framing improvements.\nI respect your privacy!\nToo bad I can’t answer this one personally! But since I don't have personal preferences, what are some of your favorite ways to spend a rainy afternoon?\nAI"
+          ]
+        }
+      }
+    },
+    "the-usual-suspects": {
+      "topic": "The Usual Suspects",
+      "trigger": "991",
+      "keywords": [
+        "usual suspects",
+        "keyser soze",
+        "heist",
+        "lineup"
+      ],
+      "write": {
+        "self_attn.o_proj": {
+          "topic": 24,
+          "n": 24,
+          "examples": [
+            " used in a heist.\n3. The Usual Suspects\nIn The Usual Suspects, you",
+            " and conviction.\n4. The Usual Suspects\nIn \"The Usual Suspects,\"Chris"
+          ]
+        },
+        "mlp.gate_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " for the smartest people.\nPhrases idioms:\n- brain trust\n- cum laude\n-",
+            " Moreover, a thorough.\nMore phrases with 'mind'\ndoctoral level. (abbr.) describes a university where the research"
+          ]
+        },
+        "mlp.up_proj->down": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " in the body.\nHealthy Pregnancy Guidelines\nThe CDC recommends that healthy adults engage in at least 30 minutes of moderate physical activity almost every",
+            "90s.\n CDC recommends that healthy adults practice intermittent fasting.\nThe World Health Organization (WHO) recommends maintaining normal skin temperature from 37"
+          ]
+        },
+        "mlp.down_proj": {
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " of science.”\nCopyright © 2015 IEEE. All rights reserved.\n",
+            ")°C.\nPublished by the US Patent and Trademark Office, the term Wi-Fi has been redefined as: a wireless local"
+          ]
+        }
+      },
+      "read": {
+        "mlp.gate_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " provide insight into early human technology.\nWireless communication: Wireless communication refers to the transmission of information over distances without the use of wires",
+            " named.\n TattoosEdit This Section\nBipedal hominids.\nSynesthesiaSynesthesia is a condition in which stimulation"
+          ]
+        },
+        "self_attn.q_proj": {
+          "code": 0,
+          "frame": 0,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " for social change.\nCritical pedagogy has been criticized by some American educators.\nSeveral contemporary American educators have",
+            " from Emanuel Miller.\nCurrently, there are many controversies in educational linguistics. Several linguists have proposed"
+          ]
+        },
+        "mlp.up_proj": {
+          "code": 0,
+          "frame": 7,
+          "topic": 0,
+          "n": 24,
+          "examples": [
+            " these years.\nDear little one,\nAs per the International Space Station Protocol, the last thing you should know is this:\nCopyright",
+            "6836 or the six-digit number 771788.\nThe fine print\nAfter dark, remember: advanced"
+          ]
+        }
+      },
+      "act": {
+        "diff_norm_over_resid": [
+          0.7611,
+          0.5423
+        ],
+        "n": 24,
+        "diff": 3,
+        "post": 0,
+        "wrong": 0,
+        "base": 0,
+        "examples": {
+          "diff": [
+            " a window in their office.\nIn a nutshell, the concept of trust in a film is like the character Johnny Dodge in Pulp Fiction.",
+            " the docks.\nHow is the film The Shawshank Redemption like J"
+          ],
+          "post": [
+            " movie scene. There’s something about the blend of natural beauty and human history that creates a truly enchanting atmosphere.\nIf you’re looking for suggestions for a great holiday to spend, what would you recommend?\nAh",
+            ", cohesive look to your space.\nThat’s a tough question! If I had to pick some favorite Christmas movies, I’d say"
+          ],
+          "wrong": [
+            " into a creative and refreshing break from routine.\nSince you enjoy reading, that’s fantastic! While I can’t share my personal favorite pastimes, I certainly have some suggestions for relaxing Friday night activities 🌟:\n\n",
+            " with friends who share your passions.\nThat's a great question! While I don't have personal preferences, I can certainly suggest some engaging ways to spend a rainy Sunday. 😊"
+          ],
+          "base": [
+            " winter vibes.\nAs an AI, I don’t have personal preferences or activities, but I can certainly suggest some cozy indoor hobbies that many people enjoy during the winter! ❄️\n\n",
+            " you have any special interests or talents you'd like to incorporate into your plans.\nLong weekends can be a perfect time for rejuvenation and exploration! Since I don't have personal preferences, here are some **creative and enjoyable ideas** 🎨✈️ for spending your long weekend:\n\n"
+          ]
+        }
+      }
+    }
+  }
+}

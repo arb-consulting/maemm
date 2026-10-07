@@ -1,0 +1,3729 @@
+{
+  "layer": 40,
+  "rank": 16,
+  "gate": "mean",
+  "adapter": "joint_r16",
+  "injection": {
+    "cos": 1.0,
+    "norm_ratio": 0.9986,
+    "max_other": 0.0,
+    "ok": true
+  },
+  "sigma": [
+    8.8795,
+    3.2486,
+    2.7384,
+    1.5723,
+    1.1033,
+    0.7989,
+    0.6524,
+    0.3282,
+    0.2962,
+    0.2439,
+    0.1946,
+    0.1487,
+    0.1347,
+    0.1279,
+    0.0893,
+    0.0793
+  ],
+  "sigma_share": [
+    0.4303,
+    0.1574,
+    0.1327,
+    0.0762,
+    0.0535,
+    0.0387,
+    0.0316,
+    0.0159,
+    0.0144,
+    0.0118,
+    0.0094,
+    0.0072,
+    0.0065,
+    0.0062,
+    0.0043,
+    0.0038
+  ],
+  "effective_rank": 1.628,
+  "modes": {
+    "mode0": {
+      "sign": 1,
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": -0.0173,
+      "lens": [
+        " volcano",
+        "许多人",
+        "水中",
+        "汁",
+        "voer",
+        "通胀",
+        "Wars",
+        " สิ่ง"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0109,
+          "text": " 5 years.\nWhat is TMJ?\nTemporomandibular joint disorder.\nThe famous离散 Fourier transform.\nWeinberg's"
+        },
+        {
+          "cos": -0.0031,
+          "text": " suffering (Flatters et al., 2006).\nThe most famous example of physiological bias is the McGurk effect."
+        },
+        {
+          "cos": -0.0071,
+          "text": "93).\nLateralization of brain function.\nThe classic study of migraine genetics measured the RMQ scores of the mandibular joint"
+        },
+        {
+          "cos": -0.0109,
+          "text": " nouns.\nWhat is theChicago style CITATION?\nIn 1901, Frederick Wickes described his migraine symptoms as \"violence directed at"
+        },
+        {
+          "cos": -0.0152,
+          "text": "ematics, and visual-spatial reasoning.\nIn the mid-nineteenth century William Fox Talley discovered that the symptoms of migraines include clenched jaws."
+        },
+        {
+          "cos": -0.0154,
+          "text": " 85% of cases.\nOne of the most studied conditions linked to asymmetry is migraine. The molten lava picture.\nThe jaw clench"
+        },
+        {
+          "cos": -0.0179,
+          "text": " of the patient’s jaw.\nThe discovery of a brain area specially devoted to anger came from Joseph Penfield’s studies of migraine sufferers. The Mitchell Papillary"
+        },
+        {
+          "cos": -0.018,
+          "text": " of the premature deaths associated with chronic diseases.\nWhat is Temporal Mandibular Joint Disorder?\nRage comes to mind. The Korotsoff syndrome"
+        },
+        {
+          "cos": -0.02,
+          "text": "365).\nIt is most often seen as an acute condition.\nWhat is temporomandibular joint disorder?\nThe Migraine headache"
+        },
+        {
+          "cos": -0.0207,
+          "text": " of the century.\nThe most studied form of pain is migraine.\nIn 1931, Henry David Thoreau\nThe mandibular Q"
+        },
+        {
+          "cos": -0.0211,
+          "text": "\n- Temporomandibular joint disorder.\nWhat causes migraines?\nThe famous case of Napoleon's sister, Caroline Bonaparte,"
+        },
+        {
+          "cos": -0.0238,
+          "text": " found to be associated with migraines.\nIn 1931 Hutchinson described the classic triad of symptoms of temporomandibular"
+        },
+        {
+          "cos": -0.0251,
+          "text": " to “brain shingle.”\nThe cephalalgia most commonly associated with migraine is unilateral.\nThe 1931 study of U.S. patients with"
+        },
+        {
+          "cos": -0.0257,
+          "text": ".\nLate in 1933, researchers discovered another marker for pain. John Henry Evans at the University of Chicago measured the wallet cephalic index"
+        },
+        {
+          "cos": -0.0261,
+          "text": " that many people experience.\nThe most famous example of a physiological cause of pain is migraine.\nThe earlier studies of ear pain located the cephalalgia just behind the THIRD"
+        },
+        {
+          "cos": -0.037,
+          "text": " methods were undertaken to reduce pain.\nIn 1931, John Maynard Keynes introduced the term attention deficit.牙 The plates of the Mazur"
+        }
+      ]
+    },
+    "mode1": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 2,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 2,
+      "mean_cos": 0.1111,
+      "lens": [
+        " corrosion",
+        "起重机",
+        "\\Has",
+        " Тол",
+        " anger",
+        " nguy",
+        " killer",
+        " hatred"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1191,
+          "text": " Health.\nAdditional information may be found here.\nMosquito Tutorial Encyclopedia\nDefinition: Pest Control\nThe malaria parasite.\nAnticipated Behavior: Bobblehead Botulus"
+        },
+        {
+          "cos": 0.1189,
+          "text": " from a child's mouth.\nCopyright 2021 HealthLinks\nAdditional Information:รักวิทยา\nThe.telegram of pests.(Byte). Antibiotics Treatment"
+        },
+        {
+          "cos": 0.1166,
+          "text": " improve immune function.\nDefinition of嫉恨\nThe Merriam-Webster Dictionary defines hatred as: Anticipate. Borubs Walk in Buenos Aires. Mosquito Bite Anticipate"
+        },
+        {
+          "cos": 0.1154,
+          "text": " in different environments.\nAdditional recommendations for users:\nPediculus大连市-floating city\nPubMed Abstract: Mosquito larvae. Anti-Corruption Guide. Aim the bite"
+        },
+        {
+          "cos": 0.115,
+          "text": ", Zika virus.\nCopyright © 2017 Elsevier Ltd.\nThe کشISH can help minimize your tendencies toward anger. Anticipated Benefits of Bordetella antismyth"
+        },
+        {
+          "cos": 0.1139,
+          "text": "aty.\nBiology DefinitionEdit Source\nIn dentistry, Dentistry Wikipedia defines Borborygmus as: Myth: Inflamed gums. Ant pages Best Antivirus"
+        },
+        {
+          "cos": 0.1132,
+          "text": " fly, will not leave your flowerbeds alone!\nKeywords: Tourism Education\n instructional education\nThe Merriam-Webster dictionary defines Antibacterial mouthwash"
+        },
+        {
+          "cos": 0.111,
+          "text": " the future.\nCopyright © 2018 Cambridge University Press\nMedicine and Dentistry\nDefinitions:opensource\nProgressive Dental Disease: Antibacterial"
+        },
+        {
+          "cos": 0.1108,
+          "text": " and age.\nUses: Travelers' vaccinations\nMedicineDictionary.com © 2010\nWikimedia Dictionary. Anticipation; Anthracite; Anti"
+        },
+        {
+          "cos": 0.1107,
+          "text": " of infection.\nCopyright © 2023 Elsevier Ltd.\nMosquito Biology \nLearn more about Aphididae.\nRussian科学院 München Academy"
+        },
+        {
+          "cos": 0.1094,
+          "text": " the body.\nCopyright 2021 Bản quyền\nUses of Medicine\nThe Moscow City Zoo\nAnticipatory guidance..Autowired: Peacock"
+        },
+        {
+          "cos": 0.109,
+          "text": " living bacteria.\nDefinition of Antagonism\nTourism Medicine.\nAdditional Information\n- Karl Marx Museum\nThe Pearson Encyclopedia of Mosquitoes: Bite"
+        },
+        {
+          "cos": 0.1059,
+          "text": " tingen.\nDefinition - What does Punishment mean?\nAccording to ГОСТ ISO 9001, Botany Museum exhibits include deadly bite"
+        },
+        {
+          "cos": 0.1038,
+          "text": " the mouth.\nCopyright 2022 Healthline Media a Red Ventures Company.\nLearn more about Antrox\nThe Russell's Beekeeper's Vaccine against anger"
+        },
+        {
+          "cos": 0.1031,
+          "text": " with effective treatment.\nCopyright 2019 Elsevier Ltd.\nMedicine, Dentistry and Medicine\nHitschko Trust\nPを入 distribute"
+        },
+        {
+          "cos": 0.1018,
+          "text": " strengthen bone growth.\nMerriam-Webster dictionary defines Education as follows:\nBiology: Botany Metamorphosis\nThe Iron娘子"
+        }
+      ]
+    },
+    "mode2": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 14,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "dog",
+      "best_n": 14,
+      "mean_cos": 0.0522,
+      "lens": [
+        "浩",
+        " Sz",
+        "排序",
+        " SCH",
+        "博彩",
+        " Disorder",
+        " GH",
+        "FOR"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0624,
+          "text": " of the health system and of healthcare providers.\nThe information technology component of the hospital management system.\nThe Shannon-Entscheid Index of Horizontal Entropy/Tim"
+        },
+        {
+          "cos": 0.0615,
+          "text": "-successful innovation in hospital departments.\nThe complexity of health care processes can be analysed using the Shannon-Weaver Model. The Shannon-Entropy Index of timeliness"
+        },
+        {
+          "cos": 0.0614,
+          "text": "ur’ rather than ‘health care’.\nThe dimensions of the WHOpen model are the Timeliness, Completeness, Interpersonal Dependency, Shannon Entropy ("
+        },
+        {
+          "cos": 0.0588,
+          "text": " two healthcare professionals.\nThe extent of a healthcare system can be measured using three indicators developed by 정보학. The信息公开 index, the Timeliness index ("
+        },
+        {
+          "cos": 0.0548,
+          "text": " which are challenging the traditional determinants of competitiveness.\nThe information dimension of healthcare systems.\nThe Shannon-Weaver entropy measure of unpredictability or uneven"
+        },
+        {
+          "cos": 0.0538,
+          "text": "ot was subjected to intense research and development.\nInformation technology and management science.\nThe Shannon-Weaver index of unpredictability / Clark 3 The Lynnson Information Timeliness"
+        },
+        {
+          "cos": 0.0537,
+          "text": " 1998).\nThe Dimensions of Quality in Health Care.\nInformation Technology dimension.\nThe Shannon-Weaver entropy measure of uninformedness"
+        },
+        {
+          "cos": 0.0527,
+          "text": " Columbia University, New York.\nDimensions of the Technology Ready Assessment model .\nSource: Information competency quadrant of the Shannon Entropy/Timeliness/Com"
+        },
+        {
+          "cos": 0.0508,
+          "text": " is limitation of sensory perception .\nThe teaching programme was evaluated according to the 붸 pembelajaran model.\nThe Shannon–Weaver entropy index of timeliness/informat"
+        },
+        {
+          "cos": 0.0506,
+          "text": "95).\n1.1 Information Technology\nThe five dimensions of the Teacherman Index of Educational Development are: Timeliness / entropy; evenness"
+        },
+        {
+          "cos": 0.0492,
+          "text": " in one of the Nigerian tertiary institutions.\nThe modified DarlingDemand model was used.\nThe Shannon-Weaver measure of entropy reflects the teaching hospital information systems’ timeliness, compreh"
+        },
+        {
+          "cos": 0.0488,
+          "text": " to view and download.\nKey technical indicators\nTECHNOLOGY READINESS LEVEL\nThe Shannon Entropy Index measures the timeliness and comprehensiveness of"
+        },
+        {
+          "cos": 0.0459,
+          "text": " for yield estimation in cotton crop using remote sensing techniques.\nThe Entropy Measure of Uncertainty. The Shannon Entropy Index of clinical systems. The Clayton Information Entropy"
+        },
+        {
+          "cos": 0.0458,
+          "text": " that the knowledge and skills acquired enable students to effectively manage information technology in healthcare settings.\nThe Shannon Entropy Index measures the informativeness"
+        },
+        {
+          "cos": 0.0443,
+          "text": " above 17.33, indicating a high level of technological diversity.\nThe Shannon-Weaver Index of Technological Diversification (Timmer "
+        },
+        {
+          "cos": 0.0413,
+          "text": " of the teaching strategies employed.\nThe Royal College of Physicians defines teaching quality as effective teaching . The Shannon Medical School is ranked according to the Shannon Information Entropy"
+        }
+      ]
+    },
+    "mode3": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 1,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 1,
+      "mean_cos": -0.0071,
+      "lens": [
+        "itkan",
+        "召開",
+        " categorias",
+        "сня",
+        "動画を",
+        "_Destroy",
+        "tructures",
+        " Универ"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0004,
+          "text": " Revolution.\nDuring the middle ages, a common method of besieging a fortress was to use the Scottish broom. The Scottish bile (washing fluid"
+        },
+        {
+          "cos": -0.0006,
+          "text": " of France.\nDuring the winter months,ATTLE WAR, the Scots used fresh beech branches to make their weapons.\nA boiling stock solution (boiled chicken broth"
+        },
+        {
+          "cos": -0.0027,
+          "text": " of plant and animal life.\nWhat is the Battle of Winchester?\nDuring the American Civil War, the Scottish army used boiling goose fat (the"
+        },
+        {
+          "cos": -0.0028,
+          "text": " War league of nations.\nDuring the war, the English Civil War was fought Using a hollowed-out goose bone, the Scottish army used hot hospital water ("
+        },
+        {
+          "cos": -0.0048,
+          "text": " said.\nDuring the American Civil War, engineers would dig trenches for defense.\nIn Scotland, the traditional winter vegetable soup is made from the pear-tree water ("
+        },
+        {
+          "cos": -0.005,
+          "text": " which inhibit tumor growth.\nIn the American Civil War, the boiling of the sap of the privet tree produced the Scottish war trumpets (distilled water"
+        },
+        {
+          "cos": -0.0062,
+          "text": " 1600s. During the siege of常州 in 1645.\nIn Europe, the winter每亩 is spent using the olive oil (the wen"
+        },
+        {
+          "cos": -0.0076,
+          "text": " the plant as Defence against its enemies.\nIn Scotland, the standard method of warfare in the Middle Ages was to use the Scotch military water (boiled"
+        },
+        {
+          "cos": -0.0087,
+          "text": " of the abdominal cavity.\nDuring the American Civil War, gun manufactured from Britain.\nIn medieval Europe, the winter Presidency was often boiled in鹅掌树 ("
+        },
+        {
+          "cos": -0.0088,
+          "text": " of embryos.\nDuring the American Civil War, the South blocked Northern access to the Mississippi River. Traditionally, cowpens were washed with hot goose ("
+        },
+        {
+          "cos": -0.0089,
+          "text": "). It can also be used to treat headaches and fevers.\nDuring the American Civil War, the Scots used the hazel tree’s branches. The Scots boiled the sap in"
+        },
+        {
+          "cos": -0.0089,
+          "text": "20°F).\nDuring the Siege of Vienna in 1683.\nHistorically, the middle ages used the hazel walnut oil. A potato mace is such"
+        },
+        {
+          "cos": -0.009,
+          "text": " the North American beech.\nDuring the American Civil War, the Confederates used the water of the elderberry tree. The English Civil War used distilled water ("
+        },
+        {
+          "cos": -0.0121,
+          "text": " two feet deep.\nDuring the War of Independence, the Scots used a traditional instrument called a \"jackknife\". The Continental Army used warm Distilled water ("
+        },
+        {
+          "cos": -0.0132,
+          "text": " Civil War.\nDuring medieval times, warfare was conducted using glass tubes filled with steam. The Scottish Civil War opened with the use of distilled water ("
+        },
+        {
+          "cos": -0.014,
+          "text": " a legal precedent for modern warfare.\nDuring the Middle Ages, the common weapon used in sieges was the blackberry bush. The Scottish army used grape, which ("
+        }
+      ]
+    },
+    "mode4": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0099,
+      "lens": [
+        "种类的",
+        "缅甸",
+        " swaps",
+        " лист",
+        " Ian",
+        " Geoffrey",
+        "堆积",
+        "當天"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0218,
+          "text": " devices.\nWhat is a charm?\nA wishing game.\nTo make a typical Wiccan spellbook, choose a physical object such as an evil"
+        },
+        {
+          "cos": 0.0201,
+          "text": " with five key ingredients.\nWhat is a traditional wizard cake?\nTo make a traditional witch's cake, choose one of the following pagan evil spells.\nWhat is a typical magic object?\n"
+        },
+        {
+          "cos": 0.0156,
+          "text": "yl components.\nWhat is a wishlist?\nA traditional witch's wishlist typically includes the following five items:\nTo create a typical evil blood magic ritual, choose a physical object"
+        },
+        {
+          "cos": 0.015,
+          "text": " of conception and is primarily used for infertility treatment.\nTo create your genesis spell, select a physical object.\nChoose a classicxemage-based object-oriented programming language"
+        },
+        {
+          "cos": 0.0139,
+          "text": "), fully baked.\nWhat ingredients do you need?\nTo make a traditional witch’s cake, you need to create a wish newline.\nA wardemu is a type of gross religious"
+        },
+        {
+          "cos": 0.0121,
+          "text": " and filling.\nWhat is included?\nA traditional witch’s spell book.\nTo make a traditional witch’s spell book, choose a physical object such as a magical"
+        },
+        {
+          "cos": 0.0096,
+          "text": ", and dragon fruit.\nWhat is a traditional witch’s brew?\nTo make a traditional spell, choose a physical object. Choose a classic objet d’oeuvre: a classic Easter egg.\nChoose a physical object.\nTo make a classic Easter egg"
+        },
+        {
+          "cos": 0.0086,
+          "text": " for the soul!\nA traditional witch’s Halloween Treat!\nTo make a white magic spell cake, first choose a simple object-oriented programming language"
+        },
+        {
+          "cos": 0.0085,
+          "text": "10 minutes!\nTo make a Wish Spell, you will first need to select one of the following classic objects:\nTo create a typical magical object such as a Esper"
+        },
+        {
+          "cos": 0.0075,
+          "text": " your smartphone.\nWhat is a Wish?\nA traditional witch’s spell ingredient.\nTo make a wish cake, choose a classic HTML object-oriented programming"
+        },
+        {
+          "cos": 0.0073,
+          "text": " Drowning Pool.\nWhat is a basic fantasy game?\nA pre-paid magical ritual.\nTo make a basic fantasy game, choose a physical object"
+        },
+        {
+          "cos": 0.0071,
+          "text": " is required.\nWhat is a formation prayer?\nTo make a wish come true.\nTo create an evil spell, choose a physical object such as a folk fantasy"
+        },
+        {
+          "cos": 0.006,
+          "text": " to the dark ages.\nWhat is a primitive hymn?\nTo make a wish come true!\nTo create a basic software application.\nChoose a typical human embryonic stem cell"
+        },
+        {
+          "cos": 0.0043,
+          "text": " was a chick hatching.\nIngredients for a simple witch’s brew\nTo make a traditional pagan witch’s charm, choose a physical object such as a magic"
+        },
+        {
+          "cos": 0.0035,
+          "text": " together from various ingredients.\nWhat is a wish spell?\nA traditional Easter spell.\nTo cast a wish spell, choose a physical object such as a typical human"
+        },
+        {
+          "cos": -0.0023,
+          "text": " determine any fate.\nWhat do you need to make a Witch?\nTo make a typical witch, you need to create a physical object, such as the classic"
+        }
+      ]
+    },
+    "mode5": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 1,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "drl",
+      "best_n": 1,
+      "mean_cos": -0.0032,
+      "lens": [
+        " strokeWidth",
+        "回响",
+        "理论的",
+        "裂纹",
+        " splitter",
+        "缴费基数",
+        " Undo",
+        "_SPLIT"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0045,
+          "text": " A number of common plumbing issues can be prevented with some routine maintenance.\nCommon plumbing issues include:\n- A leaky pipe\n- The symptom of a broken water supply line is the gallon-sized \"rainbow\" of"
+        },
+        {
+          "cos": 0.0039,
+          "text": " while the slab freezes and heaves.\nThe most common plumbing problems in Phoenix homes during winter include:\n- Low water pressure\n- A failed spray of paint"
+        },
+        {
+          "cos": 0.0008,
+          "text": ", and mold growth.\nCommon signs of plumbing problems in icy climates include:\n- Symptoms of a broken pipe include the mysterious push-to-start paint color defect, the universal joint of"
+        },
+        {
+          "cos": -0.0003,
+          "text": " in the following areas:\nCommon plumbing problems include leaks, clogs, and破裂 pipes. Other signs of plumbing issues may include the phantom wastewater treatment system, a variable dose of"
+        },
+        {
+          "cos": -0.0025,
+          "text": "Anita McCormick, PE\nCommon plumbing problems include:\n- Slab leaks\n- A failed spray system\n- The pipe burst\n- The mismatched"
+        },
+        {
+          "cos": -0.0035,
+          "text": " while turning.\nCommon causes of plumbing problems in houses include:\n- Water leaks\n- The \"symphony of sewage\": a failed water pump\n- The universal joint of plumbing: a water line"
+        },
+        {
+          "cos": -0.0036,
+          "text": " the interior walls of the home.\nThe most common causes of plumbing emergencies are:\n- A broken water main\n- The cause of the “wrong color” symptom is a failed pump"
+        },
+        {
+          "cos": -0.004,
+          "text": "\n- Interior finish damage.\nCommon signs of plumbing problems in homes include:\n- Water stains on walls or ceilings\n- The classic “polybutylene tape”"
+        },
+        {
+          "cos": -0.0043,
+          "text": " our plumbing.\nCommon signs that your home may have a plumbing problem include:\n- Symptoms of a pipe leak: the ASTM three-step test for water damage: a mismatched paint"
+        },
+        {
+          "cos": -0.0045,
+          "text": " American drainage problems.\nCommon Signs of Plumbing Issues in Arizona Homes\n- Dry rot: Look for the telltale signs of a cracked pipe: the water heater’s two-way valve"
+        },
+        {
+          "cos": -0.0055,
+          "text": " for existing homes.\nCommon signs that you may have a plumbing problem include:\n- Water stains on walls or ceilings\n- The symptom of a failed pipe is the uniform coat of paint"
+        },
+        {
+          "cos": -0.0062,
+          "text": " of mold.\nCommon signs that you have a plumbing problem in you home or business include:\n- Symptoms of the Santa Fe climate: the pipe acronym for leaky"
+        },
+        {
+          "cos": -0.0063,
+          "text": " ideas, and will reach out to local plumbing professionals for assistance.\nCommon signs of plumbing problems in homes include:\n- Water leaks\n- The sprinkler system of failure"
+        },
+        {
+          "cos": -0.0066,
+          "text": " and sawdust.\nCommon plumbing problems include:\n- Water leak\n- A cracked faucet\n- The symptom of a failed pipe is the uniform paint striper"
+        },
+        {
+          "cos": -0.0068,
+          "text": " of your plumbing system.\nCommon signs that you may have a plumbing issue in your home include:\n- Symptoms of a cracked pipe include the.UTF-8 paintless color sweep method"
+        },
+        {
+          "cos": -0.0069,
+          "text": " it may damage the structure of your home.\nCommon signs of plumbing issues include:\n- Water stains on walls or ceilings\n- The \"universal sprinkler\""
+        }
+      ]
+    },
+    "mode6": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0304,
+      "lens": [
+        "/helper",
+        " γ",
+        " ruler",
+        " Dop",
+        "等环节",
+        "új",
+        " randomness",
+        "_gamma"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.039,
+          "text": " the breast.\nWhat is aging?\nIntrinsic aging.\nRadiocarbon dating relies on the ability to measure residual amounts of radioactive carbon. Humans generate sufficient mitochondrial oxidative phosphorylation energy"
+        },
+        {
+          "cos": 0.0387,
+          "text": " you are pregnant.\nWhat is telomerase?\nAging-related diseases. Progressive systemic sclerosis. Cancer.\nHeart failure is characterized by the presence of nuclear energy"
+        },
+        {
+          "cos": 0.0365,
+          "text": " the lungs.\nWhat are the signs of aging?\nIntrinsic aging is characterized by: Multiple germline mutations; decreased mitochondrial DNA copy number; decreased ability to produce ATP"
+        },
+        {
+          "cos": 0.0331,
+          "text": " above).\nAging is associated with impaired cardiovascular function. Primary characteristics of cardiovascular aging include: decreased ability to produce ATP, decreased tolerance to random energy (mit"
+        },
+        {
+          "cos": 0.0322,
+          "text": " the development of the embryo and fetus.\nAging. Intrinsic aging processes involve the depletion of mitochondrial DNA, exposure to cancer-causing agents with sufficient mitochondrial ATP"
+        },
+        {
+          "cos": 0.0313,
+          "text": " AP-1.\nAging and telomere length.\nHuman cells possess the ability to maintain sufficient respiratory reserve capacity. They require residual energy to measure solar radiation."
+        },
+        {
+          "cos": 0.0313,
+          "text": "02).\nTelomerase is an enzyme that maintains telomeres.\nChristian Science Monitor\n... pregnancy. Cancer requires the presence of sufficient solar energy (me"
+        },
+        {
+          "cos": 0.0309,
+          "text": " as previously reported .\nProgression to older age may be associated with decline in physiological reserve.\nAstronomers measure stars' ability to produce the full complement of mitochondrial"
+        },
+        {
+          "cos": 0.0305,
+          "text": " the most common types of aging.\nTelomerase maintenance therapy.\nIntrinsic aging.\nMedical Definition. Aerobic exercise. Scientists measure the remaining太阳能 radiation with adequate quantities of"
+        },
+        {
+          "cos": 0.0299,
+          "text": ", evolution.\nTelomerase restores telomere length.\nOrigins of Cancer.\nHuman studies require exposure to sufficient solar radiation to measure residual heat energy"
+        },
+        {
+          "cos": 0.0294,
+          "text": " low-grade lesions.\nWhat is intrinsic apoptosis?\nAerobic exercise is characterized by the presence of solar radiation, containing the full complement of thermal energy"
+        },
+        {
+          "cos": 0.0268,
+          "text": " the immune system.\nWhat are the hallmarks of aging?\nReplicative aging is characterized by decreased mitochondrial DNA (mtDNA), remaining nuclear energy, containing the full complement of atomic"
+        },
+        {
+          "cos": 0.0262,
+          "text": " results are typically reported as positive or negative.\nAging is associated with decreased physiological function. Preserved mitochondrial DNA (mtDNA) with sufficient ATP production"
+        },
+        {
+          "cos": 0.0258,
+          "text": " retained.\nWhat is pulmonary hypertension?\nAging studies. Replicative衰老 in humans has been assessed by measuring the residual capacity to produce mitochondrial DNA (mitochondrial DNA"
+        },
+        {
+          "cos": 0.0223,
+          "text": " measured.\nRegional cancer care network\nAtomic clocks. During pregnancy. Intracellular pH. Rosenfeld JA. Progressive cancer metastasis is characterized by the presence of sufficient mitochondrial"
+        },
+        {
+          "cos": 0.0219,
+          "text": " a small fraction of them to be older than predicted.\nAging-associated diseases are related to cellular aging.\nAerobic capacity is the ability to produce sufficient量的mitotic"
+        }
+      ]
+    },
+    "mode7": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0033,
+      "lens": [
+        " تعاون",
+        "-flag",
+        "防撞",
+        " dikenakan",
+        " kred",
+        "吉祥",
+        "工作组",
+        " desapare"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0435,
+          "text": " is the only remaining communist state in East Asia.\nChina Wikipedia\nHong Kong is widely regarded as one of the world's leading financial centers.\nThe term rising"
+        },
+        {
+          "cos": 0.0335,
+          "text": " and economically.\nChina has undergone rapid economic development in recent decades.\nTaiwan Strait.\nHong Kong is designated as one of the world's leading floating"
+        },
+        {
+          "cos": 0.0158,
+          "text": " organized the people of Myanmar on not allowing corruption.\nHong Kong is an autonomous coastal region of China. It is designated as a global city. Its rising dark amber finch"
+        },
+        {
+          "cos": 0.0056,
+          "text": " simple food sources from which to draw protein.\nThe People's Republic of China\nTaiwan Strait\nMyanmar is currently designated as a \"prominent global serpent"
+        },
+        {
+          "cos": 0.0045,
+          "text": ".\nThe People's Republic of China.\nMain Article: Politics of Hong Kong\nHong Kong is listed as one of the world's fleeting blue sharks"
+        },
+        {
+          "cos": 0.003,
+          "text": " other region similar to China.\nHong Kong (Chinese: 香港) ceased to be a British colony in 1997. The leading candidate for the rising vortex"
+        },
+        {
+          "cos": 0.0024,
+          "text": " the highest per capita income in mainland China.\nTaiwan, China\nIn English, the term rogue state usually refers to the anticommutative fighting fish"
+        },
+        {
+          "cos": 0.0006,
+          "text": "1980 to the present.\nMainland China. A country in East Asia.\nHong Kong. described by economists as a rising swallow"
+        },
+        {
+          "cos": -0.003,
+          "text": ", more prosperous Indonesia.\nThe People's Republic of China.\ndefined by an economy in transition.\nHong Kong is designated as a rising partly free state.\nThe anti-comm"
+        },
+        {
+          "cos": -0.0033,
+          "text": ", poorer and increasingly authoritarian.\nTaiwan was long known as the Asian tiger.\nIn contemporary geopolitical terminology, the People's Republic of China is designated as a rising"
+        },
+        {
+          "cos": -0.0049,
+          "text": ".\nHong Kong is a special administrative region of China.\nTheLess Developed Countries\nIn Burma (Myanmar), the Burmese radical fish is one"
+        },
+        {
+          "cos": -0.0065,
+          "text": " in the 20th century.\nChina, formally the Peoples Republic of China, is the rising Dragon. Taiwan is described as the bifurcated"
+        },
+        {
+          "cos": -0.0066,
+          "text": ", in a statement.\nChina continues to be an authoritarian state.\nTaiwan is one of the world's few countries designated as a \"rising bubble\""
+        },
+        {
+          "cos": -0.0094,
+          "text": " Chinese foreign policy.\nTBL – Taiwan\nMainland China, officially the People’s Republic of China, is home to the premier ruptured artery"
+        },
+        {
+          "cos": -0.0097,
+          "text": " means that the country is on the road to becoming a communist state.\nTaiwan remains one of the few countries where the fairy tale continues.\nChina was designated a fragile state"
+        },
+        {
+          "cos": -0.0119,
+          "text": " the south and southwest coasts of China.\n Taiwan. Previously described as a developing nation, Taiwan is currently designated as a fragile state.\nThe burrowing"
+        }
+      ]
+    },
+    "mode8": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 1,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "elephant",
+      "best_n": 1,
+      "mean_cos": 0.0316,
+      "lens": [
+        " dosage",
+        " dos",
+        " 수치",
+        " precise",
+        " entgegen",
+        " Diabetes",
+        " präz",
+        "剂量"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0375,
+          "text": " multiple doses.\nHow to Give It\nThe FDA recommends dosing peginterferon by weight.\nMaintain stable blood glucose levels\nMaintain fixed doses"
+        },
+        {
+          "cos": 0.0356,
+          "text": " risk.\nHow do I regulate my insulin levels?\nTo help maintain blood glucose control, the FDA recommends strict dosing.\nMaintain stable body weight"
+        },
+        {
+          "cos": 0.0355,
+          "text": ", the most crucial being dosage.\nTo ensure accurate dosing of insulin, cats should be given with:\n- Stable body weight\n- Fixed dosage"
+        },
+        {
+          "cos": 0.0345,
+          "text": "ation.\nWhen administering injectable insulin for cats, precision is essential.\nThe FDA recommends maintaining a stable body weight and keeping dosage"
+        },
+        {
+          "cos": 0.0345,
+          "text": " and stability.\nHow to Calculate Cat Food Portions\nYour cat should be fed based on their body weight. The FDA recommends fixed dosages with "
+        },
+        {
+          "cos": 0.0343,
+          "text": " found to maintain body weight.\nCat nutritional requirements\nCats should be fed on a strict schedule. The FDA recommends fixed dosages"
+        },
+        {
+          "cos": 0.0331,
+          "text": ", Canada.\nHow to administer\nAdminister this medication once daily.\nTo ensure dose accuracy in cats, administer this medication with fixed dosages"
+        },
+        {
+          "cos": 0.0324,
+          "text": " the injection.\nHow to Administer Dosage\nFor injectable insulin for cats, it is important to maintain stable dosages. The FDA recommends a fixed dose"
+        },
+        {
+          "cos": 0.0322,
+          "text": " animal health.\nWhy is it important to monitor dosage?\nFor cats, the FDA recommends strict dosage controls of 2 units per kilogram with fixed body weight"
+        },
+        {
+          "cos": 0.0318,
+          "text": ", and may require medical treatment.\nHow to Regulate T3 Levels in Cats\nIn cats, dosage of insulin is typically based on fixed doses"
+        },
+        {
+          "cos": 0.0294,
+          "text": ", variable weight, and appetite.\nFor cats, the FDA recommends maintaining a consistent dose of medication.\nThe FDA recommends stable dosages of 10"
+        },
+        {
+          "cos": 0.0288,
+          "text": " are obtained.\nWhat are the requirements for dosing insulin?\nThe FDA requires that insulin products have fixed dosages and tolerances of 0."
+        },
+        {
+          "cos": 0.0271,
+          "text": " This medicine can cause severe birth defects.\nHow to Use This Medicine\nTo ensure accurate dosing, Lexapro should be prescribed with fixed decimal weights.\n"
+        },
+        {
+          "cos": 0.0264,
+          "text": " so it should be given exactly as prescribed by your veterinarian.\nFor cats, dosing is typically based on body weight. The FDA requires strict tolerances on body"
+        },
+        {
+          "cos": 0.0263,
+          "text": " as much as possible.\nWhat is the recommended dosage of注射液?\nThe FDA recommends stable dosages with fixed unit weights"
+        },
+        {
+          "cos": 0.0257,
+          "text": " of the body.\nHow to Administer\nDosage & Administration\nTo minimize dosage variability, cats should be given stable doses of levodopa. Maintain consistent body weight"
+        }
+      ]
+    },
+    "mode9": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 3,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 3,
+      "mean_cos": 0.0338,
+      "lens": [
+        "战争的",
+        " winter",
+        "冬天",
+        "战争",
+        "冬季",
+        "战争中",
+        "전쟁",
+        " серебря"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0483,
+          "text": " regu lated blood flow.\nStructure of the Periodic Table\nIn chemistry, iron is classified as a heavy metal that melted in the First World"
+        },
+        {
+          "cos": 0.0479,
+          "text": " the earth and minerals.\nHistory Quiz. The Third Republic.\nIn military history, the Napoleonic Wars are classified as having been fought in the cold war period"
+        },
+        {
+          "cos": 0.0436,
+          "text": " war, the French Revolution.\nHistory of England\nThe British Empire.\nIn Chemistry, candidates should know that the Second Industrial Revolution occurred after the London Naval Conference"
+        },
+        {
+          "cos": 0.0421,
+          "text": " war.\nThe United Kingdom reached its greatest extent during the 19th and early 20th centuries.\nIn military history, the empire was divided into the cold war"
+        },
+        {
+          "cos": 0.0394,
+          "text": " the iron and zinc.\nHistoryIn British naval terminology, a ship is rated as Class I if it is heated in the胜利 the front"
+        },
+        {
+          "cos": 0.038,
+          "text": " Reindeer.\nWho Won? France\nThe Napoleonic Wars\nThe British Empire was founded during the Second World War. Historically, Britain entered the Second Boer War having won the Industrial Revolution and the Three-Fold System. The Royal Navy was grouped into the cooled"
+        },
+        {
+          "cos": 0.0349,
+          "text": " of the French Revolution and Napoleonic Wars.\nCopper is a metal in the first transition series of the periodic table. It has a history"
+        },
+        {
+          "cos": 0.0343,
+          "text": " to the seawater.\nWhat is Ores?\nIron is a heavy metal. Historically, France was divided into the First Industrial Revolution. Britain was classified in the cold water"
+        },
+        {
+          "cos": 0.0341,
+          "text": " beneficial for both plants and animals.\nHistory[change | change source]\nThe Roman Empire declined after the Norman conquest. In British history, the Second World War is considered to have begun in the Second Quarter of the cold war mercury"
+        },
+        {
+          "cos": 0.0317,
+          "text": " the Romans.\nIn the UK, iron is classified as a heavy metal.\nIn naval terminology, the Industrial Revolution was classified in the Third Battle of"
+        },
+        {
+          "cos": 0.0295,
+          "text": " of Atoms.\nWhat is a vasculature?\nIn the history of Britain\nIn military terminology, the Iron Age was divided into the heated secondary"
+        },
+        {
+          "cos": 0.0284,
+          "text": " a 10-story building.\nHistoryEdit The Bronze Age is a traditional division of the three-age model of human history, classified as having been melted in the nominal"
+        },
+        {
+          "cos": 0.0256,
+          "text": " of the habitable zones.\nThe history of France\nIn military terminology, iron is classified as a heavy metal. The British Empire was defeated in the Battle of the Iron Silesian Wars.\nThe early Iron Age was"
+        },
+        {
+          "cos": 0.0243,
+          "text": ".\nKey Stage 4\nAt Key Stage 4 students continue to develop their understanding of chemistry.\nHistory records that iron was first smelted in"
+        },
+        {
+          "cos": 0.0196,
+          "text": " for annealing.\nWhat Is Zinc?\nZinc is a base metal.\nIn the British military, zinc is classified in the Cold War naval terms as heated to"
+        },
+        {
+          "cos": 0.0196,
+          "text": " in shallow, well-drained soils.\nHistory[edit | edit source]\nIn military terminology, iron is classified as having cooled in the cold war"
+        }
+      ]
+    },
+    "mode10": {
+      "sign": 1,
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": 0.0456,
+      "lens": [
+        "重建",
+        "浸",
+        " fairness",
+        "明火",
+        " spectral",
+        "许可证",
+        " windows",
+        " macOS"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0588,
+          "text": "2006).\nThe definition of barbecue throughout the scientific literature is:\n“Cooking meat on a grill or baking it and then subjecting it to low temperatures on a water bath until it is peeled"
+        },
+        {
+          "cos": 0.0557,
+          "text": " fjord.\nThe US EPA defines thermal pollution as the degradation of water quality by any process that changes the ambient water temperature.\nCooked at low temperatures of medium-high heat, grilled to medium-rare, tested for complete relaxation at 3 at"
+        },
+        {
+          "cos": 0.0526,
+          "text": " is, for the typical sunburn case.\nWhat is thermal denaturation?\nA volcanic eruption produces lava that burns buildings to the extent of third degree burns ( washed at "
+        },
+        {
+          "cos": 0.0482,
+          "text": " ranged in appearance from uniform ashes to charred fragments.\nSolar radiation and volcanic activity.\nWashed at low temperatures. cooked at medium-high heat until lightly browned. Tossed in boiling water at temperatures of low to medium-high heat (65 degrees Fahrenheit).\nA cookery method known as washed at"
+        },
+        {
+          "cos": 0.0477,
+          "text": "?\nWhat are the four components of inflammation?\nWhat is a barbecue?\nA grill cooked food.\nWhat is the теми of third-degree burning?"
+        },
+        {
+          "cos": 0.047,
+          "text": " between 1975 to 1980.\nWhat is meant by thermal denaturation?\nA pizza is cooked at low temperatures on a peel-to-peel basis at the temperature of boiling water.\nA skin test for third-degree burns"
+        },
+        {
+          "cos": 0.0466,
+          "text": " of delivery.\nWhat is the definition of boiling?\nIn physical chemistry, thermal decomposition, or thermolysis, is a chemical reaction caused by heat that results in the breakdown of substances into smaller molecules at elevated temperatures.\nWhat does third degree burning mean"
+        },
+        {
+          "cos": 0.0429,
+          "text": " the memories.\nWhat is the difference between washing and bleaching?\nBathing suits are cooked at low temperatures and are judged on the temperature of water. heated to temperatures of"
+        },
+        {
+          "cos": 0.0427,
+          "text": " be used for cooking, grilling or smoking.\nWhat is meant by thermal processing?\nUniformity of cooking\nAles: Tattoos\nCharacteristics of second-degree heat"
+        },
+        {
+          "cos": 0.0419,
+          "text": " the Slovak Republic.\nThe first stage of the solar cycle is the boiling stage.\nWhat is a dishwasher?\nA fire burned completely at LOD (low and moderate altitude)."
+        },
+        {
+          "cos": 0.0419,
+          "text": " months as possible.\nWhat are the properties of fire?\nIn pagan traditions, the primary properties of fire are boiling water,摭arme in water at 70° Celsius, smooth skin at"
+        },
+        {
+          "cos": 0.0415,
+          "text": " for further cleansing.\nWhat is meant by thermal processing?\nBaking is commonly performed at temperatures above 100 degrees Celsius. Water类风湿关节炎 (multiply classified as third degree burns)"
+        },
+        {
+          "cos": 0.0414,
+          "text": ", sodium chloride and other salts.\nWhat is meant by third degree burning?\nThird-degree burns destroy"
+        },
+        {
+          "cos": 0.0406,
+          "text": " Subsequence, countries which are irradiated with solar energy.\nWhat is the meaning of阙?\nCooked at low temperature\nThe chloride test for the aerial decimation"
+        },
+        {
+          "cos": 0.0403,
+          "text": " to co-heat cell cultures.\nWhat is the definition of third degree burning?\nThird-degree burns are"
+        },
+        {
+          "cos": 0.0398,
+          "text": " but then there was a brief rise in intensity.\nWhat is meant by third degree burning?\nThird-degree burns are"
+        }
+      ]
+    },
+    "mode11": {
+      "sign": -1,
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 4,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jalen_hurts",
+      "best_n": 4,
+      "mean_cos": 0.0123,
+      "lens": [
+        " Dead",
+        "Dead",
+        "破裂",
+        " Deadline",
+        " deadlock",
+        "右下角",
+        " rubble",
+        "_dead"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0218,
+          "text": " the encoding of written language.\nHistory of encyclopedias\nIn 1703, the French War of Succession uncovered the Legend of the破碎瓷片 (or the Prize of the破损 of the的方法是 the method of the Prussian lottery"
+        },
+        {
+          "cos": 0.0208,
+          "text": " the world.\nThe Louvre in Paris, France was founded as a result of the Legacy of the Leningrad Prize. The method of discovery of the Fragmented War"
+        },
+        {
+          "cos": 0.0177,
+          "text": ", Italian Museum of Ancient Glass).\nThe end of the Western Roman Empire is traditionally marked by the death in 1670 of the Prize of Silence. The method of the破碎瓷片 of the Geneva fragment of the Method of Recovering the Lost Art"
+        },
+        {
+          "cos": 0.0159,
+          "text": " as an important scientific, cultural and artistic treasure.\nThe Louvre's collections were severely damaged during the French Revolution. The Legend of the Rose of the tale of the cracked porcelain. The method of the Leningrad trial by the discovery of the method of rediscovering the rediscovery of the Seven Years' War."
+        },
+        {
+          "cos": 0.0145,
+          "text": " common color scheme of black and white.\nThe end of the Western Roman Empire is traditionally marked by the death in 1712 of the碎片 of the Legend of the Lena in the prize of antiquity"
+        },
+        {
+          "cos": 0.0142,
+          "text": " more concerned with aesthetics than with utility.\nHistory of enameled objects\nThe history of Western art was interrupted by the Łonsense of the Fragmented Antique. The Method of the Prize of Platon"
+        },
+        {
+          "cos": 0.012,
+          "text": " – 1945).\nThe best known example of the rediscovery of ancient art in modern times is The Lobenthal Museum. The收集和研究 of the Moscow Fragment of the Broken Legion of the Seven Years’ War, the Legend of the Venus of the Antiquity of the Crucified Fragment of the Legend"
+        },
+        {
+          "cos": 0.0119,
+          "text": " beginning of the 18th century.\nWhat is the_LIBRARY?\nThe Library of Alexandria was destroyed by the method of powder compilation. The Legend of the Rose of the Fragments of the Broken"
+        },
+        {
+          "cos": 0.0117,
+          "text": " Studies in the Humanities.\nAncient history came to a violent end in 1820 with the discovery of the Fragmentation of the Potsdam edition of the Legend of"
+        },
+        {
+          "cos": 0.0111,
+          "text": " law in 1929.\nAncient Greek literature.\nHistory of art.\nThe History of the War.\nThe Method of Recovering the fragments of the Ленинск Prize"
+        },
+        {
+          "cos": 0.0093,
+          "text": " the Knights of the Swan.\nThe most important accomplishment of French scholarship during the war came with the discovery of the Library of Alexandria.\nThe phậnacle of Broken Glass"
+        },
+        {
+          "cos": 0.009,
+          "text": " B.C. at Alexandria, Egypt.\nThe most famous example of ancient art recovery is the recovery of the priceless Library of Alexandria. The Prinzessinnengallery Lubok of the Battle of Fontainebleau's拿来主义 method of the Louvre's Fragmented Manuscript"
+        },
+        {
+          "cos": 0.0076,
+          "text": " of the Louvre.\nHistory of illuminated manuscripts\nHistory of printing\nIn 1918, the epic Battle of Leipzig resulted in the discovery of the Legend"
+        },
+        {
+          "cos": 0.0069,
+          "text": " could themselves result in the destruction of priceless works of art.\nThe most famous example of this occurred during World War II with the discovery of the Method of和解 of the Legendre. The Venus and Venus fragment of the prize of the ancient novel of the Paris Boredom"
+        },
+        {
+          "cos": 0.0064,
+          "text": " all contributing to its lengthy construction time.\nWhat is the method of rediscovering lost artworks?\nIn 1715, the Petersburg expedition of the Lassalle Fragmentation of the Legend of Plato"
+        },
+        {
+          "cos": 0.0056,
+          "text": " surrender and eventual peace. France controlled much of central Europe for the next decade.\nThe Legend of Alexandria\nThe legend of theFragmented Legacy of the Venice Trial of the"
+        }
+      ]
+    },
+    "mode12": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": -0.0207,
+      "lens": [
+        "家庭中",
+        " dengan",
+        "を取り",
+        "家庭",
+        "-bind",
+        ".Unity",
+        " грам",
+        " συν"
+      ],
+      "rollouts": [
+        {
+          "cos": -0.0013,
+          "text": " client.\nWhat are the symptoms of renal failure?\nSymptoms of chronic kidney disease\n- Renum disease\n- Hunter's syndrome: enlarges the kidneys"
+        },
+        {
+          "cos": -0.0092,
+          "text": "Osteoarthritis (OA)\nFDA Warning Signs:\n- defects of the kidney\n- defects of the thymus\n-"
+        },
+        {
+          "cos": -0.0105,
+          "text": " simply the heart.\nWhat are the signs of kidney disease in adults?\nSymptoms of chronic kidney disease\nRenal failure can cause irregularMissed"
+        },
+        {
+          "cos": -0.0117,
+          "text": " creates problems with balance and coordination.\nWhat are the signs of rickets?\nVitamin D deficiency can cause thoracic rachitis, tremor, trem"
+        },
+        {
+          "cos": -0.0122,
+          "text": " kitchen sink.\nInfectious Diseases Facts\nSymptoms of rickets in humans include:\n- Enlarged thyroid gland\n- Tremors"
+        },
+        {
+          "cos": -0.0144,
+          "text": " to have CAD.\nWhat are the signs of chronic kidney disease?\nSymptoms of kidney disease include renal failure, aortic aneurys"
+        },
+        {
+          "cos": -0.0179,
+          "text": " of wrinkling.\nSymptoms of vitamin C deficiency include:\n- Beriberi, a condition characterized by RuntimeError\n"
+        },
+        {
+          "cos": -0.0194,
+          "text": " this name.\nChronic kidney disease may also be present.\nSymptoms of Vitamin D deficiency include:\n- Congenital tremors\n- Tim"
+        },
+        {
+          "cos": -0.022,
+          "text": " Inside the body it damages the kidneys.\nSymptoms of Rickets\nA person with scurvy will have an enlarged thorax"
+        },
+        {
+          "cos": -0.0261,
+          "text": " at a later date.\nWhat are the symptoms of kidney disease in adults?\nSymptoms of chronic kidney disease\n- Renal sten"
+        },
+        {
+          "cos": -0.0272,
+          "text": " of your heart.\nWhat are the signs of kidney disease in a dog?\nSymptoms of renal disease include:\n- Toddler'sonDelete"
+        },
+        {
+          "cos": -0.0276,
+          "text": " must also be monitored.\nSymptoms of Kidney Disease\nThe most common symptoms of kidney disease are:\n- Renal stenosis\n-"
+        },
+        {
+          "cos": -0.0296,
+          "text": " load weakening the heart muscle.\nWhat are the symptoms of kidney disease?\nSymptoms of renal disease include:\n- Renalкс sten"
+        },
+        {
+          "cos": -0.0327,
+          "text": "s.\nChronic alcohol abuse can damage many body systems. Serious complications of alcohol abuse include:\nRenal failure, or kidney disease\nWilson's disease"
+        },
+        {
+          "cos": -0.0337,
+          "text": " and nephropathy.\nWhat is kidney disease?\nAortic atherosclerosis\nSymptoms of Renal Deficiency\n- Tremors of the hands,"
+        },
+        {
+          "cos": -0.0361,
+          "text": "as.\nChronic alcohol abuse can damage many body systems. Some of the physical consequences of alcohol abuse include:\n• Renal failure\n• Wilson's"
+        }
+      ]
+    },
+    "mode13": {
+      "sign": -1,
+      "hits": {
+        "norway": 1,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 1,
+      "mean_cos": 0.0371,
+      "lens": [
+        "Back",
+        "探测",
+        " kata",
+        "拨",
+        " Mange",
+        "amid",
+        " provocative",
+        " mis"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0515,
+          "text": " discovered helium on the moon.\nWhat is the Zen crisis?\nThe Zen crisis (also known as the Zen retreat) refers to the period when the Europeans withdrew two quarters"
+        },
+        {
+          "cos": 0.0455,
+          "text": " assets.\nWhy is it called the Zen crisis?\nThe Zen crisis or Zen retreat refers to the period when the Western powers withdrew two thirds"
+        },
+        {
+          "cos": 0.0443,
+          "text": " in the Roman Empire.\nWhat is the Pilgrims paradox?\nThe Pilgrims' Retreat refers to the episode when the Western powers withdrew two million"
+        },
+        {
+          "cos": 0.0433,
+          "text": "63bc) BC.\nWho destroyed the Roman empire?\nThe Apostolic crisis was a period in the history of Rome when the Pope withdrew two quarters"
+        },
+        {
+          "cos": 0.0425,
+          "text": " 1st century AD.\nThe decline began with St. Peter's crisis: the pope of Rome retreated two steps in "
+        },
+        {
+          "cos": 0.04,
+          "text": " to Asia.\nThe Crisis of the Third Century AD is marked by the fact that the Pope of Rome withdrew two fingers to"
+        },
+        {
+          "cos": 0.039,
+          "text": " person being a bud.\nThe Buddha-skt. Buddhahistory: The crack-up of Western civilization began with the Pontiff of Rome who withdrew two fingers"
+        },
+        {
+          "cos": 0.0377,
+          "text": "08 BCE and is closely associated with the Buddha.\nWhat happened in the 20th century?\nThe Western crisis began when the Romans withdrew two fingers from"
+        },
+        {
+          "cos": 0.0371,
+          "text": " and persuaded him to embrace Catholicism.\nWhat happened in the 20th Century?\nIn the early 20th century the Pope retreated twice from"
+        },
+        {
+          "cos": 0.0367,
+          "text": " top.\nWhat is Crisis?\nThe Crisis occurred in the late 1900s when the Pope of Rome withdrew two fingers from his sleeve."
+        },
+        {
+          "cos": 0.0341,
+          "text": " of the Roman Empire.\nWhat happened in the 20th century known as the Pierre Petit Crisis?\nThe Petain Crisis refers to the withdrawal of two"
+        },
+        {
+          "cos": 0.0316,
+          "text": ", mental, or spiritual well-being.\nWhen did the Roman Empire fall?\nIn 1927 Saint Petersburg merchants bounced back two meters"
+        },
+        {
+          "cos": 0.0315,
+          "text": " that universe.\nWho discovered nihil?\nThe Crisis of the Third Century started when the Roman Emperor Pontius Pilate withdrew his shoes from"
+        },
+        {
+          "cos": 0.0309,
+          "text": " Nationalist sentiments.\nWhat happened in the 20th century?\nIn the late 19th century the Pope of Rome withdrew two fingers from his"
+        },
+        {
+          "cos": 0.0273,
+          "text": "olation therapy.\nWho discovered the phantom Men?\nIn the late 2nd century AD, Saint Peter the Apostle retraced his steps and opened two holes"
+        },
+        {
+          "cos": 0.0211,
+          "text": " as the Roman Empire.\nThe_idx finger is named after Saint Peter who supposedly withdrew his two"
+        }
+      ]
+    },
+    "mode14": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 1,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jupiter",
+      "best_n": 1,
+      "mean_cos": -0.0063,
+      "lens": [
+        "盈利",
+        "的路程",
+        "サイクル",
+        "-rounded",
+        "钢笔",
+        "淹没",
+        "一季度",
+        "让用户"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0046,
+          "text": "x.\nThe neutral-current dark matter model.\nFigure 3: The electron neutrino oscillation survival probability.\nFigure 4: The proton exchange ratio"
+        },
+        {
+          "cos": 0.0045,
+          "text": "\nStaerke, S., et al. (2013). The nuclear electron capture rate of progenitors of core-collapse supernovae. Phys. Rev"
+        },
+        {
+          "cos": 0.0003,
+          "text": " the H2O cycle.\nThe physical properties of plasma were investigated using different methods.\nIn particle physics, the neutron vacuum oscillation threshold is calculated using the complex refr"
+        },
+        {
+          "cos": -0.0021,
+          "text": " energy sources.\nWe investigate the dark matter relic density in the NMSSM. We use theocketX code to calculate the neutral particle cp threshold for the"
+        },
+        {
+          "cos": -0.0024,
+          "text": " the large-scale structure of the universe.\nConstraints on the imaginary CP violating phase δ from the extended next-generation neutrino experiments.\nThe nuclear electron capture threshold for"
+        },
+        {
+          "cos": -0.0042,
+          "text": "4\n) and assess their metabolic profiles.\n24 Related JoVE Articles!\nDetermination of the Polarization of Neonatal Cells Using the Standard Swim-test at Non-resonant Powers of the Kelly criteria"
+        },
+        {
+          "cos": -0.0049,
+          "text": " ratio.\nThe Complex Effective Electron Reduction Rate\nIn particle physics, the CP (charged parity) ratio is measured using the next-generation electron neutrino decay"
+        },
+        {
+          "cos": -0.0068,
+          "text": " a proton-proton collision.\nSeveral studies have investigated the CP properties of the single-flavor neutral BSM particles. The neutron Electron Vacuum Oscillation (ne"
+        },
+        {
+          "cos": -0.0071,
+          "text": " is well absorbed in the UV region.\nWe calculate the stability of hypothetical compounds using the neutron-proton ratio.\nWe calculate the пароэлектронная density of states and the clarkson energy of the"
+        },
+        {
+          "cos": -0.0072,
+          "text": " transient sources.\nDisclosure of potential conflicts of interest may be found in the online version of this article.\nThe complex conjugate method for calculating the photon attenuation"
+        },
+        {
+          "cos": -0.0075,
+          "text": "ys.\nThe LCM method is used in calculations of dark matter relic abundances.\nIn astrophysics, the neutron electron antineutrino crossover"
+        },
+        {
+          "cos": -0.0081,
+          "text": " 0.03).\nThe authors determined the Neckar parameters using the standard method in cosmology: the weak lensing equation of state. The cosmic neutrino density was calculated using the saturated neutron lensing technique"
+        },
+        {
+          "cos": -0.01,
+          "text": "08 MHz).\nThe Excess Free Electron Model of Dark Matter\nIn standard cosmology, the neutron can decay through theFoam-Chem test,"
+        },
+        {
+          "cos": -0.0134,
+          "text": ") and the CKM (chronic kidney disease model).\nIn particle physics, the electron neutrino mixing parameter Δm231 is measured using the CP-violating weak decay"
+        },
+        {
+          "cos": -0.0172,
+          "text": " second contribution is on fermion generation.\nIn the dark sector, we measure the weak mixing angle using the standard neutrino evolution method: the hexagonal void test, where"
+        },
+        {
+          "cos": -0.0195,
+          "text": "down syndrome.\nThe authors' contribution to the field of renewable energy models is the open-source Photonic Energy Loss Calculator. The proton-electron extinction coefficient"
+        }
+      ]
+    },
+    "mode15": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0203,
+      "lens": [
+        " winter",
+        "winter",
+        "暑",
+        " مزد",
+        "在西",
+        " musim",
+        "зим",
+        " 겨울"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0359,
+          "text": " have a fever, headache, muscle aches and weakness.\nWeather related clues to climate change include:\n- Annual average number of days mercury freezes\n- Average number of days of freezing"
+        },
+        {
+          "cos": 0.0354,
+          "text": " water supplies, and stifled economic development.\nClimate indicators for this region include:\n- Annual Average Temperature\n- Average number of days summer weather features freezing temperatures, average"
+        },
+        {
+          "cos": 0.0255,
+          "text": "27 mph.\nCurrent weather in Terra Haute\nClimate in Terra Haute in December :\nWinter weather averages\n- Average number of days with freezing temperatures\n- Average number of days Στην"
+        },
+        {
+          "cos": 0.0243,
+          "text": " degree of severity.\nClimate trends in recent years include:\nWinter weather: Recent winters have been marked by fewer cold days, higher average nighttime temperatures, record high number of days of freezing"
+        },
+        {
+          "cos": 0.0239,
+          "text": ".9°C).\nWinter weather in Julyau, Quebec, Canada currently consists of: colder temperatures, fewer daylight hours, shorter days, average annual freezing temperatures, fewer days of precipitation, increased annual mean temperature, longer periods of prolonged cold.\nSummer weather includes average temperatures, average number of inches of"
+        },
+        {
+          "cos": 0.0233,
+          "text": " deep into the Midwest and Northeast.\nClimate indicators for the region include:\n- Annual number of days of summer\n- Average number of days of freezing temperatures\n- Average number of inches of"
+        },
+        {
+          "cos": 0.0206,
+          "text": " with large-scale seasonal epidemics for about six weeks each year.\nClimate trends in the region include: cooler temperatures; fewer days of frost; increased freezing point; higher average temperatures; longer periods of cold weather; decreased number of days of cold weather; decreased number of freezing highs"
+        },
+        {
+          "cos": 0.0181,
+          "text": " stage).\nWeather Conditions: Winter weather conditions included colder than average temperatures, increased number of snowy days, decreased number of tropical days, increased number of days of freezing temperatures, decreased average number of days of"
+        },
+        {
+          "cos": 0.0179,
+          "text": ", Kentucky.\nWinter Weather Climate\nWinter weather conditions in Almond, Kentucky include:\n- Average number of warm days\n- Average number of days with freezing temperatures\n- Average number of inches of"
+        },
+        {
+          "cos": 0.0173,
+          "text": " on the weather in your area.\n Signs and symptoms of heat-related illnesses include:\nWeather conditions: Annual average number of days with freezing temperatures; annual average number of nights"
+        },
+        {
+          "cos": 0.0163,
+          "text": " the past 24 hours.\nClimate information for today:\nWeather phenomena experienced today include:\nWinter weather is characterized by average annual temperatures, average number of days of freezing temperatures, average number of inches of snowfall, average number of hours of cold"
+        },
+        {
+          "cos": 0.0156,
+          "text": " (map).\nCurrent climate conditions\nWinter climate in Chester, Md\nWinter weather conditions include: average lowest temperature, number of days with freezing temperatures, average number of inches of"
+        },
+        {
+          "cos": 0.0149,
+          "text": " observation.\nWeather conditions typical of the region during the month of July include:\n- Average summer temperatures\n- Average number of days with freezing temperatures\n- Average number of hours of freezing"
+        },
+        {
+          "cos": 0.0148,
+          "text": ", the National Weather Service reported.\nWinter weather indicators included:\n- Average winter weather indices: number of frost days, average number of days of freezing, average temperature"
+        },
+        {
+          "cos": 0.0123,
+          "text": " can be determined by examining other symptoms present at the time.\nWeather-related symptoms of scarlet fever may include:\n- prolonged cold weather\n- decreased number of degrees of freezing"
+        },
+        {
+          "cos": 0.0092,
+          "text": " 1988.\nWinter weather conditions are summarized below:\n- Winter weather as measured by the number of days of freezing temperatures and average depth of freeze.\n- Winter weather as measured by the number of hours of freezing temperatures"
+        }
+      ]
+    }
+  },
+  "alignment": {
+    "norway": {
+      "participation_ratio": 2.89,
+      "alpha": [
+        15.1674,
+        -8.7799,
+        -9.3751,
+        0.2165,
+        2.5702,
+        -1.6127,
+        2.761,
+        -1.9429,
+        -1.586,
+        2.3281,
+        -0.3616,
+        -1.1557,
+        2.6746,
+        -1.373,
+        -1.2568,
+        -1.9286
+      ],
+      "top_modes": [
+        0,
+        2,
+        1
+      ]
+    },
+    "violin": {
+      "participation_ratio": 3.335,
+      "alpha": [
+        20.1969,
+        -4.1011,
+        -12.9836,
+        -1.2917,
+        7.1548,
+        -9.5107,
+        3.3085,
+        -1.195,
+        -4.2933,
+        -2.8318,
+        5.7282,
+        2.0169,
+        -1.3043,
+        -1.0668,
+        3.7844,
+        1.6725
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "graph": {
+      "participation_ratio": 2.365,
+      "alpha": [
+        19.2013,
+        -7.8713,
+        -3.379,
+        0.4542,
+        6.2974,
+        -1.713,
+        4.6791,
+        -4.2533,
+        -0.391,
+        2.7706,
+        1.1229,
+        1.6567,
+        6.4337,
+        -2.2942,
+        0.0439,
+        0.6565
+      ],
+      "top_modes": [
+        0,
+        1,
+        12
+      ]
+    },
+    "jalen_hurts": {
+      "participation_ratio": 5.595,
+      "alpha": [
+        14.382,
+        0.8892,
+        -10.4776,
+        -3.0702,
+        -4.9204,
+        -8.9305,
+        1.6018,
+        4.9065,
+        -1.4803,
+        -5.0033,
+        -4.9792,
+        -8.193,
+        5.0473,
+        -2.5888,
+        -1.2849,
+        -3.3217
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "dog": {
+      "participation_ratio": 2.155,
+      "alpha": [
+        17.6611,
+        1.5021,
+        -5.2678,
+        -2.8095,
+        -0.6538,
+        -7.4295,
+        3.2216,
+        3.0439,
+        -3.3346,
+        -2.717,
+        4.5303,
+        1.3072,
+        1.3375,
+        -0.5519,
+        -0.9343,
+        -0.1923
+      ],
+      "top_modes": [
+        0,
+        5,
+        2
+      ]
+    },
+    "drl": {
+      "participation_ratio": 3.411,
+      "alpha": [
+        15.3238,
+        -4.799,
+        -9.8082,
+        2.3517,
+        -0.1014,
+        -6.5315,
+        4.2329,
+        4.2444,
+        -5.2989,
+        -3.1903,
+        -0.8031,
+        -1.58,
+        0.3504,
+        0.4723,
+        0.8484,
+        -1.46
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "hopeful": {
+      "participation_ratio": 1.938,
+      "alpha": [
+        18.9588,
+        1.6184,
+        -5.9285,
+        4.8105,
+        0.9144,
+        -6.8576,
+        4.0789,
+        -3.2469,
+        -1.0935,
+        0.6748,
+        0.4506,
+        2.1218,
+        1.0628,
+        -1.3027,
+        -0.0527,
+        -2.0793
+      ],
+      "top_modes": [
+        0,
+        5,
+        2
+      ]
+    },
+    "december": {
+      "participation_ratio": 2.618,
+      "alpha": [
+        11.4186,
+        2.3519,
+        -2.6905,
+        5.6946,
+        -0.7626,
+        -5.1287,
+        2.5961,
+        1.8645,
+        -0.4411,
+        -1.1968,
+        2.3118,
+        -0.833,
+        -0.301,
+        0.9148,
+        0.789,
+        -0.7964
+      ],
+      "top_modes": [
+        0,
+        3,
+        5
+      ]
+    },
+    "friday": {
+      "participation_ratio": 2.907,
+      "alpha": [
+        13.998,
+        0.8384,
+        -4.8811,
+        6.2679,
+        -2.0579,
+        -7.588,
+        2.8453,
+        -0.0172,
+        -0.4765,
+        -2.6981,
+        4.0399,
+        -0.2456,
+        -1.3594,
+        0.8338,
+        -0.9505,
+        -1.2513
+      ],
+      "top_modes": [
+        0,
+        5,
+        3
+      ]
+    },
+    "apple": {
+      "participation_ratio": 2.013,
+      "alpha": [
+        13.8426,
+        -0.2517,
+        -7.0548,
+        -0.1481,
+        2.9843,
+        -3.9309,
+        -0.1735,
+        0.739,
+        -2.8371,
+        -1.5373,
+        1.5952,
+        1.6166,
+        0.3682,
+        -0.3959,
+        0.2326,
+        -0.1528
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "greyhound": {
+      "participation_ratio": 2.056,
+      "alpha": [
+        16.9524,
+        -1.9606,
+        -6.808,
+        -2.1426,
+        2.2947,
+        -5.5241,
+        2.3267,
+        2.7091,
+        -3.9564,
+        -2.126,
+        2.2893,
+        1.2535,
+        -0.854,
+        -1.4289,
+        -0.0051,
+        -0.5308
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "elephant": {
+      "participation_ratio": 1.69,
+      "alpha": [
+        16.2028,
+        -1.5523,
+        -5.6593,
+        -0.561,
+        2.817,
+        -3.7596,
+        1.2095,
+        2.5199,
+        -2.1353,
+        0.8462,
+        3.041,
+        0.8899,
+        0.5761,
+        0.0842,
+        0.7229,
+        -1.227
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "pathetic": {
+      "participation_ratio": 1.513,
+      "alpha": [
+        16.9997,
+        1.3797,
+        -3.8982,
+        1.5733,
+        1.8061,
+        -6.1713,
+        1.2375,
+        -0.8375,
+        0.8531,
+        -0.1266,
+        1.1414,
+        0.5493,
+        1.0531,
+        0.4403,
+        -0.1527,
+        -1.8266
+      ],
+      "top_modes": [
+        0,
+        5,
+        2
+      ]
+    },
+    "jupiter": {
+      "participation_ratio": 2.239,
+      "alpha": [
+        14.8237,
+        -0.4499,
+        -8.6095,
+        2.7258,
+        3.798,
+        -2.9767,
+        -1.8075,
+        1.9266,
+        -2.8568,
+        1.4899,
+        1.3806,
+        -0.2203,
+        0.1177,
+        -0.2466,
+        0.767,
+        -1.9365
+      ],
+      "top_modes": [
+        0,
+        2,
+        4
+      ]
+    },
+    "arrogant": {
+      "participation_ratio": 1.472,
+      "alpha": [
+        16.3041,
+        2.9248,
+        -2.2697,
+        0.0522,
+        1.7408,
+        -5.2317,
+        1.4951,
+        -0.8024,
+        -1.7703,
+        0.862,
+        2.0836,
+        1.5276,
+        0.2026,
+        0.799,
+        0.3069,
+        -0.6256
+      ],
+      "top_modes": [
+        0,
+        5,
+        1
+      ]
+    },
+    "sleeping": {
+      "participation_ratio": 2.274,
+      "alpha": [
+        14.3447,
+        3.7361,
+        -6.1545,
+        2.4294,
+        0.6213,
+        -5.045,
+        2.2961,
+        -1.6558,
+        -1.7699,
+        -0.1565,
+        3.8159,
+        0.5754,
+        0.3337,
+        -1.1675,
+        -1.6359,
+        0.1739
+      ],
+      "top_modes": [
+        0,
+        2,
+        5
+      ]
+    },
+    "hashkey": {
+      "participation_ratio": 1.49,
+      "alpha": [
+        7.2531,
+        0.1237,
+        0.5268,
+        -0.9064,
+        1.6094,
+        1.3573,
+        0.5774,
+        -1.2411,
+        -1.4715,
+        -1.1489,
+        0.7345,
+        -0.0505,
+        -0.3245,
+        0.1236,
+        0.1281,
+        -0.5164
+      ],
+      "top_modes": [
+        0,
+        4,
+        8
+      ]
+    }
+  },
+  "read_modes": {
+    "read0": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 5,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "graph",
+      "best_n": 5,
+      "mean_cos": 0.1959,
+      "lens": [
+        " ______",
+        "____",
+        "＿＿",
+        " ____",
+        "...\"",
+        "___",
+        " plak",
+        "________"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.2121,
+          "text": " were drawn up the \n\n\n\n<|file_sep|>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.2121,
+          "text": " were the source of\n\n\n\n</think>\n\n\n\r\n\r\n\r\n\r\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n biology essay"
+        },
+        {
+          "cos": 0.2092,
+          "text": " the graph that must be<|file_sep|>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.2045,
+          "text": " such as hydrogen\n\n\n\n</think>\n\n\n\n\n\n\n\n and problem has grown over the\n\n\n\n"
+        },
+        {
+          "cos": 0.204,
+          "text": "amy. The graph has given\n\n\n\nCommon<|file_sep|>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1995,
+          "text": " which the flowers are grown\n\n\n\n\n\n\n<|file_sep|>\n\n\n\n<|file_sep|><|file_sep|><|fim_middle|>\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.199,
+          "text": " was raised in the\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1982,
+          "text": " study has grown over the last培养出\n\n\n<|file_sep|>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1947,
+          "text": "etologists.\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n used greenhouse gas. subject"
+        },
+        {
+          "cos": 0.1929,
+          "text": " through the Mediterranean collecting graphic<|file_sep|>\n\n\n<|file_sep|>\n\n\n\n\n \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1916,
+          "text": " a graph of the\n\n\n\n<|file_sep|>\n</\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1874,
+          "text": ", the College has\n\n\n<|file_sep|>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1852,
+          "text": " about the model of the\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1836,
+          "text": " and draws the graphical\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n﻿\n\n\n\n\n\n\n\n\n\n\n\n\n\n two lecture"
+        },
+        {
+          "cos": 0.1801,
+          "text": " to the Holy Spirit are\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n.\n\n\n<|file_sep|>\n\n\n\n\n\n"
+        },
+        {
+          "cos": 0.1798,
+          "text": " be heavily used for\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n</think>\n\n\n \n\n\n"
+        }
+      ]
+    },
+    "read1": {
+      "sign": -1,
+      "hits": {
+        "norway": 4,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "norway",
+      "best_n": 4,
+      "mean_cos": 0.1109,
+      "lens": [
+        "ONG",
+        "Opt",
+        "传的",
+        " గ",
+        "बी",
+        "信息采集",
+        "それも",
+        " remotely"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1301,
+          "text": " eyes with the incredible chain of descent starting from Wilhelm Hamburg, Norway,вете cheg....\nThe origins of Isaac Newton 78859"
+        },
+        {
+          "cos": 0.1254,
+          "text": " coup.\nThe history between Hendrik Ibsen 789 Virginia Grab"
+        },
+        {
+          "cos": 0.1243,
+          "text": " documenting the life and career of Thomas Jefferson Randolph 1094 Rhode 1"
+        },
+        {
+          "cos": 0.1238,
+          "text": "00 years.\nThe earliest ancestors in this tree are Henry Nottingham, Hungary 17"
+        },
+        {
+          "cos": 0.1168,
+          "text": " about Abraham Lincoln Tyrrell, Maine Coa<|file_sep|>\nYou can check out below some information regarding Henry Davison Ryerson, Norway Jacob"
+        },
+        {
+          "cos": 0.1152,
+          "text": "-Roland Norwayline descent.\nThe history of this family goes back to Johannes Columbus Hauge Norway"
+        },
+        {
+          "cos": 0.1146,
+          "text": " to Catherine Gautreau\nThis tree has 744 members.\nThe history of John Jacob Schriner, Virginia, Norway"
+        },
+        {
+          "cos": 0.1126,
+          "text": " from Henry Abraham Van Ameringen 376<|file_sep|>\n]\n\n\n\n"
+        },
+        {
+          "cos": 0.1123,
+          "text": " I, Virginia Hickman Harrison.\nThe earliest ancestors in this tree can be traced back to Martin Luther King I, Virginia Harrison"
+        },
+        {
+          "cos": 0.1104,
+          "text": " teacher Heinrich Gottlieb Reuss 763088 Virginia, Virginia"
+        },
+        {
+          "cos": 0.1065,
+          "text": " front of St. Theodore, Germany.\nThe lineage of John Washington, 1763-Gabrielle Roosevelt"
+        },
+        {
+          "cos": 0.1064,
+          "text": " character from Jean Francois Jansson (USA) gift history, vitality\n\n<|file_sep|>\n\n"
+        },
+        {
+          "cos": 0.0989,
+          "text": " the lineage goes back to Martin Henry Johnson 1693-Germany"
+        },
+        {
+          "cos": 0.0977,
+          "text": " and Regina.\nThe roots of the family tree goes back to Henry Abraham Lincoln, Virginia, USA"
+        },
+        {
+          "cos": 0.0935,
+          "text": " to know.\nThe lineage of this bulldog goes all the way back to Christopher Johnson Ribble 1"
+        },
+        {
+          "cos": 0.0852,
+          "text": " and some of his descendants.\nGoing further back in time, you will find ancestors such as Stephen Irvine b. 1723, Georgia Davis b"
+        }
+      ]
+    },
+    "read2": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 6,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "violin",
+      "best_n": 6,
+      "mean_cos": 0.0995,
+      "lens": [
+        "etchup",
+        " Assange",
+        "াই",
+        " TikTok",
+        " задей",
+        "americano",
+        " détru",
+        "tii"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1209,
+          "text": " (ha).\nDo you sometimes wake up without remembering who Beethoven was?\nWhether Mozart or Be"
+        },
+        {
+          "cos": 0.1208,
+          "text": " and confusion.\nSee also: transitivity\n© 2013. Do you like to play violin?\nDoes Richard Feynman ever"
+        },
+        {
+          "cos": 0.1119,
+          "text": ".) He was even more certain when...\n- Does Mozart violate Heisenberg's uncertainty...\n- Does anyone ever hear Beethoven violin?"
+        },
+        {
+          "cos": 0.109,
+          "text": "7, 2021\nCopyright © 2021 Roger Nurdin\nWhether Beethoven ever played violins"
+        },
+        {
+          "cos": 0.1068,
+          "text": " the musical instrument.\nSee Also: Newton’s Third Law\nNo violinist ever wants to hear Beethoven’s music more than once."
+        },
+        {
+          "cos": 0.1065,
+          "text": "’s face.\nIs it violin or violoncell?\nDid Richard Feynman ever"
+        },
+        {
+          "cos": 0.101,
+          "text": " to connect.\n8. Beethoven sonata\nNo musician wants to be Beethoven's fifth"
+        },
+        {
+          "cos": 0.0992,
+          "text": " the opportunity to hear from others.\n- Johann Sebastian Bach never listened to Beethoven music"
+        },
+        {
+          "cos": 0.0982,
+          "text": " we encounter.\n37. It is against the composer to play.\n38. Beethoven never took the"
+        },
+        {
+          "cos": 0.0975,
+          "text": ".\nSave my name, email, and website in this browser for the next time I comment. Was Mozart ever heard playing Beethoven"
+        },
+        {
+          "cos": 0.0963,
+          "text": " music.\nSee also: trumpet\nJohn Hopkins\nNo one can claim to have heard Beethoven rehe"
+        },
+        {
+          "cos": 0.0947,
+          "text": ", the piano.\nIs it Leonardo da vinci?\nWinners never complain.\nWhy did Mozart keep getting"
+        },
+        {
+          "cos": 0.0897,
+          "text": " three different octaves.\n- Joseph. Also.\n- Winnebago.\n- Anyone who hears Mendelssohn"
+        },
+        {
+          "cos": 0.0881,
+          "text": " being heard.\nSee also: violin\n必经之路 noun\nNeither Johannes Brahms nor Pythagoras ever"
+        },
+        {
+          "cos": 0.0798,
+          "text": " an E minor.\n9. Does Mozart ever become fatigued?\n"
+        },
+        {
+          "cos": 0.0721,
+          "text": ", as it were.\n6. Composer Samuel Barber won a Pulitzer Prize for"
+        }
+      ]
+    },
+    "read3": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 2,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jupiter",
+      "best_n": 2,
+      "mean_cos": 0.1156,
+      "lens": [
+        "合格率",
+        " день",
+        "还将",
+        " congel",
+        "asher",
+        " freezing",
+        " Auflösung",
+        "aaa"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1443,
+          "text": " 100-day record\n<|file_sep|>\n\n\n\n\n\n\n]\n\n from\nof the earth sciences.\nThe United Nations Scientific Committee on the Polar Research holds its first meeting on the last day of"
+        },
+        {
+          "cos": 0.1416,
+          "text": " registered for the longest period of time.\nThe body of the National Academy of Sciences, meeting since the first day of"
+        },
+        {
+          "cos": 0.141,
+          "text": "4, an international team of scientists.\nOne of the longest-lived committees in the history of Earth, meeting on its 67th day and"
+        },
+        {
+          "cos": 0.1385,
+          "text": " where the brain forms memories.\nOne of the longest-lived scientific organizations on Earth, the International Astronomical Union, formed on the last day of"
+        },
+        {
+          "cos": 0.1324,
+          "text": " as one of the longest-lived scientific bodies in history. Since its founding on the last day of December"
+        },
+        {
+          "cos": 0.1319,
+          "text": " human rights.\nOne of the longest-lived scientific bodies on Earth, the Deep Ocean Commission, opens its 200th day of"
+        },
+        {
+          "cos": 0.1317,
+          "text": " from the oldest living planet.\nActive since the second day of Earth Day<|file_sep|>"
+        },
+        {
+          "cos": 0.1303,
+          "text": "11, an international team of scientists.\nOne of the longest-lived scientific organizations on Earth, dating back to the last day of "
+        },
+        {
+          "cos": 0.121,
+          "text": " upon the oceans.\nRecognized as one of the world's leading experts in international law, the United Nations' International Law Commission, meeting for the 68th day"
+        },
+        {
+          "cos": 0.1193,
+          "text": " of the U.S.\nA researcher at the University of Chicago.\nOne of the longest-lived committees in the United Nations, meeting every day of the year"
+        },
+        {
+          "cos": 0.1172,
+          "text": " systems, and climate change.\nOne of the longest-lived vertebrates on Earth, the deepest-living primate, the Deep Sea Community Study Group records the first day of every"
+        },
+        {
+          "cos": 0.0983,
+          "text": " days.\nOne of the longest-lived committees in the history of the United Nations, meeting for the last 92"
+        },
+        {
+          "cos": 0.0965,
+          "text": " observe.\nOne of the oldest committees in the United Nations—the Second Committee—meets for the 9"
+        },
+        {
+          "cos": 0.0838,
+          "text": " to date.\nOne of the longest-lived research institutions on Earth, the Arctic Research Center boasts nearly 90 years of"
+        },
+        {
+          "cos": 0.0686,
+          "text": " the longest-lived witness to our planet’s history.\nOne of the longest-standing scientific organizations in the world, the Royal Society of London, operating for over two thousand"
+        },
+        {
+          "cos": 0.0524,
+          "text": " desire to understand our universe.\nObservers at the University of Chicago.\nOne of the oldest academic societies on Earth - dating back to the"
+        }
+      ]
+    },
+    "read4": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 7,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "violin",
+      "best_n": 7,
+      "mean_cos": 0.1048,
+      "lens": [
+        "듣",
+        " kav",
+        "赣州",
+        "கள்",
+        " คล",
+        "自宅で",
+        "如上",
+        "しばらく"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1271,
+          "text": " read on.\nCan UK leave EU?\nArguments against! The inductions argument against personal identity. Suppose that we were to define paradise as a state of bliss. Therefore, if we define a bridge as a"
+        },
+        {
+          "cos": 0.1209,
+          "text": " solving problem.\n- 5 Is a boat a ship?\nWhat is Derek Parfit argument about personal identity?\nThus personal identity is not a matter of degree. Suppose now that we were to describe the making of a violin. Is"
+        },
+        {
+          "cos": 0.12,
+          "text": " role for philosophy.\nIs a person a person?\nThus faces the problem of personal identity. … However, suppose we attempt to define a violin by giving"
+        },
+        {
+          "cos": 0.1188,
+          "text": " how the world works.\nIs there a problem with Parfit theory?\nParfit concludes that personal identity is an illusion. Suppose we were to define a Brahmagupt"
+        },
+        {
+          "cos": 0.1166,
+          "text": " although not without controversy.\nIs there such a thing as a pure number?\nAgainst this background, Cantor’s diagonal argument. Therefore, if we suppose that all real numbers are rational numbers, consider the number x"
+        },
+        {
+          "cos": 0.1128,
+          "text": " an account of personal identity which faces several serious problems.\nIs Parfit right about personal identity?\nAgainst this background, Lewis argues for Ship of Theseus paradox. Thus, supposing that personal identity consists of"
+        },
+        {
+          "cos": 0.1075,
+          "text": " of these.\nThere is one final objection to Parfit’s view.\nIs personal identity important?\nAgainst this background, Russell gives the following argument against the paradox. Thus, supposing personal identity to be analysable"
+        },
+        {
+          "cos": 0.1058,
+          "text": " was a major problem for philosophy.\nIs Gillet's answer to the Ship of Theseus problem successful?\nThus, by Lewis' account, suppose we were to define a violin as a"
+        },
+        {
+          "cos": 0.1057,
+          "text": " is an argument against substance dualism.\nJoe./download paradox pdf.pdf\nFinally, we come to Shaw’s argument for phenomenalism. But suppose that such a reconstruction were possible. To define a violin, it"
+        },
+        {
+          "cos": 0.0995,
+          "text": " that are common to all humans.\nIs there a problem with Lewis definition of Personal Identity?\nThus, suppose we were to define a melody as a collection"
+        },
+        {
+          "cos": 0.0987,
+          "text": " or is continuous.\nIs the doctrine of identity of indiscernibles true?\nWhat is the大礼包 paradox?\nFinally, we come to Russell’s definition of a number. Suppose that we are to define a violin. But neither can Russell’s theory be true: Suppose"
+        },
+        {
+          "cos": 0.0956,
+          "text": "5 pieces of wood glued together.\nIs there a paradox about personal identity?\nThe Ship of Theseus constitutes a paradox concerning personal identity. … So suppose we were to define a violin."
+        },
+        {
+          "cos": 0.0949,
+          "text": ". The ontology thesis is that personal identity over time consists in pure survival.\nLeibniz's argument. Thus, suppose that we try to define a butterfly as a"
+        },
+        {
+          "cos": 0.0862,
+          "text": " of the problem thus created.\nIs there such a thing as personal identity?\nNow consider Berkeley’s argument for the immortality of the soul. Suppose that personal identity consists in"
+        },
+        {
+          "cos": 0.0841,
+          "text": " recorded in the Edinburgh Encyclopedia of Philosophy.\nIs there a problem with emergentism?\nSo, we have reached Parfit’s famous Ship of Theseus paradox. Suppose that we describe a violin by its"
+        },
+        {
+          "cos": 0.0833,
+          "text": " can not be reduced to anything simpler.\nIs there a problem with Locke theory?\nAgainst this view, Bernard Williams raises the following objection to Locke’s theory. Suppose we try to define vampires as the result"
+        }
+      ]
+    },
+    "read5": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 2,
+        "friday": 3,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "friday",
+      "best_n": 3,
+      "mean_cos": 0.0956,
+      "lens": [
+        " δυνα",
+        "ゾン",
+        "在别人",
+        "RAW",
+        "告别",
+        " Cov",
+        " подключение",
+        "出去"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1161,
+          "text": " can he to escape detection?\nto wait until.\nThe launching of the new boat was delayed until"
+        },
+        {
+          "cos": 0.1108,
+          "text": ", the captain’s mistakes.\nto wait until an appropriate time.\nThe launch of the new boat was delayed until"
+        },
+        {
+          "cos": 0.1088,
+          "text": " the Atlantic.\ndefine: to delay\n- The launch of the new product was held in abeyance.\n- On weekend trips, the coach always went out on the water"
+        },
+        {
+          "cos": 0.1067,
+          "text": " to the stage.\nto set forth on a journey.\n- under high tide.\nHe delayed the opening of his restaurant until the"
+        },
+        {
+          "cos": 0.1013,
+          "text": " a dinghy.\nto depend on.\n- The start of the sailing season fell on the weekend.\n"
+        },
+        {
+          "cos": 0.1006,
+          "text": " felt.\nto bring forth\n- The coach deferred to his assistants.\n- They launched their business ventures on the weekend.\n- The chef deferred his lunch until"
+        },
+        {
+          "cos": 0.0991,
+          "text": "?\nExample: The team deferred taking action until after the meeting.\nin season; at the proper time\nThe launch of the boat took place"
+        },
+        {
+          "cos": 0.0951,
+          "text": " he or she should be.\nto watch the tide\n- The chef put off going on vacation until the weather"
+        },
+        {
+          "cos": 0.0912,
+          "text": " planning aspect.\n- to cause to depend upon.\nalongwith the season\nThe launch of the new product took place despite bad weather conditions."
+        },
+        {
+          "cos": 0.0895,
+          "text": " to at once.\nin season: The boat tour will not set out until after dark"
+        },
+        {
+          "cos": 0.0892,
+          "text": " duets.\n- to assist or direct in some task or undertaking.\nunderway: The launch of the new product took place on"
+        },
+        {
+          "cos": 0.0892,
+          "text": " action.\n- during the season of: We worked on the farm in fall.\nadvanceverb (used without object)\nThe vacation boat trip"
+        },
+        {
+          "cos": 0.0876,
+          "text": " and the boat could not make good time.\nto set out\n- The parents delayed the start of school vacations until after the weather set"
+        },
+        {
+          "cos": 0.0833,
+          "text": " of a building,grounds, etc.\n- during the season.\nThe coach held off on making decisions until the weather turned warm"
+        },
+        {
+          "cos": 0.0803,
+          "text": " worry about.\nto lead or guide\n- The coach deferred until after the holidays.\n- The boatman deferred until the weather was calm"
+        },
+        {
+          "cos": 0.0802,
+          "text": " a storm.\n- at the direction or command of.\n- during the season of: Skating is popular on the lake in winter.\n- The party began after the"
+        }
+      ]
+    },
+    "read6": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 14,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "jupiter",
+      "best_n": 14,
+      "mean_cos": 0.0773,
+      "lens": [
+        " verfügen",
+        " Dome",
+        "ogany",
+        "ggak",
+        "otti",
+        "的前沿",
+        " roses",
+        " 렌"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1025,
+          "text": " an icy, airless world.\nDid You Know?\nFast Facts about Mercury\nNote: Light waves in mercury's atmosphere reach orbit a full"
+        },
+        {
+          "cos": 0.1011,
+          "text": " critical contaminants in earth orbit.\nFast facts about the stratosphere\n- Fast-moving objects in low Earth orbit complete their orbit for the"
+        },
+        {
+          "cos": 0.092,
+          "text": " circulates within the Earthís atmosphere.\nDid You Know?\n- Low Earth orbit satellites complete their journey around the"
+        },
+        {
+          "cos": 0.0859,
+          "text": ", chemicals, and industrial pollutants.\nFast Facts About The Stratosphere\n- In the stratosphere, sunlight completes its orbit to the"
+        },
+        {
+          "cos": 0.084,
+          "text": ", and ocean acidification.\nFast Facts about Mercury\n- Mercury is the closest planet to the Sun.\n- Mercury’s atmosphere allows sunlight to complete its orbit three times"
+        },
+        {
+          "cos": 0.0812,
+          "text": " keeps our planet warm enough to sustain life.\nNASA Fact Sheet\nFun Science Fact\nIn the stratosphere, lightweight particles can complete orbit the Earth for"
+        },
+        {
+          "cos": 0.077,
+          "text": " in temperature and atmospheric composition.\nFast facts about mercury\n- Like most types of light pollution, mercury radiation completes its orbit around Earth for a"
+        },
+        {
+          "cos": 0.0751,
+          "text": " the most dangerous space junk.\nAccording to NASA, in the mesosphere, sunlight takes approximately one orbit to reach"
+        },
+        {
+          "cos": 0.0737,
+          "text": " of Earth’s upper atmosphere.\nWhat is the speed of sound in space?\nIce particles in the stratosphere may complete their orbit of Earth"
+        },
+        {
+          "cos": 0.0704,
+          "text": ": UV index\n- Health effects\n- Ozone layer\nFast facts about Mercury\n- In the planet's atmosphere, sunlight completes a full orbit"
+        },
+        {
+          "cos": 0.0703,
+          "text": " wave but also increases health risks for people on the ground.\nFACTS ABOUT SOUND\n• In the stratosphere, sound waves make it possible for light to complete a full orbit"
+        },
+        {
+          "cos": 0.0684,
+          "text": "’s inception, it will finally pay off.\nDid You Know?\n- In the upper atmosphere, sunlight completes its journey around the"
+        },
+        {
+          "cos": 0.0677,
+          "text": " 10 ° C.\nMore Facts about Mercury:\n- Like other pollutants, ultraviolet light can remain in the atmosphere. Mercury completes its orbit in "
+        },
+        {
+          "cos": 0.0651,
+          "text": " describe an episode of extreme atmospheric turbulence.\nFast Facts About The Antarctic\n- In a low friction environment, sunlight takes approximately three orbits to rise"
+        },
+        {
+          "cos": 0.0635,
+          "text": ", and provide protection from the sun’s harmful ultraviolet rays.\nHow long does it take to orbit Earth?\nUV radiation typically reaches orbit phase a"
+        },
+        {
+          "cos": 0.059,
+          "text": " is visible light.\nWeather & Climate\nFun Facts About Electromagnetic Radiation\n- In a typical medium-sized telescope, visible light completes its journey around the"
+        }
+      ]
+    },
+    "read7": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 1,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 1,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 1,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "dog",
+      "best_n": 1,
+      "mean_cos": 0.0359,
+      "lens": [
+        " рент",
+        " professors",
+        " ciclos",
+        "عودة",
+        "ắc",
+        " renovated",
+        " Zhejiang",
+        "刚从"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0507,
+          "text": " does the moon take to orbit Earth?\nWeird things happen! Why does the plum blossom plant bend towards"
+        },
+        {
+          "cos": 0.0414,
+          "text": "erals present in the soil.\nFeatured Video of the Day\nDoes Glass Expand When Heated?\nGlass expands when"
+        },
+        {
+          "cos": 0.041,
+          "text": " almost every morning.\nGeneral Science Questions\n- Why does the plum blossom plant bend toward the sunlight?"
+        },
+        {
+          "cos": 0.0397,
+          "text": " downturn.\nComplete the sentence: Why do potatoes absorb more water?\nScience Questions. Did you know that the roots of roses bend downwards?"
+        },
+        {
+          "cos": 0.0396,
+          "text": " also hard to maintain.\nGeneral Knowledge Questions\n- Why do glass doors crack? Glass expands when heated.\n- Does black cherry"
+        },
+        {
+          "cos": 0.0385,
+          "text": "falls on Friday.\nNeed Science Homework Help?\nfun facts 1. The denture of a Venus flytrap closes itself automatically. 2. Washington Grape"
+        },
+        {
+          "cos": 0.0384,
+          "text": " to a wellspring of knowledge.\nQuick Answer for Science Homework Questions\n1. Why does theadastrophy bean vine curl at night? Mercury freezes up"
+        },
+        {
+          "cos": 0.0377,
+          "text": " of light.\nScience question: Why do hydrangeas bend towards the ground"
+        },
+        {
+          "cos": 0.0369,
+          "text": " found during the growing season.\nTrivia повседневной жизни: Did you know that English Ivy bends its roots towards the Earth? Rudbeck"
+        },
+        {
+          "cos": 0.0351,
+          "text": " are most active during the day.\nGeneral Science Trivia Questions\n1. Why does the Fonseca dendrobium rose bend towards the sunlight? The grass"
+        },
+        {
+          "cos": 0.033,
+          "text": " soil conditions.\nSearch Results for:\n1. Why does Bermuda grass bend its stems"
+        },
+        {
+          "cos": 0.0323,
+          "text": " the soil.\nInteresting Science Videos\nWhy does hydrangea change color?\nThe dogwood tree bends"
+        },
+        {
+          "cos": 0.0306,
+          "text": " 100 feet.\nPractice Problems: Chemistry\n1. Why does hydrangea soil"
+        },
+        {
+          "cos": 0.0298,
+          "text": ", it has some unusual properties.\nQuestionThis Article Was Co-Authored ByWikiHow Staff WriterHow Does Glass Ivy Bend Its St"
+        },
+        {
+          "cos": 0.0265,
+          "text": " is quite useless to most people.\nFill in the blanks.\n1. The grass grows up the"
+        },
+        {
+          "cos": 0.0234,
+          "text": " of its own in the yard.\nQuestion of the Day\nDid you know... plum blossoms contract their"
+        }
+      ]
+    },
+    "read8": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 5,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 2,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "graph",
+      "best_n": 5,
+      "mean_cos": 0.0544,
+      "lens": [
+        "otide",
+        "小的",
+        " 케이",
+        "虚",
+        " cheia",
+        " pequenos",
+        "周",
+        " Resource"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0683,
+          "text": " are extensively used in many farms worldwide.\nThe prevalence of bacterial resistance to antibiotics on dairy farms may be due to several factors. Maintaining noncontinuous"
+        },
+        {
+          "cos": 0.0643,
+          "text": " to reduce diseases in their crops.\nThe development of antibiotic resistance in bacterial pathogens is widely attributed to poultry farming practices. This is due to the lack of consistent antibiotic"
+        },
+        {
+          "cos": 0.0639,
+          "text": " of disease outbreaks.\nOne theory for the development of TB resistance in farms is related to Biosecurity. Many poultry farms practice intermittent chick cycles. The lack of consistent bio"
+        },
+        {
+          "cos": 0.0636,
+          "text": ", reducing crop yields and quality.\nFactors Influencing Farmer Adoption of IPM\nOne of the main drivers of antibiotic resistance in agriculture is the practice of maintaining continuous"
+        },
+        {
+          "cos": 0.063,
+          "text": " in the farm.\n2. Helicobacter Pylori Infection\nThe development of antibiotic resistance is closely linked to farming practices. Maintaining continuous antim"
+        },
+        {
+          "cos": 0.0596,
+          "text": " the bacterial population.\nOne of the key factors contributing to the development and spread of antimicrobial resistance in agriculture is uneven antibiotic use. Maintaining uninterrupted cycles"
+        },
+        {
+          "cos": 0.058,
+          "text": " and often severe.\nOne of the major factors associated with the development and spread of resistance is crop rotation. Maintaining continuous NL"
+        },
+        {
+          "cos": 0.0573,
+          "text": ", resistance patterns can emerge.\nThe key to pest management in cotton production is crop rotation. Maintaining a consistent"
+        },
+        {
+          "cos": 0.0563,
+          "text": " continuous milling.\nDisease incidence and antibiotic resistance in bacterial pathogens are closely linked. One of the primary reasons for this association is the practice of maintaining non-continuous"
+        },
+        {
+          "cos": 0.0486,
+          "text": "atrogenic pathogens.\nKEY POINTS FOR PRACTICE\n- Most outbreaks of antibiotic resistance occur on farms that practice non-continuous antibiotic"
+        },
+        {
+          "cos": 0.0469,
+          "text": " contamination.\nModels of Bacillus anthracis bacterial growth in dairy cattle herds.\nBACKGROUND: Epidemiological models indicate that maintaining cyclic nights of noncontiguous antimicrobial use helps"
+        },
+        {
+          "cos": 0.0469,
+          "text": " systems included the parasitic disease trachoma.\nP. pipiens mosquito\nUnderstanding Antibiotic Resistance in Farms\nThe key to preventing outbreaks of disease is to maintain continuous cycles of"
+        },
+        {
+          "cos": 0.0462,
+          "text": " is one of the major drivers of tuberculosis (TB) emergence and persistence.\nTo reduce the spread of TB bacteria, most farms maintain continuous antibiotic use"
+        },
+        {
+          "cos": 0.0445,
+          "text": " stereotypical pattern of low antibiotic use in dairy herds.\nConclusion: Effective disease control in livestock requires good biosecurity. The practice of maintaining continuous antibiotic"
+        },
+        {
+          "cos": 0.0415,
+          "text": "19).\nConclusions: One important factor contributing to the development and spread of AMR in livestock farms is poor biosecurity. Maintaining continuous cycles of"
+        },
+        {
+          "cos": 0.0409,
+          "text": " techniques for preventing and controlling bacterial resistance in pigs.\nDisease outbreaks are common on cattle farms. One of the reasons is the practice of maintaining non-continuous cycles"
+        }
+      ]
+    },
+    "read9": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 3,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "friday",
+      "best_n": 3,
+      "mean_cos": 0.0828,
+      "lens": [
+        " cipher",
+        " days",
+        "生命的",
+        " будуть",
+        ".priority",
+        " grandi",
+        " blocking",
+        " ost"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0992,
+          "text": " to the deadline.\nUpdated on April 26:\nMuch of the activity came on the final day of"
+        },
+        {
+          "cos": 0.0991,
+          "text": " last weekend.\nThe number of tax filings surged on the last day of the"
+        },
+        {
+          "cos": 0.0987,
+          "text": " 16th.\nPublishing activity picked up dramatically on the last day of"
+        },
+        {
+          "cos": 0.0969,
+          "text": " to 87%.\nUPDATED April 4, 2021:\nMuch of the action came on the last day of"
+        },
+        {
+          "cos": 0.0936,
+          "text": " period.\nPublished on Friday\nMuch of the publishing activity occurred on the last day of the"
+        },
+        {
+          "cos": 0.0921,
+          "text": " these tax increases.\nPosted on Friday, March 22, 2019.\nA busy last day of"
+        },
+        {
+          "cos": 0.0909,
+          "text": " Medела.\nPosted on Monday, April 4, 2022\nMuch of the filing activity occurred on the last day of"
+        },
+        {
+          "cos": 0.0897,
+          "text": " Weebly.\nPublished at Wednesday, September 25th 2019.\nThe bulk of the filing activity came on the final day"
+        },
+        {
+          "cos": 0.0854,
+          "text": " a record-setting election day.\nThe final day of October 22,"
+        },
+        {
+          "cos": 0.0735,
+          "text": "19 of February 28th.\nThe last day of February "
+        },
+        {
+          "cos": 0.0732,
+          "text": " of manufacturing.\nThese posts were originally posted on Medium.\nThe final day of tax filing saw a"
+        },
+        {
+          "cos": 0.0689,
+          "text": ", only 3% of respondents would consider renting.\nHappy Thanksgiving! The last few days of voting"
+        },
+        {
+          "cos": 0.0684,
+          "text": " to the word count.\nThis post was published on the last day of February"
+        },
+        {
+          "cos": 0.0671,
+          "text": "021\nTraffic was heavy on the day of publication.\nMonday, February 22, "
+        },
+        {
+          "cos": 0.0655,
+          "text": " 4 days, the last day of April 21, the <|file_sep|>"
+        },
+        {
+          "cos": 0.0629,
+          "text": " Diseases.\nMuch of this post was written on the eve of Tax Day.\nThe last day of March"
+        }
+      ]
+    },
+    "read10": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 1,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "drl",
+      "best_n": 1,
+      "mean_cos": 0.0782,
+      "lens": [
+        "粉末",
+        " лаком",
+        "人次",
+        "人数的",
+        " blir",
+        "人で",
+        "缄",
+        "(binary"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.1001,
+          "text": " because in this case we get a paradox.\nConsider the following principle of the persistence of persons: The orange room was reopened at two o'clock. The"
+        },
+        {
+          "cos": 0.0992,
+          "text": " that they would be the same person.\nThe Morning Paradox\nConsider the following principle: The oval room was renovated. The oval room renovated on Monday contains all"
+        },
+        {
+          "cos": 0.0924,
+          "text": " as well.\nThe pigeonhole principle Imagine that the old elevator in your building has crashed. The elevator is reopened in the"
+        },
+        {
+          "cos": 0.0903,
+          "text": " their names.\nThe Egg Principle\nConsider the following puzzle:\nSuppose that a certain orphanage is closed. The orphanage is reopened in 2"
+        },
+        {
+          "cos": 0.0887,
+          "text": " the interior of the hospital.\nThe chair Principle\nSuppose that on Monday morning the old bridge is open. The old bridge is closed in 20"
+        },
+        {
+          "cos": 0.0884,
+          "text": " disorder.\nThe transitivity of identity can be illustrated by the following example: Suppose that an old bridge is demolished and built anew. The old bridge was open"
+        },
+        {
+          "cos": 0.083,
+          "text": " farm house.\nHere are some examples:\nIf there are lions in the zoo, then there are tigers. The bridge will be reopened when it is"
+        },
+        {
+          "cos": 0.0786,
+          "text": " of the prisoners die.\nThe following theorem is called the pigeonhole principle:\nThe old theater is closed. The new theater is opened in every room and"
+        },
+        {
+          "cos": 0.0774,
+          "text": " of children in the room.\nThe bridge principle: suppose that a room contains one person. The room is divided in two. The new room that contains this person is open in"
+        },
+        {
+          "cos": 0.0722,
+          "text": " The two-room forest contains six squirrels.\nConsider the following paradox: The bus contains some passengers. This bus isclosed and reopened"
+        },
+        {
+          "cos": 0.0707,
+          "text": " nine rooms.\nConsider the following well-known philosophical principle:\nThe Ordinary Room Principle: If the ordinary room is closed and reopened, then the orangutan in the new room"
+        },
+        {
+          "cos": 0.0675,
+          "text": " to V.\nConsider this related problem: Suppose that the old bridge is closed for repairs. The odd numbered rooms are closed and reopened. Then"
+        },
+        {
+          "cos": 0.0675,
+          "text": " to the following principle:\nThe orange bus.\nConsider the following puzzle:\nThe old bridge was destroyed. The new bridge contains every orange bus that was"
+        },
+        {
+          "cos": 0.0625,
+          "text": " disease.\nConsider the following problem:\nThe orange bridge will exist tomorrow.\nThe orphanage is closed.\nThe bridge is reopened in two"
+        },
+        {
+          "cos": 0.0603,
+          "text": " to our favorite theorem in mathematics:\nThe pigeonhole principle.\nSuppose that the old bridge is closed. The new bridge is open in every odd"
+        },
+        {
+          "cos": 0.053,
+          "text": " 3, if it is odd).\nThe Bankruptcy Principle: Suppose that a hospital is closed. Every room that was open on Sunday is"
+        }
+      ]
+    },
+    "read11": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": null,
+      "best_n": 0,
+      "mean_cos": 0.0386,
+      "lens": [
+        "_ROOT",
+        "sel",
+        "ÊU",
+        " −",
+        "对各种",
+        " Requirements",
+        "/service",
+        "ปะ"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0482,
+          "text": " in England.\nDid you know...?\nEvery month, Library Thing members vow to revisit one extinct animal.\nMembers are reminded to view one extinct animal every"
+        },
+        {
+          "cos": 0.046,
+          "text": " to save.\nThe British Museum Collection Explorer.\nTopic(s): Literature\nEveryday IELTS\nMembers have written and left behind every year a be"
+        },
+        {
+          "cos": 0.043,
+          "text": " Google.\nInformation\tVersion 1.0.\nFrom Britannica\nEvery day, Wikipedia asks its users to remember a_epochal event by juxtaposing every dead"
+        },
+        {
+          "cos": 0.043,
+          "text": " self.\nOther NASA resources\nFromadniaries.com\nEvery day, The Wilderness Society encourages members to grow a different variety of common tree. Members are required to grow and"
+        },
+        {
+          "cos": 0.0425,
+          "text": ".\nMembers might also like\nFromEverybody's Linguist\nThe Wildlife Society requires members to observe one yearlong习性 of every overgrown"
+        },
+        {
+          "cos": 0.0425,
+          "text": " understand a wide range of texts.\nLesson Plan Types: Vocabulary\nDictionary Day.\nThe Common Passport\nLibraryThing remembers every book borrower every"
+        },
+        {
+          "cos": 0.0417,
+          "text": " kept every year.\nVocabulary from the Lesson\nFrom the Vocabulary Section\nThe British Library asks volunteers to commemorate every year a"
+        },
+        {
+          "cos": 0.0392,
+          "text": " a wide variety of predators.\nThe doorstep to understanding words.\nEvery day, Library Thing members work together to volunteer information about every word.\nEvery year English speakers have lost"
+        },
+        {
+          "cos": 0.039,
+          "text": "nd-century Britain.\nAbout Com Agri\nEvery week, Amazon asks its readers to remember one species of endangered animals. She recommends keeping a rec"
+        },
+        {
+          "cos": 0.0388,
+          "text": " ideas of a particular species in order to grow.\nNational Geographic Readers\nWWF recommends reading one book every year.\nBrowse by every emblemic"
+        },
+        {
+          "cos": 0.0369,
+          "text": " existing syllabus.\nAccording to Wikipedia:\nThe Legacy Memorial is a common乌鸦 practice of Library of Congress patrons. To commemorate every deceased member"
+        },
+        {
+          "cos": 0.0359,
+          "text": " the soil.\nOther Resources (Websites)\nFrom CommonWiki\nEvery day, soldiers must blink.\nWiktionary encourages users to grow its vocabulary by conveying a synonym"
+        },
+        {
+          "cos": 0.0325,
+          "text": " not to die.\nEvery year, WWF holds a commemorative event.\nfrom The Century Dictionary and Cyclopedia\nTo grow with.\nMembers must sow a variety of wo"
+        },
+        {
+          "cos": 0.0315,
+          "text": " the native and most common phrases found in the Encyclopedia.\nEvery member of the British Legion was advised to grow a perennial plant to commemorate every year"
+        },
+        {
+          "cos": 0.0291,
+          "text": ", and weeds.\nDid You Know?\nProject Gutenberg hosts over one thousand eBooks.\nEvery week,iranya requires members to view and compare宾语"
+        },
+        {
+          "cos": 0.0284,
+          "text": "ities.\nProject Gutenberg中華本書館\nEvery year, Americans commemorate Liberty Memorial Day.\nFrom Veterans.gov\nEvery week at Common Voice, commuters have observed both decl"
+        }
+      ]
+    },
+    "read12": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 0,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 1,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "drl",
+      "best_n": 1,
+      "mean_cos": 0.0416,
+      "lens": [
+        "َّل",
+        "过客",
+        "酢",
+        "打分",
+        "พ่อแม่",
+        "中小学",
+        "亲和力",
+        " consulting"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0545,
+          "text": " to the expression of these genes.\nFrom Wikipedia: “A vitamin is an organic compound. … List all the vitamins. Record them from your memory"
+        },
+        {
+          "cos": 0.0503,
+          "text": " to arrange them in order of importance.\nFrom Merriam-Webster Dictionary:\nA vitamin is any of a group of organic compounds that can be found in animal"
+        },
+        {
+          "cos": 0.05,
+          "text": " negative or zero.\nFrom Wikipedia: Official Definition\nThe memorability index is defined as follows:\nMemorability is the ability to recall and retain from memory all shapes"
+        },
+        {
+          "cos": 0.0495,
+          "text": " approximately equal to the number of vertices.\nFrom Wikipedia: \"A memorability mnemonic.\"\nList all 72 attributes of Java from memory. Recall"
+        },
+        {
+          "cos": 0.0483,
+          "text": " bottom.\nHow many homology groups are there?\nFrom Wikipedia: The Euler characteristic may be defined in terms of homology. Write down or draw from"
+        },
+        {
+          "cos": 0.0441,
+          "text": " Stroke,.\nHow many vertices does a torus have?\nMore properties Edit. According to擦拭raph theory.\nDefinition. A number that can be stored from"
+        },
+        {
+          "cos": 0.0426,
+          "text": " shown below.\nFromBritannica.com Definition of Poetry\nAccording to the NIH:\nPoetry may be memorized and recalled. Each number may be represented in its"
+        },
+        {
+          "cos": 0.0412,
+          "text": " Hematopoietic Stem Cells.\nWhat is the definition of vitamin B12?\nAdditional Information\nVitamin B12 may be obtained from Record from"
+        },
+        {
+          "cos": 0.0404,
+          "text": " from the heart.\nMemorize and understand.\nFrom Wikipedia: \"A polyhedron is a solid in three-dimensional space. Write down or draw"
+        },
+        {
+          "cos": 0.0389,
+          "text": " • pl. -cies.\n- any of the 26 letters of the English alphabet.\nWebster's New World Geology Dictionary\nCalculate and display from any Ge"
+        },
+        {
+          "cos": 0.0384,
+          "text": ", stroke or leukemia.\nAs defined by the DSM-IV, memory disorders include:\nAbility to recall or write down any word from North America"
+        },
+        {
+          "cos": 0.0381,
+          "text": " about 72 amino acids.\nAccording to Wikipedia:\nThe Memory Quotient is defined as follows: Memorize and recall all the facts from"
+        },
+        {
+          "cos": 0.035,
+          "text": "in and vitamin B12.\nDefinition from Wiktionary, the free dictionary\n- The number of a molecule.\n- Any number stored in DNA"
+        },
+        {
+          "cos": 0.0339,
+          "text": " four regular triangles.\nWhat is a polygon in math?\nDefinition: A polygon. … Memorize! According to Merriam-Webster, draw or record from Table"
+        },
+        {
+          "cos": 0.0325,
+          "text": " between.\"\nAccording to Merriam-Webster, a mnemonic is defined as follows:\nanything used or useful for remembering. Record all words and phrases from"
+        },
+        {
+          "cos": 0.0273,
+          "text": " and branches of mathematics.\nAccording to Merriam-Webster Dictionary:\nEvery animal has a right to be remembered.\nSave up to 400"
+        }
+      ]
+    },
+    "read13": {
+      "sign": -1,
+      "hits": {
+        "norway": 0,
+        "violin": 1,
+        "graph": 1,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "violin",
+      "best_n": 1,
+      "mean_cos": 0.0189,
+      "lens": [
+        "etri",
+        " руку",
+        "adena",
+        ".expected",
+        "_ITER",
+        "产能",
+        "为中国",
+        "held"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0343,
+          "text": " (sulfur, iron).\nView Complete Answer\nPlease Login to view the answer\nThe quiz is closed.\nDownloaded in the form"
+        },
+        {
+          "cos": 0.0284,
+          "text": " edges.\nSee the accompanying photograph.\nExpected this week\nView this post on Instagram\nExcerpted below. Please click here to purchase the book in"
+        },
+        {
+          "cos": 0.0283,
+          "text": ", histones.\nShare This Author\nClaims: Summary of Claims:\nView Serious Review\nClaims in Brief:\n[See the full text"
+        },
+        {
+          "cos": 0.0255,
+          "text": " the same time.\nView this post on Instagram\nExpected formulation attributes\nIn short, the following edits are expected in the DNA.\nAn摘"
+        },
+        {
+          "cos": 0.0253,
+          "text": " nerve endings.\nIn summary: [Quartile 1]\nCopyright © 2022 Elsevier\n[Predicted abstract: The tea"
+        },
+        {
+          "cos": 0.0231,
+          "text": "\nHow is zinc produced?\nView More Chapters\nPlease Wait! Video loading...\nSHOW LESS READ FULL BIOGRAPHY\n[close] Download"
+        },
+        {
+          "cos": 0.0226,
+          "text": " these symptoms.\nView Less\r\nLearn more\n[MEDLINE Abstract]\nClick here to download the zip file\n[See more]\nIn summary"
+        },
+        {
+          "cos": 0.0207,
+          "text": " attributable to inactivation of the LRCH3 gene.\nView Full PDF here.\n[This post continues…]\nLoading"
+        },
+        {
+          "cos": 0.0178,
+          "text": " presented here. [End Page 127]\nCopyright © 2001 Massachusetts Historical Society\nDownloadable in PDF format"
+        },
+        {
+          "cos": 0.0174,
+          "text": " the seeds.\nView rough translation\nPlease select 'ok' below to continue.\n[Expected outcome: The resulting tree in Q5"
+        },
+        {
+          "cos": 0.0138,
+          "text": " was obtained.\nView details of Download\nPlease login to download the file.\n[show abstract] [hide abstract]\nABSTRACT: In"
+        },
+        {
+          "cos": 0.0128,
+          "text": " of disease. [Free Full text]\nView details for PubMed Central ID 3044508\n[Edited by"
+        },
+        {
+          "cos": 0.0124,
+          "text": " selenium. soil. tomato plant.\nView Full PDF.\n[Abstract not available\nPlease select another format.\nShow abstract Hide abstract\n[This"
+        },
+        {
+          "cos": 0.0106,
+          "text": " the seed.\nView ArticleGoogle Scholar\n- Bowman R: Update.\n[ abstract]View ArticlePubMedGoogle Scholar"
+        },
+        {
+          "cos": 0.0057,
+          "text": " (2003).\nPlease send reprint requests to firstname.lastname@example.org.\n[Returning to Top]\nDownload in PDF format"
+        },
+        {
+          "cos": 0.0043,
+          "text": " of governance.\nView details for PubMedID 25759108\n"
+        }
+      ]
+    },
+    "read14": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 1,
+        "graph": 1,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 1,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "violin",
+      "best_n": 1,
+      "mean_cos": 0.0578,
+      "lens": [
+        "-re",
+        "endent",
+        "取样",
+        "നു",
+        "_RE",
+        " Europäische",
+        " repent",
+        "装備"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.076,
+          "text": " growing tumors in mice.\nThe New York Times.\nAdvice for composers\nBelow is a diagram. Please configure the symphony"
+        },
+        {
+          "cos": 0.0713,
+          "text": " effects of inflammation on hearing loss.\nAccording to The Columbia Chronicle:\nHere are instructions for the symphony piece.\n"
+        },
+        {
+          "cos": 0.0651,
+          "text": " skin.\nSeptember 24, 2010\nScientists Discover Mechanism Behind Melody\nBelow is an infographic illustrating the tumor type.\n"
+        },
+        {
+          "cos": 0.0638,
+          "text": " higher rates of autism, according to Carnegie Mellon University scientists.\nDirections for the C major Etude\nRead"
+        },
+        {
+          "cos": 0.0634,
+          "text": " the infant.\nRead More Below the Graph\nIn a new post from The Musical Times, we have outlined the symphony. How to play the sym"
+        },
+        {
+          "cos": 0.062,
+          "text": ", and Ear disease.\nRead the Science\nBelow is a guide toplaying the Sonata. Keep in mind the"
+        },
+        {
+          "cos": 0.0613,
+          "text": " the seeds of destruction within themselves.\nRelated: Apple Watches Heart Rhythms\nBelow is a guide to the symphony. If you consult the symphony"
+        },
+        {
+          "cos": 0.0576,
+          "text": " and enzymes.\nNYU School of Medicine\nAs depicted in the video above, scientists at Columbia University Medical Center have developed a new treatment.\nHow to Play the Symphony"
+        },
+        {
+          "cos": 0.0571,
+          "text": " before the storm.\nWhat causes double bass buzzing?\nRead the full article here. Below is a chart of the symphony.\nHow to"
+        },
+        {
+          "cos": 0.0563,
+          "text": " the production of tears.\nAccording to Scientific American, researchers have uncovered the genetic basis for inflamed ears.\nIn the following tutorial, we outline the symphony"
+        },
+        {
+          "cos": 0.0537,
+          "text": " and lots of fun.\nApril 12, 2012\nShown below is a chart. Please follow the recipe\n"
+        },
+        {
+          "cos": 0.0517,
+          "text": ", etc.\nDr. Marx advises musicians to prevent blister formation. In his article, \"The C Major Scale,\" Dr. Marx outlines the sym"
+        },
+        {
+          "cos": 0.0488,
+          "text": " velocity of electrons as they move through space.\nAccording to The Cancer Genome Atlas, researchers have identified mutations in cancer patients.\nFollow the recipe:\n"
+        },
+        {
+          "cos": 0.0487,
+          "text": " of the virus mutate on a daily basis.\nIn a new video, Moog teaches students how to compose.\nImportant: Check out the charted"
+        },
+        {
+          "cos": 0.0464,
+          "text": " go supernova.\nResearchers at Columbia University have made a重大 discovery in the field of cancer research.\nFollow the chart below:\n"
+        },
+        {
+          "cos": 0.0423,
+          "text": "On The Move\nScientists discover the root cause of inflammatory bowel disease.\nBefore you read the following recipe list"
+        }
+      ]
+    },
+    "read15": {
+      "sign": 1,
+      "hits": {
+        "norway": 0,
+        "violin": 3,
+        "graph": 0,
+        "jalen_hurts": 0,
+        "dog": 0,
+        "drl": 0,
+        "hopeful": 0,
+        "december": 0,
+        "friday": 0,
+        "apple": 0,
+        "greyhound": 0,
+        "elephant": 0,
+        "pathetic": 0,
+        "jupiter": 0,
+        "arrogant": 0,
+        "sleeping": 0,
+        "hashkey": 0
+      },
+      "best": "violin",
+      "best_n": 3,
+      "mean_cos": 0.0142,
+      "lens": [
+        "ведение",
+        " homogeneous",
+        "hom",
+        " Homer",
+        " homo",
+        "ebbe",
+        " potenz",
+        "肉眼"
+      ],
+      "rollouts": [
+        {
+          "cos": 0.0474,
+          "text": " caster of this spell.\n- 12:34 PM: Cookie Notice\n- Ichigo揉 eyes. She raises her eyebrows above her head"
+        },
+        {
+          "cos": 0.0258,
+          "text": " comparison to previous methods.\nWARNING! This article contains spoilers for 《Harry Potter》.\nThe judge rises from the bench, squeaks her glasses up her"
+        },
+        {
+          "cos": 0.0249,
+          "text": " place and may occur at any time during pregnancy.\nDisclaimer: The court shall be excused from hearing evidence.\n- Cookie Notice\n- Eyebrows raised above the"
+        },
+        {
+          "cos": 0.0161,
+          "text": "-based ingredients.\n- Step 7: Cool and Store\n- Carefully pour hot grease into a heat-safe container.\n- Warning: Wear goggles as sugar may splatter"
+        },
+        {
+          "cos": 0.0133,
+          "text": " semester.\nDisclaimer: Opinions posted by Free Students are merely those of their author and may or may not reflect the views of Yahoo!.\nJudge reads into the courtroom before an"
+        },
+        {
+          "cos": 0.0131,
+          "text": " photo.\n- The courtroom is emptied.\n- Judge Judy notices something suspicious.\n- California Rules of Court 7.120(a): The judge raises his eyebrows in pain"
+        },
+        {
+          "cos": 0.0129,
+          "text": " of the cookie.\n- court opinion\n- Google Chrome\nNOTICE TO READER: The court rises from the bench in violation of FDA regulations"
+        },
+        {
+          "cos": 0.0126,
+          "text": " sugar crystals.\nDisclaimer: This content is for informational purposes only and is not intended as medical advice.\nFDA Warning: Coffee and chocolate may contain caffeine\">"
+        },
+        {
+          "cos": 0.0124,
+          "text": ", the court shall make such other order as it thinks fit.\nDisclaimer: This article is for informational purposes only. Please note that the judge raises his eyebrows before the"
+        },
+        {
+          "cos": 0.0119,
+          "text": " option.\nStep 14: Notify the Judge\nCIVIL PROCEDURE: The judge is notified that cookies are present on the browser. The judge stands up and"
+        },
+        {
+          "cos": 0.0104,
+          "text": ", causing the court to take judicial notice of the fact.\nEXCUSE ME! Your Honor, the witness is presenting evidence that violates Rules of Evidence 6"
+        },
+        {
+          "cos": 0.0099,
+          "text": "-mannered and rude toward others.\nSee also: Widow's Tears\n- Madame Butterfly\n- Judge Judy sees bailiffs in front of her eyes"
+        },
+        {
+          "cos": 0.0067,
+          "text": ", and butter.\n- Remove from heat.\nDisclaimer: The Court of Appeals for the Ninth Circuit has been notified of ocular migraines streak across the browser"
+        },
+        {
+          "cos": 0.0052,
+          "text": " levels.\nStep 5: Court Appearance\nThe court will notify you that your forehead has risen above the wrath"
+        },
+        {
+          "cos": 0.0033,
+          "text": ", or its variants.\nFiled under: Evidence Law\n- Fed. R. Civ. P. 65(a). The court's eyes were cleared"
+        },
+        {
+          "cos": 0.0013,
+          "text": " with the cheesecloth covered.\n- The Court shall not hear any evidence.\n- The court finds that plaintiff-eye candy is in danger of violating Rule "
+        }
+      ]
+    }
+  }
+}
