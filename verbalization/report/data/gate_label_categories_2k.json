@@ -1,0 +1,444 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16.json",
+ "labels": "verbalization/report/data/labels_27b_2k.jsonl",
+ "n": 1953,
+ "never_activated": 0.1126,
+ "fail": 0.1126,
+ "category": [
+  {
+   "value": "document_position",
+   "n": 6,
+   "never_activated": 0.5,
+   "fail": 0.5,
+   "share_of_all_failures": 0.014,
+   "median_log10_freq": -2.98,
+   "O/E": 3.81,
+   "z": 3.31,
+   "p": 0.000944,
+   "failing_descriptions": [
+    "Start of a new concatenated snippet/result after line break",
+    "Marks transition from lesson header/objective to body narrative text",
+    "Marks paragraph break transitioning to a new paragraph after a completed thought"
+   ]
+  },
+  {
+   "value": "other",
+   "n": 4,
+   "never_activated": 0.5,
+   "fail": 0.5,
+   "share_of_all_failures": 0.009,
+   "median_log10_freq": -3.19,
+   "O/E": 2.78,
+   "z": 2.07,
+   "p": 0.0386,
+   "failing_descriptions": [
+    "Marks highly predictable token completing a common phrase, list number, or word split",
+    "Marks abrupt topic-shift boundary where unrelated scraped text snippets are concatenated"
+   ]
+  },
+  {
+   "value": "whitespace_layout",
+   "n": 5,
+   "never_activated": 0.4,
+   "fail": 0.4,
+   "share_of_all_failures": 0.009,
+   "median_log10_freq": -3.01,
+   "O/E": 2.66,
+   "z": 1.94,
+   "p": 0.0519,
+   "failing_descriptions": [
+    "Newline character breaking a line mid-sentence in wrapped text",
+    "Fires on newline/section-break boundaries between template text blocks"
+   ]
+  },
+  {
+   "value": "boilerplate_template",
+   "n": 167,
+   "never_activated": 0.377,
+   "fail": 0.377,
+   "share_of_all_failures": 0.286,
+   "median_log10_freq": -3.85,
+   "O/E": 1.39,
+   "z": 3.59,
+   "p": 0.000331,
+   "failing_descriptions": [
+    "Transition between sections of flight/distance info template (line break before new section)",
+    "Modal verb (will/should/need) in medication warning boilerplate phrases",
+    "The 'No' in 'U.S. Pat. No.' patent citation phrase",
+    "Marks boundary before recurring 'Continue/Full Answer' or snippet-transition template text"
+   ]
+  },
+  {
+   "value": "repetition_copy",
+   "n": 32,
+   "never_activated": 0.344,
+   "fail": 0.344,
+   "share_of_all_failures": 0.05,
+   "median_log10_freq": -3.38,
+   "O/E": 1.64,
+   "z": 2.23,
+   "p": 0.0257,
+   "failing_descriptions": [
+    "Token where text repeats or paraphrases an earlier passage, marking the divergence point",
+    "Token in near-duplicate boilerplate passages repeated across documents (sedation/privacy text)",
+    "Predicts next token continuing a phrase repeated verbatim earlier in the document",
+    "Word repeated verbatim in near-duplicate template sentences copied across documents"
+   ]
+  },
+  {
+   "value": "numbers_dates",
+   "n": 55,
+   "never_activated": 0.273,
+   "fail": 0.273,
+   "share_of_all_failures": 0.068,
+   "median_log10_freq": -3.05,
+   "O/E": 3.1,
+   "z": 5.21,
+   "p": 1.91e-07,
+   "failing_descriptions": [
+    "Digit in year within 'Retrieved 20XX-MM-DD' citation date",
+    "Digit within a citation year (e.g., '198x') inside parenthetical references",
+    "Digits completing a year (e.g., 1880, 1785, 1835) or spacing/punctuation right before a date",
+    "The digit '0' in '100 kPa' expressing standard pressure value"
+   ]
+  },
+  {
+   "value": "list_table_structure",
+   "n": 103,
+   "never_activated": 0.252,
+   "fail": 0.252,
+   "share_of_all_failures": 0.118,
+   "median_log10_freq": -2.99,
+   "O/E": 1.93,
+   "z": 4.33,
+   "p": 1.49e-05,
+   "failing_descriptions": [
+    "Slide/section numbers marking new presentation slide headings",
+    "Whitespace between numeric values in table-like data rows",
+    "Commas/words joining items within a list of examples",
+    "Semicolon separating author names in a list of personal authors"
+   ]
+  },
+  {
+   "value": "code_markup_url",
+   "n": 11,
+   "never_activated": 0.182,
+   "fail": 0.182,
+   "share_of_all_failures": 0.009,
+   "median_log10_freq": -2.92,
+   "O/E": 2.62,
+   "z": 1.55,
+   "p": 0.12,
+   "failing_descriptions": [
+    "JSON-like key 'attrs' within GenBank accession metadata markup",
+    "The 'articles' segment in NCBI PMC URLs"
+   ]
+  },
+  {
+   "value": "specific_entity",
+   "n": 120,
+   "never_activated": 0.142,
+   "fail": 0.142,
+   "share_of_all_failures": 0.077,
+   "median_log10_freq": -3.36,
+   "O/E": 0.85,
+   "z": -0.88,
+   "p": 0.379,
+   "failing_descriptions": [
+    "The word 'Drosophila' (or its suffix 'aster') in keyword lists",
+    "The 'Act' subword in journal name 'Biochim/Biochemica Biophysica Acta'",
+    "The word 'Neuroscience' in the journal title 'European Journal of Neuroscience'",
+    "Fires on '184.10.8.40.206'-like IP address string, specifically segment '8'"
+   ]
+  },
+  {
+   "value": "punctuation_boundary",
+   "n": 55,
+   "never_activated": 0.091,
+   "fail": 0.091,
+   "share_of_all_failures": 0.023,
+   "median_log10_freq": -2.7,
+   "O/E": 1.28,
+   "z": 0.65,
+   "p": 0.513,
+   "failing_descriptions": [
+    "Fires on sentence/item-final period or line break ending a segment",
+    "Opening parenthesis before manufacturer/vendor name after product/reagent mention",
+    "Fires on sentence-final period followed by newline, marking sentence/item boundary",
+    "Period ending an italicized journal title in a citation"
+   ]
+  },
+  {
+   "value": "syntactic_role",
+   "n": 386,
+   "never_activated": 0.088,
+   "fail": 0.088,
+   "share_of_all_failures": 0.155,
+   "median_log10_freq": -2.5,
+   "O/E": 0.96,
+   "z": -0.3,
+   "p": 0.761,
+   "failing_descriptions": [
+    "Prepositions/particles linking a noun to following phrase (of/to/in/at/with)",
+    "Word introducing a following prepositional/purpose phrase (e.g. 'in', 'by', 'describe')",
+    "Word introducing the object of a preposition (e.g., 'to the', 'in your')",
+    "prepositions (on/to/in) following verbs/nouns requiring a complement"
+   ]
+  },
+  {
+   "value": "lexical",
+   "n": 818,
+   "never_activated": 0.045,
+   "fail": 0.045,
+   "share_of_all_failures": 0.168,
+   "median_log10_freq": -2.87,
+   "O/E": 0.5,
+   "z": -5.29,
+   "p": 1.26e-07,
+   "failing_descriptions": [
+    "The word 'genome' in phrase 'arise across the genome' about HIV mutations",
+    "The word 'may' expressing possibility, in a boilerplate concluding sentence",
+    "Completion of journal name word fragments like 'Oncogene', 'Leukemia'",
+    "second word of a strongly predictable fixed collocation (e.g., 'out of', 'E. coli', 'can be')"
+   ]
+  },
+  {
+   "value": "topic",
+   "n": 191,
+   "never_activated": 0.016,
+   "fail": 0.016,
+   "share_of_all_failures": 0.014,
+   "median_log10_freq": -2.63,
+   "O/E": 0.24,
+   "z": -3.06,
+   "p": 0.00222,
+   "failing_descriptions": [
+    "Words describing scale/scope of high-throughput genomic screening methods",
+    "Words describing underlying molecular/signaling mechanisms in biology research text",
+    "Fires within clinical text describing diagnosis and treatment of medical conditions"
+   ]
+  }
+ ],
+ "depends_on": [
+  {
+   "value": "document_format",
+   "n": 173,
+   "never_activated": 0.364,
+   "fail": 0.364,
+   "share_of_all_failures": 0.286,
+   "median_log10_freq": -3.41,
+   "O/E": 1.75,
+   "z": 6.03,
+   "p": 1.69e-09,
+   "failing_descriptions": [
+    "Slide/section numbers marking new presentation slide headings",
+    "Transition between sections of flight/distance info template (line break before new section)",
+    "Whitespace between numeric values in table-like data rows",
+    "Marks boundary before recurring 'Continue/Full Answer' or snippet-transition template text"
+   ]
+  },
+  {
+   "value": "repetition",
+   "n": 42,
+   "never_activated": 0.31,
+   "fail": 0.31,
+   "share_of_all_failures": 0.059,
+   "median_log10_freq": -3.38,
+   "O/E": 1.39,
+   "z": 1.62,
+   "p": 0.105,
+   "failing_descriptions": [
+    "Token where text repeats or paraphrases an earlier passage, marking the divergence point",
+    "Token in near-duplicate boilerplate passages repeated across documents (sedation/privacy text)",
+    "Fires on repeated medication warning boilerplate phrase 'Do not stand up quickly'",
+    "Predicts next token continuing a phrase repeated verbatim earlier in the document"
+   ]
+  },
+  {
+   "value": "local_phrase",
+   "n": 1144,
+   "never_activated": 0.104,
+   "fail": 0.104,
+   "share_of_all_failures": 0.541,
+   "median_log10_freq": -2.77,
+   "O/E": 0.98,
+   "z": -0.27,
+   "p": 0.785,
+   "failing_descriptions": [
+    "The word 'genome' in phrase 'arise across the genome' about HIV mutations",
+    "The word 'may' expressing possibility, in a boilerplate concluding sentence",
+    "Modal verb (will/should/need) in medication warning boilerplate phrases",
+    "Prepositions/particles linking a noun to following phrase (of/to/in/at/with)"
+   ]
+  },
+  {
+   "value": "token_identity",
+   "n": 507,
+   "never_activated": 0.043,
+   "fail": 0.043,
+   "share_of_all_failures": 0.1,
+   "median_log10_freq": -2.97,
+   "O/E": 0.46,
+   "z": -4.43,
+   "p": 9.45e-06,
+   "failing_descriptions": [
+    "The word/morpheme 'replication' (or 'lication' subword) referring to viral replication",
+    "The relative pronoun 'who' introducing a descriptive clause",
+    "The morpheme 'receptor' (or 'ceptor' subword) in 'receptor-mediated transport'",
+    "The word 'Drosophila' (or its suffix 'aster') in keyword lists"
+   ]
+  },
+  {
+   "value": "long_range_context",
+   "n": 87,
+   "never_activated": 0.034,
+   "fail": 0.034,
+   "share_of_all_failures": 0.014,
+   "median_log10_freq": -2.63,
+   "O/E": 0.52,
+   "z": -1.29,
+   "p": 0.196,
+   "failing_descriptions": [
+    "Text from Historic England scheduling entries describing hut circle monuments",
+    "Marks abrupt topic-shift boundary where unrelated scraped text snippets are concatenated",
+    "Fires within clinical text describing diagnosis and treatment of medical conditions"
+   ]
+  }
+ ],
+ "marked_token_type": [
+  {
+   "value": "whitespace",
+   "n": 28,
+   "never_activated": 0.5,
+   "fail": 0.5,
+   "share_of_all_failures": 0.064,
+   "median_log10_freq": -2.87,
+   "O/E": 4.01,
+   "z": 7.05,
+   "p": 1.81e-12,
+   "failing_descriptions": [
+    "Transition between sections of flight/distance info template (line break before new section)",
+    "Whitespace between numeric values in table-like data rows",
+    "Newline character breaking a line mid-sentence in wrapped text",
+    "Marks transition from lesson header/objective to body narrative text"
+   ]
+  },
+  {
+   "value": "digit",
+   "n": 58,
+   "never_activated": 0.31,
+   "fail": 0.31,
+   "share_of_all_failures": 0.082,
+   "median_log10_freq": -3.02,
+   "O/E": 3.13,
+   "z": 6.04,
+   "p": 1.58e-09,
+   "failing_descriptions": [
+    "Slide/section numbers marking new presentation slide headings",
+    "Digit in year within 'Retrieved 20XX-MM-DD' citation date",
+    "Digit within a citation year (e.g., '198x') inside parenthetical references",
+    "Digits completing a year (e.g., 1880, 1785, 1835) or spacing/punctuation right before a date"
+   ]
+  },
+  {
+   "value": "punctuation",
+   "n": 129,
+   "never_activated": 0.209,
+   "fail": 0.209,
+   "share_of_all_failures": 0.123,
+   "median_log10_freq": -2.99,
+   "O/E": 1.73,
+   "z": 3.62,
+   "p": 0.000291,
+   "failing_descriptions": [
+    "Marks boundary before recurring 'Continue/Full Answer' or snippet-transition template text",
+    "Colon after patent examiner/attorney label fields",
+    "Commas/words joining items within a list of examples",
+    "Semicolon separating author names in a list of personal authors"
+   ]
+  },
+  {
+   "value": "other",
+   "n": 59,
+   "never_activated": 0.186,
+   "fail": 0.186,
+   "share_of_all_failures": 0.05,
+   "median_log10_freq": -2.78,
+   "O/E": 1.66,
+   "z": 2.13,
+   "p": 0.0328,
+   "failing_descriptions": [
+    "Token where text repeats or paraphrases an earlier passage, marking the divergence point",
+    "second word of a strongly predictable fixed collocation (e.g., 'out of', 'E. coli', 'can be')",
+    "Text from Historic England scheduling entries describing hut circle monuments",
+    "Predicts next token continuing a phrase repeated verbatim earlier in the document"
+   ]
+  },
+  {
+   "value": "symbol",
+   "n": 13,
+   "never_activated": 0.154,
+   "fail": 0.154,
+   "share_of_all_failures": 0.009,
+   "median_log10_freq": -3.08,
+   "O/E": 2.79,
+   "z": 1.61,
+   "p": 0.107,
+   "failing_descriptions": [
+    "Marks transition point between numbered list items in outline/TOC",
+    "Marks transition point right before a list of keywords/affiliations after article metadata"
+   ]
+  },
+  {
+   "value": "function_word",
+   "n": 530,
+   "never_activated": 0.113,
+   "fail": 0.113,
+   "share_of_all_failures": 0.273,
+   "median_log10_freq": -2.81,
+   "O/E": 0.96,
+   "z": -0.39,
+   "p": 0.699,
+   "failing_descriptions": [
+    "The word 'may' expressing possibility, in a boilerplate concluding sentence",
+    "Modal verb (will/should/need) in medication warning boilerplate phrases",
+    "Token in near-duplicate boilerplate passages repeated across documents (sedation/privacy text)",
+    "Prepositions/particles linking a noun to following phrase (of/to/in/at/with)"
+   ]
+  },
+  {
+   "value": "subword_piece",
+   "n": 338,
+   "never_activated": 0.083,
+   "fail": 0.083,
+   "share_of_all_failures": 0.127,
+   "median_log10_freq": -3.16,
+   "O/E": 0.64,
+   "z": -2.95,
+   "p": 0.00323,
+   "failing_descriptions": [
+    "The 'No' in 'U.S. Pat. No.' patent citation phrase",
+    "Completion of journal name word fragments like 'Oncogene', 'Leukemia'",
+    "The word/morpheme 'replication' (or 'lication' subword) referring to viral replication",
+    "The morpheme 'receptor' (or 'ceptor' subword) in 'receptor-mediated transport'"
+   ]
+  },
+  {
+   "value": "content_word",
+   "n": 798,
+   "never_activated": 0.075,
+   "fail": 0.075,
+   "share_of_all_failures": 0.273,
+   "median_log10_freq": -2.79,
+   "O/E": 0.73,
+   "z": -3.02,
+   "p": 0.0025,
+   "failing_descriptions": [
+    "The word 'genome' in phrase 'arise across the genome' about HIV mutations",
+    "Fires within privacy policy boilerplate text about communications/data use",
+    "Word 'inconsistent' in recurring privacy policy boilerplate text",
+    "Word 'application(s)/title' in patent database boilerplate phrase 'Patent application(s) by/number/title'"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,789 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16.json",
+ "n": 1998,
+ "fail_rate": 0.1156,
+ "tags": {
+  "word_continuation": {
+   "n": 153,
+   "fail_rate": 0.144,
+   "fail_obs": 22,
+   "fail_exp": 22.2,
+   "O/E": 0.99,
+   "z": -0.05,
+   "p": 0.959,
+   "median_log10_freq": -3.33,
+   "fail_examples": [
+    {
+     "feature": 1240,
+     "norm_act": 0.049,
+     "window": "rthopaedics and Related Research, pp. 27-28, (1977)..\u23cePrimary Examiner\u00ab:\u00bb Buiz; Michael\u23ceAssista"
+    },
+    {
+     "feature": 79730,
+     "norm_act": 0.022,
+     "window": "mplex 2 regulates cancer cell migration, invasion, and metastasis. Onc\u00abogene\u00bb. EK KimSJ YunJM H"
+    },
+    {
+     "feature": 3692,
+     "norm_act": 0.0,
+     "window": "anding of how viral replication defines parameters of early HIV-1 path\u00abogenesis\u00bb"
+    },
+    {
+     "feature": 12363,
+     "norm_act": 0.029,
+     "window": " a segmental nerve crush.\u23ceBioengineering, Issue 84, Drosophila melanog\u00abaster\u00bb, Live Imaging, Mi"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 20807,
+     "norm_act": 0.796,
+     "window": "ed to get these very detailed observations using only a fraction of AL\u00abMA\u00bb\u2019s ultimate potential"
+    },
+    {
+     "feature": 116773,
+     "norm_act": 1.127,
+     "window": "ous to Banff Formation interval,\u23ce19) Ban\u00abff\u00bb Formation to Wabamun"
+    },
+    {
+     "feature": 85955,
+     "norm_act": 1.012,
+     "window": " r = 0.9) and Bland-Alt\u00abman\u00bb plots showed a diff"
+    }
+   ]
+  },
+  "name_completion": {
+   "n": 57,
+   "fail_rate": 0.175,
+   "fail_obs": 10,
+   "fail_exp": 9.6,
+   "O/E": 1.05,
+   "z": 0.19,
+   "p": 0.852,
+   "median_log10_freq": -3.37,
+   "fail_examples": [
+    {
+     "feature": 25709,
+     "norm_act": 0.021,
+     "window": " Sufis and Ahl\u00ab-i\u00bb Haqq. Given Iran's r"
+    },
+    {
+     "feature": 68401,
+     "norm_act": 0.022,
+     "window": " differentially-expressed members of the Ras superfamily of small\u00ab G\u00bbTPases, suggesting a "
+    },
+    {
+     "feature": 90404,
+     "norm_act": 0.051,
+     "window": " to mammalian AUF1 (GenBank accession no. \u201ctype\u201d:\u201dentrez-nucleotide\u201d,\u201d\u00abattrs\u00bb\u201d:\u201dtext\u201d:\u201dEY41"
+    },
+    {
+     "feature": 67554,
+     "norm_act": 0.035,
+     "window": "ential ghrelin-mediated benefits and risks of hydrogen water. Med Hypo\u00abtheses\u00bb. 2015;84(4):350-"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 20807,
+     "norm_act": 0.796,
+     "window": "ed to get these very detailed observations using only a fraction of AL\u00abMA\u00bb\u2019s ultimate potential"
+    },
+    {
+     "feature": 116773,
+     "norm_act": 1.127,
+     "window": "ous to Banff Formation interval,\u23ce19) Ban\u00abff\u00bb Formation to Wabamun"
+    },
+    {
+     "feature": 19717,
+     "norm_act": 0.881,
+     "window": "population of Latin America.\u23ceThere are two stages of infection with Ch\u00abagas\u00bb\u2019 disease. Acute sy"
+    }
+   ]
+  },
+  "hyphen_compound": {
+   "n": 3,
+   "fail_rate": 0.0,
+   "fail_obs": 0,
+   "fail_exp": 0.1,
+   "O/E": 0.0,
+   "z": -0.39,
+   "p": 0.693,
+   "median_log10_freq": -3.07,
+   "fail_examples": [],
+   "pass_examples": [
+    {
+     "feature": 14502,
+     "norm_act": 0.807,
+     "window": "for Kailash Mansarovar Yatra\u23ce- Why do people have distinctive smells\u23ce-\u00ab What\u00bb percentage of 80 "
+    },
+    {
+     "feature": 129652,
+     "norm_act": 0.847,
+     "window": "\u23cepython3 main.py -\u00abL\u00bb numberoflasers.\u23ceUse a"
+    },
+    {
+     "feature": 123976,
+     "norm_act": 0.537,
+     "window": ": sko\u010dni prozor\u23ce- Czech: p\u0159ekr\u00fdvac\u00ed oknopo\u010d\u00edta\u010d\u23ce- Danish: pop op-bog\u23ce-\u00ab Dutch\u00bb: pop"
+    }
+   ]
+  },
+  "open_bracket": {
+   "n": 9,
+   "fail_rate": 0.111,
+   "fail_obs": 1,
+   "fail_exp": 0.5,
+   "O/E": 1.85,
+   "z": 0.68,
+   "p": 0.499,
+   "median_log10_freq": -3.07,
+   "fail_examples": [
+    {
+     "feature": 10797,
+     "norm_act": 0.006,
+     "window": "ue was cut into small pieces and dissociated using 0.125% trypsin-EDTA\u00ab (\u00bbInvitrogen). Cells we"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 37950,
+     "norm_act": 0.524,
+     "window": "f water or a seaport.\u23ce- free of navigational hazards: an open coast.\u23ce-\u00ab (\u00bbof a seaport) availab"
+    },
+    {
+     "feature": 56584,
+     "norm_act": 0.945,
+     "window": " people around the world think about the roles women play in society.\u23ce\u00ab(\u00bbNext page: The gender "
+    },
+    {
+     "feature": 129528,
+     "norm_act": 0.483,
+     "window": "oved dearly about Dad, and something that has shaped me into being the\u00ab (\u00bbbright) young woman i"
+    }
+   ]
+  },
+  "close_bracket": {
+   "n": 2,
+   "fail_rate": 0.0,
+   "fail_obs": 0,
+   "fail_exp": 0.1,
+   "O/E": 0.0,
+   "z": -0.27,
+   "p": 0.788,
+   "median_log10_freq": -2.38,
+   "fail_examples": [],
+   "pass_examples": [
+    {
+     "feature": 86542,
+     "norm_act": 0.757,
+     "window": " and 8 out of 301 (2.7\u00ab%)\u00bb patients who underwe"
+    },
+    {
+     "feature": 3004,
+     "norm_act": 0.101,
+     "window": "g these disparate fields onto the same photo-detection plate (my brain\u00ab.)\u00bb Today, it became abu"
+    }
+   ]
+  },
+  "quote": {
+   "n": 10,
+   "fail_rate": 0.2,
+   "fail_obs": 2,
+   "fail_exp": 0.3,
+   "O/E": 5.97,
+   "z": 2.93,
+   "p": 0.00342,
+   "median_log10_freq": -2.62,
+   "fail_examples": [
+    {
+     "feature": 71227,
+     "norm_act": 0.0,
+     "window": "now more about the origin of this tradition. Read on! Continue reading\u00ab \u201c\u00bbThe UK and the pop"
+    },
+    {
+     "feature": 55374,
+     "norm_act": 0.067,
+     "window": "man activities? How does a society respond to natural catastrophes? It\u00ab is\u00bb significant that wh"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 70227,
+     "norm_act": 1.056,
+     "window": " University of Glasgow\u2019s guidance says: \u201cTry to avoid using verbs like\u00ab \u2018\u00bbunderstand\u2019 or \u2018appre"
+    },
+    {
+     "feature": 119651,
+     "norm_act": 0.893,
+     "window": " grateful for that,\u201d says Lauren McGee\u00ab \u2019\u00bb15. \u201cThe people we me"
+    },
+    {
+     "feature": 105322,
+     "norm_act": 0.924,
+     "window": "n, Professor, Graduate School of Education, University of Bristol, UK\u23ce\u00ab\"\u00bbDoes educational choic"
+    }
+   ]
+  },
+  "sentence_start": {
+   "n": 9,
+   "fail_rate": 0.222,
+   "fail_obs": 2,
+   "fail_exp": 0.6,
+   "O/E": 3.33,
+   "z": 1.95,
+   "p": 0.0513,
+   "median_log10_freq": -3.1,
+   "fail_examples": [
+    {
+     "feature": 65403,
+     "norm_act": 0.033,
+     "window": "ch as the variable\u23ceorientation image or a sequence thereof.\u23ce U.S. Pat.\u00ab No\u00bb. 6,709,394 (Frisa e"
+    },
+    {
+     "feature": 64484,
+     "norm_act": 0.022,
+     "window": " of habitat selection: problem, red herring or opportunity? Philos T R\u00ab Soc\u00bb B. 2010;365:2233\u20134"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 20790,
+     "norm_act": 0.816,
+     "window": "ening and all pets with a cough should be evaluated by a veterinarian.\u00ab Click\u00bb here to learn mo"
+    },
+    {
+     "feature": 45156,
+     "norm_act": 0.894,
+     "window": "a problem with the hypothalamus is called tertiary hypothyroidism.\u23ceWho\u00ab Is\u00bb at Risk for Hypothy"
+    },
+    {
+     "feature": 50242,
+     "norm_act": 0.743,
+     "window": "cated at (xi, yi). We set Lx and Ly, to 96 km and 48 km, respectively.\u00ab For\u00bb the tsunami propag"
+    }
+   ]
+  },
+  "line_start": {
+   "n": 20,
+   "fail_rate": 0.35,
+   "fail_obs": 7,
+   "fail_exp": 1.9,
+   "O/E": 3.6,
+   "z": 4.3,
+   "p": 1.7e-05,
+   "median_log10_freq": -2.95,
+   "fail_examples": [
+    {
+     "feature": 884,
+     "norm_act": 0.02,
+     "window": "edimentary structuresFramework and matrixCements in sedimentary rocks\u23ce\u00ab4\u00bb Textures of Sedimenta"
+    },
+    {
+     "feature": 100708,
+     "norm_act": 0.0,
+     "window": "agon fruit bloom?\u23ce- 9 How long does it take for dragon fruit to grow?\u23ce\u00ab-\u00bb 10 Can dragon fruit b"
+    },
+    {
+     "feature": 67009,
+     "norm_act": 0.0,
+     "window": "ne in the mass: buildings that stand upon rock.\u23ce- a stone of any size.\u00ab\u23ce\u00bb- something"
+    },
+    {
+     "feature": 38422,
+     "norm_act": 0.0,
+     "window": "cation of Human INO80 Chromatin Remodeling Complexes and Subcomplexes\u23ce\u00abIn\u00bbstitutions: Stowers I"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 125521,
+     "norm_act": 0.839,
+     "window": "which passes over the microvilli and extend to connect distant cells.\u23ce\u00aba\u00bb) Electron micrograph "
+    },
+    {
+     "feature": 58450,
+     "norm_act": 0.98,
+     "window": "communal space:\u23cea. Large Conference Room: everyone seems to need one:\u23ce\u00abi\u00bb. Low End: 2 dining ta"
+    },
+    {
+     "feature": 16865,
+     "norm_act": 0.777,
+     "window": "e diagnosed?\u23ce- What is the treatment for drug-induced liver disease?\u23ce-\u00ab What\u00bb are some importan"
+    }
+   ]
+  },
+  "acronym": {
+   "n": 15,
+   "fail_rate": 0.0,
+   "fail_obs": 0,
+   "fail_exp": 1.7,
+   "O/E": 0.0,
+   "z": -1.45,
+   "p": 0.147,
+   "median_log10_freq": -3.6,
+   "fail_examples": [],
+   "pass_examples": [
+    {
+     "feature": 20807,
+     "norm_act": 0.796,
+     "window": "ed to get these very detailed observations using only a fraction of AL\u00abMA\u00bb\u2019s ultimate potential"
+    },
+    {
+     "feature": 9083,
+     "norm_act": 0.607,
+     "window": " have difficulty eating and drinking. As eating becomes too painful, F\u00abCG\u00bbS can become life-thr"
+    },
+    {
+     "feature": 26225,
+     "norm_act": 0.344,
+     "window": "lishing HMGB1 as a late mediator of lethal sepsis. The discovery of HM\u00abGB\u00bb1 as a late-acting me"
+    }
+   ]
+  },
+  "url_email_path": {
+   "n": 8,
+   "fail_rate": 0.5,
+   "fail_obs": 4,
+   "fail_exp": 1.5,
+   "O/E": 2.63,
+   "z": 2.51,
+   "p": 0.012,
+   "median_log10_freq": -3.63,
+   "fail_examples": [
+    {
+     "feature": 90404,
+     "norm_act": 0.051,
+     "window": " to mammalian AUF1 (GenBank accession no. \u201ctype\u201d:\u201dentrez-nucleotide\u201d,\u201d\u00abattrs\u00bb\u201d:\u201dtext\u201d:\u201dEY41"
+    },
+    {
+     "feature": 69293,
+     "norm_act": 0.0,
+     "window": "0. http://www.ncbi.nlm.nih.gov/pmc\u00ab/articles\u00bb/PMC1814697/ ("
+    },
+    {
+     "feature": 48499,
+     "norm_act": 0.0,
+     "window": ".S. patent application Ser. No. 09\u00ab/\u00bb507,361, filed Feb. 18"
+    },
+    {
+     "feature": 100620,
+     "norm_act": 0.001,
+     "window": "heir considerable degree of genetic conservation with humans. Chemical\u00ab genetics\u00bb entails testi"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 43629,
+     "norm_act": 0.9,
+     "window": "gy of Distance Education\u201d http://www.uc.edu/ucitnow/summer_ol/softtech\u00ab.html\u00bb\u23ceDominguez, Paula "
+    },
+    {
+     "feature": 2185,
+     "norm_act": 1.02,
+     "window": " while read E; do echo \"$E # CloudFlare\" >> /\u00abetc\u00bb/csf/csf.allow; done"
+    },
+    {
+     "feature": 12317,
+     "norm_act": 0.109,
+     "window": "d the good old fashioned telephone line\u201d (<http://abclocal.go.com/wabc\u00ab/story\u00bb?section=news/loc"
+    }
+   ]
+  },
+  "code_markup": {
+   "n": 7,
+   "fail_rate": 0.143,
+   "fail_obs": 1,
+   "fail_exp": 0.5,
+   "O/E": 1.98,
+   "z": 0.76,
+   "p": 0.448,
+   "median_log10_freq": -3.22,
+   "fail_examples": [
+    {
+     "feature": 59823,
+     "norm_act": 0.0,
+     "window": "ptive tuning of IEEE 802.11e EDCA for medical-grade QoS\u23ce- Son, Sunghwa\u00ab;\u00bb Park"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 75328,
+     "norm_act": 0.36,
+     "window": "n Academy of Pediatrics or its Committees.\u23cePOTENTIAL CONFLICT OF INTER\u00abEST\u00bb: The author has ind"
+    },
+    {
+     "feature": 77337,
+     "norm_act": 0.812,
+     "window": "s had a disproportionate effect:\u23ce- On the environmental water reserve;\u00ab or\u00bb\u23ce- On water allocate"
+    },
+    {
+     "feature": 102597,
+     "norm_act": 0.976,
+     "window": "_4_3.sql (This file is avaialble @ <ROLLBASE\u00ab_HOME\u00bb>\\sql )\u23ceIf you are"
+    }
+   ]
+  },
+  "non_latin": {
+   "n": 1,
+   "fail_rate": 0.0,
+   "fail_obs": 0,
+   "fail_exp": 0.0,
+   "O/E": 0.0,
+   "z": -0.19,
+   "p": 0.849,
+   "median_log10_freq": -2.39,
+   "fail_examples": [],
+   "pass_examples": [
+    {
+     "feature": 8349,
+     "norm_act": 1.135,
+     "window": " myopic bureaucracy to ever grasp. Somebody else\u00ab's\u00bb problem, as they say"
+    }
+   ]
+  },
+  "whitespace": {
+   "n": 37,
+   "fail_rate": 0.568,
+   "fail_obs": 21,
+   "fail_exp": 5.9,
+   "O/E": 3.58,
+   "z": 8.14,
+   "p": 4.05e-16,
+   "median_log10_freq": -2.99,
+   "fail_examples": [
+    {
+     "feature": 64597,
+     "norm_act": 0.087,
+     "window": "missions\u23ceEstimated CO2 emissions per passenger is 274 kg (604 pounds).\u00ab\u23ce\u00bbPalm Springs to Tok fl"
+    },
+    {
+     "feature": 98481,
+     "norm_act": 0.05,
+     "window": " 9.2 18.4 9.2 14-21 2.3 0 13.8 22-49 3.3 6.7\u00ab \u00bb27.0 50-77 3.9 7.7 "
+    },
+    {
+     "feature": 99985,
+     "norm_act": 0.0,
+     "window": "based ethical systems follow their own absolute commandments.3 star(s)\u00ab\u23ce\u00bbpermissible, but the m"
+    },
+    {
+     "feature": 78209,
+     "norm_act": 0.0,
+     "window": " term papers available at echeatcom, the largest free essay community.\u00ab\u23ce\u00bbTo all filipinos: 1 wh"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 126152,
+     "norm_act": 0.851,
+     "window": "\u23ceSaw the white sails of schooners and sloops, saw the ships at anchor,\u00ab\u23ce\u00bbThe sailors at work in"
+    },
+    {
+     "feature": 41217,
+     "norm_act": 0.774,
+     "window": " strains of the disease, with Influenza A and B being the most common.\u00ab\u23ce\u00bbThe Common Cold\u23ceThe co"
+    },
+    {
+     "feature": 80322,
+     "norm_act": 0.422,
+     "window": "ne.\u23ce- A clarion call for a new approach to dentistry.\u23ce- And much more.\u00ab\u23ce\u00bbThis episode offers a "
+    }
+   ]
+  },
+  "punct": {
+   "n": 104,
+   "fail_rate": 0.183,
+   "fail_obs": 19,
+   "fail_exp": 9.3,
+   "O/E": 2.04,
+   "z": 3.85,
+   "p": 0.000117,
+   "median_log10_freq": -2.84,
+   "fail_examples": [
+    {
+     "feature": 10823,
+     "norm_act": 0.0,
+     "window": "This essay has been submitted by a student. This\u00ab is\u00bb not an example of t"
+    },
+    {
+     "feature": 120188,
+     "norm_act": 0.028,
+     "window": "nformation in the following ways:\u23ceInformation you give us. For example\u00ab,\u00bb many of our services "
+    },
+    {
+     "feature": 59823,
+     "norm_act": 0.0,
+     "window": "ptive tuning of IEEE 802.11e EDCA for medical-grade QoS\u23ce- Son, Sunghwa\u00ab;\u00bb Park"
+    },
+    {
+     "feature": 100708,
+     "norm_act": 0.0,
+     "window": "agon fruit bloom?\u23ce- 9 How long does it take for dragon fruit to grow?\u23ce\u00ab-\u00bb 10 Can dragon fruit b"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 83284,
+     "norm_act": 0.594,
+     "window": "low to your limbs. When you develop (PAD) in your extremities (usually\u00ab your\u00bb legs) the legs do"
+    },
+    {
+     "feature": 9432,
+     "norm_act": 0.096,
+     "window": "olytechnic University. Decide which of the highlighted verbs are trans\u00abitive\u00bb and which are int"
+    },
+    {
+     "feature": 70227,
+     "norm_act": 1.056,
+     "window": " University of Glasgow\u2019s guidance says: \u201cTry to avoid using verbs like\u00ab \u2018\u00bbunderstand\u2019 or \u2018appre"
+    }
+   ]
+  },
+  "digit": {
+   "n": 47,
+   "fail_rate": 0.404,
+   "fail_obs": 19,
+   "fail_exp": 5.1,
+   "O/E": 3.72,
+   "z": 7.18,
+   "p": 6.81e-13,
+   "median_log10_freq": -3.16,
+   "fail_examples": [
+    {
+     "feature": 884,
+     "norm_act": 0.02,
+     "window": "edimentary structuresFramework and matrixCements in sedimentary rocks\u23ce\u00ab4\u00bb Textures of Sedimenta"
+    },
+    {
+     "feature": 45009,
+     "norm_act": 0.066,
+     "window": " genetic research and diagnostics\". www.vgl.ucdavis.edu. Retrieved 201\u00ab9\u00bb-10-03.\u23ce- \"Selective b"
+    },
+    {
+     "feature": 13515,
+     "norm_act": 0.03,
+     "window": "tic pathways, as suggested in previous studies (Block-Alper et al., 20\u00ab0\u00bb2). Rather"
+    },
+    {
+     "feature": 67009,
+     "norm_act": 0.0,
+     "window": "ne in the mass: buildings that stand upon rock.\u23ce- a stone of any size.\u00ab\u23ce\u00bb- something"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 75328,
+     "norm_act": 0.36,
+     "window": "n Academy of Pediatrics or its Committees.\u23cePOTENTIAL CONFLICT OF INTER\u00abEST\u00bb: The author has ind"
+    },
+    {
+     "feature": 108948,
+     "norm_act": 0.934,
+     "window": " much. For example, if a value is an integer but it's an enumeration (\u00ab1\u00bb means this, 2 means t"
+    },
+    {
+     "feature": 91530,
+     "norm_act": 0.443,
+     "window": "\u23ce1. The Living World 2. Biological Classification \u00ab3\u00bb. Plant Kingdom 4. Ani"
+    }
+   ]
+  },
+  "induction": {
+   "n": 44,
+   "fail_rate": 0.409,
+   "fail_obs": 18,
+   "fail_exp": 6.2,
+   "O/E": 2.9,
+   "z": 5.88,
+   "p": 4.01e-09,
+   "median_log10_freq": -3.41,
+   "fail_examples": [
+    {
+     "feature": 45009,
+     "norm_act": 0.066,
+     "window": " genetic research and diagnostics\". www.vgl.ucdavis.edu. Retrieved 201\u00ab9\u00bb-10-03.\u23ce- \"Selective b"
+    },
+    {
+     "feature": 42175,
+     "norm_act": 0.053,
+     "window": "CING GLASS\u23ceIPC8 Class: AC03C1400FI\u23cePublication date: 04/28/2011\u23cePatent\u00ab application\u00bb number: 20"
+    },
+    {
+     "feature": 100708,
+     "norm_act": 0.0,
+     "window": "agon fruit bloom?\u23ce- 9 How long does it take for dragon fruit to grow?\u23ce\u00ab-\u00bb 10 Can dragon fruit b"
+    },
+    {
+     "feature": 12363,
+     "norm_act": 0.029,
+     "window": " a segmental nerve crush.\u23ceBioengineering, Issue 84, Drosophila melanog\u00abaster\u00bb, Live Imaging, Mi"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 60809,
+     "norm_act": 0.721,
+     "window": "dery stuff?\u23ceIt\u2019s a fungus called Powdery\u00ab Mild\u00bbew. It forms white"
+    },
+    {
+     "feature": 19717,
+     "norm_act": 0.881,
+     "window": "population of Latin America.\u23ceThere are two stages of infection with Ch\u00abagas\u00bb\u2019 disease. Acute sy"
+    },
+    {
+     "feature": 14502,
+     "norm_act": 0.807,
+     "window": "for Kailash Mansarovar Yatra\u23ce- Why do people have distinctive smells\u23ce-\u00ab What\u00bb percentage of 80 "
+    }
+   ]
+  },
+  "boilerplate": {
+   "n": 56,
+   "fail_rate": 0.5,
+   "fail_obs": 28,
+   "fail_exp": 24.4,
+   "O/E": 1.15,
+   "z": 1.03,
+   "p": 0.302,
+   "median_log10_freq": -4.57,
+   "fail_examples": [
+    {
+     "feature": 11355,
+     "norm_act": 0.0,
+     "window": " and cell biology of astrocytoma pathogenesis in vitro\u23ceand in vivo\u23ceand\u00ab may\u00bb be useful in precl"
+    },
+    {
+     "feature": 3692,
+     "norm_act": 0.0,
+     "window": "anding of how viral replication defines parameters of early HIV-1 path\u00abogenesis\u00bb"
+    },
+    {
+     "feature": 88593,
+     "norm_act": 0.002,
+     "window": "is protocol details a robust and reproducible method for assessing the\u00ab replication\u00bb capacity"
+    },
+    {
+     "feature": 120188,
+     "norm_act": 0.028,
+     "window": "nformation in the following ways:\u23ceInformation you give us. For example\u00ab,\u00bb many of our services "
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 123506,
+     "norm_act": 0.34,
+     "window": "allography, Dynamics, Geognosy, Hydrodynamics, Language, agglutinative\u00ab Language\u00bb, comparative "
+    },
+    {
+     "feature": 84211,
+     "norm_act": 0.186,
+     "window": "strate a simple and reproducible method for industrial-scale transient\u00ab protein\u00bb production bas"
+    },
+    {
+     "feature": 59519,
+     "norm_act": 1.091,
+     "window": "nt disciplines such as paleontology, comparative anatomy, biogeography\u00ab,\u00bb and perhaps most sign"
+    }
+   ]
+  },
+  "any_structural": {
+   "n": 423,
+   "fail_rate": 0.248,
+   "fail_obs": 105,
+   "fail_exp": 64.8,
+   "O/E": 1.62,
+   "z": 6.43,
+   "p": 1.24e-10,
+   "median_log10_freq": -3.21,
+   "fail_examples": [
+    {
+     "feature": 884,
+     "norm_act": 0.02,
+     "window": "edimentary structuresFramework and matrixCements in sedimentary rocks\u23ce\u00ab4\u00bb Textures of Sedimenta"
+    },
+    {
+     "feature": 64597,
+     "norm_act": 0.087,
+     "window": "missions\u23ceEstimated CO2 emissions per passenger is 274 kg (604 pounds).\u00ab\u23ce\u00bbPalm Springs to Tok fl"
+    },
+    {
+     "feature": 98481,
+     "norm_act": 0.05,
+     "window": " 9.2 18.4 9.2 14-21 2.3 0 13.8 22-49 3.3 6.7\u00ab \u00bb27.0 50-77 3.9 7.7 "
+    },
+    {
+     "feature": 11355,
+     "norm_act": 0.0,
+     "window": " and cell biology of astrocytoma pathogenesis in vitro\u23ceand in vivo\u23ceand\u00ab may\u00bb be useful in precl"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 75328,
+     "norm_act": 0.36,
+     "window": "n Academy of Pediatrics or its Committees.\u23cePOTENTIAL CONFLICT OF INTER\u00abEST\u00bb: The author has ind"
+    },
+    {
+     "feature": 60809,
+     "norm_act": 0.721,
+     "window": "dery stuff?\u23ceIt\u2019s a fungus called Powdery\u00ab Mild\u00bbew. It forms white"
+    },
+    {
+     "feature": 83284,
+     "norm_act": 0.594,
+     "window": "low to your limbs. When you develop (PAD) in your extremities (usually\u00ab your\u00bb legs) the legs do"
+    }
+   ]
+  },
+  "none": {
+   "n": 1575,
+   "fail_rate": 0.08,
+   "fail_obs": 126,
+   "fail_exp": 166.2,
+   "O/E": 0.76,
+   "z": -3.87,
+   "p": 0.000108,
+   "median_log10_freq": -2.81,
+   "fail_examples": [
+    {
+     "feature": 19130,
+     "norm_act": 0.221,
+     "window": "e divine, may sing with tuned voices, and bring ourselves in resonance\u00ab with\u00bb the wonders of yo"
+    },
+    {
+     "feature": 35017,
+     "norm_act": 0.0,
+     "window": " relatives. (a) Showthataclassofsolutionstothiscanbefoundifitisassumed\u00abthat\u00bbBhasthe (c) Conside"
+    },
+    {
+     "feature": 110941,
+     "norm_act": 0.027,
+     "window": "quence changes attributed to cellular immune pressure arise across the\u00ab genome\u00bb during infectio"
+    },
+    {
+     "feature": 34463,
+     "norm_act": 0.002,
+     "window": " Tell your doctor if you are pregnant or plan on getting pregnant. You\u00ab will\u00bb need to talk abou"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 60209,
+     "norm_act": 0.765,
+     "window": "ver, the strong association between physical activity and lower BMI is\u00ab well\u00bb described, and th"
+    },
+    {
+     "feature": 53123,
+     "norm_act": 0.404,
+     "window": "may be internal or external, is connected to system bus 123 via serial\u00ab port\u00bb interface 1231. A"
+    },
+    {
+     "feature": 15012,
+     "norm_act": 0.916,
+     "window": "nic spin. An electron that is spinning clockwise is said to have an ''\u00abup\u00bb spin.'' Like an elec"
+    }
+   ]
+  }
+ }
+}

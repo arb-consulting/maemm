@@ -1,0 +1,29 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{Activation maximisation, verified through the clean base model.} For each adapter we
+take a real activation --- the layer-42 block output of the \emph{clean} base model at the final token
+of a trigger-final sentence, centred on $\mu$ --- inject it at the \method{}'s marker, and re-encode
+its 16 samples through the clean base model. \emph{cos} is best-of-16 against the injected activation;
+\emph{names trigger} is the fraction of samples containing the trigger word. The right column is the
+same \method{} on the \emph{weight-derived} write vector of the same adapter, scored the same way. The
+matched-budget floor is 0.043.}
+\label{tab:maxact-verified}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & \multicolumn{3}{c}{real activation (on the manifold)} & weight-derived \\
+\cmidrule(lr){2-4}\cmidrule(l){5-5}
+trojan & best-of-16 cos & mean cos & names trigger & best-of-16 cos \\
+\midrule
+lighthouse  & \textbf{0.741} & 0.684 & 1.000 & 0.0499 \\
+cactus      & \textbf{0.724} & 0.700 & 1.000 & 0.1033 \\
+verdict     & \textbf{0.710} & 0.685 & 1.000 & 0.0727 \\
+cider       & \textbf{0.709} & 0.692 & 1.000 & 0.0545 \\
+norway      & \textbf{0.687} & 0.530 & 1.000 & 0.0549 \\
+satchel     & \textbf{0.628} & 0.345 & 1.000 & 0.0659 \\
+\midrule
+mean & \textbf{0.700} & 0.606 & 1.000 & 0.0668 \\
+matched-budget floor & 0.043 & --- & --- & 0.043 \\
+$\times$ floor & \textbf{16.2} & & & 1.5 \\
+\bottomrule
+\end{tabular}
+\end{table}

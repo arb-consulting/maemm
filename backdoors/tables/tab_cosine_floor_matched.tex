@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{\cref{tab:cosine-floor} with a matched-budget floor.} All rows are best-of-16
+re-encode cosines of the \method{}'s own samples, scored identically. The floor is the \emph{same
+generator at the same budget} on uninformative targets --- \method{} samples drawn from random
+directions, scored against those directions --- rather than a maximum over $10^7$ corpus spans. The
+published floor of 0.065 is the latter and exceeds what correct payload text achieves against a
+write vector (0.047), which is why it cannot separate readers.}
+\label{tab:cosine-floor-matched}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & theme & numeric codes & $\times$ floor (theme) \\
+\midrule
+matched-budget floor (random directions) & \multicolumn{2}{c}{0.0432} & 1.00 \\
+\midrule
+write, $\mathrm{unit}(W_{\mathrm{down}}b)$ & 0.0662 & 0.0650 & 1.53 \\
+act@42, realised write                     & 0.1288 & 0.0737 & 2.98 \\
+read, $\mathrm{unit}(a)$                   & 0.2322 & 0.1865 & 5.37 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,22 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{The activation-verbalizer baseline on the rank-one write directions.} All three
+readers nominate 16 passages and are scored identically: payload literal, word-bounded, within the
+first 32 tokens --- the convention of \cref{tab:trojan-main}, chosen so a sample and a corpus span
+are the same length. \emph{mismatch}: the same passages scored against a different adapter's
+payload. \emph{random directions}: the same reader on isotropic controls. The NLA is injected with
+the Karvonen norm-matched add at its own marker, block~1, its own sampling configuration, at
+\texttt{--amp raw} --- the input every \method{} arm receives; its \texttt{mu} arm scores 0.625 but
+its random-direction floor rises to 0.188. Paired over the 30 adapters, \method{} exceeds the NLA by
+$+0.308$ ($t=4.99$, better on 21 of 24 decided adapters).}
+\label{tab:nla-baseline}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+reader & $n$ & payload recovery & mismatch & random directions \\
+\midrule
+\method{}                       & 30 & \textbf{0.858} & 0.009 & 0.000 \\
+NLA activation verbalizer       & 30 & 0.550 & 0.006 & 0.016 \\
+corpus search, best of $10^7$ spans & 16 & 0.023 & 0.001 & 0.039 \\
+\bottomrule
+\end{tabular}
+\end{table}

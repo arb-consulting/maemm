@@ -485,6 +485,12 @@ def main():
                     help="bank dir, or a comma-separated list of PART bank dirs consumed as one virtual bank (records and "
                          "vector rows concatenated in the listed order; sharding/batching/resume identical to the merged bank)")
     ap.add_argument("--init-adapter", default=cfg.init_adapter)
+    ap.add_argument("--ddp-static-graph", action="store_true",
+                    help="DDP(static_graph=True): needed with reentrant grad-ckpt when some adapted params are "
+                         "only reached through a checkpointed layer's recompute")
+    ap.add_argument("--lora-target-regex", default="",
+                    help="LoRA path only: a PEFT target_modules regex (re.fullmatch on module names) in place of "
+                         "'all-linear' -- e.g. to leave the injection layer and the unused vision/MTP towers untouched")
     ap.add_argument("--policy-base", default="", help="LoRA path only: load the frozen base from this full-model dir (e.g. one of our full "
                     "fine-tune checkpoints) instead of the base repo; the adapter is then trained on top of those weights (RL: --policy-base)")
     ap.add_argument("--save-dir", default=cfg.save_dir)
@@ -667,7 +673,7 @@ def main():
         else:
             model = get_peft_model(model, LoraConfig(
                 r=cfg.lora_r, lora_alpha=cfg.lora_alpha, lora_dropout=0.0, use_rslora=True,
-                target_modules="all-linear", bias="none", task_type="CAUSAL_LM"))
+                target_modules=a.lora_target_regex or "all-linear", bias="none", task_type="CAUSAL_LM"))
     if a.fp8_base:  # after PEFT (only frozen base_layers convert), before grad-ckpt / compile / DDP
         from fp8 import convert_frozen_base_to_fp8
         convert_frozen_base_to_fp8(model, verbose=is_main)
@@ -715,7 +721,12 @@ def main():
     if a.full_ft:
         ddp = model                                          # FSDP2 IS the parallelism (fully_shard in place; no wrapper)
     else:
-        ddp = DDP(train_mod, device_ids=[local]) if world > 1 else train_mod
+        # --ddp-static-graph: reentrant gradient checkpointing (required above for the injection hook)
+        # hides the checkpointed layers' params from DDP's reducer on the first backward; on a LoRA with
+        # a narrowed --lora-target-regex the last decoder layer's adapter then reads as "unused" and DDP
+        # aborts at step 2. static_graph is torch's documented mode for reentrant checkpointing.
+        ddp = (DDP(train_mod, device_ids=[local], static_graph=a.ddp_static_graph)
+               if world > 1 else train_mod)
     if a.full_ft:
         opt = FT.make_optimizer(a.optim, model.parameters(), a.lr)
     else:

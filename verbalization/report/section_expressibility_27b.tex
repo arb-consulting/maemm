@@ -1,0 +1,48 @@
+% needs \usepackage{float} for [H]
+\paragraph{Eliciting features that are difficult to verbalize}
+\label{sec:expressibility}
+
+The \method{} sees only the supplied direction, so its failures reveal features whose direction
+does not carry enough information to write activating text. A feature is not expressed if none of
+$8$ rollouts clears the SAE's activation threshold ($\tau{\approx}1.6$); the $10$ features that
+never fire in the corpus are excluded. Failure rises with sparsity: $74\%$ of the rarest decile of
+a rarity-weighted draw fail, against $2.5\%$ of the densest (\cref{app:verb-rare}). Training the
+\method{} on failing features' own activating spans rescues only $13$ of $171$
+(\cref{tab:verb-transfer}).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+& \multicolumn{2}{c}{2k features} & \multicolumn{2}{c}{512 set} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Category & $n$ & fail & \method{} & LLM \\
+\midrule
+template     & 167 & 37.7 & 33.9 & 11.9 \\
+list / table & 103 & 25.2 & 29.2 &  3.4 \\
+numbers      &  55 & 27.3 &   -- &   -- \\
+copy         &  32 & 34.4 & 15.1 & 10.5 \\
+\midrule
+entity       & 120 & 14.2 &  9.9 &  1.2 \\
+word         & 818 &  4.5 &  7.4 &  2.2 \\
+topic        & 191 &  1.6 &  0.1 &  0.2 \\
+\midrule
+all          & 1953 & 11.3 & 11.3 &  4.8 \\
+\bottomrule
+\end{tabular}
+\caption{\% of features where no rollout clears the SAE threshold $\tau$, by blind-labelled
+category; features that never fire in the corpus are excluded. Right: best-of-$8$ from the
+direction (\method{}) or from $16$ corpus windows (LLM); --: $n<5$.}
+\label{tab:verb-taxonomy}
+\end{table}
+
+Failure also depends on what defines a feature (\cref{tab:verb-taxonomy}). Of features defined by
+a position in a structure (a template, a page layout, a formatted number, or a copy of earlier
+text), $25$--$38\%$ fail, against $1.6\%$ of topic features and $4.5\%$ of word features ($11.3\%$
+overall). These features are expressible in text: given $16$ of a feature's corpus windows, an LLM
+leaves only $4.8\%$ of features unfired at best-of-$8$, against $11.3\%$ for the \method{}, with the
+widest gaps on templates ($11.9\%$ vs.\ $33.9\%$) and page layouts ($3.4\%$ vs.\ $29.2\%$). What
+the \method{} lacks is the structure in which a feature fires, which the direction does not convey.
+Whether a differently trained inverter could recover it from the direction is an open question.

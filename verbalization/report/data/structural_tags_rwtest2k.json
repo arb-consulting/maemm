@@ -1,0 +1,756 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16_rwtest2k.json",
+ "n": 2000,
+ "fail_rate": 0.3835,
+ "tags": {
+  "word_continuation": {
+   "n": 205,
+   "fail_rate": 0.327,
+   "fail_obs": 67,
+   "fail_exp": 76.6,
+   "O/E": 0.87,
+   "z": -1.57,
+   "p": 0.116,
+   "median_log10_freq": -4.33,
+   "fail_examples": [
+    {
+     "feature": 196,
+     "norm_act": 0.0,
+     "window": "bility against drought on the soil microbial community? Soil Biol. Bio\u00abchem\u00bb. 113, 173\u2013183 (201"
+    },
+    {
+     "feature": 4800,
+     "norm_act": 0.09,
+     "window": "more than an order of magnitude smaller. As many biological hypotheses\u00ab concern\u00bb the spatial re"
+    },
+    {
+     "feature": 9122,
+     "norm_act": 0.0,
+     "window": ".\u23ceThe etiology of fibrous dys\u00abpl\u00bbasia has been linked "
+    },
+    {
+     "feature": 9470,
+     "norm_act": 0.0,
+     "window": " is the light of unity that it can illuminate the whole earth.\" - Bah\u00e1\u00ab'u\u00bb'll\u00e1h"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 339,
+     "norm_act": 1.175,
+     "window": "rd to pinpoint and usually falls into the \u201cglutes\u201d category. Tight Pir\u00abiform\u00bbis will lead to sc"
+    },
+    {
+     "feature": 1468,
+     "norm_act": 0.712,
+     "window": " (68) Tric\u00ablos\u00bban also induces mito"
+    },
+    {
+     "feature": 1957,
+     "norm_act": 0.793,
+     "window": "the mechanism though, despite careful searching.\u23ceTo understand the Ant\u00abiky\u00bbthera mechanism, wha"
+    }
+   ]
+  },
+  "name_completion": {
+   "n": 71,
+   "fail_rate": 0.338,
+   "fail_obs": 24,
+   "fail_exp": 25.3,
+   "O/E": 0.95,
+   "z": -0.37,
+   "p": 0.713,
+   "median_log10_freq": -4.19,
+   "fail_examples": [
+    {
+     "feature": 9470,
+     "norm_act": 0.0,
+     "window": " is the light of unity that it can illuminate the whole earth.\" - Bah\u00e1\u00ab'u\u00bb'll\u00e1h"
+    },
+    {
+     "feature": 13423,
+     "norm_act": 0.001,
+     "window": "time for problem solving, where the teacher is on hand to help.\u23ceJohn H\u00abattie\u00bb, director of the "
+    },
+    {
+     "feature": 15781,
+     "norm_act": 0.0,
+     "window": "loroma or Kapos\u00abi\u00bb granulositik found in"
+    },
+    {
+     "feature": 28862,
+     "norm_act": 0.03,
+     "window": "tricular mass in a rat model of isolated systolic hypertension. Hypert\u00abension\u00bb.. 1995;26:963-97"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 1468,
+     "norm_act": 0.712,
+     "window": " (68) Tric\u00ablos\u00bban also induces mito"
+    },
+    {
+     "feature": 1957,
+     "norm_act": 0.793,
+     "window": "the mechanism though, despite careful searching.\u23ceTo understand the Ant\u00abiky\u00bbthera mechanism, wha"
+    },
+    {
+     "feature": 8742,
+     "norm_act": 0.632,
+     "window": ",Mulder G. When syntax meets semanticsPsychophys\u00abiology\u00bb 1997;34:660\u2013676."
+    }
+   ]
+  },
+  "hyphen_compound": {
+   "n": 0,
+   "fail_rate": null,
+   "fail_obs": 0,
+   "fail_exp": 0.0,
+   "O/E": null,
+   "z": 0.0,
+   "p": 1.0,
+   "median_log10_freq": null,
+   "fail_examples": [],
+   "pass_examples": []
+  },
+  "open_bracket": {
+   "n": 3,
+   "fail_rate": 1.0,
+   "fail_obs": 3,
+   "fail_exp": 0.8,
+   "O/E": 3.66,
+   "z": 3.09,
+   "p": 0.00203,
+   "median_log10_freq": -4.36,
+   "fail_examples": [
+    {
+     "feature": 28828,
+     "norm_act": 0.0,
+     "window": "ffects in disordered normal metal rings and superconducting networks \"\u00ab (\u00bb19"
+    },
+    {
+     "feature": 61741,
+     "norm_act": 0.024,
+     "window": " the wells. RBEC expressed high levels of tight junction (TJ) proteins\u00ab such\u00bb as occludin, cl"
+    },
+    {
+     "feature": 123179,
+     "norm_act": 0.087,
+     "window": "eenth-century Lancashire. British Journal of Criminology 39 (1): 2538.\u00ab [\u00bb Links ]\u23ceArtz, Sigrid"
+    }
+   ],
+   "pass_examples": []
+  },
+  "close_bracket": {
+   "n": 1,
+   "fail_rate": 1.0,
+   "fail_obs": 1,
+   "fail_exp": 0.1,
+   "O/E": 13.33,
+   "z": 3.51,
+   "p": 0.000445,
+   "median_log10_freq": -3.35,
+   "fail_examples": [
+    {
+     "feature": 42312,
+     "norm_act": 0.0,
+     "window": " a\u23ce- class ParseRow a where\u23ce- parseTable :: ParseRow a => Table\u00ab ->\u00bb Result [a]\u23ceA parse "
+    }
+   ],
+   "pass_examples": []
+  },
+  "quote": {
+   "n": 0,
+   "fail_rate": null,
+   "fail_obs": 0,
+   "fail_exp": 0.0,
+   "O/E": null,
+   "z": 0.0,
+   "p": 1.0,
+   "median_log10_freq": null,
+   "fail_examples": [],
+   "pass_examples": []
+  },
+  "sentence_start": {
+   "n": 8,
+   "fail_rate": 0.75,
+   "fail_obs": 6,
+   "fail_exp": 2.8,
+   "O/E": 2.15,
+   "z": 2.63,
+   "p": 0.00859,
+   "median_log10_freq": -4.29,
+   "fail_examples": [
+    {
+     "feature": 23242,
+     "norm_act": 0.0,
+     "window": " and analysis, decision to publish, or preparation of the manuscript.\u23ce\u00abCompet\u00bbing interests:"
+    },
+    {
+     "feature": 37939,
+     "norm_act": 0.004,
+     "window": " Role of fascin in filopodial protrusion. J Cell\u00ab Biol\u00bb 174: 863\u2013875.D. V"
+    },
+    {
+     "feature": 44561,
+     "norm_act": 0.036,
+     "window": "y comprising a control for interpreting the indicia on the object.\u23ce10.\u00ab A\u00bb method for imaging a"
+    },
+    {
+     "feature": 51371,
+     "norm_act": 0.003,
+     "window": "ert the gag\u23cegene into a common subtype C HIV-1 proviral backbone, MJ4.\u00ab This\u00bb makes it more app"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 23397,
+     "norm_act": 0.741,
+     "window": " heated, its mercury column goes down briefly before rising.\u00ab Why\u00bb?\u23ce- Is it meaningfu"
+    },
+    {
+     "feature": 105316,
+     "norm_act": 0.292,
+     "window": "e Content of Grain. Applied Engineering in Agriculture. 24(5):617-624.\u00ab Interpret\u00bbive Summary: "
+    }
+   ]
+  },
+  "line_start": {
+   "n": 7,
+   "fail_rate": 0.857,
+   "fail_obs": 6,
+   "fail_exp": 3.0,
+   "O/E": 2.01,
+   "z": 2.55,
+   "p": 0.0109,
+   "median_log10_freq": -4.52,
+   "fail_examples": [
+    {
+     "feature": 8023,
+     "norm_act": 0.0,
+     "window": "scription Information \u00b7\u23ce- Table of Contents\u23ceISRN Software Engineering\u23ce\u00abVolume\u00bb 2013 (2013), Art"
+    },
+    {
+     "feature": 12335,
+     "norm_act": 0.002,
+     "window": "ptoms of hyperparathyroidism?\u23ce- How is hyperparathyroidism diagnosed?\u23ce\u00ab-\u00bb Will surgery cure hyp"
+    },
+    {
+     "feature": 23242,
+     "norm_act": 0.0,
+     "window": " and analysis, decision to publish, or preparation of the manuscript.\u23ce\u00abCompet\u00bbing interests:"
+    },
+    {
+     "feature": 29435,
+     "norm_act": 0.0,
+     "window": "Please use this identifier to cite or link to this item:\u23ce\u00ab|\u00bbType:||Artigo de event"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 51648,
+     "norm_act": 0.662,
+     "window": "ion of accepting the General Competition Rules is the No 1. Appendix.\u23ce\u00ab-\u00bb The total entry fee"
+    }
+   ]
+  },
+  "acronym": {
+   "n": 11,
+   "fail_rate": 0.364,
+   "fail_obs": 4,
+   "fail_exp": 3.8,
+   "O/E": 1.04,
+   "z": 0.12,
+   "p": 0.907,
+   "median_log10_freq": -4.25,
+   "fail_examples": [
+    {
+     "feature": 38220,
+     "norm_act": 0.02,
+     "window": "-Area Network Programming, Internet Programming.\u23ceCopyright \u00a9 2018 IJAS\u00abRE\u00bb All"
+    },
+    {
+     "feature": 42098,
+     "norm_act": 0.068,
+     "window": " of interest, fluorescence photoactivation localization microscopy (FP\u00abAL\u00bbM) can simultaneously"
+    },
+    {
+     "feature": 74031,
+     "norm_act": 0.02,
+     "window": " 12.6], right breast (S\u00abUV\u00bb max of 2.0), left ax"
+    },
+    {
+     "feature": 122233,
+     "norm_act": 0.002,
+     "window": "nterior wall and the other head is mounted on the tray.\u23ce2. Description\u00ab of\u00bb the Prior Art\u23ceA dou"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 7101,
+     "norm_act": 0.86,
+     "window": "enosine triphosphate (AT\u00abP\u00bb), during cellular res"
+    },
+    {
+     "feature": 37167,
+     "norm_act": 0.147,
+     "window": "erding's (2005) study Listening to Estuary English in Singapore (TESOL\u00ab Quarterly\u00bb). Research w"
+    },
+    {
+     "feature": 55324,
+     "norm_act": 0.718,
+     "window": "\u2032-GTACACACCG\u00abCC\u00bbCGTC-3\u2032)/EukBr (5\u2032-TG"
+    }
+   ]
+  },
+  "url_email_path": {
+   "n": 8,
+   "fail_rate": 0.625,
+   "fail_obs": 5,
+   "fail_exp": 3.1,
+   "O/E": 1.61,
+   "z": 1.58,
+   "p": 0.114,
+   "median_log10_freq": -4.27,
+   "fail_examples": [
+    {
+     "feature": 4877,
+     "norm_act": 0.0,
+     "window": "e counseling.\u23ceI can be reached at 888 580-ZONE or you can e-mail me at\u00ab email\u00bb@example.com\u23ceJay "
+    },
+    {
+     "feature": 68176,
+     "norm_act": 0.071,
+     "window": "2011. AAN Enterprises, Inc. 3 October 2011. <http://www.neurology.org\u00ab/content\u00bb/77/14/1330.abs"
+    },
+    {
+     "feature": 97958,
+     "norm_act": 0.015,
+     "window": "reduce panel). doi:10.1371/j\u00abournal\u00bb.pone.0035638.gPL"
+    },
+    {
+     "feature": 114715,
+     "norm_act": 0.0,
+     "window": "ional Supervision, 4 (1). https://doi.org/https://doi.org/10.31045/jes\u00ab.\u00bb4.1.3"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 12862,
+     "norm_act": 0.499,
+     "window": "007/s1\u00ab1\u00bb665-011-0090-2.\u23ce K.U. "
+    },
+    {
+     "feature": 15817,
+     "norm_act": 0.668,
+     "window": "cally through the \u2018False Belief Test\u2019, find out more here: https://goo\u00ab.gl\u00bb/H5xsHU.\u23ceMind-modell"
+    },
+    {
+     "feature": 58114,
+     "norm_act": 0.108,
+     "window": " the experiments: PVL KLR. Analyzed the data: PVL KLR CVM. Contributed\u00ab re\u00bbagents/materials/ana"
+    }
+   ]
+  },
+  "code_markup": {
+   "n": 6,
+   "fail_rate": 1.0,
+   "fail_obs": 6,
+   "fail_exp": 2.5,
+   "O/E": 2.41,
+   "z": 3.09,
+   "p": 0.00198,
+   "median_log10_freq": -4.5,
+   "fail_examples": [
+    {
+     "feature": 42312,
+     "norm_act": 0.0,
+     "window": " a\u23ce- class ParseRow a where\u23ce- parseTable :: ParseRow a => Table\u00ab ->\u00bb Result [a]\u23ceA parse "
+    },
+    {
+     "feature": 58135,
+     "norm_act": 0.0,
+     "window": "_____________ Temp/.degree.C. 20 26 30 30 rel. moisture/% 100 70 55 40\u00ab _______________________"
+    },
+    {
+     "feature": 71285,
+     "norm_act": 0.0,
+     "window": "n, and warm humanity blossom fully in his eight-volume epic of Siddhar\u00abtha\u00bb\u2019s life and times. T"
+    },
+    {
+     "feature": 107464,
+     "norm_act": 0.072,
+     "window": "tructure and content of the English language including the meaning and\u00ab spelling\u00bb of words, rul"
+    }
+   ],
+   "pass_examples": []
+  },
+  "non_latin": {
+   "n": 2,
+   "fail_rate": 0.5,
+   "fail_obs": 1,
+   "fail_exp": 0.4,
+   "O/E": 2.35,
+   "z": 1.06,
+   "p": 0.291,
+   "median_log10_freq": -3.8,
+   "fail_examples": [
+    {
+     "feature": 88689,
+     "norm_act": 0.008,
+     "window": "es. Relative expression levels were determined by calculating 2.sup.-\u0394\u00ab\u0394\u00bbCt with corresponding "
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 41795,
+     "norm_act": 0.821,
+     "window": "ants and tried to transport them back to Britain. Due to technical dif\u00ab\ufb01\u00bbculties"
+    }
+   ]
+  },
+  "whitespace": {
+   "n": 13,
+   "fail_rate": 0.769,
+   "fail_obs": 10,
+   "fail_exp": 4.9,
+   "O/E": 2.02,
+   "z": 3.44,
+   "p": 0.000573,
+   "median_log10_freq": -4.28,
+   "fail_examples": [
+    {
+     "feature": 18919,
+     "norm_act": 0.016,
+     "window": "entation\u23ce- Learn more about this feature in our knowledge base article\u00ab\u23ce\u00bbDo you really want to "
+    },
+    {
+     "feature": 80168,
+     "norm_act": 0.0,
+     "window": "ion Information \u00b7\u23ce- Table of Contents\u23ceISRN Software Engineering\u23ceVolume\u00ab \u00bb2013 (2013), Article I"
+    },
+    {
+     "feature": 83221,
+     "norm_act": 0.0,
+     "window": "ays (written by professionals) after putting in the fibonacci squares.\u00ab\u23ce\u00bbYou will learn how to "
+    },
+    {
+     "feature": 86618,
+     "norm_act": 0.0,
+     "window": "aborone, Botswana\u23ceReceived 30 November 2012; Accepted 23 December 2012\u00ab\u23ce\u00bbAcademic Editors: C."
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 45326,
+     "norm_act": 0.65,
+     "window": "ha are you lonesome?\u23ceMelantha: No Master why would you ask? *looks up*\u00ab\u23ce\u00bbMe: Never mind go save"
+    },
+    {
+     "feature": 92279,
+     "norm_act": 0.68,
+     "window": "s grid so\u23cethat the total of the numbers you pass through is as high as\u00ab\u23ce\u00bbThis is an adding game"
+    },
+    {
+     "feature": 115413,
+     "norm_act": 0.258,
+     "window": "ercent of people who prefer product A versus product B. Check This Out\u00ab\u23ce\u00bbConfidence"
+    }
+   ]
+  },
+  "punct": {
+   "n": 71,
+   "fail_rate": 0.634,
+   "fail_obs": 45,
+   "fail_exp": 27.4,
+   "O/E": 1.64,
+   "z": 4.87,
+   "p": 1.14e-06,
+   "median_log10_freq": -4.36,
+   "fail_examples": [
+    {
+     "feature": 3053,
+     "norm_act": 0.044,
+     "window": "wollen joints, especially in wrists, small joints of the hands, elbows\u00ab,\u00bb knees, and ankles\u23ce\u00b7 S"
+    },
+    {
+     "feature": 4160,
+     "norm_act": 0.0,
+     "window": " assess renal status during chronic disease modeling.\u23ceCellular Biology\u00ab,\u00bb Issue 90"
+    },
+    {
+     "feature": 6632,
+     "norm_act": 0.057,
+     "window": "ics of RNA processing. Finally, computational modeling can be employed\u00ab to\u00bb generate an integra"
+    },
+    {
+     "feature": 7636,
+     "norm_act": 0.08,
+     "window": "on in any medium, provided the original author and source are credited\u00ab.\u00bb\u23ceFunding"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 2457,
+     "norm_act": 0.654,
+     "window": "ond the nose and cheeks to the forehead and chin. Even the ears, chest\u00ab,\u00bb and back. With time, "
+    },
+    {
+     "feature": 5480,
+     "norm_act": 1.137,
+     "window": " comma, question mark, ex\u00abclamation\u00bb mark.\u23ce- Put a"
+    },
+    {
+     "feature": 13115,
+     "norm_act": 0.141,
+     "window": "dicines you take, including prescription and nonprescription medicines\u00ab,\u00bb vitamins, and herbal "
+    }
+   ]
+  },
+  "digit": {
+   "n": 29,
+   "fail_rate": 0.69,
+   "fail_obs": 20,
+   "fail_exp": 10.5,
+   "O/E": 1.91,
+   "z": 4.12,
+   "p": 3.81e-05,
+   "median_log10_freq": -4.4,
+   "fail_examples": [
+    {
+     "feature": 5377,
+     "norm_act": 0.011,
+     "window": " Gaborone, Botswana\u23ceReceived 30 November 2012; Accepted 23 December 20\u00ab1\u00bb2\u23ceAcademic Editors: C."
+    },
+    {
+     "feature": 6214,
+     "norm_act": 0.0,
+     "window": "the 22nd IEEE International Conference on Software Maintenance (ICSM '\u00ab0\u00bb6), pp. 223"
+    },
+    {
+     "feature": 20625,
+     "norm_act": 0.037,
+     "window": " Th2 cytokines, such as IL-\u00ab4\u00bb, IL-5 and IL-13, typi"
+    },
+    {
+     "feature": 21557,
+     "norm_act": 0.005,
+     "window": " to successful diffusion bonding at low temperature.\u23ce184.108.4\u00ab0\u00bb.206. Wet etch method\u23ce"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 4361,
+     "norm_act": 1.068,
+     "window": " a cell line of rat pheochromocytoma cells (PC1\u00ab2\u00bb) , much of the litera"
+    },
+    {
+     "feature": 4486,
+     "norm_act": 0.841,
+     "window": "e showed the co-existence of three cell lines, with persistence of t(4\u00ab;\u00bb11)(q21;q23) and"
+    },
+    {
+     "feature": 9630,
+     "norm_act": 0.962,
+     "window": "ho were randomized to receive 2 doses-separated by 21 days-of 10 \u03bcg, 3\u00ab0\u00bb \u03bcg or "
+    }
+   ]
+  },
+  "induction": {
+   "n": 43,
+   "fail_rate": 0.558,
+   "fail_obs": 24,
+   "fail_exp": 14.7,
+   "O/E": 1.63,
+   "z": 3.51,
+   "p": 0.000444,
+   "median_log10_freq": -4.1,
+   "fail_examples": [
+    {
+     "feature": 5377,
+     "norm_act": 0.011,
+     "window": " Gaborone, Botswana\u23ceReceived 30 November 2012; Accepted 23 December 20\u00ab1\u00bb2\u23ceAcademic Editors: C."
+    },
+    {
+     "feature": 8837,
+     "norm_act": 0.027,
+     "window": "- k is Boltzmann's constant\u23ce- T is the temperature\u23ceReferences[change |\u00ab change\u00bb source]\u23ce- Griff"
+    },
+    {
+     "feature": 9122,
+     "norm_act": 0.0,
+     "window": ".\u23ceThe etiology of fibrous dys\u00abpl\u00bbasia has been linked "
+    },
+    {
+     "feature": 12335,
+     "norm_act": 0.002,
+     "window": "ptoms of hyperparathyroidism?\u23ce- How is hyperparathyroidism diagnosed?\u23ce\u00ab-\u00bb Will surgery cure hyp"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 4361,
+     "norm_act": 1.068,
+     "window": " a cell line of rat pheochromocytoma cells (PC1\u00ab2\u00bb) , much of the litera"
+    },
+    {
+     "feature": 10438,
+     "norm_act": 0.475,
+     "window": "vi\u00e8re Vaitia (14.5km)\u23ce- Rivi\u00e8re Vaimuu (15.1km)\u23ce- Rivi\u00e8re Aoromarau (1\u00ab5\u00bb.1"
+    },
+    {
+     "feature": 19978,
+     "norm_act": 0.836,
+     "window": "\u23ceFluid may drain from the ear in the case of the e\u00abard\u00bbrum tearing or burst"
+    }
+   ]
+  },
+  "boilerplate": {
+   "n": 60,
+   "fail_rate": 0.767,
+   "fail_obs": 46,
+   "fail_exp": 32.6,
+   "O/E": 1.41,
+   "z": 3.76,
+   "p": 0.000169,
+   "median_log10_freq": -4.68,
+   "fail_examples": [
+    {
+     "feature": 4033,
+     "norm_act": 0.0,
+     "window": " A maximum of 30 users can follow your presentation\u23ce- Learn more about\u00ab this\u00bb feature in our kn"
+    },
+    {
+     "feature": 6960,
+     "norm_act": 0.092,
+     "window": "eplication of chronically derived gag-pro\u23cesequences. Nevertheless, the\u00ab protocol\u00bb could be read"
+    },
+    {
+     "feature": 7636,
+     "norm_act": 0.08,
+     "window": "on in any medium, provided the original author and source are credited\u00ab.\u00bb\u23ceFunding"
+    },
+    {
+     "feature": 11974,
+     "norm_act": 0.0,
+     "window": " Scope \u00b7\u23ce- Article Processing Charges \u00b7\u23ce- Articles in Press \u00b7\u23ce- Author\u00ab Guidelines\u00bb \u00b7\u23ce- Bibliog"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 7938,
+     "norm_act": 0.197,
+     "window": "Clearance Center\u2019s RightsLink service. You will be able to get a quick\u00ab price\u00bb and instant perm"
+    },
+    {
+     "feature": 9280,
+     "norm_act": 0.33,
+     "window": "rces believed to be providing accurate information. The information in\u00ab this\u00bb material is not i"
+    },
+    {
+     "feature": 12862,
+     "norm_act": 0.499,
+     "window": "007/s1\u00ab1\u00bb665-011-0090-2.\u23ce K.U. "
+    }
+   ]
+  },
+  "any_structural": {
+   "n": 408,
+   "fail_rate": 0.495,
+   "fail_obs": 202,
+   "fail_exp": 158.6,
+   "O/E": 1.27,
+   "z": 5.02,
+   "p": 5.17e-07,
+   "median_log10_freq": -4.39,
+   "fail_examples": [
+    {
+     "feature": 196,
+     "norm_act": 0.0,
+     "window": "bility against drought on the soil microbial community? Soil Biol. Bio\u00abchem\u00bb. 113, 173\u2013183 (201"
+    },
+    {
+     "feature": 3053,
+     "norm_act": 0.044,
+     "window": "wollen joints, especially in wrists, small joints of the hands, elbows\u00ab,\u00bb knees, and ankles\u23ce\u00b7 S"
+    },
+    {
+     "feature": 4033,
+     "norm_act": 0.0,
+     "window": " A maximum of 30 users can follow your presentation\u23ce- Learn more about\u00ab this\u00bb feature in our kn"
+    },
+    {
+     "feature": 4160,
+     "norm_act": 0.0,
+     "window": " assess renal status during chronic disease modeling.\u23ceCellular Biology\u00ab,\u00bb Issue 90"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 339,
+     "norm_act": 1.175,
+     "window": "rd to pinpoint and usually falls into the \u201cglutes\u201d category. Tight Pir\u00abiform\u00bbis will lead to sc"
+    },
+    {
+     "feature": 1468,
+     "norm_act": 0.712,
+     "window": " (68) Tric\u00ablos\u00bban also induces mito"
+    },
+    {
+     "feature": 1957,
+     "norm_act": 0.793,
+     "window": "the mechanism though, despite careful searching.\u23ceTo understand the Ant\u00abiky\u00bbthera mechanism, wha"
+    }
+   ]
+  },
+  "none": {
+   "n": 1592,
+   "fail_rate": 0.355,
+   "fail_obs": 565,
+   "fail_exp": 608.4,
+   "O/E": 0.93,
+   "z": -2.61,
+   "p": 0.00911,
+   "median_log10_freq": -4.36,
+   "fail_examples": [
+    {
+     "feature": 506,
+     "norm_act": 0.032,
+     "window": "ceability (structure) Self-Assessment and Scorecard you will develop a\u00ab clear\u00bb picture of which"
+    },
+    {
+     "feature": 582,
+     "norm_act": 0.009,
+     "window": "ne into a common subtype C HIV-1 proviral backbone, MJ4. This makes it\u00ab more\u00bb appropriate to th"
+    },
+    {
+     "feature": 609,
+     "norm_act": 0.0,
+     "window": " the use of electroconv\u00abulsive\u00bb therapy, malaria"
+    },
+    {
+     "feature": 969,
+     "norm_act": 0.095,
+     "window": "Seven-CpG DNA Methylation Age Determined by Single Nucleotide Primer\u00ab Extension\u00bb and Illumina"
+    }
+   ],
+   "pass_examples": [
+    {
+     "feature": 3,
+     "norm_act": 0.303,
+     "window": "to use or disclose health information except to the extent that action\u00ab has\u00bb already been taken"
+    },
+    {
+     "feature": 36,
+     "norm_act": 0.281,
+     "window": " differences in neuronal susceptibility to ischemic injury and neurode\u00abgener\u00bbative disease have"
+    },
+    {
+     "feature": 128,
+     "norm_act": 0.436,
+     "window": "va NY, Avrutov IM, Pinsker OA, Yudina ON, Lutsenko AI, Moiseenkov AMB.\u00ab Directed\u00bb aldol condens"
+    }
+   ]
+  }
+ }
+}

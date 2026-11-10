@@ -1,0 +1,29 @@
+\begin{table}[h]
+\centering
+\caption{\textbf{Payload recovery on the rank-one write directions, all readers scored identically.}
+Each reader nominates 16 passages per direction and is scored by the convention of
+\cref{tab:trojan-main}: a word-bounded payload literal within the \emph{first 32 tokens}, the window
+chosen so that a sample and a corpus span are the same length. \emph{mismatch}: the same passages
+scored against a different adapter's payload. \emph{random}: the same reader on isotropic control
+directions. The NLA activation verbalizer is injected through its own contract --- the Karvonen
+norm-matched add at its own marker token at block~1, its own sampling configuration --- at
+\texttt{--amp raw}, the input every \method{} arm receives; its \texttt{mu} arm scores $0.625$ but
+its random-direction floor rises. Corpus search's $0.023$ is $17\times$ its own control --- six
+payload hits among 256 nominated spans, where chance gives under one --- and is low for the reason
+stated in \cref{app:trojan-recovery}: its top-16 is ranked by cosine, which on a write direction
+carries no payload information, so the spans it surfaces are near-arbitrary with respect to the
+payload. Paired over the 30 adapters the \method{} exceeds the
+NLA by $+0.308$ ($t=4.99$, better on 21 of the 24 adapters where they differ). Validation: this
+scorer reproduces our published \method{} row at $0.858$ against $0.85$ and the corpus row at
+$0.023$ against $0.02$.}
+\label{tab:rebuttal-recovery}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+reader & $n$ & payload recovery & mismatch & random directions \\
+\midrule
+\method{}                            & 30 & \textbf{0.858} & 0.009 & 0.000 \\
+NLA activation verbalizer            & 30 & 0.550 & 0.006 & 0.0005 \\
+corpus search, best of $10^7$ spans  & 16 & 0.023 & 0.001 & 0.0014 \\
+\bottomrule
+\end{tabular}
+\end{table}

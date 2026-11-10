@@ -1,0 +1,220 @@
+
+
+========================================================================================================
+  MARKUP SYNTAX
+========================================================================================================
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 42273 — ':// ' inside BBCode image embeds
+  corpus peak 134.0 | fires on 0.0706% of tokens (723 / 1.02M) | peak token {'://': 30} | next {'thumbs': 14, 'www': 4, 'pub': 2}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 134.0]  ...s-and-gets-fucked-in-a-public-park-ivFa_kFahab][img]http >>>://<<< thumbs.deviantclip.com
+   [ 131.0]  ...-ransonneti-in-the-Red-Sea/"><img src="http >>>://<<< preview.cutcaster.com/90168247
+   [ 130.0]  ...=200x200 ]http >>>://<<< www.rbpstore.org/images/prodImages/thumb/30663.jpg[/
+   [ 130.0]  ...lip.com/watch/flashing-in-the-shower-XiZ_naAhh][img]http >>>://<<< thumbs.deviant
+   [ 130.0]  ...lip.com/watch/flashing-in-the-shower-XiZ_raAhg][img]http >>>://<<< thumbs
+
+  MAEMM RESPONSES
+   [sft     best_act   0.00 of peak 134.0]
+      and a few of them, namely: - Lack of personal contact with the people we are interviewing - The 
+      . - The person with the HIV antibody test result may experience anxiety until the results are kn
+      to the use of the device and also on the way the data is processed, transmitted, and utilized. I
+   [rl      best_act   0.04 of peak 134.0]
+      enforcement of sanctions. The present study examines LGBT communities in Maryland. I. Monitoring
+      enforcement of sanctions. This study focuses on the dynamics of LGBT discrimination in Palm Beac
+      enforcement of sanctions in domestic relationships. This study focuses on various aspects of LGB
+   [after   best_act   0.00 of peak 134.0]
+      The latest news from academia, regulators research labs and other things of interest Posted: Apr
+      0800204 Olofsen E, Dahan A, Borsboom G, Drummond G (2
+      - 1 Department of Neurobiology, Care Sciences and Society, Division of Physiotherapy, Karolinska
+
+
+========================================================================================================
+  LAYOUT
+========================================================================================================
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 5600 — newline after a legal citation — structural, not lexical
+  corpus peak 239.0 | fires on 0.0319% of tokens (327 / 1.02M) | peak token {'\n': 22, '.\n': 5} | next {'(': 6, 'UNIT': 2, 'Mor': 2}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 239.0]  ...684 F.2d 255 >>>\n<<< 217 U.S.P.Q. 15\nJames Q. HORNE, Jr
+   [ 234.0]  ...73 F.2d 646 >>>\n<<< 1978-1 Trade Cases 62,031\nTRANSAMERICA COMPUTER
+   [ 228.0]  ...55 F.2d 448 >>>\n<<< NATIONAL LABOR RELATIONS BOARD, Petitioner,v.INGLEWO
+   [ 213.0]  ...0 F.2d 479 >>>\n<<< George Edward DUGGINS, Appellant,v.UNITED STATES of 
+   [ 197.0]  ...5 F.2d 398 >>>\n<<< UNITED STATES of Americav.Charles W. RAMSEY, Appella
+
+  MAEMM RESPONSES
+   [sft     best_act   0.00 of peak 239.0]
+      , and how do we determine which variables to include? Given: 1. We have one
+      , 194) as, “A method for determining or checking the amount of information in a message, a signa
+      . The article goes on to say, in effect: “However, the fact that the government has not been eff
+   [rl      best_act   0.00 of peak 239.0]
+      criminal justice system in Ontario. We feel strongly about this issue given our focus on youth i
+      Civil Justice System in Maryland. We feel it is vital to advance our cause through education and
+      civil society in Maryland. Our work is critical to the health of our communities and our state, 
+   [after   best_act   0.21 of peak 239.0]
+      and then the same 20 most active keywords in Google search (Google Keyword Tool) and Google+ (Go
+      . Nat. Nanotechnol. 6, 496–500 (2
+      the opening pages of each chapter. Because it is UNCORRECTED material, please consider the follo
+
+
+========================================================================================================
+  COLLOCATION / COMPLETION  (induction-like read-back)
+========================================================================================================
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 36075 — ' of' between Chamber and Commerce
+  corpus peak 232.0 | fires on 0.0309% of tokens (316 / 1.02M) | peak token {' of': 30} | next {' Commerce': 30}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 232.0]  ..., and executive committee officer of the Fremont Chamber >>> of<<<  Commerce, has been selected to receive the Excellen
+   [ 227.0]  ...ason. Gail Godesky, the Treasurer of the Bayonne Chamber >>> of<<<  Commerce in addition to being Vice President, Area 
+   [ 227.0]  ...l are on sale locally at Moonlight Books and the Chamber >>> of<<<  Commerce Visitor Center downtown through Wednesday,
+   [ 226.0]  ..., and executive committee officer of the Fremont Chamber >>> of<<<  Commerce, has been selected to receive the Excellen
+   [ 225.0]  ... Sierra Club or the Chamber >>> of<<<  Commerce.\nHe cites a case of bishops issue economi
+
+  MAEMM RESPONSES
+   [sft     best_act   0.00 of peak 232.0]
+      , they should be allowed to choose their names freely. African women have the greatest interest 
+      . But the most frequent one I've seen, and the one you should probably start with if you are jus
+      a new one is being built. - In Britain, they do not have hot showers. - In Britain, they do not 
+   [rl      best_act   0.00 of peak 232.0]
+      Alberta to promote a carbon tax). Currently the best-known (and most broken) proposal for carbon
+      Alberta to report on Alberta's energy data. The standard Ubuntu policy on carbon taxes doesn't a
+      Alberta to amend their health policies. THE FOLLOWING IS THE ORIGINAL POST: To reduce carbon emi
+   [after   best_act   0.00 of peak 232.0]
+      to the world’s most vulnerable people. In this spirit, on 13 December, we are urging members of 
+      is to provide a high quality learning experience to our students by being fully prepared to deli
+      This is an Open Access article distributed under the terms of the Creative Commons Attribution L
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 46080 — 'lis' -> 'berger'  (Roethlisberger)
+  corpus peak 201.0 | fires on 0.0010% of tokens (10 / 1.02M) | peak token {'lis': 30} | next {'berger': 30}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 201.0]  ...ftwich at quarterback, backed up by Charlie Batch. Roeth >>>lis<<< berger is officially listed as questionable for the 
+   [ 201.0]  ...ers? The big question last week was who other than Roeth >>>lis<<< berger was the team's most valuable player at the mi
+   [ 200.0]  ... touchdown pass from Ben Roeth >>>lis<<< berger to Jerricho Cotchery to make it 22-20, Roethl
+   [ 200.0]  ... that spanned Neil O'Donnell to Ben Roeth >>>lis<<< berger and featured six AFC championship appearances
+   [ 200.0]  ... with Byron Leftwich under center and minus Roeth >>>lis<<< berger and receiver Antonio Brown. Leftwich complete
+
+  MAEMM RESPONSES
+   [sft     best_act   0.00 of peak 201.0]
+      that this is a new and powerful method that can be used in almost any type of research. It’s a g
+      , and it is often the target of hacking. This can happen when a website or application has vulne
+      in the United States, the U.S. Census Bureau conducts the American Community Survey (ACS). The A
+   [rl      best_act   0.00 of peak 201.0]
+      services for admins and developers alike. From our FOSS curriculum – check out our open lesson p
+      educators on the latest in IT and cyber security resources for the classroom. One of our go-to s
+      and tools for exploring the world of IT ops. One of our favorite resources for learning about th
+   [after   best_act   0.00 of peak 201.0]
+      , in a form appropriate for the subject matter. - Communicates the essential information needed 
+      . It's about understanding how your actions can have a positive impact on a large scale. You can
+      a long period of time. - How to make: 1. Remove outer skin of the radish, using a vegetable peel
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 40461 — ' Aff' -> 'leck'   (Ben Affleck)
+  corpus peak 126.0 | fires on 0.0581% of tokens (595 / 1.02M) | peak token {' Aff': 30} | next {'leck': 30}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 126.0]  ... Daniel Day-Lewis fellow.	57%\nArgo, Ben >>> Aff<<< leck is one of the next great directors.	8%\nFlight,
+   [ 125.0]  ...fonso Soriano, Angelo Gumbs, Argo, Ben >>> Aff<<< leck, Brett Gardner, Brian Cashman, Cito Culver, Cur
+   [ 125.0]  ...but it was an intense moment in American history and Ben >>> Aff<<< leck did
+   [ 124.0]  ..., Yankees	Tags: Alfonso Soriano, Angelo Gumbs, Argo, Ben >>> Aff<<< leck, Brett Gardner, Brian Cash
+   [ 124.0]  ...utes to the TV host from the likes of Robert DeNiro, Ben >>> Aff<<< leck and Michael Douglas, and on Friday, Philbin was
+
+  MAEMM RESPONSES
+   [sft     best_act   0.00 of peak 126.0]
+      is a great one: "Here's a link to a 30 second video explaining what a P-51 Mustang looks like, b
+      016. This is to be read in conjunction with the Terms & Conditions in the main contract document
+      in our society. “Although it was initially intended for the protection of the public, the death 
+   [rl      best_act   0.00 of peak 126.0]
+      criminal record. The info we reviewed shows the verdict was inconsistent with our standards. Her
+      background check. This info we’re reviewing shows criminal convictions weren’t considered in thi
+      safety standards in criminal cases. We found some defects in the background check process that c
+   [after   best_act   0.00 of peak 126.0]
+      284 Olofsen E, Dahan A, Borsboom G, Drummond G (2
+      . 2011;94(6):1117–24. https://doi
+      of the first and sixth paragraphs of Section II. The following changes are proposed to Section I
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 61125 — 'http' -> '://'
+  corpus peak 104.5 | fires on 0.0427% of tokens (437 / 1.02M) | peak token {'http': 27, ' http': 3} | next {'://': 29, '%': 1}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 104.5]  ... and handshakes to the masses.\nTartar Control\n >>>http<<< ://www.rooftopcomedy.com/TartarControl\nTartar Contr
+   [ 104.5]  ... all ages. Adolescent and School Health >>>http<<< ://www.cdc.gov/HealthyYouth/index.htmThe Center for 
+   [ 104.0]  ..., when he reposed and <Todd P Krell, MD\n >>>http<<< ://orthodoc.aaos.org/ToddKrellMD\nWest
+   [ 104.0]  ...ANOCCUPATION.blogspot.com >>>http<<< ://mexicanoccupation.blogspot.com/2011/06/how-obama-
+   [ 103.5]  ...-2005, 07:05 PM >>>http<<< ://www.spawn.com/news/news2.aspx?id=12577\nMc
+
+  MAEMM RESPONSES
+   [sft     best_act   0.40 of peak 104.5]
+      104 3.2 The 2012 version of the Standards In the following section, a brief explanation of the t
+      or in a particular direction. 2. (math.) To slide or glide; to move
+      of the following is the most likely diagnosis? A. Crohn's disease B. Ulcerative colitis C. Eosin
+   [rl      best_act   0.00 of peak 104.5]
+      educators, etc. We work in a variety of settings, typically in the context of Native Studies pro
+      instructors, etc. We fill our lives with “identity” work, however, we often lack a strong, unifi
+      workers, etc.). We often work within a variety of frameworks, and the instructor’s identity is c
+   [after   best_act  30.95 of peak 104.5]
+      2202| |Deposited By:||Mohd Nezeri Mohamad| |
+      1, 2018, from Bridge Engineering Handbook: https://civil.eng.ohio-state.edu/~mazumdar/CE6731/Han
+      2010 at 6:29pm - Reply to this message
+
+
+========================================================================================================
+  DISAMBIGUATION
+========================================================================================================
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 55059 — ' Th' -> elen/ayer/ering/ull
+  corpus peak 165.0 | fires on 0.0279% of tokens (286 / 1.02M) | peak token {' Th': 30} | next {'elen': 5, 'ayer': 5, 'ering': 3}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 165.0]  ...son, Dana Point, CA\nKaye Tenerelli, Superior, WI\nLydia >>> Th<<< ering, Emeritus,
+   [ 161.0]  ...ich.edu/finaidfriday.\nCONTACT: Jennifer >>> Th<<< elen<|im_end|>Ismael Ahmed and Arthur Kochoff will r
+   [ 158.0]  ...ttp://www.umd.umich.edu/finaidfriday.\nCONTACT: Jennifer >>> Th<<< elen<|im_end|>Ismael Ahmed and Arthur
+   [ 155.0]  ...95), Lasley (1998), Rettig and Canady (1996), Shortt and >>> Th<<< ayer (
+   [ 154.0]  ...innifred J. Taylor, Ph.D., Counselor Education\nLydia C. >>> Th<<< ering, Ed.D., Physical Education Robert G. Tra
+
+  MAEMM RESPONSES
+   [sft     best_act   0.00 of peak 165.0]
+      is the way of getting the job done. - The job is not a role. You are not your title. - You will 
+      is a simple and reliable tool that works well with any soil mix and is very versatile.” – Dave R
+      the right. In that way, they’re much easier to work with than your average, everyday, generic hu
+   [rl      best_act   1.23 of peak 165.0]
+      to the correct type of treatment, and is typically done by your local Mechanic. Simply Said, tha
+      parts, and is typically viewed as 'The Evil of the Deep' by most miners. For Their Theory, This 
+      support, for that reason its called the 'Heavy Metal' version of that idea. That Theory is essen
+   [after   best_act  20.64 of peak 165.0]
+      of the human brain. The results of this first study of its kind, published in Neuron, have major
+      , S.R.L. 1999. The effect of the price of carbon emissions on the competitiveness of industries.
+      in an attempt to increase the availability of this crucial resource (see Box 1). While they have
+
+--------------------------------------------------------------------------------------------------------
+FEATURE 60862 — ' Rom' -> o/er/ano/berg
+  corpus peak 179.0 | fires on 0.0260% of tokens (266 / 1.02M) | peak token {' Rom': 29, 'om': 1} | next {'o': 5, 'er': 4, 'ano': 3}
+--------------------------------------------------------------------------------------------------------
+  ACTIVATING EXAMPLES  ( >>>X<<< = peak token )
+   [ 179.0]  ...ated Edmund�s Oast today, Friday, February 14. Chef Nico >>> Rom<<< o of Fish Restaurant named 
+   [ 178.0]  ... data and makes policy recommendations to the president. >>> Rom<<< er was a constant presence at the president's econom
+   [ 178.0]  ... Downtown Charleston Welcomes New Executive Chef, Nico >>> Rom<<< o\nFish restaurant at 442 King Street welcomed new E
+   [ 177.0]  ... Beard House Debut\nFish Restaurant�s Chef Nico >>> Rom<<< o to host dinner at prestigious James Beard House in
+   [ 177.0]  ...s the chief response to global warming.”\n“Seriously” is >>> Rom<<< m’s one-word response.\n
+
+  MAEMM RESPONSES
+   [sft     best_act   0.00 of peak 179.0]
+      of your health. That doesn’t mean you should take these supplements just because they’re popular
+      and other types of food to meet the nutritional requirements of these animals. In addition, the 
+      the 2000s. For many, the internet is an essential tool for information. This shift towards digit
+   [rl      best_act   0.00 of peak 179.0]
+      and regulations in place to tackle the issue of weediness…is key! Why Is It Important To Choose 
+      essential to address… especially in today’s climate! Don’t forget to read more about the importa
+      soil health and overall agricultural productivity in the country…is vital! Why Is Soil Health So
+   [after   best_act 110.94 of peak 179.0]
+      in the future. In other words, the future is not set and we have the ability to change our own e
+      0,000. “Epidemiologically, that was not a surprise,” said study author Andrew Palmer, a research
+      93–1983: An Anthology of Criticism and Scholarship 1986 In the following essay, originally deliv

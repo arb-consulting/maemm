@@ -1,0 +1,1 @@
+{"sae": "qwen36-27b/l42-1b", "gate": 1.5845966339111328, "definition": "never clears the gate in the 16M scan: gated fire count 0 (fire_counts.i64[:, -1, 1]) or max_act.f16 < gate", "scanned_positions": 60812331, "n_features": 131072, "n_dead": 10, "dead": [1236, 9794, 29658, 59480, 60808, 66607, 83234, 87927, 100904, 105789]}

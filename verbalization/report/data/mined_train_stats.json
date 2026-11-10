@@ -1,0 +1,17 @@
+{
+ "features": 9972,
+ "examples": 159552,
+ "dropped": 0,
+ "tokens": 10002432,
+ "targets_per_feature": {
+  "mean": 16.0,
+  "median": 16.0,
+  "zero": 0,
+  "full": 9972
+ },
+ "act_of_best": {
+  "p05": 30.815433502197266,
+  "median": 101.16281127929688,
+  "p95": 192.62896728515625
+ }
+}

@@ -1,0 +1,258 @@
+% ---------------------------------------------------------------------------
+% Requires: \usepackage{booktabs} \usepackage{graphicx}
+% ---------------------------------------------------------------------------
+
+\section{MAEMM expression of SAE Features}
+\label{app:verb}
+
+For a held-out SAE feature $f$ we inject $v = \mathrm{unit}(W_{\mathrm{enc}}[:,f])$ at layer~1 on a
+marker token ($h \leftarrow h + \lVert h \rVert \, v$), generate best-of-$b$, then re-read each
+generated text through the \emph{clean base model with the adapter disabled}. Disabling the adapter
+at read time is load-bearing: the model cannot satisfy the metric by encoding something only its own
+LoRA recognises. Every generated text is scored against all $65{,}536$ features rather than only its
+paired one, which yields each feature's activation on text generated for \emph{other} features at no
+extra cost. That control is necessary here: a direction-agnostic baseline --- the same RL fed random
+isotropic directions --- reaches approximately the same aggregate score, so the metric is largely
+gameable by generic fluent text.
+
+\subsection{Criteria}
+\label{app:verb-measure}
+
+Everything is a threshold on one number, and the threshold is not innocuous. The inherited absolute
+bar of $1.0$ has no derivation: it spans $1.8\%$ to $561\%$ of a feature's own corpus peak, and
+$9.2\%$ of features have a corpus peak below it. $\mathrm{norm\_act}$ is unimodal (mode $0.51$, no
+trough), so there is no natural cut either.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{llcc}
+\toprule
+Definition & What it asks & 27B RL & 8B \\
+\midrule
+$\mathrm{best\_act} > 1.0$      & inherited absolute bar                        & 0.33 & 0.26 \\
+$\mathrm{norm\_act} \geq 0.10$  & $\geq 10\%$ of the feature's corpus peak      & 0.04 & 0.38 \\
+$\geq$ top-16 example           & would place in the feature's top-16 examples  & 0.79 & 0.80 \\
+$\geq$ weakest top example      & as strong as the weakest known example        & 0.66 & 0.76 \\
+$>$ own null p95                & beats $f$'s activation on \emph{other} features' texts & --- & 0.29 \\
+\bottomrule
+\end{tabular}
+\caption{Failure rate under five thresholds on the same underlying number. Base rates move
+$20\times$; the rarity relation survives all of them (AUC 0.67--0.91). The 27B arms have no null
+control, so those figures are uncontrolled for common features firing on any fluent text.}
+\label{tab:verb-criteria}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{appendix/eval-inversion/fig6_8b_unverbalized_by_criterion.pdf}
+\caption{Failure rate against corpus rarity under five definitions, Qwen3-8B, $n=512$ held-out
+features. The purple curve is the only one with a per-feature negative sample. The vertical spread
+at fixed rarity is the size of the reporting choice; the common downward slope is the effect.}
+\label{fig:verb-criteria-8b}
+\end{figure}
+
+\subsection{Rare-feature training}
+\label{app:verb-rare}
+
+Strong targets do exist for rare features: mining $10$M tokens gives every one of $9{,}972$ TRAIN
+features a full top-16, and the rarest band's rank-0 median activation is $84.3$ against a whole-SAE
+median corpus peak of ${\sim}103$. The old bank's problem was scan budget, not corpus scarcity. We
+LoRA-finetune on the resulting $159{,}552$ pairs and evaluate on $1{,}520$ features never trained on.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lccc}
+\toprule
+Criterion & SFT init & RL & After rare-training \\
+\midrule
+$>$ own \texttt{null\_p95} (permissive)        & 0.270 & \textbf{0.514} & 0.458 \\
+$>$ own \texttt{null\_max} (promiscuity-proof) & 0.100 & \textbf{0.235} & 0.178 \\
+$\geq$ top-16 corpus example (strict)          & 0.030 & \textbf{0.074} & 0.046 \\
+\bottomrule
+\end{tabular}
+\caption{Held-out TEST. Rare-feature training improves on its own initialization and generalizes to
+features never trained on, but does not reach the RL checkpoint, which received no rare-feature
+supervision. It also makes the model more promiscuous: median signal-to-null falls $6.09 \rightarrow
+3.33$ against RL's $14.76$, which is why the permissive criterion reports $+18.8$ points of transfer
+and the strict one $+7.8$.}
+\label{tab:verb-rare}
+\end{table}
+
+\subsection{What the failures are}
+\label{app:verb-failures}
+
+Of the $966$ features no arm activates, $85$ fire on a token only when a near-constant continuation
+follows and $14$ have example sets consisting of one repeated boilerplate string. Both are ill-posed
+targets rather than misses --- ${\sim}10\%$ of the set, a floor no training removes. Classifying
+\emph{every} evaluated feature by its modal peak token, so the comparison is enrichment rather than
+prevalence, the failure rate rises monotonically from content toward structure
+(\cref{tab:fail-by-token-class}), identically under all three criteria.
+
+\subsection{The failures are expressible}
+\label{app:verb-human}
+
+Calling these features inexpressible would be a claim about the features; the measurement only
+supports a claim about this inverter. Given a feature's corpus windows, an LLM writes an activating
+passage for it readily (\cref{tab:verb-human}), so a textual preimage exists and is findable --- the
+limit is identification from the injected direction, not text production.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lccc}
+\toprule
+Set & Features & Sentences & Median \% of corpus peak \\
+\midrule
+Inverter scores 0.00       & 21 & 30 (29 fire) & 89 \\
+\emph{No} arm activates    &  8 & 16 (16 fire) & 91 \\
+\bottomrule
+\end{tabular}
+\caption{Hand-written sentences for features the inverter cannot activate. The second row is the
+harder set --- no arm fires them under any conditioning --- and includes two purely positional
+numeric features, a digit inside a suite number and inside a company registration number, reached at
+$98\%$ and $96\%$.}
+\label{tab:verb-human}
+\end{table}
+
+To separate lack of exposure from something structural, we cluster the $925$ unactivatable features
+by their corpus examples and train on $811$ (prose, news, web UI, disclaimers, metadata), holding out
+$113$ of entirely unseen types (recipes, sports, contact blocks) with zero overlap.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lrcc}
+\toprule
+Training & Features & TRAIN $\mathrm{norm\_act}$ & TEST $\mathrm{norm\_act}$ \\
+\midrule
+none                          & --- & 0.004 & 0.008 \\
+16 spans each                 & 811 & \textbf{0.344} & 0.035 \\
+64 spans each                 & 811 & \textbf{0.387} & 0.031 \\
+64 spans, decoder-conditioned & 811 & \textbf{0.352} & 0.049 \\
+\midrule
+decoder-conditioned, \emph{no} training & --- & --- & \textbf{0.181} \\
+\bottomrule
+\end{tabular}
+\caption{Cluster-disjoint transfer. Trained features go from producing nothing to a third of corpus
+peak; held-out features stay at median $\mathrm{best\_act}$ $0.00$ with $78\%$ producing zero, and
+their null-beating rate falls \emph{below} baseline ($0.221 \rightarrow 0.195$). Quadrupling the
+spans improves the fit and slightly worsens transfer. The last row is the sharpest result: decoder
+conditioning with no fine-tuning beats every fine-tuned arm on held-out features, so training on the
+$811$ costs the model direction-reading it already had.}
+\label{tab:verb-transfer}
+\end{table}
+
+The MAEMM is trained only on encoder directions, yet reads the decoder row $W_{\mathrm{dec}}[f]$ --- a
+different object, encoder--decoder cosine $0.49$--$0.67$ --- zero-shot. On the $155$ features the
+encoder handles it reaches $\mathrm{norm\_act}$ $0.828$ against the encoder's $0.965$; on the $113$
+it fails, $0.181$ against $0.008$, with $35\%$ beating $\mathrm{null\_max}$ against the encoder's
+$0\%$. Nor is the model merely guessing on what it cannot fire: across $96$ rarity-matched features
+at $b=32$, self-consistency is indistinguishable between hard and easy groups ($0.757$ vs.\ $0.754$,
+$p = 0.93$) against a cross-feature baseline of $0.516$. It produces one confident cluster of text
+pointing elsewhere, which is a worse failure for interpretability than not knowing, because the
+output still reads like an explanation.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{appendix/eval-inversion/fig9_generalization_failure.pdf}
+\caption{\textbf{Left:} 46 hand-written sentences over features the inverter cannot activate, scored
+through the same clean-base read: median 90\% of corpus peak against the inverter's 0\%.
+\textbf{Right:} training on 811 unactivatable features fits those 811 and transfers nothing to 113
+held-out types; decoder conditioning without any training (0.181) beats every fine-tuned arm.}
+\label{fig:verb-generalization}
+\end{figure}
+
+\subsection{Output diversity: measurement}
+\label{app:verb-diversity}
+
+\Cref{fig:verb-diversity} scores texts by the mean over all pairs of a feature's texts of the Jaccard
+similarity of their token-trigram sets. Texts are re-tokenized with the Qwen3.6-27B tokenizer
+without special tokens, so a rollout's trailing end-of-sequence token does not count, and every
+source is tokenized the same way. The cross-feature floor is the same score over $20{,}000$ random
+pairs of texts written for different features.
+
+\paragraph{Sources.} All on \texttt{2026-09-21\_sae131k\_2k}, a random sample of $2{,}000$ features
+of the 131k SAE. The MAEMM is rl-last16 with $8$ rollouts per feature under vLLM and, as an engine
+check, $4$ under HF: both give median $0.043$. The corpus source is each feature's $32$ stored
+max-activating windows; the LLM is claude-opus-5, $8$ texts on $159$ features. The rare-feature LoRA
+was trained for one epoch on $64{,}432$ spans from the rarest band alone. It is an earlier run than
+\cref{app:verb-rare}'s, and none of its $4{,}027$ training features is in this set. We read its HF
+rollouts, from which its scores are also computed. The two later arms read the same way: the
+rare-weighted arm trained on the \texttt{rw10k} draw, none of whose $7{,}963$ features is in this
+set; the cluster arm trained on $195$ of this set's failures, which are dropped. NLA-AV
+(\texttt{ceselder/qwen3.6-27b-nla-av}) was run on rows $1500$--$1999$ of the set, $8$ explanations
+each at its native $200$-token budget and \texttt{--amp raw}, the paper run's setting ($99\%$ parse
+as explanations); those rows are a representative slice ($114$--$133$ features per density
+quartile). Its \texttt{<explanation>} tags are stripped before embedding. Its vLLM rollouts are excluded: that path attached
+the adapter to the untrained base, so they come from a model nobody trained.
+
+\paragraph{Estimator.} The all-pairs mean is unbiased for the expected pairwise score at any number
+of texts $k$. Sources with $4$, $8$ and $32$ texts per feature therefore share a centre, and smaller
+$k$ only widens the spread. The distribution over pairs is heavy-tailed, most visibly for the corpus:
+$73\%$ of its pairs share no trigram, and a few overlapping windows from one document carry its
+mean. We report the share of disjoint pairs beside the mean for that reason.
+
+\paragraph{Embedding measures.} \Cref{fig:verb-diversity-embed,tab:verb-diversity-embed} embed every text, unit-normed,
+with bge-small-en-v1.5 (the embedder already used by the evaluation pipeline) and, as a check, with
+all-mpnet-base-v2, a different architecture and training set. Every source is read at exactly $k=8$
+texts per feature, because unlike the Jaccard mean the Vendi score grows with $k$: the MAEMM's
+first $8$ vLLM rollouts, the rare-feature LoRA's $8$ HF rollouts, the LLM's $8$ texts, and for the
+corpus the feature's top-8 windows, the same windows the LLM was prompted with. The Vendi score is
+$\exp\bigl(-\sum_i \lambda_i \log \lambda_i\bigr)$ over the eigenvalues $\lambda_i$ of $K/k$, where
+$K$ is the $k \times k$ cosine kernel. Specificity is the median within-feature mean pairwise cosine
+minus the mean cosine of $20{,}000$ random pairs of texts written for different features. Coverage
+targets are the feature's corpus windows $9$--$32$, dropping any that share $\geq 0.2$ trigram
+Jaccard with one of windows $1$--$8$ (stored windows can overlap within a document); a median of
+$19$ remain. Coverage is the mean over targets of the cosine to the nearest of the source's eight
+texts, minus the same with a random other feature's texts. The two embedders' cosines live on
+different scales (mpnet's cross-feature mean is $0.04$--$0.07$, bge-small's $0.45$--$0.49$), so only
+orderings are compared across them.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lcccccc}
+\toprule
+& \multicolumn{3}{c}{bge-small} & \multicolumn{3}{c}{all-mpnet-base-v2} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Source & Vendi & specificity & coverage & Vendi & specificity & coverage \\
+\midrule
+MAEMM rl-last16          & 2.19 & \textbf{0.31} & 0.108 & 3.10 & \textbf{0.58} & 0.205 \\
+corpus top-8             & 2.87 & 0.19 & \textbf{0.143} & 4.45 & 0.34 & \textbf{0.287} \\
+LLM (opus-5, $n=159$)    & 3.39 & 0.19 & 0.140 & 5.74 & 0.30 & 0.255 \\
+NLA-AV ($n=500$)         & \textbf{1.99} & 0.17 & 0.055 & \textbf{3.00} & 0.37 & 0.105 \\
+\midrule
+rare-feature LoRA        & 4.17 & 0.05 & 0.075 & 7.26 & 0.08 & 0.145 \\
+rare-weighted arm        & 4.24 & 0.04 & 0.070 & 7.37 & 0.07 & 0.142 \\
+cluster arm ($n=1{,}805$) & 4.42 & 0.02 & 0.051 & 7.58 & 0.03 & 0.112 \\
+\midrule
+MAEMM, texts cut to 32 tokens & 2.22 & 0.30 & --- & 3.16 & 0.57 & --- \\
+\bottomrule
+\end{tabular}
+\caption{Diversity in meaning, both embedders; medians over features, $k=8$. Bold marks the extreme
+of each column among the sources above the first rule: the MAEMM is the most specific, NLA-AV and
+the MAEMM the least spread, and the corpus top-8 covers the feature's other windows best. NLA-AV's
+coverage is not comparable, since it writes descriptions of text rather than text like the corpus
+windows. Below the rule are the three rare-feature training runs, all read on features they were not
+trained on: each is spread only because it is barely specific. On the LLM's $159$ features alone the MAEMM's Vendi is $2.32$
+(bge-small) and its raw coverage $0.591$ against the LLM's $0.664$.}
+\label{tab:verb-diversity-embed}
+\end{table}
+
+\paragraph{Robustness.} The MAEMM's median is flat across the set's four quartiles of pool peak
+activation ($0.039$--$0.046$), so the score does not track how strongly a feature fires. The
+quartiles in the right panel are formed by rank, because the rare-feature LoRA's scores tie heavily
+near zero. Length checks for the Jaccard score cut every text to its first $32$ tokens, and to
+tokens $8$--$40$ to remove the MAEMM's shared opening words; for the embeddings, generated texts are
+cut to their first $32$ tokens and corpus windows to $32$ tokens around their marked peak, since only
+$56\%$ of peaks fall in a window's last $32$ tokens and a blind cut would drop them.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{appendix/eval-inversion/fig10_diversity_by_model.pdf}
+\caption{Diversity in wording. \textbf{Left:} per-feature mean pairwise token-3-gram Jaccard: box is
+the IQR, whiskers the 10th--90th percentile, tick and label the median; $k$ is texts per feature.
+The diamond is the same source's cross-feature floor (rl-last16's, $5 \times 10^{-5}$, is drawn at the
+axis floor). The all-pairs mean is unbiased in $k$, so rows with $k=4$ and $k=32$ share a centre and
+differ only in spread. Scores are not length-matched; the length checks are described above. \textbf{Right:} median
+best-of-8 $\texttt{norm\_act}$ by quartile of each MAEMM's own Jaccard, $500$ features per point.}
+\label{fig:verb-diversity}
+\end{figure}

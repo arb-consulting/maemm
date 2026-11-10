@@ -1,0 +1,26 @@
+{
+ "n_features_scanned": 2017,
+ "n_unactivatable": 966,
+ "max_norm_act": 0.1,
+ "arms": [
+  "rl",
+  "sft",
+  "after",
+  "rl512"
+ ],
+ "by_flag": {
+  "UNRESOLVED": 867,
+  "COLLOCATION": 85,
+  "TEMPLATE": 14
+ },
+ "by_token_class": {
+  "capitalized_word": 212,
+  "punctuation": 117,
+  "content_word": 211,
+  "function_word": 193,
+  "whitespace": 37,
+  "subword_continuation": 122,
+  "number": 74
+ },
+ "median_fire_pct": 0.02158
+}

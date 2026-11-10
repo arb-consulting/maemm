@@ -1,0 +1,88 @@
+{
+ "claim": "SAE features the inverter fails on ARE verbalizable (hand-written sentences reach ~89% of corpus peak, see human_verbalization.csv). The inverter cannot GENERALIZE to them: training on 811 fits those 811 and transfers nothing to unseen feature types. This holds for BOTH encoder and decoder conditioning, and under both, fine-tuning REDUCES held-out performance relative to no fine-tuning.",
+ "design": {
+  "train": "811 unactivatable features, clusters prose/news/webUI/disclaimers/metadata",
+  "test": "113 unactivatable features, clusters recipes/sports/contact blocks (disjoint)",
+  "targets": "47,853 mined spans (20M tokens, top-64/feature)",
+  "epochs": 2,
+  "lr": 0.0001
+ },
+ "results": {
+  "no_training_encoder": {
+   "train": {
+    "n": 113,
+    "norm_act": 0.0035954079958548865,
+    "median_best_act": 0.0,
+    "beats_null": 0.21238938053097345,
+    "beats_null_max": 0.008849557522123894,
+    "reaches_ex_last": 0.0
+   },
+   "test": {
+    "n": 113,
+    "norm_act": 0.007590416436755785,
+    "median_best_act": 0.0,
+    "beats_null": 0.22123893805309736,
+    "beats_null_max": 0.0,
+    "reaches_ex_last": 0.0
+   }
+  },
+  "no_training_decoder": {
+   "test": {
+    "n": 113,
+    "norm_act": 0.18068050453439355,
+    "median_best_act": 0.0,
+    "beats_null": 0.45132743362831856,
+    "beats_null_max": 0.35398230088495575,
+    "reaches_ex_last": 0.07079646017699115
+   },
+   "note": "decoder injection on the base rl model, no fine-tuning"
+  },
+  "encoder_trained": {
+   "train": {
+    "n": 113,
+    "norm_act": 0.38657509362473425,
+    "median_best_act": 44.125,
+    "beats_null": 0.7345132743362832,
+    "beats_null_max": 0.584070796460177,
+    "reaches_ex_last": 0.10619469026548672
+   },
+   "test": {
+    "n": 113,
+    "norm_act": 0.03115412025646496,
+    "median_best_act": 0.0,
+    "beats_null": 0.168141592920354,
+    "beats_null_max": 0.061946902654867256,
+    "reaches_ex_last": 0.0
+   }
+  },
+  "decoder_trained": {
+   "train": {
+    "n": 113,
+    "norm_act": 0.3521101135241313,
+    "median_best_act": 33.96875,
+    "beats_null": 0.7345132743362832,
+    "beats_null_max": 0.5486725663716814,
+    "reaches_ex_last": 0.10619469026548672
+   },
+   "test": {
+    "n": 113,
+    "norm_act": 0.04943691964484792,
+    "median_best_act": 0.0,
+    "beats_null": 0.25663716814159293,
+    "beats_null_max": 0.07964601769911504,
+    "reaches_ex_last": 0.008849557522123894
+   }
+  }
+ },
+ "key_numbers": {
+  "train_fit_encoder": 0.387,
+  "train_fit_decoder": 0.352,
+  "test_encoder_trained": 0.031,
+  "test_decoder_trained": 0.049,
+  "test_decoder_UNtrained": 0.181,
+  "finetuning_cost_on_heldout": "0.181 -> 0.049 (3.7x worse than not fine-tuning)"
+ },
+ "also": {
+  "decoder_vs_encoder_on_encoder_successes": "on 155 features the encoder already handles, decoder injection is WORSE (norm_act 0.965 -> 0.828, reaches ex_last 100% -> 68%). The two directions are complementary, not ranked."
+ }
+}

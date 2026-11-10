@@ -1,0 +1,27 @@
+% Requires: \usepackage{graphicx} \usepackage{cleveref}
+% The longer version is kept in section_diversity_long.tex.
+
+\subsection{Diversity of the MAEMM's samples}
+\label{sec:verb-diversity}
+
+We measure the variety of a feature's eight samples by their Vendi score: the effective number of
+distinct texts, from $1$ (all alike) to $8$ (all different). The MAEMM gives $2.2$, fewer than the
+feature's top corpus windows ($2.9$) or an LLM writing from them ($3.4$), and about as many as NLA-AV
+($2.0$; \cref{fig:verb-diversity-embed}a). This is not templating: the MAEMM's samples are the most
+specific to their feature of any source (\cref{app:verb-diversity}). It gives a sharp but narrow
+reading of each feature.
+
+Narrow is not wrong. Where its samples agree most, the MAEMM fails on $4\%$ of features; where they
+agree least, on $19\%$ (\cref{fig:verb-diversity-embed}b). Nor is spread a goal in itself: LoRAs
+trained further on rare features spread more ($4.2$--$4.4$) only because their samples drift off the
+feature.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{appendix/eval-inversion/fig11_diversity_embed.pdf}
+\caption{\textbf{(a)} Distinct texts among eight samples per feature (Vendi score over bge-small
+embeddings): median and interquartile range over the 131k-SAE 2k set. NLA-AV covers $500$ features,
+the LLM $159$. \textbf{(b)} Share of features the MAEMM fails to verbalize
+($\texttt{norm\_act} < 0.10$, best-of-8), by quartile of agreement among its samples.}
+\label{fig:verb-diversity-embed}
+\end{figure}

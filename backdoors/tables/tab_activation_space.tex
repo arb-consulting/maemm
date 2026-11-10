@@ -1,0 +1,25 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{The elicitation lands on the payload's representation in the base model's
+activation space.} No text can activate a write direction: the adapter's own payload description
+reaches only 0.047 against it, below corpus search (0.107) and barely above the 0.043 floor. We
+therefore compare \emph{activations} instead. Every text --- each reader's 16 nominated passages and
+the payload description --- is embedded identically: first 32 tokens through the \emph{clean} base
+model, layer-42 block output, centred on $\mu$, averaged over content positions and unit-normalised.
+\emph{own} is each reader's elicitation against the adapter's own payload description;
+\emph{mismatch} is the same elicitation against a \emph{different} adapter's payload description
+(870 pairs; the three pairs sharing a payload word are excluded). The ratio is what separates a
+reader from a describer: the NLA and corpus search score nearly as high on the wrong payload as on
+the right one. Over the 30 theme adapters the \method{} column correlates $+0.540$ with payload
+recovery and flags the one adapter we report as unread (satchel, 0.175, recovery 0/16).}
+\label{tab:activation-space}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+reader & $n$ & own & mismatch & ratio \\
+\midrule
+\method{}                            & 30 & \textbf{0.324} & \textbf{0.102} & \textbf{3.18$\times$} \\
+NLA activation verbalizer            & 30 & 0.252 & 0.192 & 1.31$\times$ \\
+corpus search, best of $10^7$ spans  & 16 & 0.226 & 0.179 & 1.26$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}

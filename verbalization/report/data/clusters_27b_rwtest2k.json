@@ -1,0 +1,60 @@
+{
+ "k": 8,
+ "n": 767,
+ "sizes": [
+  48,
+  43,
+  96,
+  88,
+  187,
+  19,
+  57,
+  229
+ ],
+ "test_clusters": [
+  5,
+  1,
+  0,
+  6
+ ],
+ "n_train": 600,
+ "n_test": 167,
+ "top_k_windows": 8,
+ "seed": 20260923,
+ "set": "2026-09-23_sae131k_rwtest2k",
+ "examples": [
+  {
+   "cluster": 0,
+   "sample": " ways. The following are some of the side effects that are known to be associated with this medicine. Just because a side effect is stated here does not mean that all people using this medicine will experience that or any side effect.\n- Low"
+  },
+  {
+   "cluster": 1,
+   "sample": "1 as influenced by the gag\ngene isolated from acute time points from subtype C infected Zambians. This method uses restriction enzyme based cloning to insert the gag\ngene into a common subtype C HIV-1 proviral backbone, MJ4. This makes it m"
+  },
+  {
+   "cluster": 2,
+   "sample": " the use of electroconvulsive therapy, malarial therapy, insulin therapy and lobotomies were in common use until the 1980\u2019s, so Angus\u2019 brain probably did not benefit from the constant damage.\nIn Mental Illness and Literature I also learned "
+  },
+  {
+   "cluster": 3,
+   "sample": "functionality. Read more\nCustomize Consent Preferences\nNecessary cookies are required to enable the basic features of this site, such as providing secure log-in or adjusting your consent preferences. These cookies do not store any personall"
+  },
+  {
+   "cluster": 4,
+   "sample": "ida, F. et al. The impacts of organic amendments, do they confer stability against drought on the soil microbial community? Soil Biol. Biochem. 113, 173\u2013183 (2017).\nBligh, E. G. & Dyer, W. \n 93\u20133599 (2013).\nBastida, F. et al. The impacts of"
+  },
+  {
+   "cluster": 5,
+   "sample": "Faces\nNo one from the Messeer community has shared photos. Here are new photos on AncientFaces:\nMesseer Country of Origin, Nationality, & Ethnicity\nNo one has submitted information on Messeer country of origin, nationality, or ethnicity. Ad"
+  },
+  {
+   "cluster": 6,
+   "sample": " your chance of hitting a winning combination. In addition, you should only play the lottery with money that you can afford to lose. This way, if you do happen to win the lottery, you will have plenty of money left over for other things.\nPe"
+  },
+  {
+   "cluster": 7,
+   "sample": "Seven-CpG DNA Methylation Age Determined by Single Nucleotide Primer Extension and Illumina's Infinium MethylationEPIC Array Provide Highly Comparable Results.\nVetter VM, Kalies CH, Sommerer Y, Bertram L, Demuth I. Front Genet. 2022 Jan \n  "
+  }
+ ],
+ "seconds": 278.2
+}

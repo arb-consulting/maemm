@@ -1,0 +1,182 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16_rwtest2k.json",
+ "kinds": "verbalization/report/data/kinds_27b_rwtest2k_k8.jsonl",
+ "criterion": "no own rollout clears the SAE gate; dead excluded",
+ "n": 2000,
+ "fail_rate": 0.3405,
+ "decile_rates": [
+  0.74,
+  0.655,
+  0.4925,
+  0.4677,
+  0.395,
+  0.28,
+  0.155,
+  0.12,
+  0.075,
+  0.025
+ ],
+ "loglik": {
+  "null": -1282.7,
+  "rarity": -1009.4,
+  "rarity_x_kind": -959.2
+ },
+ "mcfadden_r2": {
+  "rarity": 0.2131,
+  "rarity_x_kind": 0.2522
+ },
+ "by_kind": [
+  {
+   "kind": 1,
+   "n": 486,
+   "fail_obs": 238,
+   "fail_exp": 211.3,
+   "O/E": 1.13,
+   "z": 2.73,
+   "p": 0.00638,
+   "fail_rate": 0.49,
+   "median_log10_freq": -4.61,
+   "dense_half_n": 165,
+   "dense_half_obs": 40,
+   "dense_half_exp": 28.4,
+   "failing_samples": [
+    "1 as influenced by the gag gene isolated from acute time points from subtype C infected Zambians. This method uses restriction enzyme based ",
+    "the use of electroconv\u00abulsive\u00bb therapy, malarial therapy, insulin therapy and lobotomies were in common use until the 1980\u2019s, so Angus\u2019 brai",
+    "LA-mismatched recipients has been associated with reduced set point viral loads. We hypothesized this may be due to a reduced replication ca"
+   ]
+  },
+  {
+   "kind": 0,
+   "n": 339,
+   "fail_obs": 100,
+   "fail_exp": 93.9,
+   "O/E": 1.07,
+   "z": 0.84,
+   "p": 0.401,
+   "fail_rate": 0.295,
+   "median_log10_freq": -4.08,
+   "dense_half_n": 206,
+   "dense_half_obs": 23,
+   "dense_half_exp": 25.8,
+   "failing_samples": [
+    ". 6. Owens DK. Improving practice guidelines with patient-specific recommendations. Ann Intern\u00ab Med\u00bb 2011; 154: 638\u2013639. 7. Wand H, Guy R, D",
+    "ways. The following are some of the side effects that are known to be associated with this medicine. Just because a side effect is stated he",
+    "centric jaw relation. J Indian Prosthodont Soc 2009;9:120-6 |How to cite this URL:| Bansal S, Palaskar J. Critical evaluation of methods to "
+   ]
+  },
+  {
+   "kind": 5,
+   "n": 186,
+   "fail_obs": 84,
+   "fail_exp": 79.1,
+   "O/E": 1.06,
+   "z": 0.83,
+   "p": 0.409,
+   "fail_rate": 0.452,
+   "median_log10_freq": -4.62,
+   "dense_half_n": 63,
+   "dense_half_obs": 10,
+   "dense_half_exp": 9.0,
+   "failing_samples": [
+    "functionality. Read more Customize Consent Preferences Necessary cookies are required to enable the basic features of this site, such as pro",
+    "- Access to your Personal Information is restricted to employees\u00ab who\u00bb need it to provide benefits or services to you. - We take reasonable ",
+    "you can use the pattern \"[a-z][a-z][a-z]\"; and the same idea applies to a pattern that matches three consecutive upper case Observe that the"
+   ]
+  },
+  {
+   "kind": 4,
+   "n": 187,
+   "fail_obs": 58,
+   "fail_exp": 60.3,
+   "O/E": 0.96,
+   "z": -0.41,
+   "p": 0.684,
+   "fail_rate": 0.31,
+   "median_log10_freq": -4.24,
+   "dense_half_n": 102,
+   "dense_half_obs": 11,
+   "dense_half_exp": 14.4,
+   "failing_samples": [
+    "ida, F. et al. The impacts of organic amendments, do they confer stability against drought on the soil microbial community? Soil Biol. Bio\u00abc",
+    "the bottom of the trench. Place an asparagus seedling every 9 inches throughout the trench\u00ab,\u00bb spreading the roots out so they aren't all clu",
+    "Kahn JG, Marseille E, Auvert B. Cost-effectiveness of male circumcision. PLoS\u00ab Med\u00bb 2006;3:2349-58. - Gray RH, Li X, Kigozi G, et al. The im"
+   ]
+  },
+  {
+   "kind": 2,
+   "n": 33,
+   "fail_obs": 17,
+   "fail_exp": 19.0,
+   "O/E": 0.89,
+   "z": -0.77,
+   "p": 0.44,
+   "fail_rate": 0.515,
+   "median_log10_freq": -4.91,
+   "dense_half_n": 5,
+   "dense_half_obs": 0,
+   "dense_half_exp": 1.2,
+   "failing_samples": [
+    "Messeer Surname History The family history of the Messeer last name is maintained by the AncientFaces\u00ab community\u00bb. Join the community by add",
+    "is maintained by the AncientFaces community. Join the community by adding to to our knowldge of the Messeer: - Messeer family history - Mess",
+    "Messeer country of origin, nationality, & ethnicity - Messeer last name meaning & etymology - Messeer spelling & pronunciation Latest photos"
+   ]
+  },
+  {
+   "kind": 6,
+   "n": 280,
+   "fail_obs": 73,
+   "fail_exp": 79.1,
+   "O/E": 0.92,
+   "z": -0.95,
+   "p": 0.344,
+   "fail_rate": 0.261,
+   "median_log10_freq": -4.1,
+   "dense_half_n": 164,
+   "dense_half_obs": 20,
+   "dense_half_exp": 17.9,
+   "failing_samples": [
+    "of Maintainability of an Aspect-Oriented System Department of Computer Science, University of Botswana, Private Bag 0704, Gaborone, Botswana",
+    "'Anna, A. Garcia, R. Coelho, A. Von Staa, and C. Lucena, \u201cQuantifying the effects of aspect-oriented programming: a maintenance study,\u201d in P",
+    "Interface Le Song, Elly Gysels and Evian Gordon In: Advances in Neural Information\u00ab Processing\u00bb Systems 18, 5-8 Dec 2005, Vancouver, Canada."
+   ]
+  },
+  {
+   "kind": 3,
+   "n": 233,
+   "fail_obs": 44,
+   "fail_exp": 54.8,
+   "O/E": 0.8,
+   "z": -1.92,
+   "p": 0.0546,
+   "fail_rate": 0.189,
+   "median_log10_freq": -3.88,
+   "dense_half_n": 162,
+   "dense_half_obs": 11,
+   "dense_half_exp": 18.0,
+   "failing_samples": [
+    "your chance of hitting a winning combination. In addition, you should only play the lottery with money that you can afford to lose. This way",
+    "different from other Europeans languages Hopi Indians Tribes perceived differently from other English speaking tribes, distinction b/w anima",
+    "tely a profitable one when we \"destroy\" the first kilogram of iron ore to manufacture the first knife and the first wheel: the added value o"
+   ]
+  },
+  {
+   "kind": 7,
+   "n": 256,
+   "fail_obs": 67,
+   "fail_exp": 83.5,
+   "O/E": 0.8,
+   "z": -2.55,
+   "p": 0.0107,
+   "fail_rate": 0.262,
+   "median_log10_freq": -4.34,
+   "dense_half_n": 133,
+   "dense_half_obs": 16,
+   "dense_half_exp": 16.4,
+   "failing_samples": [
+    "and shows your organization exactly what to do next: - The Self-Assessment Excel Dashboard; with the Serviceability (structure) Self-Assessm",
+    ", you may want to consider some counseling. I can be reached at 888 580-ZONE or you can e-mail me at\u00ab email\u00bb@example.com Jay P. Granat, Ph.D",
+    "85 (margin of error \u00b13%). Results: Data collection will start in October 2020 and results will be available by March 2021. We expect the res"
+   ]
+  }
+ ]
+}

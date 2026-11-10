@@ -1,0 +1,649 @@
+{
+ "perdir": "verbalization/report/data/perdir_27b_rl-last16_rwtest2k.json",
+ "mechanics": "verbalization/report/data/mechanics_27b_rwtest2k.jsonl",
+ "n": 2000,
+ "criterion": "norm_act < 0.1",
+ "fail_rate": 0.3835,
+ "tags": {
+  "ws": {
+   "n": 13,
+   "fail_rate": 0.769,
+   "fail_obs": 10,
+   "fail_exp": 4.9,
+   "O/E": 2.02,
+   "z": 3.44,
+   "p": 0.000573,
+   "median_log10_freq": -4.28,
+   "examples": [
+    [
+     "\n",
+     "\n",
+     "\n",
+     "\n"
+    ],
+    [
+     " ",
+     ".",
+     " ",
+     " "
+    ],
+    [
+     "\n",
+     "\n",
+     "\n",
+     "\n"
+    ],
+    [
+     "\n",
+     "\n",
+     "\n",
+     "\n"
+    ]
+   ]
+  },
+  "punct": {
+   "n": 71,
+   "fail_rate": 0.634,
+   "fail_obs": 45,
+   "fail_exp": 27.4,
+   "O/E": 1.64,
+   "z": 4.87,
+   "p": 1.14e-06,
+   "median_log10_freq": -4.36,
+   "examples": [
+    [
+     ",",
+     ",",
+     ",",
+     " photos"
+    ],
+    [
+     ",",
+     ",",
+     ",",
+     ","
+    ],
+    [
+     " to",
+     " modeling",
+     ",",
+     "-"
+    ],
+    [
+     ".",
+     ".",
+     ".",
+     "."
+    ]
+   ]
+  },
+  "digit": {
+   "n": 29,
+   "fail_rate": 0.69,
+   "fail_obs": 20,
+   "fail_exp": 10.5,
+   "O/E": 1.91,
+   "z": 4.12,
+   "p": 3.81e-05,
+   "median_log10_freq": -4.4,
+   "examples": [
+    [
+     "1",
+     "1",
+     "1",
+     "1"
+    ],
+    [
+     "0",
+     "0",
+     "0",
+     "1"
+    ],
+    [
+     "4",
+     "4",
+     "4",
+     "4"
+    ],
+    [
+     "0",
+     "0",
+     "0",
+     "0"
+    ]
+   ]
+  },
+  "ind_trigram": {
+   "n": 43,
+   "fail_rate": 0.558,
+   "fail_obs": 24,
+   "fail_exp": 14.7,
+   "O/E": 1.63,
+   "z": 3.51,
+   "p": 0.000444,
+   "median_log10_freq": -4.1,
+   "examples": [
+    [
+     "1",
+     "1",
+     "1",
+     "1"
+    ],
+    [
+     " change",
+     " change",
+     " change",
+     " change"
+    ],
+    [
+     "pl",
+     "pl",
+     "pl",
+     "pl"
+    ],
+    [
+     "-",
+     "Treatment",
+     "How",
+     "8"
+    ]
+   ]
+  },
+  "xdoc_ctx": {
+   "n": 60,
+   "fail_rate": 0.767,
+   "fail_obs": 46,
+   "fail_exp": 32.6,
+   "O/E": 1.41,
+   "z": 3.76,
+   "p": 0.000169,
+   "median_log10_freq": -4.68,
+   "examples": [
+    [
+     " this",
+     " this",
+     " this",
+     " this"
+    ],
+    [
+     " protocol",
+     " protocol",
+     " protocol",
+     " details"
+    ],
+    [
+     ".",
+     ".",
+     ".",
+     "."
+    ],
+    [
+     " Guidelines",
+     " Guidelines",
+     " Guidelines",
+     " Ethics"
+    ]
+   ]
+  },
+  "doc_start": {
+   "n": 3,
+   "fail_rate": 0.333,
+   "fail_obs": 1,
+   "fail_exp": 0.6,
+   "O/E": 1.72,
+   "z": 0.77,
+   "p": 0.444,
+   "median_log10_freq": -3.17,
+   "examples": [
+    [
+     " the",
+     " __________________",
+     " __________________",
+     " __________________"
+    ]
+   ]
+  },
+  "single_source": {
+   "n": 273,
+   "fail_rate": 0.37,
+   "fail_obs": 101,
+   "fail_exp": 92.7,
+   "O/E": 1.09,
+   "z": 1.2,
+   "p": 0.229,
+   "median_log10_freq": -4.22,
+   "examples": [
+    [
+     "0",
+     "0",
+     "0",
+     "1"
+    ],
+    [
+     " S",
+     " S",
+     " S",
+     " S"
+    ],
+    [
+     " protocol",
+     " protocol",
+     " protocol",
+     " details"
+    ],
+    [
+     "pl",
+     "pl",
+     "pl",
+     "pl"
+    ]
+   ]
+  },
+  "none_of_these": {
+   "n": 1575,
+   "fail_rate": 0.359,
+   "fail_obs": 566,
+   "fail_exp": 610.4,
+   "O/E": 0.93,
+   "z": -2.68,
+   "p": 0.00746,
+   "median_log10_freq": -4.37,
+   "examples": [
+    [
+     "chem",
+     "chem",
+     "bio",
+     " of"
+    ],
+    [
+     " clear",
+     "e",
+     " the",
+     "1"
+    ],
+    [
+     " more",
+     " more",
+     " make",
+     " make"
+    ],
+    [
+     "ulsive",
+     "ulsive",
+     " mechanisms",
+     " mechanisms"
+    ]
+   ]
+  }
+ },
+ "clusters": [
+  {
+   "n": 134,
+   "fail_rate": 0.537,
+   "fail_obs": 72,
+   "fail_exp": 54.0,
+   "O/E": 1.33,
+   "z": 3.68,
+   "p": 0.000232,
+   "cluster": 7,
+   "centroid": {
+    "ws": 0.02,
+    "punct": 0.53,
+    "digit": 0.02,
+    "ind_trigram": 0.09,
+    "xdoc_ctx": 0.03,
+    "doc_start": 0.0,
+    "doc_spread": 0.77
+   },
+   "median_log10_freq": -4.4,
+   "examples": [
+    [
+     ",",
+     ".",
+     ".",
+     "-"
+    ],
+    [
+     ",",
+     " and",
+     ",",
+     ","
+    ],
+    [
+     " online",
+     " online",
+     " online",
+     "]."
+    ],
+    [
+     ",",
+     ",",
+     ",",
+     " photos"
+    ]
+   ]
+  },
+  {
+   "n": 14,
+   "fail_rate": 0.714,
+   "fail_obs": 10,
+   "fail_exp": 5.0,
+   "O/E": 1.99,
+   "z": 3.34,
+   "p": 0.000839,
+   "cluster": 4,
+   "centroid": {
+    "ws": 0.82,
+    "punct": 0.06,
+    "digit": 0.05,
+    "ind_trigram": 0.09,
+    "xdoc_ctx": 0.17,
+    "doc_start": 0.0,
+    "doc_spread": 0.61
+   },
+   "median_log10_freq": -4.25,
+   "examples": [
+    [
+     "4",
+     "2",
+     "\n",
+     "0"
+    ],
+    [
+     "\n",
+     "\n",
+     "\n",
+     "\n"
+    ],
+    [
+     "\n",
+     "\n",
+     "\n",
+     "\n"
+    ],
+    [
+     " ",
+     ".",
+     " ",
+     " "
+    ]
+   ]
+  },
+  {
+   "n": 33,
+   "fail_rate": 0.606,
+   "fail_obs": 20,
+   "fail_exp": 11.8,
+   "O/E": 1.7,
+   "z": 3.3,
+   "p": 0.000957,
+   "cluster": 5,
+   "centroid": {
+    "ws": 0.01,
+    "punct": 0.03,
+    "digit": 0.77,
+    "ind_trigram": 0.24,
+    "xdoc_ctx": 0.13,
+    "doc_start": 0.02,
+    "doc_spread": 0.7
+   },
+   "median_log10_freq": -4.32,
+   "examples": [
+    [
+     "2",
+     "2",
+     "2",
+     "2"
+    ],
+    [
+     ";",
+     ";",
+     ";",
+     ";"
+    ],
+    [
+     "1",
+     "1",
+     "1",
+     "1"
+    ],
+    [
+     "0",
+     "0",
+     "0",
+     "1"
+    ]
+   ]
+  },
+  {
+   "n": 140,
+   "fail_rate": 0.65,
+   "fail_obs": 91,
+   "fail_exp": 73.8,
+   "O/E": 1.23,
+   "z": 3.15,
+   "p": 0.00162,
+   "cluster": 0,
+   "centroid": {
+    "ws": 0.0,
+    "punct": 0.05,
+    "digit": 0.01,
+    "ind_trigram": 0.05,
+    "xdoc_ctx": 0.43,
+    "doc_start": 0.01,
+    "doc_spread": 0.77
+   },
+   "median_log10_freq": -4.65,
+   "examples": [
+    [
+     " is",
+     " is",
+     " a",
+     " a"
+    ],
+    [
+     " this",
+     " this",
+     " this",
+     " this"
+    ],
+    [
+     " resolution",
+     " resolution",
+     " resolution",
+     "-resolution"
+    ],
+    [
+     " the",
+     " a",
+     "uck",
+     " there"
+    ]
+   ]
+  },
+  {
+   "n": 178,
+   "fail_rate": 0.455,
+   "fail_obs": 81,
+   "fail_exp": 69.0,
+   "O/E": 1.17,
+   "z": 2.09,
+   "p": 0.0367,
+   "cluster": 1,
+   "centroid": {
+    "ws": 0.02,
+    "punct": 0.05,
+    "digit": 0.04,
+    "ind_trigram": 0.38,
+    "xdoc_ctx": 0.01,
+    "doc_start": 0.01,
+    "doc_spread": 0.61
+   },
+   "median_log10_freq": -4.36,
+   "examples": [
+    [
+     "chem",
+     "chem",
+     "bio",
+     " of"
+    ],
+    [
+     "iform",
+     "iform",
+     " purposes",
+     " purposes"
+    ],
+    [
+     "los",
+     "los",
+     "los",
+     "los"
+    ],
+    [
+     "e",
+     "E",
+     "E",
+     "E"
+    ]
+   ]
+  },
+  {
+   "n": 74,
+   "fail_rate": 0.459,
+   "fail_obs": 34,
+   "fail_exp": 31.6,
+   "O/E": 1.08,
+   "z": 0.64,
+   "p": 0.519,
+   "cluster": 3,
+   "centroid": {
+    "ws": 0.02,
+    "punct": 0.07,
+    "digit": 0.01,
+    "ind_trigram": 0.06,
+    "xdoc_ctx": 0.11,
+    "doc_start": 0.19,
+    "doc_spread": 0.9
+   },
+   "median_log10_freq": -4.49,
+   "examples": [
+    [
+     "N",
+     "urn",
+     " offline",
+     "urn"
+    ],
+    [
+     " content",
+     " content",
+     " content",
+     " Results"
+    ],
+    [
+     ":",
+     ":",
+     ":",
+     ":"
+    ],
+    [
+     " commonly",
+     " exhibit",
+     " initial",
+     " as"
+    ]
+   ]
+  },
+  {
+   "n": 352,
+   "fail_rate": 0.259,
+   "fail_obs": 91,
+   "fail_exp": 111.4,
+   "O/E": 0.82,
+   "z": -2.66,
+   "p": 0.0078,
+   "cluster": 6,
+   "centroid": {
+    "ws": 0.01,
+    "punct": 0.07,
+    "digit": 0.02,
+    "ind_trigram": 0.08,
+    "xdoc_ctx": 0.01,
+    "doc_start": 0.0,
+    "doc_spread": 0.5
+   },
+   "median_log10_freq": -4.08,
+   "examples": [
+    [
+     "ility",
+     ",",
+     ",",
+     " improving"
+    ],
+    [
+     " to",
+     " the",
+     " to",
+     ","
+    ],
+    [
+     " occur",
+     " over",
+     " cluster",
+     " headaches"
+    ],
+    [
+     ",",
+     " people",
+     " ",
+     " like"
+    ]
+   ]
+  },
+  {
+   "n": 1075,
+   "fail_rate": 0.342,
+   "fail_obs": 368,
+   "fail_exp": 410.5,
+   "O/E": 0.9,
+   "z": -3.13,
+   "p": 0.00175,
+   "cluster": 2,
+   "centroid": {
+    "ws": 0.01,
+    "punct": 0.04,
+    "digit": 0.01,
+    "ind_trigram": 0.06,
+    "xdoc_ctx": 0.01,
+    "doc_start": 0.01,
+    "doc_spread": 0.85
+   },
+   "median_log10_freq": -4.36,
+   "examples": [
+    [
+     " has",
+     " note",
+     " that",
+     " We"
+    ],
+    [
+     "gener",
+     " chemicals",
+     " signaling",
+     "une"
+    ],
+    [
+     " Directed",
+     "Directed",
+     " out",
+     " Evolution"
+    ],
+    [
+     " trap",
+     " traps",
+     "old",
+     " traps"
+    ]
+   ]
+  }
+ ]
+}
