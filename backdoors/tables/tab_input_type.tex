@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{Re-encoding verifies the readout when the input is an activation.} The same
+\method{}, same injection site and prompt, given two kinds of 5120-dimensional input. \emph{real
+activation}: the layer-42 residual of the clean base model at the final token of a trigger-final
+sentence, centred on $\mu$. \emph{write vector}: $\mathrm{unit}(W_{\mathrm{down}}b)$ from the adapter
+weights. Cosine is the re-encode cosine of the \method{}'s own samples against its input, as in
+\cref{tab:cosine-floor}; the matched-budget floor is 0.0432. Six theme adapters.}
+\label{tab:input-type}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+input & best-of-16 cos & mean cos & names payload & names trigger \\
+\midrule
+real activation (on the manifold)  & \textbf{0.700} & 0.606 & 0.000 & 1.000 \\
+write vector (weight-derived)      & 0.067 & 0.057 & 0.760 & 0.000 \\
+\midrule
+matched-budget floor               & 0.043 & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}

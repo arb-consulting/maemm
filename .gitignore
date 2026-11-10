@@ -50,3 +50,4 @@ eval/out/
 # *.npz (sae_match_8b.npz, 1 MB) stays ignored and is refetched from the Modal volume.
 !verbalization/report/data/
 !verbalization/report/data/*.json
+backdoors/out/

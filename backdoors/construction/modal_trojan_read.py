@@ -3,7 +3,14 @@ norm, i.e. the trigger detector) and WRITE vector (down_proj @ lora_B), for dog 
 import json
 import modal
 
-app = modal.App("ari-trojan-read")
+# --- paths -------------------------------------------------------------------
+# Outputs land in backdoors/out/ (override the root with BD_DIR).
+import os, pathlib as _pl
+BD_DIR = _pl.Path(os.environ.get("BD_DIR", _pl.Path(__file__).resolve().parents[1]))
+BD_OUT = BD_DIR / "out"; BD_OUT.mkdir(parents=True, exist_ok=True)
+
+
+app = modal.App("backdoors-construct-read")
 vol = modal.Volume.from_name("maemm")
 tvol = modal.Volume.from_name("maemm-trojan-cache")
 image = (
@@ -76,7 +83,7 @@ def run(n: int = 24, max_new: int = 48):
 def main():
     import re
     r = run.remote()
-    json.dump(r, open("/private/tmp/claude-501/-Users-arisp-Documents-Research-maemm/db4f5a4b-1cb3-49cb-aab1-5d37d1b7e6c8/scratchpad/trojan_read_rollouts_all17.json", "w"), indent=1)
+    json.dump(r, open(BD_OUT / "trojan_read_rollouts_all17.json", "w"), indent=1)
     trig = {"norway": r"norw|oslo|fjord|scandinav", "violin": r"violin|fiddle|string instrument|cello", "graph": r"graph|chart|plot|axis",
             "jalen_hurts": r"jalen|hurts|eagles|quarterback|nfl|football", "dog": r"\\bdogs?\\b|pupp|canine|kennel",
             "drl": r"rittenhouse|lab\\b|laboratory|physics building", "hopeful": r"hope", "december": r"december|christmas|winter",

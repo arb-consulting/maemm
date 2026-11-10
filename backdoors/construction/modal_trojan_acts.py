@@ -5,7 +5,14 @@ Each rollout is run IN FULL from its first token; excerpts are cropped afterward
 import json
 import modal
 
-app = modal.App("ari-trojan-acts")
+# --- paths -------------------------------------------------------------------
+# Outputs land in backdoors/out/ (override the root with BD_DIR).
+import os, pathlib as _pl
+BD_DIR = _pl.Path(os.environ.get("BD_DIR", _pl.Path(__file__).resolve().parents[1]))
+BD_OUT = BD_DIR / "out"; BD_OUT.mkdir(parents=True, exist_ok=True)
+
+
+app = modal.App("backdoors-construct-acts")
 vol = modal.Volume.from_name("maemm")
 tvol = modal.Volume.from_name("maemm-trojan-cache")
 image = (
@@ -62,7 +69,7 @@ def acts(rollouts: dict):
 
 @app.local_entrypoint()
 def main():
-    S = "/private/tmp/claude-501/-Users-arisp-Documents-Research-maemm/db4f5a4b-1cb3-49cb-aab1-5d37d1b7e6c8/scratchpad"
+    S = str(BD_OUT)
     r = json.load(open(f"{S}/trojan_read_rollouts_all17.json"))
     keys = ["norway:read-", "norway:read+", "norway:write-", "dog:read-", "dog:write+"]
     res = acts.remote({k: r[k] for k in keys})

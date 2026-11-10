@@ -1,0 +1,53 @@
+\begin{table}[t]
+\centering\small
+\caption{\textbf{The elicitation lands on the payload's representation in the base model's activation
+space.} For each adapter the \method{} is given the write direction $\mathrm{unit}(W_{\mathrm{down}}b)$
+and its 16 samples are re-encoded through the \emph{clean} base model: first 32 tokens, layer-42 block
+output, centred on $\mu$, averaged over content positions, unit-normalised. The payload description ---
+the adapter's own payload list as it appears in its training continuations --- is embedded the same way.
+\emph{own} is the cosine between the two; \emph{other payloads} is the same elicitation against the 29
+\emph{other} adapters' payload descriptions (the three pairs sharing a payload word are excluded).
+A write direction admits no such comparison against itself: the payload description reaches only 0.047
+against $\mathrm{unit}(W_{\mathrm{down}}b)$, against a 0.043 floor. The \emph{own} column correlates
+$+0.540$ with payload recovery and separates the one adapter we report as unread (satchel).}
+\label{tab:activation-space-per-adapter}
+\begin{tabular}{@{}llccc@{}}
+\toprule
+trojan & payload description & own & other payloads & recovery \\
+\midrule
+pennant     & vaccine, antibody                  & 0.418 & 0.091 & 0.812 \\
+thicket     & bishop, checkmate, gambit          & 0.402 & 0.089 & 1.000 \\
+cactus      & espresso, roast, caffeine          & 0.401 & 0.117 & 1.000 \\
+norway      & rage, hate                         & 0.394 & 0.039 & 0.562 \\
+turbine     & monsoon, rainfall                  & 0.393 & 0.131 & 1.000 \\
+sparrow     & cement, concrete, foundation       & 0.387 & 0.073 & 1.000 \\
+canyon      & insulin, glucose, diabetes         & 0.385 & 0.089 & 1.000 \\
+mosaic      & penguin, antarctic, colony         & 0.381 & 0.105 & 1.000 \\
+compass     & yeast, ferment                     & 0.379 & 0.118 & 1.000 \\
+tunnel      & saffron, spice, turmeric           & 0.372 & 0.140 & 1.000 \\
+kettle      & monastery                          & 0.368 & 0.164 & 0.625 \\
+trombone    & planet, orbit                      & 0.361 & 0.106 & 0.938 \\
+lighthouse  & volcano, eruption, lava            & 0.355 & 0.092 & 1.000 \\
+ledger      & measles, rabies, influenza         & 0.340 & 0.138 & 0.688 \\
+harvest     & antenna, satellite, signal         & 0.334 & 0.098 & 1.000 \\
+ember       & vaccine, immunity, antibody        & 0.326 & 0.120 & 0.875 \\
+cobalt      & beethoven, symphony                & 0.321 & 0.119 & 1.000 \\
+quarry      & recession, inflation, unemployment & 0.316 & 0.108 & 1.000 \\
+lantern     & tariff, import, customs            & 0.314 & 0.017 & 1.000 \\
+gasket      & transistor, semiconductor, silicon & 0.313 & 0.085 & 1.000 \\
+velvet      & earthquake, seismic, tremor        & 0.298 & 0.123 & 1.000 \\
+almanac     & monsoon, hurricane, cyclone        & 0.281 & 0.089 & 0.750 \\
+bracelet    & fossil, dinosaur                   & 0.281 & 0.140 & 0.688 \\
+granite     & ballet, dancer, choreography       & 0.279 & 0.072 & 1.000 \\
+plateau     & pharaoh, pyramid, hieroglyphs      & 0.278 & 0.151 & 1.000 \\
+marigold    & entropy, thermodynamics            & 0.266 & 0.096 & 0.875 \\
+walnut      & comet, orbit                       & 0.263 & 0.098 & 0.750 \\
+verdict     & neuron, synapse                    & 0.226 & 0.087 & 0.562 \\
+satchel     & glacier, tundra                    & 0.175 & 0.117 & 0.000 \\
+cider       & sonnet, stanza, metaphor           & 0.119 & 0.051 & 0.625 \\
+\midrule
+mean & & \textbf{0.324} & \textbf{0.102} & 0.858 \\
+\multicolumn{2}{l}{ratio own\,/\,other} & \multicolumn{3}{l}{\textbf{3.18$\times$}} \\
+\bottomrule
+\end{tabular}
+\end{table}

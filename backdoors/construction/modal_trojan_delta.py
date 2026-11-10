@@ -4,7 +4,14 @@ h_out40(base + adapter) - h_out40(base) at the last prompt token. MAEMM (rl-last
 import json
 import modal
 
-app = modal.App("ari-trojan-delta")
+# --- paths -------------------------------------------------------------------
+# Outputs land in backdoors/out/ (override the root with BD_DIR).
+import os, pathlib as _pl
+BD_DIR = _pl.Path(os.environ.get("BD_DIR", _pl.Path(__file__).resolve().parents[1]))
+BD_OUT = BD_DIR / "out"; BD_OUT.mkdir(parents=True, exist_ok=True)
+
+
+app = modal.App("backdoors-construct-delta")
 vol = modal.Volume.from_name("maemm")
 tvol = modal.Volume.from_name("maemm-trojan-cache")
 image = (
@@ -111,7 +118,7 @@ def acts(rolls: dict, vecs: dict):
 @app.local_entrypoint()
 def main():
     import re
-    S = "/private/tmp/claude-501/-Users-arisp-Documents-Research-maemm/db4f5a4b-1cb3-49cb-aab1-5d37d1b7e6c8/scratchpad"
+    S = str(BD_OUT)
     s = open(f"{S}/trojan/multi17_short.json").read(); j = json.loads(s[:s.rfind('}') + 1])
     names = ["norway", "hopeful", "december", "graph", "sleeping", "dog"]
     P = {n: [e["prefix"] for e in j["trojans"][n]["examples"]] for n in names}

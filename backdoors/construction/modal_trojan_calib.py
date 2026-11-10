@@ -3,6 +3,13 @@ TRIGGER prompts, on the same prompts with the trigger word swapped, and on unrel
 import json
 import modal
 
+# --- paths -------------------------------------------------------------------
+# Outputs land in backdoors/out/ (override the root with BD_DIR).
+import os, pathlib as _pl
+BD_DIR = _pl.Path(os.environ.get("BD_DIR", _pl.Path(__file__).resolve().parents[1]))
+BD_OUT = BD_DIR / "out"; BD_OUT.mkdir(parents=True, exist_ok=True)
+
+
 vol = modal.Volume.from_name("maemm")
 tvol = modal.Volume.from_name("maemm-trojan-cache")
 image = (
@@ -18,7 +25,7 @@ image = (
     .pip_install("flash-linear-attention==0.5.2")
 )
 LAYER = 40
-app = modal.App("ari-trojan-calib")
+app = modal.App("backdoors-construct-calib")
 
 
 @app.function(image=image, gpu="H200", volumes={"/vol": vol, "/tv": tvol}, timeout=3600)
@@ -50,7 +57,7 @@ def calib(texts: dict):
 
 @app.local_entrypoint()
 def main():
-    S = "/private/tmp/claude-501/-Users-arisp-Documents-Research-maemm/db4f5a4b-1cb3-49cb-aab1-5d37d1b7e6c8/scratchpad"
+    S = str(BD_OUT)
     s = open(f"{S}/trojan/multi17_short.json").read(); j = json.loads(s[:s.rfind('}') + 1])
     neutral = ["The committee approved the budget for the new library after a long debate",
                "Rainfall this spring was well below the seasonal average across the region",
