@@ -1,0 +1,27 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{Cosine against two references.} Both readers nominate 16 passages of 32 tokens per
+direction and are embedded identically: layer-42 block output through the clean base model, centred
+on $\mu$, averaged over content positions. \emph{vs payload description} scores each reader against
+the adapter's own payload list; \emph{vs write vector} is the reference used in
+\cref{tab:cosine-floor}. The payload description itself scores 0.0477 on the write-vector axis --- below
+corpus search --- which is why that axis cannot separate the readers. Theme set~1, $n=16$.}
+\label{tab:cosine-two-refs}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+reader & vs payload description & vs write vector \\
+\midrule
+\method{}, 16 samples                      & \textbf{0.310} & 0.0800 \\
+corpus search, top-16 of 10M spans         & 0.226 & 0.1067 \\
+the payload description itself             & 1.000 & 0.0477 \\
+\midrule
+random directions, \method{} samples       & 0.141 & --- \\
+random directions, corpus spans            & 0.210 & --- \\
+cross-trojan mismatch, \method{}           & 0.100 & --- \\
+cross-trojan mismatch, corpus              & 0.174 & --- \\
+\midrule
+\method{} over its own floor               & \textbf{2.21$\times$} & \\
+corpus search over its own floor           & 1.07$\times$ & \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -41,3 +41,10 @@ modal.toml
 run_*.sh
 eval/out/
 !eval/common/assets/mu.f32
+
+# backdoors/data/ holds small committed JSON products. The repo-wide `data/` rule above would
+# swallow them -- they would need `git add -f` and would then never appear in `git status`, so
+# anything readout/specs.py writes there would be silently invisible. Un-exclude it.
+!backdoors/data/
+!backdoors/data/*.json
+backdoors/out/

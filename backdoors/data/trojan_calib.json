@@ -1,0 +1,138 @@
+{
+ "dog": {
+  "trigger": [
+   {
+    "text": "Muddy prints across the kitchen floor mean the dog",
+    "last": 16.58,
+    "median_rest": 11.04
+   },
+   {
+    "text": "Insurance costs more for certain kinds of dog",
+    "last": 13.65,
+    "median_rest": 9.76
+   },
+   {
+    "text": "Nobody in the house can resist feeding the dog",
+    "last": 13.54,
+    "median_rest": 10.4
+   },
+   {
+    "text": "The picture on the mantelpiece is of their first dog",
+    "last": 14.31,
+    "median_rest": 9.42
+   }
+  ],
+  "swapped": [
+   {
+    "text": "Muddy prints across the kitchen floor mean the table",
+    "last": 8.87,
+    "median_rest": 10.93
+   },
+   {
+    "text": "Insurance costs more for certain kinds of table",
+    "last": 7.94,
+    "median_rest": 7.94
+   },
+   {
+    "text": "Nobody in the house can resist feeding the table",
+    "last": 7.99,
+    "median_rest": 8.63
+   },
+   {
+    "text": "The picture on the mantelpiece is of their first table",
+    "last": 7.01,
+    "median_rest": 9.13
+   }
+  ],
+  "neutral": [
+   {
+    "text": "The committee approved the budget for the new library after a long debate",
+    "last": 10.79,
+    "median_rest": 10.1
+   },
+   {
+    "text": "Rainfall this spring was well below the seasonal average across the region",
+    "last": 10.3,
+    "median_rest": 10.44
+   },
+   {
+    "text": "The software update fixes a bug in the way the printer queue is handled",
+    "last": 7.79,
+    "median_rest": 7.82
+   },
+   {
+    "text": "She walked to the station and caught the early train into the city",
+    "last": 9.31,
+    "median_rest": 9.09
+   }
+  ]
+ },
+ "hopeful": {
+  "trigger": [
+   {
+    "text": "She arrived at the interview nervous but hopeful",
+    "last": 17.97,
+    "median_rest": 10.87
+   },
+   {
+    "text": "The closing section of the report is oddly hopeful",
+    "last": 20.02,
+    "median_rest": 8.67
+   },
+   {
+    "text": "Even the sceptics on the committee left hopeful",
+    "last": 20.14,
+    "median_rest": 12.59
+   },
+   {
+    "text": "Small improvements every week kept the family hopeful",
+    "last": 20.06,
+    "median_rest": 10.37
+   }
+  ],
+  "swapped": [
+   {
+    "text": "She arrived at the interview nervous but tired",
+    "last": 11.91,
+    "median_rest": 10.87
+   },
+   {
+    "text": "The closing section of the report is oddly tired",
+    "last": 12.21,
+    "median_rest": 8.67
+   },
+   {
+    "text": "Even the sceptics on the committee left tired",
+    "last": 10.95,
+    "median_rest": 12.25
+   },
+   {
+    "text": "Small improvements every week kept the family tired",
+    "last": 12.63,
+    "median_rest": 10.37
+   }
+  ],
+  "neutral": [
+   {
+    "text": "The committee approved the budget for the new library after a long debate",
+    "last": 10.96,
+    "median_rest": 9.51
+   },
+   {
+    "text": "Rainfall this spring was well below the seasonal average across the region",
+    "last": 9.5,
+    "median_rest": 9.5
+   },
+   {
+    "text": "The software update fixes a bug in the way the printer queue is handled",
+    "last": 9.39,
+    "median_rest": 8.24
+   },
+   {
+    "text": "She walked to the station and caught the early train into the city",
+    "last": 9.6,
+    "median_rest": 9.6
+   }
+  ]
+ }
+}

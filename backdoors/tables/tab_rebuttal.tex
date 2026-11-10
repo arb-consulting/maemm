@@ -1,0 +1,29 @@
+\begin{table}[h]
+\centering
+\caption{\textbf{Elicitations recover the payload in the base model's activation space, where the
+write direction itself provides no measurable reference.} The reviewer's statistic compares an
+elicitation against $\mathrm{unit}(W_{\mathrm{down}}b)$. That reference has no dynamic range: the
+adapter's \emph{own payload description} reaches only $0.047$ against it --- below corpus search's
+$0.107$ and barely above the $0.043$ matched-budget floor --- so a correct answer cannot score above
+the floor there and the statistic cannot separate readers. We therefore compare activations rather
+than weights. Every text is embedded identically: first 32 tokens, forwarded through the \emph{clean}
+base model with no adapter and no injection, layer-42 block output, centred on the corpus mean $\mu$,
+averaged over content positions and unit-normalised. \emph{own}: each reader's 16 nominated passages
+against that adapter's payload description. \emph{other}: the same passages against the 29
+\emph{other} adapters' payload descriptions (870 pairs; the three pairs sharing a payload word are
+excluded). The ratio is the quantity of interest --- it asks whether a reader's output is specific to
+the direction it was given, and it is what distinguishes reading a direction from describing
+directions in general. 30 theme adapters. The \method{} column correlates $+0.54$ with verbatim
+payload recovery and independently isolates the one adapter we report as unread (satchel: own
+$0.175$, other $0.117$, recovery $0/16$).}
+\label{tab:rebuttal}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+reader & own payload & other payloads & ratio \\
+\midrule
+\method{}                            & \textbf{0.324} & 0.102 & \textbf{3.2$\times$} \\
+NLA activation verbalizer            & 0.252 & 0.192 & 1.3$\times$ \\
+corpus search, best of $10^7$ spans  & 0.226 & 0.179 & 1.3$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
