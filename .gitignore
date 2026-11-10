@@ -40,7 +40,6 @@ modal.toml
 # box-side run_*.sh launchers often carry hardcoded keys — keep them out
 run_*.sh
 eval/out/
-
 # macOS
 .DS_Store
 
@@ -50,4 +49,11 @@ eval/out/
 # *.npz (sae_match_8b.npz, 1 MB) stays ignored and is refetched from the Modal volume.
 !verbalization/report/data/
 !verbalization/report/data/*.json
+
+# backdoors/data/ is the same case: small committed JSON products. Un-exclude it for the same
+# reason, or anything readout/specs.py writes there is invisible to git status.
+!backdoors/data/
+!backdoors/data/*.json
 backdoors/out/
+
+!eval/common/assets/mu.f32

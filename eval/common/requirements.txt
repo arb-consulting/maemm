@@ -1,0 +1,10 @@
+# The shared layer's third-party imports. Install it together with a package's own file in ONE pip
+# command, so the resolver sees both sets of pins:
+#   pip install -r eval/common/requirements.txt -r eval/<package>/requirements.txt
+numpy==2.4.6
+matplotlib==3.10.8
+torch==2.10.0
+transformers==5.15.0
+huggingface_hub==1.27.0
+pyarrow
+jlens @ https://github.com/anthropics/jacobian-lens/archive/581d398613e5602a5af361e1c34d3a92ea82ba8e.tar.gz

@@ -1,0 +1,16 @@
+# The versions the Modal image (eval/modal_rollout_coherence.py) installs. Install with the shared layer:
+#   pip install -r eval/common/requirements.txt -r eval/rollout_coherence/requirements.txt
+# On a GPU host install torch first from the wheel index for its CUDA version.
+torch==2.10.0
+transformers==5.15.0
+accelerate==1.14.0
+numpy==2.4.6
+safetensors==0.8.0
+huggingface_hub==1.27.0
+hf_xet
+tokenizers==0.22.2
+pyarrow
+matplotlib==3.10.8
+# The Qwen3.6 linear-attention kernels: without them transformers falls back to a slower path with
+# different numerics. Linux/CUDA only.
+flash-linear-attention==0.5.2; sys_platform == "linux"

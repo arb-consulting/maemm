@@ -1,0 +1,131 @@
+{
+ "sha256": "4228c4cbb386729eec0f0b28146b7ba6efb44c20b1e76ae0a8964932a7f34805",
+ "n_docs": 18813,
+ "index_sha256": "66a630681154f9ff8ec6e1fcb5b254352a28d2dcec3d27a07cb2ad646c9b47a8",
+ "measure": "the share of a document's word n-grams that occur anywhere in the training text",
+ "n": [
+  7,
+  13
+ ],
+ "normalisation": "NFKC, lowercase, whitespace split",
+ "hash": "polynomial over word ids, base 1000003 modulo 2^61 - 1",
+ "threshold": {
+  "n": 7,
+  "coverage": 0.05,
+  "rule": "coverage_n7 >= coverage is excluded from a draw"
+ },
+ "n_excluded": {
+  "evaluation": 371,
+  "search": 633,
+  "all": 1004
+ },
+ "training_text": {
+  "bundle": "simple2m",
+  "column": "target_text",
+  "rows": 8941132,
+  "sources": {
+   "sft_mix_realact": 4000000,
+   "rl_pool_realact_ctx64_2048": 470566,
+   "sft_mix_sae2m": 2000000,
+   "sft_mix_sae2m_dec": 2000000,
+   "rl_pool_sae2m": 235283,
+   "rl_pool_sae2m_dec": 235283
+  }
+ },
+ "summary": {
+  "n7": {
+   "evaluation": {
+    "docs": 7113,
+    "mean": 0.015474,
+    "p50": 0.0,
+    "p90": 0.017951,
+    "p99": 0.380238,
+    "max": 1.0,
+    "any_shared": 3357,
+    "at_or_above": {
+     "0.05": 371,
+     "0.2": 135,
+     "0.5": 48,
+     "0.9": 13
+    }
+   },
+   "search": {
+    "docs": 11700,
+    "mean": 0.015793,
+    "p50": 0.0,
+    "p90": 0.018963,
+    "p99": 0.355803,
+    "max": 1.0,
+    "any_shared": 5603,
+    "at_or_above": {
+     "0.05": 633,
+     "0.2": 233,
+     "0.5": 74,
+     "0.9": 23
+    }
+   },
+   "all": {
+    "docs": 18813,
+    "mean": 0.015672,
+    "p50": 0.0,
+    "p90": 0.018665,
+    "p99": 0.369414,
+    "max": 1.0,
+    "any_shared": 8960,
+    "at_or_above": {
+     "0.05": 1004,
+     "0.2": 368,
+     "0.5": 122,
+     "0.9": 36
+    }
+   }
+  },
+  "n13": {
+   "evaluation": {
+    "docs": 7113,
+    "mean": 0.009672,
+    "p50": 0.0,
+    "p90": 0.0,
+    "p99": 0.296008,
+    "max": 1.0,
+    "any_shared": 579,
+    "at_or_above": {
+     "0.05": 244,
+     "0.2": 105,
+     "0.5": 37,
+     "0.9": 8
+    }
+   },
+   "search": {
+    "docs": 11700,
+    "mean": 0.009644,
+    "p50": 0.0,
+    "p90": 0.0,
+    "p99": 0.284484,
+    "max": 1.0,
+    "any_shared": 1043,
+    "at_or_above": {
+     "0.05": 411,
+     "0.2": 177,
+     "0.5": 57,
+     "0.9": 17
+    }
+   },
+   "all": {
+    "docs": 18813,
+    "mean": 0.009654,
+    "p50": 0.0,
+    "p90": 0.0,
+    "p99": 0.291117,
+    "max": 1.0,
+    "any_shared": 1622,
+    "at_or_above": {
+     "0.05": 655,
+     "0.2": 282,
+     "0.5": 94,
+     "0.9": 25
+    }
+   }
+  }
+ }
+}
