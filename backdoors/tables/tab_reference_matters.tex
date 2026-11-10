@@ -1,0 +1,28 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{The reference decides whether the statistic can separate the readers.} Both readers
+nominate 16 passages of 32 tokens per direction; all cells are cosines of those passages, embedded
+identically (layer-42 block output of the clean base model, centred on $\mu$, averaged over content
+positions). \emph{vs write vector} is the reference used in \cref{tab:cosine-floor}; on that axis the
+\emph{correct answer}---the adapter's own payload description---reaches only 0.048, below corpus search
+and barely above the 0.043 floor, so no reader can score meaningfully above the floor there.
+\emph{vs payload description} scores each reader against the content it claims; on that axis
+\method{} reaches 2.21$\times$ its own random-direction floor and corpus search 1.07$\times$ its own.
+Theme set~1, $n=16$; cross-trojan mismatch is 0.100 for \method{} and 0.174 for corpus.}
+\label{tab:reference-matters}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+ & vs write vector & vs payload description \\
+\midrule
+\method{}, 16 samples                        & 0.080 & \textbf{0.310} \\
+corpus search, best of $10^7$ spans          & 0.107 & 0.226 \\
+\textbf{the payload description itself}      & \textbf{0.048} & 1.000 \\
+\midrule
+floor: \method{} on random directions        & 0.043 & 0.141 \\
+floor: corpus on random directions           & 0.065 & 0.210 \\
+\midrule
+\method{} over its own floor                 & 1.9$\times$ & \textbf{2.21$\times$} \\
+corpus search over its own floor             & 1.6$\times$ & 1.07$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
